@@ -15,13 +15,39 @@ bar on every page but Home, whose Start strip is the big one (`.home-page`);
 recording, Stop and pause are there on every page, and mid match Stop is the
 large capsule (`.sealed-live`). Mid match the tabs are locked by `syncSeal`
 as the sidebar's items were, and "Locked until the match ends" sits beside
-them. The avatar opens the account drawer (`#drawer`): the Riot ID line, the
-games left, Profile, Invite, Settings, Learn (League), Report a problem and
-the Discord, each locked by the seal like a tab. A page's view paints over
-the shell's document, so while the drawer is open main narrows the page by
-`DRAWER_W` (296, the drawer and its margin; `SHELL_WINDOW` 'drawer-open' and
-'drawer-close', `setDrawer`); a page chosen in it, Escape or the avatar again
-closes it. Where the text below says "the sidebar", read the bar and the
+them. The avatar opens the account menu (`#drawer`, a dropdown since 8.9.1,
+`role="menu"`, every row a `menuitem`): the Riot ID line, the games left,
+Profile, Invite, Settings, Learn (League), Report a problem and the Discord,
+each locked by the seal like a tab. It hangs under the avatar at the window's
+right and comes down in 160ms eased out (`menuIn`, a cut under reduced
+motion). **It floats over the page, which never resizes for it (8.9.1).** A
+page's view paints over the shell's document, so the shell cannot draw below
+the bar: the menu is a small see-through view of its own
+(`src/renderer/menu`, `menu-preload.js`), made hidden once the shell loads,
+laid on top of every page while open at the menu's rectangle plus room for
+its shadow, and hidden and emptied on close (`main-window.js openMenu`,
+`closeMenu`, `raiseMenu` keeps it above a page the motion raises). The shell
+stays its owner: `#drawer` is laid out there but never painted
+(`visibility: hidden`), its rows locked by the seal as before, and
+`shell.js syncMenu` sends its markup and rectangle (`SHELL_MENU`) on opening
+and on every change while open (a MutationObserver, so a seal locking a row
+reaches the view). The view draws them with `shell.css`, holds the keyboard
+and names a row chosen (`MENU_ACT`); main passes it to the shell
+(`PUSH_MENU_ACT`), which clicks its own row only if it is a menuitem that is
+neither hidden nor disabled. Until 8.9.1 main narrowed the page by
+`DRAWER_W` 296 for the full height while it was open, an empty strip and a
+reflow; that constant is gone. Opened by the keyboard (Enter, Space, the
+arrows on the avatar) it focuses its first row (ArrowUp, its last); opened
+by a press the menu itself holds the focus, no row ringed. Arrows, Home and
+End move, and choosing a row, Escape, Tab, the avatar again (its press
+remembers the menu was open, so the click after the view's blur does not
+reopen it), a press anywhere outside it, the view losing focus or the window
+losing focus closes it; Escape and Tab hand focus back to the avatar.
+`check:mainwindow` holds the page's bounds unchanged with it open and
+`main-drawer.png` pictures it. The game
+switch's "Coming soon" popup sits inside the bar, left of the capsule, for
+the same reason: hung below the bar it was cut to a sliver by the page.
+Where the text below says "the sidebar", read the bar and the
 drawer: the ids (`#nav`, `#rec`, `#nav-settings`, `#discord`, `#rail-games`,
 `#account`) are the same.
 
@@ -56,7 +82,13 @@ moments/     the Moments page (8.7): every death and highlight of the saved
              reviews, newest match first, with the clips kept and the
              compilation by repeated mistake (below, "The Moments page")
 review/      the post-match review, every game, branched on review.kind
-stats/       rank, win rate, tracker matches, graded matches
+stats/       rank, win rate, your numbers (the profile's ACS, K/D, damage,
+             per round numbers and shot split), top agents, maps (counted
+             from the match list), acts (Riot's record), tracker matches,
+             graded matches. The three middle sections are read by
+             shared/stats-profile.js from what the dashboard already
+             fetched (`profile` in getStatsDashboard), no request of their
+             own, each hidden with nothing in it (test:statsprofile)
 chat/        Ask Coach, on the match its chip names: the newest, one picked or
              asked about from its review, or none (below, "Ask Coach")
 settings/    all preferences, version string at the bottom, and under it Riot's
@@ -68,6 +100,19 @@ The pages and their order are `src/shared/shell-nav.js`. A page is loaded with
 card chrome, the close button and the drag region it had as a window and
 centres its column. The layout sizes, a 232px sidebar and a 40px top strip,
 are in both `main-window.js` and `shell.css`: change them together.
+
+**The Patterns grade chart has one encoding, height** (8.9.1, the owner's
+ask: green, amber and white bars with no key "seem like random colors").
+`matches.js paintTrend` draws every bar in one neutral tone, the newest in
+the ink and named Latest under it, the first bar of each day its short date,
+the value over each bar in Mono, the letter floors (C 60, B 70, A 80, S 90,
+`grade.js letter()`) as labelled hairlines, the average as a dashed line,
+one plain line above saying what it is, and a key under it naming every mark
+that is on it (latest, average, provisional, a record, a run). Never colour a
+bar by its letter again; the letter is on hover. The four categories under it
+say they are averages over the window (`.p-cats-cap`) and each says in an
+arrow AND a word whether the last match was above or below (`.p-cat-vs`).
+`test:surfaces`, "the match library", holds all of it.
 
 **The Moments page (8.7)** took the Breakdown tab's place in the sidebar, the
 owner's call ("the breakdown tab is kind of useless... maybe a tab with the
@@ -380,7 +425,7 @@ four Valorant reviews built from the real Abyss match (a Jett, 13 : 11, a B of
 71 as the newest, three older graded 58, 61 and 64 so the grade rises and the
 newest is a best), the older three looked at in rounds 2 and 6 with a clip kept
 beside the second and gone from the third, the coach's two lines (the read and
-the fix) stood in for, a seeded Free account with its two games used, and the
+the fix) stood in for, a seeded Free account with its free games used, and the
 stand-in reader. `seed(ud, { now })` writes the profile; `installStandIns()`
 puts the reader and the account view in place of index.js's. The window is
 pictured through `scripts/fixtures/window-shot.js` (the shell and the page
@@ -467,6 +512,23 @@ label, with no frame around any:
   and taller than the fix line it was a second hero): its bars stand on one
   ruled baseline whatever stands beside them, each its grade of the whole
   track, the number positioned off the bar rather than stacked over it.
+
+- **The player's own Riot ID, the last game's K/D and the clip played on
+  Home** (9.0, the player's ask). Beside the title, the Riot ID in Settings
+  as a capsule (the name, the tag quieter), read from the state main pushes
+  and never any other player's; without a whole Name#TAG a quiet "Connect
+  your Riot ID" opens Settings (`paintPlayer`). In the last match card, at
+  the right of the grade, the K/D of that match: the ratio to two places and
+  kills / deaths, from the newest whole review's own `scoreline`
+  (`home-model.js kdOf`, whole counts only, the kills alone with no death,
+  none while the review is being built). The Fix card's play mark plays the
+  kept clip right there, in the review's own player (`review/clip-player.js`,
+  loaded with `clip-time.js` and its CSS; the page's CSP adds `media-src
+  'self' occlara-clip:`), from the URL, death and frames `REVIEW_GET`
+  presents (`home-preload.js fixClipOf`, the URL held to
+  `occlara-clip://review/<id>/<name>`); without them it opens the review at
+  that round as before. A repaint keeps the same clip playing, and any other
+  paint releases it (`stopClip`). `test:homemodel` holds the K/D.
 
 `test:surfaces` holds Home's and Stats' answers to the same history equal,
 and `check:mainwindow` measures the trend on the real layout.
@@ -619,3 +681,63 @@ the seal like every page. The player's words, a kind, up to three pictures
 and Send; main checks and downscales the pictures and sends the report.
 Everything about it: feedback.md. `check:mainwindow` writes
 `main-feedback.png`, `main-feedback-filled.png` and `main-feedback-foot.png`.
+
+### The games toast (8.9.1)
+
+When the account's games go up for a reason the player did not just spend or
+reset, a card slides in at the top right under the bar, Discord's way: "You
+got 2 games" and one line with the reason, "Someone sent you a gift, 25
+games a month." (a gift, `source` 'gift' on `/account/me`), "Thanks for your
+purchase, 25 games a month." (a plan starting or moving up), "Your invite
+paid off." (`bonus_earned` up), "Thanks for your purchase." (`bonus_pool` up
+beyond the referral's share, games bought), "Free is now 4 games."
+(`free_total` up). A gift names its giver only by the first name they signed
+it with (GET /api/gifts, the running gift's `from_name`), never a Riot ID
+(a name with `#`, an email or a link is dropped), else "Someone".
+
+- **Detection** is `src/main/services/games-toast.js`, pure: every fresh
+  account state (account-service `onChange`, `index.js observeGames`) is
+  compared with the last one this PC kept for the SAME account
+  (`gamesSeen` in the store, the account named by a hash of its key or
+  email). It compares the allowance's parts, tier, source, cap_monthly,
+  free_total, bonus_pool and bonus_earned, never `left`, so a new month, a
+  game played, a refund, a gift or a plan ending raise nothing. Nothing on
+  the first state ever seen, nothing across a sign out and in as someone
+  else. What it raises waits in the store (`gamesToastPending`), so a
+  restart mid match keeps it. `normalizeState` keeps the server's `source`
+  for it (no server change).
+- **The 8.9.0 upgrade, once.** Free went 2 to 4 games by a server migration
+  on 2026-11-09 and a player updating from 8.9.0 has no state kept: on the
+  first state ever seen, a free account with `free_total` exactly 4 or 6,
+  signed in or holding a key before this launch, whose version before this
+  launch (`changelogSeenVersion`, read at load before the changelog writes
+  this one; onboarded with none counts as old) is below 8.9.1, is told "You
+  got 2 games, Free is now N games". Decided once (`gamesRaiseChecked`).
+- **The surface** is a see-through `WebContentsView` of its own, made the
+  account menu's way (`main-window.js toast`, `src/renderer/toast`,
+  `toast-preload.js`), 388 by 128 at the top right of the page area, over
+  every page and under the open menu; the page keeps its bounds. One toast
+  at a time from main's queue: the view says `TOAST_ACT { done }` when its
+  time runs out or its X is pressed, `{ open }` when the card is pressed,
+  which opens Profile through index.js. The card: the gift mark for a gift
+  or an invite, the plus for the rest, `--good` on `--s2`, tokens only. In:
+  280ms `--ease-spring`, a slide and a slight scale, the mark pops, the
+  number counts up. 6 s, its time a line along the foot that hover holds.
+  Reduced motion: it fades, nothing slides, scales or counts, the line is
+  not drawn.
+- **Never mid match** (screen-silence.md): index.js takes nothing off the
+  waiting list while a match is in progress or the window is sealed
+  (`flushGamesToasts`, flushed from `flushAccountWaits`, so from `syncSeal`
+  and a stop), and the view holds any it is handed while sealed, hidden or
+  minimised; one on screen as the seal comes on goes in the same tick and
+  waits at the front.
+- Tests: `test:gamestoast` (each reason, monthly reset, first sign in,
+  account switch, held, restart, the upgrade once), `test:shellnav` (the
+  view, its queue, the seal, hidden and minimised), `check:seal` (held mid
+  match through the real app, shown and drawn once it ends),
+  `check:mainwindow` (over Home, words and bounds; `OCCLARA_SHOTS=1` writes
+  `main-home-toast.png`).
+- Open: a gift the player redeemed in the app's own Profile is toasted too
+  (the Profile line already says it); `free_total` going 4 to 6 cannot tell
+  the raise from an invite redeemed as the friend, so both say "Free is now
+  6 games".

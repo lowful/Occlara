@@ -1491,6 +1491,10 @@ class Recorder extends EventEmitter {
     if (r.off && this.mode() === 'auto') {
       this.lastMode = 'off';
       this.prefs.set('recordingMode', 'off');
+      // Recording off turns the AI log on (8.9, settings.js rec-off-yes): the
+      // look at each death then has only its frames, and an install from
+      // before the lock may still hold it off.
+      this.prefs.set('aiLog', true);
       this.prefs.set('recordingAutoOff', { at: now, reason: 'busy', sessions: r.strikes.length });
       this.log(`[recorder] Auto is off: ${r.strikes.length} busy sessions in the last week`);
       this.emit('prefs');

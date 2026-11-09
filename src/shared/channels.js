@@ -142,6 +142,15 @@ const CHANNELS = {
   // buttons move the window.
   SHELL_NAV:       'shell:nav',          // (pageId) show that page
   SHELL_WINDOW:    'shell:window',       // ('minimize' | 'maximize' | 'close' | 'drawer-open' | 'drawer-close')
+  // THE ACCOUNT MENU (8.9.1): a view of its own over the page (main-window.js
+  // openMenu), so the page is never narrowed for it. The shell, the menu's
+  // owner, opens, updates and closes it; the view says what was chosen.
+  SHELL_MENU:      'shell:menu',         // shell -> main: { open: true, html, rect: { x, y, width, height }, focus? } | { open: false }
+  MENU_ACT:        'menu:act',           // menu view -> main: { choose: id } | { close: true, refocus }
+  // THE GAMES TOAST (8.9.1): a view of its own over the page at the top
+  // right (main-window.js toast), showing one "You got 2 games" at a time,
+  // never while sealed. The view says when one is done or was clicked.
+  TOAST_ACT:       'toast:act',          // toast view -> main: { done: id } | { open: id }
   // The live status as it stands (PUSH_LIVE's shape), for a shell loaded mid match.
   LIVE_GET:        'shell:liveGet',
   SHELL_GET:       'shell:get',          // () -> { page, shown, sealed, maximized }
@@ -214,6 +223,14 @@ const CHANNELS = {
   // when nothing is recorded. Only what the player's own HUD already shows:
   // never HP, positions, economy, the enemy, advice or anything of a review.
   PUSH_LIVE:         'push:live',
+  // The account menu (8.9.1): main to the menu view, what to draw
+  // ({ html, left, top, focus?, fresh? }, html '' when closed), and main to
+  // the shell, what the view did ({ choose: id } | { closed: true, refocus }).
+  PUSH_MENU:         'push:menu',
+  PUSH_MENU_ACT:     'push:menuAct',
+  // The games toast (8.9.1): main to the toast view, one toast to show
+  // ({ toast: { id, kind, pre, n, post, line } }) or { clear: true }.
+  PUSH_TOAST:        'push:toast',
 
   // ── the match recorder (8.3, src/main/services/recorder.js) ───────────────
   // Between main and the recorder's hidden page (src/renderer/recorder) and
@@ -259,6 +276,9 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.ACCOUNT_CHANGED,
   CHANNELS.PUSH_CHANGELOG,
   CHANNELS.PUSH_LIVE,
+  CHANNELS.PUSH_MENU,
+  CHANNELS.PUSH_MENU_ACT,
+  CHANNELS.PUSH_TOAST,
   CHANNELS.PUSH_RECORDER,
   CHANNELS.PUSH_FRAMES,
 ];

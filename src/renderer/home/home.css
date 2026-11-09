@@ -20,6 +20,20 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .h-titles { display: flex; flex-direction: column; gap: var(--space-1); }
 .h-game { font-size: 12px; font-weight: 500; color: var(--text-mute); }
 .h-head h1 { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); line-height: 1.1; }
+/* The player's own Riot ID beside the title (9.0): the name in the ink, the
+   tag quieter, on a quiet capsule; without one, a quiet link to Settings. */
+.h-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.h-player {
+  display: inline-flex; align-items: baseline; gap: 2px; min-width: 0; max-width: 100%;
+  height: 26px; padding: 0 12px; align-self: center;
+  border-radius: var(--r-pill); background: var(--s2); box-shadow: var(--rim-2);
+  font-size: 13px; line-height: 26px; white-space: nowrap; overflow: hidden;
+}
+.h-player[hidden], .h-player-connect[hidden] { display: none; }
+.hp-name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.hp-tag { flex: none; font-weight: 500; color: var(--text-mute); }
+.h-player-connect { height: auto; padding: 0 var(--space-1); font-size: 13px; color: var(--text-dim); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.h-player-connect:hover { color: var(--text); text-decoration-color: var(--text-dim); }
 /* The update line, at the right of the title: a quiet sentence and its
    link, no box and no motion of its own. */
 .h-news { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-1); margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
@@ -137,6 +151,13 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   font-variant-numeric: tabular-nums; color: var(--text);
 }
 .grade-side { display: flex; align-items: center; gap: var(--space-2); padding-bottom: 10px; }
+/* The last game's K/D (9.0): the ratio large, the kills over the deaths
+   under it, at the right of the grade, on the grade's baseline. */
+.last-kd { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding-bottom: 8px; }
+.kd-label { font-size: 12px; font-weight: 500; color: var(--text-dim); }
+.kd-nums { display: flex; align-items: baseline; gap: var(--space-2); }
+.kd-ratio { font-size: 30px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); }
+.kd-split { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .last-under { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-2); }
 .last-foot { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); }
 /* Still being checked (8.4.1): the checking card where the grade would be. */
@@ -165,6 +186,12 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .play-mark:hover { transform: scale(1.04); }
 .play-mark:active { transform: scale(0.97); }
 .play-mark svg { margin-left: 3px; }
+/* The clip playing on Home (9.0): the review's own player in the poster's
+   place, the picture at its own 16:9 with its timeline and controls under
+   it, the round and the place as one quiet line above. */
+.fix-media.playing { height: auto; padding: var(--space-4) var(--space-5) 0; display: flex; flex-direction: column; gap: var(--space-2); background: transparent; }
+.fix-clip-line { font-size: 12px; font-weight: 500; color: var(--text-dim); }
+.fix-media.playing .v-clip { width: 100%; }
 .fix-body { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-5) var(--space-6); flex: 1 1 auto; }
 .focus-text {
   font-size: 23px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.22;

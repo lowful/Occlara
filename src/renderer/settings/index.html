@@ -86,6 +86,18 @@
           <summary>What On and Off do</summary>
           <p class="hint" id="rec-hint"></p>
         </details>
+        <!-- TURNING RECORDING OFF ASKS FIRST (8.9, the owner's ask): what the
+             recording gives the review, and that the AI log is turned on with
+             it, since the look at each death then has only its frames. The
+             words are per game (settings.js REC_OFF_ASK). -->
+        <div class="rec-confirm" id="rec-confirm" role="alertdialog" aria-labelledby="rec-confirm-title" aria-describedby="rec-confirm-body" hidden>
+          <p class="rec-confirm-title" id="rec-confirm-title">Turn off recording?</p>
+          <p class="hint rec-confirm-body" id="rec-confirm-body"></p>
+          <div class="rec-confirm-actions">
+            <button id="rec-off-keep" class="btn btn-primary sm" type="button">Keep recording</button>
+            <button id="rec-off-yes" class="btn btn-ghost sm rec-off-yes" type="button">Turn recording off</button>
+          </div>
+        </div>
         <p class="rec-note" id="rec-note" aria-live="polite" hidden></p>
         <button id="rec-retry" class="btn btn-ghost sm rec-retry" type="button" hidden>Try again</button>
         <div class="rec-clips">
@@ -350,9 +362,14 @@
             <button id="open-ailog" class="btn btn-ghost sm trk-btn ailog-open">Open the AI log</button>
           </div>
         </div>
+        <!-- Locked on with recording on and off (8.9): the look at each
+             death finds its moments in these frames (index.js forensicsFor),
+             the clips are cut where they say, and with no video they are all
+             the look has. -->
+        <p class="hint ailog-lock" id="ailog-lock" hidden></p>
         <details class="more">
           <summary>Why the review needs it</summary>
-          <p class="hint">The review goes back to these to look at the moment before a death, so with this off the review has no frames to show. Sealed while a match is in progress.</p>
+          <p class="hint">The review goes back to these to look at the moment before a death, so it is always on: without them the review would have no frames to show. Sealed while a match is in progress.</p>
         </details>
       </section>
 

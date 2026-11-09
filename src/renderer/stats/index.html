@@ -50,10 +50,41 @@
         </div>
       </section>
 
+      <!-- The profile's own averages (stats.js renderNumbers): the combat score
+           the lead, K/D and damage beside it, the per round numbers as a
+           ruled list and where the shots land as one bar. Hidden with none. -->
+      <section id="sec-numbers" hidden>
+        <div class="sec-head">
+          <h3>Your numbers</h3>
+          <span id="numbers-span" class="updated"></span>
+        </div>
+        <div id="numbers-lead" class="nums-lead"></div>
+        <div id="numbers-list" class="nums-list"></div>
+        <div id="numbers-shots" class="shots" hidden></div>
+      </section>
+
       <section id="sec-agents">
         <h3 id="agents-title">Top agents</h3>
         <div id="agent-tiles" class="agent-tiles"></div>
         <p id="agent-empty" class="empty" hidden>Play a few matches to see your most played agents here.</p>
+      </section>
+
+      <!-- Counted from the match list below (stats.js renderMaps), and each
+           act from Riot's record (renderActs). Each hidden with none. -->
+      <section id="sec-maps" hidden>
+        <div class="sec-head">
+          <h3>Maps</h3>
+          <span id="maps-span" class="updated"></span>
+        </div>
+        <div id="maps-table" class="ledger" role="table" aria-label="Your results by map"></div>
+      </section>
+
+      <section id="sec-acts" hidden>
+        <div class="sec-head">
+          <h3>Acts</h3>
+          <span class="updated">Riot's record, newest first</span>
+        </div>
+        <div id="acts-table" class="ledger" role="table" aria-label="Your results by act"></div>
       </section>
 
       <section id="sec-matches">
@@ -86,6 +117,8 @@
   <script src="../shared/grade-view.js"></script>
   <!-- The Competitive / Unrated capsule's sliding thumb. -->
   <script src="../shared/seg.js"></script>
+  <!-- Your numbers, Maps and Acts, read safely from what is already fetched. -->
+  <script src="../shared/stats-profile.js"></script>
   <script src="stats.js"></script>
 </body>
 </html>

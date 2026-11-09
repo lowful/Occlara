@@ -34,7 +34,13 @@ async function pair(mainWindow, win) {
   const v = s && mainWindow.pageViews().get(s);
   const pageImg = v ? await capture(v.webContents) : null;
   if (!shellImg || (v && !pageImg)) return null;
-  return { shellImg, pageImg };
+  // The account menu (8.9.1), a view of its own over the page while open.
+  const m = typeof mainWindow.menuState === 'function' ? mainWindow.menuState() : null;
+  const menuImg = m && m.open && m.view ? await capture(m.view.webContents) : null;
+  // The games toast (8.9.1), a view of its own at the top right while one is up.
+  const t = typeof mainWindow.toastState === 'function' ? mainWindow.toastState() : null;
+  const toastImg = t && t.shown && t.view ? await capture(t.view.webContents) : null;
+  return { shellImg, pageImg, menuImg, menuAt: menuImg ? m.bounds : null, toastImg, toastAt: toastImg ? t.bounds : null };
 }
 
 const sameImage = (a, b) => (!a && !b) || (!!a && !!b && a.toBitmap().equals(b.toBitmap()));
@@ -60,7 +66,7 @@ async function composite(mainWindow, win, opts) {
     }
   }
   if (!shot) return null;
-  const { shellImg, pageImg } = shot;
+  const { shellImg, pageImg, menuImg, menuAt, toastImg, toastAt } = shot;
   const scale = shellImg.getSize().width / win.getContentSize()[0];
   const comp = new BrowserWindow({ show: false, width: 200, height: 200 });
   try {
@@ -72,6 +78,10 @@ async function composite(mainWindow, win, opts) {
       const g = c.getContext('2d'); g.drawImage(a, 0, 0);
       ${pageImg ? `const b = await load(${JSON.stringify(pageImg.toDataURL())});
       g.drawImage(b, ${Math.round(mainWindow.SIDEBAR_W * scale)}, ${Math.round(mainWindow.TOP_H * scale)});` : ''}
+      ${toastImg ? `const ti = await load(${JSON.stringify(toastImg.toDataURL())});
+      g.drawImage(ti, ${Math.round(toastAt.x * scale)}, ${Math.round(toastAt.y * scale)});` : ''}
+      ${menuImg ? `const mi = await load(${JSON.stringify(menuImg.toDataURL())});
+      g.drawImage(mi, ${Math.round(menuAt.x * scale)}, ${Math.round(menuAt.y * scale)});` : ''}
       // The ink: the share of pixels brighter than the ground, read off a small copy.
       const s = document.createElement('canvas'); s.width = 256; s.height = Math.max(1, Math.round(256 * c.height / c.width));
       const sg = s.getContext('2d'); sg.drawImage(c, 0, 0, s.width, s.height);

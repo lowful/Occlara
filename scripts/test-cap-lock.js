@@ -5,7 +5,7 @@
  * route that costs a model, before the model is asked.
  *
  *   SHADOW. With ENFORCE_CAPS unset nothing is ever refused: a Free account
- *   at 2 of 2, a Pro at 25 of 25, one whose bonus games are used and a legacy
+ *   at 4 of 4, a Pro at 25 of 25, one whose bonus games are used and a legacy
  *   licence key all read, are reviewed and claim, past the cap as 'shadow'.
  *   ENFORCED. With ENFORCE_CAPS=1 the same accounts are told capped by
  *   /account/me (what Start trusts), and the read, the agent look, the look at
@@ -145,7 +145,7 @@ async function everyModelRoute(H) {
 }
 
 const ACCOUNTS = [
-  ['a Free account at 2 of 2', (id) => account(id, { used: FREE_GAMES })],
+  ['a Free account at 4 of 4', (id) => account(id, { used: FREE_GAMES })],
   ['a Pro account at 25 of 25', (id) => account(id, { tier: 'pro', used: 25 })],
   ['a Free account whose bonus games are used too', (id) => account(id, { used: FREE_GAMES, bonusUsed: 3, bonusPool: 0 })],
 ];
@@ -284,7 +284,7 @@ const ACCOUNTS = [
     const H = await account(id, { used: FREE_GAMES });
     ai.reply = IN_MATCH;
     const before = await read(H);
-    ok(before.status === 402, 'a Free account at 2 of 2 is refused');
+    ok(before.status === 402, 'a Free account at 4 of 4 is refused');
     entOf(id).bonus_pool = 5;            // the webhook's grant of five bought games
     clock += 31 * 1000;                  // past the gate's 30 second memory of the count
     callers.shared.forgetEntitlement(id);
@@ -349,7 +349,7 @@ const ACCOUNTS = [
       const calls = ai.calls;
       const a = await chat(H, '8.7.3');
       ok(a.status === 200 && a.body.reply === ANSWER && ai.calls === calls + 1,
-        `shadow: a Free account at 2 of 2 is answered by the model as before (${a.status})`);
+        `shadow: a Free account at 4 of 4 is answered by the model as before (${a.status})`);
     }
     // An outage: account_state cannot be read, so the question is answered as today.
     enforce(true);

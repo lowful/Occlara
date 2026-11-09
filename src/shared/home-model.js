@@ -13,8 +13,8 @@
  * rules patterns.js keeps.
  *
  * Pure: home.js hands it the index rows, the patterns and the newest review.
- * The library's header counts its record here too (winLoss), from the same
- * index rows.
+ * winLoss counts a record from the same index rows; since 8.9.1 the Matches
+ * header no longer shows it (the player's ask), so only its test reads it.
  *
  * And the rank (8.2.1), Valorant's alone: the rank card under the next
  * match's focus and the RR beside each rated recent match, read from the rank
@@ -110,6 +110,11 @@ function homeModel({ rows, patterns, review, previous }) {
     categories: whole && whole.grade && Array.isArray(whole.grade.categories)
       ? whole.grade.categories.map((c) => ({ key: c.key || null, label: c.label, score: typeof c.score === 'number' ? c.score : null }))
       : [],
+    // The player's own kills and deaths in it (9.0, the player's ask), from
+    // the review's scoreline, which only Riot's record (or League's own end
+    // of game numbers) fills: none while the review is still being built,
+    // since its numbers are not whole yet.
+    kd: workOfRow(newest) ? null : kdOf(whole && whole.scoreline),
   } : null;
 
   // Out of the RECORDED matches the patterns counted it in: a match graded
@@ -157,6 +162,24 @@ function homeModel({ rows, patterns, review, previous }) {
     // read whole, as main counted them, and [] where it counted none.
     recent: list.slice(0, RECENT).map((r) => ({ ...rowOf(r), marks: marksOf(p.progress, r.id) })),
   };
+}
+
+/**
+ * THE LAST MATCH'S K/D (9.0): the kills and deaths of the review's own
+ * scoreline (valorant-review.js build, lol-review.js), and the ratio as Riot
+ * writes it, kills over deaths to two places, the kills alone with no death.
+ * Null unless both are whole numbers of zero or more: never a guess, and no
+ * K/D at all is shown for a review with no scoreline.
+ *
+ * @returns {{ kills: number, deaths: number, ratio: string } | null}
+ */
+function kdOf(scoreline) {
+  const s = scoreline && typeof scoreline === 'object' ? scoreline : null;
+  if (!s) return null;
+  const whole = (n) => typeof n === 'number' && Number.isInteger(n) && n >= 0;
+  if (!whole(s.kills) || !whole(s.deaths)) return null;
+  const ratio = s.deaths > 0 ? s.kills / s.deaths : s.kills;
+  return { kills: s.kills, deaths: s.deaths, ratio: ratio.toFixed(2) };
 }
 
 /** One row's marks as main counted them: [{ kind, text }], never one without its text. */
@@ -385,4 +408,4 @@ function rrWaitingFor(row, rr, now) {
   return typeof end === 'number' && Number.isFinite(end) && now - end <= RR_WAIT_MS;
 }
 
-module.exports = { homeModel, winLoss, rankModel, rrForRows, pointForMatch, rrWaiting, rrWaitingFor, TREND, RECENT, RR_WINDOW_MS, RR_EXACT_MS, RR_WAIT_MS };
+module.exports = { homeModel, kdOf, winLoss, rankModel, rrForRows, pointForMatch, rrWaiting, rrWaitingFor, TREND, RECENT, RR_WINDOW_MS, RR_EXACT_MS, RR_WAIT_MS };

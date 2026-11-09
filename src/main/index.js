@@ -443,7 +443,7 @@ function pushNotice(text, kind) {
 
 /*
  * THE ACCOUNT'S NOTICES AND PUSHES, NEVER MID MATCH (8.7). A cap's notice
- * ("You have used your 2 free games ...") is said only while nothing is being
+ * ("You have used your 4 free games ...") is said only while nothing is being
  * recorded and the window is not sealed, live or held: one that comes up mid
  * session waits, and is said as the seal lifts or the recording stops
  * (flushAccountWaits, from syncSeal and controller.stop). It is written when
@@ -467,6 +467,8 @@ function capNoticeSoon() {
   flushAccountWaits();
 }
 function flushAccountWaits() {
+  // The games toast's waits (8.9.1): pushed once no match is on and no seal holds.
+  if (gamesWatch.pending().length) flushGamesToasts();
   if (accountPushWaiting && !matchInProgress() && !windowSealed()) {
     accountPushWaiting = false;
     registry.broadcast(C.ACCOUNT_CHANGED, account.view());
@@ -492,11 +494,59 @@ function flushAccountWaits() {
     setImmediate(() => { if (sessionEndedWhileRecording && !state.isCoaching && !windowSealed()) endSession(); });
   }
 }
+/*
+ * GAMES RECEIVED (8.9.1, services/games-toast.js, ui.md "The games toast").
+ * Every fresh account state is compared with the last one this PC kept for
+ * the same account: games that came by a gift, an invite, a purchase, a plan
+ * starting or the free allowance raised become a toast at the top right.
+ * Held while a match is in progress or the window is sealed, exactly as the
+ * account's push is (flushGamesToasts from flushAccountWaits), and the main
+ * window holds them again while sealed, hidden or minimised.
+ *
+ * The version this PC ran before is read here, at load, before the
+ * changelog's start writes this one: the one time 8.9.0 upgrade rule needs it.
+ */
+const gamesToast = require('./services/games-toast');
+const GAMES_PRIOR_VERSION = String(store.get('changelogSeenVersion') || '')
+  || (store.get('onboardingCompleted') ? '0.0.0' : '');
+// Signed in or holding a key before this launch: an account made today on an
+// old install is never told its 4 games went up.
+let gamesHadAccount = false;
+try { gamesHadAccount = !!account.hasAuth(); } catch { gamesHadAccount = false; }
+const gamesWatch = gamesToast.createGamesWatch({ store, priorVersion: GAMES_PRIOR_VERSION, hadAccount: gamesHadAccount });
+let giftNameAsk = null;
+function flushGamesToasts() {
+  if (matchInProgress() || windowSealed()) return;
+  // A gift's giver is asked for first (their own chosen name, never a Riot
+  // ID), a few seconds at most; without it the toast says "Someone".
+  if (giftNameAsk) return;
+  for (const t of gamesWatch.take(false)) mainWindow.toast(t);
+}
+function observeGames(st) {
+  let raised = [];
+  try { raised = gamesWatch.observe(st); } catch (e) { console.warn('[games] observe:', e.message); }
+  if (!raised.length) return;
+  console.log('[games] received:', raised.map((e) => `${e.kind} ${e.n}`).join(', '));
+  if (raised.some((e) => e.kind === 'gift') && account.signedIn() && !giftNameAsk) {
+    const timeout = new Promise((r) => setTimeout(() => r(null), 4000));
+    giftNameAsk = Promise.race([account.gifts().catch(() => null), timeout]).then((list) => {
+      const got = list && Array.isArray(list.received) ? list.received.find((g) => g && g.state === 'running') : null;
+      if (got && got.from_name) gamesWatch.nameGift(got.from_name);
+    }).catch(() => {}).finally(() => { giftNameAsk = null; flushGamesToasts(); });
+  }
+  flushGamesToasts();
+}
+mainWindow.onToastClick(() => {
+  if (matchInProgress() || windowSealed()) return;
+  openPage('profile');
+});
+
 account.onChange(() => {
   accountPushWaiting = true;
   // Games again (an upgrade, a new month): the cap's line is no longer true.
   const st = account.cached();
   if (st && !usage.capState(st) && state.notice && state.notice.kind === 'cap') pushNotice(null);
+  if (st) observeGames(st);
   flushAccountWaits();
 });
 
@@ -691,7 +741,8 @@ function syncSeal() {
   mainWindow.setSealed(live || sealHeld, { held: !live && sealHeld });
   placeMark(live || sealHeld);
   // The account's notice and view, held while sealed, go once it lifts.
-  if (capNoticeWaiting || accountPushWaiting || sessionEndedWhileRecording || (changelogWaiting && !changelogPushed)) flushAccountWaits();
+  if (capNoticeWaiting || accountPushWaiting || sessionEndedWhileRecording || (changelogWaiting && !changelogPushed)
+    || gamesWatch.pending().length) flushAccountWaits();
 }
 
 /**
@@ -2493,7 +2544,8 @@ const controller = {
     if (action === 'minimize') mainWindow.minimize();
     else if (action === 'maximize') mainWindow.toggleMaximize();
     else if (action === 'close') mainWindow.close();
-    // The account drawer (Progress v3): the page makes room while it is open.
+    // The account menu (8.9.1) floats over the page in a view of its own
+    // (main-window.js openMenu, SHELL_MENU); 'drawer-close' still shuts it.
     else if (action === 'drawer-open') mainWindow.setDrawer(true);
     else if (action === 'drawer-close') mainWindow.setDrawer(false);
   },
@@ -2912,6 +2964,16 @@ const controller = {
       // '' from an older server's profile, which has neither.
       rankLine: riotRank.rankLine(stats),
       accolades: riotRank.accoladeTotals(stats && stats.accolades),
+      // THE PROFILE'S OWN NUMBERS (Stats' "Your numbers" and "Acts"): the
+      // player's averages over the stored matches the profile already reads,
+      // and each act's wins from the same MMR answer. Picked, never the whole
+      // profile, and checked again in the page (shared/stats-profile.js).
+      profile: stats ? {
+        matches: stats.matches, kd: stats.kd, acs: stats.acs, adr: stats.adr,
+        kpr: stats.kpr, dpr: stats.dpr, apr: stats.apr,
+        headshotPct: stats.headshotPct, bodyshotPct: stats.bodyshotPct,
+        acts: stats.rankDetail && Array.isArray(stats.rankDetail.acts) ? stats.rankDetail.acts : [],
+      } : null,
       topAgents: (stats && stats.topAgents) || [],
       // Graded matches from the library, newest first, with what the grade
       // was built on. Opening one opens its review.
@@ -3717,7 +3779,11 @@ function aiLogLiveId() { return aiLogDir ? path.basename(aiLogDir) : null; }
 
 /** Start a fresh log folder for a coaching session. */
 function startAiLog() {
-  if (store.get('aiLog') === false) { aiLogDir = null; return; }
+  // Always on (8.9, the owner's rule): Settings locks the log on with
+  // recording on and with it off, since the look at each death is found
+  // through these frames either way (forensicsFor: no log, no look), and with
+  // no video they are all it has. A stored aiLog false, from before the lock,
+  // is not honoured.
   try {
     const root = aiLogRoot();
     if (!fs.existsSync(root)) fs.mkdirSync(root, { recursive: true });

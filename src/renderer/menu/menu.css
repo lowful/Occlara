@@ -1,0 +1,8 @@
+/* The account menu's own view (8.9.1): see-through but for the menu, which
+   is the shell's .drawer (shell.css) placed where main says, at the size the
+   shell laid it out. Tokens only. */
+html, body { width: 100%; height: 100%; margin: 0; background: transparent; overflow: hidden; }
+#menu.drawer { position: absolute; right: auto; margin: 0; max-height: none; box-sizing: border-box; }
+/* The menu itself holds the focus when a press opened it (menu.js draw): it
+   is never ringed, only a row the keyboard reached is (shell.css). */
+#menu.drawer:focus, #menu.drawer:focus-visible { outline: none; }

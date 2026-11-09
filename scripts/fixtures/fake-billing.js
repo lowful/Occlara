@@ -698,7 +698,7 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
    * account that played a free game first, or on an account a refund ended
    * that was made before this one played its first and met on an email, a
    * machine or a device (never a puuid alone). Met on the machine key alone,
-   * the account plays one free game, and its second only once its Riot
+   * the account plays one free game, and the rest only once its Riot
    * account is told apart from the other's (free_allowance_apart).
    */
   function sharedAllowance(user) {

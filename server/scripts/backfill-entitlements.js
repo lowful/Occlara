@@ -10,7 +10,7 @@
  *   weekly, monthly  Pro, 25 games a month, at their price until they cancel
  *   yearly           Max, 70 a month until renewal, then renews as Pro yearly
  *   lifetime         Max, 70 a month, for life
- *   none live        Free, FREE_GAMES (2) games; none at all after a refund or a dispute
+ *   none live        Free, FREE_GAMES (4) games; none at all after a refund or a dispute
  *
  * A licence is live when it is active, or payment_failed in its grace, and its
  * expiry has not passed. The best live one decides (lifetime, then yearly, then

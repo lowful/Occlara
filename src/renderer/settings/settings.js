@@ -67,7 +67,37 @@ function wireBoolSeg(id, key) {
   return seg;
 }
 const advancedSeg = wireBoolSeg('advanced', 'advancedTips');
-const aiLogSeg    = wireBoolSeg('ailog', 'aiLog');
+/*
+ * THE AI LOG, LOCKED ON BOTH WAYS (8.9, the owner's rule: "if the recording
+ * setting is on, lock the captures, vice versa"). A Valorant review finds
+ * each death it looks at in the AI log's frames (index.js forensicsFor: no
+ * log, no look), so the log is always shown on, cannot be pressed, and says
+ * why, with a line for each state: with recording on the clips are cut from
+ * the recording where the frames say; with it off the frames are the only
+ * thing the review can look at. Main writes the log whatever is stored
+ * (index.js startAiLog), so the lock is what happens, not only what is drawn.
+ */
+const aiLogSeg    = document.getElementById('ailog');
+const aiLogLock   = document.getElementById('ailog-lock');
+let aiLogRecOn = true;       // which line the lock says: recording on or off
+const AILOG_LOCK = {
+  valorant: 'Locked on while Record match video is on: the review finds each death in these frames and cuts its clips from the recording where they say, so with this off there would be no look at your deaths and no clips.',
+  lol: "Locked on while Record match video is on. In League of Legends this does nothing: its review is built from the game's own record.",
+};
+const AILOG_LOCK_OFF = {
+  valorant: 'Locked on while Record match video is off: with no video, these frames are the only thing the review can look at your deaths through.',
+  lol: "Locked on while Record match video is off. In League of Legends this does nothing: its review is built from the game's own record.",
+};
+function paintAiLog() {
+  markSeg(aiLogSeg, 'on');
+  for (const btn of aiLogSeg.querySelectorAll('button')) btn.disabled = true;
+  aiLogSeg.classList.add('locked');
+  aiLogSeg.setAttribute('aria-disabled', 'true');
+  const lines = aiLogRecOn ? AILOG_LOCK : AILOG_LOCK_OFF;
+  const text = lines[recGame] || lines.valorant;
+  if (aiLogLock.textContent !== text) aiLogLock.textContent = text;
+  aiLogLock.hidden = false;
+}
 const soundsSeg   = wireBoolSeg('sounds', 'sounds');
 // Match status while recording (Progress v3): one switch each, on by default.
 const LIVE_SEGS = [['livemap', 'liveMap'], ['liveagent', 'liveAgent'], ['livescore', 'liveScore'], ['liveround', 'liveRound']]
@@ -97,11 +127,55 @@ const recResSeg = document.getElementById('recordingres');
 const recHint = document.getElementById('rec-hint');
 const recNote = document.getElementById('rec-note');
 const recRetry = document.getElementById('rec-retry');
-wireSeg(recSeg, 'recordingMode');
 wireSeg(recResSeg, 'recordingRes');
 // What goes on without the recording: the coach's read of the screen, or, in
 // League, whose screen is never read, the review built from the game's record.
 let recGame = 'valorant';
+/*
+ * OFF ASKS FIRST (8.9, the owner's ask). On saves at once, and turns the AI
+ * log on with it, since the lock says it is on. Off, from On, opens a
+ * question under the row: what the recording gives the review, and that the
+ * AI log is turned on with it. Turn recording off saves both, and the log stays
+ * locked on with its recording-off line; Keep recording leaves everything as it was. Already off (turned off by
+ * itself, say), Off asks nothing.
+ */
+const recConfirm = document.getElementById('rec-confirm');
+const recConfirmBody = document.getElementById('rec-confirm-body');
+const recOffYes = document.getElementById('rec-off-yes');
+const recOffKeep = document.getElementById('rec-off-keep');
+const REC_OFF_ASK = {
+  valorant: "Recording is what makes the coaching good. With it on, the review looks at each death through stills from the match's video and keeps a clip of each moment. With it off nothing is recorded: the review has no clips, and its look at each death has only the frames the AI log keeps from the reads, taken a second or more apart. So turning recording off turns the AI log on.",
+  lol: "Recording is what lets the review show your deaths: with it off nothing is recorded and the review keeps no clips. Your review is still built from the game's own record. Turning recording off turns the AI log on.",
+};
+function recordingOn() {
+  const b = recSeg.querySelector('button.active');
+  return !b || b.dataset.val !== 'off';
+}
+function closeRecConfirm() { recConfirm.hidden = true; }
+recSeg.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  if (btn.dataset.val === 'off') {
+    if (!recordingOn()) return;
+    recConfirmBody.textContent = REC_OFF_ASK[recGame] || REC_OFF_ASK.valorant;
+    recConfirm.hidden = false;
+    recOffKeep.focus();
+    return;
+  }
+  closeRecConfirm();
+  markSeg(recSeg, 'auto');
+  aiLogRecOn = true;
+  paintAiLog();
+  await window.occlara.setConfig({ recordingMode: 'auto', aiLog: true }).catch(() => {});
+});
+recOffKeep.addEventListener('click', () => { closeRecConfirm(); });
+recOffYes.addEventListener('click', async () => {
+  closeRecConfirm();
+  markSeg(recSeg, 'off');
+  aiLogRecOn = false;
+  paintAiLog();
+  await window.occlara.setConfig({ recordingMode: 'off', aiLog: true }).catch(() => {});
+});
 const still = () => (recGame === 'lol' ? "Your review is still built from the game's own record." : 'The coach still reads your screen.');
 /*
  * WHAT ON AND OFF DO, TRUE IN EACH GAME, which is why it is written per game.
@@ -172,6 +246,9 @@ function paintRecording(r) {
   if (!r) return;
   const off = r.mode === 'off';
   markSeg(recSeg, off ? 'off' : 'auto');
+  if (off) closeRecConfirm();
+  aiLogRecOn = !off;
+  paintAiLog();
   markSeg(recResSeg, resOf(r.res));
   paintRecHint();
   const line = recordingLine(r);
@@ -196,7 +273,9 @@ recRetry.addEventListener('click', async () => {
   markSeg(recSeg, 'auto');
   recNote.hidden = true;
   recRetry.hidden = true;
-  await window.occlara.setConfig({ recordingMode: 'auto' }).catch(() => {});
+  aiLogRecOn = true;
+  paintAiLog();
+  await window.occlara.setConfig({ recordingMode: 'auto', aiLog: true }).catch(() => {});
 });
 
 /*
@@ -671,7 +750,11 @@ async function load() {
       buildGamePicker(cfg.game || 'valorant', cfg.devGames === true);
       // ON is the default since 8.8, so the test is for an explicit false.
       markSeg(advancedSeg, cfg.advancedTips !== false ? 'on' : 'off');
-      markSeg(aiLogSeg, cfg.aiLog === false ? 'off' : 'on');
+      paintAiLog();
+      // The log stored off (an install from before the lock): main writes it
+      // whatever is stored (index.js startAiLog), and it is stored on here so
+      // the config says what happens, with recording on or off.
+      if (cfg.aiLog === false) window.occlara.setConfig({ aiLog: true }).catch(() => {});
       // Default on, so an older config with no key set reads as on rather than
       // as off, which is what `=== true` would do here.
       markSeg(soundsSeg, cfg.sounds === false ? 'off' : 'on');

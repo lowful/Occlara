@@ -101,6 +101,9 @@ function normalizeState(data) {
     free_total: num(a.free_total),
     bonus_pool: num(a.bonus_pool) || 0,
     bonus_earned: num(a.bonus_earned) || 0,
+    // Where the plan came from ('stripe', 'gift', 'legacy_*'...): the games
+    // toast tells a gift from a plan bought by it (games-toast.js, 8.9.1).
+    source: typeof a.source === 'string' ? a.source.slice(0, 40) : null,
     invites: { pending: num(inv.pending) || 0, qualified: num(inv.qualified) || 0, refused: num(inv.refused) || 0 },
     account_key: typeof a.account_key === 'string' ? a.account_key : null,
     email: typeof (a.email || data.email) === 'string' ? (a.email || data.email) : null,

@@ -94,21 +94,108 @@ $('nav-settings').addEventListener('click', () => window.occlara.go('settings'))
 $('learn').addEventListener('click', () => { setDrawer(false); window.occlara.openLearn(); });
 
 /*
- * THE ACCOUNT DRAWER (Progress v3): what the sidebar's foot held, opened from
- * the avatar at the bar's end. Main narrows the page while it is open
- * (SHELL_WINDOW 'drawer-open'), because a page's view paints over this
- * document. A page chosen in it, Escape or the avatar again closes it.
+ * THE ACCOUNT MENU (Progress v3, a dropdown under the avatar since 8.9.1):
+ * what the sidebar's foot held, opened from the avatar at the bar's end.
+ *
+ * IT FLOATS OVER THE PAGE (8.9.1). A page's view paints over this document,
+ * so the menu is drawn by a small see-through view of its own laid on top
+ * while it is open (main-window.js openMenu), and the page keeps its full
+ * width. This document still owns it: #drawer is laid out here, never painted
+ * (shell.css), its rows locked by the seal like the tabs (paintNav), and its
+ * markup and rectangle are sent to the view on opening and on every change
+ * while open (syncMenu). The view says which row was chosen, and the choice is
+ * carried out here on that row (onMenuAct), so a locked row stays locked.
+ *
+ * A menu (role=menu), its keyboard in the view: opening it puts focus on its
+ * first item (ArrowUp on the avatar, its last), ArrowUp and ArrowDown move
+ * through the items that can be chosen, Home and End go to either end, and
+ * choosing one, Escape, Tab, the avatar again, a press anywhere outside it or
+ * the window losing focus closes it. Escape and Tab give focus back to the
+ * avatar.
  */
-function setDrawer(open) {
-  const d = $('drawer');
+const drawerEl = $('drawer');
+// Round the menu in its view: room for its shadow (theme.css --lift, 12px
+// down and 34px of blur) on the sides and below, and the 8px it hangs under
+// the bar above.
+const MENU_PAD = { side: 28, top: 8, bottom: 40 };
+const hasMenuView = typeof window.occlara.menu === 'function';
+function syncMenu(focus) {
+  if (drawerEl.hidden || !hasMenuView) return;
+  const r = drawerEl.getBoundingClientRect();
+  window.occlara.menu({
+    open: true,
+    html: drawerEl.innerHTML,
+    rect: { x: r.left - MENU_PAD.side, y: r.top - MENU_PAD.top, width: r.width + MENU_PAD.side * 2, height: r.height + MENU_PAD.top + MENU_PAD.bottom },
+    inset: { left: MENU_PAD.side, top: MENU_PAD.top },
+    box: { width: r.width, height: r.height },
+    focus: focus || null,
+  });
+}
+// A row changing while open (the seal locking it, the games left, the Riot ID)
+// is drawn again in the view, once a frame at most.
+let menuFrame = 0;
+const menuChanged = () => {
+  if (drawerEl.hidden || menuFrame) return;
+  menuFrame = requestAnimationFrame(() => { menuFrame = 0; syncMenu(); });
+};
+new MutationObserver(menuChanged).observe(drawerEl, { subtree: true, childList: true, attributes: true, characterData: true });
+window.addEventListener('resize', menuChanged);
+function setDrawer(open, opts) {
+  const d = drawerEl;
   const next = !!open;
   if (d.hidden === !next) return;
   d.hidden = !next;
   $('menu-btn').setAttribute('aria-expanded', String(next));
-  window.occlara.windowAction(next ? 'drawer-open' : 'drawer-close');
+  // Opened by the keyboard, the focus is on its first row (its last, by
+  // ArrowUp), ringed; opened by a press, on the menu itself, so no row wears
+  // a keyboard's ring the mouse did not ask for, and ArrowDown goes to the first.
+  if (next) syncMenu(opts && opts.last ? 'last' : opts && opts.by === 'pointer' ? 'menu' : 'first');
+  else {
+    if (hasMenuView) window.occlara.menu({ open: false });
+    if (opts && opts.refocus) $('menu-btn').focus();
+  }
 }
-$('menu-btn').addEventListener('click', () => setDrawer($('drawer').hidden));
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setDrawer(false); });
+// The avatar toggles it. A press on it while open takes the focus from the
+// menu's view, which shuts it before the click arrives, and the click must not
+// open it again: what counts is whether it was open as the press began.
+let openAtPress = null;
+$('menu-btn').addEventListener('pointerdown', () => { openAtPress = !drawerEl.hidden; });
+$('menu-btn').addEventListener('click', (e) => {
+  const wasOpen = openAtPress === null ? !drawerEl.hidden : openAtPress;
+  openAtPress = null;
+  // A click the keyboard made (Enter, Space) has no detail.
+  setDrawer(!wasOpen, { by: e && e.detail > 0 ? 'pointer' : 'key' });
+});
+$('menu-btn').addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  e.preventDefault();
+  if (drawerEl.hidden) setDrawer(true, { last: e.key === 'ArrowUp' });
+  else syncMenu(e.key === 'ArrowUp' ? 'last' : 'first');
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setDrawer(false, { refocus: true }); });
+// Outside it, in this document: a press anywhere but the avatar (whose own
+// click toggles it). A press on the page, or the window losing the focus,
+// takes the focus from the menu's view, which shuts it from there.
+document.addEventListener('pointerdown', (e) => {
+  if (drawerEl.hidden) return;
+  const t = e.target;
+  if (t && t.nodeType === 1 && (drawerEl.contains(t) || $('menu-btn').contains(t))) return;
+  setDrawer(false);
+});
+// What the view did: a row chosen is clicked here, only a row of this menu
+// that can be chosen, so the seal's locks hold; shut from inside, the menu
+// shuts here too.
+if (typeof window.occlara.onMenuAct === 'function') {
+  window.occlara.onMenuAct((m) => {
+    if (!m) return;
+    if (typeof m.choose === 'string') {
+      const b = document.getElementById(m.choose);
+      if (!drawerEl.hidden && b && drawerEl.contains(b) && b.getAttribute('role') === 'menuitem' && !b.hidden && !b.disabled) b.click();
+    } else if (m.closed) {
+      setDrawer(false, { refocus: !!m.refocus });
+    }
+  });
+}
 for (const id of ['nav-invite', 'nav-profile', 'nav-settings', 'nav-feedback', 'discord', 'account']) {
   $(id).addEventListener('click', () => setDrawer(false));
 }
@@ -280,7 +367,7 @@ $('account').addEventListener('click', () => window.occlara.go('settings'));
 
 /*
  * THE GAMES LEFT (8.7): one quiet line under Start, exactly as main writes
- * it (usage.js gamesLeft, "1 of 2 free games left"), and nothing when it has
+ * it (usage.js gamesLeft, "1 of 4 free games left"), and nothing when it has
  * nothing to say. Said here once for the whole window: Home, Invite and the
  * pages carry no copy. Hidden while a match is read: main holds a change
  * until the match ends, and the rail says nothing mid match.
@@ -589,7 +676,15 @@ window.occlara.onStatus(({ status }) => {
   soundCue();
   paintGames();
 });
-window.occlara.onShell((s) => { if (s) { shell = s; paintNav(); } });
+window.occlara.onShell((s) => {
+  if (!s) return;
+  // The seal coming on shuts the account menu (main shuts its view too,
+  // main-window.js shutMenuForSeal): nothing of it stays over the Recording screen.
+  const sealing = !!s.sealed && !shell.sealed;
+  shell = s;
+  if (sealing) setDrawer(false);
+  paintNav();
+});
 window.occlara.onGame(async () => { cfg = await readConfig(cfg); paintGames(); paintAccount(); });
 
 // ── The window ─────────────────────────────────────────────────────────────

@@ -131,3 +131,12 @@ What still counts as "reaching the screen", and is sealed mid match:
   locked by `syncSeal`, its flag above the Discord drawn as the lock, and
   main answers its four channels with nothing mid match or sealed: no info,
   no picture taken, no report sent (`feedback-service.js`, `check:seal`).
+- The games toast (8.9.1, ui.md "The games toast"): "You got 2 games" at the
+  top right, its own view over the pages, WAITS mid match. index.js takes no
+  toast off its waiting list while a match is in progress or the window is
+  sealed (`flushGamesToasts`, from `flushAccountWaits`, so the seal lifting
+  and a stop flush it), the list is kept in the store across a restart, and
+  the window's toast view shows nothing while sealed, hidden or minimised:
+  one on screen as the seal comes on goes in the same tick and is shown whole
+  later. A click opens Profile only while unsealed (`check:seal`,
+  `test:shellnav`, `test:gamestoast`).

@@ -3,8 +3,8 @@
    the pages as pill tabs, the game switch, the record controls, the avatar
    that opens the drawer and the window's buttons. The page under the bar is
    a view of its own laid over #page-host, at the sizes main-window.js uses:
-   SIDEBAR_W 0 and TOP_H 64, narrowed by DRAWER_W 280 while the drawer is
-   open. Change one and change both. Tokens only, no gradient, no glow. */
+   SIDEBAR_W 0 and TOP_H 64, the same with the account menu open, which
+   floats over it in a view of its own. Change one and change both. Tokens only, no gradient, no glow. */
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
@@ -69,7 +69,9 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 /* A notice from main, the licence ending above all, reads in full white;
    paused, the record controls' own state, stays dim. */
 .top-notice.system { color: var(--text); }
-.top-notice:empty { margin-left: auto; width: 0; }
+/* Empty, it gives back the bar's gap it would stand in, so the sealed note
+   beside it reads whole at the default width. */
+.top-notice:empty { margin-left: auto; margin-right: calc(-1 * var(--space-5)); width: 0; }
 
 .bar-end { flex: none; display: flex; align-items: center; gap: var(--space-3); }
 
@@ -85,10 +87,14 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .game-seg button .game-logo { width: var(--icon-sm); height: var(--icon-sm); flex: none; }
 .game-seg button.named { width: auto; padding: 0 var(--space-3); font: 500 13px var(--font); }
 .game-seg button:disabled { cursor: default; opacity: 0.55; }
-.game-seg button.soon { position: relative; cursor: default; }
-.game-seg button.soon .game-logo { opacity: 0.45; }
+/* Static, so its popup is laid against the capsule (.seg-slide is relative)
+   rather than the button: the popup says "Coming soon" INSIDE the bar, to the
+   capsule's left, since the bar is TOP_H tall and anything hung below it is
+   under the page's view, which cut it to a sliver (8.9.1). */
+.game-seg button.soon { position: static; cursor: default; }
+.game-seg button.soon .game-logo { opacity: 0.6; }
 .game-seg button.soon .soon-pop {
-  position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  position: absolute; top: 50%; right: calc(100% + 8px); transform: translateY(-50%);
   padding: 6px 10px; border-radius: var(--r-btn);
   background: var(--s3); box-shadow: var(--rim-2); color: var(--text); font: 500 12px var(--font); white-space: nowrap;
   pointer-events: none; opacity: 0; z-index: 20;
@@ -155,35 +161,48 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .main { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
 .page-host { position: relative; flex: 1 1 auto; min-width: 0; background: var(--bg); }
 
-/* THE DRAWER: what the sidebar's foot held, a column at the window's right
-   under the bar, DRAWER_W wide (main narrows the page by it while open). A
-   surface step of its own with the ring, rows as quiet as the tabs. */
+/* THE ACCOUNT MENU (a dropdown since 8.9.1): what the sidebar's foot held, a
+   popover hung under the avatar at the window's right, 280px and its 16px
+   margin, drawn over the page by a view of its own (below). Solid like every open list (dropdown.css), the
+   ground a step up with a control's hairline and the shadow of something
+   lifted; it comes down out of the bar in 160ms, eased out, and theme.css
+   collapses that under reduced motion. */
 .drawer {
-  order: 2; flex: 0 0 280px; width: 280px;
-  display: flex; flex-direction: column; gap: var(--space-3);
-  margin: 0 var(--space-4) var(--space-4) 0; padding: var(--space-4) var(--space-3);
-  border-radius: var(--r-panel); background: var(--s1); box-shadow: var(--rim);
-  overflow-y: auto;
+  position: absolute; top: var(--space-2); right: 0; z-index: 30;
+  width: 280px; max-height: calc(100% - var(--space-6));
+  display: flex; flex-direction: column; gap: var(--space-2);
+  margin: 0 var(--space-4) 0 0; padding: var(--space-2);
+  border: 1px solid var(--line-2); border-radius: var(--r-panel);
+  background: var(--bg-2); box-shadow: var(--hi), var(--lift);
+  overflow-y: auto; outline: none;
+  transform-origin: top right;
+  animation: menuIn 160ms var(--ease-out) both;
 }
 .drawer[hidden] { display: none; }
+/* THE MENU FLOATS OVER THE PAGE (8.9.1): the shell's own #drawer is laid out
+   but never painted. Its rows are drawn by the menu's own view, laid over the
+   page at this rectangle (shell.js syncMenu, src/renderer/menu), so it is
+   held still here, where it is measured. */
+#drawer { visibility: hidden; animation: none; }
+@keyframes menuIn { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
 .foot { display: flex; flex-direction: column; gap: 2px; }
 .drawer .nav-item {
   position: relative;
   display: flex; align-items: center; gap: var(--space-3);
-  width: 100%; min-height: 40px; padding: 0 var(--space-3);
+  width: 100%; min-height: 38px; padding: 0 var(--space-3);
   border: 0; border-radius: var(--r-control);
   background: transparent; color: var(--text-dim);
   font: 500 14px var(--font); text-align: left; cursor: pointer;
   transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
-.drawer .nav-item:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, 0.035); }
+.drawer .nav-item:hover:not(:disabled), .drawer .nav-item:focus-visible { color: var(--text); background: rgba(255, 255, 255, 0.05); }
 .drawer .nav-item > svg { flex: none; color: var(--text-mute); }
 .drawer .nav-item:hover:not(:disabled) > svg, .drawer .nav-item[aria-current="page"] > svg { color: var(--text); }
 .drawer .nav-item[aria-current="page"] { color: var(--text); background: var(--s2); }
 .drawer .nav-item:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
 .drawer .nav-item:disabled { cursor: default; color: var(--text-mute); }
 /* The games left (8.7): the label's size, quiet, one line. */
-.rail-games { padding: 0 var(--space-3); font-size: 12px; line-height: 1.4; color: var(--text-mute); text-wrap: pretty; }
+.rail-games { padding: var(--space-1) var(--space-3) 0; font-size: 12px; line-height: 1.4; color: var(--text-mute); text-wrap: pretty; }
 .rail-games[hidden] { display: none; }
 .account {
   display: flex; align-items: center; gap: var(--space-2);

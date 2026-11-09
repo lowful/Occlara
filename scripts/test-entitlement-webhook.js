@@ -43,6 +43,7 @@ const ok = (cond, what) => {
 };
 
 const billing = require(path.join(SERVER, 'services', 'billing.js'));
+const { FREE_GAMES } = require(path.join(SERVER, 'services', 'caller.js'));
 
 // ── The pure rules first ────────────────────────────────────────────────────
 {
@@ -142,7 +143,7 @@ const refundOf = (n, over = {}) => {
         `a site checkout on ${lookupKey} (metadata plan ${plan}) sets the account ${tier}, ${cap} a month, source stripe (${e && e.tier} ${e && e.cap_monthly})`);
       ok(e && e.stripe_subscription_id === 'sub_A' && e.period_anchor === iso(start) && e.status === 'active',
         'with its subscription and period_anchor at the subscription\'s current period start');
-      ok(e && e.free_total === 2 && e.bonus_pool === 0, 'and the free games and the bonus as they were');
+      ok(e && e.free_total === FREE_GAMES && e.bonus_pool === 0, 'and the free games and the bonus as they were');
       ok(base._db.rows.length === 0, 'and the site still mints the key, so nothing is minted here');
     }
   }
@@ -583,7 +584,7 @@ const refundOf = (n, over = {}) => {
       `fake-billing accounts: a site checkout on occlara_max_yearly sets the account max, 70 a month (${r.code} ${entOf(U1) && entOf(U1).tier})`);
     st.s.subs.get('sub_X').status = 'canceled';
     r = await send(st.event('customer.subscription.deleted', 'subscription', st.s.subs.get('sub_X')));
-    ok(r.code === 200 && entOf(U1).tier === 'free' && entOf(U1).cap_monthly === 0 && entOf(U1).free_total === 2,
+    ok(r.code === 200 && entOf(U1).tier === 'free' && entOf(U1).cap_monthly === 0 && entOf(U1).free_total === FREE_GAMES,
       'fake-billing accounts: Stripe ending it sets the account free, cap 0, free games kept');
 
     st.reset();

@@ -46,6 +46,10 @@ contextBridge.exposeInMainWorld('occlara', {
   windowAction:  (action) => ipcRenderer.send(C.SHELL_WINDOW, action),
   getShell:      () => ipcRenderer.invoke(C.SHELL_GET),
   openLearn:     () => ipcRenderer.send(C.OPEN_LEARN),
+  // THE ACCOUNT MENU (8.9.1): drawn by a view of its own over the page
+  // (main-window.js openMenu); this document lays it out and owns it.
+  menu:          (m) => ipcRenderer.send(C.SHELL_MENU, m),
+  onMenuAct:     (cb) => subscribe(C.PUSH_MENU_ACT, cb),
   quit:          () => ipcRenderer.send(C.APP_QUIT),
 
   // pushes

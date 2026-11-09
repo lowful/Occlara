@@ -143,6 +143,19 @@ function paintLast(last, model) {
     g.append(side);
     row.append(g);
   }
+  // THE K/D OF THE LAST GAME (9.0, the player's ask): kills over deaths from
+  // the review's own scoreline (home-model.js kdOf), and nothing at all
+  // without one or while the review is still being checked.
+  const kd = !checking && last.kd ? last.kd : null;
+  if (kd) {
+    const box = el('div', 'last-kd');
+    box.title = `${kd.kills} kills and ${kd.deaths} deaths in your last match`;
+    box.append(el('span', 'kd-label', 'K/D'));
+    const nums = el('span', 'kd-nums');
+    nums.append(el('b', 'kd-ratio', kd.ratio), el('span', 'kd-split', `${kd.kills} / ${kd.deaths}`));
+    box.append(nums);
+    row.append(box);
+  }
   /*
    * THE FOOT CARRIES TWO BUTTONS AND NOTHING ELSE (8.2.1): the eye, "View
    * match", which opens the match's AI log as its row in Matches does, and
@@ -182,13 +195,18 @@ function paintLast(last, model) {
 function paintFix(model) {
   const host = $('focus');
   host.hidden = !model.focus;
-  if (!model.focus) return;
+  if (!model.focus) { stopClip(); return; }
   host.querySelector('.label').textContent = model.focusPrevious ? 'Fix for next match, from the last review' : 'Fix for next match';
   $('focus-text').textContent = model.focus;
   const media = $('fix-media');
-  media.replaceChildren();
   const fix = model.focusPrevious ? null : model.fix;
   const art = (model.art && model.art.last) || {};
+  // A clip already playing here is the same clip after a repaint (a review
+  // saved, Riot's record landing): it plays on rather than going back to
+  // its poster under the player's eyes.
+  if (fix && fix.url && media.dataset.playing === fix.url) return;
+  stopClip();
+  media.replaceChildren();
   host.classList.toggle('no-media', !(fix && fix.poster) && !art.map);
   if (fix && fix.poster) {
     const img = portrait(fix.poster, 'fix-poster', `Round ${fix.round}, the moment before the death`);
@@ -203,15 +221,77 @@ function paintFix(model) {
     if (!fix.clip) chips.append(el('span', 'chip over quiet', 'Clip not kept'));
     media.append(chips);
     if (fix.clip) {
+      // PLAYED RIGHT HERE (9.0, the player's ask): the play mark puts the
+      // review's own clip player (review/clip-player.js, the Moments page's
+      // and Ask Coach's too) in the poster's place, with the death marked on
+      // its timeline. Without the player or the clip's URL it opens the
+      // review at that round, where the clip plays, as it did before.
+      const inline = !!(fix.url && window.ClipPlayer && typeof window.ClipPlayer.create === 'function');
       const play = el('button', 'play-mark');
       play.type = 'button';
-      play.title = 'Play it in the review';
-      play.setAttribute('aria-label', `Play the clip of round ${fix.round} in the review`);
+      play.title = inline ? 'Play the clip' : 'Play it in the review';
+      play.setAttribute('aria-label', inline ? `Play the clip of round ${fix.round}` : `Play the clip of round ${fix.round} in the review`);
       play.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg>';
-      play.addEventListener('click', () => window.occlara.openReview(model.last.id, fix.round));
+      play.addEventListener('click', () => {
+        if (inline) playClip(fix);
+        else window.occlara.openReview(model.last.id, fix.round);
+      });
       media.append(play);
     }
   }
+}
+
+/** The clip on the Fix card stopped and let go, so no decoder runs behind a repaint. */
+function stopClip() {
+  const media = $('fix-media');
+  delete media.dataset.playing;
+  media.classList.remove('playing');
+  if (window.ClipPlayer && typeof window.ClipPlayer.release === 'function') window.ClipPlayer.release(media);
+}
+
+/**
+ * The Fix card's clip played in place of its poster, in the review's own
+ * player: muted and looping as every clip is, the poster its picture until
+ * the first frame, the death marked on the timeline, the same keys. The
+ * round and the place stay above it as a line, and the card's Open review
+ * still opens the whole review.
+ */
+function playClip(fix) {
+  const media = $('fix-media');
+  stopClip();
+  media.replaceChildren();
+  const label = `The clip of round ${fix.round}`;
+  const p = window.ClipPlayer.create({ url: fix.url, poster: fix.poster || null, death: fix.death, frames: fix.frames || null, label });
+  media.dataset.playing = fix.url;
+  media.classList.add('playing');
+  media.append(el('span', 'fix-clip-line', `Round ${fix.round}${fix.place ? ' · Died at ' + fix.place : ''}`), p.el);
+  const v = p.video;
+  if (v && typeof v.play === 'function') {
+    const tried = v.play();
+    if (tried && typeof tried.catch === 'function') tried.catch(() => {});
+  }
+  try { p.el.focus({ preventScroll: true }); } catch { /* not focusable here */ }
+}
+
+/*
+ * THE PLAYER'S OWN RIOT ID (9.0, the player's ask), from Settings (the state
+ * main pushes carries it): the name, then its tag quieter. Only ever the ID
+ * in Settings, never another player's. Without a whole one (Name#TAG), a
+ * quiet Connect your Riot ID that opens Settings, where it is set.
+ */
+function paintPlayer(riotId) {
+  const id = String(riotId || '').trim();
+  const at = id.lastIndexOf('#');
+  const name = at > 0 ? id.slice(0, at).trim() : '';
+  const tag = at > 0 ? id.slice(at + 1).trim() : '';
+  const whole = !!(name && tag);
+  const host = $('h-player');
+  host.hidden = !whole;
+  $('h-player-connect').hidden = whole;
+  host.replaceChildren();
+  if (!whole) return;
+  host.title = 'Your Riot ID, from Settings';
+  host.append(el('span', 'hp-name', name), el('span', 'hp-tag', `#${tag}`));
 }
 
 /** The most repeated mistakes, each with how often it happened. */
@@ -465,6 +545,8 @@ $('fix-open').addEventListener('click', () => { if (lastId) window.occlara.openR
 // The Start strip: the same Start as the sidebar's (COACH_START).
 $('h-start').addEventListener('click', () => { if (typeof window.occlara.startCoaching === 'function') window.occlara.startCoaching(); });
 $('recent-all').addEventListener('click', () => window.occlara.go('matches'));
+// Connect your Riot ID: Settings, where the Riot ID is set.
+$('h-player-connect').addEventListener('click', () => window.occlara.go('settings'));
 // Stats with the journey open, which this button names (8.4.1): it opened
 // Stats with the journey folded in the Rank tile, one more click away.
 $('rank-more').addEventListener('click', () => window.occlara.openRankJourney());
@@ -525,6 +607,7 @@ function paintStrip(s) {
   game = (state && state.gameId) || 'valorant';
   paintStrip(state);
   let riotId = String((state && state.riotId) || '').trim();
+  paintPlayer(riotId);
   // A review saved or improved (Riot's record landing after the match, a match
   // graded from it) repaints Home, and so does a change of game, whose cards
   // arrive again.
@@ -541,6 +624,7 @@ function paintStrip(s) {
       paintStrip(s);
       if (!s || typeof s.riotId !== 'string' || s.riotId.trim() === riotId) return;
       riotId = s.riotId.trim();
+      paintPlayer(riotId);
       load();
     });
   }

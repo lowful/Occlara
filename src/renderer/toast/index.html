@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Occlara toast</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="toast.css" />
+</head>
+<body>
+  <!-- THE GAMES TOAST (8.9.1). A see-through view at the top right over every
+       page (main-window.js toast), one card at a time: "You got 2 games" and
+       its reason. Never shown while the window is sealed: main holds it. -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+    <button id="toast-body" class="toast-body" type="button" aria-label="Open Profile">
+      <span class="toast-mark" aria-hidden="true">
+        <svg class="mark-plus" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        <svg class="mark-gift" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3.5" y="9" width="17" height="11" rx="2" />
+          <path d="M2.5 9h19v-1.5a1 1 0 0 0-1-1h-17a1 1 0 0 0-1 1z" />
+          <path d="M12 6.5V20" />
+          <path d="M12 6.5c-1.6-3.2-5.6-3.4-5.6-1.1 0 1.4 2.3 1.1 5.6 1.1z" />
+          <path d="M12 6.5c1.6-3.2 5.6-3.4 5.6-1.1 0 1.4-2.3 1.1-5.6 1.1z" />
+        </svg>
+      </span>
+      <span class="toast-text">
+        <span id="toast-title" class="toast-title"></span>
+        <span id="toast-line" class="toast-line"></span>
+      </span>
+    </button>
+    <button id="toast-close" class="toast-close" type="button" aria-label="Dismiss">
+      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+    </button>
+    <span id="toast-time" class="toast-time" aria-hidden="true"></span>
+  </div>
+  <script src="toast.js"></script>
+</body>
+</html>

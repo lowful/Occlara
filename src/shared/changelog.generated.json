@@ -1,5 +1,45 @@
 [
   {
+    "version": "8.9.1",
+    "date": "2026-11-09",
+    "title": "Four free games, and a note when games arrive",
+    "summary": "Free is now 4 games, everyone gets 2 more, and a card tells you when a gift or new games arrive.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Free is now 4 games for life, 6 with an invite. Every account gets 2 more, including players who already used theirs."
+      },
+      {
+        "kind": "new",
+        "text": "When someone sends you a gift, an invite pays off or new games arrive, a card slides in to tell you. It waits until your match ends."
+      },
+      {
+        "kind": "new",
+        "text": "Your account menu opens as a dropdown from your avatar, over the page."
+      },
+      {
+        "kind": "new",
+        "text": "Home shows your Riot ID, the K/D of your last match, and plays the fix clip right there."
+      },
+      {
+        "kind": "new",
+        "text": "Stats shows more of your numbers: combat score, K/D and damage a round, where your shots land, your maps and your acts."
+      },
+      {
+        "kind": "improved",
+        "text": "The Patterns chart is easier to read: one colour, lines for each grade letter, your average, and whether your last match was above or below it."
+      },
+      {
+        "kind": "improved",
+        "text": "Recording keeps the AI log on, because the review needs those frames to look at your deaths. Turning recording off now asks first."
+      },
+      {
+        "kind": "fixed",
+        "text": "The times under the Matches chart no longer run together, and the wins and losses count is gone."
+      }
+    ]
+  },
+  {
     "version": "8.9.0",
     "date": "2026-11-09",
     "title": "A new look, and a live status while you play",

@@ -9,7 +9,7 @@ unchanged underneath all of it, and a server without the new tables serves
 ## What an account is
 
 A Supabase user with one `entitlements` row: tier `free`, `pro` (25 games a
-month) or `max` (70 a month), `free_total` (2 for life, 4 if invited; 3 and
+month) or `max` (70 a month), `free_total` (4 for life, 6 if invited; 2 and 4 before 2026-11-09, 3 and
 5 before 2026-11-04),
 `bonus_pool` (referral games and, from 8.8, games bought at $2 each, which
 never expire: licence-billing.md, "Games bought one by one") and
@@ -34,7 +34,13 @@ rows for every licence holder, dry run by default, `--apply` to write.
 `free_total`'s DEFAULT and the two `ELSE n` in `ensure_entitlement`. Moving
 Free from 3 to 2 took a follow up migration (`ALTER COLUMN free_total SET
 DEFAULT 2`, `ensure_entitlement` again with `ELSE 2`, and untouched rows moved
-3 to 2 and invited 5 to 4); `test:claimgame` with `OCCLARA_SITE_DIR` checks the
+3 to 2 and invited 5 to 4). Moving it from 2 to 4 (2026-11-09) took another,
+`0010_free_tier_four_games.sql`: `SET DEFAULT 4`, `ensure_entitlement` (0008's,
+gifts and all) with `ELSE 4`, and every active free account raised once by 2,
+played or not (2 to 4, invited 4 to 6), so a player who had used both games
+plays 2 more. Raising `free_total` is the whole change: the free allowance is
+`free_total` minus the free games used (`entitlement_allowance`), and the
+person and device rules are untouched. `test:claimgame` with `OCCLARA_SITE_DIR` checks the
 last word of the site's migrations against `FREE_GAMES`. The site's own copy is
 `src/data/plans.ts FREE_GAMES` in the site repo.
 
@@ -134,7 +140,7 @@ every refused match after its last counted one, for six hours. Now, while
 spare), then 402 cap before the model (`usage.js reviewGate`, `withinBudget`,
 the `spent` map, bounded like the others). An account with games left, or one
 whose count cannot be had, is as before. `test:caplock` drives every model
-route for Free 2 of 2, Pro 25 of 25, bonus games used and a legacy key, in
+route for Free 4 of 4, Pro 25 of 25, bonus games used and a legacy key, in
 shadow and enforced, plus refunds and bought games.
 
 **Ask Coach is locked with the games (8.7.3).** With `ENFORCE_CAPS=1`, an
@@ -160,7 +166,7 @@ forgets the meter's 30 s memory of the buyer (`meter.forget(userId)`: the
 games left, a refused read's row) and the resolver's entitlement. A new month
 lifts it within 30 s. The player's last game counted, its review is not open
 to Ask Coach either: that is the read gate's rule, as asked. `test:caplock`
-holds every version on chat, v2 chat and frame chat for Free 2 of 2 and Pro
+holds every version on chat, v2 chat and frame chat for Free 4 of 4 and Pro
 25 of 25 (no model, no cost, no cap line), shadow, an outage, games left,
 bought games and a new month.
 
@@ -177,7 +183,7 @@ played a free game BEFORE this one played its first has 0 free games:
 | --- | --- | --- |
 | `puuid` | the Riot account, found by the server in Riot's record of a match (`/match-rounds`, `puuidInMatch(riotRounds.playersOf(d), name, tag)`), never a puuid the client names, and only on the live link of a match the app recorded (`purpose=live`, a match Riot says started in the last 24 hours, `linkMayNote`) when the server also holds a live game of that account's own (a `game_usage` row, kind `live`, reserved or counted) claimed within 2 hours of Riot's start (`playedLive`, `PROVEN_MS`): the purpose is client sent and never enough alone, a review the cap locked (no claim, no row) notes nothing, and neither does a Riot ID typed into Settings or Connect, a fill or a backfill. ONE PER ACCOUNT: only the first puuid ever noted for an account is kept (below) | yes, until its holders span 3 machines and 3 emails |
 | `device` | the app's device id (`computeDeviceId`), as the session holds it since the exchange, or the key's `licenses.device_id` | yes, until its holders span 4 Riot accounts (each holder's first noted one) |
-| `machine` | Windows' MachineGuid, read with reg.exe and hashed on the PC (`src/main/services/machine-id.js`), sent at sign in as `machine_id` and, from 8.7.4, as the `X-Occlara-Machine` header on every `/account/me` (below): the same through a new Windows user or PC name, but the same on every PC cloned from one image (Sysprep keeps it). reg.exe runs by its absolute path, `%SystemRoot%\System32\reg.exe` (`C:\Windows` when SystemRoot is unset, `regPath`), never through PATH | yes, but met on it ALONE a new account plays 1 free game, and its second once its Riot account differs from the earlier holders' (below), and it is ignored once its holders span 4 Riot accounts (each holder's first noted one) |
+| `machine` | Windows' MachineGuid, read with reg.exe and hashed on the PC (`src/main/services/machine-id.js`), sent at sign in as `machine_id` and, from 8.7.4, as the `X-Occlara-Machine` header on every `/account/me` (below): the same through a new Windows user or PC name, but the same on every PC cloned from one image (Sysprep keeps it). reg.exe runs by its absolute path, `%SystemRoot%\System32\reg.exe` (`C:\Windows` when SystemRoot is unset, `regPath`), never through PATH | yes, but met on it ALONE a new account plays 1 free game, and the rest once its Riot account differs from the earlier holders' (below), and it is ignored once its holders span 4 Riot accounts (each holder's first noted one) |
 | `email` | auth.users (or the verified JWT's own claim), `canonicalEmail`: lowercase, googlemail is gmail, gmail dots gone, a plus tag gone at gmail.com, outlook.com, hotmail.com and its country domains, live.com, msn.com, icloud.com, me.com, mac.com and Proton (proton.me, protonmail.com, protonmail.ch and pm.me are one domain), Yahoo's hyphen keyword gone at yahoo.com, its country domains and ymail.com. Each domain is written out whole (`HOTMAIL`, `YAHOO`, `PLUS_DOMAINS`): a domain that merely starts with a provider's word (live.example.org, outlook.example.com) is left alone, as is every other domain, dots and plus kept. Before this a pattern on the first word folded those too, and Fastmail, Zoho, Yandex, GMX, AOL, Tutanota and HEY were folded, now they are not | yes |
 | `net` | the sign in's /24 or /48 (`ipPrefixHash`) | NO, never blocks alone: a household or a cafe shares one |
 
@@ -243,16 +249,16 @@ What the rule does:
   game, so the room can never show the crowd rule it is many people. So
   when the only key an account meets another on is the machine (no device,
   email or puuid of that account met as well), `free_allowance_shared`
-  lets its FIRST free game through (`me.t IS NULL`), and its second only
+  lets its FIRST free game through (`me.t IS NULL`), and the rest only
   once `free_allowance_apart` says both have their one puuid noted and the
   two differ. The same puuid, or an earlier holder with none noted (an 8.7 app,
   or one that only ever graded from Riot's record), still blocks the
-  second. A machine match that also meets a device, an email or a puuid
+  rest. A machine match that also meets a device, an email or a puuid
   blocks exactly as before. The trade: one person with a new Windows user
   name and a new email per account gets 1 free game per extra account,
-  never 2, while the same Riot account is read off it. With a new Riot
+  never more, while the same Riot account is read off it. With a new Riot
   account per extra account as well they look exactly like a cafe of
-  different people and get both: that is the price of never locking a real
+  different people and get all of them: that is the price of never locking a real
   room out.
 - **A crowded key is no key** (`free_allowance_key_counts`), ignored by
   `free_allowance_shared` and `free_allowance_related`, so a Riot ID shared
@@ -428,7 +434,7 @@ inviter's network (/24 hash), an inviter known on no network
 (`inviter-unverified`: never signed in to the app) and an ended account
 (`account-ended`). A key whose user never signed in to the app gets 403
 `sign-in-required` from `GET /api/referral` (the Invite page says "Invites
-need an account"). The friend gets `free_total` 4 (`INVITED_FREE_TOTAL`); on
+need an account"). The friend gets `free_total` 6 (`INVITED_FREE_TOTAL`); on
 their first counted
 real game (source free, allowance or bonus, not over the cap, never shadow)
 on a device that is not the inviter's, the inviter gets 4 games, up to 20
@@ -643,7 +649,7 @@ All default off, read from env on Railway:
 
 - The migration, in the site repo as `drizzle/migrations/0004_accounts_tiers_referral.sql`
   (once `supabase/migrations/20261104000000_accounts_tiers_referral.sql`),
-  applied by the owner through Lovable, and the follow up that moved Free to 2. It has never run against a real
+  applied by the owner through Lovable, and the follow ups that moved Free to 2 (0005) and to 4 (0010). It has never run against a real
   Postgres: run it on a branch database first. Server first or migration first
   are both safe: every missing table or function (42P01, PGRST205, PGRST202,
   42883) reads as "accounts not live".

@@ -72,7 +72,7 @@ const { app } = require('electron');
 const surfaces = require('./fixtures/surfaces');
 // THE SAMPLE LIBRARY (8.7, scripts/fixtures/proof-reviews.js): four saved
 // Valorant reviews built from the real match, the older three looked at with
-// a clip kept beside the second, a seeded Free account with its two games
+// a clip kept beside the second, a seeded Free account with its four games
 // used, and the stand-in reader step 5b records with. Shared with the site
 // proof exporter, so the website's pictures are of what this check holds.
 const proof = require('./fixtures/proof-reviews');
@@ -198,7 +198,7 @@ setTimeout(async () => {
     const gamesLine = await until(() => sjs("(() => { const g = document.getElementById('rail-games'); return g && !g.hidden ? g.textContent : null; })()"), 3000);
     const homeGames = await hjs("!!document.getElementById('h-games') || !!document.querySelector('.h-aside')");
     lines.push(`rail games line: "${gamesLine}" | a copy on Home: ${homeGames}`);
-    if (gamesLine !== SEEDED_VIEW.gamesLeft || gamesLine !== 'You have used your 2 free games' || homeGames) {
+    if (gamesLine !== SEEDED_VIEW.gamesLeft || gamesLine !== 'You have used your 4 free games' || homeGames) {
       return report(false, `the rail's games line reads "${gamesLine}", not main's "${SEEDED_VIEW.gamesLeft}" (copy on Home: ${homeGames})`);
     }
     // TOP NAVIGATION (Progress v3): the bar is TOP_H tall across the window,
@@ -256,16 +256,96 @@ setTimeout(async () => {
     if (homeState.cards < 3) return report(false, `only ${homeState.cards} of Home's cards arrived one after another`);
     const homeView = mainWindow.pageViews().get('home');
     const wideBefore = homeView ? homeView.getBounds().width : 0;
+    // THE MENU FLOATS OVER THE PAGE (8.9.1): the avatar opens it in a view of
+    // its own on top of the page, under the bar at the window's right, the
+    // shell's rows drawn there, and the page keeps its full width.
+    const boundsBefore = homeView ? JSON.stringify(homeView.getBounds()) : '';
     await sjs("document.getElementById('menu-btn').click(); true");
-    await wait(300);
+    await wait(400);
     const opened = await barNow();
+    const ms = mainWindow.menuState();
     const wideOpen = homeView ? homeView.getBounds().width : 0;
-    lines.push(`drawer open: ${JSON.stringify(opened)} page ${wideBefore}px to ${wideOpen}px`);
-    if (!opened.drawer || wideBefore - wideOpen !== mainWindow.DRAWER_W) return report(false, `the drawer opened over the page or did not open: ${wideBefore} to ${wideOpen}`);
+    const kids = win.contentView.children;
+    const drawn = ms.view ? await ms.view.webContents.executeJavaScript(`(() => {
+      const m = document.getElementById('menu');
+      const r = m.getBoundingClientRect();
+      return { shown: !m.hidden && r.width > 0, rows: [...m.querySelectorAll('.foot > button')].filter((c) => !c.hidden).map((c) => c.dataset.page || c.id).join(),
+        games: (m.querySelector('#rail-games') || {}).textContent || '', focus: document.activeElement && document.activeElement.id, w: Math.round(r.width) };
+    })()`) : null;
+    const [cw] = win.getContentSize();
+    lines.push(`menu open: ${JSON.stringify(opened)} view ${JSON.stringify(ms.bounds)} drew ${JSON.stringify(drawn)} page ${wideBefore}px to ${wideOpen}px`);
+    if (!opened.drawer || !ms.open || !drawn || !drawn.shown) return report(false, `the menu did not open in its view: ${JSON.stringify(drawn)}`);
+    if (wideOpen !== wideBefore || JSON.stringify(homeView.getBounds()) !== boundsBefore || wideBefore !== cw) {
+      return report(false, `the page was resized for the menu: ${boundsBefore} to ${JSON.stringify(homeView.getBounds())}`);
+    }
+    if (kids[kids.length - 1] !== ms.view || ms.bounds.y !== mainWindow.TOP_H || ms.bounds.x + ms.bounds.width !== cw || drawn.w !== 280) {
+      return report(false, `the menu's view is not on top under the bar at the window's right: ${JSON.stringify(ms.bounds)} of ${cw}`);
+    }
+    if (drawn.rows !== 'profile,invite,settings,feedback,discord' || drawn.games !== SEEDED_VIEW.gamesLeft || drawn.focus !== 'account') {
+      return report(false, `the menu's view does not draw the shell's rows with the first focused: ${JSON.stringify(drawn)}`);
+    }
     await shot('drawer', mainWindow, win);
     await sjs("document.getElementById('menu-btn').click(); true");
-    await wait(200);
-    if (homeView && homeView.getBounds().width !== wideBefore) return report(false, 'the page did not take its width back as the drawer closed');
+    await wait(300);
+    const closed = mainWindow.menuState();
+    const shut = await barNow();
+    if (closed.open || shut.drawer) return report(false, 'the avatar again did not shut the menu');
+    if (homeView && JSON.stringify(homeView.getBounds()) !== boundsBefore) return report(false, 'the page moved as the menu shut');
+    // Escape in the menu's view shuts it and hands the avatar the focus.
+    await sjs("document.getElementById('menu-btn').click(); true");
+    await wait(300);
+    if (!mainWindow.menuState().open) return report(false, 'the menu did not open a second time');
+    mainWindow.menuState().view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    await wait(300);
+    const esc = { open: mainWindow.menuState().open, drawer: (await barNow()).drawer, focus: await sjs('document.activeElement && document.activeElement.id') };
+    lines.push(`menu after Escape: ${JSON.stringify(esc)}`);
+    if (esc.open || esc.drawer || esc.focus !== 'menu-btn') return report(false, `Escape in the menu did not shut it and refocus the avatar: ${JSON.stringify(esc)}`);
+    // By the mouse: a press on the avatar opens it with the menu itself
+    // focused, no row ringed; a second press on the avatar shuts it, and the
+    // click that follows the press does not open it again.
+    const avatarAt = await sjs("(() => { const r = document.getElementById('menu-btn').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()");
+    const press = async () => {
+      win.webContents.sendInputEvent({ type: 'mouseDown', x: avatarAt.x, y: avatarAt.y, button: 'left', clickCount: 1 });
+      win.webContents.sendInputEvent({ type: 'mouseUp', x: avatarAt.x, y: avatarAt.y, button: 'left', clickCount: 1 });
+      await wait(400);
+    };
+    await press();
+    // No ring by the mouse, on a row or on the menu itself, even after the
+    // keyboard last used the view (Escape above): a ring is an outline drawn.
+    const byMouse = { open: mainWindow.menuState().open,
+      focus: mainWindow.menuState().view ? await mainWindow.menuState().view.webContents.executeJavaScript('document.activeElement && document.activeElement.id') : null,
+      ringed: mainWindow.menuState().view ? await mainWindow.menuState().view.webContents.executeJavaScript(`[document.getElementById('menu'), ...document.querySelectorAll('#menu [role="menuitem"]')]
+        .filter((e) => { const s = getComputedStyle(e); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0; }).map((e) => e.id).join()`) : null };
+    if (byMouse.ringed) return report(false, `opened by the mouse, the menu rings ${byMouse.ringed}`);
+    await press();
+    const again = { open: mainWindow.menuState().open, drawer: (await barNow()).drawer };
+    lines.push(`menu by the mouse: ${JSON.stringify(byMouse)} then ${JSON.stringify(again)}`);
+    if (!byMouse.open || byMouse.focus !== 'menu') return report(false, `a press on the avatar did not open the menu with itself focused: ${JSON.stringify(byMouse)}`);
+    if (again.open || again.drawer) return report(false, `a second press on the avatar did not shut the menu: ${JSON.stringify(again)}`);
+    // A row pressed in the menu's view is carried out by the shell on its own
+    // row: Settings opens, the menu shuts, and back to Home after.
+    await press();
+    const menuV = mainWindow.menuState().view;
+    const rowAt = menuV ? await menuV.webContents.executeJavaScript("(() => { const r = document.getElementById('nav-settings').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()") : null;
+    if (rowAt) {
+      menuV.webContents.sendInputEvent({ type: 'mouseDown', x: rowAt.x, y: rowAt.y, button: 'left', clickCount: 1 });
+      menuV.webContents.sendInputEvent({ type: 'mouseUp', x: rowAt.x, y: rowAt.y, button: 'left', clickCount: 1 });
+    }
+    const chose = await until(() => mainWindow.current().page === 'settings' && !mainWindow.menuState().open, 3000);
+    lines.push(`menu row chosen: settings=${!!chose} menu open=${mainWindow.menuState().open}`);
+    if (!chose) return report(false, 'pressing Settings in the menu\'s view did not open Settings and shut the menu');
+    mainWindow.show('home');
+    await until(settled('home'), 4000);
+    // A match starting shuts the menu: nothing of it stays over the Recording
+    // screen, in main's view or the shell's own #drawer.
+    await press();
+    const openBeforeSeal = mainWindow.menuState().open;
+    mainWindow.setSealed(true);
+    const sealShut = await until(async () => !mainWindow.menuState().open && (await barNow()).drawer === false, 3000);
+    lines.push(`menu as the seal comes on: open before=${openBeforeSeal} shut=${!!sealShut}`);
+    mainWindow.setSealed(false);
+    await until(settled('home'), 4000);
+    if (!openBeforeSeal || !sealShut) return report(false, 'the seal coming on did not shut the account menu');
     // WHAT'S NEW: launched as an update, Home says it once, main's words.
     const homeNews = await until(() => hjs(`(() => {
       const n = document.getElementById('h-news');
@@ -281,6 +361,27 @@ setTimeout(async () => {
       await hjs("document.getElementById('recent').scrollIntoView({ block: 'end' }); true");
       await shot('home-lower', mainWindow, win);
       await hjs("document.querySelector('.home').scrollTo(0, 0); true");
+    }
+
+    // THE GAMES TOAST OVER HOME (8.9.1, ui.md "The games toast"): its own
+    // see-through view at the top right under the bar, over the page, the
+    // page keeping its bounds; drawn as text, the number counted up to 2.
+    {
+      const homeBounds = JSON.stringify(mainWindow.pageViews().get('home').getBounds());
+      mainWindow.toast({ id: 'mw-raise', kind: 'raise', pre: 'You got ', n: 2, post: ' games', line: 'Free is now 4 games.' });
+      const tv = await until(() => (mainWindow.toastState().shown ? mainWindow.toastState().view : null), 3000);
+      const said = tv ? await until(() => tv.webContents.executeJavaScript(
+        "(() => { const t = document.getElementById('toast-title').textContent; return t === 'You got 2 games' ? t + ' | ' + document.getElementById('toast-line').textContent : ''; })()"), 4000) : null;
+      const tb = mainWindow.toastState().bounds;
+      const [tw] = win.getContentSize();
+      lines.push(`games toast over Home: shown=${!!tv} says "${said || ''}" at ${JSON.stringify(tb)} Home kept its bounds=${JSON.stringify(mainWindow.pageViews().get('home').getBounds()) === homeBounds}`);
+      if (!tv || said !== 'You got 2 games | Free is now 4 games.') return report(false, 'the games toast did not come over Home with its words');
+      if (!tb || tb.y !== mainWindow.TOP_H || tb.x + tb.width !== tw) return report(false, `the games toast is not at the top right under the bar: ${JSON.stringify(tb)}`);
+      if (JSON.stringify(mainWindow.pageViews().get('home').getBounds()) !== homeBounds) return report(false, 'Home was moved for the games toast');
+      await wait(700);   // its way in and the count up over
+      await shot('home-toast', mainWindow, win);
+      await tv.webContents.executeJavaScript("document.getElementById('toast-close').click(); true");
+      if (!await until(() => !mainWindow.toastState().shown, 3000)) return report(false, 'the X on the games toast did not take it away');
     }
 
     // 3. A page from the sidebar shows beside it, at the sidebar's edge.

@@ -1644,7 +1644,7 @@ function paint(r) {
  * heard: startReveal is the only way to the reveal's sound.
  *
  * The card's lines are main's (usage.js capState, through the account's view
- * when this page's bridge carries it): "You have used your 2 free games" and
+ * when this page's bridge carries it): "You have used your 4 free games" and
  * its way on. A page with no account to ask, or an account with games again
  * since, keeps the card's own plain lines, which count nothing.
  */

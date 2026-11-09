@@ -343,33 +343,29 @@ setTimeout(async () => {
     mainWindow.show('matches');
     await new Promise((r) => setTimeout(r, 400));
 
-    // WON AND LOST BESIDE THE TITLE, on the list page alone, through the real
-    // bridge. Abyss is 2-1 and Bind's match from Riot's record a win, so 3:1,
-    // in Geist 600 at the title's size (8.7, the type scale's big number),
-    // wins in --good and losses in --bad.
-    // The Patterns and Breakdown pages, titled for what they count, carry none.
-    const recordOf = (pjs) => pjs(`(() => {
-      const b = document.getElementById('wl');
-      const cs = (n) => getComputedStyle(n);
-      const probe = (v) => { const p = document.createElement('i'); p.style.color = v; document.body.append(p); const c = cs(p).color; p.remove(); return c; };
-      return { shown: !b.hidden && cs(b).display !== 'none', w: b.querySelector('.wl-w').textContent, l: b.querySelector('.wl-l').textContent,
-        sr: b.querySelector('.wl-sr').textContent, size: cs(b).fontSize, titleSize: cs(document.querySelector('.sheet > header h2')).fontSize,
-        weight: cs(b).fontWeight, family: cs(b).fontFamily, win: cs(b.querySelector('.wl-w')).color, loss: cs(b.querySelector('.wl-l')).color,
-        good: probe('var(--good)'), bad: probe('var(--bad)') };
-    })()`);
-    const rec = await recordOf(js);
-    lines.push(`record: shown=${rec.shown} ${rec.w}:${rec.l} "${rec.sr}" ${rec.weight} ${rec.size} (title ${rec.titleSize}) wins ${rec.win} losses ${rec.loss}`);
-    if (!rec.shown || rec.w !== '3' || rec.l !== '1' || rec.sr !== '3 wins, 1 loss') {
-      return report(false, `the Matches title reads ${rec.w}:${rec.l} ("${rec.sr}"), expected 3:1`);
-    }
-    if (rec.size !== rec.titleSize || rec.weight !== '600' || !/^Geist\b/.test(rec.family) || /Geist Mono/.test(rec.family)) {
-      return report(false, `the record is ${rec.weight} ${rec.size} ${rec.family}, beside a ${rec.titleSize} title`);
-    }
-    if (rec.win !== rec.good || rec.loss !== rec.bad) return report(false, `wins are ${rec.win} and losses ${rec.loss}, not --good and --bad`);
-    for (const section of ['patterns']) {
+    // NO WINS AND LOSSES (8.9.1): the record beside the Matches title is gone,
+    // on every page, and the bridge counts none.
+    for (const section of ['list', 'patterns']) {
       const w = surfaces.find(`section=${section}`);
-      const none = w && await w.webContents.executeJavaScript("document.getElementById('wl').hidden");
-      if (!none) return report(false, `the ${section} page carries the record`);
+      const left = w && await w.webContents.executeJavaScript("!!document.getElementById('wl') || !!document.querySelector('.wl') || typeof window.occlara.winLoss !== 'undefined'");
+      if (left !== false) return report(false, `the ${section} page still carries a wins and losses record`);
+    }
+    lines.push('record: none beside the title');
+    // THE GRADE CARD'S FOOT (8.9.1): measured in the real window, with the real
+    // font, every label under the line clears the next and stays in the card.
+    {
+      const lw = surfaces.find('section=list');
+      const foot = lw && await lw.webContents.executeJavaScript(`(() => {
+        const card = document.getElementById('m-chart');
+        const svg = card && !card.hidden && card.querySelector('svg');
+        if (!svg) return null;
+        const box = card.getBoundingClientRect();
+        const r = [...svg.querySelectorAll('.gl-time')].map((t) => { const b = t.getBoundingClientRect(); return { l: b.left, r: b.right, text: t.textContent }; });
+        r.sort((a, b) => a.l - b.l);
+        return { labels: r.map((x) => x.text), apart: r.every((x, i) => !r[i + 1] || x.r + 4 <= r[i + 1].l), inside: r.every((x) => x.l >= box.left && x.r <= box.right) };
+      })()`);
+      lines.push(`grade card foot: ${foot ? foot.labels.join(' | ') : 'no card'}`);
+      if (foot && (!foot.apart || !foot.inside)) return report(false, `the grade card labels run together or leave the card: ${JSON.stringify(foot)}`);
     }
 
     // The breakdown, folded at the foot of Patterns (8.7): shown with four
@@ -493,7 +489,6 @@ setTimeout(async () => {
     const lol = await js("({ sub: [document.getElementById('b-sub').textContent, document.getElementById('b-sample').hidden ? '' : document.getElementById('b-sample').textContent].filter(Boolean).join(' '), chips: document.querySelectorAll('#b-queues .b-chip').length, shown: !document.getElementById('b-queues').hidden, champs: [...document.querySelectorAll('#b-table .b-row .b-name span:first-child')].map((n) => n.textContent).join(',') })");
     lines.push(`league: ${lol.champs} chips=${lol.chips} | ${lol.sub}`);
     if (!lol.shown || lol.chips !== 2) return report(false, `League shows ${lol.chips} mode chips, expected Summoner's Rift and ARAM`);
-    if ((await recordOf(js)).shown) return report(false, 'League, whose reviews carry no result, shows a record beside the title');
     // A library whose every match is in a mode the breakdown leaves out says
     // so, rather than asking for a match over a library that has some.
     const leftMany = await js("emptyLine({ game: 'valorant', matches: 0, left: 3, dims: [{ key: 'map', one: 'map' }] }, 'map')");

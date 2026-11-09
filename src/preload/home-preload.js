@@ -60,7 +60,14 @@ function fixClipOf(review) {
     const poster = (before.length ? before[before.length - 1] : shots[0] || {}).src || null;
     const clip = typeof f.clipUrl === 'string' && !!f.clipUrl;
     if (!poster && !clip) continue;
-    return { round: c.n, place: typeof c.spot === 'string' && c.spot ? c.spot : null, poster, clip, gone: !clip && !!f.clipGone };
+    // PLAYED ON HOME (9.0, the player's ask): the clip's URL (main's,
+    // occlara-clip://, as REVIEW_GET presents it), the death's place in it
+    // and its frames, for the review's own clip player (clip-player.js).
+    const url = clip && /^occlara-clip:\/\/review\/[^/\s]+\/[^/\s]+$/.test(f.clipUrl) ? f.clipUrl : null;
+    const death = typeof f.clipDeath === 'number' && Number.isFinite(f.clipDeath) ? f.clipDeath : null;
+    const timed = f.clipFrames && typeof f.clipFrames === 'object' && Array.isArray(f.clipFrames.times) ? f.clipFrames : null;
+    return { round: c.n, place: typeof c.spot === 'string' && c.spot ? c.spot : null, poster, clip, gone: !clip && !!f.clipGone,
+      url, death, frames: timed };
   }
   return null;
 }

@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, WebContentsView, screen } = require('electron');
+const { app, BrowserWindow, WebContentsView, screen, ipcMain } = require('electron');
 const path = require('path');
 const registry = require('./registry');
 const store = require('../services/store');
@@ -76,14 +76,38 @@ const { pageOf, createNav, createMotion } = require('../../shared/shell-nav');
  */
 
 // The shell lays itself out at these sizes (shell.css): change both together.
-// TOP NAVIGATION (Progress v3): no sidebar, a 64px bar across the top, and
-// the account drawer at the right under it, 280px and its 16px margin, which
-// the page is narrowed by while it is open (setDrawer), since a page's view
-// paints over the shell's document and would cover it.
+// TOP NAVIGATION (Progress v3): no sidebar, a 64px bar across the top.
+//
+// THE ACCOUNT MENU FLOATS OVER THE PAGE (8.9.1). A page's view paints over the
+// shell's document, so the menu the avatar opens, which hangs below the bar,
+// cannot be drawn by the shell: until 8.9.1 the page was narrowed by the
+// menu's width for the full height while it was open, an empty strip and a
+// page reflowing under it. Now it is a small see-through view of its own
+// (src/renderer/menu), laid on top of every page only while open and sized to
+// the menu and its shadow, so the page under it keeps its bounds. The shell
+// stays its owner: it lays the menu out (its #drawer, never painted) and sends
+// its markup and rectangle (SHELL_MENU), and the view draws it, moves through
+// it by keyboard and says what was chosen (MENU_ACT), which the shell carries
+// out on its own rows (PUSH_MENU_ACT), seal locks and all.
 const SIDEBAR_W = 0;
 const TOP_H = 64;
-const DRAWER_W = 296;
-let drawerOpen = false;
+const MENU_MAX = 640;      // the most the view may be, either way, whatever the shell asks
+let menuView = null;
+let menuOpen = false;
+let menuQueued = null;     // what to draw once the menu's document has loaded
+// THE GAMES TOAST (8.9.1, ui.md "The games toast"): "You got 2 games" at the
+// top right, under the bar, over every page, in a see-through view of its own
+// made the menu's way. One at a time from toastQueue; never while sealed,
+// hidden or minimised: then it waits, and a toast on screen as the seal comes
+// on goes at once and is put back at the front, to be shown whole later.
+const TOAST_W = 388;       // the card (352) and its shadow's margin (18 each side)
+const TOAST_H = 128;
+const TOAST_MAX = 12;
+let toastView = null;
+let toastQueue = [];       // toasts waiting, oldest first
+let toastNow = null;       // the toast on screen
+let toastSent = null;      // what to send once the toast's document has loaded
+let onToastOpen = null;    // index.js: a toast clicked opens Profile
 const DEFAULT_W = 1200;
 const DEFAULT_H = 780;
 const MIN_W = 960;
@@ -117,6 +141,7 @@ const motion = createMotion({
       // Re-adding a view that is already a child moves it to the top.
       win.contentView.addChildView(a);
       a.setBackgroundColor(CLEAR);
+      raiseMenu();
     }
     b.setVisible(true);
   },
@@ -220,6 +245,9 @@ function create(opts) {
   protect(nav.state().sealed);
   self.loadFile(path.join(__dirname, '../../renderer/shell/index.html'));
   self.once('ready-to-show', () => { if (!deferShow && win === self) bringUp(true); });
+  // The account menu's view is made once the shell has loaded, hidden, so its
+  // first opening does not wait on a document loading.
+  self.webContents.once('did-finish-load', () => { if (win === self) { ensureMenu(); pumpToast(); } });
 
   const save = () => {
     if (self.isDestroyed() || self.isMinimized()) return;
@@ -277,7 +305,16 @@ function create(opts) {
   const seen = () => { if (win === self) motion.seen(); };
   self.on('show', seen);
   self.on('restore', () => { if (win === self) layout(); seen(); });
+  // A toast waiting for the window to be seen comes now; hidden or
+  // minimised, the one on screen waits for the next time.
+  self.on('show', () => { if (win === self) pumpToast(); });
+  self.on('restore', () => { if (win === self) pumpToast(); });
+  self.on('hide', () => { if (win === self) withdrawToast(); });
+  self.on('minimize', () => { if (win === self) withdrawToast(); });
   self.on('focus', seen);
+  // The account menu shuts as the window loses the focus (another app, the
+  // game), as an open list does.
+  self.on('blur', () => { if (win === self) closeMenu(); });
   self.on('closed', () => {
     if (win !== self) return;
     win = null;
@@ -301,6 +338,16 @@ function closeViews() {
   }
   views.clear();
   reloading.clear();
+  try { if (alive(menuView)) menuView.webContents.close(); } catch { /* already gone */ }
+  menuView = null;
+  menuOpen = false;
+  menuQueued = null;
+  try { if (alive(toastView)) toastView.webContents.close(); } catch { /* already gone */ }
+  toastView = null;
+  // A toast on screen as its window goes is shown again in the next one.
+  if (toastNow) toastQueue.unshift(toastNow);
+  toastNow = null;
+  toastSent = null;
 }
 
 /**
@@ -363,6 +410,7 @@ function ensureView(id) {
   v.setBackgroundColor(GROUND);
   v.setVisible(false);
   win.contentView.addChildView(v);
+  raiseMenu();
   // The page knows its own id (embed.js), to say it is ready by it.
   v.webContents.loadFile(path.join(__dirname, '../../renderer', p.surface, 'index.html'),
     { query: { embed: '1', page: p.id, ...p.query } });
@@ -382,21 +430,297 @@ function ensureView(id) {
 function layout() {
   if (!win || win.isDestroyed()) return;
   const [w, h] = win.getContentSize();
-  const right = drawerOpen ? DRAWER_W : 0;
-  const rect = { x: SIDEBAR_W, y: TOP_H, width: Math.max(0, w - SIDEBAR_W - right), height: Math.max(0, h - TOP_H) };
+  // The page area is the same with the account menu open or shut: the menu
+  // is a view over it (openMenu), never a strip taken from it.
+  const rect = { x: SIDEBAR_W, y: TOP_H, width: Math.max(0, w - SIDEBAR_W), height: Math.max(0, h - TOP_H) };
   for (const [id, v] of views) {
     if (!alive(v)) continue;
     // A staged page keeps the page area's size and sits off its right edge.
     v.setBounds(id === staged ? { ...rect, x: w - STAGE_PX } : rect);
   }
+  if (alive(toastView)) toastView.setBounds(toastBounds(w, h));
 }
 
-/** The account drawer opened or closed in the shell: the page makes room for it. */
+// ── The account menu (8.9.1), over the page ───────────────────────────────
+
+/** The menu's view, made once per window and kept, hidden, between openings. */
+function ensureMenu() {
+  if (alive(menuView)) return menuView;
+  if (!win || win.isDestroyed()) return null;
+  const v = new WebContentsView({
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      preload: path.join(__dirname, '../../preload/menu-preload.js'),
+    },
+  });
+  // See-through: only the menu and its shadow paint, the page shows round it.
+  v.setBackgroundColor(CLEAR);
+  v.setVisible(false);
+  win.contentView.addChildView(v);
+  menuView = v;
+  menuQueued = null;
+  const wc = v.webContents;
+  let loaded = false;
+  if (typeof wc.once === 'function') {
+    wc.once('did-finish-load', () => {
+      loaded = true;
+      if (menuView === v && menuQueued) { wc.send(C.PUSH_MENU, menuQueued); menuQueued = null; }
+    });
+    wc.once('destroyed', () => { if (menuView === v) { menuView = null; menuOpen = false; } });
+  } else {
+    loaded = true;
+  }
+  v.__occlaraLoaded = () => loaded;
+  wc.loadFile(path.join(__dirname, '../../renderer/menu/index.html'));
+  registry.register('menu', v);
+  return v;
+}
+
+function sendMenu(msg) {
+  const v = menuView;
+  if (!alive(v)) return;
+  if (v.__occlaraLoaded && !v.__occlaraLoaded()) { menuQueued = msg; return; }
+  v.webContents.send(C.PUSH_MENU, msg);
+}
+
+/** The menu over every page: re-adding a child view moves it to the top. */
+function raiseMenu() {
+  if (toastNow && alive(toastView) && win && !win.isDestroyed()) win.contentView.addChildView(toastView);
+  if (menuOpen && alive(menuView) && win && !win.isDestroyed()) win.contentView.addChildView(menuView);
+}
+
+const num = (n) => (Number.isFinite(n) ? Math.round(n) : NaN);
+
+/**
+ * The shell opened its menu, or changed it while open: m.html is its rows'
+ * markup and m.rect the rectangle the view should cover, in the window's
+ * content, the menu and its shadow. Clamped to the window, never larger than
+ * MENU_MAX either way. The view is told where in itself the menu sits.
+ */
+function openMenu(m) {
+  if (!win || win.isDestroyed() || !m || typeof m.html !== 'string' || !m.rect) return false;
+  const [w, h] = win.getContentSize();
+  const r = { x: num(m.rect.x), y: num(m.rect.y), width: num(m.rect.width), height: num(m.rect.height) };
+  if (![r.x, r.y, r.width, r.height].every(Number.isFinite) || r.width <= 0 || r.height <= 0) return false;
+  const x = Math.max(0, Math.min(r.x, w - 1));
+  const y = Math.max(0, Math.min(r.y, h - 1));
+  const bounds = { x, y, width: Math.min(MENU_MAX, r.width - (x - r.x), w - x), height: Math.min(MENU_MAX, r.height - (y - r.y), h - y) };
+  if (bounds.width <= 0 || bounds.height <= 0) return false;
+  const v = ensureMenu();
+  if (!v) return false;
+  const fresh = !menuOpen;
+  v.setBounds(bounds);
+  // Where the menu sits in the view, moved by whatever the window's edge cut.
+  const inset = { left: (num(m.inset && m.inset.left) || 0) - (x - r.x), top: (num(m.inset && m.inset.top) || 0) - (y - r.y) };
+  const box = { width: num(m.box && m.box.width) || 0, height: num(m.box && m.box.height) || 0 };
+  sendMenu({ html: m.html, left: inset.left, top: inset.top, width: box.width, height: box.height,
+    focus: ['first', 'last', 'menu'].includes(m.focus) ? m.focus : null, fresh });
+  menuOpen = true;
+  raiseMenu();
+  if (fresh || !v.getVisible()) v.setVisible(true);
+  // The keyboard goes with it: arrows, Escape and Tab are the view's.
+  if (fresh || m.focus) v.webContents.focus();
+  return true;
+}
+
+/**
+ * The menu shut. Its view hides and forgets what it drew, so the next opening
+ * never shows the last one's rows for a frame. Unless the shell shut it
+ * itself, the shell is told (PUSH_MENU_ACT): Escape and Tab hand the focus
+ * back to the avatar, a press elsewhere leaves it where it went.
+ * @param opts.fromShell  the shell shut it: nothing to tell it
+ * @param opts.refocus    the focus goes back to the shell's avatar
+ */
+function closeMenu(opts) {
+  const o = opts || {};
+  if (!menuOpen) return;
+  menuOpen = false;
+  const v = menuView;
+  let hadFocus = false;
+  if (alive(v)) {
+    hadFocus = typeof v.webContents.isFocused === 'function' && v.webContents.isFocused();
+    v.setVisible(false);
+    sendMenu({ html: '' });
+  }
+  const w = get();
+  // A hidden view keeps the keyboard unless it is given away: back to the
+  // shell when asked, or when the focus was still in the menu (Learn, the
+  // Discord: nothing else took it).
+  if (w && (o.refocus || hadFocus)) w.webContents.focus();
+  if (!o.fromShell) registry.sendTo('main', C.PUSH_MENU_ACT, { closed: true, refocus: !!o.refocus });
+}
+
+/** SHELL_WINDOW 'drawer-close' still shuts the menu; 'drawer-open' is SHELL_MENU's now. */
 function setDrawer(open) {
-  const next = !!open;
-  if (next === drawerOpen) return;
-  drawerOpen = next;
-  layout();
+  if (!open) closeMenu({ fromShell: true });
+}
+
+/** Whether the menu is open and where its view is, for the checks and the pictures. */
+function menuState() {
+  const v = alive(menuView) ? menuView : null;
+  return { open: menuOpen && !!v && v.getVisible(), view: v, bounds: v ? v.getBounds() : null };
+}
+
+
+// ── The games toast (8.9.1), over the page ────────────────────────────────
+
+/** Where the toast's view sits: the top right of the page area, under the bar. */
+function toastBounds(w, h) {
+  const width = Math.min(TOAST_W, Math.max(0, w));
+  return { x: Math.max(0, w - width), y: TOP_H, width, height: Math.min(TOAST_H, Math.max(0, h - TOP_H)) };
+}
+
+/** The toast's view, made on the first toast and kept, hidden, between them. */
+function ensureToast() {
+  if (alive(toastView)) return toastView;
+  if (!win || win.isDestroyed()) return null;
+  const v = new WebContentsView({
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      preload: path.join(__dirname, '../../preload/toast-preload.js'),
+    },
+  });
+  // See-through: only the card and its shadow paint.
+  v.setBackgroundColor(CLEAR);
+  v.setVisible(false);
+  win.contentView.addChildView(v);
+  toastView = v;
+  toastSent = null;
+  const wc = v.webContents;
+  let loaded = false;
+  if (typeof wc.once === 'function') {
+    wc.once('did-finish-load', () => {
+      loaded = true;
+      if (toastView === v && toastSent) { wc.send(C.PUSH_TOAST, toastSent); toastSent = null; }
+    });
+    wc.once('destroyed', () => {
+      if (toastView !== v) return;
+      toastView = null;
+      if (toastNow) toastQueue.unshift(toastNow);
+      toastNow = null;
+    });
+  } else {
+    loaded = true;
+  }
+  v.__occlaraLoaded = () => loaded;
+  wc.loadFile(path.join(__dirname, '../../renderer/toast/index.html'));
+  registry.register('toast', v);
+  const [w, h] = win.getContentSize();
+  v.setBounds(toastBounds(w, h));
+  return v;
+}
+
+function sendToast(msg) {
+  const v = toastView;
+  if (!alive(v)) return;
+  if (v.__occlaraLoaded && !v.__occlaraLoaded()) { toastSent = msg; return; }
+  v.webContents.send(C.PUSH_TOAST, msg);
+}
+
+/** Whether a toast may be on screen now: the window shown, not minimised, and not sealed. */
+function toastMayShow() {
+  const w = get();
+  return !!(w && w.isVisible() && !w.isMinimized() && !nav.state().sealed);
+}
+
+/** The next toast, when none is on screen and one may be. */
+function pumpToast() {
+  if (toastNow || !toastQueue.length || !toastMayShow()) return false;
+  const v = ensureToast();
+  if (!v) return false;
+  toastNow = toastQueue.shift();
+  sendToast({ toast: toastNow });
+  win.contentView.addChildView(v);
+  raiseMenu();
+  v.setVisible(true);
+  return true;
+}
+
+/** The toast on screen goes at once and waits at the front for the next time (sealed, hidden). */
+function withdrawToast() {
+  const v = toastView;
+  if (alive(v) && v.getVisible()) v.setVisible(false);
+  if (!toastNow) return;
+  toastQueue.unshift(toastNow);
+  toastNow = null;
+  sendToast({ clear: true });
+}
+
+/** The toast on screen is over: the next comes, or the view hides. */
+function toastDone(id) {
+  if (!toastNow || (id && toastNow.id !== id)) return;
+  toastNow = null;
+  if (!pumpToast()) {
+    const v = toastView;
+    if (alive(v)) v.setVisible(false);
+  }
+}
+
+/**
+ * A toast for the queue: { id, kind, pre, n, post, line }, the finished words
+ * of games-toast.js words(). Shown at once when it may be, else it waits.
+ */
+function toast(t) {
+  if (!t || typeof t !== 'object' || typeof t.line !== 'string') return false;
+  const clip = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+  const one = {
+    id: clip(String(t.id || `t${Date.now().toString(36)}`), 40),
+    kind: clip(t.kind, 16),
+    pre: clip(t.pre, 60),
+    n: Number.isFinite(t.n) && t.n > 0 ? Math.min(9999, Math.round(t.n)) : null,
+    post: clip(t.post, 30),
+    line: clip(t.line, 120),
+  };
+  if (toastQueue.some((q) => q.id === one.id) || (toastNow && toastNow.id === one.id)) return false;
+  toastQueue.push(one);
+  if (toastQueue.length > TOAST_MAX) toastQueue = toastQueue.slice(-TOAST_MAX);
+  pumpToast();
+  return true;
+}
+
+/** fn() runs when a toast is clicked: index.js opens Profile, the seal's way. */
+function onToastClick(fn) { onToastOpen = typeof fn === 'function' ? fn : null; }
+
+/** The toast on screen, the ones waiting and its view, for the checks and the pictures. */
+function toastState() {
+  const v = alive(toastView) ? toastView : null;
+  return { shown: !!(toastNow && v && v.getVisible()), now: toastNow, queued: toastQueue.map((t) => t.id), view: v, bounds: v ? v.getBounds() : null };
+}
+
+if (ipcMain && typeof ipcMain.on === 'function') {
+  // From the toast's view alone: one done (its time up, its X), or clicked.
+  ipcMain.on(C.TOAST_ACT, (e, m) => {
+    if (!alive(toastView) || !e || e.sender !== toastView.webContents || !m) return;
+    const id = typeof m.done === 'string' ? m.done : typeof m.open === 'string' ? m.open : '';
+    if (!id || !toastNow || toastNow.id !== id) return;
+    const opening = typeof m.open === 'string';
+    toastDone(id);
+    if (opening && onToastOpen && !nav.state().sealed) {
+      try { onToastOpen(); } catch (err) { console.warn('[main-window] toast open:', err.message); }
+    }
+  });
+  // From the shell alone: open, change or shut its menu.
+  ipcMain.on(C.SHELL_MENU, (e, m) => {
+    const w = get();
+    if (!w || !e || e.sender !== w.webContents) return;
+    try {
+      if (m && m.open) { if (!openMenu(m)) closeMenu(); }
+      else closeMenu({ fromShell: true });
+    } catch (err) { console.warn('[main-window] menu:', err.message); }
+  });
+  // From the menu's view alone: a row chosen, or the menu shut from inside.
+  ipcMain.on(C.MENU_ACT, (e, m) => {
+    if (!alive(menuView) || !e || e.sender !== menuView.webContents || !m) return;
+    if (typeof m.choose === 'string' && /^[a-z][a-z-]{0,31}$/.test(m.choose)) {
+      if (menuOpen) registry.sendTo('main', C.PUSH_MENU_ACT, { choose: m.choose });
+    } else if (m.close) {
+      closeMenu({ refocus: !!m.refocus });
+    }
+  });
 }
 
 function state() {
@@ -487,10 +811,26 @@ function show(id, opts) {
 function setSealed(on, opts) {
   const h = !!on && !!(opts && opts.held);
   protect(!!on);
+  shutMenuForSeal(!!on);
   if (nav.state().sealed === !!on && held === h) return;
   held = h;
   nav.seal(!!on);
+  // Sealed, the toast goes in this tick, with the pages; lifted, the ones
+  // that waited come.
+  if (on) withdrawToast();
   apply();
+  if (!on) pumpToast();
+}
+
+/**
+ * THE MENU SHUTS AS THE SEAL COMES ON. The account menu's view lies over every
+ * page, the Recording screen too, and nothing shut it when a match started:
+ * left open, it stayed over the sealed window. Shut here, before the shell
+ * repaints, and the shell is told (PUSH_MENU_ACT closed), so its own #drawer
+ * shuts with it. The focus is not handed back: the seal decides what shows.
+ */
+function shutMenuForSeal(on) {
+  if (on && menuOpen) closeMenu();
 }
 
 /**
@@ -590,5 +930,6 @@ function motionState() { return { ...motion.state(), staged, reloading: [...relo
 
 module.exports = {
   create, get, reveal, show, setSealed, current, shellState, minimize, hide, close, toggleMaximize, isHidden, toggleHidden,
-  onWindowChange, onSessionEnd, onCloseAsk, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, DRAWER_W, setDrawer, STAGE_PX,
+  onWindowChange, onSessionEnd, onCloseAsk, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, setDrawer, menuState, STAGE_PX,
+  toast, toastState, onToastClick,
 };

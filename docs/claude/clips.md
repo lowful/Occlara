@@ -226,6 +226,21 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   Under it what the clips take against the cap, the cap, and Clear clips,
   which asks on the first press and clears on a second within four seconds
   (`CLIPS_USAGE`, `CLIPS_CLEAR`, read again on every `PUSH_REVIEWS`).
+- **The AI log is locked on, both ways** (8.9, the owner's rule: "if the
+  recording setting is on, lock the captures, vice versa"). A Valorant
+  review finds each death it looks at in the AI log's frames
+  (`index.js forensicsFor`: no log, no look), with recording on the clips are
+  cut where those frames say, and with recording off they are the only thing
+  the look has. So its switch in Settings is always shown on, both buttons
+  disabled, with a line for each state (`settings.js AILOG_LOCK` and
+  `AILOG_LOCK_OFF`; League's two say it does nothing there, never that its
+  screen is read). Recording Off asks first (`rec-confirm`) and saves
+  `recordingMode: 'off', aiLog: true`; a config holding `aiLog: false` from
+  before the lock is stored back on when Settings loads, and the recorder's
+  busy turn-off sets it on too (`recorder.js strike`). Main writes the log
+  whatever is stored (`startAiLog` has no off path), so the lock is what
+  happens, not only what is drawn. Never give the switch back an Off:
+  `test:surfaces` holds both states and League's.
 - **Onboarding asks first** (8.3.1, the tour's fourth page of five, How
   Occlara watches): Record gameplay or Frames only, the stored 'auto' and
   'off', and 480p, 720p or 1080p (480p since 8.7), with a PC check behind them run as the page

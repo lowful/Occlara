@@ -56,6 +56,8 @@ const callers = require(path.join(SERVER, 'services', 'caller.js'));
 const usage = require(path.join(SERVER, 'routes', 'usage.js'));
 const fa = require(path.join(SERVER, 'services', 'free-allowance.js'));
 const appUsage = require('../src/shared/usage');
+const { FREE_GAMES } = callers;
+const INVITED_FREE_TOTAL = usage.LIMITS.INVITED_FREE_TOTAL;
 const profile = require('../src/shared/profile');
 const { normalizeState } = require('../src/main/services/account-service');
 const machine = require('../src/main/services/machine-id');
@@ -223,7 +225,7 @@ const linkOf = async (h, puuid) => allowance.noteLinkPuuid(await callerOf(h), pu
   const a1 = await claim(hA);
   tick();
   const a2 = await claim(hA);
-  ok(a1.body.granted && a2.body.granted && freeRows(A) === 2, 'the first account plays its 2 free games');
+  ok(a1.body.granted && a2.body.granted && freeRows(A) === 2, 'the first account plays 2 free games');
   tick();
   const B = newUser('bravo@example.com');
   const hB = await signIn(B, { deviceId: 'pc-1', ip: '198.51.100.10' });
@@ -249,7 +251,7 @@ const linkOf = async (h, puuid) => allowance.noteLinkPuuid(await callerOf(h), pu
   ok(d1.body.granted === true && d2.body.granted === false && d2.body.reason === 'person' && freeRows(D) === 1,
     `met on the machine alone (a new Windows user name) a new account plays one free game, never its second (${d2.body.reason})`);
   const mC = await me(hC);
-  ok(mC.body.left === 1 && mC.body.free_shared === false, 'and the first account still has its last free game');
+  ok(mC.body.left === FREE_GAMES - 1 && mC.body.free_shared === false, 'and the first account still has the rest of its free games');
 
   // ── 3. The same email, written another way ───────────────────────────────
   tick();
@@ -263,7 +265,7 @@ const linkOf = async (h, puuid) => allowance.noteLinkPuuid(await callerOf(h), pu
   const f1 = await claim(hF);
   ok(mF.body.left === 0 && mF.body.free_shared === true && f1.body.granted === false && f1.body.reason === 'person',
     'a.b+x@gmail.com then ab@gmail.com: the second has no free games (person)');
-  ok((await me(hE)).body.left === 1, 'the first keeps what it had');
+  ok((await me(hE)).body.left === FREE_GAMES - 1, 'the first keeps what it had');
 
   // ── 4. The same Riot account, found in Riot's record after a first game ──
   tick();
@@ -389,7 +391,7 @@ const linkOf = async (h, puuid) => allowance.noteLinkPuuid(await callerOf(h), pu
   const hR3 = await signIn(R, { deviceId: 'pc-9-new', machineId: sha('m-r2'), ip: '192.0.2.52' });  // a new PC
   const mR = await me(hR3);
   const r2 = await claim(hR2);
-  ok(mR.body.left === 1 && mR.body.free_shared === false && r2.body.granted === true && freeRows(R) === 2,
+  ok(mR.body.left === FREE_GAMES - 1 && mR.body.free_shared === false && r2.body.granted === true && freeRows(R) === 2,
     'the same account signed back in, on a reinstall and on a new PC, keeps its own free games');
 
   // ── 7. Missing keys ──────────────────────────────────────────────────────
@@ -415,7 +417,7 @@ const linkOf = async (h, puuid) => allowance.noteLinkPuuid(await callerOf(h), pu
   const hV = await signIn(V, { deviceId: 'house-pc-2', machineId: sha('house-m2'), ip: '203.0.113.51' });
   const uv = [];
   for (let i = 0; i < 2; i++) { tick(); uv.push((await claim(hU)).body.granted, (await claim(hV)).body.granted); }
-  ok(uv.every(Boolean) && freeRows(U) === 2 && freeRows(V) === 2, 'two people on one household network each play their 2 free games');
+  ok(uv.every(Boolean) && freeRows(U) === 2 && freeRows(V) === 2, 'two people on one household network each play 2 free games');
   ok(T('free_allowance_keys').filter((k) => k.kind === 'net' && (k.user_id === U || k.user_id === V)).length === 2,
     'the network is kept, as a weak key only');
 
@@ -505,13 +507,13 @@ const linkOf = async (h, puuid) => allowance.noteLinkPuuid(await callerOf(h), pu
   const SEC = newUser('a.b@gmail.com');   // E's person again
   const sec = await call(router, 'POST', '/referral/redeem', { headers: jwt(SEC), body: { code }, ip: '203.0.113.121' });
   if (sec.status !== 409) console.log('redeem answered', sec.status, JSON.stringify(sec.body));
-  ok(sec.status === 409 && sec.body.reason === 'free-used' && T('entitlements').find((e) => e.user_id === SEC).free_total === 2,
+  ok(sec.status === 409 && sec.body.reason === 'free-used' && T('entitlements').find((e) => e.user_id === SEC).free_total === FREE_GAMES,
     `an invited account under the keys of a player who used their free games gets no invited games (${sec.body.reason})`);
   // A real friend redeems, then is seen on the inviter's machine: the invite pays nothing.
   tick();
   const FR = newUser('friend@example.com');
   const red = await call(router, 'POST', '/referral/redeem', { headers: jwt(FR), body: { code }, ip: '203.0.113.122' });
-  ok(red.status === 200 && red.body.free_total === 4, 'a real friend redeems: 4 free games');
+  ok(red.status === 200 && red.body.free_total === INVITED_FREE_TOTAL && INVITED_FREE_TOTAL === 6, 'a real friend redeems: 6 free games');
   const hFR = await signIn(FR, { deviceId: 'pc-friend-on-inviter', machineId: sha('m-inv'), ip: '203.0.113.122' });
   const bonusBefore = T('entitlements').find((e) => e.user_id === INV).bonus_pool;
   const fr1 = await claim(hFR);
@@ -713,7 +715,8 @@ const linkOf = async (h, puuid) => allowance.noteLinkPuuid(await callerOf(h), pu
     tick(31 * 1000);
     solo2Out.push({ first, second: await claim(s.h), third: await claim(s.h) });
   }
-  ok(solo2Out[0].first && solo2Out[0].second.body.granted === true && freeRows(solo2[0].u) === 2, 'the first account plays its 2 free games');
+  ok(solo2Out[0].first && solo2Out[0].second.body.granted === true && solo2Out[0].third.body.granted === true && freeRows(solo2[0].u) === 3,
+    'the first account plays 3 of its free games');
   ok(solo2Out.slice(1).every((x) => x.first === true && x.second.body.granted === false && x.second.body.reason === 'person'
     && x.third.body.granted === false) && solo2.slice(1).every((s) => freeRows(s.u) === 1),
   `one person with 3 Windows user names on one Riot account: 1 free game per extra account, never 2 (${solo2Out.slice(1).map((x) => x.second.body.reason)})`);
@@ -924,14 +927,14 @@ const linkOf = async (h, puuid) => allowance.noteLinkPuuid(await callerOf(h), pu
   ok(malformed.every((v) => !/^[0-9a-f]{64}$/.test(v)), 'none of the malformed values is 64 hex');
   const mBad = [];
   for (const v of malformed) { tick(); mBad.push(await call(router, 'GET', '/account/me', { headers: { ...hOS, 'X-Occlara-Machine': v } })); }
-  ok(m0.status === 200 && m0.body.left === 1 && mBad.every((r) => r.status === 200 && r.body.left === 1 && r.body.free_shared === false)
+  ok(m0.status === 200 && m0.body.left === FREE_GAMES - 1 && mBad.every((r) => r.status === 200 && r.body.left === FREE_GAMES - 1 && r.body.free_shared === false)
     && machineRows(OS).length === 0 && keySet(OS) === osKeys,
   'a missing or malformed X-Occlara-Machine changes nothing: no key, the same answer');
   tick();
   const m1 = await call(router, 'GET', '/account/me', { headers: { ...hOS, 'X-Occlara-Machine': OLD_M } });
   ok(m1.status === 200 && machineRows(OS).length === 1 && machineRows(OS)[0].key_hash === fa.keyOf('machine', OLD_M, env),
     'the first 8.7.4 /me notes its machine key, hashed as the exchange hashes it');
-  ok(m1.body.left === 1 && m1.body.free_shared === false, 'and the account itself is untouched');
+  ok(m1.body.left === FREE_GAMES - 1 && m1.body.free_shared === false, 'and the account itself is untouched');
   tick();
   const m2 = await call(router, 'GET', '/account/me', { headers: { ...hOS, 'X-Occlara-Machine': OLD_M } });
   ok(m2.status === 200 && machineRows(OS).length === 1, 'sent again, it is the same one key');
@@ -944,7 +947,7 @@ const linkOf = async (h, puuid) => allowance.noteLinkPuuid(await callerOf(h), pu
   ok(os1.body.granted === true && os2.body.granted === false && os2.body.reason === 'person' && freeRows(OS2) === 1,
     `a second account under a new Windows user on that PC then meets it: one free game, never two (${os2.body.reason})`);
   const osRel = (await sb.rpc('free_allowance_related', { p_a: OS, p_b: OS2 })).data;
-  ok(osRel === true && (await me(hOS)).body.left === 1, 'the two are related through the machine key, the first keeps its last game');
+  ok(osRel === true && (await me(hOS)).body.left === FREE_GAMES - 1, 'the two are related through the machine key, the first keeps the rest of its games');
   // An old app sends no header: an account never gains a machine key from /me.
   tick();
   const OS3 = newUser('oldapp.me@example.com');

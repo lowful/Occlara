@@ -158,9 +158,11 @@ const pkce = () => {
     const again = await claim({ game: 'valorant', kind: 'riot', client_match_id: 'riot-1' });
     ok(again.body.granted === true && c.db.tables.game_usage.length === 1, 'the same match claimed twice is one game');
     await claim({ game: 'lol', kind: 'league', client_match_id: 'lol-1' });
-    const third = await claim({ game: 'lol', kind: 'league', client_match_id: 'lol-3' });
-    ok(FREE_GAMES === 2 && third.body.granted === true && c.db.tables.game_usage[2].source === 'shadow' && c.db.tables.game_usage[2].over_cap === true,
-      'with ENFORCE_CAPS off a third free game is granted, counted in shadow, past the 2');
+    for (let i = 2; i < FREE_GAMES; i++) await claim({ game: 'lol', kind: 'league', client_match_id: `lol-free-${i}` });
+    const past = await claim({ game: 'lol', kind: 'league', client_match_id: 'lol-3' });
+    ok(FREE_GAMES === 4 && c.db.tables.game_usage.length === FREE_GAMES + 1 && past.body.granted === true
+      && c.db.tables.game_usage[FREE_GAMES].source === 'shadow' && c.db.tables.game_usage[FREE_GAMES].over_cap === true,
+      'with ENFORCE_CAPS off a fifth free game is granted, counted in shadow, past the 4');
     c.env.ENFORCE_CAPS = '1';
     const fifth = await claim({ game: 'lol', kind: 'league', client_match_id: 'lol-4' });
     ok(fifth.body.granted === false && fifth.body.reason === 'cap', 'with ENFORCE_CAPS=1 it is refused');

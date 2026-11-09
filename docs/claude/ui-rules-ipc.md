@@ -307,6 +307,16 @@ webview. A link out of the app goes through main with a URL main holds
   carries it once the seal lifts, and null once What's new opened.
   `CHANGELOG_SEEN` (send, the version): Home had it on screen.
 
+### The games toast's channels (8.9.1, ui.md "The games toast")
+
+- `PUSH_TOAST` (push, main to the toast view alone): `{ toast: { id, kind,
+  pre, n, post, line } }`, one finished toast (games-toast.js `words`), or
+  `{ clear: true }` when the seal or a hidden window takes it away.
+- `TOAST_ACT` (send, the toast view alone, `toast-preload.js`): `{ done: id }`
+  (its time up, its X) or `{ open: id }` (pressed: main opens Profile, never
+  sealed). Anything from another sender, or for a toast not on screen, is
+  ignored.
+
 ### The live status's channels (Progress v3, screen-silence.md)
 
 - `PUSH_LIVE` (push, main to the shell alone): `{ state: 'waiting' }`

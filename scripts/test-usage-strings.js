@@ -29,8 +29,8 @@ const lines = [];
 const say = (s) => { lines.push(s); return s; };
 
 console.log('\n[usage] games left, Free');
-eq([usage.FREE_GAMES, usage.FRIEND_GIFT, usage.FREE_GAMES + usage.FRIEND_GIFT], [2, 2, 4],
-  'Free is 2 games for life, an invited friend 2 more: 4 (the server says the same)');
+eq([usage.FREE_GAMES, usage.FRIEND_GIFT, usage.FREE_GAMES + usage.FRIEND_GIFT], [4, 2, 6],
+  'Free is 4 games for life, an invited friend 2 more: 6 (the server says the same)');
 eq(require('../server/services/caller').FREE_GAMES, usage.FREE_GAMES, 'and the server\'s FREE_GAMES is the same number');
 eq(require('../server/services/caller').INVITE_EXTRA_GAMES, usage.FRIEND_GIFT, 'and its INVITE_EXTRA_GAMES the friend\'s gift');
 eq(say(usage.gamesLeft({ tier: 'free', left: 2, free_total: 2 }, U)), '2 of 2 free games left', 'a new free account');
@@ -44,7 +44,7 @@ eq(say(usage.gamesLeft({ tier: 'free', left: 4, free_total: 2, bonus_pool: 4 }, 
 eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 2, bonus_pool: 1 }, U)), '1 earned game left', 'one earned game, singular');
 eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 1 }, U)), '1 of 1 free game left', 'a total of one, singular');
 eq(say(usage.gamesLeft({ tier: 'free', left: 0, free_total: 0 }, U)), 'You have no free games left', 'a refunded account (free_total 0)');
-eq(usage.gamesLeft({ tier: 'free', left: 1 }, U), '1 of 2 free games left', 'no free_total: the default 2');
+eq(usage.gamesLeft({ tier: 'free', left: 1 }, U), '1 of 4 free games left', 'no free_total: the default 4');
 
 console.log('\n[usage] games left, Pro and Max');
 eq(say(usage.gamesLeft({ tier: 'pro', left: 18, cap_monthly: 25, period_end: NOV30 }, U)), '18 of 25 games left this month, renews Nov 30', 'Pro');

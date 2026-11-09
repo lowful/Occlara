@@ -76,7 +76,7 @@ const UPDATE_FOR_FREE = 'Update Occlara to keep playing your free games.';
 // The Free tier: FREE_GAMES for the life of the account, INVITE_EXTRA_GAMES
 // more for a friend who redeems an invite. The site's SQL (free_total's
 // DEFAULT and ensure_entitlement) must say the same number.
-const FREE_GAMES = 2;
+const FREE_GAMES = 4;
 const INVITE_EXTRA_GAMES = 2;
 const JWT_LEEWAY_S = 5;
 const MAX_CACHE = 5000;

@@ -108,9 +108,9 @@ function account(id, ageMin = 5) {
   const good = await redeem(USER_B);
   const ent = db.tables.entitlements.find((e) => e.user_id === USER_B);
   const red = db.tables.referral_redemptions.find((r) => r.invitee_id === USER_B);
-  ok(FREE_GAMES === 2 && INVITE_EXTRA_GAMES === 2 && INVITED_FREE_TOTAL === 4, 'an invite gives Free\'s 2 games and 2 more: 4');
-  ok(good.status === 200 && good.body.free_total === 4 && ent && ent.free_total === 4 && red && red.status === 'pending' && red.inviter_id === USER_A,
-    `a new friend redeems: 4 free games and a pending redemption (${good.status})`);
+  ok(FREE_GAMES === 4 && INVITE_EXTRA_GAMES === 2 && INVITED_FREE_TOTAL === 6, 'an invite gives Free\'s 4 games and 2 more: 6');
+  ok(good.status === 200 && good.body.free_total === 6 && ent && ent.free_total === 6 && red && red.status === 'pending' && red.inviter_id === USER_A,
+    `a new friend redeems: 6 free games and a pending redemption (${good.status})`);
   const twice = await redeem(USER_B);
   ok(twice.status === 409 && twice.body.reason === 'already-redeemed', 'and cannot redeem twice');
   const st = await call(router, 'GET', '/referral', { headers: A });
@@ -231,7 +231,7 @@ function account(id, ageMin = 5) {
     const first = friends[0];
     const got = [];
     for (let i = 0; i < INVITED_FREE_TOTAL + 1; i++) got.push((await claimOn(first, 'dev-f0', `f0-${i}`)).granted);
-    ok(got.join() === 'true,true,true,true,false', `the invited friend plays 4 games, the fifth refused (${got.join()})`);
+    ok(got.join() === 'true,true,true,true,true,true,false', `the invited friend plays 6 games, the seventh refused (${got.join()})`);
     ok(entOf(INV).bonus_pool === 4 && entOf(INV).bonus_earned === 4, `their first counted game gives the inviter 4 (${entOf(INV).bonus_earned})`);
     for (let i = 1; i < friends.length; i++) await claimOn(friends[i], `dev-f${i}`, `f${i}-0`);
     const reds = sb._db.tables.referral_redemptions;

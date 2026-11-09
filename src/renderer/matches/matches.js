@@ -46,7 +46,29 @@ function paintTabs(games) {
  * could: every grade from about 77 up drew the same bar, and a player climbing
  * through A and S saw a flat line. matches.css takes the number out of that
  * column.
+ *
+ * ONE ENCODING (8.9.1): height is the grade, and nothing else changes with it.
+ * The bars used to take their letter's colour, green, amber and white with no
+ * key, and read as random. Every bar is one neutral tone now, the newest in
+ * the ink and named under it, the letter bands are thin guide lines labelled
+ * at the left (grade.js letter(): C from 60, B 70, A 80, S 90), the average is
+ * a dashed line, the first bar of each day carries its date, and a key under the chart
+ * names each mark that is on it. The letter is still on hover.
  */
+const BANDS = [['S', 90], ['A', 80], ['B', 70], ['C', 60]];
+const clampH = (n) => Math.max(0, Math.min(100, n));
+
+function shortDate(at) {
+  const d = at ? new Date(at) : null;
+  // No time, no date: never "Invalid Date" under a bar.
+  return d && Number.isFinite(d.getTime()) ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+}
+
+function keyItem(swatchCls, text, swatchText) {
+  const item = el('span', 'p-key-item');
+  item.append(el('i', 'p-key-sw ' + swatchCls, swatchText || ''), el('span', null, text));
+  return item;
+}
 /*
  * A RECORD IS OUTLINED, A RUN UNDERLINED (8.7), from what main counted
  * (progress.js libraryProgress): a bar whose match carries a best or a first
@@ -57,34 +79,96 @@ function paintTabs(games) {
  */
 const RECORD_KINDS = new Set(['best', 'first']);
 
-function paintTrend(grades, progress) {
+function paintTrend(grades, progress, average) {
   const host = $('p-trend');
   host.replaceChildren();
   host.hidden = grades.length < 2;
+  if (grades.length < 2) return;
   const marks = (progress && progress.marks) || {};
   const run = progress && progress.run && typeof progress.run.count === 'number' ? progress.run : null;
   const inRun = new Set(run ? grades.slice(0, run.count).map((g) => g.id) : []);
+  const newest = grades[0].id;
+
+  host.append(el('p', 'p-trend-cap',
+    `Your grade in each of your last ${grades.length} graded matches, oldest on the left. `
+    + 'The lines mark where each letter starts.'));
+
+  const plot = el('div', 'p-plot');
+  plot.setAttribute('role', 'img');
+  plot.setAttribute('aria-label', 'Grades, oldest first: ' + grades.slice().reverse().map((g) => g.score).join(', ')
+    + (typeof average === 'number' ? `. Average ${average}.` : '.'));
+  for (const [letterName, at] of BANDS) {
+    const guide = el('div', 'p-guide');
+    guide.style.setProperty('--h', at + '%');
+    guide.append(el('span', null, `${letterName} ${at}`));
+    plot.append(guide);
+  }
+  if (typeof average === 'number') {
+    const line = el('div', 'p-avgline');
+    line.style.setProperty('--h', clampH(average) + '%');
+    line.append(el('span', null, `avg ${average}`));
+    plot.append(line);
+  }
+
+  const bars = el('div', 'p-bars');
+  const records = [];
+  let anyProv = false;
+  let lastDay = null;
   for (const g of grades.slice().reverse()) {
     const record = (marks[g.id] || []).find((k) => RECORD_KINDS.has(k.kind));
-    const bar = el('div', 'p-bar' + (record ? ' best' : '') + (inRun.has(g.id) ? ' run' : ''));
+    if (record) records.push({ score: g.score, text: record.text });
+    if (g.provisional) anyProv = true;
+    const latest = g.id === newest;
+    const bar = el('div', 'p-bar' + (latest ? ' latest' : '') + (record ? ' best' : '') + (inRun.has(g.id) ? ' run' : ''));
     bar.title = `${fmtWhen(g.at)}: ${g.score} (${g.letter})${g.provisional ? ', provisional' : ''}`
+      + (latest ? '. Your latest match' : '')
       + (record ? `. ${record.text}` : '')
       + (inRun.has(g.id) ? `. One of ${run.count} in a row at ${run.floor || 'B'} or better` : '');
-    bar.style.setProperty('--h', Math.max(4, Math.min(100, g.score)) + '%');
-    const fill = el('i', gradeTone(g) + (g.provisional ? ' prov' : ''));
-    bar.append(fill, el('span', null, g.score));
-    host.append(bar);
+    bar.style.setProperty('--h', clampH(g.score) + '%');
+    const fill = el('i', g.provisional ? 'prov' : null);
+    // A date under the first bar of each day, as an axis is labelled; the
+    // newest is named Latest. The whole time is on hover.
+    const day = shortDate(g.at);
+    bar.append(el('span', null, g.score), fill, el('small', null, latest ? 'Latest' : day !== lastDay ? day : ''));
+    lastDay = day;
+    bars.append(bar);
   }
+  plot.append(bars);
+  host.append(plot);
+
+  // The key names every mark that is on the chart, and only those, so no
+  // mark is ever a colour or a shape left for the player to guess at.
+  const key = el('div', 'p-key');
+  key.append(keyItem('latest', 'Latest match'));
+  if (typeof average === 'number') key.append(keyItem('avg', `Average, ${average}`));
+  if (anyProv) key.append(keyItem('prov', 'Provisional grade'));
+  for (const r of records) key.append(keyItem('best', r.text, String(r.score)));
+  if (run && inRun.size > 1) key.append(keyItem('run', `${run.count} in a row at ${run.floor || 'B'} or better`));
+  host.append(key);
 }
 
-function paintCats(cats) {
+/*
+ * The four categories as averages over the same matches as the grades, each
+ * with its last match beside it and which side of the average it fell, as an
+ * arrow AND a word, so the colour is never the only sign.
+ */
+function paintCats(cats, matches) {
   const host = $('p-cats');
   host.replaceChildren();
   host.hidden = !cats.length;
+  if (!cats.length) return;
+  const most = Math.max(...cats.map((c) => c.matches || 0), 0) || matches;
+  host.append(el('p', 'p-cats-cap', most
+    ? `Category averages over your last ${most} ${most === 1 ? 'match' : 'matches'}, and how your latest match compares.`
+    : 'Category averages, and how your latest match compares.'));
   for (const c of cats) {
     const box = el('div', 'p-cat');
+    box.title = c.matches ? `${c.label}: average of ${c.matches} ${c.matches === 1 ? 'match' : 'matches'}, last match ${c.last}` : '';
     box.append(el('b', null, c.average), el('span', null, c.label));
     box.append(el('small', null, `last match ${c.last}`));
+    const side = c.last > c.average ? 'up' : c.last < c.average ? 'down' : 'level';
+    const words = { up: '↑ above average', down: '↓ below average', level: 'at average' };
+    box.append(el('em', 'p-cat-vs ' + side, words[side]));
     host.append(box);
   }
 }
@@ -133,8 +217,8 @@ function patternChips(p, total, bad) {
 function paintPatterns(p) {
   $('p-avg').hidden = p.average === null;
   $('p-avg-num').textContent = p.average === null ? '' : p.average;
-  paintTrend(p.grades || [], p.progress);
-  paintCats(p.categories || []);
+  paintTrend(p.grades || [], p.progress, p.average);
+  paintCats(p.categories || [], p.matches);
   const host = $('p-lists');
   host.replaceChildren();
   // THE GRADES ARE OVER EVERY MATCH, THE PATTERNS OVER THE RECORDED ONES. A
@@ -814,27 +898,6 @@ function row(m, gutter, marks, delta) {
   return item;
 }
 
-/**
- * WON AND LOST BESIDE THE TITLE, "2:1", on the list page alone: the Patterns
- * and Breakdown pages are titled for what they count, and a record above
- * them would read as theirs. The preload counts it (home-model.js winLoss)
- * by the result tests row() colours by. Hidden when no match has a result,
- * as no League review does, rather than reading 0:0 as a record.
- */
-function paintWinLoss(rows) {
-  const box = $('wl');
-  const wl = document.documentElement.dataset.section === 'list' ? window.occlara.winLoss(rows) : null;
-  box.hidden = !wl || wl.wins + wl.losses + wl.draws === 0;
-  if (box.hidden) return;
-  const say = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-  const record = `${say(wl.wins, 'win', 'wins')}, ${say(wl.losses, 'loss', 'losses')}`;
-  box.querySelector('.wl-w').textContent = String(wl.wins);
-  box.querySelector('.wl-l').textContent = String(wl.losses);
-  box.querySelector('.wl-sr').textContent = record;
-  box.title = `${record}${wl.draws ? `, ${say(wl.draws, 'draw', 'draws')}` : ''}.`
-    + (wl.unknown ? ` ${say(wl.unknown, 'match', 'matches')} with no result ${wl.unknown === 1 ? 'is' : 'are'} not counted.` : '');
-}
-
 /*
  * THE RR EACH RATED MATCH MOVED (8.7.9), as the game shows it: "RR +18" on
  * its row, from main's rank history by the match's Riot id (REVIEWS_RR,
@@ -882,7 +945,14 @@ function paintChart(patterns) {
   since.className = 'm-chart-since ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'even');
   const line = $('m-chart-line');
   line.replaceChildren();
-  const svg = window.GradeView.gradeLine(grades, 216, 160);
+  // Under each dot its day, "Nov 3", when the matches span more than one, and
+  // its time when they are all one day's; gradeLine keeps only the labels
+  // that fit, so they never run together.
+  const day = (at) => (at ? new Date(at).toDateString() : '');
+  const oneDay = grades.every((g) => day(g.at) === day(first.at));
+  const foot = oneDay ? undefined
+    : (g) => (g.at ? new Date(g.at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '');
+  const svg = window.GradeView.gradeLine(grades, 216, 160, { foot });
   if (svg) line.append(svg);
   $('m-chart-avg').textContent = patterns && typeof patterns.average === 'number' ? `Average ${patterns.average}` : '';
 }
@@ -922,7 +992,6 @@ async function load() {
     if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(rise); else rise();
   }
   $('empty').hidden = rows.length > 0;
-  paintWinLoss(rows);
   paintChart(patterns);
   paintRR(game);
   paintPatterns(patterns || { matches: 0, enough: false, grades: [], categories: [], average: null });

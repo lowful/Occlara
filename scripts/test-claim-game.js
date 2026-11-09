@@ -8,7 +8,7 @@
  * so the fake must do what the SQL does. This drives the fake through every
  * rule of the contract:
  *
- *   Free 2 games for life, then refused; 4 when invited
+ *   Free 4 games for life, then refused; 6 when invited
  *   Pro 25 a month, the month stepped from the anchor, a new month gives 25 again
  *   Max 70 a month
  *   the bonus pool used after the allowance, given back when its game is refunded
@@ -87,22 +87,22 @@ async function main() {
     ok(r.start <= Date.UTC(2026, 3, 1) && r.end > Date.UTC(2026, 3, 1), 'an anchor in the future steps back');
   }
 
-  // ── Free: 2 for life, then refused ───────────────────────────────────────
+  // ── Free: 4 for life, then refused ───────────────────────────────────────
   {
-    ok(FREE_GAMES === 2 && INVITE_EXTRA_GAMES === 2, 'Free is 2 games for life, and an invite adds 2');
+    ok(FREE_GAMES === 4 && INVITE_EXTRA_GAMES === 2, 'Free is 4 games for life, and an invite adds 2');
     fresh();
     const u = user();
-    const a = await claim(u);
-    const b = await claim(u);
+    const free = [];
+    for (let i = 0; i < 4; i++) free.push(await claim(u));
     const c = await claim(u);
-    ok(a.granted && b.granted && [a.left, b.left].join() === '1,0',
-      'a free account gets 2 games, left 1, 0');
-    ok(!c.granted && c.reason === 'cap' && c.left === 0 && c.usage_id === null, 'the third is refused, reason cap');
-    ok(rows(u).length === 2 && rows(u).every((g) => g.source === 'free' && g.status === 'counted'),
+    ok(free.every((g) => g.granted) && free.map((g) => g.left).join() === '3,2,1,0',
+      'a free account gets 4 games, left 3, 2, 1, 0');
+    ok(!c.granted && c.reason === 'cap' && c.left === 0 && c.usage_id === null, 'the fifth is refused, reason cap');
+    ok(rows(u).length === 4 && rows(u).every((g) => g.source === 'free' && g.status === 'counted'),
       'a riot claim is counted at once, from the free games');
     const s = await state(u);
-    ok(s.tier === 'free' && s.used === 2 && s.left === 0 && s.period_end === null && s.free_total === 2,
-      'account_state says free, 2 used, none left, no period end');
+    ok(s.tier === 'free' && s.used === 4 && s.left === 0 && s.period_end === null && s.free_total === 4,
+      'account_state says free, 4 used, none left, no period end');
     const l = sb._db.rows.find((r) => r.user_id === u);
     ok(l && l.plan === 'free' && l.status === 'active' && l.expires_at === null && KEY_RE.test(l.license_key)
       && ent(u).account_key === l.license_key && s.account_key === l.license_key,
@@ -111,16 +111,16 @@ async function main() {
     ok(!(await claim(u)).granted, 'free games do not come back with time');
   }
 
-  // ── Invited: 4 ───────────────────────────────────────────────────────────
+  // ── Invited: 6 ───────────────────────────────────────────────────────────
   {
     fresh();
     const u = user();
     await rpc('ensure_entitlement', { p_user: u });
     const { error } = await sb.from('entitlements').update({ free_total: INVITED_FREE_TOTAL }).eq('user_id', u);
-    ok(!error && INVITED_FREE_TOTAL === 4, 'the redeem route can set free_total 4 (2 free and 2 from the invite)');
+    ok(!error && INVITED_FREE_TOTAL === 6, 'the redeem route can set free_total 6 (4 free and 2 from the invite)');
     const got = [];
-    for (let i = 0; i < 5; i++) got.push((await claim(u)).granted);
-    ok(got.join() === 'true,true,true,true,false', 'an invited account gets 4 games, then refused');
+    for (let i = 0; i < 7; i++) got.push((await claim(u)).granted);
+    ok(got.join() === 'true,true,true,true,true,true,false', 'an invited account gets 6 games, then refused');
   }
 
   // ── Pro: 25 a month, a new month gives 25 again ──────────────────────────
@@ -202,6 +202,9 @@ async function main() {
   {
     fresh();
     const u = user();
+    // Two free games, so the third claim is granted only from the stale refund.
+    await rpc('ensure_entitlement', { p_user: u });
+    await sb.from('entitlements').update({ free_total: 2 }).eq('user_id', u);
     const a = await claim(u, { kind: 'live', id: null });
     sb.advance(2 * HOUR);
     const b = await claim(u, { kind: 'live', id: null });
@@ -439,6 +442,9 @@ async function main() {
   {
     fresh();
     const u = user();
+    // Two free games: one counted and one reserved leave none.
+    await rpc('ensure_entitlement', { p_user: u });
+    await sb.from('entitlements').update({ free_total: 2 }).eq('user_id', u);
     await claim(u);
     await claim(u, { kind: 'live', id: null, device: 'dev-r' });
     ok((await state(u)).left === 0, 'one counted and one reserved: none left');

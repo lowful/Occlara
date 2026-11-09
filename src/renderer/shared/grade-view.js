@@ -399,8 +399,16 @@
    * and filled. Home's last match, Matches' side card. Drawn in its own
    * pixels at the size asked (no stretch), so the dots stay round; under two
    * grades it draws nothing. `points` is [{ score, at }], oldest first.
+   *
+   * THE FOOT NEVER RUNS TOGETHER (8.9.1): at eight points in Matches' 216px
+   * card the times stood 25px apart and read as one string, "8:259:043:54".
+   * Each label is measured (the mono face is 0.6em a figure) and kept only
+   * when it clears the one kept to its right by a gap, newest first, so the
+   * newest is always labelled; a label the same as that one is skipped, and
+   * one at the edge is pulled inside the box. `opts.foot` names the label of a
+   * point (the clock by default).
    */
-  function gradeLine(points, w, h) {
+  function gradeLine(points, w, h, opts) {
     const SVGNS = 'http://www.w3.org/2000/svg';
     const pts = (Array.isArray(points) ? points : []).filter((t) => t && Number.isFinite(Number(t.score)));
     if (pts.length < 2) return null;
@@ -424,9 +432,20 @@
       const last = i === v.length - 1;
       svg.append(
         mk('circle', { cx: x(i).toFixed(1), cy: y(n).toFixed(1), r: last ? 6 : 4, class: 'gl-dot' + (last ? ' now' : '') }),
-        mk('text', { x: x(i).toFixed(1), y: (y(n) - 12).toFixed(1), class: 'gl-num' + (last ? ' now' : '') }, String(n)),
-        mk('text', { x: x(i).toFixed(1), y: h - 4, class: 'gl-time' }, clock(pts[i].at)));
+        mk('text', { x: x(i).toFixed(1), y: (y(n) - 12).toFixed(1), class: 'gl-num' + (last ? ' now' : '') }, String(n)));
     });
+    const footOf = opts && typeof opts.foot === 'function' ? opts.foot : (t) => clock(t.at);
+    const FIG = 6, GAP = 10;   // gl-time is 10px mono, a figure 0.6em wide
+    let kept = null;           // the label kept to the right: { x, half, text }
+    for (let i = v.length - 1; i >= 0; i--) {
+      const text = String(footOf(pts[i]) || '');
+      if (!text) continue;
+      const half = (text.length * FIG) / 2;
+      const at = Math.min(Math.max(x(i), half), w - half);
+      if (kept && (text === kept.text || kept.x - kept.half - (at + half) < GAP)) continue;
+      svg.append(mk('text', { x: at.toFixed(1), y: h - 4, class: 'gl-time' }, text));
+      kept = { x: at, half, text };
+    }
     return svg;
   }
 

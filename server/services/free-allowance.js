@@ -36,7 +36,7 @@
  *            launch: survives a new Windows user name or PC name.
  *            Cloned Windows images (a PC cafe, a school lab, VMs) share one,
  *            so met on the machine key ALONE a new account still plays one
- *            free game, and its second once a Riot account read off its own
+ *            free game, and the rest once a Riot account read off its own
  *            live game differs from every earlier holder's (the same one
  *            blocks it). The database also ignores a device or machine key
  *            whose holders played on at least 4 different Riot accounts,

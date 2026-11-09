@@ -490,7 +490,8 @@ function rig() {
     setContentProtection(on) { this.protected = !!on; this.protectAsks = (this.protectAsks || 0) + 1; }
   }
   let quits = 0;
-  const electron = { app: { on() {}, quit() { quits++; } }, BrowserWindow: Win, WebContentsView: View, screen: { getAllDisplays: () => [] } };
+  const ipc = new EventEmitter();
+  const electron = { app: { on() {}, quit() { quits++; } }, BrowserWindow: Win, WebContentsView: View, screen: { getAllDisplays: () => [] }, ipcMain: ipc };
   const clock = { now: 0, seq: 0, timers: new Map() };
   const tick = (ms) => {
     clock.now += ms;
@@ -630,6 +631,117 @@ function rig() {
     ok(wins.length === 3 && mw.current().sealed && third.protected === true && third.protectAsks === 1,
       'made again while sealed, the new window is out of captures from its creation');
 
+    // THE ACCOUNT MENU FLOATS OVER THE PAGE (8.9.1). The shell opens it with
+    // its rows and rectangle (SHELL_MENU); main lays a see-through view of its
+    // own over the page, at that rectangle cut to the window, on top of every
+    // page, and the page keeps its bounds. Only the shell may open it and only
+    // the menu's view may choose or shut it from inside.
+    {
+      const CH = require('../src/shared/channels');
+      mw.setSealed(false);
+      const page = viewOf('review');
+      const before = JSON.stringify(page.bounds);
+      const rows = '<button id="nav-settings" role="menuitem">Settings</button>';
+      const ask = { open: true, html: rows, rect: { x: 1200 - 296 - 28, y: 64, width: 336, height: 300 },
+        inset: { left: 28, top: 8 }, box: { width: 280, height: 252 }, focus: 'first' };
+      ipc.emit(CH.SHELL_MENU, { sender: viewOf('review').webContents }, ask);
+      ok(!mw.menuState().open, 'a page cannot open the account menu: only the shell can');
+      ipc.emit(CH.SHELL_MENU, { sender: third.webContents }, ask);
+      const ms = mw.menuState();
+      const kids = third.contentView.children;
+      ok(ms.open && ms.view && kids[kids.length - 1] === ms.view && JSON.stringify(page.bounds) === before,
+        'the shell opens it: a view of its own on top of every page, and the page keeps its bounds, no strip taken from it', JSON.stringify(page.bounds));
+      ok(ms.bounds.x === 876 && ms.bounds.y === 64 && ms.bounds.width === 1200 - 876 && ms.bounds.height === 300,
+        'laid at the rectangle the shell asked, cut at the window\'s right edge', JSON.stringify(ms.bounds));
+      ms.view.webContents.emit('did-finish-load');
+      const drawn = ms.view.webContents.sent.filter((s) => s.ch === CH.PUSH_MENU);
+      ok(drawn.length === 1 && drawn[0].msg.html === rows && drawn[0].msg.left === 28 && drawn[0].msg.top === 8 && drawn[0].msg.fresh && drawn[0].msg.focus === 'first',
+        'what it draws waits for its document, then is the shell\'s rows, where the menu sits in it, and the first row focused', JSON.stringify(drawn[0] && drawn[0].msg));
+      // A page coming in under the motion is raised over the old one, and the menu stays above both.
+      mw.show('coach');
+      ok(kids[kids.length - 1] === ms.view, 'a page made or raised while it is open stays under the menu');
+      const toShell = () => third.webContents.sent.filter((s) => s.ch === CH.PUSH_MENU_ACT).map((s) => s.msg);
+      ipc.emit(CH.MENU_ACT, { sender: third.webContents }, { choose: 'nav-settings' });
+      ok(!toShell().length, 'only the menu\'s view says what was chosen');
+      ipc.emit(CH.MENU_ACT, { sender: ms.view.webContents }, { choose: 'nav-settings' });
+      ok(toShell().length === 1 && toShell()[0].choose === 'nav-settings', 'and the shell is told, to carry it out on its own row');
+      ipc.emit(CH.MENU_ACT, { sender: ms.view.webContents }, { close: true, refocus: true });
+      const shut = toShell();
+      ok(!mw.menuState().open && !ms.view.visible && shut[1] && shut[1].closed && shut[1].refocus,
+        'shut from inside (Escape, Tab), its view hides and the shell is told, to give the avatar the focus');
+      ok(ms.view.webContents.sent[ms.view.webContents.sent.length - 1].msg.html === '', 'and the view forgets its rows, so the next opening never flashes the last');
+      ipc.emit(CH.SHELL_MENU, { sender: third.webContents }, ask);
+      ok(mw.menuState().open && mw.menuState().view === ms.view, 'opened again, the same view, kept between openings');
+      third.emit('blur');
+      ok(!mw.menuState().open, 'the window losing the focus shuts it');
+      ipc.emit(CH.SHELL_MENU, { sender: third.webContents }, ask);
+      ipc.emit(CH.SHELL_MENU, { sender: third.webContents }, { open: false });
+      ok(!mw.menuState().open && toShell().length === 3, 'the shell shutting it is not told back');
+      mw.show('review');
+    }
+
+    // THE GAMES TOAST (8.9.1, ui.md "The games toast"): a see-through view of
+    // its own at the top right under the bar, over every page, one toast at a
+    // time. Never while sealed: it waits, and one on screen as the seal comes
+    // on goes in the same tick and is put back at the front. Hidden or
+    // minimised, the same. Only its own view may say one is done or clicked,
+    // and a click opens Profile through index.js.
+    {
+      const CH = require('../src/shared/channels');
+      mw.setSealed(false);
+      third.show();
+      third.minimized = false;
+      const page = viewOf('review');
+      const before = JSON.stringify(page.bounds);
+      const clicked = [];
+      mw.onToastClick(() => clicked.push('profile'));
+      const T = (id, n) => ({ id, kind: 'invite', pre: 'You got ', n, post: ' games', line: 'Your invite paid off.' });
+      mw.setSealed(true);
+      ok(mw.toast(T('g1', 4)), 'a toast is taken');
+      let ts = mw.toastState();
+      ok(!ts.shown && ts.queued.join() === 'g1', 'sealed (a match on): it waits, nothing on screen', JSON.stringify({ shown: ts.shown, q: ts.queued }));
+      mw.setSealed(false);
+      ts = mw.toastState();
+      const kids = third.contentView.children;
+      ok(ts.shown && ts.now.id === 'g1' && kids[kids.length - 1] === ts.view && JSON.stringify(page.bounds) === before,
+        'the seal lifted: it comes, on top of every page, and the page keeps its bounds');
+      ok(ts.bounds.x === 1200 - 388 && ts.bounds.y === mw.TOP_H && ts.bounds.width === 388 && ts.bounds.height === 128,
+        'at the top right of the page area, under the bar', JSON.stringify(ts.bounds));
+      ts.view.webContents.emit('did-finish-load');
+      const drawn = () => ts.view.webContents.sent.filter((x) => x.ch === CH.PUSH_TOAST).map((x) => x.msg);
+      ok(drawn().length === 1 && drawn()[0].toast.id === 'g1' && drawn()[0].toast.n === 4, 'what it draws waits for its document');
+      mw.toast(T('g2', 10));
+      ok(mw.toastState().now.id === 'g1' && mw.toastState().queued.join() === 'g2', 'a second waits its turn');
+      ok(!mw.toast(T('g2', 10)), 'and the same toast is never queued twice');
+      mw.setSealed(true);
+      ts = mw.toastState();
+      ok(!ts.shown && !ts.view.visible && ts.queued.join() === 'g1,g2' && drawn()[drawn().length - 1].clear,
+        'the seal coming on with one on screen: gone in the same tick, back at the front, its view told to clear');
+      mw.setSealed(false);
+      ok(mw.toastState().shown && mw.toastState().now.id === 'g1', 'lifted: the first again, whole');
+      ipc.emit(CH.TOAST_ACT, { sender: third.webContents }, { done: 'g1' });
+      ok(mw.toastState().now.id === 'g1', 'only the toast\'s own view may say it is done');
+      ipc.emit(CH.TOAST_ACT, { sender: ts.view.webContents }, { done: 'zz' });
+      ok(mw.toastState().now.id === 'g1', 'nor for a toast not on screen');
+      ipc.emit(CH.TOAST_ACT, { sender: ts.view.webContents }, { done: 'g1' });
+      ok(mw.toastState().shown && mw.toastState().now.id === 'g2', 'done: the next comes');
+      ipc.emit(CH.TOAST_ACT, { sender: ts.view.webContents }, { open: 'g2' });
+      ok(!mw.toastState().shown && !ts.view.visible && clicked.join() === 'profile', 'clicked: over, its view hidden, and Profile asked for');
+      third.hide();
+      mw.toast(T('g3', 2));
+      ok(!mw.toastState().shown && mw.toastState().queued.join() === 'g3', 'the window hidden: it waits');
+      third.show();
+      ok(mw.toastState().shown && mw.toastState().now.id === 'g3', 'shown again: it comes');
+      third.minimize();
+      ok(!mw.toastState().shown && mw.toastState().queued.join() === 'g3', 'minimised with it on screen: it goes, and waits');
+      third.restore();
+      ok(mw.toastState().shown, 'restored: back');
+      ipc.emit(CH.TOAST_ACT, { sender: ts.view.webContents }, { done: 'g3' });
+      ok(!mw.toastState().shown && !mw.toastState().queued.length, 'and done');
+      mw.onToastClick(null);
+      mw.show('review');
+    }
+
     // CLOSING QUITS (8.4.1). Its X, Alt+F4 and the taskbar's Close are the
     // window's 'close': held, and handed to index.js, which quits by the
     // tray's own path, asking first when that would lose something. Never
@@ -681,13 +793,16 @@ function rig() {
       return (css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
     };
     const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
-    // TOP NAVIGATION (Progress v3): no sidebar (SIDEBAR_W 0), the bar TOP_H
-    // tall, and the drawer DRAWER_W with its margin, the width the page gives up.
+    // TOP NAVIGATION (Progress v3): no sidebar (SIDEBAR_W 0) and the bar
+    // TOP_H tall. THE MENU FLOATS OVER THE PAGE (8.9.1): the page gives up no
+    // width for it (DRAWER_W is gone), and the shell's #drawer is laid out,
+    // never painted, its rows drawn by the menu's own view.
     const drawer = rule('.drawer');
     ok(mw.SIDEBAR_W === 0 && !/class="side"/.test(markup) && prop(rule('.bar'), 'height') === `${mw.TOP_H}px`
       && prop(rule('.bar'), 'flex') === `0 0 ${mw.TOP_H}px`
-      && parseInt(prop(drawer, 'width'), 10) + 16 === mw.DRAWER_W && /var\(--space-4\)/.test(prop(drawer, 'margin')),
-    `the shell has no sidebar, its bar is TOP_H (${mw.TOP_H}px) tall, and its drawer and margin are DRAWER_W (${mw.DRAWER_W}px), where the pages are laid`);
+      && prop(drawer, 'width') === '280px' && /var\(--space-4\)/.test(prop(drawer, 'margin'))
+      && mw.DRAWER_W === undefined && prop(rule('#drawer'), 'visibility') === 'hidden',
+    `the shell has no sidebar, its bar is TOP_H (${mw.TOP_H}px) tall, and its 280px menu takes no width from the pages, drawn over them`);
     const strip = (markup.match(/<header class="bar drag"[^>]*>([\s\S]*?)<div class="bar-end/) || [])[1] || '';
     ok(/<p id="notice" class="top-notice no-drag" aria-live="polite"><\/p>/.test(strip)
       && prop(rule('.top-notice'), 'white-space') === 'nowrap' && prop(rule('.top-notice'), 'text-overflow') === 'ellipsis'

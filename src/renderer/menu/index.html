@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Occlara menu</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../shell/shell.css" />
+  <link rel="stylesheet" href="menu.css" />
+</head>
+<body>
+  <!-- THE ACCOUNT MENU OVER THE PAGE (8.9.1). A see-through view laid over
+       every page while the avatar's menu is open (main-window.js openMenu),
+       sized to the menu and its shadow, so the page under it keeps its full
+       width. Its rows are the shell's #drawer, sent whole as the shell lays
+       them out (shell.js syncMenu) and drawn here with the shell's own
+       styles. A row chosen is carried out by the shell (menu.js). -->
+  <div id="menu" class="drawer" role="menu" aria-label="Account and more" aria-describedby="rail-games" tabindex="-1" hidden></div>
+  <script src="menu.js"></script>
+</body>
+</html>

@@ -2667,7 +2667,7 @@ async function henrikStats(name, tag, modeKey) {
       const shots = head + body + leg;
       const topAgents = Object.entries(agents)
         .sort((x, y) => y[1].matches - x[1].matches)
-        .slice(0, 3)
+        .slice(0, 5)   // Stats lists them as rows; Ask Coach keeps its own 3 (chat-context.js)
         .map(([nm, g]) => ({
           name:    nm,
           matches: g.matches,

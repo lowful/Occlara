@@ -27,7 +27,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 // The Free tier's games for the life of the account; an invited friend gets
 // FRIEND_GIFT more. The server says the same (server/services/caller.js).
-const FREE_GAMES = 2;
+const FREE_GAMES = 4;
 const MAX_FRIENDS = 5;
 const MAX_EARNED = 20;
 const GAMES_PER_FRIEND = 4;
@@ -103,9 +103,9 @@ function figures(state) {
 }
 
 /**
- * The one quiet line for Home and Settings, e.g. "1 of 2 free games left",
+ * The one quiet line for Home and Settings, e.g. "1 of 4 free games left",
  * "18 of 25 games left this month, renews Nov 30", or "You have used your
- * 2 free games". '' when the state cannot say.
+ * 4 free games". '' when the state cannot say.
  */
 function gamesLeft(state, opts) {
   const f = figures(state);

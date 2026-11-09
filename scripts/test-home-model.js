@@ -397,6 +397,23 @@ const summary = patterns.summarise(saved);
     && rrWaitingFor({ id: 'x', mode: 'Competitive' }, undefined, NOW) === false, 'nor an Unrated row, no row, or a row with no end');
 }
 
+// ── The last match's K/D (9.0) ─────────────────────────────────────────────
+// Kills over deaths from the newest whole review's own scoreline, and none
+// without one, with numbers that are not whole, or while it is being built.
+{
+  const { kdOf } = require('../src/shared/home-model');
+  const row = { id: 'k1', title: 'Jett', map: 'Abyss', at: 1, grade: { score: 70, letter: 'B' } };
+  const at = (review, rows) => homeModel({ rows: rows || [row], patterns: {}, review }).last.kd;
+  const kd = at({ id: 'k1', scoreline: { kills: 31, deaths: 21, assists: 4 } });
+  ok(kd && kd.kills === 31 && kd.deaths === 21 && kd.ratio === '1.48', 'the last match carries its kills, deaths and the ratio to two places');
+  ok(kdOf({ kills: 5, deaths: 0 }).ratio === '5.00', 'with no death the ratio is the kills, as Riot writes it');
+  ok(at({ id: 'k1' }) === null && at({ id: 'k1', scoreline: { kills: null, deaths: 3 } }) === null
+    && at({ id: 'k1', scoreline: { kills: 2.5, deaths: 3 } }) === null && at({ id: 'k1', scoreline: { kills: -1, deaths: 3 } }) === null,
+  'no K/D without a scoreline, or with numbers that are not whole counts');
+  ok(at({ id: 'other', scoreline: { kills: 9, deaths: 1 } }) === null, 'and never another review\'s numbers under the newest row');
+  ok(at({ id: 'k1', scoreline: { kills: 9, deaths: 1 } }, [{ ...row, work: { path: 'riot' } }]) === null, 'and none while the review is still being built');
+}
+
 // ── The rank history main keeps (8.2.1, services/rank-history.js) ──────────
 // A review linking to Riot's record means Riot has published the match, so
 // the history both caches held from the match's end is read past, once.

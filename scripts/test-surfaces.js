@@ -850,7 +850,10 @@ async function openShell(cfg, state, opts) {
       handlers: {
         [C.STATE_GET]: () => ({ gameId: 'valorant' }),
         [C.REVIEWS_LIST]: () => rows,
-        [C.PATTERNS_GET]: () => ({ matches: 5, enough: false, grades, categories: [], average: 76,
+        [C.PATTERNS_GET]: () => ({ matches: 5, enough: false, grades, average: 76,
+          categories: [{ key: 'survival', label: 'Survival', average: 61, last: 70, matches: 5 },
+            { key: 'impact', label: 'Impact', average: 80, last: 72, matches: 5 },
+            { key: 'teamplay', label: 'Teamplay', average: 54, last: 54, matches: 4 }],
           mistakes: [], strengths: [], missed: [] }),
       },
     });
@@ -865,8 +868,37 @@ async function openShell(cfg, state, opts) {
     }));
     ok(same(read.map((r) => r.score), [58, 69, 82, 77, 95]), 'oldest on the left');
     ok(read.every((r) => r.h === r.score), 'each bar is its grade as a share of the full height', read.map((r) => r.h).join(','));
-    ok(read.every((r) => toneOf(r.fill) === toneFor(r.score)),
-      'and each bar is its letter\'s colour', read.map((r) => `${r.score}:${r.fill.className}`).join(' '));
+    // 8.9.1: one encoding, height. No bar takes its letter's colour (they read
+    // as random); the newest alone is marked, and says so under it.
+    ok(read.every((r) => toneOf(r.fill) === '') && bars.every((b) => toneOf(b) === ''),
+      'no bar is coloured by its letter', read.map((r) => `${r.score}:${r.fill.className}`).join(' '));
+    ok(same(bars.map((b) => b.classList.contains('latest')), [false, false, false, false, true])
+      && bars[4].querySelector('small').textContent === 'Latest' && /Your latest match/.test(bars[4].title),
+      'the newest bar is marked and named Latest');
+    const days = bars.slice(0, 4).map((b) => b.querySelector('small').textContent);
+    const want = grades.slice(1).reverse().map((g) => new Date(g.at).toLocaleDateString([], { month: 'short', day: 'numeric' }))
+      .map((d, i, all) => (i && all[i - 1] === d ? '' : d));
+    ok(same(days, want) && /^[A-Z][a-z]{2} \d{1,2}$/.test(days[0]),
+      'the first bar of each day carries its short date, as an axis is labelled', days.join(','));
+    const guides = m.document.querySelectorAll('#p-trend .p-guide');
+    ok(same(guides.map((g) => g.textContent), ['S 90', 'A 80', 'B 70', 'C 60'])
+      && same(guides.map((g) => g.style.getPropertyValue('--h')), ['90%', '80%', '70%', '60%']),
+      'each letter band is a labelled guide line at grade.js\'s floor');
+    ok(grade.letter(90) === 'S' && grade.letter(89) === 'A' && grade.letter(80) === 'A' && grade.letter(70) === 'B' && grade.letter(60) === 'C' && grade.letter(59) === 'D',
+      'and those floors are grade.js\'s');
+    const avgLine = m.document.querySelector('#p-trend .p-avgline');
+    ok(avgLine && avgLine.style.getPropertyValue('--h') === '76%' && /76/.test(avgLine.textContent), 'the average is a line at its height');
+    const keyText = m.document.querySelectorAll('#p-trend .p-key-item').map((k) => k.textContent);
+    ok(same(keyText, ['Latest match', 'Average, 76']), 'and the key names each mark on the chart', JSON.stringify(keyText));
+    ok(/each of your last 5 graded matches/.test(m.document.querySelector('#p-trend .p-trend-cap').textContent), 'one plain line says what the chart is');
+    const cats = m.document.querySelectorAll('#p-cats .p-cat');
+    ok(same(cats.map((c) => c.querySelector('b').textContent), ['61', '80', '54'])
+      && same(cats.map((c) => c.querySelector('small').textContent), ['last match 70', 'last match 72', 'last match 54']),
+      'the categories keep their averages and last matches', JSON.stringify(cats.map((c) => c.textContent)));
+    ok(same(cats.map((c) => c.querySelector('.p-cat-vs').textContent), ['↑ above average', '↓ below average', 'at average'])
+      && same(cats.map((c) => c.querySelector('.p-cat-vs').className.split(' ')[1]), ['up', 'down', 'level']),
+      'each says in an arrow and a word which side of its average the last match fell');
+    ok(/averages over your last 5 matches/.test(m.document.querySelector('#p-cats .p-cats-cap').textContent), 'and a line says they are averages');
 
     // Structure, since nothing here measures layout: the number must not share
     // a flex column with the fill, which is what capped every bar near 77%.
@@ -1168,98 +1200,80 @@ async function openShell(cfg, state, opts) {
       'a breakdown row counts its repeat out of its recorded matches, and says so', `read "${said}"`);
   });
 
-  // The record beside the Matches title (8.2): "2:1" in Geist Mono at the
-  // title's size, wins green and losses red, on the list page alone.
-  await section('the Matches title carries the matches won and lost:', async () => {
+  // NO WINS AND LOSSES ON THE MATCHES PAGE (8.9.1, the owner's call): the
+  // "3:2" beside the title is gone, markup, look and the bridge's count. Each
+  // row still says won or lost on its own.
+  await section('the Matches page carries no wins and losses:', async () => {
     const at = Date.UTC(2026, 9, 1, 20);
-    const results = {
-      valorant: ['Victory', 'Defeat', 'Victory', 'Draw', null, 'Victory', 'Defeat'],
-      lol: [null, null],
-    };
-    const rowsFor = (g) => (results[g] || []).map((result, i) => ({ id: `${g}-${i}`, at: at - i * 3600000, title: 'Jett',
+    const results = ['Victory', 'Defeat', 'Victory', 'Draw', null, 'Victory', 'Defeat'];
+    const rows = results.map((result, i) => ({ id: `valorant-${i}`, at: at - i * 3600000, title: 'Jett',
       result, score: result ? '13-11' : null, grade: { score: 70, letter: 'B' } }));
-    const open = async (sectionName) => {
-      const p = loadSurface('matches', {
+    for (const sectionName of ['list', 'patterns']) {
+      const m = loadSurface('matches', {
         handlers: {
           [C.STATE_GET]: () => ({ gameId: 'valorant' }),
-          [C.REVIEWS_LIST]: (g) => rowsFor(g),
+          [C.REVIEWS_LIST]: () => rows,
           [C.PATTERNS_GET]: () => ({ matches: 0, enough: false, grades: [], categories: [], average: null, mistakes: [], strengths: [], missed: [] }),
         },
         window: { location: { hash: '', search: `?embed=1&section=${sectionName}` } },
       });
       await settle();
-      return p;
-    };
-    const m = await open('list');
-    const wl = m.$('wl');
-    const read = () => ({ shown: !wl.hidden, w: wl.querySelector('.wl-w').textContent, l: wl.querySelector('.wl-l').textContent,
-      sr: wl.querySelector('.wl-sr').textContent, title: wl.title });
-    let r = read();
-    ok(r.shown && r.w === '3' && r.l === '2', 'three won and two lost read 3 and 2', JSON.stringify(r));
-    const painted = (cls) => m.document.querySelectorAll(`#list .m-res.${cls}`).length;
-    ok(painted('win') === 3 && painted('loss') === 2, 'exactly the rows below it painted as won and as lost',
-      `rows: ${painted('win')} won, ${painted('loss')} lost`);
-    ok(r.sr === '3 wins, 2 losses', 'a screen reader is told "3 wins, 2 losses"', `read "${r.sr}"`);
-    ok(r.title === '3 wins, 2 losses, 1 draw. 1 match with no result is not counted.',
-      'the tooltip adds the draw and the match with no result', `read "${r.title}"`);
-    ok(!DASHES.test(r.title + r.sr), 'with no dash in either');
-    const h2 = m.document.querySelector('.sheet > header .h-brand h2');
-    ok(h2 && h2.textContent === 'Matches' && wl.parentNode === h2.parentNode, 'beside the Matches title, in its header');
-    ok(['.wl-w', '.wl-sep', '.wl-l'].every((s) => wl.querySelector(s).getAttribute('aria-hidden') === 'true')
-      && wl.querySelector('.wl-sep').textContent === ':' && wl.querySelector('.wl-sr').classList.contains('sr-only'),
-    'the digits and the colon are for the eye, the sentence for a screen reader');
-
-    results.valorant = ['Victory', ...results.valorant];
-    m.bridge.emit(C.PUSH_REVIEWS, { id: 'valorant-new', game: 'valorant' });
-    await settle();
-    r = read();
-    ok(r.w === '4' && r.l === '2' && r.sr === '4 wins, 2 losses', 'a review saved while it is open repaints it', JSON.stringify(r));
-    // A result is counted in whatever case it was saved in, as its row is painted.
-    results.valorant = ['VICTORY', 'defeat', 'victory'];
-    m.bridge.emit(C.PUSH_REVIEWS, { id: 'valorant-case', game: 'valorant' });
-    await settle();
-    r = read();
-    ok(r.shown && r.w === '2' && r.l === '1' && r.title === '2 wins, 1 loss.' && painted('win') === 2 && painted('loss') === 1,
-      'a result is counted in whatever case it was saved in, as its row is painted', JSON.stringify(r));
-    m.bridge.emit(C.PUSH_GAME, { id: 'lol' });
-    await settle();
-    ok(wl.hidden && m.document.querySelectorAll('#list .m-row').length === 2,
-      'League, whose reviews carry no result, shows no record over its two games');
-    results.valorant = [];
-    m.bridge.emit(C.PUSH_GAME, { id: 'valorant' });
-    await settle();
-    ok(wl.hidden, 'nor does an empty library');
-    results.valorant = ['Victory', 'Defeat'];
-    for (const s of ['patterns']) {
-      const p = await open(s);
-      ok(p.$('wl').hidden && p.document.querySelectorAll('#list .m-res').length === 2,
-        `the ${s} page, titled for what it counts, carries no record`);
+      ok(!m.$('wl') && !m.document.querySelector('.wl, .wl-w, .wl-l, .wl-label'), `the ${sectionName} page has no record beside its title`);
+      ok(typeof m.window.occlara.winLoss === 'undefined', `and its bridge counts none (${sectionName})`);
+      if (sectionName === 'list') {
+        const painted = (cls) => m.document.querySelectorAll(`#list .m-res.${cls}`).length;
+        ok(painted('win') === 3 && painted('loss') === 2, 'each row still says won or lost on its own',
+          `rows: ${painted('win')} won, ${painted('loss')} lost`);
+      }
     }
-
-    // The look, read off the stylesheets: a big number of the type scale (8.7,
-    // Geist 600, figures one width) at the title's two sizes, a window's 13px
-    // and a page's 24px, wins --good and losses --bad.
     const css = fs.readFileSync(path.join(RENDERER, 'matches', 'matches.css'), 'utf8');
-    const ui = fs.readFileSync(path.join(RENDERER, 'shared', 'ui.css'), 'utf8');
-    const rule = (src, sel) => {
-      const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      return (src.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
+    const html = fs.readFileSync(path.join(RENDERER, 'matches', 'index.html'), 'utf8');
+    const js = fs.readFileSync(path.join(RENDERER, 'matches', 'matches.js'), 'utf8');
+    ok(!['.wl', 'wl-', 'id="wl"'].some((s) => (css + html).includes(s)) && !js.includes('inLoss'), 'no rule, markup or paint of it is left');
+  });
+
+  // THE GRADE CARD'S FOOT NEVER RUNS TOGETHER (8.9.1): eight times 25px
+  // apart in the 216px card read "8:259:043:54". Each kept label clears the
+  // next by a gap and stays inside the box, the newest is always labelled,
+  // and matches over more than one day are labelled by day.
+  await section('the grade card beside the matches labels its points so each reads alone:', async () => {
+    const HOUR = 3600000;
+    const footOf = async (gradesNewestFirst) => {
+      const m = loadSurface('matches', {
+        handlers: {
+          [C.STATE_GET]: () => ({ gameId: 'valorant' }),
+          [C.REVIEWS_LIST]: () => gradesNewestFirst.map((g) => ({ id: g.id, at: g.at, title: 'Jett', result: 'Victory',
+            score: '13-11', grade: { score: g.score, letter: 'B' } })),
+          [C.PATTERNS_GET]: () => ({ matches: gradesNewestFirst.length, enough: true, grades: gradesNewestFirst, categories: [],
+            average: 70, mistakes: [], strengths: [], missed: [], recorded: 0 }),
+        },
+        window: { location: { hash: '', search: '?embed=1&section=list' } },
+      });
+      await settle();
+      const svg = m.document.querySelector('#m-chart-line svg');
+      const labels = svg ? [...svg.querySelectorAll('.gl-time')].map((t) => ({ x: Number(t.getAttribute('x')), text: t.textContent })) : [];
+      labels.sort((a, b) => a.x - b.x);
+      return { shown: !m.$('m-chart').hidden, labels, w: svg ? Number(svg.getAttribute('width')) : 0 };
     };
-    const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
-    ok(prop(rule(css, '.m-letter'), 'border-radius') === 'var(--r-btn)' && prop('a: 1; font-size: 13px;', 'font-size') === '13px',
-      'the rule and property readers find a known rule and property');
-    const base = rule(css, '.wl');
-    ok(prop(base, 'font-family') === 'var(--font)' && prop(base, 'font-weight') === '600'
-      && prop(base, 'font-variant-numeric') === 'tabular-nums'
-      && prop(rule(css, '.wl b'), 'font-weight') === 'inherit', 'Geist 600 with tabular figures, its bold tags inheriting it', base.trim());
-    ok(prop(base, 'font-size') === prop(rule(css, '.h-brand h2'), 'font-size')
-      && prop(rule(css, 'html.embedded .sheet > header .wl'), 'font-size') === prop(rule(ui, 'html.embedded .sheet > header .h-brand h2'), 'font-size')
-      && prop(rule(css, 'html.embedded .sheet > header .wl'), 'font-size') === '24px',
-    'at the title\'s size in a window and as a page');
-    ok(prop(rule(css, '.wl-w'), 'color') === 'var(--good)' && prop(rule(css, '.wl-l'), 'color') === 'var(--bad)'
-      && prop(rule(css, '.wl-sep'), 'color') === 'var(--text-mute)', 'wins --good, losses --bad, the colon dim');
-    ok(/clip:/.test(rule(ui, '.sr-only')) && !/\n\.sr-only\s*\{/.test(fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8')),
-      'the screen reader class is the shared one in ui.css, which the library loads, not a copy');
+    const half = (l) => (l.text.length * 6) / 2;
+    const clear = ({ labels, w }) => labels.every((l, i) => l.x - half(l) >= 0 && l.x + half(l) <= w
+      && (!labels[i + 1] || l.x + half(l) < labels[i + 1].x - half(labels[i + 1])));
+    // Eight matches one evening, 25 minutes apart.
+    const evening = new Date(2026, 9, 1, 20, 25).getTime();
+    const sameDay = Array.from({ length: 8 }, (_, i) => ({ id: `e${i}`, score: 81 - i * 3, at: evening + (7 - i) * 25 * 60000 }));
+    let r = await footOf(sameDay);
+    ok(r.shown && r.labels.length >= 2 && r.labels.length < 8, 'eight points one evening are labelled, but not every one',
+      JSON.stringify(r.labels));
+    ok(clear(r), 'no two labels touch and none leaves the box', JSON.stringify(r.labels));
+    ok(r.labels.every((l) => /^\d{1,2}:\d{2}$/.test(l.text)) && /^\d{1,2}:\d{2}$/.test('10:43'),
+      "one day's matches are labelled by time");
+    ok(r.labels.length && r.labels[r.labels.length - 1].x >= r.w - 40, 'the newest point is always labelled');
+    // Eight matches over four days, two a day an hour apart.
+    const days = Array.from({ length: 8 }, (_, i) => ({ id: `d${i}`, score: 70, at: evening - Math.floor(i / 2) * 24 * HOUR - (i % 2) * HOUR }));
+    r = await footOf(days);
+    ok(r.labels.length >= 2 && clear(r) && r.labels.every((l) => /^[A-Za-z]+ \d{1,2}$/.test(l.text)) && /^[A-Za-z]+ \d{1,2}$/.test('Oct 1'),
+      'matches over several days are labelled by day, apart and inside the box', JSON.stringify(r.labels));
+    ok(new Set(r.labels.map((l) => l.text)).size === r.labels.length, 'and no day is said twice');
   });
 
   // THE EYE (8.2): a recorded match's AI log, from its row. A button beside the
@@ -3360,12 +3374,61 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(!/\bAuto\b/.test(sec.textContent), 'and nothing in it names Auto any more', sec.textContent);
     ok(active(plain, 'recording') === 'auto' && active(plain, 'recordingres') === '720' && plain.$('rec-note').hidden && plain.$('rec-retry').hidden,
       'On and 720p, and nothing to say');
+    // THE AI LOG IS LOCKED ON WHILE RECORDING IS ON (8.9, the owner's rule):
+    // the look at each death and its clips are found through its frames.
+    const logLocked = (se) => se.document.querySelectorAll('#ailog button').every((b) => b.disabled) && !se.$('ailog-lock').hidden;
+    ok(logLocked(plain) && active(plain, 'ailog') === 'on' && /^Locked on while Record match video is on: /.test(plain.$('ailog-lock').textContent)
+      && /no look at your deaths and no clips\.$/.test(plain.$('ailog-lock').textContent) && !DASHES.test(plain.$('ailog-lock').textContent),
+    'recording On: the AI log is shown on, cannot be pressed, and says why', plain.$('ailog-lock').textContent);
+    const setsBefore = plain.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).length;
+    plain.$('ailog').querySelector('button[data-val="off"]').click();
+    await settle();
+    ok(plain.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).length === setsBefore && active(plain, 'ailog') === 'on', 'and a press on its Off saves nothing');
+    // OFF ASKS FIRST: what the recording gives, and that the AI log goes on.
     plain.$('recording').querySelector('button[data-val="off"]').click();
     await settle();
-    ok(lastSet(plain) && lastSet(plain).recordingMode === 'off' && active(plain, 'recording') === 'off', 'Off is saved as off', JSON.stringify(lastSet(plain)));
+    const ask = plain.$('rec-confirm-body').textContent;
+    ok(!plain.$('rec-confirm').hidden && plain.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).length === setsBefore && active(plain, 'recording') === 'auto'
+      && /^Recording is what makes the coaching good\./.test(ask) && /turns the AI log on\.$/.test(ask) && !DASHES.test(ask),
+    'Off asks first, saves nothing yet, and says what recording gives and that the AI log is turned on', ask);
+    plain.$('rec-off-keep').click();
+    await settle();
+    ok(plain.$('rec-confirm').hidden && active(plain, 'recording') === 'auto' && plain.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).length === setsBefore && logLocked(plain),
+      'Keep recording leaves it on, saves nothing, and the log locked');
+    plain.$('recording').querySelector('button[data-val="off"]').click();
+    await settle();
+    plain.$('rec-off-yes').click();
+    await settle();
+    ok(lastSet(plain) && lastSet(plain).recordingMode === 'off' && lastSet(plain).aiLog === true && active(plain, 'recording') === 'off' && plain.$('rec-confirm').hidden,
+      'Turn recording off saves off, as off, with the AI log on', JSON.stringify(lastSet(plain)));
+    // LOCKED BOTH WAYS: with recording off the frames are all the look has.
+    const offLine = plain.$('ailog-lock').textContent;
+    ok(logLocked(plain) && active(plain, 'ailog') === 'on' && /^Locked on while Record match video is off: /.test(offLine)
+      && /with no video, these frames are the only thing the review can look at your deaths through\.$/.test(offLine) && !DASHES.test(offLine),
+    'and the AI log stays on and locked, with its recording-off line saying why', offLine);
+    const setsLocked = plain.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).length;
+    plain.$('ailog').querySelector('button[data-val="off"]').click();
+    await settle();
+    ok(plain.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).length === setsLocked && active(plain, 'ailog') === 'on',
+      'recording off, a press on the AI log\'s Off saves nothing either');
+    const setsOff = plain.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).length;
+    plain.$('recording').querySelector('button[data-val="off"]').click();
+    await settle();
+    ok(plain.$('rec-confirm').hidden && plain.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).length === setsOff, 'already off, Off asks nothing');
     plain.$('recording').querySelector('button[data-val="auto"]').click();
     await settle();
-    ok(lastSet(plain) && lastSet(plain).recordingMode === 'auto' && active(plain, 'recording') === 'auto', 'and On as auto, the value it always had', JSON.stringify(lastSet(plain)));
+    ok(lastSet(plain) && lastSet(plain).recordingMode === 'auto' && lastSet(plain).aiLog === true && active(plain, 'recording') === 'auto' && logLocked(plain) && active(plain, 'ailog') === 'on',
+      'and On as auto, the value it always had, the AI log on and locked again', JSON.stringify(lastSet(plain)));
+    const oldOff = await open({ recordingMode: 'auto', aiLog: false });
+    ok(logLocked(oldOff) && active(oldOff, 'ailog') === 'on' && oldOff.bridge.invoked.some(([ch, v]) => ch === C.CONFIG_SET && v && v.aiLog === true && Object.keys(v).length === 1),
+      'an install with the log stored off and recording on: shown on and locked, and stored on', JSON.stringify(oldOff.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET)));
+    const freeOff = await open({ recordingMode: 'off', aiLog: false });
+    ok(logLocked(freeOff) && active(freeOff, 'ailog') === 'on' && /^Locked on while Record match video is off: /.test(freeOff.$('ailog-lock').textContent)
+      && freeOff.bridge.invoked.some(([ch, v]) => ch === C.CONFIG_SET && v && v.aiLog === true && Object.keys(v).length === 1),
+    'recording off and the log stored off: shown on and locked with the recording-off line, and stored on',
+    JSON.stringify(freeOff.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET)));
+    const keptOn = await open({ recordingMode: 'off' });
+    ok(logLocked(keptOn) && !keptOn.bridge.invoked.some(([ch]) => ch === C.CONFIG_SET), 'recording off and the log already on: locked, and nothing written');
     plain.$('recordingres').querySelector('button[data-val="1080"]').click();
     await settle();
     ok(lastSet(plain) && lastSet(plain).recordingRes === '1080' && active(plain, 'recordingres') === '1080', '1080p is a choice', JSON.stringify(lastSet(plain)));
@@ -3440,6 +3503,13 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
       'Valorant: its hint, and its status line', sw.$('rec-note').textContent);
     sw.bridge.emit(C.PUSH_STATE, { gameId: 'lol', recording: { mode: 'auto', res: '720', autoOff: null, last: null } });
     ok(hint(sw) === lolHint, 'the game switched to League while the page is open: League\'s');
+    ok(/^Locked on while Record match video is on\. In League of Legends this does nothing: /.test(sw.$('ailog-lock').textContent) && !/screen/i.test(sw.$('ailog-lock').textContent),
+      'and the AI log\'s lock says it does nothing in League, never that its screen is read', sw.$('ailog-lock').textContent);
+    sw.bridge.emit(C.PUSH_STATE, { gameId: 'lol', recording: { mode: 'off', res: '720', autoOff: null, last: null } });
+    ok(/^Locked on while Record match video is off\. In League of Legends this does nothing: /.test(sw.$('ailog-lock').textContent) && !/screen/i.test(sw.$('ailog-lock').textContent)
+      && sw.document.querySelectorAll('#ailog button').every((b) => b.disabled),
+    'League with recording off: still locked, and its line says it does nothing there', sw.$('ailog-lock').textContent);
+    sw.bridge.emit(C.PUSH_STATE, { gameId: 'lol', recording: { mode: 'auto', res: '720', autoOff: null, last: null } });
     ok(readHints(sw).every((t) => /^In League of Legends this does nothing/.test(t)), 'and its Capture speed and Performance say so too', readHints(sw).join(' | '));
     sw.bridge.emit(C.PUSH_STATE, { gameId: 'valorant', recording: { mode: 'auto', res: '720', autoOff: null, last: { outcome: 'busy', at: 1 } } });
     ok(hint(sw) === val && !sw.$('rec-note').hidden && /your PC was busy/.test(sw.$('rec-note').textContent) && same(readHints(sw), valRead),
@@ -5961,7 +6031,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ]), 'the three figures with their samples, Valorant\'s', JSON.stringify(figs));
     const rows = () => q.document.querySelectorAll('.pr-plan-row').map((r) => [r.querySelector('.pr-plan-name').textContent, r.querySelector('.pr-amount').textContent,
       r.querySelector('.pr-per').textContent, r.querySelector('.pr-plan-games').textContent, r.querySelector('button') ? r.querySelector('button').textContent : null]);
-    ok(same(rows(), [['Free', '$0', '', '2 games for life', 'See Free'], ['ProYour plan', '$24.99', 'a month', '25 games a month', null], ['Max', '$69.99', 'a month', '70 games a month', 'See Max']]),
+    ok(same(rows(), [['Free', '$0', '', '4 games for life', 'See Free'], ['ProYour plan', '$24.99', 'a month', '25 games a month', null], ['Max', '$69.99', 'a month', '70 games a month', 'See Max']]),
       'the plans, monthly, Pro marked as theirs and no button on it', JSON.stringify(rows()));
     q.$('pr-yearly').click();
     ok(q.$('pr-yearly').getAttribute('aria-pressed') === 'true' && same(rows().map((r) => [r[1], r[2]]), [['$0', ''], ['$249.99', 'a year'], ['$699.99', 'a year']]),

@@ -21,21 +21,6 @@ header {
 .h-brand { display: flex; align-items: center; gap: var(--space-2); flex: none; }
 .h-brand h2 { font-size: 13px; font-weight: 600; letter-spacing: -0.1px; }
 
-/* WON AND LOST beside the title (matches.js paintWinLoss): a big number of
-   the type scale, Geist 600 with figures one width, at the title's own size,
-   13px here and 24px as a page (below, after ui.css). Wins in --good, losses
-   in --bad, the colon between them quiet. Each colour sits on its number, so
-   the colour is never the only signal. */
-.wl {
-  display: inline-flex; align-items: baseline; margin-left: var(--space-2);
-  font-family: var(--font); font-size: 13px; font-weight: 600; line-height: 1;
-  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums;
-}
-.wl b { font-weight: inherit; }
-.wl-w { color: var(--good); }
-.wl-l { color: var(--bad); }
-.wl-sep { color: var(--text-mute); margin: 0 2px; }
-
 /* The game tabs, drawn as a window of its own alone (html.embedded hides them). */
 .tabs { display: flex; gap: 2px; margin-left: auto; padding: 3px; border-radius: var(--r-btn); border: 1px solid var(--line-2); }
 .tab {
@@ -72,60 +57,119 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .p-avg-label { font-size: 14px; font-weight: 400; color: var(--text-dim); }
 
 /* The grade trend: one bar per match, oldest on the left, so improvement reads
-   as a line climbing to the right, standing on one hairline. The number sits
-   over every bar.
+   as a line climbing to the right, standing on one baseline. The number sits
+   over every bar, its date under it.
 
-   The fill's height is the score as a share of the WHOLE bar, so 0 to 100 uses
-   every pixel. The number is positioned off the fill's top instead of stacked
-   above it in the same flex column, because stacked it took its own height out
-   of the fill's: the fill was capped near 77% and every grade from B+ to S drew
-   the same bar. The bar's top margin is the room the number needs over a 100.
-   Both read --h, which matches.js sets on the bar. */
-.p-trend {
-  display: flex; gap: var(--space-2); height: 128px;
-  padding: 0 0 var(--space-2);
-  border-bottom: 1px solid var(--line);
+   ONE ENCODING (8.9.1, matches.js paintTrend): height is the grade. Every bar
+   is one neutral tone, the newest in the ink; the letter bands are thin guide
+   lines labelled at the left, the average a dashed line labelled at the
+   right, and the key under the chart names every mark on it. Colour carries
+   nothing a word does not also say.
+
+   The fill's height is the score as a share of the WHOLE plot, so 0 to 100
+   uses every pixel. The number is positioned off the fill's top instead of
+   stacked above it in the same flex column, because stacked it took its own
+   height out of the fill's: the fill was capped near 77% and every grade from
+   B+ to S drew the same bar. The plot's top margin is the room the number
+   needs over a 100, its bottom margin the room for the dates. Bars, guides
+   and the average all read --h, which matches.js sets on each. */
+.p-trend { display: flex; flex-direction: column; gap: var(--space-3); }
+.p-trend-cap { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.p-plot {
+  position: relative; height: 180px;
+  margin: var(--space-4) 0 var(--space-6);
+  border-bottom: 1px solid var(--line-2);
 }
+/* A letter's floor, a hairline across the plot with its letter at the left. */
+.p-guide {
+  position: absolute; left: 0; right: 0; bottom: var(--h, 0%); height: 0;
+  border-top: 1px solid var(--line);
+}
+.p-guide span {
+  position: absolute; left: 0; bottom: 1px;
+  font: 500 10px/12px var(--font-mono); color: var(--text-mute);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+/* The average, dashed, its number at the right where no bar stands. */
+.p-avgline {
+  position: absolute; left: 40px; right: 0; bottom: var(--h, 0%); height: 0;
+  border-top: 1px dashed var(--text-dim); pointer-events: none;
+}
+.p-avgline span {
+  position: absolute; right: 0; bottom: 2px;
+  font: 500 11px/12px var(--font-mono); color: var(--text-dim);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+/* The bars between the letters' gutter and the average's label. */
+.p-bars { position: absolute; left: 40px; right: 64px; top: 0; bottom: 0; display: flex; gap: var(--space-2); z-index: 1; }
 /* A bar takes up to 56px, so four matches stand together at the left rather
-   than spread across the page; twenty shrink to share it. */
-.p-bar { position: relative; flex: 0 1 56px; min-width: 0; margin-top: 16px; --c: var(--text); }
+   than spread across the page; ten shrink to share it. */
+.p-bar { position: relative; flex: 0 1 56px; min-width: 0; --c: var(--text-mute); }
 .p-bar i {
   position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto;
   width: 100%; max-width: 28px; height: var(--h, 0%);
   border-radius: 2px 2px 0 0; background: var(--c);
 }
-.p-bar i.good { --c: var(--good); }
-.p-bar i.warn { --c: var(--warn); }
-.p-bar i.bad  { --c: var(--bad); }
+/* The newest match in the ink, its date replaced by Latest. */
+.p-bar.latest { --c: var(--text); }
 /* A provisional grade is a dashed outline, not a fill: form before hue. */
-.p-bar i.prov { background: transparent; border: 1.5px dashed var(--c); opacity: 0.8; }
+.p-bar i.prov { background: transparent; border: 1.5px dashed var(--c); }
+/* The number on the card's own ground, so the average's dashes part round it.
+   --p-ground is the colour .patterns stands on, set wherever that is drawn:
+   the glass sheet alone, the page ground embedded, the --s1 card on the
+   Patterns page (the rules at the end). A fixed --s1 here drew a box on any
+   ground but the card. */
+.patterns { --p-ground: var(--glass-fill); }
 .p-bar span {
-  position: absolute; left: 0; right: 0; bottom: calc(var(--h, 0%) + 4px);
+  position: absolute; left: 50%; bottom: calc(var(--h, 0%) + 4px); transform: translateX(-50%);
+  padding: 0 3px; background: var(--p-ground);
   text-align: center; font: 500 11px/12px var(--font-mono); color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
-/* A record in the ink with its number in --good, and the run underlined
-   (8.7, matches.js paintTrend, from progress.js): form before hue, and no
-   ring round a bar (a box round a box). The bar's hover says which. */
-.p-bar.best i { --c: var(--text); }
+.p-bar.latest span { color: var(--text); }
+.p-bar small {
+  position: absolute; left: -4px; right: -4px; top: calc(100% + 8px);
+  text-align: center; font: 500 10px/12px var(--font-mono); color: var(--text-mute);
+  white-space: nowrap; overflow: hidden; text-overflow: clip;
+}
+.p-bar.latest small { color: var(--text); font-family: var(--font); font-size: 11px; font-weight: 600; }
+/* A record's number in --good and bold, and the run underlined (8.7, from
+   progress.js): both named in the key and on hover, never colour alone. */
 .p-bar.best span { color: var(--good); font-weight: 600; }
 .p-bar.run::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: -6px; margin: 0 auto;
+  content: ''; position: absolute; left: 0; right: 0; bottom: -4px; margin: 0 auto;
   width: 60%; max-width: 20px; height: 2px; border-radius: 1px;
-  background: var(--good);
+  background: var(--text-dim);
 }
 
+/* The key: one swatch and its words per mark on the chart. */
+.p-key { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); }
+.p-key-item { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 12px; color: var(--text-dim); }
+.p-key-sw { display: inline-block; flex: none; font-style: normal; }
+.p-key-sw.latest { width: 8px; height: 12px; border-radius: 2px 2px 0 0; background: var(--text); }
+.p-key-sw.avg { width: 16px; height: 0; border-top: 1px dashed var(--text-dim); }
+.p-key-sw.prov { width: 8px; height: 12px; border-radius: 2px 2px 0 0; border: 1.5px dashed var(--text-mute); }
+.p-key-sw.best { font: 500 11px/12px var(--font-mono); color: var(--good); font-variant-numeric: tabular-nums; }
+.p-key-sw.run { width: 12px; height: 2px; border-radius: 1px; background: var(--text-dim); }
+
 /* The four categories as a stat row: columns parted by the hairline, a big
-   number each, its name and its last match under it. */
-.p-cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+   number each, its name, its last match under it and which side of the
+   average that fell, as an arrow and a word. The line over them says they
+   are averages. */
+.p-cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: var(--space-3); }
+.p-trend:not([hidden]) + .p-cats { margin-top: var(--space-4); }
+.p-cats-cap { grid-column: 1 / -1; margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
 .p-cat { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; padding: 0 var(--space-6); border-left: 1px solid var(--line); }
-.p-cat:first-child { padding-left: 0; border-left: 0; }
+.p-cat:first-of-type { padding-left: 0; border-left: 0; }
 .p-cat b {
   display: block; font-family: var(--font); font-size: 28px; font-weight: 600; line-height: 1;
   letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text);
 }
 .p-cat span { display: block; font-size: 12px; font-weight: 500; color: var(--text-mute); margin-top: var(--space-1); }
-.p-cat small { display: block; font-size: 12px; color: var(--text-dim); }
+.p-cat small { display: block; font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.p-cat-vs { display: block; font-size: 12px; font-style: normal; font-weight: 500; color: var(--text-mute); }
+.p-cat-vs.up { color: var(--good); }
+.p-cat-vs.down { color: var(--bad); }
 
 /* THE LISTS AS RULED ROWS. grade-view.css draws each entry as a card for the
    review; here the host draws them as rows of the log: a heading over a
@@ -302,7 +346,7 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 
 @media (max-width: 620px) {
   .p-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--space-4); }
-  .p-cat:nth-child(3) { padding-left: 0; border-left: 0; }
+  .p-cat:nth-of-type(3) { padding-left: 0; border-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .m-item, .m-item.rise { animation: none; transition: none; }
@@ -454,17 +498,14 @@ html[data-section="list"] #patterns,
 html[data-section="patterns"] #every { display: none !important; }
 html[data-section="list"] #every .l-head h3,
 html[data-section="patterns"] #patterns .p-head h3 { display: none; }
-/* The record beside the page title is the title's 24px (ui.css), on its
-   baseline. */
 html.embedded .sheet > header .h-brand { align-items: baseline; }
-html.embedded .sheet > header .wl { font-size: 24px; }
 /* On its page the list's grading line stands alone over the rows. */
 html[data-section="list"] #every .l-head { justify-content: flex-end; }
 html[data-section="list"] #every .l-head:has(#bf[hidden]) { display: none; }
 @media (max-width: 860px) { .every-grid.charted { grid-template-columns: minmax(0, 1fr); } }
 
-/* The record beside the title says what it counts. */
-.wl-label { margin-left: var(--space-2); font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-mute); }
-
-/* PROGRESS V3: Patterns is a card on the ground, as Home's are. */
-html[data-section="patterns"] .patterns { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }
+/* Embedded, the sheet is the page ground (ui.css html.embedded .sheet.glass). */
+html.embedded .patterns { --p-ground: var(--bg); }
+/* PROGRESS V3: Patterns is a card on the ground, as Home's are. The card and
+   the trend's numbers read one --p-ground, so they cannot drift apart. */
+html[data-section="patterns"] .patterns { --p-ground: var(--s1); padding: var(--space-5) var(--space-6); background: var(--p-ground); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }

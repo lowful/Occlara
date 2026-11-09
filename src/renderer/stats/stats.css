@@ -262,4 +262,52 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
 
 /* PROGRESS V3: a section is a card on the ground, as Home's are. */
 .body { gap: var(--space-4); }
-#sec-overview, #sec-agents, #sec-matches, #sec-sessions, #nostats { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }
+#sec-overview, #sec-numbers, #sec-agents, #sec-maps, #sec-acts, #sec-matches, #sec-sessions, #nostats { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }
+
+/* ── Your numbers (stats.js renderNumbers) ───────────────────────────────────
+   The combat score the lead, K/D and damage beside it as columns divided by
+   the hairline, as the overview's are; the per round numbers a ruled list in
+   the same three columns, so each divider stands in the gap the list leaves; where the shots land one bar in the ink at three strengths,
+   so no part reads as good or bad by its colour. */
+.nums-lead { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--space-6); }
+/* Set on the row's foot, so the lead's larger number and the two beside it
+   share one line for their labels. */
+.nl-item { position: relative; display: flex; flex-direction: column; justify-content: flex-end; gap: var(--space-1); min-width: 0; }
+/* The divider in the middle of the gap, where the list's columns part too. */
+.nl-item + .nl-item::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--space-6) / -2); border-left: 1px solid var(--line); }
+.nl-val { font-family: var(--font); font-size: 28px; font-weight: 600; color: var(--text); line-height: var(--lh-display); letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nl-item.lead .nl-val { font-size: 40px; letter-spacing: -0.03em; line-height: 1.1; }
+.nl-val.none { color: var(--text-mute); }
+.nl-label { font-size: 12px; font-weight: 500; color: var(--text-mute); line-height: 1.35; }
+.nums-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--space-6); margin-top: var(--space-5); }
+.nr-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--line); min-width: 0; }
+.nr-label { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nr-val { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nr-val.none { color: var(--text-mute); }
+.shots { margin-top: var(--space-5); }
+.shots-head { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-2); }
+.shots-bar { display: flex; height: 8px; border-radius: var(--r-pill); overflow: hidden; background: var(--line); gap: 2px; }
+.shots-seg { display: block; height: 100%; min-width: 2px; }
+/* sh-*, never .body: that is the page's scroller (above), a flex column. */
+.shots-seg.sh-head, .shots-k.sh-head .sw { background: var(--text); }
+.shots-seg.sh-body, .shots-k.sh-body .sw { background: var(--text-mute); }
+.shots-seg.sh-legs, .shots-k.sh-legs .sw { background: var(--line-2); }
+.shots-key { display: flex; gap: var(--space-5); margin-top: var(--space-2); flex-wrap: wrap; }
+.shots-k { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.shots-k .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+
+/* ── Maps and Acts (stats.js renderMaps, renderActs): a compact ledger, the
+   name and any word left, the numbers right aligned in mono, one hairline a row. */
+.ledger { display: flex; flex-direction: column; }
+.lg-row { display: grid; grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)); gap: var(--space-3); align-items: baseline; padding: var(--space-2) 0; border-top: 1px solid var(--line); animation: rowIn var(--t-slow) var(--ease-expo) both; }
+.lg-row.lg-head { border-top: 0; padding-top: 0; animation: none; }
+.lg-cell { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-cell.name { font-family: var(--font); font-size: 14px; text-align: left; }
+/* A word (a rank) reads from the left, as the name does; numbers stay right. */
+.lg-cell.word { font-family: var(--font); font-size: 13px; text-align: left; }
+.lg-cell.none { color: var(--text-mute); }
+.lg-head .lg-cell { font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-mute); }
+@media (prefers-reduced-motion: reduce) { .lg-row { animation: none; } }
+/* The Stats window on its own is 560 wide: the per round list stacks rather
+   than cutting its labels short. */
+@media (max-width: 720px) { .nums-list { grid-template-columns: minmax(0, 1fr); } }

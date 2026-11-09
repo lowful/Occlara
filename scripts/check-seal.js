@@ -77,7 +77,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: a held seal is taken over by a League recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts, the Profile page and its checkout sealed mid match, the tray icon brings the window up, the Recording screen mid match, and closing quits by the tray\'s path, asking first, once each, when a match is being recorded (counting only the rounds a stop keeps) and when a review is still being built');
+  console.log('PASS: a held seal is taken over by a League recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts, the Profile page and its checkout sealed mid match, the games toast held mid match and shown once it ends, the tray icon brings the window up, the Recording screen mid match, and closing quits by the tray\'s path, asking first, once each, when a match is being recorded (counting only the rounds a stop keeps) and when a review is still being built');
   process.exit(0);
 }
 
@@ -429,6 +429,16 @@ setTimeout(async () => {
     if (!now.sealed) return report(false, 'a review withdrawn because its match resumed left the window unsealed mid match');
     if (onScreen.length || m.onScreen || m.coming) return report(false, `mid match, a page is on screen: ${onScreen.join(',')}`);
     if (now.page !== 'home') return report(false, `the window kept ${now.page}, not Home, for when the match ends`);
+    // THE GAMES TOAST WAITS (8.9.1, ui.md "The games toast"): games that came
+    // mid match (a gift redeemed, an invite paid off) are never said over it.
+    // index.js holds them while a match is on or the window is sealed
+    // (flushGamesToasts, test:gamestoast); the window's toast view holds any
+    // that reach it while sealed. Here one reaches it mid match.
+    const giftToast = { id: 'seal-gift', kind: 'gift', pre: 'You got Pro', n: null, post: '', line: 'Someone sent you a gift, 25 games a month.' };
+    mainWindow.toast(giftToast);
+    const tMid = mainWindow.toastState();
+    lines.push(`resumed: a games toast mid match: shown=${tMid.shown} waiting=${tMid.queued.join(',') || 'none'}`);
+    if (tMid.shown || !tMid.queued.includes('seal-gift')) return report(false, 'mid match, the games toast came on screen');
     const after = (await invoke(C.REVIEWS_LIST, 'valorant')).length;
     lines.push(`library: ${before} reviews before the resume, ${after} after`);
     if (after !== before - 1) return report(false, 'the withdrawn review is still in the library');
@@ -438,6 +448,13 @@ setTimeout(async () => {
     const ended = await until(settled('review'), 8000);
     lines.push(`the real end: sealed=${mainWindow.current().sealed} review on screen=${!!ended}`);
     if (!ended || mainWindow.current().sealed) return report(false, 'the real end did not open the review of the whole match');
+    // The match over, the seal lifted: the toast that waited comes, drawn.
+    const tShown = await until(() => mainWindow.toastState().shown, 3000);
+    const tView = mainWindow.toastState().view;
+    const tTitle = tView ? await until(() => tView.webContents.executeJavaScript(
+      "(() => { const b = document.getElementById('toast'); return b && !b.hidden ? document.getElementById('toast-title').textContent + ' | ' + document.getElementById('toast-line').textContent : ''; })()"), 4000) : null;
+    lines.push(`the real end: the games toast shown=${!!tShown} says "${tTitle || ''}"`);
+    if (!tShown || tTitle !== `${giftToast.pre} | ${giftToast.line}`) return report(false, 'once the match ended, the games toast that waited did not come');
     send(C.COACH_STOP);
 
     // 3. A Valorant Start pressed over a held seal, mid match, never lifts it.

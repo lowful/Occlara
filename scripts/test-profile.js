@@ -151,7 +151,7 @@ ok(profile.play(lib.map((e) => e.review), { riotId: '' }, U).figures[1].value ==
 console.log('\n[profile] the plans');
 const pl = sayAll(profile.plans('pro'));
 eq(pl.map((x) => [x.label, x.monthly, x.monthlyPer, x.yearly, x.yearlyPer, x.games, x.mine, x.action]), [
-  ['Free', '$0', '', '$0', '', '2 games for life', false, 'See Free'],
+  ['Free', '$0', '', '$0', '', '4 games for life', false, 'See Free'],
   ['Pro', '$24.99', 'a month', '$249.99', 'a year', '25 games a month', true, ''],
   ['Max', '$69.99', 'a month', '$699.99', 'a year', '70 games a month', false, 'See Max'],
 ], 'Free, Pro and Max at the site\'s prices, the current one marked, the others with a way to the site');

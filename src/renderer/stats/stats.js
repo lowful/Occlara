@@ -599,6 +599,10 @@ function renderMatches(res) {
   if (res && res.refreshBlockedFor) refreshBlockedUntil = Date.now() + res.refreshBlockedFor;
   updatedEl.textContent = lastFetchedAt ? `Last updated ${timeAgo(lastFetchedAt)}` : '';
 
+  renderMaps(matches);
+  // Top agents counts this list when Riot's profile sent none.
+  agentFeed.matches = matches;
+  if (!agentFeed.top.length) renderAgents();
   if (!matches.length) {
     matchEmptyEl.hidden = false;
     const noRiot = !!(res && res.error === 'no-riot-id');
@@ -872,12 +876,44 @@ function agentLetterBadge(name) {
   return s;
 }
 
-async function renderAgents(topAgents) {
-  const list = Array.isArray(topAgents) ? topAgents : [];
+// What Top agents is drawn from, kept so the match list landing after the
+// dashboard (or the other way round) draws it again from the newest of both.
+const agentFeed = { top: [], matches: [], sessions: [], riot: true };
+let agentSeq = 0;
+
+/**
+ * Top agents, never saying "play a few matches" over matches that are there.
+ * Riot's profile first; with none from it, the match list on this page counted
+ * by agent (stats-profile.js agents); with neither, a line that agrees with
+ * what the page does show: graded matches named, a Riot ID asked for.
+ */
+function agentsEmptyLine() {
+  const graded = (agentFeed.sessions || []).some((s) => s && typeof s.title === 'string' && s.title.trim());
+  if (!agentFeed.riot) return 'Connect your Riot ID in Settings to see your agent numbers here.';
+  if (graded) return 'Your agent numbers come from Riot\'s record, which has none for this queue yet.';
+  return 'Play a few matches to see your most played agents here.';
+}
+
+function renderAgents(d) {
+  if (d && typeof d === 'object') {
+    if ('topAgents' in d) agentFeed.top = Array.isArray(d.topAgents) ? d.topAgents : [];
+    if (d.matches && Array.isArray(d.matches.matches)) agentFeed.matches = d.matches.matches;
+    if (Array.isArray(d.sessions)) agentFeed.sessions = d.sessions;
+    if (typeof d.riotConnected === 'boolean') agentFeed.riot = d.riotConnected;
+  }
+  const list = agentFeed.top.length ? agentFeed.top
+    : (StatsProfile ? StatsProfile.agents(agentFeed.matches) : []);
+  return drawAgents(list);
+}
+
+async function drawAgents(list) {
+  const seq = ++agentSeq;
   agentTilesEl.innerHTML = '';
+  agentEmptyEl.textContent = agentsEmptyLine();
   agentEmptyEl.hidden = list.length > 0;
   if (!list.length) return;
   const icons = await loadAgentIcons();
+  if (seq !== agentSeq) return;   // drawn again while the icons loaded
   list.forEach((a, i) => {
     const tile = document.createElement('div');
     tile.className = 'agent-tile';
@@ -915,12 +951,152 @@ async function renderAgents(topAgents) {
     const acs = document.createElement('span');
     acs.className = `agent-chip ${a.acs >= 220 ? 'good' : a.acs < 150 ? 'bad' : 'mid'}`;
     acs.textContent = `${a.acs} ACS`;
-    chips.append(wr, kd, acs);
+    // Counted from the match list, a number no match carried is left out.
+    chips.append(wr);
+    if (a.kd != null) chips.append(kd);
+    if (a.acs != null) chips.append(acs);
     info.append(nm, chips);
     tile.append(icon, info);
     tile.style.animationDelay = Math.min(i, 8) * 40 + 'ms';
     agentTilesEl.append(tile);
   });
+}
+
+// ── Your numbers, Maps, Acts ──────────────────────────────────────────────────
+// What the profile and the match list already carry and the page did not show
+// (shared/stats-profile.js reads it safely). The combat score is the lead,
+// K/D and damage beside it, the per round numbers a ruled list, the shot split
+// one bar in the ink's three strengths, never a colour per part. Maps are
+// counted from the match list of this queue, acts come from Riot's record.
+// The player's own numbers only; a section with nothing in it is hidden.
+const StatsProfile = window.StatsProfile || null;
+const queueWord = () => (matchMode === 'unrated' ? 'unrated and swiftplay' : 'competitive');
+const fmtNum = (v, digits) => (v == null ? '·' : (digits ? Number(v).toFixed(digits) : String(Math.round(v))));
+
+function leadItem(label, value, lead) {
+  const el = document.createElement('div');
+  el.className = 'nl-item' + (lead ? ' lead' : '');
+  const v = document.createElement('span');
+  v.className = 'nl-val' + (value === '·' ? ' none' : '');
+  v.textContent = value;
+  const l = document.createElement('span');
+  l.className = 'nl-label';
+  l.textContent = label;
+  el.append(v, l);
+  return el;
+}
+
+function ruledRow(label, value) {
+  const row = document.createElement('div');
+  row.className = 'nr-row';
+  const l = document.createElement('span');
+  l.className = 'nr-label';
+  l.textContent = label;
+  const v = document.createElement('span');
+  v.className = 'nr-val' + (value === '·' ? ' none' : '');
+  v.textContent = value;
+  row.append(l, v);
+  return row;
+}
+
+function renderNumbers(d) {
+  const sec = document.getElementById('sec-numbers');
+  if (!sec) return;
+  const n = StatsProfile ? StatsProfile.numbers(d && d.profile) : null;
+  sec.hidden = !n;
+  if (!n) return;
+  document.getElementById('numbers-span').textContent =
+    `Averages over your last ${n.matches} ${queueWord()} ${n.matches === 1 ? 'match' : 'matches'}`;
+  const lead = document.getElementById('numbers-lead');
+  lead.replaceChildren(
+    leadItem('Combat score a round', fmtNum(n.acs), true),
+    leadItem('K/D', fmtNum(n.kd, 2)),
+    leadItem('Damage a round', fmtNum(n.adr)),
+  );
+  const list = document.getElementById('numbers-list');
+  list.replaceChildren(
+    ruledRow('Kills a round', fmtNum(n.kpr, 2)),
+    ruledRow('Deaths a round', fmtNum(n.dpr, 2)),
+    ruledRow('Assists a round', fmtNum(n.apr, 2)),
+  );
+  const shots = document.getElementById('numbers-shots');
+  shots.replaceChildren();
+  shots.hidden = !n.shots;
+  if (!n.shots) return;
+  const head = document.createElement('div');
+  head.className = 'shots-head';
+  head.textContent = 'Where your shots land';
+  const bar = document.createElement('div');
+  bar.className = 'shots-bar';
+  bar.setAttribute('role', 'img');
+  bar.setAttribute('aria-label', `Head ${n.shots.head}%, body ${n.shots.body}%, legs ${n.shots.legs}%`);
+  const key = document.createElement('div');
+  key.className = 'shots-key';
+  for (const [part, label] of [['head', 'Head'], ['body', 'Body'], ['legs', 'Legs']]) {
+    const v = n.shots[part];
+    if (v > 0) {
+      const seg = document.createElement('span');
+      seg.className = `shots-seg sh-${part}`;
+      seg.style.width = v + '%';
+      bar.append(seg);
+    }
+    const k = document.createElement('span');
+    k.className = `shots-k sh-${part}`;
+    const sw = document.createElement('span');
+    sw.className = 'sw';
+    const t = document.createElement('span');
+    t.textContent = `${label} ${v}%`;
+    k.append(sw, t);
+    key.append(k);
+  }
+  shots.append(head, bar, key);
+}
+
+/** One row of a ledger: cells in the order of the head, the first one a name,
+ *  `words` the indexes of cells that are words (a rank), not numbers. */
+function ledgerRow(cells, head, words) {
+  const row = document.createElement('div');
+  row.className = 'lg-row' + (head ? ' lg-head' : '');
+  row.setAttribute('role', 'row');
+  cells.forEach((c, i) => {
+    const cell = document.createElement('span');
+    cell.className = 'lg-cell' + (i === 0 ? ' name' : '') + (words && words.includes(i) ? ' word' : '') + (c === '·' ? ' none' : '');
+    cell.setAttribute('role', head ? 'columnheader' : 'cell');
+    cell.textContent = c;
+    row.append(cell);
+  });
+  return row;
+}
+
+function renderMaps(matches) {
+  const sec = document.getElementById('sec-maps');
+  if (!sec) return;
+  const list = Array.isArray(matches) ? matches : [];
+  const rows = StatsProfile ? StatsProfile.byMap(list) : [];
+  sec.hidden = !rows.length;
+  if (!rows.length) return;
+  const counted = rows.reduce((s, r) => s + r.played, 0);
+  document.getElementById('maps-span').textContent =
+    `From your last ${counted} ${queueWord()} ${counted === 1 ? 'match' : 'matches'}`;
+  const table = document.getElementById('maps-table');
+  table.replaceChildren(ledgerRow(['Map', 'Played', 'Won', 'K/D', 'ACS'], true));
+  for (const r of rows) {
+    table.append(ledgerRow([r.map, String(r.played), String(r.won), fmtNum(r.kd, 2), fmtNum(r.acs)]));
+  }
+}
+
+function renderActs(d) {
+  const sec = document.getElementById('sec-acts');
+  if (!sec) return;
+  const rows = StatsProfile ? StatsProfile.acts(d && d.profile && d.profile.acts) : [];
+  sec.hidden = !rows.length;
+  if (!rows.length) return;
+  const table = document.getElementById('acts-table');
+  table.replaceChildren(ledgerRow(['Act', 'Rank', 'Wins', 'Games', 'Win rate'], true, [1]));
+  for (const a of rows) {
+    table.append(ledgerRow([a.season, a.rank || '·', a.wins == null ? '·' : String(a.wins),
+      a.games == null ? '·' : String(a.games), a.winRate == null ? '·' : a.winRate + '%'], false, [1]));
+  }
 }
 
 // The whole dashboard follows the mode toggle: overview numbers, agent tiles,
@@ -932,7 +1108,9 @@ async function refreshDashboardForMode(mode, force) {
     const d = await window.occlara.getDashboard(mode, !!force);
     if (!d || seq !== dashSeq || mode !== matchMode) return;   // superseded
     renderCards(d);
-    renderAgents(d.topAgents);
+    renderNumbers(d);
+    renderAgents(d);
+    renderActs(d);
   } catch {}
 }
 
@@ -960,6 +1138,13 @@ function showDashboard(on) {
   for (const id of ['sec-overview', 'sec-agents', 'sec-matches', 'sec-sessions']) {
     const el = document.getElementById(id);
     if (el) el.hidden = !on;
+  }
+  // Shown by their own renders, and only with something in them.
+  if (!on) {
+    for (const id of ['sec-numbers', 'sec-maps', 'sec-acts']) {
+      const el = document.getElementById(id);
+      if (el) el.hidden = true;
+    }
   }
   const ns = document.getElementById('nostats');
   if (ns) ns.hidden = on;
@@ -989,8 +1174,10 @@ async function load() {
     showDashboard(true);
 
     renderCards(d);
-    renderAgents(d.topAgents);
+    renderNumbers(d);
     renderMatches(d.matches);
+    renderAgents(d);
+    renderActs(d);
     renderSessions(d);
   } catch (e) {
     console.error('[stats] load failed', e);
@@ -1023,6 +1210,7 @@ async function refreshSessions() {
     // screen and show "no graded matches" over a hiccup. Keep what is there.
     if (!d || seq !== reviewsSeq || d.statsSupported === false || !Array.isArray(d.sessions)) return;
     renderSessions(d);
+    renderAgents(d);   // its empty line names graded matches
   } catch {}
 }
 if (window.occlara.onReviews) {
