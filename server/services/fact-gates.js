@@ -2353,6 +2353,28 @@ function gateProduct(s, facts) {
 }
 
 /*
+ * NO MATCH, NO RECORD (the coach bench, Nov 2026). Asked cold, with no match
+ * attached, three answers of 72 cited a record that does not exist: "The
+ * record for that round has you dying on site", what "the record" for the
+ * Skye game holds, "the record doesn't hold a drone on C". A player reads that
+ * as Occlara claiming to have seen their match. With no match (facts.noMatch)
+ * a sentence that says a record, Riot's, the match's, the round's, shows,
+ * holds, has or lacks anything, or that cites one ("in the record",
+ * "according to the record"), goes. "I don't have the record of that match"
+ * and "there is no record" claim nothing and stay. English only, and nothing
+ * at all where a match is attached.
+ */
+const RECORD_NOUN = String.raw`(?:riot's|the|this|that|your)\s+(?:(?:match|round|game)(?:'s)?\s+)?record`;
+const NO_RECORD_SAID = new RegExp(String.raw`\b${RECORD_NOUN}(?:'s\b|\b(?:\s+(?:for|of|from)\s+[^.,;:!?]{1,40}?)?\s+(?:has|had|have|shows?|showed|shown|holds?|held|says?|said|gives?|gave|puts?|lists?|tells?|told|confirms?|does|did|doesn't|didn't|isn't|wasn't|is|was|can|cannot|can't|will|would)\b)|\b(?:in|from|on|per|by)\s+${RECORD_NOUN}\b|\baccording\s+to\s+${RECORD_NOUN}\b`, 'i');
+function gateNoRecord(s, facts) {
+  const f = facts || {};
+  if (!f.noMatch || (f.language || 'en') !== 'en') return null;
+  return NO_RECORD_SAID.test(String(s || ''))
+    ? drop('no-record', 'no match is attached to this question, so there is no record of it: never say a record shows, holds or has anything, and teach from what the player described')
+    : null;
+}
+
+/*
  * A NUMBER ACROSS MATCHES IS THE LIBRARY'S OR NONE. Eleven answers of the
  * re-audit quoted "5 of your last 6", "your average of 32 percent", the same
  * player given 32% in one answer and another number in the next. A sentence
@@ -2840,6 +2862,8 @@ const GATES = [
   ['ability-kill', gateAbilityKill],
   // The re-audit of 8.7.7 (Nov 2026), after every gate before.
   ['product', gateProduct],
+  // The coach bench (Nov 2026): no record cited where no match is attached.
+  ['no-record', gateNoRecord],
   ['library', gateLibrary],
   ['state', gateRoundState],
   ['habit', gateFirstHabit],
@@ -2909,7 +2933,7 @@ module.exports = {
   PAIR_FILLER, KEEPING_WORTH, CLUTCH_AGAINST_BEFORE, OF_YOUR_NOUN, SMALL_ADVICE_AFTER, LEAD_CONDITION, ONE_ROUND,
   TEMPLATE_WORDS, AIM_DISMISSED, SOLO_MODE, TEAM_WORDS, NO_TEAM, KILL_AFTER_ABILITY, KILL_BEFORE_ABILITY,
   // The re-audit of 8.7.7 (Nov 2026), each asserted in test:chatgates.
-  gateProduct, gateLibrary, gateRoundState, gateFirstHabit, FIRST_HABIT, AIM_PRAISED, AVOIDABLE, CROSS_MATCH, SEASON, LIB_PAIR, AVG_BEFORE, AVG_AFTER, THIS_MATCH, PLANT_SAID,
+  gateProduct, gateNoRecord, NO_RECORD_SAID, gateLibrary, gateRoundState, gateFirstHabit, FIRST_HABIT, AIM_PRAISED, AVOIDABLE, CROSS_MATCH, SEASON, LIB_PAIR, AVG_BEFORE, AVG_AFTER, THIS_MATCH, PLANT_SAID,
   // The blind audit of 8.7.9 (Nov 2026), each asserted in test:chatgates.
   gatePriority, gateCounted, gateOwnAgent, gateLethal, gateTeamUtility, gateStaleBuy,
   // Round 8 (Nov 2026), each asserted in test:chatgates and test:gameclaims.

@@ -36,7 +36,7 @@ automatically through `knowledge.all()`, and extra fields such as `source` pass
 through untouched. It began as 69 notes (42 imported from pro VOD reviews and
 27 of Occlara's own, computed from the damage table or written from round
 shapes), grew to 227 with the 2026 imports, to 308 with the 8.7.2 audit, to 469
-with the 8.8 coach consensus, to 602 with its second round and to 642 with its third (below); the live count is `knowledge.all().length` minus the hand written
+with the 8.8 coach consensus, to 602 with its second round, to 642 with its third and to 666 with the coach bench (below); the live count is `knowledge.all().length` minus the hand written
 set, and the boot line `[knowledge] merged N` says it. **An imported note must
 carry `source.topic`**, which is what `study()` picks by, or the checker fails
 it.
@@ -505,3 +505,50 @@ one, because a moving shot goes wide and the move is what makes you hard to hit"
 now says its 140 body "kills through Light Armor but not Heavy Armor" (13.09 data: 140 against
 125 and 150). A note's `when` field is still never rendered (579 of 989 have one); the prompt says
 instead that each note is a rule for a kind of situation, not a record of the match.
+
+## The coach bench (Nov 2026)
+
+Ask Coach v2 was asked 72 moments from 12 public VOD reviews cold (the band, the player's own
+account and the question, no match attached) and each answer judged against the coach's lesson:
+46% the same lesson, 33% partial, 19% weaker or wrong. The evidence and the verdicts live in the
+bench's research folder, outside the repo, with the video ids only. What changed here, all
+`source.kind: 'vod-review'`, every tier following the lowest band (advanced from Platinum up):
+
+- **Two notes corrected.** "On a common angle keep moving with small steps" was a rifle rule told
+  to two Outlaw holders; it is now "With a rifle on a common angle keep moving in small steps, but
+  with a sniper or on an off angle hold still". "When you are the only one who can afford a rifle,
+  buy what the four others are buying" told a player banking two full buys to buy nothing; it now
+  holds only where buying would leave the player short of the team's next full buy.
+- **16 notes added**: a sniper holds still (weapons Outlaw, Marshal, Operator, never naming them);
+  the economy past "buy what the team buys" (a bank that covers two buys makes a team save a buy
+  round, Light Armor before any ability on the pistol round, buy with a team full buy and no
+  second eco in a row unless one save is not enough, Chamber's Marshal, Heavy Armor and one Trademark after a pistol win, an eco
+  played for close kills); a failed hit is rarely run a third time; the retake deciders (stick
+  the defuse when there is no time to step off, the second angle on a retake with the numbers,
+  play beside the aggressive teammate); the technique notes (Skye's Guiding Light steered past
+  the corner, the swing as your own flash pops, wide or low, a full speed wide swing off the wall,
+  Sage's Slow Orb in phases, Killjoy's Turret onto the site and the Nanoswarm one at a time); and
+  low health after the plant. The proposed Jett note (Tailwind prepared before the peek) was not
+  added: two notes already teach it.
+- **6 cases** (k200 to k205): the pistol buy with no armour, Chamber after a pistol win, the
+  attackers who lost the same site twice, the push into the stack after a long fight, the habits
+  late in a half, and the half defuse with 3.5 to 5 seconds left, finished by the player who
+  holds it. Each carries a second anchor, so none is held back (still 40).
+- **Fact checked against patch 13.09** (synced game data, `game-rules.json`): prices, economy,
+  the 7 s defuse with its 3.5 s half and the kits all held. Corrected: the Ghost beside the
+  Bandit on the pistol buy (note and k200); Chamber's savings go to the Operator, and k201's
+  mistake names the Outlaw or a rifle; an eco wins "most often" up close, since a Sheriff
+  one-taps at range; the failed-hit read leans one player or the first rotation instead of
+  moving the smokes (note and k202); the Slow Orb goes where your own team will not walk, since
+  it slows everyone; low health waits for a healer only if the team has one; the flash note
+  swings as the flash pops, since the blind is short; k203 reads a site that held against the
+  long fight, since a site whose defenders just died should be taken; k205 is the player at the
+  half finishing it, since handing the defuse over costs the time.
+
+Measured with `retrieve()` in each note's own situation, 30 draws each: the retake, buy, Chamber,
+technique and low health notes are served every draw; the pattern note and the eco note lost
+every draw to the corpus's stronger notes. In Ask Coach with **no match** none of them reaches
+the bench's questions: the question's own notes go by topic words and weight, and agent and
+weapon notes need the player's agent and gun, which a question with no match does not give
+(`chat-prompt.js pickNotes`). That is retrieval, not data, and is not changed here. Not benched:
+rerun the bench and `bench:chat` before a release that ships these.

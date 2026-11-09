@@ -1249,7 +1249,8 @@ function create(opts = {}) {
     ]) doc.bullet('', (u) => u((x) => x.t(line)));
     doc.heading('DEFENCE');
     for (const line of [
-      'A site is held by delay, not kills: crossfires (angles the attacker cannot check at the same time), utility on the entrance, and falling back alive rather than dying in the choke.',
+      // Scoped to holding a site against a hit (the coach bench, Nov 2026): said as a slogan it reached answers about a dash, an eco smoke push and a buy.
+      'When the attackers hit a site you hold, the job is to delay them until help arrives: crossfires (angles the attacker cannot check at the same time), utility on the entrance, and falling back alive rather than dying in the choke.',
       'Rotate on committed contact or the spike, not on a single sighting. Arriving halfway through a fight is a free kill.',
       'Retake together behind utility, clear the usual post plant spots before the spike, and use the defuse checkpoint to bait a peek. If the retake cannot be won in the time left, save.',
       'After an opening kill, give ground instead of peeking again: the attackers must find you all over again.',

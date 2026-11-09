@@ -221,3 +221,13 @@ planted controls; and where the primer goes.
   says the wall also blocks bullets from both sides and players and abilities pass through it
   (Hotspawn, Red Bull, Mobalytics; the game's text says only "indestructible vision-blocking
   wall"). Re-stamp verifiedPatch after a patch that touches the agent.
+
+### The defence line, scoped (the coach bench, Nov 2026)
+
+DEFENCE's first line was the slogan "A site is held by delay, not kills", and Ask Coach repeated it
+in answers about Jett's dash, an eco smoke push and a full buy, once as "never push the smoke on an
+eco", which the coach says can work. It now reads "When the attackers hit a site you hold, the job
+is to delay them until help arrives: crossfires ..., utility on the entrance, and falling back alive
+rather than dying in the choke." No number, so no `n()`; the core is still the same text for every
+match on the patch. The Outlaw's "2.75 shots a second" one answer garbled ("fires every 2.75 shots a
+second") is the synced fire rate, so the number gate was right to pass it.

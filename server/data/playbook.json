@@ -158,7 +158,7 @@
     "tier": "advanced"
   },
   {
-    "text": "On a common angle keep moving with small steps in and out, but on an off angle hold still and let them walk across your crosshair, because surprise is what wins there.",
+    "text": "With a rifle on a common angle keep moving in small steps, but with a sniper or on an off angle hold still and let them walk across your crosshair, because surprise is what wins there.",
     "weight": 3,
     "source": {
       "kind": "vod-review",
@@ -4614,7 +4614,7 @@
     "why": "credits reset at the half and overtime starts everyone fresh, so the usual save logic is void"
   },
   {
-    "text": "When you are the only one who can afford a rifle, buy what the four others are buying instead, because a lone rifle on a save round dies alone, hands them a free gun and leaves you short for the real buy.",
+    "text": "When you are the only one who can afford a rifle and buying it now would leave you short of the team's next full buy, buy what the four others are buying instead, because a lone rifle on a save round dies alone, hands them a free gun and leaves you short for the real buy.",
     "phase": "buy",
     "situations": [
       "eco",
@@ -11671,5 +11671,317 @@
     },
     "when": "Duels lost on the first shot at Platinum and above.",
     "why": "The first bullet lands before a flick can, so placement and timing win the duel."
+  },
+  {
+    "text": "Holding an angle with a sniper, stand completely still with the crosshair on the spot where the first pixel of the peeker will appear, take the shot the moment it shows and only then step back to cover, and reload as soon as a teammate is covering the angle, because a scoped shot is only accurate standing still and the holder who is already still and aimed wins the first moment of the peek.",
+    "weapons": [
+      "outlaw",
+      "marshal",
+      "operator"
+    ],
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "a sniper holds still"
+    },
+    "when": "A player holding an angle with a sniper who shifts or jiggles on it and loses the first shot, or stands in the open with the knife out after a kill.",
+    "why": "Small steps on an angle help a rifle break a pre aim, but a sniper needs a still crosshair already on the spot, and its empty magazine after a kill is the moment it is weakest."
+  },
+  {
+    "text": "When your credits cover this round's full buy and the next one too, a team save is a buy round for you: buy fully and play beside your team's safest spot, or drop a rifle to the teammate who needs it, because a bank that big gains nothing by sitting and the next round's full buy is already paid for.",
+    "phase": "buy",
+    "situations": [
+      "eco"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "a rich player on a team save"
+    },
+    "when": "The team saves while one player holds credits for two full buys and buys nothing, or buys a cheap gun for themselves alone.",
+    "why": "The save rule protects the next full buy, and a player who already has it covered loses nothing by buying, while a dropped rifle turns a teammate's save into a fight."
+  },
+  {
+    "text": "On a pistol round buy Light Armor before any ability, and if you skip the armour spend the credits on a better pistol than the Classic, a Ghost or Bandit or, on a long range map such as Breeze, a Sheriff, never on a full kit with a bare Classic, because the first duel decides most pistol rounds and an ability does not win a duel you lost for want of armour.",
+    "phase": "buy",
+    "situations": [
+      "pistol"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "shield before utility on the pistol round"
+    },
+    "when": "A pistol round buy of every ability with no armour and the free pistol.",
+    "why": "The armour or the better pistol is what the opening duel is decided on, and the abilities only help the player who is still alive to use them."
+  },
+  {
+    "text": "When the four others full buy, buy with them as long as your credits reach a rifle and armour, rather than saving alone, and avoid a second eco in a row unless the team still cannot reach a full buy after it, because a full buy with one player saving is four against five and a second eco in a row only pushes the full buy back again when one save was already enough.",
+    "phase": "buy",
+    "situations": [
+      "fullbuy"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "buy when the team full buys"
+    },
+    "when": "The team full buys while the player holds credits back for a cheap gun, or the team chains two ecos.",
+    "why": "Buying together keeps the trades and the numbers even, and the credits a second eco saves do not buy more than the first one already did."
+  },
+  {
+    "text": "After a pistol win as Chamber, buy a Marshal, Heavy Armor and one Trademark, and carry the same buy into the bonus round, so the round after it can be an Operator, because the cheap sniper wins the anti eco at range and the credits it saves go to the Operator once the enemy can buy again.",
+    "agents": [
+      "Chamber"
+    ],
+    "phase": "buy",
+    "situations": [
+      "antieco"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "vod-review",
+      "topic": "Chamber after a pistol win"
+    },
+    "when": "Chamber buying an expensive sniper or a rifle in the round after a pistol win.",
+    "why": "The anti eco and the bonus are won at range, and a Chamber who keeps the cheap buy has the Operator ready for the first round the enemy full buys."
+  },
+  {
+    "text": "On an eco, play for close, aggressive kills together with the team, a rush as a group or a corner they must walk into, rather than hiding to keep a cheap pistol, because a cheap gun wins most often up close and every kill on an eco takes a rifle from their next buy and can hand you one.",
+    "situations": [
+      "eco"
+    ],
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "play the eco for kills"
+    },
+    "when": "An eco round played passively at range or spread out, with the team surviving on pistols and no kills.",
+    "why": "An eco is lost at range, and the only thing it can win is close fights taken together, which also break the enemy economy."
+  },
+  {
+    "text": "In solo queue a team rarely runs the same failed hit a third time, so after the attackers lose the same site twice, expect the other site next round and lean one player or the first rotation toward it, and keep the site that held able to delay, while a hit that worked will come again, because a team that lost twice changes its call and a team that won keeps it.",
+    "side": "defense",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "the hit they will not run again"
+    },
+    "when": "Defence keeps the same setup after the attackers lost the same site twice, and the next hit lands on the other site.",
+    "why": "Teams without a fixed plan answer a failed hit by going somewhere else, so the setup should follow the read rather than the last result."
+  },
+  {
+    "text": "When the spike has too little time left to step off at the half and come back, smoke the spike and stick the defuse to the end, and with a teammate alive, before you start, let them defuse while you stand guard on the angle the last attacker must come from, because a fight taken with no time left loses the round even when you win it.",
+    "side": "defense",
+    "phase": "postplant",
+    "situations": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "stick it or step off"
+    },
+    "when": "A defender half defused with almost no time left turns to fight the last attacker and the spike goes off.",
+    "why": "The half checkpoint only helps when there is time to finish after it, and when there is not, the defuse is the only thing that wins the round."
+  },
+  {
+    "text": "On a retake with the numbers, let the teammates coming from the other entrance go in first and play the second angle behind their contact with your flash ready for either side, because the attackers turn to the first players they see and the second angle gets the free swing.",
+    "side": "defense",
+    "phase": "postplant",
+    "situations": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "vod-review",
+      "topic": "retake as the second angle"
+    },
+    "when": "A retake with the numbers where the player with the flashes enters first and alone instead of behind the teammates coming from the other side.",
+    "why": "A retake from two sides wins when one side draws the attention and the other takes the swing, and the player with the flash is the one to take it."
+  },
+  {
+    "text": "Play beside the teammate most likely to take the first fight, the aggressive one, so you can trade them, rather than beside the teammate who is holding back, because the trade only exists next to the fight that happens first.",
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "play beside the aggressive teammate"
+    },
+    "when": "An aggressive teammate dies first with nobody near, while the player stands beside a passive one.",
+    "why": "The first fight of a round is the one most likely to need a trade, and the aggressive teammate is the one who starts it."
+  },
+  {
+    "text": "Steer Guiding Light past the corner, or down onto the ground where the enemy stands, before you set it off, rather than popping it short in front of the corner, because it only blinds players looking at it and a holder who sees it pop short can turn away or wait it out and still sees the teammate who swings off it.",
+    "agents": [
+      "Skye"
+    ],
+    "phase": "active",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "vod-review",
+      "topic": "the bird travels before it pops"
+    },
+    "when": "Skye pops Guiding Light short in front of a corner and the holder still kills the teammate who swings off it.",
+    "why": "A flash that reaches the enemy before it goes off leaves them nothing to turn from, and one popped short gives the holder the moment to recover."
+  },
+  {
+    "text": "After your own flash, swing as it pops, wide or with a crouch strafe rather than standing in their line, because the blind only lasts a moment and a blinded enemy who sprays at the angle hits a peeker who stops where they expect one.",
+    "agents": [
+      "Phoenix",
+      "Yoru",
+      "Hush",
+      "KAY/O",
+      "Breach",
+      "Skye",
+      "Gekko"
+    ],
+    "phase": "active",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "vod-review",
+      "topic": "under the blind spray"
+    },
+    "when": "A player flashes, waits or stops standing in the enemy's line, and dies to the holder spraying at the corner.",
+    "why": "The blind is short, so the swing has to come while it lasts, and a peeker moving wide or low through the angle is not where a sprayed shot at the corner goes."
+  },
+  {
+    "text": "Against a held angle, never walk your shoulder out slowly along the wall: back off the wall and wide swing at full speed, stopping only for the shot, because the holder sees a slow shoulder first, while a fast swing from distance reaches their screen before they can react to it.",
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "vod-review",
+      "topic": "wide swing off the wall"
+    },
+    "when": "A player creeps out with a slow shift walk or hugs the wall on a peek and loses to a holder who saw the shoulder first.",
+    "why": "The peeker has the edge only when moving fast, and a slow peek hands it to the holder."
+  },
+  {
+    "text": "On an attack take as Sage, throw your Slow Orb in phases with the push: the first on the nearest spot a defender can fight the entry from, where your own team will not walk through it, as the team steps out, the second on the next ring of positions once the first fight is over, rather than both at the back of the site, because a slow only helps the fight it lands on.",
+    "agents": [
+      "Sage"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "vod-review",
+      "topic": "slows in phases"
+    },
+    "when": "Sage holds her slows while the team walks out, or throws both deep onto the site before the first fight.",
+    "why": "A slowed defender at the first contact is the easiest kill of the take, and the second slow is worth more once the team reaches the next positions."
+  },
+  {
+    "text": "On an attack execute as Killjoy, place your Turret onto the site as the team enters so it takes a fight as a sixth player and keep the Alarmbot for the flank, and after the plant set off one Nanoswarm when the defuse starts and keep the second for the next attempt, because a Turret looking at the site draws a defender's first shot and each swarm you keep is another defuse they cannot start.",
+    "agents": [
+      "Killjoy"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "the turret as a sixth player"
+    },
+    "when": "Killjoy leaves the Turret behind for the flank on an execute, or sets off both swarms on the spike at once or before anyone touches it.",
+    "why": "On attack the Turret is worth most where the fight is, and two swarms set off one at a time stop two defuses where together they stop one."
+  },
+  {
+    "text": "At very low health after your team has planted with the numbers up, play hidden, and if your team has a healer such as Sage or Skye let them reach you, or move early toward where the retake will come from so you see it first, and never take an even fight, because any hit ends you and you are worth more to the round alive as a number than in a duel.",
+    "side": "attack",
+    "phase": "postplant",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "low health after the plant"
+    },
+    "when": "A player on very low health in a winning post plant keeps taking fights.",
+    "why": "Up in numbers after the plant the defenders must come, so a hidden low health player still counts, while a duel at that health is close to a lost one."
   }
 ]

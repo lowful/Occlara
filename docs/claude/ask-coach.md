@@ -1069,3 +1069,34 @@ in the review"):
   (`LOOK_WORDS`), so "the coach found that Cypher killed you twice" is the record's fact.
   `gateLabelAcross` also holds a look or coach that says it of "both" or "them" as its object
   (`LOOK_ANAPHOR`).
+
+### The coach bench: no match, no record (Nov 2026)
+
+72 moments from public VOD reviews asked with no match attached (the playbook side is in
+`playbook.md`, "The coach bench"). Three answers cited a record that did not exist ("The record
+for that round has you dying on site"), read by a player as Occlara claiming to have seen the
+match, and about a third opened with a paragraph on what the coach could not see.
+
+- **The rules with no match** (`chat-prompt.js rulesFor`, `noMatch`): a Valorant question with no
+  match gets `NO_RECORD_HEDGE` in place of `BUY_HEDGE` (there is no record at all, take the round
+  and the buy as the player tells them, never say what a record holds) and the save line without
+  its "say first that the record does not hold" (`NO_RECORD_SAVE`). A match with a buy keeps
+  `BUY_HEDGE_RECORD`, one without keeps the rules word for word. A second static prefix variant.
+- **`NO_MATCH`** says there is no record, round line or look, the player's account is the only
+  one, answer in the first sentence, say at most once in a few words that it goes by their
+  description, never say a record shows or holds anything.
+- **Gate `no-record`** (`fact-gates.js gateNoRecord`, `NO_RECORD_SAID`, right after `product`):
+  with `facts.noMatch`, English only, a sentence saying a record (Riot's, the match's, the
+  round's) has, shows, holds, lacks or says anything, or citing one ("in the record"), goes and
+  the reply is asked for again. "I don't have the record of that match" and "there is no record"
+  stay; with a match the gate judges nothing.
+- **Two rules in `VALORANT_RULES`** (and `SPEC_RULES`): a buy question names first which round it
+  is (pistol, after a won pistol, the team's full buy, a team save with a bank for two buys, an
+  eco) and the save rule answers a save question only; a question naming an ability is answered
+  with how to use that ability first, the principle second.
+
+Tests: `test:chatgates`, "the coach bench, no match and no record". Not benched (`bench:chat`).
+The "rounds 1 to 24" budget check measures against `DYNAMIC_MAX_CHARS` while `buildParts` allows
+the cost and ledger lines on top (`costRoom`), so it sits about 15 to 25 characters under the bar
+with the notes' jitter: a longer note in that prompt fails it, as the first wording of the rifle
+note did (40 of 300 draws).

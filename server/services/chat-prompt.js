@@ -867,6 +867,8 @@ function factsOf(input, messages, opts) {
     askedAgents: gates.agentsIn(asked).map((a) => a.name),
     source: m ? m.source : null,
     verified: !!(m && m.verified),
+    // No match at all: no record to cite (fact-gates.js gateNoRecord, the coach bench).
+    noMatch: valorant && !m,
     rounds: new Map(),
     // The match's own result and final score, which a claim of the match is
     // held to and never a round's (fact-gates.js claimsOf).
@@ -1226,6 +1228,7 @@ WHAT YOU ARE GIVEN, AND HOW FAR TO TRUST IT
 WHAT YOU MUST NOT SAY
 - Nothing the facts do not hold. This match's record does not hold what anyone bought, the credits, the damage dealt and taken, or the utility used: if asked, say so and teach the rule instead.
 - A save question: say first that the record does not hold what anyone bought, then teach the rule once, in one sentence: on attack a save means staying alive and out of fights until the spike goes off or the clock runs out, on defence it means not retaking a planted spike, and a player who has already died in the round made no save decision. Then move to the fight that killed them.
+- A buy question (what to buy, or whether to buy or save): first name which round it is for the player, as they describe it or the round's line states it (a pistol round, the round after a won pistol, the team's full buy, a team save while the player can afford this round's full buy and the next one, or an eco), then teach the buy for that kind of round. The save rule above answers a save question only, never a buy question.
 - No ranking of agents, no meta, no pick or win rates for the current patch: you do not have them. Answer from the kit, the player's own numbers and the facts.
 - No player names, ever, even one the player typed: say your teammate, or the agent. No coach, player, team, video or other source for any advice.
 - Only Valorant and the player's play.
@@ -1241,6 +1244,7 @@ HOW TO ANSWER
 - About an agent: the player's own numbers on it first, then how its kit answers the problem, each ability by its name as the kit gives it, never by a key letter. Say what an ability does only as the kit says it. Name an enemy ability as what killed the player only where Riot's record gives that ability as the killing weapon.
 - Asked for a game number the VALORANT FACTS hold (hits to kill, damage, a price, a timer), give it in your first sentence in the facts' own words, with the range band and the armour they name, then stop. Add nothing about the match unless asked.
 - Name at most one ability in an answer about a round, and only when it changes the decision in that round. Do not list the kit, and do not offer the same ability in every answer.
+- When the question names an ability, answer first how to use that ability in that moment (where to send or place it, when to set it off, where to stand when it goes off), then the principle behind it.
 - Never mention an ultimate orb, a health number, who carried the spike or how many players were alive unless the facts of that round state it.
 - About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, teach that one and leave the others out. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it and leave trading out unless THE LEVER is trading.
 - Quote a counted line's numbers as given, the deaths nobody traded included: that count leaves out a death as the last one alive, which nobody could trade, so never count the rounds yourself into a total of your own.
@@ -1256,7 +1260,8 @@ HOW TO ANSWER
 - Write for a player who does not know coaching words: in a habit to build say a teammate killed your killer for a trade, and a teammate was near or far for the distance, never close enough to kill or trade, which mixes the two, and about what happened say no teammate was close or nobody traded you, each only where the round's line says it, never nobody was close enough to trade you, which says both, say the smoke, the flash or the drone by name, not utility, say take one piece of space and stop, not checkpoints, and never write impact, tempo, map control, situational awareness or utility potential.`;
 
 const RIOT_ONLY = "This match was graded from Riot's record alone: there is no look and no counted mistake. Explain the facts, and when you suggest a change, say it is your reading of them.";
-const NO_MATCH = 'The player has no match in front of you: answer from the game facts, and never describe their play.';
+// With no match there is no record, no round line and no look (the coach bench, Nov 2026, rulesFor NO_RECORD_HEDGE).
+const NO_MATCH = "The player has no match in front of you, so there is no record, no round line and no look for this question: what the player tells you about their round is the only account of it. Take it as they tell it and answer the question in your first sentence, from what they describe and the game facts. Say at most once, in a few words, that you are going by their description, never a paragraph about what you cannot see. Never say a record, a round line or a look shows, holds or has anything, and never add to what they did beyond what they told you.";
 
 /*
  * LEAGUE IS ITS COMPUTED REVIEW AND NOTHING ELSE. No primer and no dossier:
@@ -1335,17 +1340,34 @@ const BUY_HEDGE = "This match's record does not hold what anyone bought, the cre
 const BUY_HEDGE_RECORD = "This match's record holds the team's buy of a round (a pistol round, an eco, a force buy, a half buy or a full buy) only where that round's line states it, and never what any one player bought, what the enemy team bought, the credits, the damage dealt and taken, or the utility used: give the team's buy as its round states it, and for the rest say the record does not hold it and teach the rule instead.";
 const SAVE_HEDGE = 'A save question: say first that the record does not hold what anyone bought, then';
 const SAVE_HEDGE_RECORD = "A save question: say first the team's buy where the round's line states it, else that the record does not hold what anyone bought, then";
+/*
+ * NO MATCH, NO RECORD (the coach bench, Nov 2026). Asked with no match
+ * attached, the rules still said "This match's record does not hold what
+ * anyone bought" and "say first that the record does not hold", and the model
+ * went on to talk about a record that did not exist ("The record for that
+ * round has you dying on site"), which a player reads as Occlara claiming to
+ * have seen their match. With no match both hedges are replaced: there is no
+ * record, and the player's own account is the only source (NO_MATCH says it in
+ * the match's part, fact-gates.js gateNoRecord drops a sentence that cites one).
+ */
+const NO_RECORD_HEDGE = 'No match is attached to this question, so there is no record of it at all: take the round, the buy and what happened as the player tells them, and never say what a record holds or does not hold.';
+const NO_RECORD_SAVE = 'A save question: teach the rule';
 /** Whether a Valorant match's cards carry the team's buy in any round. */
 function matchHasBuy(input) {
   const m = input && input.match;
   return !!(m && m.kind === 'valorant' && Array.isArray(m.cards) && m.cards.some((c) => c && c.riot && RECORD_BUYS.has(c.riot.buy)));
 }
-/** The Valorant rules for a band: 8.7.7's improving rule above Gold, else VALORANT_RULES, with the buy hedge as the match's record has it. */
+/** Whether a Valorant question comes with no match at all (a general question, or the coach bench's cold moments). */
+function noMatch(input) {
+  return !!(input && typeof input === 'object' && input.game !== 'lol' && !input.match);
+}
+/** The Valorant rules for a band: 8.7.7's improving rule above Gold, else VALORANT_RULES, with the buy hedge as the match's record has it, and none with no match. */
 function rulesFor(input) {
   const band = input && input.rankBand;
   let rules = !RANK_BANDS.includes(band) || LEVER_BANDS.includes(band) ? VALORANT_RULES
     : VALORANT_RULES.replace(IMPROVING_RULE, IMPROVING_RULE_877);
   if (matchHasBuy(input)) rules = rules.replace(BUY_HEDGE, BUY_HEDGE_RECORD).replace(SAVE_HEDGE, SAVE_HEDGE_RECORD);
+  else if (noMatch(input)) rules = rules.replace(BUY_HEDGE, NO_RECORD_HEDGE).replace(`${SAVE_HEDGE} teach the rule`, NO_RECORD_SAVE);
   return rules;
 }
 
@@ -3257,6 +3279,7 @@ module.exports = {
   leverLine, leversOf, LEVER_WEIGHTS, ORPHAN_REASON, KIT_HEAD,
   // The blind audit of 8.7.8 (Nov 2026): the lever below Platinum only.
   LEVER_BANDS, IMPROVING_RULE, IMPROVING_RULE_877, rulesFor, matchHasBuy, BUY_HEDGE, BUY_HEDGE_RECORD, SAVE_HEDGE, SAVE_HEDGE_RECORD,
+  noMatch, NO_RECORD_HEDGE, NO_RECORD_SAVE,
   RANK_BANDS,
   // The blind audit of round 6 (Nov 2026), stream B: the enemy asked about, the aim facts and notes.
   enemyAskedOf, aimFactsOf, aimNote, isAimBasic, AIM_BASIC, AIM_RANGE, SHOT_MOVING, enemyCases,

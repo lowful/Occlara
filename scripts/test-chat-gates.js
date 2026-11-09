@@ -516,6 +516,7 @@ WHAT YOU ARE GIVEN, AND HOW FAR TO TRUST IT
 WHAT YOU MUST NOT SAY
 - Nothing the facts do not hold. This match's record does not hold what anyone bought, the credits, the damage dealt and taken, or the utility used: if asked, say so and teach the rule instead.
 - A save question: say first that the record does not hold what anyone bought, then teach the rule once, in one sentence: on attack a save means staying alive and out of fights until the spike goes off or the clock runs out, on defence it means not retaking a planted spike, and a player who has already died in the round made no save decision. Then move to the fight that killed them.
+- A buy question (what to buy, or whether to buy or save): first name which round it is for the player, as they describe it or the round's line states it (a pistol round, the round after a won pistol, the team's full buy, a team save while the player can afford this round's full buy and the next one, or an eco), then teach the buy for that kind of round. The save rule above answers a save question only, never a buy question.
 - No ranking of agents, no meta, no pick or win rates for the current patch: you do not have them. Answer from the kit, the player's own numbers and the facts.
 - No player names, ever, even one the player typed: say your teammate, or the agent. No coach, player, team, video or other source for any advice.
 - Only Valorant and the player's play.
@@ -531,6 +532,7 @@ HOW TO ANSWER
 - About an agent: the player's own numbers on it first, then how its kit answers the problem, each ability by its name as the kit gives it, never by a key letter. Say what an ability does only as the kit says it. Name an enemy ability as what killed the player only where Riot's record gives that ability as the killing weapon.
 - Asked for a game number the VALORANT FACTS hold (hits to kill, damage, a price, a timer), give it in your first sentence in the facts' own words, with the range band and the armour they name, then stop. Add nothing about the match unless asked.
 - Name at most one ability in an answer about a round, and only when it changes the decision in that round. Do not list the kit, and do not offer the same ability in every answer.
+- When the question names an ability, answer first how to use that ability in that moment (where to send or place it, when to set it off, where to stand when it goes off), then the principle behind it.
 - Never mention an ultimate orb, a health number, who carried the spike or how many players were alive unless the facts of that round state it.
 - About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, teach that one and leave the others out. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it and leave trading out unless THE LEVER is trading.
 - Quote a counted line's numbers as given, the deaths nobody traded included: that count leaves out a death as the last one alive, which nobody could trade, so never count the rounds yourself into a total of your own.
@@ -574,7 +576,7 @@ HOW TO ANSWER
   const es = cp.buildPrompt(inputFor(ABYSS, '¿Por qué perdí la ronda 3?', { language: 'es' }), [{ role: 'user', content: '¿Por qué perdí la ronda 3?' }]);
   ok(/Write the whole reply in Spanish\. Keep agent, ability, weapon and map names exactly as the game prints them\.$/.test(es), 'the language line closes a Spanish prompt');
   const none = cp.buildPrompt(cp.normalise({ v: 2, game: 'valorant', language: 'en', match: null, player: {}, ask: {} }), [{ role: 'user', content: 'When should my team save?' }]);
-  ok(none.includes('The player has no match in front of you: answer from the game facts, and never describe their play.'), 'no match says so');
+  ok(none.includes(cp.NO_MATCH) && cp.NO_MATCH.startsWith('The player has no match in front of you, so there is no record'), 'no match says so, and that there is no record');
   // A Riot only review: facts, no look, its own line.
   const split = load('riot-split-13-7.json');
   const row = { matchId: 'split-test-0001', map: 'Split', agent: split.me.agent, mode: 'Competitive', result: split.result, score: split.score,
@@ -3572,6 +3574,54 @@ console.log('\nround 8, the game facts gates:');
     && [...rc.countKinds('went untraded')].join() === 'untraded' && [...rc.countKinds('came in the first 20 seconds')].join() === 'early' && !rc.countKinds('came in').size
     && new RegExp(rc.COUNT_HEAD.source, 'i').exec('All 5 of your deaths')[1] === '5' && !new RegExp(rc.COUNT_HEAD.source, 'i').exec('All of your deaths'),
   'LIST_NOT_BEFORE, LIST_AFTER, LIST_BEFORE, foldRounds, countKinds and the "all N of your" COUNT_HEAD both ways');
+}
+
+// ── The coach bench (Nov 2026): no match, no record ─────────────────────────
+{
+  console.log('\nthe coach bench, no match and no record:');
+  const NONE = cp.normalise({ v: 2, game: 'valorant', language: 'en', match: null, player: {}, ask: {} });
+  const NQ = 'I was on Raze on Split, defense, pistol round. Should I hold the site to the end or leave?';
+  const NM = [{ role: 'user', content: NQ }];
+  const rules = cp.rulesFor(NONE);
+  ok(cp.noMatch(NONE) && !cp.noMatch(inputFor(ABYSS, NQ)) && !cp.noMatch({ game: 'lol', match: null }),
+    'noMatch: a Valorant question with no match, never one with a match, never League');
+  ok(rules.includes(cp.NO_RECORD_HEDGE) && !rules.includes(cp.BUY_HEDGE) && !rules.includes(cp.SAVE_HEDGE)
+    && rules.includes(`${cp.NO_RECORD_SAVE} once, in one sentence: on attack a save means`)
+    && rules.split('\n').length === cp.VALORANT_RULES.split('\n').length,
+  'WITH NO MATCH NEITHER HEDGE TALKS ABOUT A RECORD: the buy hedge says there is none, the save rule teaches the rule alone');
+  ok(cp.rulesFor(inputFor(ABYSS, NQ)) === cp.VALORANT_RULES && cp.rulesFor({ ...inputFor(ABYSS, NQ), rankBand: 'asc_plus' }) === cp.VALORANT_RULES.replace(cp.IMPROVING_RULE, cp.IMPROVING_RULE_877),
+    'a match without a buy keeps the rules word for word, at every band');
+  ok(!DASHES.test(cp.NO_RECORD_HEDGE + cp.NO_MATCH) && !(cp.NO_RECORD_HEDGE + cp.NO_MATCH).includes(';'), 'the new lines have no dash and no semicolon');
+  const np = cp.buildPrompt(NONE, NM);
+  ok(np.includes(cp.NO_RECORD_HEDGE) && np.includes(cp.NO_MATCH) && !np.includes("This match's record does not hold"),
+    'the prompt with no match says there is no record and never that this match\'s record holds nothing');
+  const fx = cp.factsOf(NONE, NM);
+  ok(fx.noMatch === true && cp.factsOf(inputFor(ABYSS, NQ), NM).noMatch === false, 'the facts know there is no match');
+  for (const s of ['The record for that round has you dying on site with the push coming in, so the decision was staying.',
+    "The record doesn't hold a drone on C, so I cannot say it was there.", "Riot's record shows you died first.",
+    'In the record, you planted at B.', "The round's record has no plant at B.", "This match's record does not hold what anyone bought."]) {
+    const r = gates.check(s, fx);
+    ok(r.drop && r.drop.gate === 'no-record' && gates.NO_RECORD_SAID.test(s), `CAUGHT, no match: "${s.slice(0, 60)}"`, JSON.stringify(r));
+  }
+  // The attribution gate takes "According to" first; the no record pattern reads it too.
+  ok(gates.NO_RECORD_SAID.test('According to the record you were alone.') && gates.check('According to the record you were alone.', fx).drop,
+    'CAUGHT, no match: "According to the record you were alone."');
+  for (const s of ["I don't have the record of that match, so I am going by what you described.",
+    'There is no record in front of me, so going by your description, you should have left the site.', 'Keep a record of the habits they repeat.']) {
+    ok(!gates.gateNoRecord(s, fx) && !gates.NO_RECORD_SAID.test(s), `KEPT, no match: "${s.slice(0, 60)}"`);
+  }
+  ok(!gates.gateNoRecord('The record for that round has you dying on site.', cp.factsOf(inputFor(ABYSS, NQ), NM))
+    && !gates.gateNoRecord('The record for that round has you dying on site.', { ...fx, language: 'de' }),
+  'and nothing where a match is attached, or outside English');
+  const bench = cp.parseReply('You should have left A site rather than fought to the end, because a five man push is a site you cannot hold alone.\n\n'
+    + 'The record for that round has you dying on site with the push coming in. Give one piece of ground and fall back to a spot off the site where you can still see the plant.', NONE, { messages: NM });
+  ok(bench.reply && !/the record/i.test(bench.reply) && /fall back to a spot off the site/.test(bench.reply), 'the bench answer goes out without its record sentence', JSON.stringify(bench));
+  ok(gates.GATES.map(([n]) => n).indexOf('no-record') === gates.GATES.map(([n]) => n).indexOf('product') + 1, 'the no record gate runs right after the product gate');
+  // The two rules the bench asked for, in the static rules (and so in SPEC_RULES above).
+  ok(/^- A buy question \(what to buy, or whether to buy or save\): first name which round it is for the player/m.test(cp.VALORANT_RULES)
+    && /The save rule above answers a save question only, never a buy question\./.test(cp.VALORANT_RULES)
+    && /^- When the question names an ability, answer first how to use that ability in that moment/m.test(cp.VALORANT_RULES),
+  'THE BUY QUESTION NAMES ITS ROUND FIRST, and an ability question is answered with the ability first');
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

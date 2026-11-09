@@ -6021,5 +6021,203 @@
       "kind": "coach-consensus",
       "topic": "entry duelist with first kills"
     }
+  },
+  {
+    "id": "k200",
+    "title": "Pistol round, every ability and no armour",
+    "situation": {
+      "phase": "early",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "pistol"
+    },
+    "signal": "It is a pistol round and you spent every credit on abilities, kept the free Classic and bought no Light Armor, then lost the first duel.",
+    "decision": "Buy Light Armor first and one ability with what is left, or skip the armour for a Ghost or Bandit, and on a long range map a Sheriff, rather than a full kit with a bare Classic.",
+    "why": "The first duel decides most pistol rounds, and armour or a better pistol wins it more often than abilities you die holding.",
+    "mistakeToAvoid": "Buying the whole kit because the abilities feel like value, and taking the first fight with no armour.",
+    "cause": [
+      "lost-duel"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "vod-review",
+      "topic": "shield before utility on the pistol round"
+    }
+  },
+  {
+    "id": "k201",
+    "title": "Chamber after a pistol win, the cheap sniper first",
+    "situation": {
+      "phase": "buy",
+      "side": null,
+      "role": "sentinel",
+      "agent": "Chamber",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "antieco"
+    },
+    "signal": "You won the pistol round as Chamber and you are deciding the buy for the round against their eco.",
+    "decision": "Buy a Marshal, Heavy Armor and one Trademark, keep the same buy into the bonus round, and save so the round after it can be an Operator.",
+    "why": "The anti eco and the bonus are won at range with the cheap sniper, and what it saves pays for the Operator once the enemy can buy again.",
+    "mistakeToAvoid": "Spending on an Outlaw or a rifle in the round after the pistol, so the bonus and the first full buy round are short.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "vod-review",
+      "topic": "Chamber after a pistol win"
+    }
+  },
+  {
+    "id": "k202",
+    "title": "Attackers lost the same site twice",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The attackers have hit the same site in the last two rounds and lost both times into your setup.",
+    "decision": "Expect the other site this round. Lean one player or the first rotation toward it, and leave the site that held with what it needs to delay.",
+    "why": "A team that lost the same hit twice rarely runs it a third time, while a defence that keeps the same setup meets the next hit short handed.",
+    "mistakeToAvoid": "Keeping the setup that won the last two rounds because it won them, and reading the enemy history as noise.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "vod-review",
+      "topic": "the hit they will not run again"
+    }
+  },
+  {
+    "id": "k203",
+    "title": "A long fight at one site, then push into the stack",
+    "situation": {
+      "phase": "late",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your team has fought at one site for a long time and used utility there without breaking it, and a teammate got a pick at the other site.",
+    "decision": "Expect the defence to stack the site you have been loud on. Rotate together and hit the other site with the utility you kept, instead of pushing into the players arriving.",
+    "why": "A long fight tells every defender where you are, and the rotation they make toward it empties the other site.",
+    "mistakeToAvoid": "Forcing on into the site the defence has stacked because the team has already spent its utility there.",
+    "cause": [
+      "overextend"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "vod-review",
+      "topic": "rotate after the long fight"
+    }
+  },
+  {
+    "id": "k204",
+    "title": "Late in the half, set up against the habits they repeat",
+    "situation": {
+      "phase": "early",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The half has gone against you, and the enemy keeps opening the same ways: the same spot, the same rush, the same eco hit.",
+    "decision": "Before the next round name the two or three habits you have seen, then put a crossfire, a sniper or utility on exactly those, and change nothing else.",
+    "why": "A team that wins with a habit keeps it until it is punished, so the habits already shown are the best read you will get.",
+    "mistakeToAvoid": "Playing every round as if it were the first, or changing the whole setup at random.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "vod-review",
+      "topic": "list the habits you have seen"
+    }
+  },
+  {
+    "id": "k205",
+    "title": "Half defused, the clock nearly out, one attacker left",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You have the half on the defuse, about 3.5 to 5 seconds remain on the spike, and one attacker is still alive.",
+    "decision": "Smoke the spike and stick the defuse to the end yourself, while any teammate alive guards the angle the attacker must come from.",
+    "why": "With no time to step off and come back, a fight you win still loses the round to the spike, and only finishing the defuse you started wins it.",
+    "mistakeToAvoid": "Turning off the defuse to fight the last attacker with the clock already gone.",
+    "cause": [
+      "exposed"
+    ],
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "vod-review",
+      "topic": "stick it or step off"
+    }
   }
 ]
