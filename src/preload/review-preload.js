@@ -46,7 +46,7 @@ contextBridge.exposeInMainWorld('occlara', {
   // This review against the ones before it (8.7, shared/progress.js): its
   // finished lines and the counts beside them, or null.
   progressOf: (id) => ipcRenderer.invoke(C.PROGRESS_GET, id),
-  // Riot's rank record of this match (8.8.x, REVIEW_RIOT): its RR chip and
+  // Riot's rank record of this match (8.7.9, REVIEW_RIOT): its RR chip and
   // Riot's accolades for "What went well", finished words from main, or null.
   riotOf: (id) => ipcRenderer.invoke(C.REVIEW_RIOT, id),
   // Read only: the reveal's sound asks whether sounds are on and whether a

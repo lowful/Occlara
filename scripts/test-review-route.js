@@ -120,6 +120,67 @@ const reviewBody = { rounds: ROUNDS, context: { agent: 'Jett', map: 'Abyss' } };
       `a summary the gate emptied is null, not "Could not generate review." (${JSON.stringify(r.body.review)})`);
     ok(r.body.rounds && r.body.rounds[2] && r.body.focus, 'and the round lines and focus that survived are kept');
   }
+  // ── ROUND 8: THE REVIEW FLOOR, on the Fracture 5 to 1 match ──────────────
+  // The Plat review of round 7 was served with no ROUND line (round 5 the one
+  // round worth one) and the focus "You give up a quick kill attempt...".
+  {
+    const audit = require('./fixtures/audit-round3-reviews.json').reviews;
+    const fx = audit.find((x) => x.id === 'review-fracture-5-1-plat_diamond');
+    // Riot's plant times and the nearest teammate as the 8.8 client sends them (records-parsed of the audit).
+    const RIOT = { 2: { mate: 'far' }, 5: { plantSec: 32.1, afterPlant: true, mate: 'close' }, 6: { plantSec: 50.8, afterPlant: false, mate: 'close' } };
+    const fbody = (band) => ({ rounds: fx.rounds.map((x) => ({ ...x, ...(RIOT[x.n] || {}) })), swing: [], mistakes: [], strengths: [], patterns: [],
+      counts: { deaths: 3, known: 3, untraded: 2, alone: 0, tradeable: 3, untradedMate: 2 },
+      context: { agent: fx.agent, map: fx.map, rankBand: band },
+      final: { team: 5, enemy: 1, result: 'Victory', verified: true, scoreline: fx.scoreline } });
+    const SERVED = 'SUMMARY: You won 5 to 1 by opening fights and backing up teammates. You died 3 times in 6 rounds. '
+      + '2 of your 3 deaths were not traded by a teammate within five seconds.\n'
+      + 'FOCUS: You give up a quick kill attempt to keep the advantage while the clock runs.';
+    const INSTRUCTS = require(path.join(__dirname, '..', 'server', 'services', 'coherence.js')).instructs;
+    // The retry answers with what the first could not show.
+    let asked = [];
+    ai.sent.length = 0;
+    ai.next = (b) => {
+      asked.push(JSON.stringify(b));
+      return asked.length === 1 ? { status: 200, content: SERVED }
+        : { status: 200, content: 'SUMMARY: You won 5 to 1.\nR5: After the plant, hold the spike from cover and let the defenders come to you, because the clock is theirs.\nFOCUS: After the plant, hold the spike from cover and make them come to you.' };
+    };
+    let r = await call(coach, 'POST', '/match-review', { headers: H, body: fbody('plat_diamond') });
+    ok(r.status === 200 && ai.sent.length === 2 && /YOUR LAST REPLY COULD NOT BE SHOWN IN FULL/.test(asked[1]) && /no ROUND line could be shown/.test(asked[1])
+      && /the FOCUS did not say what to do/.test(asked[1]) && !/YOUR LAST REPLY/.test(asked[0]),
+    'a review short of the floor is asked for once more, with its reasons in plain words');
+    ok(r.body.rounds[5] && /hold the spike from cover/.test(r.body.rounds[5]) && INSTRUCTS(r.body.focus)
+      && r.body.summary.startsWith('You won 5 to 1 by opening fights and backing up teammates.'),
+    `and the retry fills only what the first could not show, the first reply's summary kept (${JSON.stringify(r.body.rounds)} ${r.body.focus})`);
+    ok(r.body.dropped && r.body.dropped.focus === 1, `and the response counts the focus that did not instruct (${JSON.stringify(r.body.dropped)})`);
+    // Every band, the retry no better: the floor computes the line and the focus.
+    for (const band of ['iron_bronze', 'silver_gold', 'plat_diamond', 'asc_plus']) {
+      ai.sent.length = 0;
+      ai.next = reply(SERVED);
+      r = await call(coach, 'POST', '/match-review', { headers: H, body: fbody(band) });
+      ok(r.status === 200 && ai.sent.length === 2 && r.body.rounds[5] && /^After the plant with your team up 4 against 3, hold the spike from cover/.test(r.body.rounds[5])
+        && INSTRUCTS(r.body.focus) && /^After the plant/.test(r.body.focus),
+      `${band}: with the retry no better, round 5's line and the focus are computed from its facts (${r.body.rounds[5]} | ${r.body.focus})`);
+    }
+    // A reply that meets the floor is never asked for again, and its glued SWING line is split.
+    ai.sent.length = 0;
+    ai.next = reply('SUMMARY: You won 5 to 1, opening fights and winning key duels despite this: you died 3 times in 6 rounds. 2 of your 3 deaths were not traded by a teammate within five seconds.\n'
+      + 'R5: After the plant, hold cover for the spike and delay the next duel.\nFOCUS: After the plant, hold cover for the spike before taking another duel.');
+    r = await call(coach, 'POST', '/match-review', { headers: H, body: fbody('asc_plus') });
+    ok(ai.sent.length === 1 && r.body.summary.startsWith('You won 5 to 1 by opening fights and winning key duels. You died 3 times in 6 rounds.'),
+      `a reply that meets the floor is asked once, and "despite this:" is split where it glued the SWING line on (${r.body.summary})`);
+    // The SWING line is the server's: put in as sentence two when the summary does not give it.
+    ai.sent.length = 0;
+    ai.next = reply('SUMMARY: You won 5 to 1 by opening fights. 2 of your 3 deaths were not traded by a teammate within five seconds.\n'
+      + 'R5: After the plant, hold cover for the spike and delay the next duel.\nFOCUS: After the plant, hold cover for the spike before taking another duel.');
+    r = await call(coach, 'POST', '/match-review', { headers: H, body: fbody('asc_plus') });
+    ok(r.body.summary === 'You won 5 to 1 by opening fights. You died 3 times in 6 rounds. 2 of your 3 deaths were not traded by a teammate within five seconds.',
+      `the SWING AND COUNTS block's first line is put in as the summary's second sentence (${r.body.summary})`);
+    // A client before round 4 (no counts) gets no inserted line.
+    ai.next = reply('SUMMARY: You won 5 to 1 by opening fights.\nR5: After the plant, hold cover for the spike.\nFOCUS: After the plant, hold cover for the spike.');
+    const { counts, ...old } = fbody('asc_plus');
+    r = await call(coach, 'POST', '/match-review', { headers: H, body: old });
+    ok(r.body.summary === 'You won 5 to 1 by opening fights.', `and a client before round 4 is served its summary as written (${r.body.summary})`);
+  }
   ai.next = () => ({ status: 500, text: 'upstream exploded' });
   {
     const r = await call(coach, 'POST', '/match-review', { headers: H, body: reviewBody });
@@ -186,6 +247,61 @@ const reviewBody = { rounds: ROUNDS, context: { agent: 'Jett', map: 'Abyss' } };
       'You and xX_slayer_Xx held A.'].filter((s) => coach.__test.namesSomeoneHere(s, { language: 'en' }));
     ok(kept.length === SAYS.length && caught.length === 4,
       `the scoreboard, the result and the sides pass the name gate, where a name, a word only like one, and a handle do not (${kept.length} of ${SAYS.length} kept, ${caught.length} of 4 caught)`);
+    // ROUND 8: THE NAME PASS RUNS INSIDE PARSE, before the coherence pass, so
+    // a sentence leaning on a name drop goes with it; and a coaching word of
+    // a name ("aim") is no name used as a word, so the round line keeps.
+    {
+      const AIMED = '2b3c4d5e-ffff-4aaa-8bbb-123456789abc';
+      riotRounds.noteNames(AIMED, { players: [{ name: 'Aim Tessik', tag: 'EUW' }] });
+      ai.next = reply('SUMMARY: You won the rounds you opened with a trade behind you. Your aim held up in the duels you took.\n'
+        + 'R2: Your aim won the first duel, so hold that angle instead of swinging a second time.\n'
+        + 'R4: Take the duel with a teammate close.\n'
+        + 'FOCUS: Wait for Tessik before you peek. It keeps the trade alive.');
+      ai.sent.length = 0;
+      const aimed = await call(coach, 'POST', '/match-review', { headers: H, body: body({ matchId: AIMED }) });
+      // The focus the name pass emptied is floored (round 8): asked again, the
+      // same reply comes back, and the focus is computed from the round's facts.
+      ok(aimed.status === 200 && aimed.body.rounds[2] && /Your aim won/.test(aimed.body.rounds[2]) && /Your aim held up/.test(aimed.body.summary)
+        && aimed.body.focus && !/It keeps/.test(aimed.body.focus) && !/Tessik/.test(JSON.stringify(aimed.body)) && ai.sent.length === 2,
+      `"aim" as a word keeps its summary sentence and its round line, while the focus's name goes, "It keeps..." goes with it, and the floor gives a focus (${JSON.stringify({ r2: aimed.body.rounds[2], focus: aimed.body.focus, calls: ai.sent.length })})`);
+      ok(aimed.body.dropped && aimed.body.dropped.name >= 1 && aimed.body.dropped.orphan >= 1 && !/Tessik/.test(JSON.stringify(aimed.body.dropped)),
+        `and the response counts the drops by kind, never their words (${JSON.stringify(aimed.body.dropped)})`);
+      const matchReview = require(path.join(__dirname, '..', 'server', 'services', 'match-review.js'));
+      const input = matchReview.normalise({ ...body(), rounds: ROUND4 });
+      const names = riotRounds.nameSetOf(AIMED);
+      const p = matchReview.parse('SUMMARY: You won the rounds you opened.\nFOCUS: Wait for Tessik before you peek. It keeps the trade alive.', input,
+        { withoutNames: (t) => coach.__test.withoutNames(t, { names, language: 'en' }) });
+      ok(p.focus === null && p.dropped.some((d) => d.said === 'focus name') && p.dropped.some((d) => d.said === 'focus orphan'),
+        `in parse, the name drop is a drop like any other, and the orphan pass reads it (${JSON.stringify(p.dropped)})`);
+      const bare = matchReview.parse('SUMMARY: You won the rounds you opened.\nFOCUS: Wait for Tessik before you peek. It keeps the trade alive.', input);
+      ok(bare.focus === 'Wait for Tessik before you peek. It keeps the trade alive.', 'and a parse with no name pass handed in is as it was');
+      // ROUND 8 REVIEW: a connective after a NAME drop loses the connective,
+      // not its sentence; the name pass moved into parse emptied these fields.
+      const pass = { withoutNames: (t) => coach.__test.withoutNames(t, { names, language: 'en', count: false }) };
+      const cases = [
+        ['FOCUS: Tessik was ahead of you on B in both lost rounds. Also, use your smoke before you swing wide on A.', 'focus', 'Use your smoke before you swing wide on A.'],
+        ['FOCUS: Tessik was ahead of you on B in both lost rounds. Then clear the angle with your flash before you peek.', 'focus', 'Clear the angle with your flash before you peek.'],
+        ['FOCUS: Warm up in TDM before ranked. Then wait for a teammate before you peek.', 'focus', 'Warm up in TDM before ranked. Then wait for a teammate before you peek.'],
+      ];
+      for (const [said, field, want] of cases) {
+        const q = matchReview.parse(`SUMMARY: You won the rounds you opened.\n${said}`, input, pass);
+        ok(q[field] === want, `MUST KEEP after a name drop: ${JSON.stringify(said)} gives ${JSON.stringify(q[field])}`);
+      }
+      const sum = matchReview.parse('SUMMARY: You won the rounds you opened with a trade. Tessik carried the late rounds. So your opening duels were the difference.', input, pass);
+      ok(sum.summary === 'You won the rounds you opened with a trade. Your opening duels were the difference.', `and in the summary, "So" goes and its sentence keeps (${JSON.stringify(sum.summary)})`);
+      // A referential opener still goes after a name drop, and a connective
+      // after any other gate's drop still goes whole (cohere, unchanged).
+      ok(matchReview.cohere('Tessik was there. So hold the angle.', 'So hold the angle.').text === null
+        && matchReview.cohere('Tessik was there. So hold the angle.', 'So hold the angle.', new Set(['Tessik was there.'.slice(0, 24)])).text === 'Hold the angle.'
+        && matchReview.cohere('Tessik was there. It keeps the trade.', 'It keeps the trade.', new Set(['Tessik was there.'.slice(0, 24)])).text === null,
+      'a connective is stripped only after a name drop, and "It" still goes after one');
+      // nameSpared counts each served spared sentence once, not once per lookup.
+      const spared0 = riotRounds.nameSetCounts().spared;
+      ai.next = reply('SUMMARY: You won the rounds you opened with a trade behind you. Your aim held up in the duels you took.\nR4: Take the duel with a teammate close.\nFOCUS: Take the duel with a teammate close.');
+      const once = await call(coach, 'POST', '/match-review', { headers: H, body: body({ matchId: AIMED }) });
+      ok(once.status === 200 && riotRounds.nameSetCounts().spared === spared0 + 1,
+        `one spared summary sentence through the route counts once (${riotRounds.nameSetCounts().spared - spared0})`);
+    }
     coach.__test.services({ nameGate: { namesSomeone: () => { throw new Error('a broken gate'); } } });
     ai.next = reply(clean);
     const broken = await call(coach, 'POST', '/match-review', { headers: H, body: body() });

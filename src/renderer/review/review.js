@@ -339,16 +339,27 @@ let progressFor = null;
 // plays 'best'), so the page asks main once.
 let progressAsked = null;
 /*
- * RIOT'S RANK RECORD OF THIS MATCH (8.8.x, REVIEW_RIOT through the preload's
+ * RIOT'S RANK RECORD OF THIS MATCH (8.7.9, REVIEW_RIOT through the preload's
  * riotOf): the RR it moved as a chip beside the result, "RR +18", and Riot's
  * own accolades (top frag, an ace, an act record) as lines of "What went
  * well", each marked as Riot's record. Main matches both by the match's Riot
  * id and sends finished words; the page counts nothing. Only RR as the game
  * shows it, never a rating. Asked once per paint, and an answer for a review
  * no longer on the page, or one being built or locked, paints nothing.
+ *
+ * A review opened before Riot publishes its game (8.7.9): main answers
+ * `waiting` for a rated match that ended within the hour with no RR yet, and
+ * the page asks again RIOT_AGAIN_MS later (Home's own RANK_AGAIN_MS), at most
+ * RIOT_TRIES times, under the same guards. Every paint and clearRR stops the
+ * timer, and main still answers null mid match or sealed, so nothing shows
+ * during a match.
  */
+const RIOT_AGAIN_MS = 6 * 60 * 1000;
+const RIOT_TRIES = 2;
 let riotFor = null;
+let riotAgain = null;
 function clearRR() {
+  if (riotAgain) { clearTimeout(riotAgain); riotAgain = null; }
   const chip = $('v-rr');
   chip.hidden = true;
   chip.textContent = '';
@@ -360,9 +371,13 @@ function paintRiot(r) {
   const id = r && r.id;
   riotFor = id || null;
   if (!id || r.kind !== 'valorant' || typeof window.occlara.riotOf !== 'function') return;
+  askRiot(id, 0);
+}
+function askRiot(id, tries) {
   Promise.resolve(window.occlara.riotOf(id)).then((x) => {
     if (riotFor !== id || !current || current.id !== id || current.work || current.locked === true || !x) return;
-    if (x.rr && typeof x.rr.text === 'string' && x.rr.text) {
+    const painted = !!(x.rr && typeof x.rr.text === 'string' && x.rr.text);
+    if (painted) {
       const chip = $('v-rr');
       chip.textContent = x.rr.text;
       chip.className = 'v-rr' + (x.rr.tone ? ' ' + x.rr.tone : '');
@@ -370,6 +385,14 @@ function paintRiot(r) {
       chip.hidden = false;
     }
     if (Array.isArray(x.accolades) && x.accolades.length) paintAccolades(x.accolades);
+    if (x.waiting === true && !painted && tries < RIOT_TRIES) {
+      if (riotAgain) clearTimeout(riotAgain);
+      riotAgain = setTimeout(() => {
+        riotAgain = null;
+        if (riotFor !== id || !current || current.id !== id || current.work || current.locked === true) return;
+        askRiot(id, tries + 1);
+      }, RIOT_AGAIN_MS);
+    }
   }).catch(() => {});
 }
 

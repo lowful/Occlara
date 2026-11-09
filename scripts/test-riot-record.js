@@ -302,8 +302,9 @@ ok(JSON.stringify(card(1).riot.casts) === '[{"key":"C","name":"Cloudburst","n":1
 // The buy discipline.
 {
   const line = (served.patterns || []).find((p) => p.key === 'buys');
-  // Decided buy rounds, pistols left out: eco 2 and 9 (lost, won), force 3 and 8 (won, won), half 4 and 7, full 5, 6, 11, 12, 14.
-  ok(line && line.text === 'Your team lost 4 of 5 rounds on a full loadout, won 1 of 2 eco rounds and won 2 of 2 forced rounds.',
+  // Decided buy rounds, pistols left out: eco 2 and 9 (lost, won), force 3 and 8 (won, won), half 4 and 7 (lost, lost),
+  // full 5, 6, 11, 12, 14. The team's buy is the team's, so the rounds the player sat out (7, 8) count here.
+  ok(line && line.text === 'Your team lost 4 of 5 rounds on a full loadout, lost 2 of 2 rounds on a half loadout, won 1 of 2 eco rounds and won 2 of 2 forced rounds.',
     `the buy discipline line, its numbers counted from the rounds (${line && line.text})`);
   ok(line && !/\bbuy/i.test(line.text), 'worded without "buy", which the review\'s and Ask Coach\'s gates drop');
   const d = review.buyDiscipline(merged.map((r) => ({ ...r, verified: true, result: r.result })));
@@ -311,6 +312,19 @@ ok(JSON.stringify(card(1).riot.casts) === '[{"key":"C","name":"Cloudburst","n":1
     `and as numbers (${JSON.stringify(d && { ...d, text: undefined })})`);
   ok(review.buyDiscipline(merged.slice(0, 5)) === null, `under ${review.BUYS_MIN} decided buy rounds, no line`);
   ok(review.buyDiscipline(merged.map((r) => ({ ...r, buy: undefined }))) === null, 'a match with no buy has no line');
+  // A FINDING, NEVER A TALLY (8.8): each part only where it says something.
+  const of = (spec) => spec.flatMap(([buy, won, lost]) => [...Array(won).fill('won'), ...Array(lost).fill('lost')]
+    .map((result) => ({ verified: true, buy, result })));
+  const said = (spec) => { const x = review.buyDiscipline(of(spec)); return x ? x.text : null; };
+  ok(said([['full', 7, 4]]) === null, `a team that won 7 of 11 full loadouts has no full part (${said([['full', 7, 4]])})`);
+  ok(said([['full', 3, 3]]) === 'Your team lost 3 of 6 rounds on a full loadout.', `losing half of them is one (${said([['full', 3, 3]])})`);
+  ok(said([['full', 6, 0], ['eco', 0, 2]]) === null, `no eco won of two is no line, where it was "won 0 of 2 eco rounds" (${said([['full', 6, 0], ['eco', 0, 2]])})`);
+  ok(said([['full', 5, 0], ['eco', 1, 0]]) === null, 'one eco won of one is too few to call working');
+  ok(said([['full', 4, 0], ['eco', 1, 2]]) === 'Your team won 1 of 3 eco rounds.', `an eco won of three is one (${said([['full', 4, 0], ['eco', 1, 2]])})`);
+  ok(said([['full', 4, 0], ['force', 0, 2]]) === null && said([['full', 4, 0], ['force', 1, 1]]) === 'Your team won 1 of 2 forced rounds.',
+    'a forced round counts only once one of two or more is won');
+  ok(said([['full', 4, 0], ['half', 0, 4]]) === 'Your team lost 4 of 4 rounds on a half loadout.' && said([['full', 4, 0], ['half', 3, 3]]) === 'Your team lost 3 of 6 rounds on a half loadout.'
+    && said([['full', 4, 0], ['half', 5, 1]]) === null, `the half loadouts are counted as the full ones (${said([['full', 4, 0], ['half', 0, 4]])})`);
 }
 
 // AFK rounds are excluded from mistake counts.

@@ -167,7 +167,7 @@
     "tier": "core"
   },
   {
-    "text": "Burst, move, burst, move, the kills come from being hard to hit as much as from the first bullet landing.",
+    "text": "Burst, then strafe to a new spot between bursts and stop dead before the next one, because a moving shot goes wide and the move is what makes you hard to hit.",
     "weight": 3,
     "source": {
       "kind": "vod-review",
@@ -718,7 +718,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Your sniper fires 2 shots before reloading and does 140 a body at any range, so it wins a double peek an Operator cannot.",
+    "text": "Your sniper fires 2 shots before reloading and does 140 a body at any range, which kills through Light Armor but not Heavy Armor, so it wins a double peek an Operator cannot.",
     "weapons": [
       "outlaw"
     ],
@@ -11580,5 +11580,96 @@
     },
     "when": "Corrode A post plants played from A Link.",
     "why": "Riot changed both on purpose, and the guides written before it say the opposite."
+  },
+  {
+    "text": "In the Range, turn the practice bots to strafe and shoot each one only after you have counter strafed to a stop, a few minutes before you queue, because the stop before the first bullet has to be a habit your hands do without you thinking.",
+    "cause": [
+      "lost-duel"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "range strafing bots drill"
+    },
+    "when": "An aim question below Platinum, deaths lost on the first bullets.",
+    "why": "Strafing bots make the player stop against a moving target, the same stop a duel asks for."
+  },
+  {
+    "text": "Play one deathmatch with a single rifle and the crosshair parked at head height on the next corner before you round it, and count how often you had to drag it up or down to a head, because each drag is a fight where your first bullet would have missed.",
+    "cause": [
+      "lost-duel"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "crosshair placement deathmatch drill"
+    },
+    "when": "An aim question with a headshot rate under the player's own average.",
+    "why": "Placement decides the first bullet before the mouse has to move at all."
+  },
+  {
+    "text": "In deathmatch, decide the burst before the fight from the range: a short burst of two or three at long range and a full spray only up close, and after each death say which one you fired, because burst length chosen before the fight is what keeps the first bullets on the head at range.",
+    "cause": [
+      "lost-duel"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "burst by range deathmatch drill"
+    },
+    "when": "Rifle duels lost at mid and long range.",
+    "why": "Spraying at range spreads the bullets, a burst keeps the first ones where the crosshair is."
+  },
+  {
+    "text": "In the Range, spray a full magazine at a wall from a fixed spot and pull down against the climb, then do it again stopping after the first few bullets, so you learn how far your rifle spray climbs and when a short burst beats it.",
+    "cause": [
+      "lost-duel"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "spray control range drill"
+    },
+    "when": "Close duels lost after the first bullets.",
+    "why": "Seeing the spray pattern on a wall shows the player where their later bullets go."
+  },
+  {
+    "text": "In deathmatch, hold every angle a little off the corner with the crosshair where the head will appear and fire the first bullet the moment the model shows, never after a flick, because at this level the duel is decided by the first bullet, not by the flick that follows it.",
+    "cause": [
+      "lost-duel"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "first bullet deathmatch drill"
+    },
+    "when": "Duels lost on the first shot at Platinum and above.",
+    "why": "The first bullet lands before a flick can, so placement and timing win the duel."
   }
 ]

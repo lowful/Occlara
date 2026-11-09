@@ -11,6 +11,12 @@ match), the client sends frames of each, each with its seconds from Riot's death
 list (`CAUSES`, mirrored in `src/shared/death-causes.js`; `test:forensics` keeps
 the two in step), what happened, and the better play.
 
+Never a round Riot says the player sat out (8.8, `sat-out.js`, its AFK or
+stayed in spawn flag): `teachableDeaths` leaves it out before choosing, so the
+paid call goes to another death, and a look the screen saved before the link
+is hidden on that card (`valorant-review.js withView`), left out of Moments
+and of the misses (`test:satout`).
+
 **When Riot's death was on the wall clock** (8.3.1, `death-frames.js
 barrierDrop`, `deathMoment`). Every frame of a round that shows the round clock
 says when its barriers dropped to within a second (the HUD shows the seconds

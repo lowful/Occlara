@@ -111,11 +111,11 @@ const CHANNELS = {
   PATTERNS_GET:    'reviews:patterns',   // (game) -> repeated mistakes, strengths, misses, grade trend, progress
   // One review against the ones before it (8.7, src/shared/progress.js).
   PROGRESS_GET:    'reviews:progress',   // (id) -> matchProgress() of that review, or null
-  // What Riot's rank record says of one saved Valorant review (8.8.x,
+  // What Riot's rank record says of one saved Valorant review (8.7.9,
   // src/shared/riot-rank.js): its RR chip and Riot's accolades for it, by its
   // Riot match id. Null mid match, sealed, for League or with neither known.
   REVIEW_RIOT:     'reviews:riot',       // (id) -> { rr: { text, tone, title } | null, accolades: [{ title, detail }] } | null
-  // The RR chip of each rated row in Matches (8.8.x, home-model.js rrForRows).
+  // The RR chip of each rated row in Matches (8.7.9, home-model.js rrForRows).
   REVIEWS_RR:      'reviews:rr',         // (game) -> { [rowId]: { text, tone, title } } ({} for League or with no history)
   // The breakdown in Matches: by map and agent (champion), counted from
   // the saved reviews of one game (src/shared/breakdown.js).

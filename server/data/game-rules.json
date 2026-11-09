@@ -188,7 +188,7 @@
       "value": 3, "kind": "occlara", "verifiedPatch": "13.09", "tags": [],
       "source": "Occlara's own rule: src/shared/insights.js counts a round of three kills or more as a multi kill round",
       "check": "check:primer holds it equal to insights.js",
-      "mirror": { "file": "src/shared/insights.js", "pattern": "const multi = verified\\.filter\\(\\(r\\) => typeof r\\.kills === 'number' && r\\.kills >= (\\d+)\\);" },
+      "mirror": { "file": "src/shared/insights.js", "pattern": "const multi = mVerified\\.filter\\(\\(r\\) => typeof r\\.kills === 'number' && r\\.kills >= (\\d+)\\);" },
       "confirmed": { "by": "occlara", "on": "2026-10-15", "how": "held equal to insights.js by check:primer" }
     }
   }

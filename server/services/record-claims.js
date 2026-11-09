@@ -39,6 +39,14 @@
  *                    said wrong, and in Ask Coach the clock turned around.
  *   costRank, costLine  what each death cost, the line the prompts carry
  *                    from Platinum, and what the priority gate reads.
+ *   checkMulti       (round 8) far, could not trade and untraded told
+ *                    apart, "those six", "both times", "a couple of those
+ *                    early rounds" and an agent's deaths resolved, a bare
+ *                    count exact; checkAlone, alone said of a death with a
+ *                    teammate close, "nobody could trade you" rewritten to
+ *                    Riot's fact; checkClearest, the clearest one against
+ *                    the cost ranking; tradeLedger, the counted split of the
+ *                    deaths by trade and distance both prompts carry.
  *   checkRows        all of them over a reply's sentences in reading order,
  *                    a he or a she read as the agent the sentences before
  *                    named, a sentence of no round as the round its
@@ -131,7 +139,28 @@ function row(x) {
     untraded: x.traded === false,
     firstDeath: x.firstDeath === true,
     before: Array.isArray(x.before) && x.before.length === 2 && x.before.every(fin) ? [x.before[0], x.before[1]] : null,
+    // A round Riot says the player sat out (8.8): in no count of the ledger (tradeLedger).
+    afk: x.afk === true,
+    // Round 8, the timeline and the state (checkFirst, checkKillPlace,
+    // checkLater): whether the player got the round's first kill (false only
+    // where the record says so), where Riot has the player's kills falling,
+    // and from the kill feed the death's second and the player's kills
+    // before it, in seconds into the round. Each null where not sent.
+    firstKill: x.firstKill === true ? true : x.firstKill === false ? false : null,
+    killPlaces: Array.isArray(x.killPlaces) && x.killPlaces.length ? x.killPlaces.filter((p) => typeof p === 'string' && p) : null,
+    deathAt: fin(x.deathAt) ? x.deathAt : null,
+    ownKills: Array.isArray(x.ownKills) && x.ownKills.every(fin) ? x.ownKills : null,
   };
+}
+/** From a kill feed: the death's second and the player's kills before it ({ deathAt, ownKills }, each null where unknown). */
+function feedTimes(feed) {
+  if (!Array.isArray(feed)) return { deathAt: null, ownKills: null };
+  const d = feed.find((k) => k && k.on === 'me' && fin(k.s));
+  if (!d) return { deathAt: null, ownKills: null };
+  const mine = feed.filter((k) => k && k.by === 'me' && k.on === 'enemy');
+  // A kill of the player's with no second leaves the list unknown.
+  if (mine.some((k) => !fin(k.s))) return { deathAt: d.s, ownKills: null };
+  return { deathAt: d.s, ownKills: mine.map((k) => k.s).filter((s) => s <= d.s).sort((a, b) => a - b) };
 }
 function aliveOf(x) {
   const a = x && x.alive;
@@ -151,7 +180,7 @@ function contextOfChat(facts) {
       const mine = feed ? feed.filter((k) => k && k.by === 'me' && k.on === 'enemy' && k.va).map((k) => canon(k.va)).filter(Boolean) : null;
       // The feed is the player's kills only where it holds as many as Riot's count.
       const victims = mine && mine.length && Number.isInteger(r.kills) && mine.length === r.kills ? mine : null;
-      rounds.set(r.n, row({ ...r, victims, spot: r.spot || null }));
+      rounds.set(r.n, row({ ...r, victims, spot: r.spot || null, ...feedTimes(feed) }));
     }
   }
   const enemies = f.sides && f.sides.enemies instanceof Set ? new Set([...f.sides.enemies].map(canon).filter(Boolean)) : new Set();
@@ -165,6 +194,13 @@ function contextOfChat(facts) {
     asked: f.oneRound && f.asked ? f.asked : null,
     map: typeof f.map === 'string' && f.map ? f.map : null,
     kind: 'chat',
+    // Round 8: the deaths in the first 30 seconds before any plant, counted
+    // here from the rows (the set "those early rounds" names), the agents the
+    // question names (whose deaths "those six" can be), and the cost ranking
+    // from Platinum ("the clearest one was round N", checkClearest).
+    earlyDeaths: earlyDeathsOf(rounds),
+    askedAgents: (Array.isArray(f.askedAgents) ? f.askedAgents : []).map(canon).filter(Boolean),
+    costRank: Array.isArray(f.costRank) && f.costRank.length ? f.costRank : null,
     // The rounds the match went to, from its final score (checkOrdinal, wholeMatch).
     total: Array.isArray(f.finalScore) && f.finalScore.every(fin) ? f.finalScore[0] + f.finalScore[1] : null,
   };
@@ -204,6 +240,9 @@ function contextOfReview(input) {
     asked: null,
     map: typeof ctx.map === 'string' && ctx.map ? ctx.map : null,
     kind: 'review',
+    earlyDeaths: earlyDeathsOf(rounds),
+    askedAgents: [],
+    costRank: null,
     // The rounds the match went to, from its final score (checkOrdinal, wholeMatch).
     total: inp.final && fin(inp.final.team) && fin(inp.final.enemy) ? inp.final.team + inp.final.enemy : null,
   };
@@ -304,7 +343,10 @@ function costRank(ctx) {
       words.push(last ? 'as the last one alive' : `${at[0]} against ${at[1]} when you died, leaving ${after[0]} against ${after[1]}${down ? ', a player down' : even ? ', the advantage given back' : ''}`);
     }
     if (r.traded === true) words.push('a teammate traded it');
-    else if (untraded) words.push('nobody traded it');
+    // With Riot's distance (round 8): "nobody traded it" alone read as nobody
+    // near, and the Fracture answers made round 5 a lone death where Riot has
+    // a teammate close. The words say which it was, where the record says.
+    else if (untraded) words.push(r.mate === 'close' ? 'nobody traded it though a teammate was close' : r.mate === 'far' ? 'nobody traded it, with no teammate close' : 'nobody traded it');
     if (r.firstDeath) words.push('the first death of the round');
     out.push({ n: r.n, score, side: r.side, result: r.result, plant, down, even, untraded, first: r.firstDeath, words });
   }
@@ -591,15 +633,40 @@ function placesOf(map) {
   if (PLACES_OF.has(key)) return PLACES_OF.get(key);
   const g = (DATA.mapGeometry || {})[key];
   const names = new Map();
+  // A callout's name and its other name as one place (checkKillPlace).
+  const canonOf = new Map();
   for (const c of (g && Array.isArray(g.callouts) ? g.callouts : [])) {
     const side = SITE_SIDES.has(String((c && c.s) || '').toLowerCase()) ? String(c.s).toLowerCase() : null;
-    for (const n of [c && c.n, c && c.a]) if (typeof n === 'string' && n) names.set(n.toLowerCase(), side);
+    const main = typeof (c && c.n) === 'string' && c.n ? c.n.toLowerCase() : null;
+    for (const n of [c && c.n, c && c.a]) {
+      if (typeof n !== 'string' || !n) continue;
+      names.set(n.toLowerCase(), side);
+      if (main && !canonOf.has(n.toLowerCase())) canonOf.set(n.toLowerCase(), main);
+    }
     if (side) names.set(`${side} site`, side);
   }
   const list = [...names.keys()].sort((a, b) => b.length - a.length);
-  const out = { sideOf: names, alt: list.length ? list.map(esc).join('|') : null };
+  const out = { sideOf: names, canonOf, alt: list.length ? list.map(esc).join('|') : null };
   PLACES_OF.set(key, out);
   return out;
+}
+/*
+ * THE ARTICLE IS NO SITE (8.8 review, the "A site" trap again). placesOf's
+ * names are lower case ("a site", "a main", "a lobby") and run under the 'i'
+ * flag, so "a site retake", "a main angle" and "holding a site alone" read as
+ * callouts of the A side. A place word that opens on a, b or c and a space is
+ * a callout only where its letter is a capital in the text as written.
+ */
+const articleNotSite = (said) => /^[abc]\s/i.test(String(said || '')) && !/^[ABC]\s/.test(String(said || ''));
+/** The first match of re (made global here) whose place group is no article. */
+function placeMatch(source, t, group) {
+  const re = new RegExp(source, 'gi');
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    if (!articleNotSite(m[group])) return m;
+    re.lastIndex = m.index + 1;
+  }
+  return null;
 }
 const DEATH_AT_HEAD = '\\b(?:you\\s+died|your\\s+death(?:\\s+came)?|(?:killed|caught|picked\\s+off|took)\\s+you(?:\\s+out)?|you\\s+(?:were|got)\\s+(?:killed|caught|picked\\s+off|taken\\s+out)|you\\s+fell|you\\s+went\\s+down)\\b(?:\\s+[^\\s.;,]+){0,4}?\\s+(?:at|in|on|near|inside|from|holding|on\\s+the\\s+way\\s+to)\\s+(?:the\\s+)?';
 const HYPO = /\b(?:if|next\s+time|should|would|could\s+have|make\s+sure|instead|always|every\s+time|whenever)\b/i;
@@ -625,8 +692,8 @@ function checkRecord(sentence, ctx, st) {
     // (valorant-verify.js placeName), so no site word is ever judged.
     const widened = /^[abc] site$/i.test(r.place);
     if (pl.alt && fact && !widened) {
-      const m = new RegExp(`${DEATH_AT_HEAD}(${pl.alt})(?![A-Za-z0-9])`, 'i').exec(t);
-      const said = m ? pl.sideOf.get(m[1].toLowerCase()) : null;
+      const m = placeMatch(`${DEATH_AT_HEAD}(${pl.alt})(?![A-Za-z0-9])`, t, 1);
+      const said = m && !articleNotSite(m[1]) ? pl.sideOf.get(m[1].toLowerCase()) : null;
       if (said && said !== fact) return `your reply put the player's death in round ${n} at ${m[1]}, where Riot's record has it at ${r.place}; say the place the record has`;
     }
   }
@@ -775,16 +842,56 @@ function checkScore(sentence, ctx, st) {
 const NUM_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16 };
 const NUM = '(?:[0-9]{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen)';
 const numOf = (w) => (/^[0-9]+$/.test(String(w)) ? Number(w) : (NUM_WORDS[String(w || '').toLowerCase()] || null));
+const lastAliveOf = (r) => !!(r && Array.isArray(r.alive) && r.alive[0] <= 1);
+
+/*
+ * THREE CLAIMS, TOLD APART (round 8, the blind audit of round 7). Twelve of
+ * round 7's wrong chat claims were counts and distances, and the gate read
+ * "not traded" and "nobody close" as one thing: "Three of those six deaths
+ * had nobody close enough to trade" of Omen's six, where Riot has round 14
+ * with a teammate close and untraded; "Cypher got you twice, and both times
+ * nobody was close enough to trade you", both traded. Now:
+ *   far       nobody near at the death: "no teammate close", "on your own",
+ *             "holding the angle alone", "spots where nobody could see",
+ *             "away from your teammate's reach". Riot's distance word
+ *             decides first (Fracture round 2, traded and far: "no teammate
+ *             was close" is Riot's own fact), then a teammate close or a
+ *             trade makes it false.
+ *   couldnt   nobody able to trade: "nobody close enough to trade",
+ *             "nobody could trade you", "where nobody could answer". False of
+ *             a traded death and of one with a teammate close (never the last
+ *             one alive, whom nobody could trade).
+ *   untraded  "untraded", "nobody traded", "was never traded", "nobody
+ *             answered": false of a traded death only.
+ * and close, early and traded as before. Each regex is asserted in
+ * test:chatgates on a sentence of the audit and a true variant.
+ */
+const WHO = '(?:no\\s+teammate|nobody(?:\\s+on\\s+your\\s+team)?|no\\s+one(?:\\s+on\\s+your\\s+team)?|none\\s+of\\s+your\\s+teammates)';
+const FAR_SAID = new RegExp([
+  '\\bon\\s+your\\s+own\\b',
+  '\\bby\\s+yourself\\b',
+  '\\b(?:you\\s+were|while\\s+you\\s+were|while)\\s+(?:all\\s+)?alone\\b',
+  '\\bisolated\\b',
+  `\\b(?:with\\s+)?${WHO}\\s+(?:(?:was|were|stood)\\s+)?(?:close(?:\\s+by)?|near(?:by)?|anywhere\\s+near)\\b(?!\\s+enough)`,
+  '\\byour\\s+teammates?\\s+(?:was|were)\\s+(?:all\\s+)?(?:too\\s+)?far\\b',
+  '\\b(?:holding|held|took|taking|fought|fighting)\\s+(?:the\\s+|that\\s+|an\\s+|those\\s+|your\\s+)?(?:angle|fights?|duels?|space)\\s+(?:all\\s+)?alone\\b',
+  `\\b(?:spots?|places?|angles?|positions?)\\s+where\\s+${WHO}\\s+could\\s+(?:see|reach|help|trade|answer)\\b`,
+  "\\b(?:away\\s+from|out\\s+of)\\s+(?:your\\s+|a\\s+)?(?:teammates?'?s?|team's)\\s+reach\\b",
+].join('|'), 'i');
+const COULDNT_SAID = new RegExp([
+  `\\b${WHO}\\s+(?:(?:was|were|stood)\\s+)?close\\s+enough\\s+to\\s+(?:answer|trade|kill|swing|punish|shoot|help|refrag)\\b`,
+  `\\b${WHO}\\s+(?:could|was\\s+able\\s+to)\\s+(?:have\\s+)?(?:trade[d]?|answer(?:ed)?|refrag|kill\\s+(?:your|the)\\s+killer)\\b`,
+  '\\b(?:was|were)\\s+no\\s+one\\s+(?:close\\s+enough|there)\\s+to\\s+(?:shoot|trade|answer|kill)\\b',
+].join('|'), 'i');
+const UNTRADED_SAID = /\b(?:went\s+)?(?:untraded|unanswered)\b|\b(?:nobody|no\s+one|no\s+teammate)\s+(?:ever\s+)?(?:traded|answered)\b|\b(?:was|were|got)\s+(?:never|not)\s+traded\b|\bnever\s+(?:got\s+)?traded\b|\bwithout\s+(?:a\s+)?trade\b/i;
+const CLOSE_SAID = /\b(?:(?:a|your|one)\s+teammates?\s+(?:was|were|stood|had\s+been)\s+(?:right\s+)?(?:close(?:\s+by)?|near(?:by)?|next\s+to\s+you|beside\s+you)|with\s+a\s+teammate\s+(?:right\s+)?(?:close(?:\s+by)?|near(?:by)?|next\s+to\s+you|beside\s+you))\b(?!\s+enough)/i;
+// "where you were the first contact", "when you were the first one down": the player's first death, said of the rounds named.
+const FIRST_CONTACT = /\b(?:where|when)\s+you\s+were\s+the\s+first\s+(?:contact|death|one\s+(?:down|to\s+die)|player\s+down)\b|\byou\s+were\s+the\s+first\s+contact\b/i;
 // What each round of the set must have been for the claim, and what makes it certainly not.
 const MULTI_CLAIMS = [
-  // Nobody near: a distance, and a traded death had someone near enough.
-  ['alone', /\bon\s+your\s+own\b|\bby\s+yourself\b|\b(?:you\s+were|while\s+you\s+were|while)\s+(?:all\s+)?alone\b|\bisolated\b|\b(?:with\s+)?(?:no\s+teammate|nobody|no\s+one|none\s+of\s+your\s+teammates)\s+(?:(?:was|were|stood)\s+)?(?:close(?:\s+by)?|near(?:by)?|anywhere\s+near)\b(?!\s+enough)|\byour\s+teammates?\s+(?:was|were)\s+(?:all\s+)?(?:too\s+)?far\b/i,
-    (r) => (r.mate === 'close' || r.traded === true ? 'no' : r.mate === 'far' ? 'yes' : null)],
-  // "Nobody close enough to kill her back" is the trade, judged by a trade only.
-  ['answer', /\b(?:no\s+teammate|nobody|no\s+one)\s+(?:(?:was|were|stood)\s+)?close\s+enough\s+to\s+(?:answer|trade|kill|swing|punish|shoot|help|refrag)\b/i,
-    (r) => (r.traded === true ? 'no' : r.traded === false ? 'yes' : null)],
-  ['close', /\b(?:(?:a|your|one)\s+teammates?\s+(?:was|were|stood|had\s+been)\s+(?:right\s+)?(?:close(?:\s+by)?|near(?:by)?|next\s+to\s+you|beside\s+you)|with\s+a\s+teammate\s+(?:right\s+)?(?:close(?:\s+by)?|near(?:by)?|next\s+to\s+you|beside\s+you))\b(?!\s+enough)/i,
-    (r) => (r.mate === 'far' && r.traded !== true ? 'no' : r.mate === 'close' || r.traded === true ? 'yes' : null)],
+  ['far', FAR_SAID, (r) => (r.mate === 'far' ? 'yes' : r.mate === 'close' || r.traded === true ? 'no' : null)],
+  ['couldnt', COULDNT_SAID, (r) => (r.traded === true ? 'no' : r.mate === 'close' && !lastAliveOf(r) ? 'no' : r.untraded ? 'yes' : null)],
+  ['close', CLOSE_SAID, (r) => (r.mate === 'far' && r.traded !== true ? 'no' : r.mate === 'close' || r.traded === true ? 'yes' : null)],
   // Early: certainly not after the plant, nor a minute in; the first 30 seconds not past 30.
   ['early', /\b(?:you\s+died|died|deaths?\s+came|you\s+went\s+down|you\s+fell)\s+(?:very\s+|too\s+)?early\b|\bearly\s+deaths?\b|\bin\s+the\s+first\s+(?:30|thirty)\s+seconds\b/i,
     (r, t) => {
@@ -794,13 +901,36 @@ const MULTI_CLAIMS = [
       if (after || (fin(r.sec) && r.sec > limit)) return 'no';
       return fin(r.sec) ? 'yes' : null;
     }],
-  ['untraded', /\b(?:went\s+)?(?:untraded|unanswered)\b|\b(?:nobody|no\s+one|no\s+teammate)\s+(?:ever\s+)?traded\b|\bwithout\s+(?:a\s+)?trade\b/i,
-    (r) => (r.traded === true ? 'no' : r.traded === false ? 'yes' : null)],
+  // The row's own untraded (Riot's traded false): before round 8 these read
+  // r.traded === false, which a row never holds, so every round was unknown.
+  ['untraded', UNTRADED_SAID, (r) => (r.traded === true ? 'no' : r.untraded ? 'yes' : null)],
   ['traded', /\b(?:were|was|got|been)\s+traded\b|\ba\s+teammate\s+traded\b|\bthe\s+trade\s+came\b/i,
-    (r) => (r.traded === false ? 'no' : r.traded === true ? 'yes' : null)],
+    (r) => (r.untraded ? 'no' : r.traded === true ? 'yes' : null)],
+  // The player as the round's first death (round 8, Pearl Iron "rounds 3 and 5, where you were the first contact", round 3 no first death).
+  ['first', FIRST_CONTACT, (r) => (!r.died ? null : r.firstDeath ? 'yes' : fin(r.sec) ? 'no' : null)],
 ];
-// "Five of those six", "all four of your deaths", "none of them", "most of your deaths", "only one of the five".
-const QUANT = new RegExp(`\\b(only\\s+|just\\s+)?(${NUM}|all|both|none|most|each|every\\s+one|neither)(?:\\s+(${NUM}))?\\s+of\\s+(?:(those|these|them|the|your)\\s+)?(?:(${NUM})\\s+)?(deaths|rounds|times|fights|duels|ones|kills|early\\s+deaths)?`, 'i');
+const JUDGES = Object.fromEntries(MULTI_CLAIMS.map(([k, , j]) => [k, j]));
+const FACT_WORDS = { far: 'nobody close', couldnt: 'nobody close enough to trade', close: 'a teammate close', early: 'an early death', untraded: 'untraded', traded: 'traded', first: 'the player as the first death' };
+// Two claims one quantifier holds together ("a teammate was close and nobody answered"), never two that cannot both be.
+const CLASH = [['traded', 'untraded'], ['traded', 'couldnt'], ['close', 'far'], ['close', 'couldnt']];
+const together = (ks) => ks.length >= 2 && !CLASH.some(([a, b]) => ks.includes(a) && ks.includes(b));
+/** The claim kinds a text holds, a far that is only the couldnt's own words read as the couldnt. */
+function kindsOf(text) {
+  const t = String(text || '');
+  const ks = MULTI_CLAIMS.filter(([, re]) => re.test(t)).map(([k]) => k);
+  if (ks.includes('couldnt') && ks.includes('far') && !FAR_SAID.test(t.replace(new RegExp(COULDNT_SAID.source, 'gi'), ' '))) ks.splice(ks.indexOf('far'), 1);
+  return ks;
+}
+/** One round under several claims at once: 'no' where any is, 'yes' where all are. */
+function judgeAll(kinds, r, t) {
+  const vs = kinds.map((k) => JUDGES[k](r, t));
+  return vs.includes('no') ? 'no' : vs.every((v) => v === 'yes') ? 'yes' : null;
+}
+
+// "Five of those six", "all four of your deaths", "none of them", "a couple of those early rounds", "at least three of the six".
+const QUANT = new RegExp(`\\b(only\\s+|just\\s+|at\\s+least\\s+|more\\s+than\\s+)?(${NUM}|all|both|none|most|each|every\\s+one|neither|a\\s+couple)(?:\\s+(${NUM}))?\\s+of\\s+(?:(those|these|them|the|your|his|her)\\s+)?(?:(early)\\s+)?(?:(${NUM})\\s+)?(deaths|rounds|times|fights|duels|ones|kills|early\\s+deaths)?`, 'i');
+// "both times", "each time", "every time": the set the words before named, all of it.
+const TIMES_Q = /\b(both|each|every)\s+times?\b/i;
 // "rounds 2, 10 and 12 all came", "all four came", "both came": a list's own all.
 const LIST_ALL = new RegExp(`\\b(?:all|both|each)(?:\\s+(?:${NUM}))?\\s+(?:of\\s+them\\s+)?(?:came|were|happened|went|died|had|ended|started)\\b`, 'i');
 const SOFT_QUANT = /\b(?:often|sometimes|usually|mostly|several|some|a\s+few|many|a\s+lot\s+of|twice|mainly|largely|typically|regularly|repeatedly|at\s+times|more\s+than\s+once)\b/i;
@@ -808,12 +938,42 @@ const LIST_QUANT = new RegExp(`\\b(only\\s+|just\\s+)?(${NUM}|none|most|neither)
 // Every death of the match: "every time you died", "each of your deaths", "all your deaths".
 const ALL_DEATHS = /\b(?:every|each)\s+time\s+you\s+died\b|\b(?:every|each)\s+(?:one\s+of\s+your\s+|of\s+your\s+)?deaths?\b|\ball\s+(?:of\s+)?your\s+deaths\b|\bwhenever\s+you\s+died\b/i;
 const MOST_DEATHS = /\b(?:most|the\s+majority|nearly\s+all|almost\s+all)\s+of\s+your\s+deaths\b/i;
+// "and two more you were the last one alive": those are out of the count's set.
+const LAST_ALIVE_APART = new RegExp(`\\b(?:and\\s+)?(${NUM})\\s+more\\s+(?:where\\s+|when\\s+)?you\\s+were\\s+the\\s+last\\s+(?:one\\s+|player\\s+)?(?:alive|standing)\\b|\\b(?:besides|apart\\s+from|not\\s+counting)\\s+the\\s+(${NUM})\\s+(?:where|when)\\s+you\\s+were\\s+the\\s+last`, 'i');
+// "in round 7 ... no teammate close, in round 11 ... with nobody near": one claim a round. A singular "round N" not opening a run ("round 1, 26 s in" is one round).
+const PER_ROUND = /\bround\s+([0-9]{1,2})\b(?!\s*(?:,\s*(?:and\s+)?|\s+and\s+|\s+or\s+)[0-9]{1,2}(?![0-9]|\s*(?:s|secs?|seconds?)\b))/gi;
+// A list split by counts: "twice with no teammate close and once with one close".
+const SHARE = new RegExp(`\\b(twice|once|(${NUM})\\s+times)\\s+(?:with|where|when)\\b`, 'gi');
+// A sentence whose rounds lean on the claim before it: "Rounds 2, 7, 10 and 12 all show it", "round 3, for example".
+const POINTER = /\b(?:all|both|each)?\s*show(?:s|ed)?\s+(?:it|this|that)\b|\bthe\s+clearest\s+(?:one|example|case)\b|\bfor\s+example\b|\bis\s+(?:what|where)\s+(?:it|that)\s+happened\b|\bthat\s+is\s+what\s+happened\s+in\b|\blike\s+(?:in\s+)?rounds?\b/i;
+// The claim's own part: a sentence cut where its advice starts (", so before you swing", ": stay close").
+const ADVICE_CUT = /,\s+so\s+(?=(?:the\s+first\s+thing|before|stay|check|glance|wait|hold|look|make|keep|take|play|go)\b)|:\s+(?=(?:stay|check|glance|wait|hold|look|make|keep|take|play|go|before)\b)/i;
+const claimPart = (t) => { const m = ADVICE_CUT.exec(t); return m ? t.slice(0, m.index) : t; };
 /** The rounds the record has, 1 to the last, none missing: the only ledger "your deaths" can be counted over. */
 function wholeMatch(ctx) {
   const ns = [...ctx.rounds.keys()].sort((a, b) => a - b);
   return ns.length > 0 && ns[0] === 1 && ns[ns.length - 1] === ns.length && (!fin(ctx.total) || ctx.total === ns.length);
 }
 const deathsOf = (ctx) => [...ctx.rounds.values()].filter((r) => r.died).map((r) => r.n);
+/** The rounds an agent killed the player in, a round sat out left out. */
+const killsBy = (ctx, agent) => [...ctx.rounds.values()].filter((r) => r.died && !r.afk && r.killer && r.killer === agent).map((r) => r.n).sort((a, b) => a - b);
+/*
+ * AN AGENT'S DEATHS NAMED BY COUNT: "Omen killed you six times", "Cypher got
+ * you twice". The set "those six" or "both times" can stand for, only where
+ * the record has that agent killing the player that many times.
+ */
+const AGENT_KILLS = new RegExp(`(?<![A-Za-z0-9])(${AGENT_ALT})(?![A-Za-z0-9])[^.;]{0,30}?\\b(?:killed|got|caught)\\s+you\\s+(?:(${NUM})\\s+times|(twice)|(once))\\b`, 'i');
+// "Often when you were alone" is soft, never "Cypher got you twice", which is the set's own count (Pearl Iron, round 8).
+const AGENT_KILLS_ALL = new RegExp(AGENT_KILLS.source, 'gi');
+const softIn = (clause) => SOFT_QUANT.test(String(clause || '').replace(AGENT_KILLS_ALL, ' '));
+function agentKillSet(text, ctx) {
+  const m = AGENT_KILLS.exec(String(text || ''));
+  if (!m || !ctx) return null;
+  const a = canon(m[1]);
+  const n = m[2] ? numOf(m[2]) : m[3] ? 2 : 1;
+  const set = a ? killsBy(ctx, a) : [];
+  return set.length === n && n >= 2 ? set : null;
+}
 /*
  * "Your deaths" qualified is some of them (the verify pass of round 7):
  * "Every time you died to Killjoy, nobody traded you" and "None of your
@@ -827,87 +987,454 @@ const WHOLE_AFTER = /^\s*(?:in|of|across|over)\s+(?:this|the|that)\s+(?:[a-z]+\s
 const restricted = (rest) => SUBSET_AFTER.test(rest) && !WHOLE_AFTER.test(rest);
 // A plan judges nothing; "every time you died" is the claim's own set, so HYPO's every time is not read here.
 const MULTI_HYPO = /\b(?:if|next\s+time|should|would|could\s+have|make\s+sure|instead)\b/i;
-function checkMulti(sentence, ctx, st) {
-  const t = straight(sentence);
-  if (!ctx || !ctx.rounds.size || OPENS_IF.test(t) || MULTI_HYPO.test(t)) return null;
-  for (const [kind, re, judge] of MULTI_CLAIMS) {
+
+/** The quantifier of a clause: { at, want, only, atLeast, of, det, early, times } or null. */
+function quantOf(clause) {
+  const q = QUANT.exec(clause);
+  if (q) {
+    const lead = (q[1] || '').toLowerCase();
+    const w = q[2].toLowerCase().replace(/\s+/g, ' ');
+    const want = w === 'all' || w === 'both' || w === 'each' || w === 'every one' ? 'all' : w === 'none' || w === 'neither' ? 'none' : w === 'most' ? 'most' : w === 'a couple' ? { n: 2 } : { n: numOf(w) };
+    return { at: q.index, len: q[0].length, want, only: /only|just/.test(lead), atLeast: /least|more/.test(lead) || w === 'a couple',
+      of: numOf(q[6]) || numOf(q[3]) || (w === 'both' ? 2 : null), det: (q[4] || '').toLowerCase(), early: !!q[5], noun: (q[7] || '').toLowerCase(), times: false };
+  }
+  const tq = TIMES_Q.exec(clause);
+  if (tq && !ALL_DEATHS.test(clause)) {
+    const both = /^both$/i.test(tq[1]);
+    return { at: tq.index, len: tq[0].length, want: 'all', only: false, atLeast: false, of: both ? 2 : null, det: 'those', early: false, noun: 'times', times: true };
+  }
+  return null;
+}
+/*
+ * THE SET "THOSE SIX" NAMES (round 8): the rounds the sentence named before
+ * the words, else for "those early" the counted early deaths, else the first
+ * of these the size fits: the list of the sentence right before, an agent's
+ * deaths this sentence or one before counted ("Omen killed you six times"),
+ * the asked agent's, and the last list of the reply. With no size ("each
+ * time") only the list right before or this sentence's agent.
+ */
+function anaphorSet(t, at, q, clause, ctx, st, here) {
+  const before = roundsIn(t.slice(0, at));
+  if (before.length >= 2) return before;
+  if (q.early || /\b(?:those|these)\s+early\b/i.test(clause)) return Array.isArray(ctx.earlyDeaths) && ctx.earlyDeaths.length >= 2 ? ctx.earlyDeaths : null;
+  const asked = (ctx.askedAgents || []).map((a) => killsBy(ctx, a)).filter((x) => x.length >= 2);
+  const pool = [st.lastSet, here, st.agentSet, ...asked, st.replyList].filter((x) => Array.isArray(x) && x.length >= 2);
+  if (q.of) return pool.find((x) => x.length === q.of) || null;
+  if (q.times) return here || st.lastSet || null;
+  return st.lastSet || null;
+}
+/** The set and the count a clause claims over: { set, want, only, atLeast } or null. */
+function resolveSet(t, clause, from, ctx, st, here) {
+  const runs = [...t.matchAll(ROUND_RUN)];
+  const own = roundsIn(clause);
+  let set = null;
+  let want = null;
+  let only = false;
+  let atLeast = false;
+  const q = quantOf(clause);
+  if (q) {
+    ({ want, only, atLeast } = q);
+    if (['those', 'these', 'them', 'his', 'her'].includes(q.det)) set = anaphorSet(t, from + q.at, q, clause, ctx, st, here);
+    else if ((q.det === 'your' || q.det === 'the') && /^deaths$/i.test(q.noun)) {
+      // Every death of the match: "5 of your last 6 matches" and "your early deaths" are none of it, nor "your deaths to Killjoy" (restricted).
+      set = wholeMatch(ctx) && !restricted(clause.slice(q.at + q.len)) ? deathsOf(ctx) : null;
+    } else if (own.length >= 2) set = own;
+    // "Five of those six" of a list of five is no list of the sentence's.
+    if (set && q.of && set.length !== q.of) set = null;
+    // "and two more you were the last one alive" takes those out, only where exactly that many are.
+    const la = set ? LAST_ALIVE_APART.exec(t) : null;
+    if (la) {
+      const k = numOf(la[1] || la[2]);
+      const rest = set.filter((n) => !lastAliveOf(ctx.rounds.get(n)));
+      set = set.length - rest.length === k ? rest : null;
+    }
+  } else if (MOST_DEATHS.test(t)) {
+    want = 'most';
+    const md = MOST_DEATHS.exec(t);
+    set = wholeMatch(ctx) && !restricted(t.slice(md.index + md[0].length)) ? deathsOf(ctx) : null;
+  } else if (ALL_DEATHS.test(t)) {
+    want = 'all';
+    const ad = ALL_DEATHS.exec(t);
+    set = wholeMatch(ctx) && !restricted(t.slice(ad.index + ad[0].length)) ? deathsOf(ctx) : null;
+  } else {
+    // A list the claim's clause names, else the sentence's one list.
+    const list = own.length >= 2 ? own : !own.length && runs.length === 1 ? roundsIn(runs[0][0]) : [];
+    if (list.length < 2) return null;
+    set = list;
+    const lq = LIST_QUANT.exec(t);
+    if (lq) {
+      only = !!lq[1];
+      const w = lq[2].toLowerCase();
+      want = w === 'none' || w === 'neither' ? 'none' : w === 'most' ? 'most' : { n: numOf(w) };
+    } else want = 'all';
+  }
+  if (!set || set.length < 2 || !want) return null;
+  return { set, want, only, atLeast };
+}
+/** The claim over its set judged: a reason where the record certainly makes it false, else null. */
+function judgeSet(res, kinds, t, ctx) {
+  const rows = res.set.map((n) => ctx.rounds.get(n)).filter(Boolean);
+  if (rows.length !== res.set.length) return null;
+  let yes = 0;
+  let no = 0;
+  let unknown = 0;
+  for (const r of rows) {
+    const v = judgeAll(kinds, r, t);
+    if (v === 'yes') yes += 1;
+    else if (v === 'no') no += 1;
+    else unknown += 1;
+  }
+  const possible = yes + unknown;
+  const { want } = res;
+  let wrong = false;
+  if (want === 'all') wrong = no > 0;
+  else if (want === 'none') wrong = yes > 0;
+  else if (want === 'most') wrong = possible * 2 <= rows.length;
+  // A bare count is exact where nothing in the set is unknown (round 8:
+  // "Three of those six he was never traded" of five), unless "at least",
+  // "more than" or "a couple" lead it.
+  else if (want && want.n != null) wrong = possible < want.n || (res.only && yes > want.n) || (!res.atLeast && unknown === 0 && yes !== want.n);
+  if (!wrong) return null;
+  const said = want === 'all' ? 'all' : want === 'none' ? 'none' : want === 'most' ? 'most' : `${want.n}`;
+  const fact = kinds.map((k) => FACT_WORDS[k]).join(' and ');
+  return `your reply said ${said} of rounds ${res.set.join(', ')} had ${fact}, where Riot's record allows it in ${possible} of those ${rows.length}${unknown ? '' : ` (it has it in ${yes})`}; say each round as the record has it, or leave the count out`;
+}
+
+function checkMulti(sentence, ctx, st0) {
+  const st = st0 || {};
+  const full = straight(sentence);
+  if (!ctx || !ctx.rounds.size || OPENS_IF.test(full)) return null;
+  // The claim's own part: advice after it ("so before you swing, glance")
+  // judges nothing and makes no plan of the claim (round 8, Sunset).
+  const t = claimPart(full);
+  // "would have saved rounds 3 and 5, where you were the first contact": the
+  // where clause is told as fact even inside a plan, so the rounds right
+  // before it are judged as the player's first deaths (round 8, Pearl Iron).
+  const fc = FIRST_CONTACT.exec(t);
+  if (fc && /^\s*(?:where|when)\b/i.test(fc[0])) {
+    const ns = roundsIn(t.slice(Math.max(0, fc.index - 40), fc.index));
+    const wrong = ns.filter((n) => { const r = ctx.rounds.get(n); return r && JUDGES.first(r, t) === 'no'; });
+    if (wrong.length) return `your reply had the player as the first death in round${wrong.length > 1 ? 's' : ''} ${wrong.join(', ')}, where Riot's record has someone else die first there; name only the rounds the record has the player die first in`;
+  }
+  if (MULTI_HYPO.test(t)) return null;
+  const here = agentKillSet(t, ctx);
+  // 1. One claim a round: each "in round N" part judged on its own round.
+  const segs = [...t.matchAll(PER_ROUND)];
+  if (segs.length >= 2) {
+    for (let i = 0; i < segs.length; i++) {
+      const seg = t.slice(segs[i].index, i + 1 < segs.length ? segs[i + 1].index : t.length);
+      const ks = kindsOf(seg);
+      const r = ctx.rounds.get(Number(segs[i][1]));
+      if (!ks.length || !r || !r.died) continue;
+      if (judgeAll(ks, r, seg) === 'no') return `your reply said round ${r.n} had ${ks.map((k) => FACT_WORDS[k]).join(' and ')}, where Riot's record has it ${r.traded === true ? 'traded' : r.untraded ? 'not traded' : 'with the trade unknown'}${r.mate ? `, the nearest teammate ${r.mate}` : ''}`;
+    }
+  }
+  // 2. A list split by counts: each share judged as exactly that many of the list.
+  const named = roundsIn(t);
+  if (named.length >= 2 && segs.length < 2) {
+    const shares = [...t.matchAll(SHARE)];
+    const rs = named.map((n) => ctx.rounds.get(n)).filter((r) => r && r.died);
+    for (let i = 0; i < shares.length && rs.length === named.length; i++) {
+      const seg = t.slice(shares[i].index, i + 1 < shares.length ? shares[i + 1].index : t.length);
+      const ks = kindsOf(seg);
+      if (!ks.length) continue;
+      const want = /^twice$/i.test(shares[i][1]) ? 2 : /^once$/i.test(shares[i][1]) ? 1 : numOf(shares[i][2]);
+      let yes = 0;
+      let unk = 0;
+      for (const r of rs) { const v = judgeAll(ks, r, seg); if (v === 'yes') yes += 1; else if (v !== 'no') unk += 1; }
+      if (yes + unk < want || (unk === 0 && yes !== want)) return `your reply said ${want} of rounds ${named.join(', ')} had ${ks.map((k) => FACT_WORDS[k]).join(' and ')}, where Riot's record has it in ${yes}`;
+    }
+  }
+  // 3. Each claim over the set its clause names.
+  const kinds = kindsOf(t);
+  for (const [kind, re] of MULTI_CLAIMS) {
+    if (!kinds.includes(kind)) continue;
     const m = re.exec(t);
     if (!m) continue;
     // The enemy's (their deaths) and a plan judge nothing.
     const clause = clauseAt(t, m.index);
     if (/\b(?:they|their|enemy|enemies|opponents?)\s+(?:died|deaths?)\b/i.test(clause)) continue;
-    const runs = [...t.matchAll(ROUND_RUN)];
-    let set = null;
-    let want = null;   // { n } a count, 'all', 'none', 'most'
-    let only = false;
     // "Often when you were alone" claims some of them, which no count can make false.
-    if (SOFT_QUANT.test(clause)) continue;
-    const own = roundsIn(clause);
-    // The quantifier of the claim's own clause only: "13 of your 14 deaths
-    // went unanswered, and you died in the first 30 seconds 8 times" counts
-    // no early death 13 times (the sweep over 8.7.7).
-    const q = QUANT.exec(clause);
-    if (q) {
-      only = !!q[1];
-      const w = q[2].toLowerCase().replace(/\s+/g, ' ');
-      const of = numOf(q[5]) || numOf(q[3]);
-      want = w === 'all' || w === 'both' || w === 'each' || w === 'every one' ? 'all' : w === 'none' || w === 'neither' ? 'none' : w === 'most' ? 'most' : { n: numOf(w) };
-      const det = (q[4] || '').toLowerCase();
-      if (det === 'those' || det === 'these' || det === 'them') {
-        // The list of this sentence before the words, else the sentence before's.
-        const before = roundsIn(t.slice(0, q.index));
-        set = before.length >= 2 ? before : st && Array.isArray(st.lastSet) ? st.lastSet : null;
-      } else if ((det === 'your' || det === 'the') && /^deaths$/i.test(q[6] || '')) {
-        // Every death of the match: "5 of your last 6 matches" and "your early deaths" are none of it, nor "your deaths to Killjoy" (restricted).
-        set = wholeMatch(ctx) && !restricted(clause.slice(q.index + q[0].length)) ? deathsOf(ctx) : null;
-      } else if (own.length >= 2) set = own;
-      // "Five of those six" of a list of five is no list of the sentence's.
-      if (set && of && set.length !== of) set = null;
-    } else if (MOST_DEATHS.test(t)) {
-      want = 'most';
-      const md = MOST_DEATHS.exec(t);
-      set = wholeMatch(ctx) && !restricted(t.slice(md.index + md[0].length)) ? deathsOf(ctx) : null;
-    } else if (ALL_DEATHS.test(t)) {
-      want = 'all';
-      const ad = ALL_DEATHS.exec(t);
-      set = wholeMatch(ctx) && !restricted(t.slice(ad.index + ad[0].length)) ? deathsOf(ctx) : null;
-    } else {
-      // A list the claim's clause names, else the sentence's one list.
-      const list = own.length >= 2 ? own : !own.length && runs.length === 1 ? roundsIn(runs[0][0]) : [];
-      if (list.length < 2) continue;
-      set = list;
-      const lq = LIST_QUANT.exec(t);
-      if (lq) {
-        only = !!lq[1];
-        const w = lq[2].toLowerCase();
-        want = w === 'none' || w === 'neither' ? 'none' : w === 'most' ? 'most' : { n: numOf(w) };
-      } else want = 'all';
+    if (softIn(clause)) continue;
+    const res = resolveSet(t, clause, clauseStart(t, m.index), ctx, st, here);
+    if (!res) continue;
+    const why = judgeSet(res, [kind], t, ctx);
+    if (why) return why;
+  }
+  // 4. Two claims under one quantifier, judged together: "in a couple of
+  // those early rounds a teammate was close and nobody answered your death"
+  // (Sunset, round 6 alone of four). Only a count of a set the words name, no
+  // round of the sentence's own, so two clauses about two lists are never one.
+  if (together(kinds) && !named.length && !softIn(t)) {
+    const counts = [...t.matchAll(new RegExp(QUANT.source, 'gi'))].length + (TIMES_Q.test(t) && !ALL_DEATHS.test(t) ? 1 : 0);
+    if (counts === 1) {
+      const res = resolveSet(t, t, 0, ctx, st, here);
+      const why = res ? judgeSet(res, kinds, t, ctx) : null;
+      if (why) return why;
     }
-    if (!set || set.length < 2 || !want) continue;
-    const rows = set.map((n) => ctx.rounds.get(n)).filter(Boolean);
-    if (rows.length !== set.length) continue;
-    let yes = 0;
-    let no = 0;
-    let unknown = 0;
-    for (const r of rows) {
-      const v = judge(r, t);
-      if (v === 'yes') yes += 1;
-      else if (v === 'no') no += 1;
-      else unknown += 1;
-    }
-    const possible = yes + unknown;
-    let wrong = false;
-    if (want === 'all') wrong = no > 0;
-    else if (want === 'none') wrong = yes > 0;
-    else if (want === 'most') wrong = possible * 2 <= rows.length;
-    else if (want && want.n != null) wrong = possible < want.n || (only && yes > want.n);
-    if (wrong) {
-      const said = want === 'all' ? 'all' : want === 'none' ? 'none' : want === 'most' ? 'most' : `${want.n}`;
-      const fact = { alone: 'nobody close', answer: 'nobody close enough to trade', close: 'a teammate close', early: 'an early death', untraded: 'untraded', traded: 'traded' }[kind];
-      return `your reply said ${said} of rounds ${set.join(', ')} had ${fact}, where Riot's record allows it in ${possible} of those ${rows.length}; say each round as the record has it, or leave the count out`;
+  }
+  // 5. A sentence that only points its rounds at the claim before it
+  // ("Rounds 2, 7, 10 and 12 all show it"): each round judged by that claim.
+  if (!kinds.length && named.length && Array.isArray(st.prevKinds) && st.prevKinds.length && POINTER.test(t)) {
+    const groups = together(st.prevKinds) ? [st.prevKinds] : st.prevKinds.map((k) => [k]);
+    for (const ks of groups) {
+      const res = { set: named, want: 'all', only: false, atLeast: false };
+      if (named.length === 1) {
+        const r = ctx.rounds.get(named[0]);
+        if (r && r.died && judgeAll(ks, r, t) === 'no') return `your reply gave round ${r.n} as an example of ${ks.map((k) => FACT_WORDS[k]).join(' and ')}, where Riot's record has it ${r.traded === true ? 'traded' : r.untraded ? 'not traded' : 'with the trade unknown'}${r.mate ? `, the nearest teammate ${r.mate}` : ''}; give as the example a round the claim is true of`;
+        continue;
+      }
+      const why = judgeSet(res, ks, t, ctx);
+      if (why) return why;
     }
   }
   return null;
+}
+
+/*
+ * ALONE, SAID OF A ROUND WITH A TEAMMATE CLOSE (round 8, the blind audit of
+ * round 7). "Nobody could trade you there because you were the one holding
+ * the angle alone" of Corrode round 2, two sentences after the reply said a
+ * teammate was close; "taking another duel away from your teammate's reach"
+ * and "You held where nobody could answer your death" of Fracture round 5,
+ * Riot's nearest teammate close and nobody trading. Untraded is not alone: a
+ * sentence about one death that puts the player alone, out of reach or
+ * where nobody could answer, of a round Riot has a teammate close in or the
+ * death traded, goes, the reason naming the true fact. "Nobody could trade
+ * you" of a round with a teammate close and no trade is Riot's fact said as
+ * a capability, and is rewritten to "nobody traded you" and kept; so is
+ * "dying where nobody could trade you" of the untraded deaths. The round is
+ * the one the sentence names, else its paragraph's, else the asked round,
+ * else (new) the reply's only round so far. Never the last one alive. A
+ * conditional, a prediction and a rule in the present judge nothing; an
+ * instruction is judged where it presupposes the fact ("rather than holding
+ * alone") and does not itself say the teammate was close or the trade came.
+ * A list right after an alone claim ("Rounds 2, 7, 10 and 12 all show it")
+ * goes where one of its rounds had a teammate close or a trade. A habit with
+ * no round ("You took fights alone") goes where the match's deaths nobody
+ * traded had a teammate close in as many as not, three at least.
+ */
+const ALONE_SAID = new RegExp([
+  "\\b(?:hold(?:ing|s)?|held|play(?:ing|ed|s)?|fight(?:ing|s)?|fought|t(?:ook|aking|ake|akes)|went|go(?:ing)?|push(?:ed|ing)?|peek(?:ed|ing)?|sw(?:ung|inging)|contest(?:ed|ing)?|enter(?:ed|ing)?|advanc(?:ed|ing)|st(?:ood|anding)|were|was|caught|died|dying)\\s+(?:[A-Za-z']+\\s+){0,4}?alone\\b(?!\\s+against)",
+  '\\bon\\s+your\\s+own\\b',
+  '\\bby\\s+yourself\\b',
+  '\\bisolated\\b',
+  "\\b(?:away\\s+from|beyond|out\\s+of|outside(?:\\s+of)?)\\s+(?:your\\s+|a\\s+|the\\s+)?(?:teammates?(?:'s?)?|team(?:'s)?)\\s+(?:reach|support|help|range|sight|cover)\\b",
+  '\\bwhere\\s+(?:nobody|no\\s+one|no\\s+teammate|none\\s+of\\s+your\\s+teammates)\\s+(?:on\\s+your\\s+team\\s+)?(?:could|can|was\\s+able\\s+to)\\s+(?:answer|trade|see|help|swing|reach|cover|follow)\\b',
+  '\\b(?:nobody|no\\s+one|no\\s+teammate)\\s+(?:on\\s+your\\s+team\\s+)?(?:could|was\\s+able\\s+to)\\s+(?:see\\s+the\\s+same|answer|cover|help)\\b',
+  '\\b(?:no\\s+one|nobody|no\\s+teammate)\\s+(?:was\\s+)?(?:there|around)\\s+to\\s+(?:trade|answer|help|swing)\\b',
+  '\\bwithout\\s+(?:a\\s+)?(?:teammate|anyone|support)\\s+(?:near(?:by)?|close(?:\\s+by)?|to\\s+trade)\\b',
+].join('|'), 'i');
+// "Nobody could trade you": the capability, true only of nobody close.
+const COULD_TRADE = /\b(nobody|no\s+one|no\s+teammate)\s+could\s+(?:have\s+)?trade[d]?\s+you\b/i;
+// Negations and the clutch: "you were not alone", "never alone", "alone against two", the last one alive.
+const NOT_ALONE = /\b(?:not|never|weren't|wasn't)\s+(?:(?:really|actually|fully)\s+)?(?:alone|isolated|on\s+your\s+own)\b|\balone\s+against\b|\blast\s+(?:one|player)\s+(?:alive|standing)\b/i;
+// An instruction: it opens on what to do. avoid to work on (8.8 review): "Avoid
+// fights nobody could answer." was read as a claim and rewritten to "Avoid
+// fights nobody answered.", advice turned into a past tense that says nothing.
+const PLAN_OPEN = /^\s*(?:if|when|whenever|next\s+time|before|once|after\s+the\s+plant,?\s+(?:take|hold|check|look)|take|hold|check|look|give|fall|move|wait|stay|keep|play|pick|call|swing|let|do\s+not|don't|never|always|try|make|avoid|stop|focus|cut|limit|reduce|work\s+on)\b/i;
+// "instead of / rather than ... alone": presupposes the player was alone, judged.
+const PRESUPPOSED = /\b(?:instead\s+of|rather\s+than)\b[^.;]*?\b(?:alone|isolated|on\s+your\s+own|by\s+yourself)\b/i;
+// "dying where nobody could trade you", "taking fights nobody could answer": the untraded deaths said as a capability.
+const CAPABILITY = /\b((?:dying|died|deaths?|fights?|duels?)\s+(?:where\s+|that\s+)?)(nobody|no\s+one|no\s+teammate)\s+could\s+(trade|answer)\b/i;
+// "you should see fewer deaths", "you will notice": a prediction, no claim.
+const PREDICTION = /\byou\s+(?:should|will|would)\s+(?:see|notice|find|feel)\b/i;
+// A claim about what happened is told in the past.
+const ALONE_PAST = /\b(?:was|were|took|held|fought|went|gave|stood|died|left|got|came|stayed|swung|pushed|peeked|kept|cost|had|lost|played|walked|ran|moved|caught)\b/i;
+// "all show it", "like that", "each time": a list leaning on the claim before.
+const ANAPHOR = /\b(?:show(?:s|ed)?\s+(?:it|this|that)|like\s+(?:that|this)|the\s+same\s+(?:way|thing|story)|each\s+time|every\s+time|all\s+(?:went|came)\s+(?:that|this)\s+way)\b/i;
+const TRADED_SAID = /\b(?:was|were|got)\s+traded\b|\ba\s+teammate\s+traded\b/i;
+// The advice's alone as a fight's timing, or as a place held (checkAlone).
+const SWING_ALONE = /\b(?:peek(?:s|ing)?|swing(?:s|ing)?|the\s+peek|the\s+swing|duel(?:s|ing)?|entr(?:y|ies)|going\s+in)\b/i;
+const HELD_ALONE = /\b(?:hold(?:s|ing)?|held|position|angle|space|spot|site|anchor(?:ing)?|stand(?:ing)?|play(?:ing)?\s+(?:it|there))\b/i;
+// A teammate said to be close enough to trade: true of a death Riot has close.
+const MATE_COULD_SAID = /\b(?:a|your|one)\s+teammates?\s+(?:was|were|stood)\s+(?:right\s+)?close\s+enough\s+to\s+(?:trade|answer|kill|swing)\b/i;
+const ALONE_REASON = (n, r) => `your reply had the player alone or out of a teammate's reach at the round ${n} death, where Riot's record has ${r.traded === true ? 'a teammate close who traded it' : 'a teammate close and nobody trading'}; say the fight came before that teammate could swing, never that the player was alone`;
+function checkAlone(sentence, ctx, st0) {
+  const st = st0 || {};
+  const t = straight(sentence);
+  if (!ctx || !ctx.rounds || !ctx.rounds.size) return null;
+  const free = t.replace(new RegExp(NOT_ALONE.source, 'gi'), ' ');
+  const named = roundsIn(t);
+  // "Rounds 2, 7, 10 and 12 all show it" right after an alone claim: each round named is judged.
+  if (st.prevAlone && named.length && ANAPHOR.test(t) && !ALONE_SAID.test(free)) {
+    const wrong = named.filter((n) => { const r = ctx.rounds.get(n); return r && r.died && !lastAliveOf(r) && r.mate === 'close'; });
+    if (wrong.length) return `your reply gave round${wrong.length > 1 ? 's' : ''} ${wrong.join(', ')} as a death with nobody near, where Riot's record has a teammate close${wrong.length > 1 ? ' in each' : ''}; name only the rounds the record has nobody close in`;
+  }
+  const capOnly = free.replace(CAPABILITY, ' ');
+  const cap = CAPABILITY.test(t);
+  const m = ALONE_SAID.exec(capOnly);
+  const could = COULD_TRADE.exec(capOnly);
+  const couldnt = COULDNT_SAID.exec(capOnly);
+  if (!m && !could && !couldnt && !cap) return null;
+  // A plan judges nothing, unless it presupposes the fact ("instead of holding alone").
+  const conditional = OPENS_IF.test(t) || /^\s*(?:if|when|whenever|next\s+time|unless)\b/i.test(t) || PREDICTION.test(t);
+  const plan = conditional || PLAN_OPEN.test(t);
+  if (conditional || (plan && !PRESUPPOSED.test(t))) return null;
+  // "With a teammate close, time it with them instead of taking it alone": the sentence says the true fact itself.
+  if (PRESUPPOSED.test(t) && !could && (MATE_CLOSE_SAID.test(t) || TRADED_SAID.test(t))) return null;
+  // "In round 6 nobody traded, so the fix is to swing with someone beside you
+  // ... instead of taking the peek alone" (Sunset Iron, the round 8 replay):
+  // the fact said is the true one, nobody traded, and the only alone is the
+  // advice's "instead of" taking a peek or a swing alone, which is when the
+  // fight came. "rather than holding alone", a place held, is a distance and
+  // stays judged, as does a sentence with any other alone claim in it.
+  const pre = PRESUPPOSED.exec(t);
+  if (pre && SWING_ALONE.test(pre[0]) && !HELD_ALONE.test(pre[0]) && !could && !couldnt && UNTRADED_SAID.test(t)
+    && !ALONE_SAID.test(capOnly.replace(PRESUPPOSED, ' '))) return null;
+  // A claim is told in the past; a rule in the present ("the fight you refuse to start alone") is not one.
+  if (!PRESUPPOSED.test(t) && !could && !couldnt && !cap && !ALONE_PAST.test(t)) return null;
+  if (cap && !m && !could && !couldnt) {
+    // No round named: the phrase is the untraded deaths' own, so it is their fact.
+    const rows = named.map((k) => ctx.rounds.get(k)).filter((x) => x && x.died);
+    if (!named.length || (rows.length === named.length && rows.every((x) => x.traded !== true))) {
+      return { rewrite: t.replace(CAPABILITY, (w, head, who, verb) => `${head}${who} ${verb === 'answer' ? 'answered' : 'traded'}`) };
+    }
+    return null;
+  }
+  const n = named.length === 1 ? named[0] : named.length > 1 ? null : (st.round || ctx.asked || st.replyRound || null);
+  const r = n != null ? ctx.rounds.get(n) : null;
+  if (r && r.died && !lastAliveOf(r)) {
+    // Riot's distance word only: a death traded with no teammate close ("Move
+    // into A Link rather than taking the space alone", Corrode round 6) is
+    // Riot's own far, so a trade with no distance known makes alone no less
+    // possible, and only a teammate close makes it certainly false.
+    // The sentence names the teammate close itself ("took the Jett's Sheriff
+    // duel alone, when a teammate was close enough to trade you and nobody
+    // did", Fracture Plat, the round 8 replay): "alone" is the duel taken by
+    // the player, and the fact it gives is Riot's.
+    if (m && r.mate === 'close' && (MATE_CLOSE_SAID.test(t) || MATE_COULD_SAID.test(t))) return null;
+    if (m && r.mate === 'close') return ALONE_REASON(n, r);
+    if (!m && r.traded === true && (could || couldnt)) return `your reply said nobody could trade the player in round ${n}, where Riot's record has the death traded`;
+    if (!m && could && r.mate === 'close' && r.untraded) return { rewrite: t.replace(COULD_TRADE, (w, who) => `${who} traded you`) };
+    if (!m && couldnt && r.mate === 'close' && r.untraded) return `your reply said nobody was close enough to trade the player in round ${n}, where Riot's record has a teammate close and nobody trading; say nobody traded it, and that the fight came before the teammate could swing`;
+    return null;
+  }
+  // A habit over the match: no round anywhere, no quantifier (checkMulti's).
+  if (n == null && !named.length && m && !plan && /\byou\b/i.test(t) && !QUANT.test(t) && !SOFT_QUANT.test(t)) {
+    const deaths = [...ctx.rounds.values()].filter((x) => x.died && !x.afk && x.untraded && !lastAliveOf(x) && (x.mate === 'close' || x.mate === 'far'));
+    const close = deaths.filter((x) => x.mate === 'close').map((x) => x.n);
+    const far = deaths.filter((x) => x.mate === 'far').map((x) => x.n);
+    if (deaths.length >= 3 && close.length >= far.length) {
+      return `your reply said the player fought alone as a habit, where Riot's record has a teammate close at ${close.length} of the ${deaths.length} deaths nobody traded (${listText(close)}); there the fight came before the teammate could swing`;
+    }
+  }
+  return null;
+}
+
+/*
+ * THE CLEAREST ONE (round 8, the blind audit of round 7): "What cost you was
+ * where you stood when you took the fight. The clearest one was round 2", a
+ * round the team won and the death traded, where THE COSTLIEST DEATHS ranks
+ * round 5 of a lost round first. A round called the clearest, the best or the
+ * costliest example right after a sentence about what cost the player, from
+ * Platinum where the ranking exists, is judged as the priority gate judges
+ * "the biggest mistake" (fact-gates.js gatePriority).
+ */
+const CLEAREST = /\bthe\s+(?:clearest|best|biggest|costliest|worst|plainest|most\s+costly|most\s+obvious)\s+(?:one|example|case|instance|of\s+(?:them|those))\s+(?:was|is|came\s+in)\s+(?:in\s+)?round\s+([0-9]{1,2})\b/i;
+// Round 8 (the timeline stage): "the one that cost you the most was round 2"
+// says the cost itself, so it needs no sentence about cost before it.
+const COST_MOST = /\b(?:the\s+(?:one|death|round)\s+that\s+cost\s+you\s+(?:the\s+)?most|what\s+cost\s+you\s+(?:the\s+)?most)\s+(?:was|is|came\s+in)\s+(?:in\s+)?round\s+([0-9]{1,2})\b/i;
+const COST_TALK = /\bcost(?:s|ed|ing)?\s+you\b|\bholding\s+you\s+back\b|\buntraded\b|\bunanswered\b|\bnobody\s+traded\b|\bwhere\s+you\s+stood\b|\bbiggest\s+mistake\b/i;
+function checkClearest(sentence, ctx, st) {
+  const t = straight(sentence);
+  const most = COST_MOST.exec(t);
+  const m = most || CLEAREST.exec(t);
+  if (!m || !ctx || !Array.isArray(ctx.costRank) || !ctx.costRank.length) return null;
+  if (!most && !((st && st.recent) || []).some((x) => COST_TALK.test(x))) return null;
+  const n = Number(m[1]);
+  const top = ctx.costRank[0];
+  const here = ctx.costRank.find((x) => x.n === n);
+  if (!here || top.n === n || here.result !== 'won' || top.result !== 'lost') return null;
+  return `your reply gave round ${n}, a round your team won, as the clearest example of what cost the player, where round ${top.n} cost more: a death in a lost round. Name the costliest round first, as THE COSTLIEST DEATHS ranks them`;
+}
+
+/*
+ * THE TRADES AND THE DISTANCE, COUNTED IN CODE (round 8). The model was
+ * never given the counts it said: three summaries counted "untraded" three
+ * ways, the enemy block's "Nobody traded 3 of the 6" left out the last one
+ * alive without saying so where Riot has 5 of 6, and no line crossed the
+ * early deaths with the distance. One partition of the player's deaths from
+ * the same rows the gate reads, every count with its rounds: traded; nobody
+ * traded as the last one alive; nobody traded with a teammate close; nobody
+ * traded with no teammate close; nobody traded with no distance in the
+ * record; and not known. For the match, the early deaths (the first 30
+ * seconds, before any plant) and each agent the question names. A round the
+ * player sat out (8.8) is in none of them. No semicolon, so the review's
+ * prompt rules hold of it. Fewer than two deaths with a trade known, no line.
+ */
+function earlyDeathsOf(rounds) {
+  return [...((rounds && rounds.values && rounds.values()) || [])]
+    .filter((r) => r.died && !r.afk && fin(r.sec) && r.sec <= 30 && r.afterPlant !== true && !(fin(r.plantSec) && r.plantSec <= r.sec))
+    .map((r) => r.n).sort((a, b) => a - b);
+}
+function ledgerBins(rows) {
+  const b = { traded: [], lastAlive: [], close: [], far: [], noDistance: [], unknown: [] };
+  for (const r of rows || []) {
+    if (!r) continue;
+    if (r.traded === true) b.traded.push(r.n);
+    else if (r.untraded && lastAliveOf(r)) b.lastAlive.push(r.n);
+    else if (r.untraded && r.mate === 'close') b.close.push(r.n);
+    else if (r.untraded && r.mate === 'far') b.far.push(r.n);
+    else if (r.untraded) b.noDistance.push(r.n);
+    else b.unknown.push(r.n);
+  }
+  return b;
+}
+/** One set's line: "Of your 6 deaths to Omen, a teammate traded 1 of the 6 (round 1). Nobody traded 5 of the 6: ...", or ''. */
+function ledgerLine(rows, head) {
+  const rs = (rows || []).filter((r) => r && r.died && !r.afk).sort((a, b) => a.n - b.n);
+  const n = rs.length;
+  const b = ledgerBins(rs);
+  if (n < 2 || n - b.unknown.length < 2) return '';
+  const of = (k) => (k === n ? (n === 2 ? 'both' : `all ${n}`) : `${k} of the ${n}`);
+  const untraded = n - b.traded.length - b.unknown.length;
+  const parts = [`${head}, ${b.traded.length ? `a teammate traded ${of(b.traded.length)} (${listText(b.traded)})` : 'a teammate traded none'}.`];
+  if (untraded) {
+    const sub = [];
+    if (b.lastAlive.length) sub.push(`${b.lastAlive.length} as the last one alive, which nobody could trade (${listText(b.lastAlive)})`);
+    if (b.close.length) sub.push(`${b.close.length} with a teammate close who did not trade it, a lesson about when you took the fight (${listText(b.close)})`);
+    if (b.far.length) sub.push(`${b.far.length} with no teammate close, a lesson about where you stood (${listText(b.far)})`);
+    if (b.noDistance.length) sub.push(`${b.noDistance.length} with no distance in Riot's record (${listText(b.noDistance)})`);
+    const said = sub.length > 1 ? `${sub.slice(0, -1).join(', ')}, and ${sub[sub.length - 1]}` : sub[0];
+    parts.push(`Nobody traded ${of(untraded)}: ${said}.`);
+  }
+  if (b.unknown.length) parts.push(`Riot's record does not say whether ${listText(b.unknown)} ${b.unknown.length === 1 ? 'was' : 'were'} traded.`);
+  // The distance alone, traded or not, never the last one alive: "a teammate
+  // was close in 3 of the 5" is Riot's nearest teammate, the far claim's own fact.
+  const near = rs.filter((r) => !lastAliveOf(r) && r.mate === 'close').map((r) => r.n);
+  const far = rs.filter((r) => !lastAliveOf(r) && r.mate === 'far').map((r) => r.n);
+  if (near.length + far.length) {
+    const said = [near.length ? `a teammate was close in ${of(near.length)} (${listText(near)})` : null, far.length ? `no teammate was close in ${of(far.length)} (${listText(far)})` : null].filter(Boolean).join(' and ');
+    parts.push(`By distance alone, traded or not, ${said}.`);
+  }
+  return parts.join(' ');
+}
+const LEDGER_HEAD = "THE TRADES AND THE DISTANCE, counted in code from Riot's record (the only counts of trades or of a teammate close you may give)";
+const LEDGER_RULE = 'Every count you give of deaths traded or not, or with a teammate close or not, is one of these, said with its rounds. A death nobody traded is not one with no teammate close, and a death a teammate traded or one with a teammate close never had nobody close enough to trade you.';
+/** The block for a prompt: the match, the early deaths and each agent named, or ''. opts { agents, head } */
+function tradeLedger(ctx, opts = {}) {
+  if (!ctx || !ctx.rounds || !ctx.rounds.size) return '';
+  const deaths = [...ctx.rounds.values()].filter((r) => r.died && !r.afk).sort((a, b) => a.n - b.n);
+  const lines = [];
+  const whole = ledgerLine(deaths, `Of your ${deaths.length} deaths in the match`);
+  if (!whole) return '';
+  lines.push(whole);
+  const early = (ctx.earlyDeaths || []).map((k) => ctx.rounds.get(k)).filter(Boolean);
+  if (early.length >= 2 && early.length < deaths.length) {
+    const e = ledgerLine(early, `Of your ${early.length} early deaths (the first 30 seconds, before any plant, ${listText(early.map((r) => r.n))})`);
+    if (e) lines.push(e);
+  }
+  const seen = new Set();
+  for (const a0 of opts.agents || []) {
+    const a = canon(a0);
+    if (!a || seen.has(a) || a === ctx.agent) continue;
+    seen.add(a);
+    const ds = deaths.filter((r) => r.killer === a);
+    const line = ds.length >= 2 ? ledgerLine(ds, `Of your ${ds.length} deaths to ${a}`) : '';
+    if (line) lines.push(line);
+  }
+  return `${opts.head || LEDGER_HEAD}\n${lines.join('\n')}\n${LEDGER_RULE}`;
 }
 
 /*
@@ -962,6 +1489,198 @@ function checkOrdinal(sentence, ctx) {
   return null;
 }
 
+/*
+ * THE TIMELINE AND THE STATE (round 8, the blind audit of round 7). Seven
+ * claims, each true of another moment or another number than the one it was
+ * said of, each judged only where Riot's record makes it certainly false:
+ *
+ *   checkPlantPhase  "As your teammate plants, hold from cover" of Fracture
+ *                    round 5, where the death came after the spike went
+ *                    down, and "while your team was planting" of a death long
+ *                    before it. Planting takes 4 s: a death from 4.5 s before
+ *                    Riot's plant second to half a second after it fits.
+ *   checkEnemyRole   "make the attacker expose themselves" to an attacker
+ *                    (Corrode round 1): the one made to move is the enemy, so
+ *                    the noun is the other side's. Only the noun a verb acts
+ *                    on, or one coming at "you", in one round of known side.
+ *   checkFirst       "rounds 3 and 5, where you were the first contact" of a
+ *                    death 4 against 5: a teammate was already down. A first
+ *                    fight word goes too where the enemy had lost one and the
+ *                    record says the first kill was not the player's.
+ *   checkLeftWords   "your death left four players ... a man down" of a death
+ *                    4 against 5, which left 3 against 5, two down.
+ *   checkLater       "the spike landed at B. Six seconds later you were dead"
+ *                    where the death came 1.5 s after the plant: a gap is held
+ *                    to its own anchor, the event it names, else the last
+ *                    plant or kill of the player's told before it.
+ *   checkKillPlace   "After the first kill at A Alley" of Sunset round 7,
+ *                    where the kill fell at A Elbow and the player died at A
+ *                    Alley: a kill's place held to Riot's kill places.
+ * (The seventh, the example of a habit held to the cost rank, is
+ * checkClearest above.)
+ */
+const TIME_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20 };
+const timeNum = (w) => (/^[0-9]+(?:\.[0-9]+)?$/.test(String(w)) ? Number(w) : (TIME_WORDS[String(w || '').toLowerCase()] ?? null));
+/** The rounds a claim at `at` is about: its clause's own, else the sentence's single round, else the paragraph's. */
+function claimRounds(t, at, ctx, st) {
+  const own = roundsIn(clauseAt(t, at));
+  if (own.length) return own;
+  const named = roundsIn(t);
+  if (named.length) return named;
+  const n = (st && st.round) || (ctx && ctx.asked) || null;
+  return n != null ? [n] : [];
+}
+
+const PLANT_DURING = /\b(?:as|while|whilst)\s+(?:your\s+|a\s+|the\s+|an\s+)?(?:teammates?|team|ally|allies|you)\s+(?:(?:is|are|was|were)\s+)?(?:plant(?:s|ed|ing)?|(?:start(?:s|ed|ing)?|go(?:es)?\s+for|get(?:s|ting)?)\s+the\s+plant)\b|\b(?:during|through)\s+the\s+plant\b(?!\s+(?:site|spot))|\bmid[- ]plant\b|\b(?:as|while)\s+the\s+spike\s+(?:is|was)\s+(?:being\s+planted|going\s+down)\b/i;
+function checkPlantPhase(sentence, ctx, st) {
+  const t = straight(sentence);
+  const m = PLANT_DURING.exec(t);
+  if (!m || !ctx || !ctx.rounds.size || (ctx.kind === 'chat' && OPENS_IF.test(t))) return null;
+  for (const n of claimRounds(t, m.index, ctx, st)) {
+    const r = ctx.rounds.get(n);
+    const sec = r && (fin(r.deathAt) ? r.deathAt : r.sec);
+    if (!r || !r.died || !fin(sec) || !fin(r.plantSec)) continue;
+    if (r.afterPlant === true && sec > r.plantSec + 0.5) {
+      // The gap only from the feed's second: a review's death second is whole.
+      const gap = fin(r.deathAt) ? ` ${Math.round((sec - r.plantSec) * 10) / 10} s` : '';
+      return `your reply put round ${n} during the plant, where Riot's record has the death${gap} after the spike went down; say it with the spike down`;
+    }
+    if (sec + 0.5 < r.plantSec - 4.5) return `your reply put round ${n} during the plant, where the player died ${Math.round(r.plantSec - sec)} s before the spike went down`;
+  }
+  return null;
+}
+
+const ENEMY_ROLE_OBJ = /\b(?:make|makes|making|force|forces|forcing|bait|baits|baiting|punish|punishes|punishing|catch|catches|catching|wait(?:ing)?\s+for|deny|denies|denying|outlast|out-?wait|starve|starving|pressure|pressuring)\s+(?:the|an?|their|any|every|each|that|this)\s+(attackers?|defenders?)\b(?!\s+(?:on|of)\s+your\s+(?:own\s+)?team)/i;
+const ENEMY_ROLE_SUBJ = /\b(?:the|an?|their)\s+(attackers?|defenders?)\s+(?:(?:has|have|had|must|needs?|will|would|can|could)\s+(?:to\s+)?)?(?:come|comes|coming|push|pushes|pushing|peek|peeks|peeking|swing|swings|swinging|walk|walks|walking|rush|rushes|run|runs)\s+(?:(?:in|out|up|through)\s+)?(?:to|into|onto|at|on)\s+you\b/i;
+const OTHER_HALF = /\b(?:next|second|other|the\s+other)\s+half\b|\bafter\s+the\s+(?:switch|swap)\b|\bwhen\s+(?:the\s+)?sides\s+(?:switch|swap)\b/i;
+function checkEnemyRole(sentence, ctx, st) {
+  const t = straight(sentence);
+  const m = ENEMY_ROLE_OBJ.exec(t) || ENEMY_ROLE_SUBJ.exec(t);
+  if (!m || !ctx || !ctx.rounds.size) return null;
+  const ns = claimRounds(t, m.index, ctx, st);
+  if (ns.length !== 1) return null;
+  const r = ctx.rounds.get(ns[0]);
+  const said = /^att/i.test(m[1]) ? 'attack' : 'defence';
+  if (!r || !r.side || r.side !== said) return null;
+  // The advice moved to the other half (8.8 review): "In round 5 you were
+  // attacking, but next half on defence, make the attackers come to you."
+  // The role noun after a mention of the player on the other side, or of the
+  // next half, is that half's enemy.
+  const tail = t.slice(0, m.index);
+  if (OTHER_HALF.test(tail) || (r.side === 'attack' ? SAYS_DEFENCE : SAYS_ATTACK).test(tail)) return null;
+  return `your reply made the ${m[1].toLowerCase()} the enemy in round ${ns[0]}, where the player was ${r.side === 'attack' ? 'attacking, so the enemy were the defenders' : 'defending, so the enemy were the attackers'}`;
+}
+
+const FIRST_SAID = /\byou\s+(?:were|are|became)\s+(?:the\s+)?(?:first\s+contact|first\s+(?:to\s+die|death|one\s+(?:in|down|to\s+die|into\s+(?:the\s+)?(?:site|fight|space))|player\s+(?:down|in|to\s+die))|the\s+one\s+who\s+took\s+(?:the\s+)?first\s+contact)\b|\byou\s+(?:took|made|opened)\s+(?:the\s+)?first\s+(?:contact|fight|duel|gunfight)\b|\byour\s+death\s+(?:was|came)\s+(?:the\s+)?first\b|\b(?:this|that|your|the)\s+first\s+death\b|\byou\s+were\s+the\s+first\s+one\s+into\b/i;
+function checkFirst(sentence, ctx, st) {
+  const t = straight(sentence);
+  const m = FIRST_SAID.exec(t);
+  if (!m || !ctx || !ctx.rounds.size || OPENS_IF.test(t)) return null;
+  const contact = /contact|fight|duel|gunfight|into/i.test(m[0]);
+  for (const n of claimRounds(t, m.index, ctx, st)) {
+    const r = ctx.rounds.get(n);
+    if (!r || !r.died || r.firstDeath || !r.alive) continue;
+    const mateDown = r.alive[0] < 5;
+    const fightBefore = contact && r.alive[1] < 5 && r.firstKill === false;
+    if (!mateDown && !fightBefore) continue;
+    const down = 5 - r.alive[0];
+    return `your reply called the player the first ${contact ? 'contact' : 'death'} in round ${n}, where Riot's record has ${r.alive[0]} against ${r.alive[1]} standing when they died, so ${mateDown ? `${down} teammate${down === 1 ? '' : 's'} had already died` : 'a teammate had already fought and got the first kill'}`;
+  }
+  return null;
+}
+
+const LEFT_HEAD = /\b(?:your\s+death|you\s+dying|your\s+dying|(?:that|this|which)\s+death)\s+(?:then\s+|also\s+)?(?:left|leaves|leaving|put|puts|meant)\b|\b(?:killed|caught|got)\s+you\b[^.;]{0,40}?,?\s+leaving\b|\byou\s+(?:died|went\s+down|fell)\b[^.;]{0,40}?,?\s+leaving\b/i;
+const LEFT_N = /\b(four|three|two|one|[1-4])\s+(?:players|teammates|of\s+(?:you|your\s+team))\b(?!\s+down\b)/i;
+const LEFT_DOWN = /\b(?:(a|one)\s+(?:man|player)|(two|three|four)\s+(?:men|players))\s+down\b/i;
+const LEFT_EVENT = /\b(?:killed|died|traded|fell|went\s+down|then)\b/i;
+function checkLeftWords(sentence, ctx, st) {
+  const t = straight(sentence);
+  const h = LEFT_HEAD.exec(t);
+  if (!h || !ctx || !ctx.rounds.size || OPENS_IF.test(t)) return null;
+  const ns = claimRounds(t, h.index, ctx, st);
+  if (ns.length !== 1) return null;
+  const r = ctx.rounds.get(ns[0]);
+  if (!r || !r.died || !r.alive) return null;
+  const after = [r.alive[0] - 1, r.alive[1]];
+  const rest = t.slice(h.index + h[0].length, h.index + h[0].length + 80);
+  const n = LEFT_N.exec(rest);
+  // Another death told between the player's and the count is another standing.
+  if (n && !LEFT_EVENT.test(rest.slice(0, n.index)) && timeNum(n[1]) !== after[0]) {
+    return `your reply said the death in round ${ns[0]} left ${n[1]} players, where it left ${after[0]} against ${after[1]}`;
+  }
+  const d = LEFT_DOWN.exec(rest);
+  if (d && !LEFT_EVENT.test(rest.slice(0, d.index))) {
+    const down = d[1] ? 1 : timeNum(d[2]);
+    if (down !== after[1] - after[0]) return `your reply said the death in round ${ns[0]} left the team ${d[0]}, where it left ${after[0]} against ${after[1]}`;
+  }
+  return null;
+}
+
+const LATER = /\b([0-9]+(?:\.[0-9]+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty)\s*(?:s|secs?|seconds?)\s+(later|after\s+(?:the\s+plant|the\s+spike\s+(?:went|was)\s+down|it\s+went\s+down|your\s+(?:last\s+|second\s+|first\s+)?kill|that))\b/i;
+const PLANT_EVENT = /\b(?:the\s+spike\s+(?:landed|went\s+down|was\s+down|was\s+planted|got\s+planted|hit\s+the\s+ground)|(?:after|at|on)\s+the\s+plant|(?:they|your\s+team|the\s+team|you)\s+planted)\b/gi;
+const KILL_EVENT = /\byou\s+(?:\([A-Za-z/]+\)\s+)?(?:killed|got|took\s+out|picked\s+off|beat)\b|\byour\s+(?:last\s+|second\s+|first\s+)?kill\b/gi;
+const DEATH_THEN = /\b(?:you\s+(?:were|was)\s+dead|you\s+died|(?:killed|shot|caught|got)\s+you|you\s+went\s+down|your\s+death)\b/i;
+function lastEvent(text) {
+  let best = null;
+  for (const m of String(text || '').matchAll(PLANT_EVENT)) if (!best || m.index >= best.at) best = { at: m.index, kind: 'plant' };
+  for (const m of String(text || '').matchAll(KILL_EVENT)) if (!best || m.index > best.at) best = { at: m.index, kind: 'kill' };
+  return best;
+}
+function checkLater(sentence, ctx, st) {
+  const t = straight(sentence);
+  const m = LATER.exec(t);
+  if (!m || !ctx || !ctx.rounds.size || !DEATH_THEN.test(t)) return null;
+  const ns = claimRounds(t, m.index, ctx, st);
+  if (ns.length !== 1) return null;
+  const r = ctx.rounds.get(ns[0]);
+  if (!r || !r.died || !fin(r.deathAt)) return null;
+  const how = m[2].toLowerCase();
+  let anchor = null;
+  let which = 'last';
+  if (/plant|spike|went\s+down/.test(how)) anchor = 'plant';
+  else if (/kill/.test(how)) { anchor = 'kill'; which = /first/.test(how) ? 'first' : /second/.test(how) ? 'second' : 'last'; }
+  else {
+    // The last event told before it, in this sentence, else the kept one before.
+    const recent = (st && st.recent) || [];
+    const ev = lastEvent(t.slice(0, m.index)) || lastEvent(recent[recent.length - 1]);
+    anchor = ev ? ev.kind : null;
+  }
+  const kills = r.ownKills || [];
+  const at = anchor === 'plant' ? r.plantSec
+    : anchor === 'kill' ? (which === 'first' ? kills[0] : which === 'second' ? kills[1] : kills[kills.length - 1]) : null;
+  if (!fin(at) || at > r.deathAt) return null;
+  const gap = r.deathAt - at;
+  if (Math.abs(gap - timeNum(m[1])) <= 1) return null;
+  return `your reply said the death in round ${ns[0]} came ${String(m[1]).toLowerCase()} s after the ${anchor === 'plant' ? 'plant' : `player's ${which} kill`}, where Riot's record has ${Math.round(gap * 10) / 10} s; give each gap from its own event, as the facts state it`;
+}
+
+const KILL_OWNER_BEFORE = /\b(?:teammate'?s?|ally'?s?|allies'|their|enemy'?s?|his|her|team'?s)\s+(?:[a-z]+\s+)?$/i;
+function checkKillPlace(sentence, ctx, st) {
+  const t = straight(sentence);
+  if (!ctx || !ctx.rounds.size || !ctx.map) return null;
+  const pl = placesOf(ctx.map);
+  if (!pl.alt) return null;
+  const re = new RegExp(`\\b(?:(first|opening|your|the|a|an|that|second|last)\\s+)?(?:kills?|picks?|frags?)\\s+(you\\s+(?:got|made|took)\\s+)?(?:at|in|on|from|inside)\\s+(?:the\\s+)?(${pl.alt})(?![A-Za-z0-9])`, 'i');
+  const m = placeMatch(re.source, t, 3);
+  if (!m || articleNotSite(m[3]) || KILL_OWNER_BEFORE.test(t.slice(Math.max(0, m.index - 24), m.index))) return null;
+  const ns = claimRounds(t, m.index, ctx, st);
+  if (ns.length !== 1) return null;
+  const r = ctx.rounds.get(ns[0]);
+  if (!r || !r.killPlaces) return null;
+  // Only a kill certainly the player's: "your kill", "the kill you got", or
+  // the round's first kill where the record gives the player it.
+  const q = String(m[1] || '').toLowerCase();
+  const mine = q === 'your' || !!m[2] || ((q === 'first' || q === 'opening') && r.firstKill === true);
+  if (!mine) return null;
+  const said = m[3].toLowerCase();
+  const canonical = (p) => pl.canonOf.get(String(p).toLowerCase()) || String(p).toLowerCase();
+  const bareSite = /^[abc] site$/.test(said);
+  const hit = r.killPlaces.some((p) => canonical(p) === canonical(said) || (bareSite && pl.sideOf.get(String(p).toLowerCase()) === said[0]));
+  if (hit) return null;
+  const deathThere = r.place && canonical(r.place) === canonical(said);
+  return `your reply put the player's kill in round ${ns[0]} at ${m[3]}, where Riot's record has the enemy falling at ${[...new Set(r.killPlaces)].join(', ')}${deathThere ? `, and ${r.place} is where the player died` : ''}; keep the kill's place and the death's apart`;
+}
+
 const READERS = [
   ['kills', checkKills],
   ['share', checkKillerShare],
@@ -969,6 +1688,8 @@ const READERS = [
   ['blame', checkTeamBlame],
   ['drill', checkDrill],
   ['record', checkRecord],
+  // Round 8: alone or out of reach said of a death with a teammate close, and "nobody could trade you" said of the fact.
+  ['alone', checkAlone],
   // The blind audit of 8.7.9, after every reader before.
   ['postplant', checkPostPlant],
   ['clock', checkClock],
@@ -977,25 +1698,54 @@ const READERS = [
   ['multi', checkMulti],
   ['lowcost', checkLowCost],
   ['ordinal', checkOrdinal],
+  // Round 8: "the clearest one was round N" against the cost ranking.
+  ['clearest', checkClearest],
+  // Round 8, the timeline and the state (the blind audit of round 7).
+  ['plantphase', checkPlantPhase],
+  ['enemyrole', checkEnemyRole],
+  ['first', checkFirst],
+  ['leftwords', checkLeftWords],
+  ['later', checkLater],
+  ['killplace', checkKillPlace],
 ];
 const REVIEW_READERS = [...READERS, ['side', checkSide], ['result', checkResult]];
 
-/** One sentence through every reader: { kind, reason } or null. st: { agents, round } from the sentences before. */
+/**
+ * One sentence through every reader: { kind, reason }, { kind, rewrite } or
+ * null. st: { agents, round, ... } from the sentences before. A reader may
+ * answer { rewrite } (checkAlone, round 8): the sentence said Riot's fact as
+ * a capability and is kept in the record's words, read on by every reader
+ * after it in those words, and dropped still where one of them finds it false.
+ */
 function checkSentence(sentence, ctx, st) {
   const readers = ctx && ctx.kind === 'review' ? REVIEW_READERS : READERS;
+  let text = sentence;
+  let rewrite = null;
   for (const [kind, read] of readers) {
     let why = null;
-    try { why = read(sentence, ctx, st || {}); } catch { why = null; }
-    if (why) return { kind, reason: why };
+    try { why = read(text, ctx, st || {}); } catch { why = null; }
+    if (!why) continue;
+    if (typeof why === 'object') {
+      if (typeof why.rewrite === 'string' && why.rewrite && why.rewrite !== text) { text = why.rewrite; rewrite = { kind, rewrite: why.rewrite }; }
+      else if (why.reason) return { kind, reason: why.reason };
+      continue;
+    }
+    return { kind, reason: why };
   }
-  return null;
+  return rewrite;
 }
 
 /**
  * Rows { s, dropped, p } in reading order through every reader, the agents
  * and the round the kept sentences before named carried along (a paragraph's
  * round, where its kept sentences so far named exactly one; opts.round fixes
- * it, a review's round line). Returns [{ index, kind, reason }].
+ * it, a review's round line). Round 8 carries more: the reply's last list of
+ * two or more rounds, an agent's deaths a sentence counted ("Omen killed you
+ * six times"), the claim of the kept sentence before (within two, in its
+ * paragraph), whether the one right before said the player was alone, the
+ * reply's only round so far, and the last two kept sentences. Returns
+ * [{ index, kind, reason }] for a drop and [{ index, kind, rewrite }] for a
+ * sentence kept in other words.
  */
 function checkRows(rows, ctx, opts = {}) {
   const out = [];
@@ -1006,18 +1756,46 @@ function checkRows(rows, ctx, opts = {}) {
   // only while that sentence was kept and stood right before this one.
   let lastSet = null;
   let lastIndex = -2;
+  let replyList = null;
+  let agentSet = null;
+  let prevKinds = null;
+  let prevKindsAt = -9;
+  let aloneAt = -9;
+  const replyRounds = new Set();
+  const recent = [];
+  let kept = 0;
   (Array.isArray(rows) ? rows : []).forEach((x, index) => {
-    const s = String(x && typeof x === 'object' ? x.s : x || '');
+    let s = String(x && typeof x === 'object' ? x.s : x || '');
     const p = x && typeof x === 'object' ? x.p : null;
-    if (p !== para) { para = p; paraRounds = new Set(); }
+    if (p !== para) { para = p; paraRounds = new Set(); prevKinds = null; }
     if (x && x.dropped) return;
-    const st = { agents, round: opts.round || (paraRounds.size === 1 ? [...paraRounds][0] : null), lastSet: lastIndex === index - 1 ? lastSet : null };
+    const st = {
+      agents,
+      round: opts.round || (paraRounds.size === 1 ? [...paraRounds][0] : null),
+      lastSet: lastIndex === index - 1 ? lastSet : null,
+      replyList,
+      agentSet,
+      prevKinds: prevKinds && kept - prevKindsAt < 2 ? prevKinds : null,
+      prevAlone: aloneAt === index - 1,
+      replyRound: opts.round || (replyRounds.size === 1 ? [...replyRounds][0] : null),
+      recent: recent.slice(-2),
+    };
     const hit = checkSentence(s, ctx, st);
-    if (hit) { out.push({ index, ...hit }); return; }
-    for (const m of straight(s).matchAll(AGENT_RE)) { const a = canon(m[1]); if (a) agents.push(a); }
-    const named = roundsIn(straight(s));
-    for (const n of named) paraRounds.add(n);
+    if (hit && hit.reason) { out.push({ index, ...hit }); return; }
+    if (hit && hit.rewrite) { out.push({ index, ...hit }); s = hit.rewrite; }
+    const t = straight(s);
+    kept += 1;
+    for (const m of t.matchAll(AGENT_RE)) { const a = canon(m[1]); if (a) agents.push(a); }
+    const named = roundsIn(t);
+    for (const n of named) { paraRounds.add(n); replyRounds.add(n); }
     lastSet = named.length >= 2 ? named : null;
+    if (named.length >= 2) replyList = named;
+    const ak = ctx && ctx.rounds ? agentKillSet(t, ctx) : null;
+    if (ak) agentSet = ak;
+    const ks = kindsOf(claimPart(t));
+    if (ks.length) { prevKinds = ks; prevKindsAt = kept; }
+    if (ALONE_SAID.test(t.replace(new RegExp(NOT_ALONE.source, 'gi'), ' '))) aloneAt = index;
+    recent.push(t);
     lastIndex = index;
   });
   return out;
@@ -1025,13 +1803,20 @@ function checkRows(rows, ctx, opts = {}) {
 
 module.exports = {
   // The blind audit of round 6.
-  checkMulti, checkLowCost, checkOrdinal, MULTI_CLAIMS, MULTI_HYPO, QUANT, LIST_ALL, LIST_QUANT, SOFT_QUANT, ALL_DEATHS, MOST_DEATHS, LOW_COST, LOW_BUY, ORDINAL_SAID, wholeMatch, SUBSET_AFTER, WHOLE_AFTER,
+  checkMulti, checkLowCost, checkOrdinal, MULTI_CLAIMS, FIRST_CONTACT, MULTI_HYPO, QUANT, LIST_ALL, LIST_QUANT, SOFT_QUANT, ALL_DEATHS, MOST_DEATHS, LOW_COST, LOW_BUY, ORDINAL_SAID, wholeMatch, SUBSET_AFTER, WHOLE_AFTER,
   contextOfChat, contextOfReview, beforePlantRounds, deadBeforePlant, aliveAtPlant, plantRecord, plantLines, roundsIn,
   checkKills, checkKillerShare, checkOrder, checkSide, checkResult, checkTeamBlame, checkDrill, checkSentence, checkRows,
   BEAT, MOST_OF, EARLY_SAID, BEFORE_SITE, DIED_BEFORE_PLANT, DIED_AFTER_PLANT, SAYS_ATTACK, SAYS_DEFENCE, SAYS_RESULT,
   PLANT_TALK, DEF_TALK, ATK_TALK, BLAME, ALIVE_SAID, ADVICE_OPEN, DEATHMATCH, RANGE, MODE_AVOIDED, TAKE_AGENT, BEFORE_ANY_PLANT, ROUND_RUN, OPENS_IF,
   RANGE_AGAINST, PLANT_MIN, CLAUSE_BREAK, clauseAt,
-  checkRecord, placesOf, DEATH_AT_HEAD, HYPO, ENEMY_SUBJECT, BUY_CLAIM, BUY_ALLOWED, MATE_CLOSE_SAID, MATE_FAR_SAID, NO_ABILITY_ROUND,
+  checkRecord, placesOf, articleNotSite, placeMatch, OTHER_HALF, MATE_COULD_SAID, SWING_ALONE, HELD_ALONE, DEATH_AT_HEAD, HYPO, ENEMY_SUBJECT, BUY_CLAIM, BUY_ALLOWED, MATE_CLOSE_SAID, MATE_FAR_SAID, NO_ABILITY_ROUND,
   // The blind audit of 8.7.9.
   costRank, costLine, COST, COST_TOP, checkPostPlant, checkClock, checkScore, AFTER_PLANT_ADVICE, BEFORE_PLANT_SAID, ON_CLOCK, PHASE_DOWN, SCORE_SAID, PRE_PLANT,
+  // Round 8: counts over several rounds, alone said of a teammate close, the ledger.
+  FAR_SAID, COULDNT_SAID, UNTRADED_SAID, CLOSE_SAID, kindsOf, judgeAll, together, quantOf, resolveSet, TIMES_Q, LAST_ALIVE_APART, PER_ROUND, SHARE, POINTER, ADVICE_CUT, claimPart,
+  AGENT_KILLS, agentKillSet, killsBy, checkAlone, ALONE_SAID, COULD_TRADE, NOT_ALONE, PLAN_OPEN, PRESUPPOSED, CAPABILITY, PREDICTION, ALONE_PAST, ANAPHOR,
+  checkClearest, CLEAREST, COST_MOST, COST_TALK, feedTimes,
+  // Round 8, the timeline and the state.
+  checkPlantPhase, checkEnemyRole, checkFirst, checkLeftWords, checkLater, checkKillPlace, claimRounds,
+  PLANT_DURING, ENEMY_ROLE_OBJ, ENEMY_ROLE_SUBJ, FIRST_SAID, LEFT_HEAD, LEFT_N, LEFT_DOWN, LATER, PLANT_EVENT, KILL_EVENT, DEATH_THEN, KILL_OWNER_BEFORE, earlyDeathsOf, ledgerBins, ledgerLine, tradeLedger, LEDGER_HEAD, LEDGER_RULE, lastAliveOf,
 };

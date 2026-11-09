@@ -54,6 +54,9 @@
  */
 
 const DATA = require('../valorant-data.generated.json');
+// The kit facts the game's text leaves out (round 8): Contingency blocks
+// bullets, High Tide does not. Sourced, by agent and ability (kit-rules.json).
+const KIT_RULES = (() => { try { return require('../data/kit-rules.json').abilities || {}; } catch { return {}; } })();
 
 const APOS = new RegExp(`[${String.fromCharCode(0x2018)}${String.fromCharCode(0x2019)}]`, 'g');
 const norm = (s) => String(s == null ? '' : s).replace(APOS, "'");
@@ -132,6 +135,10 @@ const CLAIM_VERBS = {
   clear: /\bclears\b/i,
   trigger: new RegExp(`\\b(?:triggers|trips|sets off|pops|finds|spots|detects|reveals) ${WIRES}(?![A-Za-z])|\\bsets (?:the |a )?(?:trip ?)?wires? off\\b`, 'i'),
   reload: /\b(?:reloads|has to reload|needs to reload|must reload)\b/i,
+  // Stopping bullets (round 8, kit-rules.json): judged only of an ability the
+  // kit rules say lets bullets through ("High Tide blocks bullets"); one they
+  // do not list is never judged on it (supported).
+  bullets: /\b(?:blocks|stops|absorbs|eats) (?:the |enemy |their |all )?(?:bullets|shots|gunfire)\b|\bis bullet ?proof\b/i,
   // Moving of its own, judged only of an ability that stays where it is put
   // (STATIONARY): "so the turret has to come to you" of a Killjoy Turret.
   // Not "has to move" or "relocates": a Killjoy is told to move her Turret, and
@@ -176,7 +183,7 @@ const STATIONARY = new Set([
 const STATIONARY_LOWER = new Set([...STATIONARY].map(lower));
 const isStationary = (e) => !!e && STATIONARY_LOWER.has(lower(`${e.agent}/${e.name}`));
 /** Whether the data supports a claim of this class of the entry: a movement claim only fails a stationary ability. */
-const supported = (cls, e) => (cls === 'move' ? !isStationary(e) : satisfies(cls, e.classes));
+const supported = (cls, e) => (cls === 'move' ? !isStationary(e) : cls === 'bullets' ? e.bullets !== false : satisfies(cls, e.classes));
 
 /*
  * THE GENERIC NOUN (round 4): "the camera", "the wall", "the smoke", "the
@@ -255,7 +262,12 @@ function buildTable(data) {
       const desc = strip(k.description);
       const classes = Object.keys(DESC_CLASSES).filter((c) => DESC_CLASSES[c].test(desc));
       const counted = REVEAL_COUNT.exec(desc);
+      // Bullets are judged by entry.bullets (supported), never as a class of
+      // the description: the game's text never says it.
+      const rule = KIT_RULES[`${agent}/${norm(k.name)}`] || null;
       const entry = { agent, name: norm(k.name), key: k.key, ultimate: k.key === 'X', classes, description: desc,
+        bullets: rule && typeof rule.bullets === 'boolean' ? rule.bullets : null,
+        extra: rule && typeof rule.extra === 'string' ? rule.extra : null,
         revealCount: counted ? COUNT_WORDS[lower(counted[1])] : null,
         // Credits and charges where the data carries them (it does not today): never invented.
         cost: Number.isFinite(k.cost) ? k.cost : null, charges: Number.isFinite(k.charges) ? k.charges : null };
@@ -668,7 +680,7 @@ function abilityLine(agent, ability) {
     e.cost != null ? `${e.cost} credits` : null,
     e.charges != null ? `${e.charges} ${e.charges === 1 ? 'charge' : 'charges'}` : null,
   ].filter(Boolean);
-  return `${name} (${e.agent}'s ${e.key}${e.ultimate ? ', ultimate' : ''}): ${body}${extra.length ? ` ${extra.join(', ')}.` : ''}`;
+  return `${name} (${e.agent}'s ${e.key}${e.ultimate ? ', ultimate' : ''}): ${body}${e.extra ? ` ${e.extra}` : ''}${extra.length ? ` ${extra.join(', ')}.` : ''}`;
 }
 
 /** The agent's four lines, C, Q, E and X, or [] for an agent the data does not know. */

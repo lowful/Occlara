@@ -296,7 +296,7 @@ function rankFigure(riotId, trackerPeak, history, opts, peakSeason) {
   for (const p of points) if (!best || rankIndex(p.tier) >= rankIndex(best.tier)) best = p;
   const peak = typeof trackerPeak === 'string' && rankIndex(trackerPeak) !== null ? trackerPeak.trim() : null;
   if (peak && (!best || rankIndex(peak) >= rankIndex(best.tier))) {
-    // The act it was reached in, when MMR v3 named it (8.8.x, rankDetail.peakSeason).
+    // The act it was reached in, when MMR v3 named it (8.7.9, rankDetail.peakSeason).
     const act = typeof peakSeason === 'string' && /^[A-Za-z0-9 ]{1,12}$/.test(peakSeason.trim()) ? `, in ${peakSeason.trim().toUpperCase()}` : '';
     return { label, value: peak, sample: `Riot's highest rank on your account${act}`, empty: false };
   }
@@ -317,7 +317,7 @@ function rankFigure(riotId, trackerPeak, history, opts, peakSeason) {
  * @param entries      saved reviews ({ game, review } as review-store.js gives them, or reviews)
  * @param ctx.riotId   the Riot ID in Settings, '' for none
  * @param ctx.peak     the tracker profile's peakRank for that Riot ID, or null
- *                     (MMR v3's peak since 8.8.x, v2's highest_rank before)
+ *                     (MMR v3's peak since 8.7.9, v2's highest_rank before)
  * @param ctx.peakSeason  the act of that peak (rankDetail.peakSeason), or null
  * @param ctx.history  what STATS_RANK_HISTORY answered, or null
  */

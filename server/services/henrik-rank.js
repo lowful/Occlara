@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * HENRIKDEV'S RICHER RANK ENDPOINTS, PARSED DEFENSIVELY (8.8.x).
+ * HENRIKDEV'S RICHER RANK ENDPOINTS, PARSED DEFENSIVELY (8.7.9).
  *
  * Three answers, each read by puuid (the account lookup, /v2/account, gives
  * it with the region), and each a step up from the name based endpoints it

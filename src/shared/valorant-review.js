@@ -25,6 +25,7 @@ const { roleOf } = require('./agent-roles');
 const { weaponName } = require('./valorant-verify');
 const { FIGHTS, CHANGES } = require('./death-causes');
 const icons = require('./valorant-icons');
+const { satOut, cardSatOut } = require('./sat-out');
 
 let DATA = {};
 try {
@@ -330,7 +331,13 @@ function deathPlace(r) {
 function patterns(rounds) {
   const out = [];
   const watched = rounds.length;
-  const deaths = rounds.filter((r) => r.died);
+  // A ROUND THE PLAYER SAT OUT (8.8, sat-out.js) is in no line about the
+  // player: their deaths, their first deaths and kills, the plant they were
+  // alive for. The team's own record, the run of lost rounds, the sides and
+  // the buys, keeps every round. On the real Split with round 7 AFK this page
+  // said "Reyna killed you 5 times" beside the mistake's 4.
+  const played = rounds.filter((r) => !satOut(r));
+  const deaths = played.filter((r) => r.died);
   if (watched < 3) return out;
 
   // Where the deaths happened. At least two at one spot AND at least 30% of the
@@ -361,7 +368,7 @@ function patterns(rounds) {
   // RIOT ONLY: the first death of the round. Only a round Riot verified can say
   // who died first, so this counts verified rounds and nothing else. Floor:
   // three, and a quarter of those rounds.
-  const verified = rounds.filter((r) => r.verified);
+  const verified = played.filter((r) => r.verified);
   const firsts = verified.filter((r) => r.firstDeath);
   if (firsts.length >= 3 && firsts.length * 4 >= verified.length) {
     out.push({
@@ -450,12 +457,12 @@ function patterns(rounds) {
   // is the retake, and those are different skills, so they are counted apart.
   // Only the rounds the player was alive in when it went down
   // (insights.aliveAtPlant): a death before the plant is no post plant played.
-  const postAtk = decided.filter((r) => insights.aliveAtPlant(r) && r.side === 'attacking');
+  const postAtk = decided.filter((r) => !satOut(r) && insights.aliveAtPlant(r) && r.side === 'attacking');
   if (postAtk.length >= 2) {
     const w = postAtk.filter((r) => r.result === 'won').length;
     out.push({ key: 'postplant', text: `On attack, won ${w} of ${postAtk.length} rounds once the spike was down.` });
   }
-  const retakes = decided.filter((r) => insights.aliveAtPlant(r) && r.side === 'defending');
+  const retakes = decided.filter((r) => !satOut(r) && insights.aliveAtPlant(r) && r.side === 'defending');
   if (retakes.length >= 2) {
     const w = retakes.filter((r) => r.result === 'won').length;
     out.push({ key: 'retake', text: `On defence, won ${w} of ${retakes.length} rounds after they planted.` });
@@ -476,10 +483,10 @@ function patterns(rounds) {
 
 /*
  * THE TEAM'S BUY DISCIPLINE (8.8), from the buy Riot's record gives each
- * round (riot-rounds.js buyOf): the full buy rounds lost, the eco rounds won
- * and the forced rounds won, of the decided rounds that had a buy, pistol
- * rounds left out. Only with BUYS_MIN such rounds, and each part only where
- * it has rounds (full buys two). One finished line, its numbers counted here
+ * round (riot-rounds.js buyOf): the full and half loadout rounds lost, the
+ * eco rounds won and the forced rounds won, of the decided rounds that had a
+ * buy, pistol rounds left out. Only with BUYS_MIN such rounds, and each part
+ * only where it is a finding (below). One finished line, its numbers counted here
  * and nowhere else, and worded without "buy" itself: the review's gate drops
  * any summary sentence with the word (match-review.js BUY_BLAME), and Ask
  * Coach's every review sentence that has it, so the line says "full loadout"
@@ -497,9 +504,21 @@ function buyDiscipline(rounds) {
   const force = of('force');
   const half = of('half');
   const parts = [];
-  if (full.length >= 2) parts.push(`lost ${full.length - won(full)} of ${full.length} rounds on a full loadout`);
-  if (eco.length) parts.push(`won ${won(eco)} of ${eco.length} eco ${eco.length === 1 ? 'round' : 'rounds'}`);
-  if (force.length) parts.push(`won ${won(force)} of ${force.length} forced ${force.length === 1 ? 'round' : 'rounds'}`);
+  const lost = (rs) => rs.length - won(rs);
+  // A FINDING, NEVER A TALLY (8.8). The line counted every kind whenever it
+  // had rounds, so a team that won 7 of 11 full buys read "lost 4 of 11 rounds
+  // on a full loadout" under a changelog that promised a note when full buys
+  // keep losing, and "won 0 of 2 eco rounds" where it promised one when ecos
+  // keep working. Now a part is said only where it is one: the full and the
+  // half loadouts losing two at least and half of them or more (knowledge.js
+  // fullbuy's test), the ecos and the forced rounds winning at least one of
+  // two or more. No part, no line.
+  const keptLosing = (rs) => rs.length >= 2 && lost(rs) >= 2 && lost(rs) * 2 >= rs.length;
+  const keptWorking = (rs) => rs.length >= 2 && won(rs) >= 1;
+  if (keptLosing(full)) parts.push(`lost ${lost(full)} of ${full.length} rounds on a full loadout`);
+  if (keptLosing(half)) parts.push(`lost ${lost(half)} of ${half.length} rounds on a half loadout`);
+  if (keptWorking(eco)) parts.push(`won ${won(eco)} of ${eco.length} eco rounds`);
+  if (keptWorking(force)) parts.push(`won ${won(force)} of ${force.length} forced rounds`);
   if (!parts.length) return null;
   const said = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
   return {
@@ -673,6 +692,24 @@ function roundFacts(r, opts) {
   // RIOT VERIFIED: exact, so exact numbers. The seconds, the killer and the
   // weapon are Riot's, and since 8.8 the place where its record has one
   // (riotSpot), else the screen's.
+  if (r.verified && satOut(r)) {
+    // A ROUND THE PLAYER SAT OUT (8.8) IS JUDGED ON NOTHING: Riot's flag
+    // first, then only what happened, the death with no first death, odds,
+    // trade or ultimate beside it, the buy and the plant. The card used to
+    // say "First death of the round" in red and "Not traded" with the AFK
+    // chip last, which judged the round the chip says is not counted.
+    facts.push(r.afk === true ? 'Riot marked you AFK, not counted' : 'Stayed in spawn all round, not counted');
+    if (r.died) {
+      const place = r.riotSpot || r.deathSpot;
+      let line = place ? `Died at ${place}` : 'Died';
+      if (r.deathSec !== null && r.deathSec !== undefined) line += `${place ? ',' : ''} ${r.deathSec}s in`;
+      if (r.killerAgent) line += `, to ${r.killerAgent}${r.weapon ? ` with ${withArticle(r.weapon)}` : ''}`;
+      facts.push(line);
+    }
+    if (r.planted) facts.push(r.plantSpot ? `Spike planted at ${r.plantSpot}` : 'Spike planted');
+    if (BUY_WORDS[r.buy]) facts.push(BUY_WORDS[r.buy]);
+    return facts;
+  }
   if (r.verified) {
     if (r.died) {
       const place = r.riotSpot || r.deathSpot;
@@ -1076,6 +1113,16 @@ function withView(review) {
   const rounds = Array.isArray(review.rounds)
     ? review.rounds.map((c) => {
       if (!c || typeof c !== 'object') return c;
+      // A round the player sat out never opens by itself, and shows no look
+      // and no line about how they played it (8.8): nothing in it is judged.
+      if (satOutCard(c)) {
+        const card = { ...c, tags: factTags(c.facts), open: false };
+        delete card.forensics;
+        delete card.why;
+        const killer = killerCard(c);
+        if (killer) card.killerCard = killer;
+        return card;
+      }
       const card = { ...c, tags: factTags(c.facts), open: !!(c.forensics || c.why || hot.has(c.n)) };
       const killer = killerCard(c);
       if (killer) card.killerCard = killer;
@@ -1206,10 +1253,27 @@ function factTag(text) {
   return { kind: 'fact', tone: 'even', text };
 }
 
-/** A card's facts as tags, in their order; none for a card with no facts. */
+/*
+ * A card's facts as tags, in their order; none for a card with no facts.
+ *
+ * A ROUND THE PLAYER SAT OUT (8.8): a card that holds the AFK or the spawn
+ * chip shows it first, every other tag even, and none of the chips that
+ * judge (the first death, the odds, the trade, the ultimate), so a card a
+ * version before saved, with the chip last after "First death of the round",
+ * is shown as a card made today is. Its facts on disk are left as they are.
+ */
+const JUDGING_KINDS = new Set(['firstdeath', 'odds', 'untraded', 'traded', 'ult']);
 function factTags(facts) {
   if (!Array.isArray(facts)) return [];
-  return facts.filter((f) => typeof f === 'string' && f).map(factTag);
+  const tags = facts.filter((f) => typeof f === 'string' && f).map(factTag);
+  const out = tags.filter((t) => t.kind === 'afk');
+  if (!out.length) return tags;
+  return out.slice(0, 1).concat(tags.filter((t) => t.kind !== 'afk' && !JUDGING_KINDS.has(t.kind)).map((t) => ({ ...t, tone: 'even' })));
+}
+
+/** A saved card the player sat out: Riot's flag on its record, or its AFK chip. */
+function satOutCard(c) {
+  return cardSatOut(c) || (Array.isArray(c && c.facts) && c.facts.some((f) => FACT_EXACT.has(f) && FACT_EXACT.get(f).kind === 'afk'));
 }
 
 /*
@@ -1329,7 +1393,9 @@ function enemyAgentsOf(riot) {
  * from the same rounds for its SWING AND COUNTS block.
  */
 function countsOf(rounds) {
-  const deaths = (rounds || []).filter((r) => r && r.verified && r.died);
+  // A round the player sat out is in no count (8.8, sat-out.js), as on the
+  // server (match-review.js matchCounts).
+  const deaths = (rounds || []).filter((r) => r && r.verified && r.died && !satOut(r));
   const known = deaths.filter((r) => typeof r.traded === 'boolean');
   const alone = (r) => !!(r.aliveAtDeath && typeof r.aliveAtDeath.mates === 'number' && r.aliveAtDeath.mates <= 1);
   const tradeable = known.filter((r) => !alone(r));
@@ -1412,8 +1478,12 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring })
         // Where the player's kills fell, in a death Riot's record has no
         // place for (round 7), so the server never sends the screen's spot
         // as the death's place when it lies in another region than every
-        // kill (match-review.js placesKept: Sunset 2 to 5 round 6).
-        ...(r.died && !r.riotSpot && Array.isArray(r.killSpots) && r.killSpots.length ? { killPlaces: r.killSpots.slice(0, 5) } : {}),
+        // kill (match-review.js placesKept: Sunset 2 to 5 round 6). Since
+        // round 8 for every verified round with a kill Riot places, a placed
+        // death and a round survived too, so the round line says where the
+        // kills fell apart from the death (Sunset 4 to 13 round 7 gave the
+        // first kill the death's A Alley) and the kill place gate reads them.
+        ...(Array.isArray(r.killSpots) && r.killSpots.length ? { killPlaces: r.killSpots.slice(0, 5) } : {}),
       } : {}),
       // The coach's look at the death, so the summary and the round lines
       // agree with the cause the review counts.

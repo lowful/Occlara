@@ -46,6 +46,35 @@ Decisions.
   trade of for its denominator and said "8 of your 16" where Riot has 13 of
   16 untraded. An entry saved without the flag keeps its old line and title,
   which were true of its count (`test:verdict`, `test:riotreview`).
+- **A round the player sat out is graded nowhere** (8.8, `src/shared/sat-out.js`).
+  Riot's AFK or stayed in spawn round is left out of every category's counts,
+  the round count included, and the grade's notes say "Left out of every
+  count: round 7, Riot marked you AFK." The lists count the rounds played too,
+  the misses and strengths with the mistakes, and since the look loop reads
+  the same rounds a cause is never split into two misses by one AFK death
+  (`test:satout`, the real Split graded 82 with round 7 AFK, 81 before).
+- **Alone, or close and not traded** (8.8, `insights.js`). The untraded
+  deaths clear the floor together (three, and six in ten of the deaths a
+  teammate was alive to trade) and stay ONE entry, `untraded`, with the whole
+  count, rounds and `of`. Riot's nearest teammate at each death (`mateNear`)
+  is told inside it: `close` (a count) and `closeRounds`, the detail adds
+  "and in 6 of them a teammate was close, rounds ...", the title is "Deaths
+  nobody traded" where any death had a teammate close ("Died where nobody
+  could trade" only where none did, word for word as before), and the fix is
+  about the pair where half or more were close. For a while the close deaths
+  were their own key, `untraded-close`; every reader of the trade habit reads
+  `untraded` only (the review's `focusLever`, `leverOf`, `leverRule4`, Ask
+  Coach's two weakest, the Verdict, `patterns` and `input.recurring`), so
+  the split lost the trade lever (8 of 10 untraded with 6 close became an
+  `untraded` of 2, under its own floor) and split the habit across the
+  library (8.8 review, `test:satout`). On the six audit matches it still
+  moves Corrode round 2, Sunset rounds 2 and 6 and Pearl round 1 out from
+  under "nobody could trade".
+- **Every verified round sat out** (8.8 review, `grade.js`): the link is
+  read on every round, so a whole match AFK is linked and has no grade, its
+  note "Riot's record has you sitting out every round it verified", never
+  "firms up once Riot's round record links" or an Impact from a scoreline
+  of AFK rounds (`test:satout`).
 - **Impact's role average leaves out a 0** (8.7.2, `grade.js roleBaseline`).
   A history row at 0 combat score or below (an AFK, a remake) is no match:
   three of them made the mean 0, acs / 0 was NaN, `curve()` gave its top value
@@ -182,3 +211,7 @@ before:
   map) and "Skye kept winning" only against Skye (`insights.repeatTitle`, used
   by the patterns too). Otherwise the title is one that is true of every match
   it counts.
+
+- **The ledger leaves the sat out round out too** (round 8): `record-claims.js tradeLedger`, the
+  counted split of the deaths by trade and distance Ask Coach and the review carry, counts no
+  death in a round Riot says the player sat out, as `matchCounts` and `countsOf` do.

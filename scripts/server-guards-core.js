@@ -461,6 +461,14 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
         && T.scrubAsked('Morvane#EUW killed me in round 5') === 'a player killed me in round 5'
         && T.scrubAsked('around #3 seconds') === 'around #3 seconds' && T.scrubAsked('round#7 and round # 8') === 'round 7 and round 8',
       'round #12 is round 12, read before the Riot ID scrub, which still takes Morvane#EUW, and "around #3" is no round');
+      // A Riot ID in Riot's own letters, with inner spaces (8.8 review): nothing of it reaches the model.
+      const lower = { has: (w) => /^(?:big|bob)$/i.test(w) };
+      ok(T.scrubAsked('what did Big Bob#NA1 do') === 'what did a player do' && T.scrubAsked('what did big bob#NA1 do', lower) === 'what did a player do'
+        && T.scrubAsked(`what did J${String.fromCharCode(0xfc)}rgen#EUW do`) === 'what did a player do'
+        && T.scrubAsked(`how did ${String.fromCharCode(0x5c0f, 0x660e)}#TW1 play`) === 'how did a player play'
+        && T.scrubAsked('I played with Morvane#EUW today') === 'I played with a player today'
+        && T.scrubAsked('what is the best crosshair for Jett') === 'what is the best crosshair for Jett',
+      `a spaced, accented or CJK Riot ID is scrubbed whole, and a question with none is untouched (${T.scrubAsked('what did Big Bob#NA1 do')})`);
       riotRounds.noteNames(MATCH_ID, { players: [{ name: 'Morvane', tag: 'EUW', team_id: 'Red' }, { name: 'Me', tag: 'EUW', team_id: 'Blue' }] });
       stand.seen.length = 0;
       prov.next = () => ({ content: 'You lost round 12 on the plant.\n\nYour teammate morvane was ahead of you. Hold the angle together next time. Swing as two.' });
@@ -582,7 +590,59 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       const out = await ask(v2body(), { 'X-Occlara-Version': NEW });
       ok(out.r.status === 200 && promptOf(out.sent[0]).length > 1000 && !promptOf(out.sent[0]).startsWith('V2') && !('v' in out.body),
         'a v2 context chat-prompt.js cannot take is answered as today, never left unanswered');
+      ok(T.chatReport().fellToV1 >= 1, `and the fall back to today's answer is counted for /api/admin/chat (${T.chatReport().fellToV1})`);
       T.services({ chatPrompt: stand });
+    }
+    {
+      // ROUND 8: TODAY'S (v1) ANSWER NAMES NOBODY EITHER. The match's name set
+      // when the body names the match, and the gate's capital rule; a typed
+      // Riot ID never reaches the model, and a reply's words never reach a log.
+      const V1_MATCH = 'd4c3b2a1-7777-4888-9999-aaaabbbbcccc';
+      riotRounds.noteNames(V1_MATCH, { players: [{ name: 'Tessik', tag: 'EUW' }, { name: 'Aim Quorrel', tag: 'NA1' }] });
+      const v1body = { ...SEEDED, matchId: V1_MATCH,
+        messages: [{ role: 'user', content: 'Why did Morvane#EUW keep killing me, and how is my aim?' }] };
+      const logs = [];
+      const quiet = async (fn) => {
+        const realWarn = console.warn; const realLog = console.log;
+        console.warn = (...a) => { logs.push(a.join(' ')); };
+        console.log = (...a) => { logs.push(a.join(' ')); };
+        try { return await fn(); } finally { console.warn = realWarn; console.log = realLog; }
+      };
+      prov.next = (body, init, k) => ({ content: k === 1 ? 'Tessik short.'
+        : 'Your teammate Tessik was ahead of you on B. Your aim is fine, so hold the angle together next time and swing as two. Swing with a teammate close enough to trade.' });
+      const out = await quiet(() => ask(v1body, { 'X-Occlara-Version': OLD }));
+      const reply = String(out.body.reply || '');
+      ok(out.r.status === 200 && out.sent.length === 2 && !/Tessik/i.test(reply) && /Your aim is fine/.test(reply) && /Swing with a teammate/.test(reply),
+        `A V1 REPLY NAMING A PLAYER OF THE MATCH LOSES THAT SENTENCE, while "aim", a coaching word of a name, keeps its own (${reply})`);
+      ok(!out.sent.some((s) => /Morvane#EUW/.test(promptOf(s))) && out.sent.every((s) => /Why did a player keep killing me/.test(promptOf(s))),
+        'and the Riot ID the player typed never reaches the model');
+      ok(!logs.some((l) => /Tessik|short|Morvane/i.test(l)) && logs.some((l) => /retrying \(len/.test(l)) && logs.some((l) => /v1 dropped what named a player \(1\)/.test(l)),
+        `and no log line carries a word of a reply (${logs.filter((l) => /\[chat\]/.test(l)).join(' | ')})`);
+      prov.next = () => ({ content: 'Tessik was ahead of you on B the whole round.' });
+      const all = await quiet(() => ask(v1body, { 'X-Occlara-Version': OLD }));
+      ok(all.r.status === 200 && /^Let's keep it on your gameplay/.test(all.body.reply), 'a v1 reply that was nothing but a name is the fallback line');
+      // ROUND 8 REVIEW: v1 drops on the name set and a handle's shape only, as
+      // v2 does; the capital rule is counted (v1-name-log), never enforced. These
+      // whole true answers each came back as the fallback line, or one sentence.
+      const MUST_KEEP = [
+        [{ game: 'lol' }, 'Right now Ahri and Orianna are the strongest mids. Ward the river before Dragon spawns. Group with your jungler for Baron at 20 minutes. Your CS at 10 minutes was 62, aim for 80.'],
+        [{ language: 'de' }, 'Du bist zu oft allein in den Kampf gegangen. Spiel mit deinem Teamkollegen zusammen, damit er dich traden kann. Mach jeden Tag zehn Minuten Deathmatch.'],
+        [{}, 'You lost 18 RR across those two games because you entered alone. Warm up 10 minutes in TDM on counter strafes. Then in ranked, wait for a teammate.'],
+        [{}, 'To climb out of Plat you need trades. Spend 10 minutes in Aim Lab before you queue. After that, play one game of Ranked. Your KD of 0.8 says you die too much.'],
+      ];
+      const logged0 = (T.chatReport().logged['v1-name-log'] || 0);
+      for (const [extra, said] of MUST_KEEP) {
+        prov.next = () => ({ content: said });
+        // No match id: a player of V1_MATCH is named "Aim", and there "in Aim Lab" is
+        // that name capitalised past the first word, which the name set still takes.
+        const kept = await quiet(() => ask({ ...v1body, matchId: undefined, context: { ...(v1body.context || {}), ...extra } }, { 'X-Occlara-Version': OLD }));
+        ok(kept.r.status === 200 && kept.body.reply === said, `A TRUE V1 ANSWER KEEPS EVERY SENTENCE (${JSON.stringify(extra)}): ${JSON.stringify(kept.body.reply)}`);
+      }
+      ok((T.chatReport().logged['v1-name-log'] || 0) > logged0, `and the capital rule is counted for the English Valorant ones, never dropped on (${T.chatReport().logged['v1-name-log']})`);
+      prov.next = () => ({ content: 'xXslayer99Xx held B all match. Play near a teammate so you can be traded.' });
+      const shaped = await quiet(() => ask({ ...v1body, context: { ...(v1body.context || {}), game: 'lol' } }, { 'X-Occlara-Version': OLD }));
+      ok(shaped.body.reply === 'Play near a teammate so you can be traded.', `and a handle's shape still goes in League's answer too (${JSON.stringify(shaped.body.reply)})`);
+      prov.next = null;
     }
     {
       // And the real chat-prompt.js: the route's half and the prompt's half fit.
@@ -775,6 +835,13 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       ok(net.dropped === 1 && net.text === 'You went 31 and 21 as Jett, a 1.48 K/D, and your ACS of 245.5 led the lobby. Trade first next time.'
         && T.sentencesOf('A 1.5 K/D. Then 3.25 s in. Round 5.').length === 3 && T.sentencesOf('Hold the angle').length === 1,
       `and a review's: "1.48" and "245.5" are kept whole, each sentence still one (${JSON.stringify(net.text)})`);
+      // The v1 pass (capitals off) keeps settings and stat units (8.8 review), and still drops a handle.
+      const units = ['Set your monitor to 240Hz and cap frames at 240fps.', 'Play at 1920x1080 on a 1440p monitor if you like it.',
+        'Keep your sensitivity near 800dpi.', 'You lost 18RR on that game, which is normal for a loss.', 'Aim for 80cs at 10 minutes in lane.'];
+      const v1 = units.map((s) => T.withoutNames(s, { names: null, language: 'en', capitals: false }));
+      ok(v1.every((g, i) => !g.dropped && g.text === units[i]), `240Hz, 1920x1080, 1440p, 800dpi, 18RR and 80cs are no handle (${v1.map((g) => g.dropped).join(',')})`);
+      const handle = T.withoutNames('Your teammate xKenji77 was close. Trade first next time.', { names: null, language: 'en', capitals: false });
+      ok(handle.dropped === 1 && handle.text === 'Trade first next time.', `and a handle with digits still goes (${JSON.stringify(handle.text)})`);
     }
 
     // ── /health and /api/admin/chat from the server as Railway starts it ───

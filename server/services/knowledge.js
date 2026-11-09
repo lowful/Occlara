@@ -668,8 +668,23 @@ function recordSignals(rows, opts = {}) {
   const quiet = (r) => Array.isArray(r.casts) && r.casts.some((c) => c && !ULTIMATES.has(String(c.name || '').toLowerCase()))
     && r.casts.every((c) => !c || ULTIMATES.has(String(c.name || '').toLowerCase()) || c.n === 0);
   if (deaths.filter((r) => r.early === true && quiet(r)).length >= min) out.causes.push('dry-peek');
+  /*
+   * NO ISOLATION LESSON FOR A TEAMMATE CLOSE (round 8, the blind audit of
+   * round 7). Fracture round 5, a teammate close and nobody trading, drew the
+   * worked case "Do not rush him alone ... Rushing the isolated Chamber
+   * alone" and the notes on untradeable duels, and the answers made the
+   * death a lone one. `ruledOut` holds 'isolated' where the deaths nobody
+   * traded (never the last one alive) had a teammate close in one at least
+   * and Riot's far in none: cases.js leaves out a case for that cause or
+   * teaching that lesson, and Ask Coach's notes the same (ISOLATION_LESSON).
+   */
+  const untradedNear = deaths.filter((r) => r.traded === false && r.lastAlive !== true);
+  out.ruledOut = untradedNear.some((r) => r.mate === 'close') && !untradedNear.some((r) => r.mate === 'far') && !out.causes.includes('isolated') ? ['isolated'] : [];
   return out;
 }
+// A lesson about fighting alone, by its words (round 8): asserted on five
+// positives and four negatives in test:chatgates.
+const ISOLATION_LESSON = /\b(?:rush|peek|push|fight|duel|hold|tak|enter|swing|contest|go|play)\w*\s+(?:[a-z']+\s+){0,3}?alone\b(?!\s+against)|\bisolated\s+(?:duel|fight|chamber|death|entry|lane|peek)|\buntradeable\b|\bsolo\s+(?:death|duel|play|hero|fight|peek)|\bteammates?\s+cannot\s+see\s+your\s+angle\b|\bon\s+your\s+own\b|\bno\s+teammate\s+can\s+trade\b/i;
 
 /** Whether a signal set from recordSignals says anything. */
 function anySignal(x) {
@@ -1149,4 +1164,4 @@ module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: ()
   roleOf: (agent) => ROLE_OF[String(agent || '').toLowerCase()] || null,
   ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust,
   ENEMY_FIT, enemiesOf, enemyFit, enemyWeaponsOf, WEAPON_NAMES, ADVANCED_SLOTS_BY_BAND, advancedSlots, bandFirst,
-  teamOf, teamFit, recordSignals, anySignal, placeOf, placesNamed, samePlace, placeRegion, RECORD_ECONOMY, RECORD_MIN, REPEAT_MIN, PLACE_FIT };
+  teamOf, teamFit, recordSignals, anySignal, placeOf, placesNamed, samePlace, placeRegion, RECORD_ECONOMY, RECORD_MIN, REPEAT_MIN, PLACE_FIT, ISOLATION_LESSON };

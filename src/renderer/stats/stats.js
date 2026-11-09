@@ -357,7 +357,7 @@ function renderCards(d) {
   // can come while the notes stay open under it, so the chevron is read off
   // rankOpen here too, not only as the notes open and close (markRankCard).
   rankCard.classList.toggle('notes-open', rankOpen);
-  // THE RANK'S QUIET LINE (8.8.x): main's finished words from Riot's MMR
+  // THE RANK'S QUIET LINE (8.7.9): main's finished words from Riot's MMR
   // (riot-rank.js rankLine), the RR in the tier, the peak and its act,
   // shields, the leaderboard place and this act's wins, and the account's
   // aces and clutches as Riot counts them. Only what the game itself shows,

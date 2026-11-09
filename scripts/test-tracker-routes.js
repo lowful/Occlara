@@ -72,7 +72,7 @@ global.fetch = async (url, init = {}) => {
   deadlines.push({ url: u, ms: lastDeadline });
   const route = u.includes('/v2/account/') ? 'account' : u.includes('/stored-matches/') ? 'stored'
     : u.includes('/v4/match/') ? 'match'
-    // The rank endpoints (8.8.x): MMR v3 and v2, the stored history v2 and v1, accolades.
+    // The rank endpoints (8.7.9): MMR v3 and v2, the stored history v2 and v1, accolades.
     : u.includes('/v3/by-puuid/mmr/') ? 'mmr3' : u.includes('/v2/mmr/') ? 'mmr2'
     : u.includes('/by-puuid/stored-mmr-history/') ? 'history2' : u.includes('/v1/mmr-history/') ? 'history1'
     : u.includes('/by-puuid/accolades/') ? 'accolades' : 'other';
@@ -517,8 +517,8 @@ const V4 = {
     ok(!/Foe|NA1|Hidden|Friend|ZZ9|puuid-/.test(text), `and no other player's name, tag or id is anywhere in the reply (${text.length} characters)`);
     const names = riotRounds.nameSetOf(MID);
     ok(names && names.has('a teammate called Friend') && names.has('FOE') && names.has('the NA1 tag') && !names.has('Hold the angle with Jett')
-      && JSON.stringify(names) === '{}' && Object.keys(names).join() === 'has',
-    "the match's name set is held on the server, hashed, answering has() and printing nothing");
+      && JSON.stringify(names) === '{}' && Object.keys(names).join() === 'has,spares',
+    "the match's name set is held on the server, hashed, answering has() and spares() and printing nothing");
     ok(riotRounds.nameSetOf('another-match') === null && riotRounds.nameSetOf('') === null && riotRounds.nameSetOf(MID.toUpperCase()) !== null,
       'and only for its own match, by id in any case');
     const realNow = Date.now;
@@ -589,7 +589,7 @@ const V4 = {
     henrikKey.throttledAt = 0;
   }
 
-  // ── the richer rank endpoints (8.8.x): MMR v3, stored history v2, accolades ──
+  // ── the richer rank endpoints (8.7.9): MMR v3, stored history v2, accolades ──
   {
     const F = require(path.join(__dirname, 'fixtures', 'henrik-rank-shapes.js'));
     const hr = require(path.join(__dirname, '..', 'server', 'services', 'henrik-rank.js'));
@@ -705,6 +705,51 @@ const V4 = {
     ok(h.body.points.length === 2 && n('/by-puuid/') === 0 && n('/v1/mmr-history/') === 1,
       'a key turned away within two minutes skips the stored history: v1 by name alone, the call it always spent');
     henrikKey.throttledAt = 0;
+
+    // An outage is an error, never a cached empty success (8.7.9).
+    const down503 = async () => ({ status: 503, json: { errors: [{ status: 503 }] } });
+    fresh(); setRank({ history2: down503, history1: down503 });
+    h = await hist();
+    ok(h.body.error === 'unavailable' && !('points' in h.body),
+      `both histories answering 503 is unavailable, not an empty history (${JSON.stringify(h.body)})`);
+    calls.length = 0;
+    h = await hist();
+    ok(n('/v1/mmr-history/') === 1 && h.body.error === 'unavailable', 'and it is not cached: the next ask goes upstream again');
+    fresh(); setRank({ history2: async () => ({ status: 404, json: { errors: [] } }), history1: async () => ({ status: 429, json: {} }) });
+    h = await hist();
+    ok(h.body.error === 'unavailable' && !('points' in h.body), 'v2 404 and v1 429 is unavailable too');
+    henrikKey.throttledAt = 0;
+    fresh(); setRank({ history2: down503, history1: async () => { throw new Error('The operation was aborted due to timeout'); } });
+    h = await hist();
+    ok(h.body.error === 'unavailable', 'and so is v1 timing out after v2 failed');
+    fresh(); setRank({ history2: down503, history1: async () => ({ status: 200, json: { status: 200 } }) });
+    h = await hist();
+    ok(h.body.error === 'unavailable', 'and a v1 answer with no data list');
+    fresh(); setRank({});
+    h = await hist();
+    ok(h.body.points.length === 4, 'a good read first');
+    henrik.history2 = down503; henrik.history1 = down503;
+    h = await hist('&refresh=1');
+    ok(h.body.points && h.body.points.length === 4 && h.body.points[3].matchId === 'match-d',
+      'then an outage on a refresh serves the held good history, not an error and not an empty one');
+    fresh(); setRank({});
+    henrik.account = async () => ({ status: 200, json: { data: { region: 'eu', puuid: PU } } });
+    await hist();
+    regionCache.clear();
+    henrik.account = down503; henrik.history2 = down503; henrik.history1 = down503;
+    h = await hist('&refresh=1');
+    ok(h.body.points && h.body.points.length === 4, 'and so does the account lookup itself being down');
+    fresh(); setRank({});
+    henrik.account = down503;
+    h = await hist();
+    ok(h.body.error === 'unavailable', 'the account lookup down with nothing held is unavailable, not Account not found');
+    fresh(); setRank({ history2: async () => ({ status: 200, json: { data: [] } }), history1: async () => ({ status: 200, json: { data: [] } }) });
+    h = await hist();
+    ok(Array.isArray(h.body.points) && h.body.points.length === 0 && h.body.current === null && !h.body.error,
+      'a real empty answer from both is still an empty success (a new account)');
+    calls.length = 0;
+    await hist();
+    ok(n('/mmr-history/') === 0, 'and that one is cached as before');
     fresh(); setRank({ accolades: async () => ({ status: 404, json: { errors: [] } }) });
     await stats();
     calls.length = 0;

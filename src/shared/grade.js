@@ -32,6 +32,7 @@
  */
 
 const { isAvoidable } = require('./death-causes');
+const { satOut, satOutNote } = require('./sat-out');
 
 // "1 deaths", "traded a teammate 1 times" and "of the 1 deaths" all reached the
 // evidence lines, which are the sentences a player checks the grade against.
@@ -160,15 +161,33 @@ const DECISIONS_CURVE = [[0, 96], [0.08, 85], [0.16, 72], [0.25, 60], [0.4, 42]]
  * @param input.riotOnly   graded from Riot's record alone, with no recording
  */
 function valorant(input) {
-  const rows = Array.isArray(input.rounds) ? input.rounds : [];
+  const all = Array.isArray(input.rounds) ? input.rounds : [];
+  // A ROUND RIOT SAYS THE PLAYER SAT OUT IS NOT GRADED (8.8): its AFK or its
+  // stayed in spawn flag (sat-out.js). Every count below is of the rounds
+  // played, and a note names the rounds left out. One AFK round on the real
+  // Split graded 81 where the rounds played grade 82.
+  const rows = all.filter((r) => !satOut(r));
+  const satOutCount = all.length - rows.length;
   const verified = rows.filter((r) => r.verified);
   const isVerified = verified.length > 0;
   const role = input.role || null;
   const sl = input.scoreline || null;
-  const total = isVerified ? verified.length : (num(input.totalRounds) || rows.length);
+  const total = isVerified ? verified.length
+    : (num(input.totalRounds) ? Math.max(0, num(input.totalRounds) - satOutCount) : rows.length);
   const deaths = isVerified ? verified.filter((r) => r.died).length
     : (sl && num(sl.deaths) !== null ? sl.deaths : rows.filter((r) => r.died).length);
   const notes = [];
+  // LINKED, AND EVERY VERIFIED ROUND SAT OUT (8.8 review). The link is read on
+  // every round, not the rounds played: a whole match AFK left no verified row
+  // after the filter, so the grade said "firms up once Riot's round record
+  // links" of a linked match and graded Impact from a scoreline full of the
+  // AFK rounds. There is nothing of the player's to grade, so no grade.
+  const linked = all.some((r) => r && r.verified);
+  if (linked && !isVerified) {
+    const empty = [['survival', 'Survival', 25], ['impact', 'Impact', 30], ['teamplay', 'Teamplay', 20], ['decisions', 'Decisions', 25]]
+      .map(([key, label, weight]) => ({ key, label, weight, score: null, evidence: [] }));
+    return finish(empty, false, [satOutNote(all), "Riot's record has you sitting out every round it verified, so there is nothing to grade."].filter(Boolean));
+  }
   if (!isVerified && !sl) {
     notes.push(input.linkMissing === 'taken'
       ? "A full grade needs Riot's record of the match, and it is on another review of this match in your library."
@@ -181,6 +200,8 @@ function valorant(input) {
         : "A full grade needs Riot's record of the match. Add your Riot ID in Settings and it grades itself a few minutes after the match.");
   }
   else if (!isVerified) notes.push('Graded from the scoreboard. It firms up once Riot\'s round record links.');
+  const leftOut = satOutNote(all);
+  if (leftOut) notes.push(leftOut);
 
   // Survival: deaths a round, and being the first to die more than the role explains.
   const survival = { key: 'survival', label: 'Survival', weight: 25, score: null, evidence: [] };

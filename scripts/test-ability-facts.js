@@ -385,6 +385,18 @@ ok(af.kitLines(Object.keys(T.agents)).every((l) => !af.checkText(l.slice(l.index
   'a generic noun is read only where exactly one ability of the agents fits it');
 }
 
+// ── 10. Bullets, from kit-rules.json (round 8) ────────────────────────────
+ok(/Contingency \(Iso's C\): .*indestructible vision-blocking wall\..* The wall also blocks bullets from both sides, and players and abilities pass through it\./.test(af.kitLine('Iso')[0]),
+  `Contingency's line carries the bullets the game's text leaves out (${af.kitLine('Iso')[0]})`);
+ok(af.checkText('High Tide blocks bullets, so push behind it.').some((c) => c.kind === 'effect' && c.ability === 'High Tide'), 'High Tide blocking bullets is a false claim');
+ok(af.checkText('Toxic Screen stops bullets.').length === 1, 'Toxic Screen stopping bullets is a false claim');
+ok(!af.checkText('Contingency blocks bullets as it moves forward.').length && !af.checkText('Barrier Orb blocks bullets.').length, 'Contingency and Barrier Orb blocking bullets stand');
+ok(!af.checkText('Cosmic Divide blocks bullets.').length, 'an ability kit-rules does not list is never judged on bullets');
+ok(!af.checkText('High Tide does not block bullets.').length, 'a negation stands');
+ok(af.CLAIM_VERBS.bullets.test('blocks bullets') && af.CLAIM_VERBS.bullets.test('stops enemy shots') && !af.CLAIM_VERBS.bullets.test('blocks vision'), 'the bullets verb both ways');
+ok(T.agents.Iso.contingency && T.agents.Iso.contingency.bullets === true && T.agents.Harbor['high tide'].bullets === false && T.agents.Jett.cloudburst.bullets === null,
+  'the table carries bullets true, false or unknown');
+
 // ── 7. No backspace byte in the source ────────────────────────────────────
 for (const f of ['server/services/ability-facts.js', 'scripts/test-ability-facts.js']) {
   const buf = fs.readFileSync(path.join(__dirname, '..', f));

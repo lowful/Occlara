@@ -97,6 +97,54 @@ gates of the look (`input.names`), the review and Ask Coach for that match
 alone, by the match id an 8.5.0 client sends; no reply, log line or file ever
 carries it, and after a restart only the gates' own rule runs.
 
+**A coaching word of a name counts only where it reads as a name** (round 8,
+`COACH_VOCAB`). The Plat Fracture review lost its only round line, R5, its
+focus's lead and a summary sentence, and both Fracture aim chats their first
+sentences, to a word of a player's name that every coach says (the evidence
+points to "aim", which the prompt's AIM EVIDENCE line invites; the set never
+says which). Every lower case word of three letters or more in
+`data/playbook.json` and `data/cases.json` (about 2,900) is the coach's
+vocabulary: a word of a name that is one of them goes into the match's soft
+half and counts only capitalised past its sentence's first word ("Your
+teammate Aim was on B."), the name gate's own capital rule. Every other word
+of a name, an ordinary English word no coach says among them ("velvet"), is
+hard and counts in any case, anywhere, as before. No lower case rule after
+"teammate": replayed over all 84 round 7 outputs with every coaching word
+taken for a word of a name, it dropped 29 true sentences ("near a teammate
+instead"), the capital rule none. A soft word that opens its sentence
+capitalised still counts when the next word makes it the subject, what a
+person did or was (`SUBJECT_VERBS`: "Lurk was ahead of you.", "Flank killed
+you twice.", and after a colon or a list number, "One thing to fix: Aim held
+the angle you swung.", "1. Lurk held Heaven."), except a pronoun or
+determiner (`NOT_A_SUBJECT`): with every coaching word taken for a name it
+drops none of the 84 round 7 outputs' 1,054 sentences once "Nobody traded
+it" is out. An imperative opener ("Aim for the head.", "Lurk late only with a
+teammate near.") keeps. A sentence the soft half spared is counted once, by
+the caller that serves it (`spares()`: `coach.js withoutNames`, the review's
+final pass only, and `fact-gates.js gateNames`), never by `has()`, which a
+gate asks twice (`nameSetCounts`, `nameSpared` in `/api/admin/chat`), never
+which word. The risks left: a name that is a coaching word, written by the
+model in lower case, passes, and so does one opening a sentence on a verb
+not in the list; and a player named "Aim" takes "in Aim Lab" with it, a
+capital past the first word (`test:valorantreview`).
+
+**The review's name pass runs inside parse** (round 8, `match-review.js
+parse(text, input, { withoutNames })`), after `said` and before every other
+gate, so the coherence and structural passes read a name drop as any other:
+run after parse, it left the Plat focus's tradeoff tail "You give up a quick
+kill attempt..." served as the whole focus. The route's own pass still runs
+after, as a safety net that finds nothing; a parse with no pass handed in is
+as before (`test:reviewroute`). A focus left as only that tail still needs the
+review floor, which is its own fix. After a sentence the name pass took, a
+sentence opening on a pure connective (So, Then, Also) loses the connective and
+keeps ("Also, use your smoke..." is served as "Use your smoke..."), where
+before the move it was kept whole and moved into parse it emptied the focus;
+after any other gate's drop it still goes whole, and a referential opener (It,
+This, They, Her) goes after any drop (`cohere(before, now, byName)`). The
+capital rule reads the chat's own capitals in lower case too (`CHAT_WORDS`,
+fact-gates.js `CHAT_CAPS` word for word, `test:chatgates`), so "Warm up in TDM
+before ranked." keeps.
+
 **A fill waits its turn on the shared HenrikDev key** (8.5.0, `coach.js
 fillRefused`). A `/match-rounds` request marked `purpose=fill` (Ask Coach's one
 time fill of a review saved before the reply carried the feed, and later Phase
@@ -194,7 +242,7 @@ over a match lost on untraded deaths. So:
 dropping. The Riot ID in config is the one looked up, so a match played on
 another account never links, which is correct.
 
-## The rank endpoints by puuid (8.8.x)
+## The rank endpoints by puuid (8.7.9)
 
 The account lookup (`/valorant/v2/account`) gives the puuid with the region,
 and `regionOf` keeps both a day. With a puuid the server reads HenrikDev's
@@ -224,7 +272,35 @@ old name based endpoint as its fallback whenever it fails, times out, has no
   line (`rankLine`, `accoladeTotals`).
 - **Within two minutes of a 429** MMR v3 and the stored history are skipped
   too, straight to v2 and v1 by name, so a throttled key spends exactly the
-  calls it did before 8.8.x (`test:trackerroutes`).
+  calls it did before 8.7.9 (`test:trackerroutes`).
+
+**An outage is not an empty history (8.7.9).** `/rank-history` treats v1
+answering 429 or 5xx, timing out or sending no `data` list (after v2 failed or
+held nothing), and the account lookup itself answering 429, 5xx or nothing, as
+a failed read: it serves the held good copy when the server has one, otherwise
+`{ error: 'unavailable' }`, and caches neither, so the next ask goes upstream
+again (`rankHistoryAnswered`). Only a real answer with an empty list, a new
+account, is a cached empty success. An 8.7.9 client reads both errors the same.
+
+**The client keeps the last good history** (`src/main/services/rank-history.js`).
+An answer with no points never replaces a held one with points for the same
+Riot ID, and a failed read returns what is held. Main also keeps it on disk,
+`rank-history.json` in userData, written through a tmp file: `{ v, key, at,
+data }` with `key` a sha256 of the Riot ID (`diskKey`), so no Riot ID is stored
+in plain text, and `data` cut to each point's date, elo, change, tier, match
+id, refund and shield, and the current one (`slimHistory`), so no name and no
+puuid. It is read lazily, the first time `held()` or a failed read needs it,
+used only when the key is this Riot ID's, and `clear()` drops memory only. So a
+restart during an outage still shows RR (`test:homemodel`).
+
+**A review opened before Riot publishes its game asks again.** `getReviewRiot`
+answers `{ rr: null, accolades, waiting: true }` for a Competitive row with no
+RR that ended within the hour (`home-model.js rrWaitingFor`, the one row rule
+`rrWaiting` uses for Home). The review page (`review.js askRiot`) then asks
+again 6 minutes later, Home's `RANK_AGAIN_MS`, at most twice, under the same
+guards (the review still on the page, not built, not locked); every paint and
+`clearRR` stops the timer, and main still answers null mid match or sealed, so
+nothing shows during a match.
 
 Only RR is ever shown: the history's `elo` is the journey's plotting height
 and never printed, and no name or puuid leaves `henrik-rank.js`. Riot bans
@@ -290,14 +366,29 @@ before reads none of them.
   and a sidearm, so a save round of pistols with shields is no half buy; and
   never `force` the round after the team won that half's pistol (the bonus
   round reads `half`), which had the review praising "3 of 3 forced rounds
-  won" for three bonus rounds on Split. A gun the record or the data does
+  won" for three bonus rounds on Split. Since 8.8 also `full` when three
+  teammates carry a rifle and the team's loadout is 3300 a player or more
+  (`RIFLE_CORE_LOAD`): a rifle and light shields each on average. Split
+  round 5 ("force") and Corrode round 7 ("half") were once listed as fixed and
+  are not confirmed: the kill feed has three teammates killing with a rifle,
+  but the feed is not what was carried, no copy of those rounds' economy rows
+  is kept offline, and Split round 5 follows a lost full buy, where three
+  rifles and two lighter guns is a force. A gun the record or the data does
   not name counts as neither. Only in a queue with an economy
   and known halves (not Spike Rush, Replication or a queue with none). The
   card chip says Pistol round, Eco round, Force buy, Half buy or Full buy, and
   the `buys` pattern (`valorant-review.js buyDiscipline`, six decided buy
-  rounds at least) says the full buy rounds lost, the eco rounds won and the
-  forced rounds won, worded "full loadout" because the review's `BUY_BLAME`
-  and Ask Coach's review sentence gate drop any sentence with "buy".
+  rounds at least) says only what is a finding (8.8): the full and the half
+  loadouts when two at least and half or more of them were lost, the ecos
+  and the forced rounds when one at least of two or more was won, and no
+  line when none is. It counted every kind before, so a team that won 7 of
+  11 full buys read "lost 4 of 11" and "won 0 of 2 eco rounds" stood under a
+  changelog promising a note when ecos keep working. Worded "full loadout"
+  because the review's `BUY_BLAME` and Ask Coach's review sentence gate drop
+  any sentence with "buy". The review route keeps eight patterns and, past
+  the eighth, `buys` and `sides` (`match-review.js normalise`, `PAST_CUT`,
+  ten at most): `buys` is the last a client writes, and in a match with nine
+  or more it reached the page but never the review or Ask Coach.
 - **The nearest teammate at the death** (`mateNear`, `mateNearOf`): the
   kill's `player_locations`, teammates only, flat distance in the map's own
   units, within `MATE_CLOSE_UNITS` (1500) `close` else `far`. No source states
@@ -309,10 +400,33 @@ before reads none of them.
   (`valorant-review.js castsNamed`). A fact for the review and Ask Coach, no
   chip. Which v4 key is which slot is valorant-api's naming and was not yet
   checked on a real match.
-- **AFK** (`afk` from `was_afk`, `inSpawn` from `stayed_in_spawn`): such a
-  round is left out of every counted mistake (`insights.js valorant`,
-  `played`), its card says "Riot marked you AFK, not counted", and both prompts
-  are told it is no mistake of the player's.
+- **AFK** (`afk` from `was_afk`, `inSpawn` from `stayed_in_spawn`): one test,
+  `src/shared/sat-out.js satOut` (only `true` is a flag), and since 8.8 the
+  round is left out of everything that judges the player, which 8.7.9's
+  changelog promised and only the mistakes did: the grade (`grade.js`, every
+  category on the rounds played, a note naming the rounds left out; one AFK
+  round on the real Split graded 81 where the rounds played grade 82), the
+  mistakes, misses and strengths (`insights.js`, one cause never split into
+  two misses by it), the page's patterns about the player (`patterns()`: the
+  killer, the early deaths, the spot, the first deaths and kills, the post
+  plants; the team's run of lost rounds, the sides and the buys keep every
+  round), `countsOf` and the server's `matchCounts` and `matchFacts` (the
+  block says "Riot marks you as sitting out round 7, so it is left out of
+  these counts", `satOutLine`), `lineWorthy` (no round line; `roundLine`
+  says the flag first and judges nothing), Moments (no entry), Ask Coach's
+  enemy block and case phases, the library's tally of a review saved before
+  (`patterns.js satOutRounds`), and the paid death look
+  (`death-frames.js teachableDeaths`). The card leads with "Riot marked you
+  AFK, not counted", shows no first death, odds, trade or ultimate chip,
+  every tag even, never opens by itself and shows no look and no line
+  (`factTags`, `withView`), and a card saved before is shown the same way.
+  `chat-context.js applyRoundRecord` gives an old review's fill the flags.
+  The review's `satOutGate` (after `recordGates`, English) drops a round line
+  for such a round and a summary or focus sentence naming it, unless the
+  sentence says it was sat out (`SAT_OUT_SAID`); a run of rounds through it,
+  "rounds 5 to 14", is the team's record and names none (`SAT_OUT_RANGE`).
+  `npm run test:satout` holds every surface on the real Split with round 7
+  AFK.
 
 The review prompt's grounding rule says economy and abilities are known only
 where a round states them, in place of "never state them", only for a match
@@ -394,3 +508,15 @@ the economy gate, every `checkRecord` rule and its regexes on known strings),
 `test:forensics` (the look's facts, `wrongSide`, main's body). Per round casts
 reached no review on the six audit matches (0 of 72), so every cast rule is
 written and tested but has not yet fired on a real match.
+
+### The trades and the distance, counted in code (round 8)
+
+Riot's `traded` and `mateNear` are two facts, and round 7's answers read "not traded" as
+"nobody near". `record-claims.js tradeLedger` partitions the player's deaths into traded, last
+one alive, untraded with a teammate close, untraded with no teammate close, untraded with no
+distance, and trade unknown, each count with its rounds, then the distance alone; a round sat out
+is in none of it. Ask Coach (the match, the early deaths, the agent asked about) and the review
+(`match-review.js ledgerOf`) carry it, computed on the server from what 8.7.9 already sends.
+The gates judge "no teammate close" by Riot's distance word first (a traded death Riot has far is
+far) and "nobody close enough to trade" by both facts. Detail: ask-coach.md, "Round 8: counts over
+several rounds".

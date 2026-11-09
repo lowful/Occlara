@@ -193,9 +193,11 @@ const PLAIN_WORDS = `the and for are but not you your yours all any can had has 
 // took every look line saying "fall back behind cover" or "staying on the
 // angle" with them. A deploy without the gate skips only the words above.
 let GATE_WORDS = '';
+let gateSentences = null;
 try {
   const gate = require('./name-gate');
   GATE_WORDS = `${gate.PLAIN_WORDS || ''} ${gate.GAME_WORDS || ''}`;
+  if (typeof gate.sentencesOf === 'function') gateSentences = gate.sentencesOf;
 } catch { GATE_WORDS = ''; }
 const NOT_A_NAME = (() => {
   const out = new Set();
@@ -217,17 +219,101 @@ const wordsOf = (s) => lower(s).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length 
 const hashWord = (w) => crypto.createHmac('sha256', NAME_KEY).update(w).digest('base64').slice(0, 22);
 const matchKey = (id) => lower(id).trim().slice(0, 64);
 
+/*
+ * THE COACH'S OWN WORDS, A NAME ONLY WHERE ONE READS AS A NAME (round 8). The
+ * Plat Fracture review lost its summary's third sentence, its focus's lead
+ * and its only round line, R5, to this set, and both Fracture aim chats their
+ * first sentences: a word of a player's name or tag there was a word every
+ * coach says (the evidence points to "aim", which the prompt's AIM EVIDENCE
+ * line invites in R5), and the set took it in any case, anywhere. Every
+ * lower case word of three letters or more in the playbook and the worked
+ * cases (data/playbook.json, data/cases.json, about 2,900 of them) is the
+ * coach's vocabulary. A word of a name that is one of them goes into the
+ * match's SOFT half, and counts only where it reads as a name: capitalised
+ * past its sentence's first word ("Your teammate Aim was on B."), the name
+ * gate's own capital rule. Not after "teammate" in lower case: replayed over
+ * all 84 round 7 outputs with every coaching word taken for a word of a name,
+ * that rule dropped 29 true sentences ("near a teammate instead", "a teammate
+ * killing your killer"), the capital rule none (name-gate.js says the same of
+ * "teammate can"). "Your aim is fine." and "Aim for the head." keep, and so
+ * does "killed by aim" in lower case: the models copy a name with its
+ * capitals. Every other word of a name is HARD and counts
+ * in any case, anywhere, first word included, as before: "morvane" still
+ * goes in lower case. The words above (NOT_A_NAME) are still no word of a
+ * name at all. A spared hit is counted (nameSetCounts), never which word.
+ */
+/** Whether a word is the coach's own vocabulary (COACH_VOCAB's rule: lower case letters, three or more). */
+const isVocabWord = (w) => typeof w === 'string' && w.length >= 3 && /^\p{Ll}+$/u.test(w);
+const COACH_VOCAB = (() => {
+  const out = new Set();
+  const walk = (v, depth) => {
+    if (depth > 6 || v == null) return;
+    if (typeof v === 'string') {
+      for (const t of v.split(/[^\p{L}\p{N}]+/u)) if (isVocabWord(t)) out.add(t);
+    } else if (Array.isArray(v)) for (const x of v) walk(x, depth + 1);
+    else if (typeof v === 'object') for (const x of Object.values(v)) walk(x, depth + 1);
+  };
+  for (const file of ['../data/playbook.json', '../data/cases.json']) {
+    try { walk(require(file), 0); } catch { /* a deploy without it keeps every word hard */ }
+  }
+  return out;
+})();
+const counted = { spared: 0 };
+
+/*
+ * A SOFT WORD OPENING ITS SENTENCE AS ITS SUBJECT (round 8 review). The first
+ * word is exempt because a coach's sentence opens on a verb ("Aim for the
+ * head.", "Lurk late only with a teammate near."), but a name opens a killer
+ * line as its subject, and before round 8 the hard set caught "Lurk caught you
+ * on A Main." in any position. So a capitalised soft word that opens its
+ * sentence still counts when the word after it is what a person did or was:
+ * "Lurk was ahead of you.", "Flank killed you twice.", "Aim held the angle you
+ * swung." after a colon, "1. Lurk held Heaven." after a list number, and
+ * "Lurk's Operator" (the possessive's "s"). An imperative opener is followed
+ * by no such word, so it keeps. Lower case only: "Aim Lab" and "Lurk Late"
+ * read as no subject.
+ */
+const SUBJECT_VERBS = new Set(`s was is were has had killed kills caught catches held holds pushed pushes swung swings
+  peeked peeks waited waits traded trades shot shoots beat beats won wins flanked flanks lurked lurks came comes
+  ran runs rotated rotates played plays carried carries stayed stays entered enters opened opens sat sits saw sees
+  spotted spots kept keeps picked picks knifed finished finishes outaimed outplayed got gets took takes hit hits
+  tapped found finds sniped snipes threw throws dropped drops planted plants defused defuses lost loses
+  anchored anchors rushed rushes cleared clears baited baits refragged`.split(/\s+/).filter(Boolean));
+/** A word written with a capital letter. */
+const isCapital = (tok) => /\p{Lu}/u.test(String(tok || ''));
+// The pronouns and determiners a coach's own sentence opens on as its subject:
+// replayed over all 84 round 7 outputs with every coaching word taken for a
+// word of a name, "Nobody traded it, and you left 2 against 5." was the one
+// true sentence the subject rule dropped.
+const NOT_A_SUBJECT = new Set(`nobody nothing someone somebody something anyone anybody anything everyone everybody
+  everything none each both either neither another other others this these those what who whom whose which whoever
+  whatever where when why how there here many most some few several all any every one`.split(/\s+/).filter(Boolean));
+/** Whether the word after a sentence's first word makes that word the subject, a person. */
+const namesTheSubject = (next, first) => typeof next === 'string' && SUBJECT_VERBS.has(next)
+  && !NOT_A_SUBJECT.has(String(first || '').toLowerCase());
+
+/** The text's sentences, each a list of its words as written. */
+function tokensBySentence(text) {
+  const t = String(text || '');
+  const sentences = gateSentences ? gateSentences(t) : t.split(/(?<=[.!?:])\s+/);
+  return sentences.map((s) => String(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+}
+
 /** Every player's name and tag words of this payload into its match's name set. Returns nothing, says nothing. */
 function noteNames(matchId, d) {
   const id = matchKey(matchId);
   if (!id) return;
   const hashes = new Set();
+  const soft = new Set();
   for (const p of playersOf(d)) {
-    for (const w of [...wordsOf(p && p.name), ...wordsOf(p && p.tag)]) if (!NOT_A_NAME.has(w)) hashes.add(hashWord(w));
+    for (const w of [...wordsOf(p && p.name), ...wordsOf(p && p.tag)]) {
+      if (NOT_A_NAME.has(w)) continue;
+      (COACH_VOCAB.has(w) ? soft : hashes).add(hashWord(w));
+    }
   }
-  if (!hashes.size) return;
+  if (!hashes.size && !soft.size) return;
   if (nameSets.has(id)) nameSets.delete(id);
-  nameSets.set(id, { at: Date.now(), hashes });
+  nameSets.set(id, { at: Date.now(), hashes, soft });
   while (nameSets.size > NAME_SETS_MAX) nameSets.delete(nameSets.keys().next().value);
 }
 
@@ -235,16 +321,45 @@ function noteNames(matchId, d) {
  * The match's name set, or null when this server holds none for it (never
  * fetched, a day old, or lost to a restart). It answers has(text): whether any
  * word of the text, a word or a whole sentence, is a word of a player's name
- * or tag in that match, in any case. It holds nothing it could print.
+ * or tag in that match: a hard word in any case, a coaching word (the soft
+ * half, COACH_VOCAB) only capitalised past its sentence's first word. It
+ * holds nothing it could print.
  */
 function nameSetOf(matchId) {
   const id = matchKey(matchId);
   const e = id ? nameSets.get(id) : null;
   if (!e) return null;
   if (Date.now() - e.at > NAME_SET_MS) { nameSets.delete(id); return null; }
-  const has = (text) => wordsOf(text).some((w) => e.hashes.has(hashWord(w)));
-  return Object.freeze({ has });
+  const soft = e.soft || new Set();
+  // 'hit' when a word of the text is a word of a name where it reads as one,
+  // 'spared' when only the soft half's words are in it and none reads as one.
+  const look = (text) => {
+    if (wordsOf(text).some((w) => e.hashes.has(hashWord(w)))) return 'hit';
+    if (!soft.size) return null;
+    let spared = false;
+    for (const toks of tokensBySentence(text)) {
+      for (let i = 0; i < toks.length; i++) {
+        const w = lower(toks[i]);
+        if (w.length < 3 || /^\d+$/.test(w) || !soft.has(hashWord(w))) continue;
+        if (isCapital(toks[i]) && (i > 0 || namesTheSubject(toks[i + 1], toks[i]))) return 'hit';
+        spared = true;
+      }
+    }
+    return spared ? 'spared' : null;
+  };
+  const has = (text) => look(text) === 'hit';
+  // Counted once by the caller for each text it serves (coach.js withoutNames),
+  // never by has(), which a gate may ask twice of the same sentence.
+  const spares = (text) => {
+    if (look(text) !== 'spared') return false;
+    counted.spared++;
+    return true;
+  };
+  return Object.freeze({ has, spares });
 }
+
+/** How many texts the soft half spared since boot: a count, never a word. */
+function nameSetCounts() { return { spared: counted.spared }; }
 
 /** Who won a round, as a lowercase team id, whatever the field is called. */
 function winnerOf(r) {
@@ -489,8 +604,7 @@ function spotOf(map, loc) {
  * owner's six audit matches through the live server. The averages alone read
  * a team of rifles with light shields (2900 + 400 = 3300 a player) as a force
  * or a half buy: Split round 18 ("half", four teammates killing with a Vandal
- * or a Phantom), Corrode round 7 ("half", three Vandals), Sunset round 8
- * ("half", three rifles), Split round 5 ("force", three rifles of four). And
+ * or a Phantom) and Sunset round 8 ("half", three rifles). And
  * the round after a won pistol, where the team buys SMGs with money to spare,
  * read "force" (Split rounds 2 and 14, Fracture round 2, Sunset round 6), so
  * the review praised "3 of 3 forced rounds won" for three bonus rounds.
@@ -499,6 +613,10 @@ function spotOf(map, loc) {
  *            MIN_PLAYERS) carry a gun of RIFLE_COST or more
  *            by the game data (Vandal, Phantom, Guardian, Bulldog, Outlaw,
  *            Operator, Odin), whatever the shields
+ *   full     also when MIN_PLAYERS rows carry such a gun and the team's
+ *            loadout is RIFLE_CORE_LOAD a player or more (8.8): a rifle and
+ *            light shields each on average, so the two without a rifle
+ *            carry close to one's worth, not a save
  *   eco      also when every row's gun is known and is a sidearm: a save
  *            round, whatever shields were bought with it
  *   half     never force right after the team won that half's pistol round:
@@ -507,8 +625,17 @@ function spotOf(map, loc) {
  * A gun the record does not name, or a name the game data does not know,
  * counts as no rifle and no sidearm, so a record without economy.weapon reads
  * exactly as before.
+ *
+ * NOT CONFIRMED (8.8): Split round 5 still reads "force" and Corrode round 7
+ * "half" on the live server, which the comment here once listed as fixed.
+ * The kill feed has three teammates killing with a rifle in each, but the
+ * kill feed is not what was carried (a rifle picked up kills with it too),
+ * and no copy of either round's economy rows is kept offline to say what
+ * the other two carried. Split round 5 comes after a lost full buy, where
+ * three rifles and two lighter guns with little left is a force. Each now
+ * reads full only if the core rule above holds for it.
  */
-const BUY = Object.freeze({ ECO_MAX: 1000, FULL_MIN: 3900, FORCE_LEFT_MAX: 1000, MIN_PLAYERS: 3, RIFLE_COST: 2000 });
+const BUY = Object.freeze({ ECO_MAX: 1000, FULL_MIN: 3900, FORCE_LEFT_MAX: 1000, MIN_PLAYERS: 3, RIFLE_COST: 2000, RIFLE_CORE_LOAD: 3300 });
 const BUY_KINDS = Object.freeze(['pistol', 'eco', 'force', 'half', 'full']);
 /** A carried gun by the game data: 'rifle' (RIFLE_COST or more), 'sidearm', 'other', or null when unknown. */
 function gunClass(w) {
@@ -540,6 +667,7 @@ function buyOf(round, n, halfLength, isOurs, opts) {
   const load = avg(loads);
   const rifles = guns.filter((g) => g === 'rifle').length;
   if (rifles >= Math.max(BUY.MIN_PLAYERS, loads.length - 1)) return 'full';
+  if (rifles >= BUY.MIN_PLAYERS && load >= BUY.RIFLE_CORE_LOAD) return 'full';
   if (guns.every((g) => g === 'sidearm')) return 'eco';
   if (load < BUY.ECO_MAX) return 'eco';
   if (load >= BUY.FULL_MIN) return 'full';
@@ -789,5 +917,5 @@ function parse(d, name, tag) {
 }
 
 module.exports = { parse, attackersOf, killsOf, playersOf, teamworkOf, plantSiteOf, weaponOf, killerDamageOf, NOT_A_WEAPON, TRADE_MS,
-  compsOf, roleOf, noteNames, nameSetOf, NAME_SET_MS, NAME_SETS_MAX,
+  compsOf, roleOf, noteNames, nameSetOf, nameSetCounts, COACH_VOCAB, SUBJECT_VERBS, isCapital, isVocabWord, namesTheSubject, NAME_SET_MS, NAME_SETS_MAX,
   spotOf, buyOf, mateNearOf, castsOf, BUY, BUY_KINDS, MATE_CLOSE_UNITS };

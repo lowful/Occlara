@@ -87,7 +87,7 @@ const { Backfill } = require('./services/backfill');
 const { RankHistory } = require('./services/rank-history');
 const rankBandOf = require('../shared/rank-band');
 const riotRank = require('../shared/riot-rank');
-const { rrForRows, pointForMatch } = require('../shared/home-model');
+const { rrForRows, pointForMatch, rrWaitingFor } = require('../shared/home-model');
 const deathFrames = require('../shared/death-frames');
 const clips = require('../shared/clips');
 const clipScheme = require('./services/clip-scheme');
@@ -2307,7 +2307,7 @@ const controller = {
     return progressOf.matchProgress(reviewStore.recent(e.game, patternsOf.LOOK_BACK), id);
   },
   /**
-   * WHAT RIOT'S RANK RECORD SAYS OF ONE REVIEW (8.8.x, REVIEW_RIOT): the RR
+   * WHAT RIOT'S RANK RECORD SAYS OF ONE REVIEW (8.7.9, REVIEW_RIOT): the RR
    * chip on its header and Riot's accolades for its "What went well", both
    * by its Riot match id (riot-rank.js). The RR is Home's own rule, the
    * library's rows through rrForRows, so the review and its row never
@@ -2323,14 +2323,19 @@ const controller = {
     if (!riotId.includes('#')) return null;
     const history = await this.getRankHistory(false).catch(() => null);
     if (matchInProgress() || windowSealed()) return null;
-    const rr = rrForRows(reviewStore.list('valorant'), history)[id];
+    const rows = reviewStore.list('valorant');
+    const rr = rrForRows(rows, history)[id];
     const matchId = e.review.matchId || null;
     const chip = riotRank.rrChip(rr, pointForMatch(history, matchId));
     const st = guardedTrackerPair().stats;
     const accolades = matchId && st ? riotRank.accoladeLines(st.accolades, matchId) : [];
+    // A rated match that ended within the hour with no RR yet is one Riot has
+    // not published (8.7.9): `waiting` has the review page ask again later.
+    const waiting = !chip && rrWaitingFor(rows.find((r) => r && r.id === id), rr, Date.now());
+    if (waiting) return { rr: null, accolades, waiting: true };
     return chip || accolades.length ? { rr: chip, accolades } : null;
   },
-  /** Each rated Valorant row's RR chip in Matches (8.8.x, REVIEWS_RR), by row id; {} otherwise. */
+  /** Each rated Valorant row's RR chip in Matches (8.7.9, REVIEWS_RR), by row id; {} otherwise. */
   async getReviewsRR(game) {
     if (game !== 'valorant' || matchInProgress() || windowSealed()) return {};
     if (!(store.get('riotId') || '').trim().includes('#')) return {};
@@ -2838,7 +2843,7 @@ const controller = {
       // rather than painted.
       game: g.id, gameLabel: g.label, statsSupported: true,
       categories, rank, winRate, mode: m,
-      // The rank tile's quiet line (8.8.x, riot-rank.js rankLine): the RR in
+      // The rank tile's quiet line (8.7.9, riot-rank.js rankLine): the RR in
       // the tier, the peak and its act, shields, the leaderboard place, this
       // act's wins, and Riot's all time aces and clutches. Finished words, [] and
       // '' from an older server's profile, which has neither.
@@ -3099,7 +3104,27 @@ function forgetRiotId(riotId) {
 // below stays the persisted profile the coach and chat run on.
 let unratedStatsCache = { at: 0, riotId: '', data: null };
 // The rank history for Stats and Home, and a link making it stale (rank-history.js).
-const rankHistory = new RankHistory({ get: (p, timeoutMs) => api.get(p, authed, timeoutMs) });
+// The last good history is also kept on disk (8.7.9), so a restart during a
+// HenrikDev outage still shows RR: a small JSON in userData keyed by a hash of
+// the Riot ID, with no name and no puuid (rank-history.js). The path is taken
+// at each use, after the profile migration has settled userData; a write goes
+// to a tmp file first, and any failure is ignored.
+const rankHistoryFile = () => path.join(app.getPath('userData'), 'rank-history.json');
+const rankHistory = new RankHistory({
+  get: (p, timeoutMs) => api.get(p, authed, timeoutMs),
+  disk: {
+    load() {
+      try { return JSON.parse(fs.readFileSync(rankHistoryFile(), 'utf8')); } catch { return null; }
+    },
+    save(rec) {
+      try {
+        const f = rankHistoryFile();
+        fs.writeFileSync(f + '.tmp', JSON.stringify(rec));
+        fs.renameSync(f + '.tmp', f);
+      } catch {}
+    },
+  },
+});
 
 async function fetchUnratedStats(force) {
   const riotId = (store.get('riotId') || '').trim();
@@ -3514,7 +3539,7 @@ function rankBandNow() {
     const st = guardedTrackerPair().stats;
     const hist = rankHistory.held(riotId);
     // The peak (MMR v3's, else the history's best rated game) and the trend
-    // ride along (8.8.x, rank-band.js rankContext); the trend never moves the band.
+    // ride along (8.7.9, rank-band.js rankContext); the trend never moves the band.
     return rankBandOf.rankContext({
       current: hist && hist.current ? hist.current.tier : null,
       rank: st ? st.rank : null,

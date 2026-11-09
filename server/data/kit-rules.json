@@ -1,0 +1,60 @@
+{
+  "note": "The kit facts the game data's own text leaves out, by agent and ability, each with its kind, source, the patch it was verified on and who confirmed it. ability-facts.js reads it: an ability with bullets true gets the class bullets (so 'Contingency blocks bullets' passes and 'High Tide blocks bullets' is caught), one with bullets false is held to it, and one not listed is never judged on bullets. extra is appended to the ability's kit line after the game's own words. A fact with confirmed null is still sourced from more than one guide and stands until checked in game; re-stamp verifiedPatch after a patch that touches the agent (CLAUDE.md, primer.md).",
+  "abilities": {
+    "Iso/Contingency": {
+      "bullets": true,
+      "extra": "The wall also blocks bullets from both sides, and players and abilities pass through it.",
+      "kind": "occlara", "verifiedPatch": "13.09",
+      "source": "Hotspawn, Full Iso Guide (the wall blocks incoming bullets while players and abilities pass through it); Red Bull, How to master Iso (it blocks bullets from both sides); Mobalytics, Iso guide. The game's text says only 'an indestructible vision-blocking wall' (valorant-api).",
+      "confirmed": null
+    },
+    "Harbor/Cove": {
+      "bullets": true,
+      "kind": "occlara", "verifiedPatch": "13.09",
+      "source": "the game's own text: 'transform the smoke into a destructible shield'; the shield stops bullets until it is broken",
+      "confirmed": null
+    },
+    "Sage/Barrier Orb": {
+      "bullets": true,
+      "kind": "occlara", "verifiedPatch": "13.09",
+      "source": "the game's own text: 'a destructible wall that fortifies'; a solid wall bullets do not pass until it is broken",
+      "confirmed": null
+    },
+    "Harbor/High Tide": {
+      "bullets": false,
+      "kind": "occlara", "verifiedPatch": "13.09",
+      "source": "the game's own text: 'a vision-blocking wall that slows'; water, bullets pass through it",
+      "confirmed": null
+    },
+    "Viper/Toxic Screen": {
+      "bullets": false,
+      "kind": "occlara", "verifiedPatch": "13.09",
+      "source": "the game's own text: 'a toxic vision-blocking wall'; gas, bullets pass through it",
+      "confirmed": null
+    },
+    "Phoenix/Blaze": {
+      "bullets": false,
+      "kind": "occlara", "verifiedPatch": "13.09",
+      "source": "the game's own text: 'a vision-blocking fire wall'; fire, bullets pass through it",
+      "confirmed": null
+    },
+    "Neon/Fast Lane": {
+      "bullets": false,
+      "kind": "occlara", "verifiedPatch": "13.09",
+      "source": "the game's own text: 'two vision-blocking walls'; energy, bullets pass through them",
+      "confirmed": null
+    },
+    "Omen/Dark Cover": {
+      "bullets": false,
+      "kind": "occlara", "verifiedPatch": "13.09",
+      "source": "the game's own text: 'cast a smoke'; a smoke, bullets pass through it",
+      "confirmed": null
+    },
+    "Brimstone/Sky Smoke": {
+      "bullets": false,
+      "kind": "occlara", "verifiedPatch": "13.09",
+      "source": "the game's own text: 'cast smokes'; a smoke, bullets pass through it",
+      "confirmed": null
+    }
+  }
+}

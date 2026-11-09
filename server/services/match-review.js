@@ -34,6 +34,7 @@ const forensics = require('./death-forensics');
 const { promptName } = require('./languages');
 const { noSemicolons } = require('./plain-text');
 const abilityFacts = require('./ability-facts');
+const gameClaims = require('./game-claims');
 
 // "a Vandal", "an Outlaw". The prompt's own grammar is what the model copies,
 // and "with a Outlaw" came back in its sentences. So is "1 assist", which the
@@ -217,7 +218,12 @@ function normalise(body) {
     ...(r && r.verified && r.planted && Number.isFinite(r.plantSec) && r.plantSec >= 0 && r.plantSec < 300
       ? { plantSec: Math.round(r.plantSec * 10) / 10, ...(typeof r.afterPlant === 'boolean' ? { afterPlant: r.afterPlant } : {}) } : {}),
   })).filter((r) => r.n > 0).map(onePlace);
-  const patterns = (Array.isArray(b.patterns) ? b.patterns : []).slice(0, 8).map((p) => ({
+  // EIGHT, AND THE TEAM'S OWN TWO (8.8): the buys line is the last pattern a
+  // client writes and the sides one of the last, so in a match with nine or
+  // more the eight cut them and the line reached the page but never the
+  // review or Ask Coach. Either past the eighth is kept, ten at most.
+  const sentPatterns = Array.isArray(b.patterns) ? b.patterns : [];
+  const patterns = sentPatterns.slice(0, 8).concat(sentPatterns.slice(8, 16).filter((p) => p && PAST_CUT.has(p.key))).slice(0, 10).map((p) => ({
     key: clip(p && p.key, 20),
     text: clip(p && p.text, 180),
   })).filter((p) => p.text && spotAgrees(spotPatternOf(p), rounds));
@@ -310,10 +316,14 @@ function recordSent(r, map) {
   // (recordSignals), and the round line's deathSpot since 8.7.10 (onePlace).
   const place = r.died && typeof map === 'string' ? knowledge.placeOf(map, r.place) : null;
   if (place) out.place = place;
-  // Where the player's kills fell, in a death Riot's record has no place for
-  // (round 7, valorant-review.js requestBody), so the screen's spot is never
-  // the death's place when it lies in another region than every kill.
-  if (r.died && !place && typeof map === 'string' && Array.isArray(r.killPlaces)) {
+  // Where the player's kills fell (round 7, valorant-review.js requestBody),
+  // so the screen's spot is never the death's place when it lies in another
+  // region than every kill (placesKept, only where Riot has no place for the
+  // death). Since round 8 kept whenever sent, a placed death and a round
+  // survived too, so the round line says the kills' places apart from the
+  // death's and the kill place gate reads them (record-claims.js
+  // checkKillPlace): Sunset 4 to 13 round 7 gave the kill the death's place.
+  if (typeof map === 'string' && Array.isArray(r.killPlaces)) {
     const kp = [...new Set(r.killPlaces.slice(0, 5).map((p) => knowledge.placeOf(map, p)).filter(Boolean))];
     if (kp.length) out.killPlaces = kp;
   }
@@ -335,6 +345,9 @@ function countsSent(c) {
   }
   return out;
 }
+
+/** The pattern keys kept past the eighth (normalise). */
+const PAST_CUT = new Set(['buys', 'sides']);
 
 const DASH = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
 
@@ -523,7 +536,11 @@ function leverRule(input, noTrade) {
  * them, and the summary and the round lines may quote no other number.
  */
 function matchCounts(input) {
-  const v = ((input && input.rounds) || []).filter((r) => r && r.verified);
+  // A round Riot says the player sat out (8.8, normalise's afk, sent for
+  // Riot's AFK and its stayed in spawn alike) is in no count: the block said
+  // "14 of your 16 deaths" where the counted mistakes, which leave it out
+  // since 8.7.9, said 12 of 14. The client's countsOf does the same.
+  const v = ((input && input.rounds) || []).filter((r) => r && r.verified && !r.afk);
   const deaths = v.filter((r) => r.died);
   const known = deaths.filter((r) => typeof r.traded === 'boolean');
   const alone = (r) => !!(r.alive && r.alive.mates <= 1);
@@ -558,7 +575,8 @@ function matchFacts(input) {
   if (postDef.length >= 3 && won(postDef) * 3 <= postDef.length) {
     out.retake = { text: `Once they planted on defence, your team won ${won(postDef)} of ${postDef.length} rounds.` };
   }
-  const deaths = v.filter((r) => r.died);
+  // The player's own deaths, never in a round they sat out (8.8, as matchCounts).
+  const deaths = v.filter((r) => r.died && !r.afk);
   const by = new Map();
   for (const r of deaths) if (r.killer) by.set(r.killer, (by.get(r.killer) || 0) + 1);
   const top = [...by.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
@@ -572,12 +590,60 @@ function matchFacts(input) {
   return out;
 }
 
+/** The rounds Riot says the player sat out (8.8), in order. */
+function satOutRounds(input) {
+  return ((input && input.rounds) || []).filter((r) => r && r.verified && r.afk).map((r) => r.n).sort((a, b) => a - b);
+}
+
+/** The line that says which rounds the counts leave out, or null. */
+function satOutLine(input) {
+  const ns = satOutRounds(input);
+  if (!ns.length) return null;
+  const list = ns.length === 1 ? `round ${ns[0]}` : `rounds ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
+  return `Riot marks you as sitting out ${list}, so ${ns.length === 1 ? 'it is' : 'they are'} left out of these counts.`;
+}
+
+/*
+ * A ROUND THE PLAYER SAT OUT IS JUDGED NOWHERE (8.8). lineWorthy gives it no
+ * line, and a summary or focus sentence that names it goes, unless the
+ * sentence is the one that says it was sat out. Only the prompt asked the
+ * model not to criticise it before, and code wins over the model. English
+ * only, every client: a round named by number after "round", or as R7.
+ */
+// A run of rounds, "rounds 5 to 14", is the team's record (the run of lost
+// rounds), not a judgement of one round in it, so it names none of them here.
+// Replayed with each round of the 24 round 7 reviews forced AFK, it was the
+// only kind of sentence the gate dropped that judged no round.
+const SAT_OUT_RANGE = /\brounds?\s+\d{1,2}\s+(?:to|through)\s+\d{1,2}\b/gi;
+const SAT_OUT_SAID = /\b(?:AFK|away from (?:the )?keyboard|sat (?:it |that round |this round )?out|sitting (?:it |that round |this round )?out|(?:stayed|in) (?:the |your )?spawn)\b/i;
+function satOutGate(out, input) {
+  if (promptName(input.context && input.context.language) !== 'English') return;
+  const ns = new Set(satOutRounds(input));
+  if (!ns.size) return;
+  for (const n of Object.keys(out.rounds)) {
+    if (!ns.has(Number(n))) continue;
+    delete out.rounds[n];
+    out.dropped.push({ n: Number(n), said: 'sat out round', riot: 'afk' });
+  }
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const ss = splitSentences(out[field]).map((s) => s.trim()).filter(Boolean);
+    const named = (s) => namedRounds(String(roundLabels(s)).replace(SAT_OUT_RANGE, ' ')).some((n) => ns.has(n));
+    const kept = ss.filter((s) => !named(s) || SAT_OUT_SAID.test(s));
+    if (kept.length === ss.length) continue;
+    out.dropped.push({ n: null, said: `${field} sat out round`, riot: 'afk' });
+    out[field] = kept.join(' ').trim() || null;
+  }
+}
+
 /** The SWING AND COUNTS block's lines: the swing, the counts, the records, each once, in that order. */
 function countLines(input) {
   const c = matchCounts(input);
   const lines = [...(input.swing || [])];
   const add = (t) => { if (t && !lines.includes(t)) lines.push(t); };
   if (c.deaths) add(`You died ${c.deaths} ${c.deaths === 1 ? 'time' : 'times'} in ${c.rounds} rounds.`);
+  const out = satOutLine(input);
+  if (out) add(out);
   if (c.known) add(`${c.untraded} of your ${c.known} deaths were not traded by a teammate within five seconds.`);
   if (c.alone && c.tradeable && c.tradeable < c.known) {
     add(`${c.alone} of those deaths came as the last player alive, when nobody was left to trade, so ${c.untradedMate} of your `
@@ -611,10 +677,27 @@ function mistakesShown(input) {
   return input.mistakes.map((m) => (m.key === 'untraded' ? { ...m, detail: qualifyCount(m.detail, input) } : m));
 }
 
-/** Every "N of M" the round 4 summary and round lines may quote: the block's and the counted mistakes'. */
+/** Every "N of M" the round 4 summary and round lines may quote: the block's, the counted mistakes' and the ledger's (round 8). */
 function allowedPairs(input) {
   return new Set(countLines(input).flatMap((t) => countPairs(t))
-    .concat((mistakesShown(input) || []).flatMap((m) => countPairs(m.detail))));
+    .concat((mistakesShown(input) || []).flatMap((m) => countPairs(m.detail)))
+    .concat(countPairs(ledgerOf(input))));
+}
+
+/*
+ * THE TRADES AND THE DISTANCE IN THE REVIEW (round 8, record-claims.js
+ * tradeLedger): the player's deaths split by Riot's nearest teammate and the
+ * trade, every count with its rounds, the match's and the early deaths', from
+ * the verified rounds the client already sends, so every client gets it. A
+ * round sat out is in none of it. '' where fewer than two deaths have a
+ * trade known, and the prompt is as before.
+ */
+const LEDGER_HEAD_REVIEW = "THE TRADES AND THE DISTANCE (counted in code from Riot's record, the only counts of trades or of a teammate close the summary and the round lines may give, exactly as written here)";
+function ledgerOf(input) {
+  if (recordClaims === undefined) recordClaims = shared('./record-claims');
+  const rc = recordClaims;
+  if (!rc || typeof rc.tradeLedger !== 'function' || !input) return '';
+  try { return rc.tradeLedger(rc.contextOfReview(input), { head: LEDGER_HEAD_REVIEW }) || ''; } catch { return ''; }
 }
 
 /*
@@ -770,6 +853,12 @@ function caseSituation(input, enemies) {
   if (sig) {
     for (const e of sig.caseEconomies) x.economies.add(e);
     for (const c of sig.causes) x.causes.add(c);
+    // A cause the record rules out (round 8): no isolation case where the
+    // deaths nobody traded had a teammate close and none far.
+    if (Array.isArray(sig.ruledOut) && sig.ruledOut.length) {
+      x.ruledOut = sig.ruledOut.slice();
+      for (const c of sig.ruledOut) x.causes.delete(c);
+    }
   }
   if (!round4(input)) return x;
   const f = matchFacts(input);
@@ -1091,13 +1180,67 @@ function placesKept(r, map) {
   };
 }
 
+/*
+ * THE NUMBERS STANDING AND WHAT THE DEATH LEFT (round 8, the blind audit of
+ * round 7). "4 of their team standing against 5" read as the opening fight
+ * and as the team after the death: Pearl round 4 became "the first one into
+ * a spot ... your death left four players ... a man down", where a teammate
+ * was already down and the death left 3 against 5. Said as what it was, the
+ * player counted, and what the death left, and a death that was not the
+ * first says how many teammates were already down.
+ */
+function standingWords(r) {
+  const m = r.alive.mates;
+  const e = r.alive.enemies;
+  if (m <= 1) return `the last of their team alive, 1 against ${e}, when they died`;
+  const before = !r.firstDeath && m < 5 ? `, not the first death: ${5 - m} teammate${5 - m === 1 ? '' : 's'} already down` : '';
+  return `their team ${m} against ${e} as they died, the player counted${before}, leaving ${m - 1} against ${e}`;
+}
+/*
+ * THE PLANT, WITH RIOT'S TIME (round 8). "Spike planted" alone, beside screen
+ * reads of "holding A Site while ally plants", gave Fracture round 5 "As your
+ * teammate plants, hold from cover", where Riot has the death after the
+ * spike went down. Where normalise kept Riot's plant second, the line says
+ * it and which side of it the death fell, by Riot's afterPlant (and the
+ * death's second beside it for a death before).
+ */
+function plantWords(r) {
+  let w = `spike planted${r.plantSpot ? ' at ' + r.plantSpot : ''}`;
+  if (!r.verified || !Number.isFinite(r.plantSec)) return w;
+  w += ` ${r.plantSec} seconds into the round`;
+  if (!r.died) return w;
+  if (r.afterPlant === true) return `${w}, before the death, so the player died with the spike down`;
+  if (r.afterPlant === false && Number.isFinite(r.sec) && r.sec + 0.5 <= r.plantSec) return `${w}, after the death, so the player died before the plant`;
+  return w;
+}
+/*
+ * THE SCREEN'S READS HELD TO THE PLANT'S PHASE (round 8). A read of the
+ * plant under way ("holding A Site while ally plants") is not sent for a death
+ * Riot has after the plant, nor a read of the spike down for a death Riot has
+ * before it. A round without Riot's plant time keeps its reads.
+ */
+const READ_DURING_PLANT = /\b(?:being\s+planted|is\s+planting|(?:while|as)\s+(?:an?\s+|the\s+)?(?:ally|allies|teammates?)\s+(?:is\s+|are\s+)?plant(?:s|ing)?)\b/i;
+const READ_SPIKE_DOWN = /\b(?:spike\s+planted|planted\s+spike|post[- ]?plant)\b/i;
+function phaseKept(reads, r) {
+  if (!r || !r.verified || !r.died || !Number.isFinite(r.plantSec) || !Array.isArray(reads)) return reads;
+  if (r.afterPlant === true) return reads.filter((t) => !READ_DURING_PLANT.test(t));
+  if (r.afterPlant === false && Number.isFinite(r.sec) && r.sec + 0.5 <= r.plantSec) return reads.filter((t) => !READ_SPIKE_DOWN.test(t));
+  return reads;
+}
+
 function roundLine(r0, opts) {
-  const r = opts && opts.map ? { ...r0, ...placesKept(r0, opts.map) } : r0;
+  const r1 = opts && opts.map ? { ...r0, ...placesKept(r0, opts.map) } : r0;
+  const r = { ...r1, reads: phaseKept(r1.reads, r1) };
   const bits = [`R${r.n}`];
   bits.push([r.side === 'attacking' ? 'attack' : r.side === 'defending' ? 'defence' : 'side unread',
     r.result || 'result unread'].join(', '));
   const facts = [];
-  if (r.verified) {
+  if (r.verified && r.afk) {
+    // A round the player sat out (8.8): Riot's flag first, then only what
+    // happened, no first death, odds, trade, ultimate or look to judge it by.
+    facts.push('Riot marks the player as sitting this round out, so nothing in it is their mistake');
+    if (r.died) facts.push(`died${r.sec !== null ? ` ${r.sec} seconds into the round` : ''}${r.killer ? `, killed by ${r.killer}` : ''}`);
+  } else if (r.verified) {
     // Riot's record: exact, so stated exactly.
     if (r.died) {
       let d = `died${r.deathSpot ? ' at ' + r.deathSpot : ''}`;
@@ -1105,7 +1248,8 @@ function roundLine(r0, opts) {
       if (r.killer) d += `, killed by ${r.killer}${r.weapon ? ' with ' + withArticle(r.weapon) : ''}`;
       facts.push(d);
       if (r.firstDeath) facts.push('first player to die that round');
-      if (r.alive) facts.push(`${r.alive.mates} of their team standing against ${r.alive.enemies} when they died`);
+      // A client before round 4 (no `counts`) keeps the old words, byte for byte.
+      if (r.alive) facts.push(opts && opts.plant ? standingWords(r) : `${r.alive.mates} of their team standing against ${r.alive.enemies} when they died`);
       if (r.traded === true) facts.push('a teammate traded the death');
       if (r.traded === false) facts.push('nobody traded the death');
       if (r.ultReady) facts.push('ultimate was ready when they died');
@@ -1115,6 +1259,10 @@ function roundLine(r0, opts) {
     }
     if (r.kills !== null) facts.push(`${r.kills} kill${r.kills === 1 ? '' : 's'}`);
     if (r.firstKill) facts.push('got the first kill of the round');
+    // Where the player's kills fell, apart from where they died (round 8:
+    // Sunset 4 to 13 round 7 gave the first kill the death's A Alley, where
+    // Riot has the kill at A Elbow, with only the death's place in the line).
+    if (Array.isArray(r.killPlaces) && r.killPlaces.length) facts.push(`the player's kills fell at ${[...new Set(r.killPlaces)].join(', ')}`);
     // The round record beyond the feed (8.8, recordSent), only where sent.
     if (r.mate) facts.push(r.mate === 'close' ? 'a teammate stood close when they died' : 'no teammate stood close when they died');
     if (r.buy) facts.push(`the team played it on ${RECORD_BUY[r.buy]}`);
@@ -1123,15 +1271,19 @@ function roundLine(r0, opts) {
       facts.push(used.length ? `abilities used: ${used.map((c) => `${c.name} ${c.n === 1 ? 'once' : c.n === 2 ? 'twice' : `${c.n} times`}`).join(', ')}`
         : 'no ability used');
     }
-    if (r.afk) facts.push('Riot marks the player as sitting this round out, so nothing in it is their mistake');
   } else if (r.died) {
     facts.push(`died${r.deathSpot ? ' at ' + r.deathSpot : ''}${r.timing ? ', ' + r.timing + ' in the round' : ''}`);
     if (r.ultReady) facts.push('ultimate was ready when they died');
   }
-  if (r.planted) facts.push(`spike planted${r.plantSpot ? ' at ' + r.plantSpot : ''}`);
+  if (r.planted) facts.push(plantWords(r));
   // Round 4: Riot's record says whether the spike went down, so a round with
   // none says so, and advice that needs a plant is never given for it.
   else if (opts && opts.plant && r.verified) facts.push('spike not planted');
+  // The enemy's side said by its noun (round 8: Corrode 3 to 13 round 1 told
+  // an attacker to "make the attacker expose themselves").
+  if (opts && opts.plant && r.verified && !r.afk && (r.side === 'attacking' || r.side === 'defending')) facts.push(`the enemy were the ${r.side === 'attacking' ? 'defenders' : 'attackers'}`);
+  // A won round given a line (round 8, wonPicks).
+  if (opts && opts.risk) facts.push('your team won it anyway, so say what the death risked, never that it lost the round');
   let line =`${bits.join(' ')}${facts.length ? '. ' + facts.join('; ') : ''}.`;
   // The last of what the screen showed the player doing in play, before the
   // death where there was one. Only play reaches here (normalise).
@@ -1261,10 +1413,12 @@ function promptRounds(input, withKnowledge, opts) {
   // no block, never one saying nothing was counted.
   const block = (head, list) => (list
     ? `\n\n${head}\n${list.length ? counted(list) : '- none cleared the bar in this match'}` : '');
-  const picks = teachable(rounds);
+  const picks = linePicks(input);
   const r4 = round4(input);
+  // A won round picked for a line (wonPicks) says so in its facts.
+  const risk = new Set(wonPicks(rounds, { won: r4 }));
   const assemble = (knowledgeBlock) => `You are reviewing one finished Valorant match for the player, ${who}. ${score}\n\n`
-    + `${ledgerNote}\n${(r4 ? rounds.map((r) => roundLine(r, { plant: true, map: context.map })) : rounds.map((r) => roundLine(r, { map: context.map }))).join('\n')}\n\n`
+    + `${ledgerNote}\n${(r4 ? rounds.map((r) => roundLine(r, { plant: true, map: context.map, risk: risk.has(r.n) })) : rounds.map((r) => roundLine(r, { map: context.map }))).join('\n')}\n\n`
     + `COMPUTED PATTERNS (arithmetic over the ledger, these are true):\n`
     + (patterns.length ? patterns.map((p) => '- ' + p.text).join('\n') : '- none cleared the bar in this match')
     + block('COUNTED MISTAKES (counted from the rounds above, most serious first, these are true):', mistakesShown(input))
@@ -1472,6 +1626,16 @@ const ROUND4_SWAPS = [
     'so never set a drill there that needs one. Never mention this review, a next review, the app or what it can check, and never '
       + 'suggest anything but playing, in a match, in Deathmatch or in the Range.\n\n'],
 ];
+/*
+ * THE SWING LINE IS THE SERVER'S (round 8, the Ascendant Fracture review). Told
+ * to quote the SWING AND COUNTS block's first line inside sentence one, the
+ * model glued a won score to a count of deaths: "You won 5 to 1, opening
+ * fights and winning key duels despite this: you died 3 times in 6 rounds."
+ * In an English review sentence one is now the score and what decided it, and
+ * parse puts the block's first line after it, verbatim (swingInto). A review
+ * in another language keeps the old rule, since the line is English.
+ */
+const SWING_SWAP_EN = 'and never a line of the SWING AND COUNTS block: its first line is put after this sentence for you, word for word, as the second sentence. ';
 const GROUNDING4_SWAPS = [
   ['In the SUMMARY write no counts or fractions such as 6 of 12 except the counted mistake\'s own count and a swing fact\'s numbers, exactly as given;',
     'In the SUMMARY and the round lines write no counts or fractions such as 6 of 12 except the numbers of the SWING AND COUNTS block and the counted mistake\'s own count, exactly as written there;'],
@@ -1493,9 +1657,15 @@ function round4Write(input, picks) {
   const high = HIGH_BANDS.has(knowledge.validBand(input.context.rankBand));
   // From Platinum, the deaths ranked by what each cost (costLineOf, the blind audit of 8.7.9).
   const cost = high ? costLineOf(input) : '';
-  let text = round3Write(input, picks, { swing: cost ? `${swing}\n\n${cost}` : swing, kit, lever: lever ? leverRule4(input, lever) : leverRule(input, high) });
+  // The trades and the distance, counted in code (round 8, ledgerOf), every band.
+  const ledger = ledgerOf(input);
+  const swingAll = [swing, ledger ? `\n\n${ledger}` : '', cost ? `\n\n${cost}` : ''].join('');
+  let text = round3Write(input, picks, { swing: swingAll, kit, lever: lever ? leverRule4(input, lever) : leverRule(input, high) });
+  // The SWING line is the server's in an English review (swingInto, round 8).
+  const english = promptName(input.context && input.context.language) === 'English';
   for (const [from, to] of ROUND4_SWAPS) {
-    text = text.replace(from, to.replace('{KIT}', kit ? ' Say of an ability only what its line under WHAT THE ABILITIES DO says.' : ''));
+    const into = english && to === ROUND4_SWAPS[0][1] ? SWING_SWAP_EN : to;
+    text = text.replace(from, into.replace('{KIT}', kit ? ' Say of an ability only what its line under WHAT THE ABILITIES DO says.' : ''));
   }
   if (text.endsWith(GROUNDING3)) text = text.slice(0, -GROUNDING3.length) + depthRule(input.context.rankBand) + GROUNDING4;
   return text;
@@ -1578,6 +1748,9 @@ function recordUse(rounds) {
  * movement": a won round with no death has nothing to explain.
  */
 function lineWorthy(r) {
+  // Never a round Riot says the player sat out (8.8): teachable picked the
+  // AFK round on the real Split for a coaching line.
+  if (r.afk) return false;
   return (r.died || !!r.cause) && r.result !== 'won';
 }
 
@@ -1592,14 +1765,43 @@ function lineWorthy(r) {
  * round with play seen before the death outranks a silent one. Ties go to
  * spreading the picks across the match.
  */
-function teachable(rounds, limit = MAX_ROUND_LINES) {
+const lineScore = (r) => (r.result === 'lost' ? 3 : 0) + (r.firstDeath ? 3 : 0) + (r.died ? 2 : 0)
+  + (r.verified && r.sec !== null && r.sec <= 30 ? 1 : 0) + (r.reads.length ? 1 : 0);
+/*
+ * A WON ROUND GETS A LINE WHEN TOO FEW LOST ONES DO (round 8, the coaching
+ * sweep of round 7). Fracture 5 to 1 had one round worth a line, round 5, and
+ * the Plat review lost it to a gate and showed none; round 2's repeek at 57
+ * HP, the clearest lesson of the match, was in a round the team won, so no
+ * line could teach it. With fewer than two rounds worth a line, a death in a
+ * won round Riot verified that the coach looked at or that was the first of
+ * the round may have one too, two at most, each scored below any lost round
+ * (1, a look 2, a first death 2), and its facts say the team won it anyway,
+ * so the line says what the death risked, never that it lost the round.
+ * Opt in (opts.won): a round 4 client's review. Every other caller is as
+ * before.
+ */
+const WON_LINES = 2;
+function wonWorthy(r) {
+  return !!(r && !r.afk && r.verified && r.result === 'won' && r.died && (r.cause || r.firstDeath));
+}
+function wonPicks(rounds, opts) {
+  if (!(opts && opts.won) || (rounds || []).filter(lineWorthy).length >= 2) return [];
+  return rounds.filter(wonWorthy)
+    .map((r) => ({ n: r.n, score: 1 + (r.cause ? 2 : 0) + (r.firstDeath ? 2 : 0) }))
+    .sort((a, b) => b.score - a.score || a.n - b.n)
+    .slice(0, WON_LINES)
+    .map((x) => x.n);
+}
+/** The rounds a review gives a line, a round 4 client's won ones too (wonPicks). */
+function linePicks(input) {
+  return teachable(input.rounds, MAX_ROUND_LINES, { won: round4(input) });
+}
+function teachable(rounds, limit = MAX_ROUND_LINES, opts) {
+  const won = wonPicks(rounds, opts);
   const scored = rounds
     .filter(lineWorthy)
-    .map((r) => ({
-      n: r.n,
-      score: (r.result === 'lost' ? 3 : 0) + (r.firstDeath ? 3 : 0) + (r.died ? 2 : 0)
-        + (r.verified && r.sec !== null && r.sec <= 30 ? 1 : 0) + (r.reads.length ? 1 : 0),
-    }));
+    .map((r) => ({ n: r.n, score: lineScore(r) }))
+    .concat(rounds.filter((r) => won.includes(r.n)).map((r) => ({ n: r.n, score: -5 + 1 + (r.cause ? 2 : 0) + (r.firstDeath ? 2 : 0) })));
   const picked = [];
   const byScore = scored.slice().sort((a, b) => b.score - a.score || a.n - b.n);
   // Two passes: the best round in each third of the match first, then the rest
@@ -1729,11 +1931,11 @@ function namedRounds(text) {
   return out;
 }
 
-function parse(text, input) {
+function parse(text, input, opts = {}) {
   const out = { summary: null, rounds: {}, focus: null, dropped: [], blamed: [] };
   // Only a round worth a line can have one (lineWorthy): a won round with no
   // death is never explained, whatever the model writes.
-  const valid = new Set(input.rounds.filter(lineWorthy).map((r) => r.n));
+  const valid = new Set(input.rounds.filter(lineWorthy).map((r) => r.n).concat(wonPicks(input.rounds, { won: round4(input) })));
   let current = null;
   // LABELS ARE SPLIT ONTO THEIR OWN LINES FIRST. The first live bench got every
   // reply back as ONE line, because textInfer's sanitize() collapses newlines,
@@ -1791,6 +1993,40 @@ function parse(text, input) {
   for (const n of Object.keys(out.rounds)) out.rounds[n] = qualifyCount(out.rounds[n], input);
   // What each field said before any gate, for the coherence pass (cohere).
   const said = { summary: out.summary, focus: out.focus };
+
+  // NO PLAYER NAMED, FIRST (round 8). The route's name pass (coach.js
+  // withoutNames, handed in as opts.withoutNames) runs here, before every
+  // other gate and after `said`, so the coherence and structural passes read
+  // a name drop as they read any other: the Plat Fracture review lost its
+  // focus's lead to the name gate after parse, and the tradeoff tail "You give
+  // up a quick kill attempt..." was served as the whole focus. A summary or
+  // focus sentence naming someone goes alone, a round line whole. Logged by
+  // place and kind only (said 'name'), never the word.
+  const unnamed = opts && typeof opts.withoutNames === 'function' ? opts.withoutNames : null;
+  // Each field's sentences the name pass took, for the coherence pass: a
+  // connective after one loses the connective, not its sentence (cohere).
+  const byName = { summary: new Set(), focus: new Set() };
+  if (unnamed) {
+    for (const field of ['summary', 'focus']) {
+      if (!out[field]) continue;
+      let g = null;
+      try { g = unnamed(out[field]); } catch { g = null; }
+      if (g && g.dropped) {
+        const left = new Set(splitSentences(g.text || '').map((s) => s.trim().slice(0, 24)));
+        for (const s of splitSentences(out[field]).map((x) => x.trim()).filter(Boolean)) if (!left.has(s.slice(0, 24))) byName[field].add(s.slice(0, 24));
+        out[field] = g.text || null;
+        out.dropped.push({ n: null, said: `${field} name`, riot: null });
+      }
+    }
+    for (const n of Object.keys(out.rounds)) {
+      let g = null;
+      try { g = unnamed(out.rounds[n]); } catch { g = null; }
+      if (g && g.dropped) {
+        delete out.rounds[n];
+        out.dropped.push({ n: Number(n), said: 'name', riot: null });
+      }
+    }
+  }
 
   // NO COUNTS IN THE SUMMARY. The prompt said to quote a pattern's numbers
   // exactly or not at all, and the model still wrote "six of twelve attack
@@ -1895,6 +2131,8 @@ function parse(text, input) {
   // result, the team's record after the plant blamed on a player who died
   // before it, and a Deathmatch drill about an enemy agent. Every client.
   recordGates(out, input);
+  // A round Riot says the player sat out is judged nowhere (8.8).
+  satOutGate(out, input);
 
   // ROUND 4: a round line quoting a count the SWING AND COUNTS block does
   // not hold goes whole, as a summary sentence does, and from Platinum one
@@ -1921,13 +2159,206 @@ function parse(text, input) {
   // still read. A sentence that leans on a dropped one goes with it.
   for (const field of ['summary', 'focus']) {
     if (!out[field]) continue;
-    const c = cohere(said[field], out[field]);
+    const c = cohere(said[field], out[field], byName[field]);
     if (c.gone) out.dropped.push({ n: null, said: `${field} orphan`, riot: null });
     out[field] = c.text;
   }
   seamGates(out, input);
   structureGates(out, input, said);
+  focusGate(out, input);
   return out;
+}
+
+/*
+ * THE FOCUS STILL INSTRUCTS AFTER THE GATES (round 8, coherence.js instructs):
+ * a focus with no sentence that says what to do, the Plat Fracture review's
+ * "You give up a quick kill attempt to keep the advantage while the clock
+ * runs.", goes (said 'focus no instruction'), and the review floor asks for
+ * it again or computes one (floorOf). Of 123 review focuses served in rounds
+ * 1 to 7 it was the only one that fails. English only.
+ */
+function focusGate(out, input) {
+  if (!out.focus || promptName(input.context && input.context.language) !== 'English') return;
+  if (coherenceShared === undefined) coherenceShared = shared('./coherence');
+  const co = coherenceShared;
+  if (!co || typeof co.instructs !== 'function' || co.instructs(out.focus)) return;
+  out.focus = null;
+  out.dropped.push({ n: null, said: 'focus no instruction', riot: null });
+}
+
+/*
+ * THE SWING LINE, PUT IN BY CODE (round 8, SWING_SWAP_EN): the SWING AND
+ * COUNTS block's first line, word for word, as the summary's second sentence,
+ * unless a sentence of it already gives that line's numbers in order. A
+ * round 4 client's English review with a summary only. The route's, after
+ * parse and the floor: parse stays the gates' alone.
+ */
+function swingInto(out, input) {
+  if (!out.summary || !round4(input) || promptName(input.context && input.context.language) !== 'English') return;
+  const line = countLines(input)[0];
+  if (!line) return;
+  const nums = (t) => (String(t).match(/\d+/g) || []).join(' ');
+  const want = nums(line);
+  const ss = splitSentences(out.summary).map((s) => s.trim()).filter(Boolean);
+  const has = (s) => (want ? ` ${nums(s)} `.includes(` ${want} `) : false);
+  // Its words anywhere in the summary are it too ("and your team had no controller: Jett, ...").
+  const bare = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if (ss.some(has) || bare(out.summary).includes(bare(line))) return;
+  ss.splice(1, 0, line);
+  out.summary = ss.join(' ');
+}
+
+/*
+ * ── THE REVIEW FLOOR (round 8, the blind audit of round 7) ─────────────────
+ *
+ * The Plat Fracture 5 to 1 review was served with no ROUND line, round 5 the
+ * one round worth one, and the focus "You give up a quick kill attempt to keep
+ * the advantage while the clock runs.", its instruction cut by the name gate.
+ * Chat asked again for a reply its gates emptied; the review never did. Now a
+ * review shows at least one ROUND line where a round is worth one (linePicks)
+ * and a focus that says what to do (coherence.js instructs, focusGate). The
+ * route asks once more with the reasons in plain words (floorNote), takes
+ * from the second reply only what the first could not show (floorMerge), and
+ * what is still missing is computed here (floorFill): one line from the
+ * round's own facts, for the costliest death (record-claims.js costRank where
+ * the review ranks them, else the best scored), and the focus from that
+ * line's instruction. Both run back through parse, every gate and the name
+ * pass with them, and a line any gate drops is never shown.
+ */
+function floorFails(out, input) {
+  const fails = [];
+  // Variant A, the bench's baseline (8.8 review): its prompt asks for three
+  // unlabelled sentences, so it never has a round line or a focus. Floored, it
+  // made a second call on every baseline review and stopped being the old one.
+  if (input && input.variant === 'A') return fails;
+  if (linePicks(input).length && !Object.keys(out.rounds || {}).length) fails.push('rounds');
+  if (!out.focus) fails.push('focus');
+  return fails;
+}
+
+const FLOOR_SAYS = {
+  name: 'a line used a word that is part of a player\'s name in this match, so write each line again in different words',
+  record: 'a line said something Riot\'s record of the match contradicts, so say only what the round facts give',
+  lean: 'a sentence leaned on one that could not be shown, so make each sentence stand on its own',
+  focus: 'the FOCUS did not say what to do, so open it on what the player should do and in which situation',
+  rounds: 'no ROUND line could be shown, so write one line for each round listed, R<number>: and the lesson',
+  other: 'a line broke one of the rules above, so follow them exactly',
+};
+/** The kind of a dropped or blamed entry, for the logs, the response's counts and the floor's reasons: never its text. */
+function dropKind(d) {
+  const said = String((d && d.said) || '');
+  if (/(?:^| )name$/.test(said)) return 'name';
+  if (/^(?:(?:summary|focus) )?record\b/.test(said)) return 'record';
+  if (said === 'traded' || said === 'not traded') return 'trade';
+  if (AGENT_NAMES.includes(said)) return 'killer';
+  if (said === 'focus no instruction') return 'focus';
+  const m = /^(?:summary|focus) (.+)$/.exec(said);
+  return (m ? m[1] : said).split(' ')[0] || 'other';
+}
+function floorNote(out, fails) {
+  const kinds = new Set((out.dropped || []).map(dropKind));
+  const says = [];
+  if (kinds.has('name')) says.push(FLOOR_SAYS.name);
+  if (['record', 'trade', 'killer', 'count'].some((k) => kinds.has(k))) says.push(FLOOR_SAYS.record);
+  if (['orphan', 'garble', 'seam'].some((k) => kinds.has(k))) says.push(FLOOR_SAYS.lean);
+  if (fails.includes('focus')) says.push(FLOOR_SAYS.focus);
+  if (fails.includes('rounds')) says.push(FLOOR_SAYS.rounds);
+  if (!says.length) says.push(FLOOR_SAYS.other);
+  return `\n\nYOUR LAST REPLY COULD NOT BE SHOWN IN FULL: ${says.join(', and ')}. Write the whole reply again, every label in it.`;
+}
+/** The first reply's fields that passed, the retry's where the first had none. */
+function floorMerge(first, second) {
+  if (!second) return first;
+  const out = { ...first, rounds: { ...first.rounds }, dropped: [...first.dropped], blamed: [...first.blamed] };
+  if (!Object.keys(out.rounds).length && second.rounds) out.rounds = { ...second.rounds };
+  if (!out.focus && second.focus) out.focus = second.focus;
+  if (!out.summary && second.summary) out.summary = second.summary;
+  return out;
+}
+
+/*
+ * ONE LINE FROM THE ROUND'S OWN FACTS, by its situation, the same lessons the
+ * round rule names: after the plant on attack, after their plant on defence,
+ * a defence with the team ahead, an untraded death with the nearest teammate
+ * far or close, a first death on attack, and the side's own lesson. Each says
+ * what to do, then why, and names no player, no killer and no time.
+ */
+function floorLine(r) {
+  if (!r || !r.died) return null;
+  const a = r.alive || null;
+  const ahead = !!(a && a.mates > a.enemies);
+  const attack = r.side === 'attacking';
+  const defence = r.side === 'defending';
+  if (!attack && !defence) return null;
+  if (attack && r.afterPlant === true) {
+    return `After the plant${ahead ? ` with your team up ${a.mates} against ${a.enemies}` : ''}, hold the spike from cover and make the defenders come to you, because the clock is theirs to beat and a second duel can give the round back.`;
+  }
+  if (defence && r.afterPlant === true) {
+    return 'With the spike down, wait for a teammate before you take the fight for the defuse, because a retake played alone is one duel against a site that is already set.';
+  }
+  if (defence && ahead) {
+    return `With your team up ${a.mates} against ${a.enemies}, hold your angle from cover and let them come to you, because they have to take the space back and you do not need the fight.`;
+  }
+  if (r.traded === false && r.mate === 'far') {
+    return 'Take that fight only where a teammate can see the same enemy, because nobody was close enough to kill your killer.';
+  }
+  if (r.traded === false && r.mate === 'close') {
+    return 'Wait until the teammate beside you is ready to swing with you, because a teammate stood close and the fight still went unanswered.';
+  }
+  if (attack && r.firstDeath) {
+    return 'On the entry, go in on a teammate\'s flash, drone or smoke and say who follows you, because the first death leaves your team a player down before the site is taken.';
+  }
+  if (defence) {
+    return 'On defence, play the first contact from cover and give ground to your team after it, because a defender who falls back alive keeps the numbers for the next fight.';
+  }
+  return 'On attack, take the next fight with a teammate set to swing right behind you, because one fight at a time with a trade ready keeps the numbers on your side.';
+}
+const floorFocusOf = (line) => (line ? line.replace(/,\s+because[\s\S]*$/, '.') : null);
+
+/** The rounds the floor may compute a line for, costliest first. */
+function floorOrder(input) {
+  const picks = linePicks(input);
+  const byN = new Map(input.rounds.map((r) => [r.n, r]));
+  const lost = picks.filter((n) => lineWorthy(byN.get(n)));
+  const won = picks.filter((n) => !lost.includes(n));
+  const scored = (ns) => ns.slice().sort((x, y) => lineScore(byN.get(y)) - lineScore(byN.get(x)) || x - y);
+  let order = scored(lost).concat(scored(won));
+  const cost = costOf(input);
+  if (cost && Array.isArray(cost.ranked)) {
+    const ranked = cost.ranked.map((x) => x && x.n).filter((n) => picks.includes(n));
+    order = ranked.concat(order.filter((n) => !ranked.includes(n)));
+  }
+  // A died round worth no pick still gives a focus when there is no pick.
+  if (!order.length) order = input.rounds.filter((r) => r.died && !r.afk && r.verified).map((r) => r.n);
+  return order.map((n) => byN.get(n)).filter(Boolean);
+}
+
+/**
+ * What is still missing after the retry, computed: a ROUND line where one is
+ * needed, the focus where none instructs. Each through parse (opts.withoutNames
+ * the route's name pass), so a computed line no gate keeps is never shown.
+ * Returns the fields it filled, ['rounds', 'focus'] or fewer.
+ */
+function floorFill(out, input, opts = {}) {
+  const fails = floorFails(out, input);
+  const filled = [];
+  // The computed lines are English: a review in another language is asked again, never filled.
+  if (!fails.length || promptName(input.context && input.context.language) !== 'English') return filled;
+  const needRound = fails.includes('rounds');
+  const needFocus = fails.includes('focus');
+  const picks = new Set(linePicks(input));
+  for (const r of floorOrder(input)) {
+    const line = floorLine(r);
+    if (!line) continue;
+    const focus = floorFocusOf(line);
+    const text = [picks.has(r.n) && needRound && !filled.includes('rounds') ? `R${r.n}: ${line}` : '', needFocus && !filled.includes('focus') ? `FOCUS: ${focus}` : ''].filter(Boolean).join('\n');
+    if (!text) break;
+    const got = parse(text, input, { withoutNames: opts.withoutNames });
+    if (needRound && !filled.includes('rounds') && got.rounds[r.n]) { out.rounds = { ...out.rounds, [r.n]: got.rounds[r.n] }; filled.push('rounds'); }
+    if (needFocus && !filled.includes('focus') && got.focus) { out.focus = got.focus; filled.push('focus'); }
+    if ((!needRound || filled.includes('rounds')) && (!needFocus || filled.includes('focus'))) break;
+  }
+  return filled;
 }
 
 /*
@@ -1959,16 +2390,33 @@ function structureGates(out, input, said) {
     for (const s of kept) if (!used.has(key(s))) rows.push({ s, dropped: false, p: 0 });
     let found = [];
     try { found = co.checkStructure(rows); } catch { found = []; }
-    if (!found.length) continue;
     const gone = new Set(found.map((f) => rows[f.index].s));
     for (const f of found) out.dropped.push({ n: null, said: `${field} ${f.kind === 'garble' ? 'garble' : 'orphan'}`, riot: null });
-    out[field] = kept.filter((s) => !gone.has(s)).join(' ').trim() || null;
+    // A connective after a cut (coherence.js repairConnective, round 8): "So"
+    // struck where what it concluded from went, "That is why" gone with it.
+    const fix = new Map();
+    if (typeof co.repairConnective === 'function') {
+      let conn = [];
+      try { conn = co.repairConnective(rows.map((r) => ({ s: r.s, dropped: r.dropped || gone.has(r.s), p: 0 }))); } catch { conn = []; }
+      for (const c of conn) {
+        if (c.kind === 'back') { gone.add(rows[c.index].s); out.dropped.push({ n: null, said: `${field} orphan`, riot: null }); } else fix.set(rows[c.index].s, c.s);
+      }
+    }
+    if (!gone.size && !fix.size) continue;
+    out[field] = kept.filter((s) => !gone.has(s)).map((s) => fix.get(s) || s).join(' ').trim() || null;
   }
   for (const n of Object.keys(out.rounds)) {
     const ss = splitSentences(out.rounds[n]).map((s) => s.trim()).filter(Boolean);
     if (ss.some((s) => co.garbleOf(s))) {
       delete out.rounds[n];
       out.dropped.push({ n: Number(n), said: 'garble', riot: null });
+      continue;
+    }
+    // A round line opening "So, ..." reads as its clause (repairConnective).
+    if (typeof co.repairConnective === 'function' && ss.length) {
+      let conn = [];
+      try { conn = co.repairConnective([{ s: ss[0], dropped: false }]); } catch { conn = []; }
+      if (conn.length && conn[0].kind === 'strip') out.rounds[n] = [conn[0].s, ...ss.slice(1)].join(' ');
     }
   }
 }
@@ -2032,6 +2480,37 @@ function costLineOf(input) {
   return c && c.line ? c.line : '';
 }
 
+/*
+ * THE TRUE SENTENCES OF A LINE THE RECORD CUT (8.8 review). A round line went
+ * whole for one sentence the record contradicts, and the floor put its
+ * computed line in place: the Fracture Iron R5 "As your teammate plants, hold
+ * from cover ... You lost a fair fight on the shot." lost the true second
+ * sentence with the false first. The line's other sentences are kept where
+ * none leans on the cut one (a pointer, "That ...", "So ..." after it), and
+ * where what is left gives no instruction the round's computed line
+ * (floorLine) leads it, so the line still says what to do. Every later gate
+ * still reads the line. Null when nothing is fit to keep.
+ */
+const LEANS_BACK = /^(?:that|this|it|which|then|so|these|those|there)\b/i;
+function lineRest(ss, drops, rewrites, r) {
+  if (coherenceShared === undefined) coherenceShared = shared('./coherence');
+  const co = coherenceShared;
+  if (!co || typeof co.instructs !== 'function' || typeof co.isPointer !== 'function') return null;
+  const gone = new Set(drops.map((f) => f.index));
+  const rest = [];
+  for (let i = 0; i < ss.length; i++) {
+    if (gone.has(i)) continue;
+    const s = rewrites.get(i) || ss[i];
+    if (co.isPointer(s) || (gone.has(i - 1) && LEANS_BACK.test(s.trim()))) return null;
+    rest.push(s);
+  }
+  if (!rest.length) return null;
+  const text = rest.join(' ');
+  if (co.instructs(text)) return text;
+  const lead = floorLine(r);
+  return lead ? `${lead} ${text}` : null;
+}
+
 /** The record gates over a parsed review (record-claims.js checkRows): a round line goes whole, a summary or focus sentence alone. English only. */
 function recordGates(out, input) {
   if (promptName(input.context && input.context.language) !== 'English') return;
@@ -2040,22 +2519,28 @@ function recordGates(out, input) {
   if (!rc || typeof rc.checkRows !== 'function') return;
   const ctx = rc.contextOfReview(input);
   if (!ctx.rounds.size) return;
+  // A hit with a rewrite (round 8, checkAlone: "nobody could trade you" of a
+  // death with a teammate close and no trade) keeps the sentence in the
+  // record's words; every other hit drops it.
+  const split = (found) => ({ drops: found.filter((f) => f.reason), rewrites: new Map(found.filter((f) => !f.reason && f.rewrite).map((f) => [f.index, f.rewrite])) });
   for (const n of Object.keys(out.rounds)) {
     const ss = splitSentences(out.rounds[n]).map((s) => s.trim()).filter(Boolean);
-    const found = rc.checkRows(ss.map((s) => ({ s, p: 0 })), ctx, { round: Number(n) });
-    if (found.length) {
+    const { drops, rewrites } = split(rc.checkRows(ss.map((s) => ({ s, p: 0 })), ctx, { round: Number(n) }));
+    if (drops.length) {
       delete out.rounds[n];
-      out.dropped.push({ n: Number(n), said: `record ${found[0].kind}`, riot: null });
-    }
+      out.dropped.push({ n: Number(n), said: `record ${drops[0].kind}`, riot: null });
+      const rest = lineRest(ss, drops, rewrites, (input.rounds || []).find((r) => r.n === Number(n)) || null);
+      if (rest) out.rounds[n] = rest;
+    } else if (rewrites.size) out.rounds[n] = ss.map((s, i) => rewrites.get(i) || s).join(' ');
   }
   for (const field of ['summary', 'focus']) {
     if (!out[field]) continue;
     const ss = splitSentences(out[field]).map((s) => s.trim()).filter(Boolean);
-    const found = rc.checkRows(ss.map((s) => ({ s, p: 0 })), ctx);
-    if (!found.length) continue;
-    const gone = new Set(found.map((f) => f.index));
-    for (const f of found) out.dropped.push({ n: null, said: `${field} record ${f.kind}`, riot: null });
-    out[field] = ss.filter((_, i) => !gone.has(i)).join(' ').trim() || null;
+    const { drops, rewrites } = split(rc.checkRows(ss.map((s) => ({ s, p: 0 })), ctx));
+    if (!drops.length && !rewrites.size) continue;
+    const gone = new Set(drops.map((f) => f.index));
+    for (const f of drops) out.dropped.push({ n: null, said: `${field} record ${f.kind}`, riot: null });
+    out[field] = ss.map((s, i) => rewrites.get(i) || s).filter((_, i) => !gone.has(i)).join(' ').trim() || null;
   }
 }
 
@@ -2073,7 +2558,8 @@ function seamGates(out, input) {
   if (!co || typeof co.repairSeams !== 'function') return;
   const mend = (text) => {
     const ss = splitSentences(text).map((s) => s.trim()).filter(Boolean);
-    const kept = ss.map((s) => co.repairSeams(s));
+    // The SWING line glued on with "despite this:" is split first (round 8, splitSwingSeam).
+    const kept = ss.map((s) => co.repairSeams(typeof co.splitSwingSeam === 'function' ? co.splitSwingSeam(s) || s : s));
     // A text nothing was repaired in is kept as it was, its spacing too.
     if (kept.every((s, i) => s === ss[i])) return { text, cut: false };
     return { text: kept.filter(Boolean).join(' ').trim() || null, cut: kept.some((s) => s === null) };
@@ -2215,7 +2701,17 @@ const THIRD = /\b(?:she|her|hers|he|him|his)\b/i;
 // Who a "her" can point to: an agent (abilityFacts.agentsIn) or one of these.
 // Not "a teammate", which the advice itself names: "Fight her with a teammate".
 const NAMES_SOMEONE = /\b(?:enemy|enemies|opponents?|defenders?|attackers?|killers?|duelists?|sentinels?|controllers?|initiators?|lurkers?|anchors?|snipers?|Operators?)\b/i;
-function cohere(before, now) {
+/*
+ * A connective that only joins two pieces of advice. After a sentence the NAME
+ * pass took (byName, round 8 review), "Also, use your smoke before you swing
+ * wide on A." stands on its own, so it keeps as "Use your smoke before you
+ * swing wide on A."; before round 8 the name pass ran after this one and kept
+ * it, and moved into parse it emptied the focus. After any other gate's drop
+ * the sentence still goes whole, since its claim may rest on the false one, and
+ * a referential opener (It, This, They, Her) goes after any drop.
+ */
+const CONNECTIVE = /^(?:So|Then|Also),?\s+(?=\S)/;
+function cohere(before, now, byName) {
   if (!now) return { text: now, gone: false };
   const orig = splitSentences(before).map((s) => s.trim()).filter(Boolean);
   const kept = splitSentences(now).map((s) => s.trim()).filter(Boolean);
@@ -2229,6 +2725,12 @@ function cohere(before, now) {
     const afterDrop = at > 0 && !keptKeys.has(key(orig[at - 1]));
     const leans = afterDrop && LEANS.test(s);
     const dangling = THIRD.test(s) && !someone(s) && !out.some(someone) && orig.length > kept.length;
+    const joinsOnly = leans && !dangling && byName && byName.has(key(orig[at - 1])) && CONNECTIVE.test(s);
+    if (joinsOnly) {
+      const rest = s.replace(CONNECTIVE, '');
+      out.push(rest.charAt(0).toUpperCase() + rest.slice(1));
+      continue;
+    }
     if (leans || dangling) { gone = true; keptKeys.delete(key(s)); continue; }
     out.push(s);
   }
@@ -2338,6 +2840,15 @@ function claimOf(text, input, r) {
   if (r && r.result === 'lost' && r.died && PRAISE.test(t)) return 'praise';
   if (AIM_DENIED.test(t) && !aimDenialOk(input, r)) return 'aim';
   if (DRILL_PLACE.test(t) && (DRILL_TEAM.test(t) || DRILL_HELP.test(t)) && !DRILL_AVOIDED.test(t)) return 'drill';
+  // Round 8 (game-claims.js): the shared team words read past a disclaimer,
+  // a one shot the damage table does not give, firing on the move, a kit's
+  // bullets, and where the crosshair sat or what the player saw with no look
+  // of the round saying it (every look of the match for the summary and focus).
+  if (gameClaims.teamDrill(t)) return 'drill';
+  if (gameClaims.checkOneShot(t)) return 'lethal';
+  if (gameClaims.checkMoveFire(t) || gameClaims.checkBullets(t)) return 'kit';
+  const looks = r ? String(r.seen || '') : (input.rounds || []).map((x) => String((x && x.seen) || '')).join(' ');
+  if (gameClaims.checkUnobserved(t, looks)) return 'unseen';
   return null;
 }
 
@@ -2352,9 +2863,12 @@ function claimGates(out, input) {
   }
   for (const field of ['summary', 'focus']) {
     if (!out[field]) continue;
-    const kept = splitSentences(out[field]).map((s) => s.trim()).filter((s) => {
+    const sentences = splitSentences(out[field]).map((s) => s.trim());
+    // A Deathmatch drill's frame read across the field's sentences (round 8).
+    const framed = new Set(gameClaims.soloDrillFrame(sentences.map((s) => ({ p: 0, s }))).map((o) => o.index));
+    const kept = sentences.filter((s, i) => {
       if (!s) return false;
-      const kind = claimOf(s, input, null);
+      const kind = claimOf(s, input, null) || (framed.has(i) ? 'drill' : null);
       if (kind) out.dropped.push({ n: null, said: `${field} ${kind}`, riot: null });
       return !kind;
     });
@@ -2474,15 +2988,20 @@ function roundLabels(text) {
   });
 }
 
-module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, roundLabels, teachable, lineWorthy,
+module.exports = { floorFails, floorNote, floorMerge, floorFill, floorLine, floorOrder, dropKind, FLOOR_SAYS, linePicks, wonPicks, wonWorthy, WON_LINES, focusGate, swingInto, SWING_SWAP_EN,
+  normalise, buildPrompt, parse, study, weakSide, roundLine, standingWords, plantWords, phaseKept, READ_DURING_PLANT, READ_SPIKE_DOWN, roundDigits, roundLabels, teachable, lineWorthy,
   namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, REPEAT_WORDS, ROUND_LABELS, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS,
   CAUSE_TOPICS, rankRule, enemiesOf, withinBudget, CASE_GROWTH, NOTES_FLOOR,
   round3, rankRule3, RANK_WORDS3, GROUNDING, GROUNDING3, GROUNDING3_SWAPS, aimEvidence, HS_USUAL, HS_BELOW, focusLever, leverRule,
-  enemyWeaponsOf, claimOf, TEMPLATE_LEAK, SPIKE_CARRY, PRAISE, AIM_DENIED, STUDY_VARIETY, spread, contradicted, CONTRADICTS,
+  enemyWeaponsOf, claimOf, claimGates, TEMPLATE_LEAK, SPIKE_CARRY, PRAISE, AIM_DENIED, STUDY_VARIETY, spread, contradicted, CONTRADICTS,
   round4, matchCounts, matchFacts, countLines, qualifyCount, mistakesShown, allowedPairs, leverOf, leverRule4, LEVER_ORDER, HIGH_BANDS,
   depthRule, kitBlockOf, kitAgents, swingTopics, caseSituation, leverSituation, cohere, productCut, stateWrong, fundamentalsCap, structureGates,
   ROUND4_SWAPS, GROUNDING4, GROUNDING4_SWAPS, PRODUCT_TALK, CROSS_MATCH, TRADE_HABIT,
   recordSignalsOf, signalTopics, ECONOMY_TOPICS, recordUse, RECORD_USE, NO_ECONOMY, SOME_ECONOMY,
   onePlace, spotAgrees, spotPatternOf, sameSpotOf, clockWrong, CLOCK_ON,
   // The blind audit of 8.7.9, stream B: what each death cost, from Platinum.
-  costOf, costLineOf, costTopics, COST_TOPICS, COST_BONUS, repeats, costReasonLine, COST_RULE, placesKept };
+  costOf, costLineOf, costTopics, COST_TOPICS, COST_BONUS, repeats, costReasonLine, COST_RULE, placesKept,
+  // Round 8: the trades and the distance, counted in code.
+  ledgerOf, LEDGER_HEAD_REVIEW,
+  // 8.8: the rounds the player sat out, and the team's two patterns past the cut.
+  satOutRounds, satOutLine, satOutGate, SAT_OUT_SAID, SAT_OUT_RANGE, PAST_CUT };

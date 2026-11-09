@@ -681,6 +681,11 @@ function applyRoundRecord(review, record, now) {
     if (Array.isArray(rr.feed)) riot.feed = killFeedOf(rr.feed);
     if (fin(rr.plantMs)) riot.plantSec = Math.round(rr.plantMs / 100) / 10;
     if (/^[ABC]$/.test(String(rr.plantSite || ''))) riot.plantSite = rr.plantSite;
+    // A round Riot says the player sat out (8.8): a review saved before
+    // 8.7.9 never learnt the flag, so Ask Coach counted that round against
+    // the player. Only true is a flag (sat-out.js).
+    if (rr.afk === true) riot.afk = true;
+    if (rr.inSpawn === true) riot.inSpawn = true;
     return { ...c, riot };
   });
   const comps = record && record.comps && typeof record.comps === 'object'

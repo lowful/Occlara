@@ -25,7 +25,7 @@ const riotReview = require('../src/shared/riot-review');
 const patterns = require('../src/shared/patterns');
 const progress = require('../src/shared/progress');
 const { metaOf } = require('../src/main/services/review-store');
-const { homeModel, winLoss, rankModel, rrForRows, rrWaiting, RR_WINDOW_MS, RR_EXACT_MS } = require('../src/shared/home-model');
+const { homeModel, winLoss, rankModel, rrForRows, rrWaiting, rrWaitingFor, RR_WINDOW_MS, RR_EXACT_MS } = require('../src/shared/home-model');
 
 let fails = 0;
 let checks = 0;
@@ -283,7 +283,7 @@ const summary = patterns.summarise(saved);
   ok(same(rrForRows([a], { error: 'no-riot-id' }), {}) && same(rrForRows(null, null), {}) && same(rrForRows([a], { points: [{ elo: 1500, change: 5 }] }), {}),
     'no history, no rows or an undated point: nothing');
 
-  // BY MATCH ID FIRST (8.8.x): the stored history v2 names each game's match,
+  // BY MATCH ID FIRST (8.7.9): the stored history v2 names each game's match,
   // and a linked row keeps the same id, so the pair is matched with no clock.
   const ia = { ...a, matchId: 'MATCH-A' };
   const ib = { ...b, matchId: 'match-b' };
@@ -387,6 +387,14 @@ const summary = patterns.summarise(saved);
   ok(rrWaiting([r('a', 61)], {}, NOW) === null, 'one that ended over an hour ago is not: its game is not coming');
   ok(rrWaiting([r('u', 1, 'Unrated'), r('s', 2, 'Standard')], {}, NOW) === null && rrWaiting([], {}, NOW) === null
     && rrWaiting(null, null, NOW) === null, 'nor anything without a Competitive match');
+  // One row, the review page's own (8.7.9): an older row is asked about too.
+  ok(rrWaitingFor(r('a', 3), undefined, NOW) === true && rrWaitingFor(r('b', 20), null, NOW) === true,
+    'the review page Competitive row with no RR that ended within the hour is waiting, newest or not');
+  ok(rrWaitingFor(r('a', 3), 24, NOW) === false && rrWaitingFor(r('a', 3), 0, NOW) === false,
+    'one with its RR, a 0 included, is not');
+  ok(rrWaitingFor(r('a', 61), undefined, NOW) === false, 'nor one that ended over an hour ago');
+  ok(rrWaitingFor(r('u', 3, 'Unrated'), undefined, NOW) === false && rrWaitingFor(null, undefined, NOW) === false
+    && rrWaitingFor({ id: 'x', mode: 'Competitive' }, undefined, NOW) === false, 'nor an Unrated row, no row, or a row with no end');
 }
 
 // ── The rank history main keeps (8.2.1, services/rank-history.js) ──────────
@@ -458,6 +466,71 @@ const summary = patterns.summarise(saved);
     const next = await rh2.read(ID);       // inside five minutes: what is held
     ok(same(fresh, { points: ['after'] }) && same(next, { points: ['after'] }),
       `an older read landing after a newer one leaves the newer history held (${JSON.stringify(next)})`);
+  }
+
+  // AN OUTAGE KEEPS THE LAST GOOD HISTORY (8.7.9), in memory and on disk.
+  {
+    const good = { points: [
+      { date: T0, elo: 1400, change: -12, tier: 'Platinum 2', matchId: 'm-1', puuid: 'PUUID-SHOULD-NOT-SAVE', name: 'Me' },
+      { date: T0 + HOUR, elo: 1418, change: 18, tier: 'Platinum 2', matchId: 'm-2', refunded: 3, derankProtected: false },
+    ], current: { date: T0 + HOUR, elo: 1418, change: 18, tier: 'Platinum 2', matchId: 'm-2', name: 'Me', tag: 'EUW' } };
+    let saved = null;
+    const disk = { load: () => (saved ? JSON.parse(saved) : null), save: (rec) => { saved = JSON.stringify(rec); } };
+    let reply = () => ({ ok: true, data: good });
+    const a = new RankHistory({ get: async () => reply(), now: () => clock, disk });
+    await a.read(ID);
+    ok(!!saved, 'a good read with points is kept on disk');
+    const rec = JSON.parse(saved);
+    ok(!saved.includes('"Me"') && !saved.includes('Me#') && !/euw/i.test(saved) && !saved.includes('"name"') && !saved.includes('"tag"')
+      && !/puuid/i.test(saved),
+      `the saved JSON holds neither the Riot ID's name nor its tag, and no puuid (${saved.length} bytes)`);
+    ok(/^[0-9a-f]{64}$/.test(rec.key) && rec.v === 1 && rec.data.points.length === 2 && rec.data.points[1].refunded === 3
+      && rec.data.current.matchId === 'm-2', 'keyed by a hash, the numbers, tiers and match ids of the points kept');
+    reply = () => ({ ok: true, data: { points: [], current: null } });
+    let got = await a.read(ID, true);
+    ok(got.points.length === 2 && a.held(ID).points.length === 2, 'an empty answer never puts away a held history with points');
+    reply = () => ({ ok: true, data: { error: 'unavailable' } });
+    got = await a.read(ID, true);
+    ok(got.points.length === 2 && a.held(ID).points.length === 2, 'nor does an unavailable answer');
+    // A restart during an outage: a fresh one with the same disk.
+    reply = () => ({ ok: true, data: { error: 'unavailable' } });
+    const b = new RankHistory({ get: async () => reply(), now: () => clock, disk });
+    ok(b.held(ID) && b.held(ID).points.length === 2, 'after a restart, held() gives the saved history before any read');
+    const c = new RankHistory({ get: async () => { throw new Error('offline'); }, now: () => clock, disk });
+    got = await c.read(ID);
+    ok(got.points && got.points.length === 2 && got.points[1].matchId === 'm-2' && !('puuid' in got.points[0]),
+      'and a fresh one with the server failing returns the saved history');
+    ok(c.held('Other#EUW') === null, 'another Riot ID gets nothing from it');
+    got = await c.read('Other#EUW');
+    ok(got.error === 'unavailable', 'nor from a failed read');
+    const d = new RankHistory({ get: async () => ({ ok: true, data: { error: 'unavailable' } }), now: () => clock,
+      disk: { load: () => { throw new Error('bad file'); }, save: () => { throw new Error('read only'); } } });
+    ok((await d.read(ID)).error === 'unavailable' && d.held(ID) === null, 'a disk that cannot be read or written is no history, never a throw');
+    c.clear();
+    ok(c.held(ID).points.length === 2, 'clear() drops memory only: the disk copy is keyed by Riot ID');
+  }
+
+  // The disk is wired in main to userData, and the review page asks again while
+  // Riot has not published its game (index.js getReviewRiot, review.js askRiot).
+  {
+    // Plain substring checks, line endings folded, so no regex escape is needed.
+    const ix = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8').replace(/\r\n/g, '\n');
+    ok(ix.includes("path.join(app.getPath('userData'), 'rank-history.json')") && ix.includes('disk: {')
+      && ix.includes("fs.renameSync(f + '.tmp', f);"), 'main keeps the rank history in userData, written through a tmp file');
+    ok(ix.includes('rrWaitingFor(rows.find((r) => r && r.id === id), rr, Date.now())')
+      && ix.includes('return { rr: null, accolades, waiting: true };'),
+      'getReviewRiot answers waiting for a rated match Riot has not published');
+    ok(ix.includes('async getReviewRiot(id) {\n    if (matchInProgress() || windowSealed()) return null;'),
+      'and still answers null mid match or sealed, before anything else');
+    const rv = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'review', 'review.js'), 'utf8').replace(/\r\n/g, '\n');
+    ok(rv.includes('const RIOT_AGAIN_MS = 6 * 60 * 1000;') && rv.includes('const RIOT_TRIES = 2;'),
+      'the review page asks again six minutes on, at most twice');
+    ok(rv.includes('x.waiting === true && !painted && tries < RIOT_TRIES') && rv.includes('askRiot(id, tries + 1)'),
+      'only while main says waiting and no chip is painted');
+    ok(rv.includes('function clearRR() {\n  if (riotAgain) { clearTimeout(riotAgain); riotAgain = null; }')
+      && rv.includes('function paintRiot(r) {\n  clearRR();'), 'and every paint and clearRR stops the timer');
+    ok(rv.includes('riotAgain = null;\n        if (riotFor !== id || !current || current.id !== id || current.work || current.locked === true) return;'),
+      'the timer asks again only for the review still on the page, not built or locked');
   }
 
   // Wired where a review first links (index.js withTracker), before the save

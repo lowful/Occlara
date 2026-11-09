@@ -34,6 +34,7 @@
  */
 
 const { causeTitle } = require('./death-causes');
+const { cardSatOut } = require('./sat-out');
 const { deathClip, CLIP_RE } = require('./clips');
 // How many matches the page reads: THE PATTERNS' OWN WINDOW, one and the same
 // (re-exported below, and main reads it through here), so the compilation
@@ -119,6 +120,10 @@ function valorantDeaths(saved, have, io, patternKeys) {
   const out = [];
   for (const c of Array.isArray(review.rounds) ? review.rounds : []) {
     if (!c || !c.died || !Number.isInteger(c.n)) continue;
+    // A death in a round Riot says the player sat out (8.8, sat-out.js) is
+    // no moment to learn from: it was listed as "first to die, nobody traded
+    // it", or under the look's cause, like any other.
+    if (cardSatOut(c)) continue;
     const f = c.forensics && c.forensics.cause ? c.forensics : null;
     const riot = c.riot || null;
     const cause = f ? f.cause : null;

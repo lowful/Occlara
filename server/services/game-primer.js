@@ -928,7 +928,7 @@ function create(opts = {}) {
     else x.t(' from ').n(b.from, rangeN(key, i, false)).t(' to ').n(b.to, rangeN(key, i, true)).t(' m');
   }
 
-  function gunBullet(doc, key) {
+  function gunBullet(doc, key, opts = {}) {
     const w = W[key];
     if (!w) return;
     const name = titleOf(key);
@@ -964,6 +964,28 @@ function create(opts = {}) {
         });
         x.t('.');
       });
+      // The one hit kills in words (round 8): round 7 read "Head/body/legs
+      // 238/140/119 at any range" as a body one shot at any range and dropped
+      // the armour column. Shown only for a part whose single hit kills
+      // somewhere but not through Heavy Armor everywhere, the case misread,
+      // and only in GUNS IN THIS MATCH (opts.oneHit), so the core keeps its size.
+      // The body only: the head's falloff is caught by the one shot gate
+      // (game-claims.js) and the line would cost the dynamic budget.
+      for (const part of opts.oneHit ? ['body'] : []) {
+        const one = w.ranges.map((b) => armours.map((a) => hitsToKill(b[part], a) === 1));
+        if (!one.some((k) => k[0]) || one.every((k) => k[2])) continue;
+        u((x) => {
+          x.t(`A single ${part} hit `);
+          w.ranges.forEach((b, i) => {
+            if (i) x.t(', and ');
+            const k = one[i];
+            x.t(k[2] ? 'kills through Heavy Armor' : k[1] ? 'kills only against no armour or Light Armor' : k[0] ? 'kills only against no armour' : 'never kills');
+            bandWords(x, key, i, many);
+            x.dep(`w:${key}:b${i}.${part}`);
+          });
+          x.t('.');
+        });
+      }
       // Time to kill with body hits: the first lands at once, then one per
       // fire interval. Head hits mostly kill in one, so the body is the race.
       // A gun whose every body hit kills has no race to time.
@@ -1324,7 +1346,7 @@ function create(opts = {}) {
         .t(' with Light Armor and ').n(hp + H.capacity, E(['Heavy Armor'], 'computed: health + Heavy Armor capacity'))
         .t(' with Heavy Armor.'), { show: armourRuleHolds() }));
     }
-    for (const k of GUN_ORDER().filter((x) => keys.includes(x))) gunBullet(doc, k);
+    for (const k of GUN_ORDER().filter((x) => keys.includes(x))) gunBullet(doc, k, { oneHit: true });
     return doc.render();
   }
 

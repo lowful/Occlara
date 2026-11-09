@@ -63,6 +63,7 @@ try {
 }
 
 const lower = (x) => String(x || '').toLowerCase();
+const ISOLATION = knowledge.ISOLATION_LESSON || null;
 const setOf = (xs) => new Set([].concat(xs || []).filter((x) => typeof x === 'string' && x).map(lower));
 
 /**
@@ -85,6 +86,8 @@ function situation(x) {
     rankBand: knowledge.validBand(s.rankBand),
     advanced: s.advanced === true,
     seed: typeof s.seed === 'string' && s.seed ? s.seed.slice(0, 200) : null,
+    // Causes Riot's record rules out (round 8, knowledge.js recordSignals): 'isolated' for a teammate close.
+    ruledOut: setOf(s.ruledOut && [...s.ruledOut]),
   };
 }
 
@@ -156,6 +159,10 @@ function scored(x, pool) {
     if (at.role && (!s.role || at.role !== s.role)) continue;
     if (at.map && (!s.map || lower(at.map) !== s.map)) continue;
     if (at.side && !s.sides.has(at.side)) continue;
+    // A cause the record rules out, by its tag or by its words (round 8):
+    // "Rushing the isolated Chamber alone" for a death with a teammate close.
+    if (s.ruledOut.size && Array.isArray(c.cause) && c.cause.some((k) => s.ruledOut.has(k))) continue;
+    if (s.ruledOut.has('isolated') && ISOLATION && ISOLATION.test(`${c.signal || ''} ${c.decision || ''} ${c.mistakeToAvoid || ''} ${c.why || ''}`)) continue;
     const versus = knowledge.enemyFit({ enemyAgents: at.enemyAgents, enemyWithout: at.enemyWithout }, s.enemies);
     if (versus === null) continue;
     const causeHit = Array.isArray(c.cause) && c.cause.some((k) => s.causes.has(k));

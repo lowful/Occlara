@@ -507,7 +507,113 @@ function checkStructure(input) {
   return out.sort((a, b) => a.index - b.index);
 }
 
+/*
+ * A CONNECTIVE AFTER A CUT (round 8, the blind audit of round 7). Two answers
+ * opened what was shown on a conclusion whose premise a gate had cut: "So the
+ * fix is not a new sensitivity or a longer warmup." (Fracture, Ascendant aim,
+ * its first sentence lost to the name gate twice) and "So the first player
+ * into a Cypher site is the one his setup is built to catch." (Pearl, Silver,
+ * after three sentences went). The gates so far only drop; this one repairs,
+ * the first that does, and only this: an adverbial "so", "thus", "hence",
+ * "therefore", "as a result" or "because of that" leading a full clause, at
+ * the head of what is shown or right after a dropped sentence, is struck and
+ * the clause capitalised ("The fix is not a new sensitivity or a longer
+ * warmup."). "So far", "so much", "so many", "so long", "so often" and "so
+ * that" are no connective and stay. A demonstrative consequence, "That is why
+ * ...", "This means ...", "Which is how ...", asserts a cause the cut sentence
+ * held, and goes as an orphan.
+ *
+ * repairConnective(rows) reads rows { s, dropped } in reading order and
+ * returns [{ index, kind: 'strip', s }] (the row's new text) and [{ index,
+ * kind: 'back' }] (the row goes). A row is at the head when no kept row comes
+ * before it; it follows a cut when the row right before it was dropped. A
+ * strip applies to either, a back only after a cut (or at a head with a cut
+ * before it), so a reply that opens "That is why" with nothing cut is read as
+ * it was written.
+ */
+const CONNECTIVE_STRIP = /^(?:(?:and\s+)?so(?!\s+(?:far|much|many|long|often|that)\b)|thus|hence|therefore|as a result|because of (?:that|this))\s*,?\s+(?=[a-z])/i;
+const CONNECTIVE_BACK = /^(?:that|this|which)(?:'s|\s+is|\s+was)\s+(?:why|how|the reason|what (?:cost|lost|decided))\b|^(?:that|this|which)\s+(?:means|meant|explains|is because)\b/i;
+function repairConnective(input) {
+  const rows = rowsOf(input);
+  const out = [];
+  let keptBefore = false;
+  let cutBefore = false;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].dropped) { cutBefore = true; continue; }
+    const s = straight(rows[i].s).trim();
+    const head = !keptBefore;
+    const afterCut = i > 0 && rows[i - 1].dropped;
+    keptBefore = true;
+    if ((afterCut || (head && cutBefore)) && CONNECTIVE_BACK.test(s)) { out.push({ index: i, kind: 'back' }); keptBefore = false; continue; }
+    if (!(afterCut || head)) continue;
+    const m = CONNECTIVE_STRIP.exec(s);
+    if (!m) continue;
+    // Straightening keeps every index, so the cut is the sentence as written.
+    const rest = String(rows[i].s).trim().slice(m[0].length);
+    if (rest.split(/\s+/).length < 3) continue;
+    out.push({ index: i, kind: 'strip', s: rest.charAt(0).toUpperCase() + rest.slice(1) });
+  }
+  return out;
+}
+
+/*
+ * A FOCUS INSTRUCTS (round 8, the blind audit of round 7). The Plat Fracture
+ * review's focus was "You give up a quick kill attempt to keep the advantage
+ * while the clock runs.", the tradeoff tail of a sentence the name gate cut,
+ * read by three judges as weak and by one as a broken review. A focus is
+ * something to do: some sentence of it opens on an imperative (FOCUS_DO's
+ * verbs), straight away or after a lead clause ("After the plant, hold ...",
+ * "When your team is ahead, stay ..."), and its first sentence is not only a
+ * cost or a gain ("You give up ...", "It costs ...", TRADEOFF_ONLY). A floor,
+ * not a quality gate: a focus that fails it is asked for again, then computed
+ * (match-review.js floorOf). English only.
+ */
+const DO_VERBS = '(?:hold|play|stay|keep|take|wait|let|make|swing|peek|re-?peek|fall|back|trade|check|stop|use|throw|smoke|flash|drone|save|sit|stand|move|rotate|push|clear|call|say|tell|name|ask|go|step|reposition|jiggle|shoulder|pre-?aim|aim|shoot|burst|tap|crouch|count|look|watch|listen|give|set|put|pick|plant|defuse|retake|commit|drop|buy|reload|turn|walk|pull|track|place|delay|follow|fight|try|pause|leave|spend|pair|bring|start|open|choose|decide|treat|practi[sc]e|warm|line|time|wait|hit|enter|lead|trust|default|reset|glance|agree|communicate|ping|mark|hug|anchor|settle|position|find|stick|group|regroup|swap|switch|hide|survive|slow|rush|flank|lurk|support|guard|protect|scout|spot|isolate|contest|force|bait|re-?clear|re-?position|re-?take|ready|prepare|plan|close|cut|deny|pre-?fire|spray|strafe|counter-?strafe|duck|jump|dash|run|stack|split|join|wait|have|get|be|do(?!\\s+not\\b|n\\x27t)'
+  // The review of round 8: the plain imperative and negative openers a correct
+  // focus also opens on ("Focus on waiting ...", "Don't peek alone ...",
+  // "Avoid dry peeking ...", "Only take fights ...", "Remember to check ...")
+  // were no verb here, so the focus was nulled and asked for again.
+  + '|focus|work|avoid|don\\x27t|do\\s+not|prioriti[sz]e|learn|remember|think|limit|reduce|value|respect|aim\\s+to|make\\s+sure)';
+const FOCUS_OPENER = '(?:early|late|when|after|before|if|once|on|in|with|as|at|against|whenever|while|until|during|the\\s+moment|any\\s+round|every\\s+time|each\\s+time|each\\s+round|every\\s+round|next(?:\\s+(?:match|game|time|round|half))?|from\\s+now\\s+on|instead\\s+of|rather\\s+than|the\\s+next\\s+time|for\\s+the\\s+next\\s+match)';
+const FOCUS_DO = new RegExp(`(?:^|[.!?]\\s+)(?:(?:${FOCUS_OPENER})\\b[^.!?]{0,160}?,\\s+)?(?:(?:always|first|just|simply|then|now|briefly|quickly|calmly|still|only|never)\\s+)?${DO_VERBS}\\b`, 'i');
+const TRADEOFF_ONLY = /^(?:you|it|this|that|doing so|the trade-?off)\s+(?:give|gives|gave|lose|loses|trade|trades|cost|costs|gain|gains|buy|buys|risk|risks|spend|spends)\b(?:\s+up)?/i;
+function instructs(text) {
+  const t = straight(text).replace(/\s+/g, ' ').trim();
+  if (!t) return false;
+  const first = sentencesOf(t)[0] || t;
+  if (TRADEOFF_ONLY.test(first) && !FOCUS_DO.test(first)) return false;
+  return FOCUS_DO.test(t);
+}
+
+/*
+ * THE SWING LINE GLUED ON (round 8, the Ascendant Fracture review): "You won 5
+ * to 1, opening fights and winning key duels despite this: you died 3 times in
+ * 6 rounds." The prompt told sentence one to carry the SWING AND COUNTS
+ * block's first line, which in a won match is a count of deaths, and the model
+ * joined the two with "despite this:", a this that points at nothing. MID_YOU
+ * reads only a capital You. The seam is split where it began, the tail made
+ * its own sentence, and a score head left with no main verb ("You won 5 to 1,
+ * opening fights and winning key duels") reads "You won 5 to 1 by opening
+ * fights and winning key duels". "Despite this, you held the site." (no colon)
+ * and "The lever is simple: trade the first death." are no seam.
+ */
+const SWING_SEAM = /\b(?:despite|in spite of|because of|after|given|with|for all|even with)\s+(?:this|that|it|these|those)\s*:\s*(?=[a-z0-9])/i;
+const WON_NO_VERB = /^(You (?:won|lost) \d+ to \d+),\s+([a-z]+ing\b[^.!?]*)$/;
+function splitSwingSeam(sentence) {
+  const s = String(sentence == null ? '' : sentence).trim();
+  const m = SWING_SEAM.exec(straight(s));
+  if (!m) return null;
+  let head = s.slice(0, m.index).replace(/[,\s]+$/, '');
+  if (head.split(/\s+/).length < 3) return null;
+  const nv = WON_NO_VERB.exec(head);
+  if (nv) head = `${nv[1]} by ${nv[2]}`;
+  const tail = s.slice(m.index + m[0].length).trim();
+  if (!tail) return null;
+  return `${head}. ${tail.charAt(0).toUpperCase()}${tail.slice(1)}`;
+}
+
 module.exports = {
+  repairConnective, CONNECTIVE_STRIP, CONNECTIVE_BACK, instructs, FOCUS_DO, TRADEOFF_ONLY, splitSwingSeam, SWING_SEAM, WON_NO_VERB,
   checkStructure, garbleOf, isPointer, isInstruction, INSTRUCTION, LEAD_PAST, POINT_WHOLE, POINT_TAIL, POINT_SAYS, BACK_IF, BACK_THAT, BACK_NEXT, GUN_EITHER, GUN_GAME, DOUBLED, TWO_ARTICLES,
   repairSeams, fillerOf, MID_YOU, DANGLING_WORD, DANGLING_MARK, FILLER_WHOLE, FILLER_CLAUSE, TRADE_WAIT_WHOLE, TRADE_WAIT_CLAUSE,
   ALL_OF_THEM, SAME_AGAIN, ELLIPSIS_END, ELLIPSIS_WHOLE, BARE_ONE, THEN_OPENER, THEN_STEP, OWN_ANCHOR, THAT_THING, ITEM, ITEM_VERB,

@@ -662,8 +662,10 @@ function wrongSide(text, death, input) {
   const pl = rc.placesOf(input.map);
   const fact = pl.sideOf.get(lower(death.place));
   if (!pl.alt || !fact) return null;
-  const m = new RegExp(`${rc.DEATH_AT_HEAD}(${pl.alt})(?![A-Za-z0-9])`, 'i').exec(String(text || ''));
-  const said = m ? pl.sideOf.get(lower(m[1])) : null;
+  // The article is no site (record-claims.js articleNotSite, 8.8 review).
+  const m = typeof rc.placeMatch === 'function' ? rc.placeMatch(`${rc.DEATH_AT_HEAD}(${pl.alt})(?![A-Za-z0-9])`, String(text || ''), 1)
+    : new RegExp(`${rc.DEATH_AT_HEAD}(${pl.alt})(?![A-Za-z0-9])`, 'i').exec(String(text || ''));
+  const said = m && !(typeof rc.articleNotSite === 'function' && rc.articleNotSite(m[1])) ? pl.sideOf.get(lower(m[1])) : null;
   return said && said !== fact ? `the death at ${m[1]}, where Riot's record has ${death.place}` : null;
 }
 

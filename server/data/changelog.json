@@ -1,33 +1,33 @@
 [
   {
     "version": "8.7.9",
-    "date": "2026-11-09",
+    "date": "2026-11-08",
     "title": "Where you died, and what you bought",
-    "summary": "Round cards now show where each death happened, what your team bought and how close a teammate was, and the coach uses it.",
+    "summary": "Linked round cards now show where each death happened, what your team bought and how close a teammate was.",
     "items": [
       {
         "kind": "new",
-        "text": "Each round you died in shows the spot, like B Main, and whether a teammate was close enough to trade you."
+        "text": "When your match is linked to Riot's record, each round you died in shows the spot, like B Main, and whether a teammate was close enough to trade you."
       },
       {
         "kind": "new",
-        "text": "Each round shows your team's buy, from pistol to full buy, and your review notes when full buys keep losing or ecos keep working."
+        "text": "Each linked round shows your team's buy, from pistol to full buy, and longer matches count how your team did on full buys, ecos and forced buys."
       },
       {
         "kind": "new",
-        "text": "Every saved review shows your RR change for that match, and Stats shows your peak rank and Riot's own record highlights."
+        "text": "Reviews of your recent ranked matches show the RR you gained or lost, and Stats adds your peak rank and your all time aces and clutches from Riot's record."
       },
       {
         "kind": "improved",
-        "text": "The coach picks advice from where you died and how you bought, and a round where Riot marked you AFK is never counted against you."
+        "text": "The coach picks advice from where you died and how you bought, and a round where Riot marked you AFK says so on its card and is left out of your repeated mistakes."
       },
       {
         "kind": "improved",
-        "text": "Reviews and Ask Coach check every place, plant and teammate claim against Riot's record, so far fewer mistakes reach you, and higher ranks get advice that fits them."
+        "text": "Reviews and Ask Coach check what they say about a round, where you died, the plant and how close a teammate was, against Riot's record, so fewer mistakes reach you, and higher ranks get advice that fits them."
       },
       {
         "kind": "fixed",
-        "text": "Games in your library keep your rank trend and peak in one place, and older reviews look exactly as before."
+        "text": "Reviews saved before this update look exactly as before."
       }
     ]
   },

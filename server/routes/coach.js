@@ -1247,12 +1247,25 @@ const sentencesOf = (text) => String(text || '').match(/(?:[^.!?]|(?<=\d)\.(?=\d
 // and ADS: an old client's frame chat answer came back "5 seconds before it."
 const REVIEW_WORDS = /\b(?:MVP|ACS|ADR|KAST|KDA|K\/D(?:\/A)?|HS|KPR|DPR|APR|victory|defeat|draw|attack|defen[cs]e|overtime|thrifty|flawless|clutch|ace|combat report|switch player|spectators?|spectating|buy phase|match point|round ongoing|last round before swap|sudden death|eliminated|detonated|defused|planted|ultimate|I|(?:light|heavy|regen)\s+(?:armou?r|shields?)|melee|headshots?|credits|ADS)\b/gi;
 
-function namesSomeoneHere(sentence, { names = null, language = 'en' } = {}) {
+// AND THE CHAT'S OWN (round 8 review): the grade's categories, the economy and
+// the stat and mode names a player types and a coach answers in, fact-gates.js
+// CHAT_CAPS word for word (test:chatgates holds the two equal). "Warm up in TDM
+// before ranked." was a review focus sentence the capital rule took.
+const CHAT_WORDS = /\b(?:economy|eco|grades?|survival|impact|teamplay|decisions|farming|vision|objectives|pistol|VODs?|RR|MMR|ELO|DM|TDM|IGL|FPS|GG|OK)\b/gi;
+
+/*
+ * Whether a sentence names someone. opts.capitals false (today's v1 Ask Coach
+ * answer, round 8 review) leaves the capital rule out, as Coach v2 does
+ * (fact-gates.js gateNames counts it and never drops on it): the match's name
+ * set and a handle's or Riot ID's shape still drop, in any language and game.
+ */
+function namesSomeoneHere(sentence, { names = null, language = 'en', capitals = true } = {}) {
   if (names && names.has(sentence)) return true;
   const gate = service('nameGate');
   if (!gate || typeof gate.namesSomeone !== 'function') return false;
   try {
-    return !!gate.namesSomeone(String(sentence).replace(REVIEW_WORDS, (w) => w.toLowerCase()), { names, language });
+    if (capitals === false) return typeof gate.handleShape === 'function' && !!gate.handleShape(String(sentence));
+    return !!gate.namesSomeone(String(sentence).replace(REVIEW_WORDS, (w) => w.toLowerCase()).replace(CHAT_WORDS, (w) => w.toLowerCase()), { names, language });
   } catch (e) {
     console.warn('[coach] the name gate threw, so it decided nothing:', e.message);
     return false;
@@ -1264,6 +1277,10 @@ function withoutNames(text, opts) {
   if (!text) return { text, dropped: 0 };
   const all = sentencesOf(text).map((s) => s.trim()).filter(Boolean);
   const kept = all.filter((s) => !namesSomeoneHere(s, opts));
+  // nameSpared (/api/admin/chat): each kept sentence the soft half spared,
+  // once, here; a pass whose text another pass also serves says count: false.
+  const names = opts && opts.names;
+  if (opts && opts.count !== false && names && typeof names.spares === 'function') for (const s of kept) names.spares(s);
   if (kept.length === all.length) return { text, dropped: 0 };
   return { text: kept.join(' ').trim() || null, dropped: all.length - kept.length };
 }
@@ -2517,7 +2534,7 @@ function fillRefused(now) {
  *
  * Returns { region, puuid, status }: region null when it could not be
  * resolved, with the status of the lookup that failed (0 when it never
- * answered). The puuid comes from the same lookup (8.8.x) and opens the
+ * answered). The puuid comes from the same lookup (8.7.9) and opens the
  * by-puuid endpoints (henrik-rank.js); null when the answer had none, and
  * every caller then keeps to the name based endpoints it always used.
  */
@@ -2593,7 +2610,7 @@ async function henrikStats(name, tag, modeKey) {
   if (!region && acct.status === 429) return { fail: 'HenrikDev rate limit hit. Wait a minute and try again.' };
   if (!region) return { fail: 'HenrikDev returned no region for that account (status ' + acct.status + ').' };
 
-  // MMR v3 by puuid first (8.8.x, henrik-rank.js mmrV3): the peak with its
+  // MMR v3 by puuid first (8.7.9, henrik-rank.js mmrV3): the peak with its
   // act, the RR, rank protection shields, leaderboard placement and each
   // act's wins. v2 by name stays the fallback whenever v3 is unreachable,
   // refused or without a `data` object, or the account lookup gave no puuid.
@@ -2750,6 +2767,12 @@ const queueCache = new Map();     // riotId|mode|queue -> { rows, at }
 // the rank tile shows the last game's RR beside a match list Refresh has just
 // fetched, and a cached history put the game before it there.
 const rankHistoryCache = new Map();   // riotId(lower) -> { at, data, lastManualRefresh }
+/** True when a v1 mmr-history reply is a real answer: no throw, no 429 or
+ *  5xx, and a `data` list (an empty list is a new account, still an answer). */
+function rankHistoryAnswered(r) {
+  if (!r || r.status === 429 || r.status >= 500) return false;
+  return !!(r.json && typeof r.json === 'object' && Array.isArray(r.json.data));
+}
 router.get('/rank-history', async (req, res) => {
   const caller = await admit(req, res);
   if (!caller) return;
@@ -2766,20 +2789,38 @@ router.get('/rank-history', async (req, res) => {
   const [name, tag] = username.split('#').map((s) => s.trim());
   const enc = encodeURIComponent;
   try {
-    const { region, puuid } = await regionOf(name, tag);
-    if (!region) return res.json({ error: 'Account not found.' });
-    // The stored history v2 by puuid first (8.8.x, henrik-rank.js
+    const { region, puuid, status } = await regionOf(name, tag);
+    if (!region) {
+      // The account lookup itself turned away or down is an outage too.
+      if (!status || status === 429 || status >= 500) {
+        if (hit && hit.data) return res.json(hit.data);
+        return res.json({ error: 'unavailable' });
+      }
+      return res.json({ error: 'Account not found.' });
+    }
+    // The stored history v2 by puuid first (8.7.9, henrik-rank.js
     // storedHistoryV2): each game carries its match id, so a saved review is
     // given its own RR by id, and whether a shield kept the rank or RR was
     // refunded. v1 by name stays the fallback when v2 fails or holds nothing.
     // A key within the fill hold of a 429 goes straight to v1, as it did before.
+    //
+    // An outage is not an empty history (8.7.9). When v1 is needed and it
+    // answers 429 or 5xx, times out, or sends no data list, the read failed:
+    // the held good copy is served when there is one, otherwise
+    // `unavailable`, and neither is cached, so the next ask goes upstream
+    // again. Only a real answer with an empty list (a new account) is an
+    // empty success, and that one is cached as before.
     let points = null;
     if (puuid && !henrikThrottled(Date.now())) {
       const st = await henrikGet(`/valorant/v2/by-puuid/stored-mmr-history/${region}/pc/${enc(puuid)}?size=20`).catch(() => null);
       points = st && st.ok ? henrikRank.storedHistoryV2(st.json, 20) : null;
     }
     if (!points || !points.length) {
-      const mh = await henrikGet(`/valorant/v1/mmr-history/${region}/${enc(name)}/${enc(tag)}`);
+      const mh = await henrikGet(`/valorant/v1/mmr-history/${region}/${enc(name)}/${enc(tag)}`).catch(() => null);
+      if (!rankHistoryAnswered(mh)) {
+        if (hit && hit.data) return res.json(hit.data);
+        return res.json({ error: 'unavailable' });
+      }
       points = henrikRank.historyV1(mh.json, 20);
     }
     const data = { points, current: points.length ? points[points.length - 1] : null };
@@ -3776,6 +3817,7 @@ router.post('/match-review', async (req, res) => {
           study: matchReview.study(input, 3), variant: input.variant, thin: true });
       }
       const prompt = matchReview.buildPrompt(input);
+      const started = Date.now();
       // json: true returns the RAW text. sanitize() collapses newlines, and the
       // first live bench got every labelled line back as one, so it is applied
       // per field after parsing instead, which keeps its dash removal.
@@ -3789,19 +3831,60 @@ router.post('/match-review', async (req, res) => {
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 45000)),
       ]);
       trackCall(licenseKey);
-      const parsed = matchReview.parse(text, input);
-      if (parsed.dropped.length) {
-        // The killer and trade gates, and the round 3 claim gates (their
-        // kind as said, no Riot fact beside it), by place and kind only.
-        console.log('[review] dropped what the record or the kit contradicts:',
-          parsed.dropped.map((d) => `${d.n === null ? 'summary or focus' : `R${d.n}`} said ${d.said}${d.riot ? `, Riot says ${d.riot}` : ''}`).join('; '));
-      }
       // NO PLAYER NAMED (8.5.0, namesSomeoneHere): a summary or focus sentence
       // naming someone goes, and a round line naming someone goes whole. The
       // match's name set when an 8.5.0 client sends Riot's match id and this
-      // server fetched it. Logged by place only, never the word.
+      // server fetched it. Logged by place only, never the word. Since round
+      // 8 the pass runs inside parse, before every other gate, so the
+      // coherence and structural passes see its drops (match-review.js);
+      // the pass below runs again as a safety net and finds nothing.
+      const nameOpts = { names: riotRounds.nameSetOf(req.body.matchId), language: input.context.language };
+      // The pass in parse counts nothing spared: the pass below sees what is
+      // served, and counts each spared sentence there, once.
+      const unnamed = (t) => withoutNames(t, { ...nameOpts, count: false });
+      let parsed = matchReview.parse(text, input, { withoutNames: unnamed });
+      /*
+       * THE REVIEW FLOOR (round 8, match-review.js floorFails): at least one
+       * ROUND line where a round is worth one, and a focus that says what to
+       * do. A reply short of it is asked for once more with the reasons in
+       * plain words, while the client's 60 s still allow it; the second
+       * reply fills only what the first could not show (floorMerge), and
+       * what is still missing is computed from the round's facts
+       * (floorFill). Logged by count only, never text. A reply with no
+       * summary is no narrative (an empty one is a hiccup, fallback: false),
+       * and is never floored.
+       */
+      const fails = parsed.summary ? matchReview.floorFails(parsed, input) : [];
+      if (fails.length) {
+        let second = null;
+        const left = 52000 - (Date.now() - started);
+        if (left > 15000) {
+          try {
+            const again = await Promise.race([
+              textInfer(prompt + matchReview.floorNote(parsed, fails), 1600, { json: true, model: benchModel(req) || AI.reviewModel, fallback: false }),
+              new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), Math.min(30000, left - 5000))),
+            ]);
+            trackCall(licenseKey);
+            second = matchReview.parse(again, input, { withoutNames: unnamed });
+          } catch (e) {
+            second = null;
+          }
+        }
+        parsed = matchReview.floorMerge(parsed, second);
+        const filled = matchReview.floorFill(parsed, input, { withoutNames: unnamed });
+        console.log(`[review] floor: short of ${fails.join(' and ')}, ${second ? 'asked again' : 'not asked again'}${filled.length ? `, computed ${filled.join(' and ')}` : ''}`);
+      }
+      const named = parsed.dropped.filter((d) => /(?:^| )name$/.test(d.said));
+      if (named.length) console.log(`[review] dropped what named a player: ${named.map((d) => (d.n === null ? d.said.split(' ')[0] : `R${d.n}`)).join(', ')}`);
+      const rest = parsed.dropped.filter((d) => !named.includes(d));
+      if (rest.length) {
+        // The killer and trade gates, and the round 3 claim gates (their
+        // kind as said, no Riot fact beside it), by place and kind only.
+        console.log('[review] dropped what the record or the kit contradicts:',
+          rest.map((d) => `${d.n === null ? 'summary or focus' : `R${d.n}`} said ${d.said}${d.riot ? `, Riot says ${d.riot}` : ''}`).join('; '));
+      }
       {
-        const opts = { names: riotRounds.nameSetOf(req.body.matchId), language: input.context.language };
+        const opts = nameOpts;
         const gone = [];
         for (const field of ['summary', 'focus']) {
           const g = withoutNames(parsed[field], opts);
@@ -3812,6 +3895,15 @@ router.post('/match-review', async (req, res) => {
         }
         if (gone.length) console.log(`[review] dropped what named a player: ${gone.join(', ')}`);
       }
+      // The SWING line, put in by code (round 8, match-review.js swingInto).
+      matchReview.swingInto(parsed, input);
+      const dropCounts = {};
+      for (const d of parsed.dropped) {
+        const k = matchReview.dropKind(d);
+        dropCounts[k] = (dropCounts[k] || 0) + 1;
+      }
+      if (parsed.blamed.length) dropCounts['buy-phase'] = parsed.blamed.length;
+      if (Object.keys(dropCounts).length) console.log(`[review] dropped by kind: ${Object.entries(dropCounts).map(([k, c]) => `${k} ${c}`).join(', ')}`);
       const clean = (t) => (t ? matchReview.roundDigits(sanitize(t)) : t);
       const rounds = {};
       for (const [n, why] of Object.entries(parsed.rounds)) rounds[n] = clean(why);
@@ -3827,6 +3919,11 @@ router.post('/match-review', async (req, res) => {
         // 3 rules alone: one before it is listed its notes as before.
         study: matchReview.study(input, 3, { lines: [...Object.values(rounds), clean(parsed.focus)] }),
         variant: input.variant,
+        // What the gates dropped, counted by kind (round 8, match-review.js
+        // dropKind), never a word of it: a field a client before it ignores,
+        // only where something went, and never to a client older than 8.5.0,
+        // whose reply keeps its own fields (test:serverguards).
+        ...(Object.keys(dropCounts).length && (!req.headers['x-occlara-version'] || clientAtLeast(req, V85)) ? { dropped: dropCounts } : {}),
       });
     }
 
@@ -4358,7 +4455,7 @@ function chatEntry(key, now) {
 }
 
 const chatDay = () => ({ day: new Date().toISOString().slice(0, 10), asked: { v1: 0, v2: 0, frame: 0 },
-  answered: 0, retried: 0, honest: 0, capped: 0, locked: 0, guarded: 0, failed: 0, sentences: 0, dropped: {}, logged: {} });
+  answered: 0, retried: 0, honest: 0, capped: 0, locked: 0, guarded: 0, failed: 0, sentences: 0, dropped: {}, logged: {}, fellToV1: 0 });
 let chatToday = chatDay();
 function chatCounts() {
   if (chatToday.day !== new Date().toISOString().slice(0, 10)) chatToday = chatDay();
@@ -4372,6 +4469,7 @@ function chatReport() {
   for (const key of chatLedger.keys()) if (!chatRoom(key, now).ok) atCap++;
   return { day: c.day, asked: { ...c.asked }, answered: c.answered, retried: c.retried, honest: c.honest,
     capped: c.capped, locked: c.locked, guarded: c.guarded, failed: c.failed, sentences: c.sentences, dropped: { ...c.dropped }, logged: { ...c.logged },
+    fellToV1: c.fellToV1 || 0, nameSpared: typeof riotRounds.nameSetCounts === 'function' ? riotRounds.nameSetCounts().spared : 0,
     licencesAtCap: atCap, cap: chatCap(),
     model: AI.chatModel, served: chatPromoted() ? 'v2' : 'v1',
     since: COSTS_SINCE };
@@ -4380,13 +4478,44 @@ function chatReport() {
 // "round #12" names round 12, and the Riot ID scrub read it as a player
 // ("what happened in a player?"): the round is read first, then the scrub.
 const ROUND_HASH = /\bround\s*#\s*(\d{1,2})\b/gi;
-const scrubAsked = (t) => String(t || '').replace(ROUND_HASH, 'round $1').replace(RIOT_ID, 'a player');
+/*
+ * A TYPED RIOT ID IN RIOT'S OWN LETTERS (8.8 review). RIOT_ID is ASCII and
+ * one word, and a Riot game name may hold any letter and inner spaces:
+ * "what did Big Bob#NA1 do" kept "Big", "Jürgen#EUW" kept "Jü" and "小明#TW1"
+ * went to the model whole. The word before the tag is read in any script, and
+ * the scrub then walks back over the words before it that are part of the
+ * name: a word of the match's name set (names.has) or a capitalised word, up
+ * to Riot's 16 characters.
+ */
+const ASKED_ID = /(?<![\p{L}\p{N}_.])([\p{L}\p{N}_.]{1,16})[ \t]?#[ \t]?[\p{L}\p{N}]{2,5}(?![\p{L}\p{N}])/gu;
+const ASKED_WORD_BEFORE = /(?:^|\s)([\p{L}\p{N}_.]+)\s$/u;
+function scrubAsked(t, names) {
+  const s = String(t || '').replace(ROUND_HASH, 'round $1');
+  let out = '';
+  let last = 0;
+  for (const m of s.matchAll(ASKED_ID)) {
+    let start = m.index;
+    let len = m[1].length;
+    for (;;) {
+      const w = ASKED_WORD_BEFORE.exec(s.slice(last, start));
+      if (!w) break;
+      const word = w[1];
+      const named = !!(names && typeof names.has === 'function' && names.has(word));
+      if (len + 1 + word.length > 16 || !(named || /^\p{Lu}/u.test(word))) break;
+      len += 1 + word.length;
+      start -= word.length + 1;
+    }
+    out += s.slice(last, start) + 'a player';
+    last = m.index + m[0].length;
+  }
+  return out + s.slice(last);
+}
 
 /** The conversation as v2 hands it on: the last eight, each clipped, Riot IDs scrubbed after the round is read. */
-function chatMessagesV2(raw) {
+function chatMessagesV2(raw, names) {
   return (Array.isArray(raw) ? raw : []).slice(-CHAT_MESSAGES).map((m) => ({
     role: m && m.role === 'assistant' ? 'assistant' : 'user',
-    content: scrubAsked(String((m && m.content) || '').slice(0, 1200)).trim(),
+    content: scrubAsked(String((m && m.content) || '').slice(0, 1200), names).trim(),
   })).filter((m) => m.content);
 }
 
@@ -4501,9 +4630,9 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
   const chatPrompt = service('chatPrompt');
   if (!chatPrompt || ['normalise', 'buildPrompt', 'parseReply'].some((f) => typeof chatPrompt[f] !== 'function')) return false;
   const body = req.body || {};
-  const messages = chatMessagesV2(body.messages);
-  if (!messages.length) { res.status(400).json({ error: 'No messages' }); return true; }
   const names = chatNames(body);
+  const messages = chatMessagesV2(body.messages, names);
+  if (!messages.length) { res.status(400).json({ error: 'No messages' }); return true; }
   let input;
   let prompt;
   // THE PROMPT IN ITS PARTS (chat-prompt.js buildParts): the static prefix and
@@ -4794,6 +4923,9 @@ router.post('/chat', async (req, res) => {
     // today's answer otherwise, which is everything below, byte for byte.
     const variant = chatVariant(req);
     if (variant && await chatV2(req, res, { licenseKey, variant, t0, turn })) return;
+    // A v2 request that fell back here is counted, so the fallback shows in
+    // /api/admin/chat (round 8).
+    if (variant) chatCounts().fellToV1++;
     chatCounts().asked.v1++;
 
     const body     = req.body || {};
@@ -4801,7 +4933,8 @@ router.post('/chat', async (req, res) => {
       .slice(-12)
       .map((m) => ({
         role:    m && m.role === 'assistant' ? 'Coach' : 'Player',
-        content: String((m && m.content) || '').slice(0, 1200),
+        // A typed Riot ID never reaches the model (scrubAsked), as in v2.
+        content: scrubAsked(String((m && m.content) || '').slice(0, 1200), chatNames(body)),
       }))
       .filter((m) => m.content);
     if (!messages.length) return res.status(400).json({ error: 'No messages' });
@@ -4927,10 +5060,33 @@ ${valorant ? `- COACH LIKE THE BEST, in the second half of your reply: diagnose 
     trackCall(licenseKey);
     if (!chatReplyOk(reply)) {
       // One retry with an explicit correction; never ship a broken answer.
-      console.warn('[chat] reply failed quality gate, retrying:', reply.slice(0, 80));
+      // Its length only: a reply's words may carry a player's name.
+      console.warn('[chat] reply failed quality gate, retrying (len', reply.length, ')');
       reply = cleanChatReply(await ask(prompt +
         '\n\nYour previous reply was unusable. Answer plainly, in a few sentences, strictly about the player\'s Valorant gameplay.'));
       trackCall(licenseKey);
+    }
+    // NO PLAYER NAMED IN A V1 REPLY (round 8): the match's name set when the
+    // body names the match, and a Riot ID's or a handle's shape, in any
+    // language and game. Not the capital rule, which Coach v2 counts and never
+    // drops on (fact-gates.js nameHeuristic): enforced here it took League's
+    // "Ahri" and "Dragon", every German noun, and "RR", "Plat", "Ranked" and
+    // "Aim Lab", and served the fallback line for whole true answers (round 8
+    // review). It is counted the same way, as v1-name-log in /api/admin/chat.
+    // A reply left empty is the line below.
+    {
+      const g = withoutNames(reply, { names: chatNames(body), language: 'en', capitals: false });
+      const c = chatCounts();
+      if (g.dropped) {
+        reply = g.text || '';
+        c.dropped.name = (c.dropped.name || 0) + g.dropped;
+        console.log(`[chat] v1 dropped what named a player (${g.dropped})`);
+      }
+      const lang = typeof ctx.language === 'string' && ctx.language ? ctx.language.slice(0, 8) : 'en';
+      if (reply && ctx.game !== 'lol' && lang === 'en') {
+        const heur = sentencesOf(reply).filter((s) => s.trim() && namesSomeoneHere(s.trim(), { names: null, language: 'en' })).length;
+        if (heur) c.logged['v1-name-log'] = (c.logged['v1-name-log'] || 0) + heur;
+      }
     }
     const usable = chatReplyOk(reply);
     if (!usable) {
@@ -4977,7 +5133,7 @@ module.exports.__test = {
   // The wrong admin passwords counted per IP on the coach routes (S2).
   adminGuesses, ADMIN_GUESS_MAX,
   checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,
-  // 8.8.x: Riot's accolades by puuid, held 15 minutes, and the rank history's.
+  // 8.7.9: Riot's accolades by puuid, held 15 minutes, and the rank history's.
   accoladesCache, rankHistoryCache,
   benchModel, readVariant, TELL_MAX, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,
   // The agent look's prompt and who may ask for its variant (8.4.4).

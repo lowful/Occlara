@@ -270,7 +270,7 @@ function startOf(row) {
  * @returns {Object<string, number>}  the RR of each rated row it could place, by row id
  */
 /*
- * BY MATCH ID FIRST (8.8.x). The stored history HenrikDev serves now
+ * BY MATCH ID FIRST (8.7.9). The stored history HenrikDev serves now
  * (server henrik-rank.js storedHistoryV2) names each game's Riot match id,
  * and a review linked to Riot's record keeps the same id (`matchId` on its
  * row), so that pair is matched exactly, with no clock at all. Only what is
@@ -350,9 +350,22 @@ const RR_WAIT_MS = 60 * 60 * 1000;
  */
 function rrWaiting(rows, rr, now) {
   const newest = (Array.isArray(rows) ? rows : []).find((r) => r && r.id && RATED_MODE.test(String(r.mode || '')));
-  if (!newest || (rr && Number.isFinite(rr[newest.id]))) return null;
-  const end = newest.at;
-  return typeof end === 'number' && Number.isFinite(end) && now - end <= RR_WAIT_MS ? newest.id : null;
+  return newest && rrWaitingFor(newest, rr && rr[newest.id], now) ? newest.id : null;
 }
 
-module.exports = { homeModel, winLoss, rankModel, rrForRows, pointForMatch, rrWaiting, TREND, RECENT, RR_WINDOW_MS, RR_EXACT_MS, RR_WAIT_MS };
+/**
+ * One row, the review page's own (8.7.9): whether its RR is still to come,
+ * so the page asks again later. A Competitive row with no finite RR that
+ * ended within the hour.
+ * @param row  a library row ({ id, at, mode })
+ * @param rr   that row's RR, a number or nothing
+ * @param now  the time now
+ */
+function rrWaitingFor(row, rr, now) {
+  if (!row || !row.id || !RATED_MODE.test(String(row.mode || ''))) return false;
+  if (Number.isFinite(rr)) return false;
+  const end = row.at;
+  return typeof end === 'number' && Number.isFinite(end) && now - end <= RR_WAIT_MS;
+}
+
+module.exports = { homeModel, winLoss, rankModel, rrForRows, pointForMatch, rrWaiting, rrWaitingFor, TREND, RECENT, RR_WINDOW_MS, RR_EXACT_MS, RR_WAIT_MS };

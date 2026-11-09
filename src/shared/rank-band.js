@@ -58,8 +58,8 @@ function rankBand(src) {
 }
 
 /*
- * THE PEAK AND THE TREND (8.8.x). The peak is the profile's (MMR v3's peak
- * since 8.8.x, v2's highest_rank before) and, without one, the best rated
+ * THE PEAK AND THE TREND (8.7.9). The peak is the profile's (MMR v3's peak
+ * since 8.7.9, v2's highest_rank before) and, without one, the best rated
  * tier in the rank history, the Profile page's own rule, so a player whose
  * profile could not be read is still banded by the games main holds. The
  * trend (riot-rank.js rankTrend: 'up', 'down', 'flat' or null) is carried

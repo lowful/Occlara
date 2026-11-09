@@ -483,3 +483,25 @@ topics for a callout died at three times, and the cause topics of `isolated`
 and `dry-peek` when the record shows them. No note or tag was added: the
 existing `situations`, `cause` and topics covered every signal. Detail:
 `riot-record.md`, "Teaching the coach the round record".
+
+### A cause the record rules out (round 8)
+
+`knowledge.js recordSignals` answers `ruledOut`: 'isolated' where the deaths nobody traded
+(never the last one alive) had a teammate close in one at least and Riot's far in none. Then
+`cases.js scored` serves no case tagged with that cause, nor one whose words teach an isolation
+lesson (`ISOLATION_LESSON`, asserted in test:chatgates), and Ask Coach's `pickNotes` serves no
+such note; the review's `caseSituation` passes it too. Fracture round 5, a teammate close and
+nobody trading, no longer draws k110 ("Rushing the isolated Chamber alone"). A 'mistimed' cause
+for the close and untraded death was proposed and is not added: the cause tags are the look's
+closed label list (death-forensics.js CAUSES), which check:playbook and check:cases hold notes to.
+
+### Every note agrees with the game data (round 8)
+
+`test:gameclaims` runs every note `knowledge.all()` returns (989) through `checkMoveFire`,
+`checkOneShot`, `checkBullets`, `checkUnobserved` and `teamDrill` and fails on any hit, so no note
+contradicts the primer again. Round 7's "bursting and moving" came from a core note, "Burst, move,
+burst, move", now "Burst, then strafe to a new spot between bursts and stop dead before the next
+one, because a moving shot goes wide and the move is what makes you hard to hit". The Outlaw note
+now says its 140 body "kills through Light Armor but not Heavy Armor" (13.09 data: 140 against
+125 and 150). A note's `when` field is still never rendered (579 of 989 have one); the prompt says
+instead that each note is a rule for a kind of situation, not a record of the match.

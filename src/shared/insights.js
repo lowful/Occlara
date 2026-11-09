@@ -29,6 +29,7 @@
  */
 
 const { CAUSES, isAvoidable, causeTitle } = require('./death-causes');
+const { satOut } = require('./sat-out');
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
 const times = (n) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
@@ -124,15 +125,15 @@ function valorant(rounds, opts = {}) {
   const out = { mistakes: [], strengths: [], missed: [] };
   if (rows.length < 3) return out;
   const role = opts.role || null;
-  const deaths = rows.filter((r) => r.died);
-  const verified = rows.filter((r) => r.verified);
   const push = (list, e) => list.push({ ...e, rounds: e.rounds || [], count: e.count != null ? e.count : (e.rounds || []).length });
 
   // A ROUND RIOT SAYS THE PLAYER SAT OUT IS NO MISTAKE (8.8): its was_afk or
   // its stayed_in_spawn (riot-rounds.js), carried by reconcile as afk and
-  // inSpawn. Every mistake below counts the rounds the player played; the
-  // strengths, the misses and the facts are counted as before.
-  const played = rows.filter((r) => !(r && (r.afk === true || r.inSpawn === true)));
+  // inSpawn (sat-out.js). Every list below counts the rounds the player
+  // played: the mistakes, the strengths and the misses (8.8). The misses
+  // counted every round, so the AFK round on the real Split came back as a
+  // second miss under the same cause as a played one.
+  const played = rows.filter((r) => !satOut(r));
   const mDeaths = played.filter((r) => r.died);
   const mVerified = played.filter((r) => r.verified);
 
@@ -181,13 +182,41 @@ function valorant(rounds, opts = {}) {
   // clutch, so it says nothing about the player's spacing.
   const knownTrade = mDeaths.filter((r) => typeof r.traded === 'boolean' && !diedAlone(r));
   const untraded = knownTrade.filter((r) => r.traded === false);
+  /*
+   * ALONE, OR CLOSE AND NOT TRADED (8.8). "Died where nobody could trade" was
+   * the title of every untraded death, and on the real Split Riot has a
+   * teammate close (mateNear, under 1500 units) in 6 of them: somebody could
+   * have traded those. So the floor is still read on every untraded death,
+   * whether the habit is there at all, and the deaths are then told apart:
+   * Riot's far, or no distance known (a round with no positions, a review
+   * from before 8.7.9), and a teammate close.
+   *
+   * ONE KEY FOR THE HABIT (8.8 review). The close deaths were their own entry,
+   * 'untraded-close', for a while, and every reader of the trade habit looks
+   * at 'untraded' only: the review's focus lever and its rule (match-review.js
+   * focusLever, leverOf, leverRule4 read the N of M in its detail), Ask
+   * Coach's two weakest, the Verdict, and the library's repeats (patterns,
+   * input.recurring). Split, 8 untraded deaths of 10 with 6 close became an
+   * 'untraded' entry of 2, under its own floor of 3, the trade lever was lost
+   * and the prompt said never to make trading the focus. So 'untraded' keeps
+   * the whole count, rounds and floor; the split is in its title, its detail,
+   * its fix and two fields, close (a count) and closeRounds. Only when no
+   * death had a teammate close is it the old title, word for word.
+   */
   if (untraded.length >= 3 && untraded.length * 10 >= knownTrade.length * 6) {
+    const close = untraded.filter((r) => r.mateNear === 'close');
+    const closeRounds = close.map((r) => r.n);
+    const of = plural(knownTrade.length, 'death');
+    const closeTail = !close.length ? '.'
+      : `, and in ${close.length === 1 ? 'one' : close.length} of them a teammate was close, ${roundList(closeRounds)}.`;
     push(out.mistakes, {
-      key: 'untraded', title: 'Died where nobody could trade',
-      detail: `${untraded.length} of your ${plural(knownTrade.length, 'death')} went unanswered: no teammate killed your killer `
-        + 'within five seconds.',
+      key: 'untraded', title: close.length ? 'Deaths nobody traded' : 'Died where nobody could trade',
+      detail: `${untraded.length} of your ${of} went unanswered: no teammate killed your killer within five seconds${closeTail}`,
       rounds: untraded.map((r) => r.n), weight: WEIGHT.untraded, untradedOnly: true, of: knownTrade.length,
-      fix: 'Before you swing, check someone can see the same angle. If nobody can, wait or reposition.',
+      close: close.length, closeRounds,
+      fix: close.length * 2 >= untraded.length
+        ? 'When a teammate is near, hold a different angle from theirs or swing right after them, so they can see your killer.'
+        : 'Before you swing, check someone can see the same angle. If nobody can, wait or reposition.',
     });
   }
 
@@ -270,15 +299,15 @@ function valorant(rounds, opts = {}) {
   // mistakes. A count is now a share of the rounds, never under two
   // (shareFloor); one round of four kills is a multi kill round on its own; and
   // the scoreboard itself can be the strength.
-  const openers = verified.filter((r) => r.firstKill).map((r) => r.n);
-  if (openers.length >= shareFloor(verified.length)) {
+  const openers = mVerified.filter((r) => r.firstKill).map((r) => r.n);
+  if (openers.length >= shareFloor(mVerified.length)) {
     push(out.strengths, {
       key: 'first-kill', title: 'Opened rounds',
       detail: `You got the first kill of the round ${times(openers.length)}, ${roundList(openers)}.`,
       rounds: openers,
     });
   }
-  const multi = verified.filter((r) => typeof r.kills === 'number' && r.kills >= 3);
+  const multi = mVerified.filter((r) => typeof r.kills === 'number' && r.kills >= 3);
   const big = multi.filter((r) => r.kills >= 4);
   if (multi.length >= 2 || big.length) {
     const one = multi.length === 1 ? multi[0] : null;
@@ -290,16 +319,16 @@ function valorant(rounds, opts = {}) {
       rounds: multi.map((r) => r.n),
     });
   }
-  const tradeRounds = verified.filter((r) => typeof r.trades === 'number' && r.trades > 0);
+  const tradeRounds = mVerified.filter((r) => typeof r.trades === 'number' && r.trades > 0);
   const tradeCount = tradeRounds.reduce((a, r) => a + r.trades, 0);
-  if (tradeCount >= shareFloor(verified.length)) {
+  if (tradeCount >= shareFloor(mVerified.length)) {
     push(out.strengths, {
       key: 'trades', title: 'Traded your teammates',
       detail: tradesDetail(tradeCount),
       rounds: tradeRounds.map((r) => r.n), count: tradeCount,
     });
   }
-  const clutchWon = verified.filter((r) => r.clutch && r.clutch.won === true && r.clutch.vs >= 1);
+  const clutchWon = mVerified.filter((r) => r.clutch && r.clutch.won === true && r.clutch.vs >= 1);
   if (clutchWon.length >= 1) {
     push(out.strengths, {
       key: 'clutch', title: 'Won as the last one standing',
@@ -309,7 +338,7 @@ function valorant(rounds, opts = {}) {
       rounds: clutchWon.map((r) => r.n),
     });
   }
-  const decided = rows.filter((r) => r.result && r.side);
+  const decided = played.filter((r) => r.result && r.side);
   const post = decided.filter((r) => aliveAtPlant(r) && r.side === 'attacking');
   const postWon = post.filter((r) => r.result === 'won');
   if (post.length >= 3 && postWon.length * 10 >= post.length * 6) {
@@ -329,11 +358,11 @@ function valorant(rounds, opts = {}) {
     });
   }
   // Survival, only where Riot says who lived: the screen cannot.
-  const lived = verified.filter((r) => !r.died);
-  if (verified.length >= 6 && lived.length * 10 >= verified.length * 4) {
+  const lived = mVerified.filter((r) => !r.died);
+  if (mVerified.length >= 6 && lived.length * 10 >= mVerified.length * 4) {
     push(out.strengths, {
       key: 'survived', title: 'Stayed alive',
-      detail: `You survived ${lived.length} of ${plural(verified.length, 'round')}.`,
+      detail: `You survived ${lived.length} of ${plural(mVerified.length, 'round')}.`,
       rounds: lived.map((r) => r.n),
     });
   }
@@ -361,7 +390,7 @@ function valorant(rounds, opts = {}) {
   }
 
   // ── Missed ────────────────────────────────────────────────────────────────
-  const heldUlt = deaths.filter((r) => r.ultAtDeath === 'ready');
+  const heldUlt = mDeaths.filter((r) => r.ultAtDeath === 'ready');
   if (heldUlt.length >= 1) {
     push(out.missed, {
       key: 'ult-held', title: 'Died holding your ultimate',
@@ -378,7 +407,7 @@ function valorant(rounds, opts = {}) {
       rounds: [r.n], untradedOnly: true,
     });
   }
-  const clutchLost = verified.filter((r) => r.clutch && r.clutch.won === false && r.clutch.vs === 1);
+  const clutchLost = mVerified.filter((r) => r.clutch && r.clutch.won === false && r.clutch.vs === 1);
   if (clutchLost.length >= 1) {
     push(out.missed, {
       key: 'one-v-one', title: 'One against one, lost',
@@ -395,7 +424,7 @@ function valorant(rounds, opts = {}) {
     });
   }
   // The coach's better play for each death it looked at, as a miss per round.
-  for (const r of deaths) {
+  for (const r of mDeaths) {
     const f = r.forensics;
     if (!f || !f.better || !isAvoidable(f.cause)) continue;
     if ((byCause.get(f.cause) || []).length >= 2) continue;   // already a repeated mistake

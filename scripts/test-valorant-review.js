@@ -1302,9 +1302,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const named = matchReview.parse('SUMMARY: You lost 2 to 5. Your most repeated mistake was dying where nobody could '
     + 'trade, 4 of your 5 deaths, in rounds 2, 3, 6 and 7. The repeated mistake was holding one angle too long in '
     + 'rounds 1, 4 and 5. You won 4 of 7 duels.', input);
-  ok(named.summary === 'You lost 2 to 5. Your most repeated mistake was dying where nobody could trade, 4 of your 5 '
+  // Round 8 (record-claims.js checkAlone): "dying where nobody could trade" of untraded deaths is said as Riot's fact.
+  ok(named.summary === 'You lost 2 to 5. Your most repeated mistake was dying where nobody traded, 4 of your 5 '
     + 'deaths, in rounds 2, 3, 6 and 7.',
-  `the counted mistake with its own count stays, one the review never counted goes, and any other count (${named.summary})`);
+  `the counted mistake with its own count stays, in the record's words, one the review never counted goes, and any other count (${named.summary})`);
 
   // THE LIVE MODEL'S WORDS FOR THIS MATCH on the first 8.3.1 server: round 1
   // "No one traded the death" where Riot has it traded, every line the fact
@@ -1350,7 +1351,7 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   // counted named by them still goes.
   const labelled = matchReview.parse('SUMMARY: You lost 2 to 5. Your most repeated mistake was dying where nobody could '
     + 'trade, 4 of your 5 deaths, in R2, R3, R6 and R7. The repeated mistake was holding one angle too long in R1, R4 and R5.', input);
-  ok(labelled.summary === 'You lost 2 to 5. Your most repeated mistake was dying where nobody could trade, 4 of your 5 '
+  ok(labelled.summary === 'You lost 2 to 5. Your most repeated mistake was dying where nobody traded, 4 of your 5 '
     + 'deaths, in rounds 2, 3, 6 and 7.',
   `a counted mistake named by its labels stays as rounds, one never counted goes (${labelled.summary})`);
 }
@@ -1935,6 +1936,40 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(play && play.has('Your teammate Tessik was ahead of you.') && !play.has('Fall back behind cover after the first exchange.')
     && !play.has('You stayed on the angle with your crosshair low.'),
   "and the name gate's plain words of play are none of its words, while the rest of a name is");
+  // ROUND 8: A COACHING WORD OF A NAME COUNTS ONLY WHERE IT READS AS A NAME.
+  // The Plat Fracture review lost R5, its focus's lead and a summary sentence
+  // to a word of a name every coach says (the evidence points to "aim"). A
+  // word of the playbook's and the cases' vocabulary (COACH_VOCAB) counts only
+  // capitalised past its sentence's first word; any other word of a name, an
+  // ordinary English word among them, counts in any case, anywhere.
+  ok(riotRounds.COACH_VOCAB.has('aim') && riotRounds.COACH_VOCAB.has('lurk') && !riotRounds.COACH_VOCAB.has('velvet')
+    && !riotRounds.COACH_VOCAB.has('morvane') && riotRounds.COACH_VOCAB.size > 2000,
+  `the coach's vocabulary holds "aim" and "lurk", and no invented name and no word a coach never says (${riotRounds.COACH_VOCAB.size})`);
+  const COACHY = 'c0ffee00-2222-4333-8444-555566667777';
+  riotRounds.noteNames(COACHY, { players: [{ name: 'Aim Morvane', tag: 'Lurk' }, { name: 'Velvet', tag: 'Tessik' }] });
+  const coachy = riotRounds.nameSetOf(COACHY);
+  const spared0 = riotRounds.nameSetCounts().spared;
+  const keepsAll = ['Your aim is fine.', 'Aim for the head.', 'After the plant, do not lurk alone, let them come to you.',
+    'Keep your aim at head height on the entrance. Aim lower.', 'Lurk late only with a teammate near.',
+    'One thing to fix: Aim for the head.', 'Aim Lab is fine for warm ups.'];
+  const dropsAll = ['Your teammate Aim was on B.', 'You lost the duel to Lurk on A Main.', 'killed by morvane', 'Morvane killed you.',
+    'the morvane push came late.', 'Your teammate velvet held B.', 'Velvet was ahead of you.', 'tessik was there.', 'You traded Aim at once.',
+    // Round 8 review: a soft word opening its sentence as its subject, after a colon or a list number too.
+    'Lurk caught you on A Main.', 'Lurk was ahead of you on B.', 'One thing to fix: Aim held the angle you swung.', '1. Lurk held Heaven, so clear it first.', "Lurk's Operator held Heaven."];
+  const keptWrong = keepsAll.filter((s) => coachy.has(s));
+  const missed = dropsAll.filter((s) => !coachy.has(s));
+  ok(!keptWrong.length && !missed.length && JSON.stringify(Object.keys(coachy)) === '["has","spares"]'
+    && !['aim', 'morvane', 'lurk', 'velvet', 'tessik'].some((w) => String(coachy.has).toLowerCase().includes(w) || String(coachy.spares).toLowerCase().includes(w)),
+    `a coaching word of a name ("aim", "lurk") is no name as a word, and a name capitalised past the first word, an invented one and an ordinary word that is no coach's ("velvet") in any case still are (kept wrong: ${JSON.stringify(keptWrong)}, missed: ${JSON.stringify(missed)})`);
+  ok(riotRounds.nameSetCounts().spared === spared0, 'has() counts nothing, so a gate asking twice counts nothing twice');
+  const spares = keepsAll.filter((t) => coachy.spares(t)).length;
+  ok(spares === keepsAll.length && !dropsAll.some((t) => coachy.spares(t)) && riotRounds.nameSetCounts().spared === spared0 + keepsAll.length
+    && JSON.stringify(riotRounds.nameSetCounts()) === `{"spared":${spared0 + keepsAll.length}}`,
+    'and spares() counts each text the soft half spared once, a number and never a word');
+  // The module's own predicates, not a copy of their regexes.
+  ok(riotRounds.isCapital('Aim') && !riotRounds.isCapital('aim') && riotRounds.isVocabWord('aim') && !riotRounds.isVocabWord('Jett') && !riotRounds.isVocabWord('r5')
+    && riotRounds.namesTheSubject('was', 'Lurk') && !riotRounds.namesTheSubject('for', 'Aim') && !riotRounds.namesTheSubject('traded', 'Nobody'),
+  'the capital test takes "Aim" and not "aim", the vocabulary test "aim" and not "Jett" or "r5", and "was" makes a subject where "for" and "Nobody" do not');
 }
 
 // ── The real swiftplay match ────────────────────────────────────────────────
@@ -2382,6 +2417,28 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(matchReview.claimOf('Devour off the orb after the kill, then reset.', reyna, null) === null
     && matchReview.claimOf('When you go for the orb, ask a teammate to watch.', jett, null) === 'orb',
   'a Reyna\'s soul orb is hers, an ultimate orb nothing states is not');
+  // Round 8 (game-claims.js): round 7's game and kit claims, as kinds.
+  ok(matchReview.claimOf("The Outlaw's one-shot body at any range only matters if you walk into its line.", jett, null) === 'lethal'
+    && matchReview.claimOf('The Outlaw one-shots the head at any range.', jett, null) === null,
+  'a body one shot the damage table does not give goes as lethal, a true head one shot stays');
+  ok(matchReview.claimOf('Burst, move, burst, move, the kills come from being hard to hit.', jett, null) === 'kit'
+    && matchReview.claimOf('Burst, then strafe to a new spot between bursts and stop dead before the next one.', jett, null) === null,
+  'firing on the move goes as kit, moving between bursts stays');
+  ok(matchReview.claimOf('Practise in Deathmatch, where there are no teammates: ask whether anyone could follow up your fight.', jett, null) === 'drill'
+    && matchReview.claimOf('Play Deathmatch and pick one angle to hold, stopping before every shot.', jett, null) === null,
+  'a disclaimer then a team drill goes as drill, a solo drill after it stays');
+  const held = { n: 12, verified: true, died: true, result: 'lost', killer: 'Fade', weapon: 'Vandal', cause: 'lost-duel',
+    seen: 'You held the gap at B Main with a Guardian, and Fade appeared in it and killed you with a Vandal before you fired.' };
+  ok(matchReview.claimOf('Your crosshair sat too deep toward the wall, so Fade swung into the gap off it.', jett, held) === 'unseen'
+    && matchReview.claimOf('Your crosshair was low on the gap.', jett, { ...held, seen: 'Your crosshair was low on the gap when Fade appeared.' }) === null
+    && matchReview.claimOf('Keep your crosshair back from the corner next time.', jett, held) === null,
+  'where the crosshair sat goes as unseen unless the round\'s look says it, and the imperative stays');
+  {
+    const out = { rounds: {}, summary: 'Play Deathmatch to warm up your aim. Before every fight there, ask whether a teammate is nearby. In your next match, check a teammate can trade you.', focus: null, dropped: [] };
+    matchReview.claimGates(out, jett);
+    ok((/warm up/.test(out.summary) && !/there, ask whether/.test(out.summary) && /next match/.test(out.summary)),
+      `a Deathmatch frame read across the summary's sentences (${out.summary})`);
+  }
   // A whole reply: a round line goes whole, a summary sentence alone.
   const whole = matchReview.parse('SUMMARY: You won 13 to 7. Your aim is not the problem here. Your openings won rounds.\n'
     // R3, not R4 (round 4): Riot's record has the spike down in round 3 and
@@ -2514,7 +2571,9 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     // And since 8.7.10 the clock turned around (match-review.js clockWrong),
     // for every client: Corrode round 1, an attack round after the plant,
     // "so you can make the attackers spend time finding you".
-    sameParse = moved.length === 2 && moved.includes('review-sunset-4-13-asc_plus') && moved.includes('review-corrode-3-13-silver_gold');
+    // And since round 8 the capability said as Riot's fact (record-claims.js checkAlone): Fracture at
+    // Ascendant, "a fair postplant fight that nobody could trade" of round 5, nobody trading it, now "nobody traded".
+    sameParse = moved.length === 3 && moved.includes('review-sunset-4-13-asc_plus') && moved.includes('review-corrode-3-13-silver_gold') && moved.includes('review-fracture-5-1-asc_plus');
     ok(sameParse, `and its 48 real replies parse as at 4a5aa0e but the one "so your next review can check" and the one clock turned around (${moved.join(', ')})`);
   } else console.log('skip  4a5aa0e is not readable here, the byte for byte check against it did not run');
 
@@ -2544,9 +2603,17 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     && !prompt.includes('13 of your 15 deaths went unanswered'),
   'and the counted mistake says which deaths its count is of');
   ok(!DASHES.test(prompt) && !/;/.test(matchReview.countLines(input).join(' ')), 'no dash in the prompt, no semicolon in the block');
-  for (const [from, to] of matchReview.ROUND4_SWAPS) {
+  for (const [from, to0] of matchReview.ROUND4_SWAPS) {
+    // The SWING line is the server's in an English review (round 8, swingInto).
+    const to = to0 === matchReview.ROUND4_SWAPS[0][1] ? matchReview.SWING_SWAP_EN : to0;
     const want = to.replace('{KIT}', ' Say of an ability only what its line under WHAT THE ABILITIES DO says.');
     ok(prompt.includes(want) && prompt.split(from).length === want.split(from).length, `the round 4 swap applies: "${want.slice(0, 60)}"`);
+  }
+  ok(!prompt.includes(matchReview.ROUND4_SWAPS[0][1]), 'and an English review is never told to quote the SWING line in sentence one (round 8)');
+  {
+    const es = seeded(() => matchReview.buildPrompt({ ...input, context: { ...input.context, language: 'es' } }));
+    ok(es.includes(matchReview.ROUND4_SWAPS[0][1]) && !es.includes(matchReview.SWING_SWAP_EN),
+      'a review in another language keeps the old SWING rule, the line being English');
   }
   for (const [, to] of matchReview.GROUNDING4_SWAPS) ok(prompt.includes(to), `and the grounding swap: "${to.slice(0, 60)}"`);
   ok(prompt.includes('R4 attack, lost.') && /R4 attack, lost\.[^\n]*spike not planted/.test(prompt) && /R3 attack, lost\.[^\n]*spike planted/.test(prompt),
@@ -2970,8 +3037,39 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     { n: 7, side: 'defending', result: 'lost', died: true, verified: true, riotSpot: 'Mid Top', deathSpot: 'Mid Top', killSpots: ['Mid Tiles'], reads: [] },
     { n: 8, side: 'defending', result: 'lost', died: true, verified: false, deathSpot: 'A Site', killSpots: ['Mid Tiles'], reads: [] },
   ], context: { map: 'Sunset', agent: 'Jett' }, endedBy: 'score' });
-  ok(JSON.stringify(sent.rounds[0].killPlaces) === '["Mid Tiles"]' && !('killPlaces' in sent.rounds[1]) && !('killPlaces' in sent.rounds[2]),
-    'requestBody: killPlaces only for a verified death with no Riot place');
+  ok(JSON.stringify(sent.rounds[0].killPlaces) === '["Mid Tiles"]' && JSON.stringify(sent.rounds[1].killPlaces) === '["Mid Tiles"]' && !('killPlaces' in sent.rounds[2]),
+    'requestBody (round 8): killPlaces for every verified round with a kill Riot places, a placed death too, never for an unverified one');
+  // Round 8, the timeline and the state: the round line says Riot's plant time
+  // and which side of it the death fell, the standing with what the death
+  // left, the enemy's side by its noun and the kills' places apart from the
+  // death's, and a read of the plant under way is not sent for a death after it.
+  {
+    const body = { counts: {}, swing: [], patterns: [], context: { agent: 'Jett', map: 'Sunset' }, rounds: [
+      { n: 5, side: 'attacking', result: 'lost', died: true, verified: true, sec: 33, killer: 'Jett', alive: { mates: 4, enemies: 3 }, planted: true, plantSpot: 'A Site',
+        plantSec: 32.1, afterPlant: true, traded: false, reads: ['holding A Site while ally plants', 'holding A Main with Vandal'] },
+      { n: 6, side: 'attacking', result: 'lost', died: true, verified: true, sec: 20, killer: 'Omen', alive: { mates: 5, enemies: 5 }, firstDeath: true, planted: true,
+        plantSec: 40.2, afterPlant: false, reads: ['holding B Main with spike planted on B', 'holding B Main with Vandal'] },
+      { n: 7, side: 'defending', result: 'won', died: true, verified: true, sec: 30, killer: 'Reyna', place: 'A Alley', killPlaces: ['A Elbow'], firstKill: true, alive: { mates: 4, enemies: 4 }, reads: [] },
+      { n: 8, side: 'defending', result: 'lost', died: true, verified: true, sec: 50, killer: 'Reyna', alive: { mates: 1, enemies: 2 }, reads: [] },
+    ] };
+    const inp = matchReview.normalise(body);
+    const L = (n) => matchReview.roundLine(inp.rounds.find((r) => r.n === n), { plant: true, map: 'Sunset' });
+    ok(/spike planted at A Site 32\.1 seconds into the round, before the death, so the player died with the spike down/.test(L(5)) && !/while ally plants/.test(L(5)) && /holding A Main with Vandal/.test(L(5)),
+      'CAUGHT (Fracture 5 to 1 Iron round 5): the line says Riot\'s plant time and the death with the spike down, and the "while ally plants" read is not sent', L(5));
+    ok(/spike planted 40\.2 seconds into the round, after the death, so the player died before the plant/.test(L(6)) && !/spike planted on B/.test(L(6)) && /holding B Main with Vandal/.test(L(6)),
+      'a death before the plant says so, and a read of the spike down is not sent for it', L(6));
+    ok(/their team 4 against 3 as they died, the player counted, not the first death: 1 teammate already down, leaving 3 against 3/.test(L(5))
+      && /their team 5 against 5 as they died, the player counted, leaving 4 against 5/.test(L(6)) && /the last of their team alive, 1 against 2, when they died/.test(L(8)),
+    'CAUGHT (Pearl round 4): the standing at the death with the player counted, the teammates already down and what the death left; the last one alive said so');
+    ok(/the enemy were the defenders/.test(L(5)) && /the enemy were the attackers/.test(L(7)), 'CAUGHT (Corrode round 1): the enemy\'s side by its noun in every verified round line');
+    ok(/died at A Alley/.test(L(7)) && /the player's kills fell at A Elbow/.test(L(7)) && JSON.stringify(inp.rounds.find((r) => r.n === 7).killPlaces) === '["A Elbow"]',
+      'CAUGHT (Sunset 4 to 13 round 7): the kill places are kept beside Riot\'s death place and said apart from it', L(7));
+    const old = matchReview.roundLine(matchReview.normalise({ ...body, counts: undefined }).rounds.find((r) => r.n === 5), { map: 'Sunset' });
+    ok(/4 of their team standing against 3 when they died/.test(old) && !/the enemy were/.test(old), 'a client before round 4 keeps the old standing words and no enemy side line', old);
+    ok(matchReview.READ_DURING_PLANT.test('player holding A Site as spike is being planted') && !matchReview.READ_DURING_PLANT.test('holding A Site with spike planted')
+      && matchReview.READ_SPIKE_DOWN.test('holding B Main with spike planted on B') && !matchReview.READ_SPIKE_DOWN.test('holding B Main while ally plants'),
+    'READ_DURING_PLANT and READ_SPIKE_DOWN on a known positive and a known negative');
+  }
   // The cost reason in the review's prompt, from Platinum on a round 4 client.
   const fracRounds = [
     { n: 2, side: 'defending', result: 'won', died: true, verified: true, sec: 31, killer: 'Astra', weapon: 'Sheriff', traded: true, alive: { mates: 5, enemies: 1 }, buy: 'half' },
@@ -3031,6 +3129,146 @@ console.log('\nthe plant\'s time from Riot\'s record (the blind audit of round 7
   ok(edge(false).afterPlant === false && edge(undefined).afterPlant === null
     && rc.contextOfReview({ rounds: [{ n: 4, died: true, verified: true, sec: 50, planted: true, afterPlant: false }] }).rounds.get(4).afterPlant === null,
     'row: afterPlant false is certain only beside Riot\'s plant time and the death\'s second');
+}
+
+// ── ROUND 8: THE THIN REVIEW (the Fracture 5 to 1 reviews of round 7) ─────
+{
+  const co = require('../server/services/coherence');
+  const DASHES = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']');
+  const audit = require('./fixtures/audit-round3-reviews.json').reviews;
+  const fx = audit.find((x) => x.id === 'review-fracture-5-1-plat_diamond');
+  const RIOT = { 2: { mate: 'far' }, 5: { plantSec: 32.1, afterPlant: true, mate: 'close' }, 6: { plantSec: 50.8, afterPlant: false, mate: 'close' } };
+  const fbody = (band, extra) => ({ rounds: fx.rounds.map((x) => ({ ...x, ...(RIOT[x.n] || {}) })), swing: [], mistakes: [], strengths: [], patterns: [],
+    counts: { deaths: 3, known: 3, untraded: 2, alone: 0, tradeable: 3, untradedMate: 2 },
+    context: { agent: fx.agent, map: fx.map, rankBand: band }, final: { team: 5, enemy: 1, result: 'Victory', verified: true, scoreline: fx.scoreline }, ...extra });
+  const input = matchReview.normalise(fbody('plat_diamond'));
+  // 1. A won round gets a line when too few lost ones do (wonPicks).
+  const worthy = input.rounds.filter(matchReview.lineWorthy).map((r) => r.n);
+  const won = matchReview.wonPicks(input.rounds, { won: true });
+  ok(JSON.stringify(worthy) === '[5]' && won.length >= 1 && won.length <= matchReview.WON_LINES && won.every((n) => input.rounds.find((r) => r.n === n).result === 'won')
+    && JSON.stringify(matchReview.linePicks(input)) === JSON.stringify([...new Set([...worthy, ...won])].sort((a, b) => a - b)),
+  `Fracture 5 to 1: one round worth a line, so up to two won rounds with a look or a first death get one too (${JSON.stringify({ worthy, won })})`);
+  const oldInput = matchReview.normalise(fbody('plat_diamond', { counts: undefined }));
+  ok(JSON.stringify(matchReview.linePicks(oldInput)) === '[5]' && JSON.stringify(matchReview.teachable(input.rounds)) === '[5]',
+    'a client before round 4, and teachable asked as before, give the lost round alone');
+  ok(matchReview.wonPicks(input.rounds.map((r) => (r.n === 3 || r.n === 1 ? { ...r, result: 'lost', died: true } : r)), { won: true }).length === 0,
+    'and a match with two rounds worth a line gives no won round one');
+  const prompt = matchReview.buildPrompt(input);
+  ok(won.every((n) => new RegExp(`R${n} [^\\n]*your team won it anyway, so say what the death risked`).test(prompt))
+    && !/R5 [^\n]*your team won it anyway/.test(prompt) && won.every((n) => new RegExp(`R${n}`).test(prompt.split('in this order:')[1] || '')),
+  'its facts say the team won it anyway, and it is listed for a line');
+  const wonLine = matchReview.parse(`SUMMARY: You won 5 to 1.\nR${won[0]}: Fall back to cover after your first kill instead of holding the same angle.`, input);
+  ok(wonLine.rounds[won[0]], `a line for the won round is parsed (${JSON.stringify(wonLine.dropped)})`);
+  ok(!matchReview.parse(`SUMMARY: You won 5 to 1.\nR${won[0]}: Fall back to cover after your first kill.`, oldInput).rounds[won[0]], 'and never for a client before round 4');
+  // 2. The focus still instructs after the gates (focusGate, coherence.instructs).
+  const FOCI_YES = ['After the plant, hold cover for the spike before taking another duel, gaining time at the cost of an immediate kill chance.',
+    'When your team is ahead after the plant, stay in cover on the spike and make the defenders walk into you.',
+    'Before you swing, check that a teammate is close enough to kill whoever kills you.', 'Enter on a flash.', 'Smoke first.',
+    'Early in a round, take one piece of space and stop behind cover before choosing the next fight.',
+    'When you are about to swing, first position beside a teammate who can see the same angle and kill your killer.',
+    // The review of round 8: correct foci that opened on a verb the list did not know, or a lead it did not know.
+    'Focus on waiting for a teammate before you peek.', "Don't peek alone before a teammate is ready.",
+    'When you are on attack, never take the first duel without a teammate close.', 'Work on your crosshair placement before each fight.',
+    'Avoid dry peeking A Main on attack.', 'Only take fights where a teammate can trade you.', 'Remember to check Heaven before you plant.',
+    'When the first teammate dies on attack, avoid taking the next fight alone.', 'During the post plant, hold the spike from cover.',
+    'The moment your entry dies, fall back to cover.', 'Never peek alone.'];
+  const FOCI_NO = ['You give up a quick kill attempt to keep the advantage while the clock runs.', 'It gains time at the cost of an immediate kill chance.',
+    'Your deaths after the plant gave the advantage back.', 'Only two of your deaths were traded.', 'Never once were you traded in round 5.'];
+  ok(FOCI_YES.every(co.instructs) && !FOCI_NO.some(co.instructs), 'instructs: a focus that says what to do, never one that only weighs a cost',
+    FOCI_YES.filter((s) => !co.instructs(s)).concat(FOCI_NO.filter(co.instructs)).join(' | '));
+  ok(co.TRADEOFF_ONLY.test('You give up a quick kill attempt.') && co.TRADEOFF_ONLY.test('It costs you an early kill.') && !co.TRADEOFF_ONLY.test('Hold cover for the spike.')
+    && !co.TRADEOFF_ONLY.test('Your team gave up the site.'), 'TRADEOFF_ONLY matches a cost or a gain alone, never an instruction');
+  const tail = matchReview.parse('SUMMARY: You won 5 to 1 by opening fights.\nFOCUS: You give up a quick kill attempt to keep the advantage while the clock runs.', input);
+  ok(tail.focus === null && tail.dropped.some((d) => d.said === 'focus no instruction') && matchReview.dropKind(tail.dropped.find((d) => d.said === 'focus no instruction')) === 'focus',
+    'CAUGHT: the Plat focus, the tradeoff tail alone, goes as no instruction');
+  // 3. The floor (floorFails, floorNote, floorMerge, floorFill), the four bands.
+  const SERVED = 'SUMMARY: You won 5 to 1 by opening fights and backing up teammates. You died 3 times in 6 rounds. 2 of your 3 deaths were not traded by a teammate within five seconds.\n'
+    + 'FOCUS: You give up a quick kill attempt to keep the advantage while the clock runs.';
+  for (const band of ['iron_bronze', 'silver_gold', 'plat_diamond', 'asc_plus']) {
+    const inb = matchReview.normalise(fbody(band));
+    const first = matchReview.parse(SERVED, inb);
+    const fails = matchReview.floorFails(first, inb);
+    const note = matchReview.floorNote(first, fails);
+    const merged = matchReview.floorMerge(first, matchReview.parse(SERVED, inb));
+    const filled = matchReview.floorFill(merged, inb);
+    ok(JSON.stringify(fails) === '["rounds","focus"]' && /no ROUND line could be shown/.test(note) && /the FOCUS did not say what to do/.test(note)
+      && JSON.stringify(filled) === '["rounds","focus"]' && /^After the plant with your team up 4 against 3, hold the spike from cover/.test(merged.rounds[5])
+      && co.instructs(merged.focus) && matchReview.floorFails(merged, inb).length === 0 && !DASHES.test(JSON.stringify(merged)) && !/;/.test(merged.rounds[5] + merged.focus),
+    `${band}: the Fracture review served with no round line and the tradeoff tail is floored to round 5's line and an instruction (${merged.rounds[5]} | ${merged.focus})`);
+  }
+  const good = matchReview.parse('SUMMARY: You won 5 to 1.\nR5: After the plant, hold cover for the spike and delay the next duel.\nFOCUS: After the plant, hold cover for the spike.', input);
+  ok(matchReview.floorFails(good, input).length === 0 && matchReview.floorFill(good, input).length === 0, 'a review that meets the floor is left as it is');
+  {
+    // The true sentences of a line the record cut (8.8 review, lineRest): Fracture Iron R5.
+    const iron = matchReview.normalise(fbody('iron_bronze'));
+    const cut = matchReview.parse('SUMMARY: You won 5 to 1.\nR5: As your teammate plants, hold from cover and check that you are stopped before shooting. You lost a fair fight on the shot.\n'
+      + 'FOCUS: After the plant, hold cover for the spike.', iron);
+    ok(cut.dropped.some((d) => /^record/.test(d.said)) && cut.rounds[5] && !/As your teammate plants/.test(cut.rounds[5])
+      && /You lost a fair fight on the shot\.$/.test(cut.rounds[5]) && co.instructs(cut.rounds[5]),
+    `the false plant phase sentence goes, the true one stays behind the round's computed line (${cut.rounds[5]})`);
+    const lean = matchReview.parse('SUMMARY: You won 5 to 1.\nR5: As your teammate plants, hold from cover and check that you are stopped before shooting. That cost you the round.\n'
+      + 'FOCUS: After the plant, hold cover for the spike.', iron);
+    ok(!lean.rounds[5] || !/That cost you the round/.test(lean.rounds[5]), `a sentence leaning on the cut one goes with it (${lean.rounds[5]})`);
+  }
+  {
+    // Variant A, the bench's baseline, is three unlabelled sentences: never floored, never filled (8.8 review).
+    const aIn = matchReview.normalise(fbody('plat_diamond', { variant: 'A' }));
+    const aOut = matchReview.parse('You played well. Your most common issue was peeking alone. Next match, wait for a teammate.', aIn);
+    ok(aIn.variant === 'A' && matchReview.floorFails(aOut, aIn).length === 0 && matchReview.floorFill(aOut, aIn).length === 0 && !aOut.focus,
+      `variant A is never floored (${JSON.stringify(matchReview.floorFails(aOut, aIn))})`);
+    const bIn = matchReview.normalise(fbody('plat_diamond', { variant: 'B' }));
+    ok(matchReview.floorFails(matchReview.parse('SUMMARY: You won 5 to 1.', bIn), bIn).includes('focus'), 'variant B still is');
+  }
+  {
+    const esIn = matchReview.normalise(fbody('plat_diamond', { context: { agent: 'Jett', map: 'Fracture', rankBand: 'plat_diamond', language: 'es' } }));
+    const esOut = { summary: 'Ganaste 5 a 1.', rounds: {}, focus: null, dropped: [], blamed: [] };
+    ok(matchReview.floorFails(esOut, esIn).length === 2 && matchReview.floorFill(esOut, esIn).length === 0 && esOut.focus === null,
+      'a review in another language is asked again but never filled with an English line');
+  }
+  const kept = matchReview.floorMerge(good, { summary: 'other', rounds: { 6: 'other' }, focus: 'Other.', dropped: [], blamed: [] });
+  ok(kept.summary === good.summary && JSON.stringify(kept.rounds) === JSON.stringify(good.rounds) && kept.focus === good.focus, 'floorMerge keeps every field the first reply could show');
+  ok(/a word that is part of a player's name/.test(matchReview.floorNote({ dropped: [{ n: 5, said: 'name' }] }, ['rounds'])) && !/name/.test(matchReview.floorNote({ dropped: [] }, ['focus'])),
+    'and the retry is told a name drop in plain words, never the word');
+  // The computed lines, one per situation, each through every gate (floorLine).
+  const situations = [
+    { n: 4, side: 'attacking', result: 'lost', died: true, verified: true, afterPlant: true, alive: { mates: 3, enemies: 2 } },
+    { n: 4, side: 'defending', result: 'lost', died: true, verified: true, afterPlant: true },
+    { n: 4, side: 'defending', result: 'lost', died: true, verified: true, alive: { mates: 4, enemies: 2 } },
+    { n: 4, side: 'attacking', result: 'lost', died: true, verified: true, traded: false, mate: 'far' },
+    { n: 4, side: 'attacking', result: 'lost', died: true, verified: true, traded: false, mate: 'close' },
+    { n: 4, side: 'attacking', result: 'lost', died: true, verified: true, firstDeath: true },
+    { n: 4, side: 'defending', result: 'lost', died: true, verified: true },
+    { n: 4, side: 'attacking', result: 'lost', died: true, verified: true }];
+  const lines = situations.map(matchReview.floorLine);
+  ok(new Set(lines).size === situations.length && lines.every((l) => l && co.instructs(l) && !DASHES.test(l) && !/;/.test(l))
+    && matchReview.floorLine({ n: 4, died: false }) === null && matchReview.floorLine({ n: 4, died: true, side: null }) === null,
+  'floorLine: one line for each situation, each an instruction, no dash, none for a round without a death or a side');
+  // 4. The SWING line glued on with "despite this:" (coherence.splitSwingSeam), and put in by code (swingInto).
+  ok(co.SWING_SEAM.test('You won 5 to 1, opening fights and winning key duels despite this: you died 3 times in 6 rounds.')
+    && !co.SWING_SEAM.test('Despite this, you held the site.') && !co.SWING_SEAM.test('The lever is simple: trade the first death.'),
+  'SWING_SEAM matches "despite this:" before a clause, never "Despite this," or a colon after a plain noun');
+  ok(co.WON_NO_VERB.test('You won 5 to 1, opening fights and winning key duels') && !co.WON_NO_VERB.test('You won 5 to 1 by opening fights and backing up teammates'),
+    'WON_NO_VERB matches a score head with only an -ing list after it');
+  const asc = matchReview.parse('SUMMARY: You won 5 to 1, opening fights and winning key duels despite this: you died 3 times in 6 rounds. 2 of your 3 deaths were not traded by a teammate within five seconds.', input);
+  ok(asc.summary === 'You won 5 to 1 by opening fights and winning key duels. You died 3 times in 6 rounds. 2 of your 3 deaths were not traded by a teammate within five seconds.',
+    `CAUGHT: the Ascendant summary's seam is split and its head given its verb (${asc.summary})`);
+  ok(co.splitSwingSeam('Despite this: you held.') === null && co.splitSwingSeam('You held the site.') === null, 'and a seam with no head, or none, is left alone');
+  const ins = { summary: 'You won 5 to 1 by opening fights. 2 of your 3 deaths were not traded by a teammate within five seconds.', rounds: {}, focus: null, dropped: [] };
+  matchReview.swingInto(ins, input);
+  ok(ins.summary === 'You won 5 to 1 by opening fights. You died 3 times in 6 rounds. 2 of your 3 deaths were not traded by a teammate within five seconds.', `swingInto puts the line in as sentence two (${ins.summary})`);
+  const twice = { summary: 'You won 5 to 1. You died 3 times in 6 rounds.', rounds: {}, focus: null, dropped: [] };
+  matchReview.swingInto(twice, input);
+  const es = { summary: 'Ganaste 5 a 1.', rounds: {}, focus: null, dropped: [] };
+  matchReview.swingInto(es, matchReview.normalise(fbody('plat_diamond', { context: { agent: 'Jett', map: 'Fracture', language: 'es' } })));
+  const old = { summary: 'You won 5 to 1.', rounds: {}, focus: null, dropped: [] };
+  matchReview.swingInto(old, oldInput);
+  ok(twice.summary === 'You won 5 to 1. You died 3 times in 6 rounds.' && es.summary === 'Ganaste 5 a 1.' && old.summary === 'You won 5 to 1.',
+    'and never twice, never in another language, never for a client before round 4');
+  // 5. A connective after a cut, in the review (structureGates).
+  const conn = matchReview.parse('SUMMARY: You won 5 to 1 by opening fights. Riot won 1 round. So the round you lost came after the plant.\nR5: So, hold the spike from cover after the plant.', input);
+  ok(conn.summary === 'You won 5 to 1 by opening fights.' || /^You won 5 to 1 by opening fights\. (?:The round you lost came after the plant\.)?$/.test(conn.summary || ''),
+    `a "So" after a cut sentence is struck or goes with it, never served leaning (${conn.summary})`);
+  ok(conn.rounds[5] === 'Hold the spike from cover after the plant.', `and a round line opening "So," reads as its clause (${conn.rounds[5]})`);
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);

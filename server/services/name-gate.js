@@ -140,7 +140,10 @@ const ROUND_NUMBER = /^rounds?\s?#\s?\d+$/i;
 const UNDERSCORE = /[A-Za-z0-9]_[A-Za-z0-9]/;
 // The game's own forms with letters and digits in one word: 1v1, 4v3 and
 // 1v1s, R5, 30s and 15m, 100hp, 60fps, MB4, 1st, x2, 4k, 50ms.
-const GAME_FORM = /^(?:\d+v\d+s?|r\d+|\d+(?:s|ms|m|hp|k|x|st|nd|rd|th|fps)|mb\d+|x\d+)$/i;
+// And the settings and stat units (8.8 review): 240Hz, 1440p, 1920x1080,
+// 800dpi, 18RR, 80cs, 20LP, 16GB. The v1 name pass (capitals off) read each
+// as a handle and served the fallback line for a whole settings answer.
+const GAME_FORM = /^(?:\d+v\d+s?|r\d+|\d+(?:s|ms|m|hp|k|x|st|nd|rd|th|fps|hz|p|dpi|edpi|rr|cs|lp|gb|mb|tb|cm|mm)|\d+x\d+|mb\d+|x\d+)$/i;
 
 /** The word in `text` shaped like a handle, or null. */
 function handleShape(text) {

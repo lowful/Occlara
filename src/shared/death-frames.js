@@ -62,6 +62,7 @@
  */
 
 const { clockSeconds, ROUND_SECONDS, MID_ROUND_LEFT, BUY_MAX_LEFT } = require('./valorant-rounds');
+const { satOut } = require('./sat-out');
 
 const BEFORE_MS = 10000;
 const AFTER_MS = 4000;
@@ -148,7 +149,11 @@ function spread(deaths, score, limit) {
 
 /** Up to `limit` verified deaths, most teachable first. */
 function teachableDeaths(rounds, limit = 4) {
-  const deaths = (rounds || []).filter((r) => r.verified && r.died);
+  // Never a round Riot says the player sat out (8.8, sat-out.js): the look
+  // is a paid call, and its cause reached the card, Moments and the misses
+  // for a round nothing in is the player's doing. The slot goes to another
+  // death.
+  const deaths = (rounds || []).filter((r) => r.verified && r.died && !satOut(r));
   const score = (r) => (r.result === 'lost' ? 3 : 0) + (r.firstDeath ? 3 : 0)
     + (r.traded === false ? 2 : 0) + (r.early ? 1 : 0)
     + (r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies ? 3 : 0);

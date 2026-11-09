@@ -749,7 +749,7 @@ function row(m, gutter, marks) {
     top.append(el('span', 'm-res ' + (/vict|win/i.test(m.result) ? 'win' : /defeat|loss/i.test(m.result) ? 'loss' : ''),
       [m.result, m.score].filter(Boolean).join(' ')));
   }
-  // The RR the match moved, "RR +18" (8.8.x), filled in once main answers
+  // The RR the match moved, "RR +18" (8.7.9), filled in once main answers
   // (paintRR); empty and hidden until then, and for any row without one.
   if (!checking) {
     const rrChip = el('span', 'm-rr');
@@ -820,7 +820,7 @@ function paintWinLoss(rows) {
 }
 
 /*
- * THE RR EACH RATED MATCH MOVED (8.8.x), as the game shows it: "RR +18" on
+ * THE RR EACH RATED MATCH MOVED (8.7.9), as the game shows it: "RR +18" on
  * its row, from main's rank history by the match's Riot id (REVIEWS_RR,
  * home-model.js rrForRows, the rule Home's Recent matches keeps). Asked once
  * the rows are painted, so a slow history never holds the list back, and an

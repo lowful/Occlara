@@ -433,3 +433,100 @@ before this change, gets 8.7.7's prompt and study list byte for byte (`test:valo
   by `normalise` on verified rounds only. `row()` takes afterPlant false as certain only beside the
   plant time and the death's second, and without it a death within half a second of the plant is
   never "before" (the second is rounded). A client without the field is reviewed as before.
+
+- **The trades and the distance in the review** (round 8, `ledgerOf`, every band, round 4
+  clients): beside SWING AND COUNTS, the match's deaths and the early ones split by trade and by
+  Riot's nearest teammate, every count with its rounds, its pairs quotable (`allowedPairs`). The
+  record gates read alone said of a teammate close in a round line or the summary (`checkAlone`),
+  and a rewrite ("nobody traded" for "nobody could trade") keeps the sentence in place
+  (`recordGates`). Detail: ask-coach.md, "Round 8: counts over several rounds".
+
+- **The round line's timeline and state** (round 8, the blind audit of round 7, round 4 clients;
+  a client before round 4 keeps the old words, byte for byte): the standing is said as what it was
+  and what the death left (`standingWords`: "their team 4 against 3 as they died, the player
+  counted, not the first death: 1 teammate already down, leaving 3 against 3", the last one alive
+  said so), the enemy's side by its noun ("the enemy were the defenders"). For every client, a
+  planted round Riot timed says the plant's second and which side of it the death fell
+  (`plantWords`, by Riot's afterPlant), a screen read of the plant under way is not sent for a
+  death after the plant nor one of the spike down for a death before it (`phaseKept`,
+  `READ_DURING_PLANT`, `READ_SPIKE_DOWN`), and the player's kills' places are said apart from the
+  death's ("the player's kills fell at A Elbow"). `recordSent` keeps `killPlaces` whenever sent,
+  and since round 8 the client sends them for every verified round with a kill Riot places
+  (`valorant-review.js requestBody`; until that release only a death with no Riot place has
+  them, and the kill place gate judges nothing elsewhere). The gates: ask-coach.md, "Round 8: the
+  timeline and the state".
+
+### Round 8: the game facts kinds in claimOf (Nov 2026)
+
+`match-review.js claimOf` adds, after every kind before: `drill` also from `game-claims.js
+teamDrill` (the shared team words, read past a disclaimer; the old `DRILL_TEAM` rule stays), `lethal`
+for a one shot the damage table does not give (`checkOneShot`), `kit` for firing on the move
+(`checkMoveFire`) and a kit's bullets said wrong (`checkBullets`), and `unseen` for where the
+crosshair sat or what the player saw with no look saying it (the round's `seen` for a round line,
+every round's `seen` for the summary and focus; never the look's better play). `claimGates` reads a
+Deathmatch drill's frame across the summary's and the focus's sentences (`soloDrillFrame`), and is
+exported for `test:valorantreview`. Over round 7's 24 reviews none of these drops a line.
+
+### Round 8: the review floor, won rounds and the SWING line (Nov 2026)
+
+The Fracture 5 to 1 reviews of round 7 (`match-review.js`, `routes/coach.js /match-review`):
+
+- **The floor** (`floorFails`, `floorNote`, `floorMerge`, `floorFill`): a review shows at least
+  one ROUND line where a round is worth one (`linePicks`) and a focus that says what to do. The
+  Plat review was served with no round line and the focus "You give up a quick kill attempt to keep
+  the advantage while the clock runs.", the tradeoff tail of a sentence the name gate cut. A reply
+  short of it is asked for once more, while the client's 60 s allow (52 s budget, 15 s left at
+  least), with the reasons in plain words, the name drop's never naming the word; the second reply
+  fills only the fields the first could not show; what is still missing is computed from the
+  round's own facts (`floorLine`: after the plant on attack, after their plant on defence, defence
+  with the team ahead, untraded with the nearest teammate far or close, a first death on attack,
+  the side's own lesson), for the costliest death (`costRank` from Platinum, else the best scored),
+  the focus its instruction clause, both run back through `parse` and the name pass. A reply with
+  no summary is no narrative and is never floored. Logged as `[review] floor: short of ...` by kind
+  only; the response carries `dropped: { kind: count }` (`dropKind`) for a client from 8.5.0 or
+  one that names no version, only where something went.
+- **The focus instructs** (`focusGate`, `coherence.js instructs`, `FOCUS_DO`, `TRADEOFF_ONLY`):
+  last in `parse`, a focus with no sentence opening on an imperative, straight away or after a
+  lead clause, or whose first sentence is only a cost or a gain, goes (said `focus no
+  instruction`). Of 172 real review focuses (rounds 1 to 7 served, the two audit fixtures) only the
+  Plat one fails. English only. A floor, not a quality gate: grow the verb list rather than loosen
+  the shape. Grown in the 8.8 review: "Focus on", "Work on", "Avoid", "Don't" and "Do not",
+  "Prioritise", "Learn", "Remember", "Think", "Limit", "Reduce", "Aim to", "Make sure", with
+  "only" and "never" as leads before a verb ("Only take fights", "Never peek alone"), and the
+  lead clauses "During ...,", "The moment ...,", "Any round ...," and "Next half ...," up to 160
+  characters. Each had nulled a correct focus and paid a second model call. "Only two of your
+  deaths were traded" still fails.
+- **Variant A is never floored** (8.8 review, `floorFails`): the bench's baseline asks for three
+  unlabelled sentences, so it never has a round line or a focus; floored, every baseline review
+  made a second call and was no longer the old review.
+- **The true sentences of a line the record cut** (8.8 review, `lineRest`): `recordGates` dropped a
+  round line whole for one sentence the record contradicts, and the floor put its computed line in
+  place, so the Fracture Iron R5 lost "You lost a fair fight on the shot." with "As your teammate
+  plants, hold from cover". The other sentences are kept where none leans on the cut one (a
+  pointer, or "That", "This", "It", "So" right after it), led by the round's `floorLine` where what
+  is left gives no instruction. Every later gate still reads the line.
+- **Won rounds get a line when too few lost ones do** (`wonPicks`, `WON_LINES` 2, a round 4
+  client): with fewer than two rounds `lineWorthy`, a death in a won round Riot verified that the
+  look labelled or that was the round's first death may have a line, scored below any lost one,
+  its facts saying "your team won it anyway, so say what the death risked, never that it lost the
+  round", and `parse` accepts it. Fracture 5 to 1 gives rounds 2 and 6 beside round 5.
+- **The SWING line is the server's** (`SWING_SWAP_EN`, `swingInto`): in an English review the
+  summary's sentence one is the score and what decided it, never a SWING AND COUNTS line, and the
+  route puts the block's first line in as sentence two, word for word, unless the summary already
+  gives it (its numbers in order in one sentence, or its words anywhere). A review in another
+  language keeps the old rule. A read prompt change: `verify:ai` and `bench:review` are the
+  owner's gate before it ships. And the seam the old rule made is split
+  (`coherence.js splitSwingSeam`, `SWING_SEAM`, `WON_NO_VERB`, in `seamGates`): "You won 5 to 1,
+  opening fights and winning key duels despite this: you died 3 times in 6 rounds." reads "You won
+  5 to 1 by opening fights and winning key duels. You died 3 times in 6 rounds."
+- **A connective after a cut** (`coherence.js repairConnective`, in `structureGates`): a summary
+  or focus sentence opening "So", "Thus", "Therefore", "As a result" at the head or right after a
+  dropped one loses the connective; "That is why", "This means", "Which is how" after a drop goes
+  as an orphan; a round line opening "So," reads as its clause. The `cohere` rule that drops a
+  "So" after a gate's drop (not a name drop) still runs first.
+
+Replayed over all 84 round 7 outputs against the tree before this stage: the only sentence newly
+dropped is the Plat focus; the floor computes round 5 for Plat and Iron (Iron's line went to the
+plant phase gate); the Ascendant seam is split; no SWING line is put in twice. Tests:
+`test:valorantreview` ("ROUND 8: THE THIN REVIEW"), `test:reviewroute` ("THE REVIEW FLOOR, on the
+Fracture 5 to 1 match", the four bands through the route).

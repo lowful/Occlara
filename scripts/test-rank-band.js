@@ -218,7 +218,7 @@ ok(!DASH.test(added) && !/;/.test(added), 'the band lines carry no dash and no s
     'a band no key matches gets today\'s reserve, the same notes and draws');
 }
 
-// THE PEAK AND THE TREND (8.8.x, rank-band.js rankContext, riot-rank.js
+// THE PEAK AND THE TREND (8.7.9, rank-band.js rankContext, riot-rank.js
 // rankTrend): carried with the band, the peak from the profile (MMR v3's) or
 // the history's best rated game, and the trend never moving the band.
 {

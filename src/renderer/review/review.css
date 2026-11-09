@@ -220,7 +220,7 @@ header {
 .v-result { font-size: 12px; font-weight: 500; letter-spacing: 0.08em; color: var(--text-mute); }
 .v-result.win  { color: var(--text); }
 .v-result.loss { color: var(--bad); }
-/* The result's corner with the RR chip before it (8.8.x, review.js paintRiot). */
+/* The result's corner with the RR chip before it (8.7.9, review.js paintRiot). */
 .vd-end { display: flex; align-items: baseline; gap: var(--space-3); flex: none; }
 .v-rr { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .v-rr.gain { color: var(--good); }

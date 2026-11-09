@@ -65,6 +65,9 @@ const near = (a, b, tol) => fin(a) && fin(b) && Math.abs(a - b) <= tol + 1e-9;
 // this file (Phase E) is no load cycle.
 const forensics = () => require('./death-forensics');
 const review = () => require('./match-review');
+// What the game itself makes certain (round 8): one shots, firing on the
+// move, a solo drill's frame, what only a look could see. Pure, no cycle.
+const claims = require('./game-claims');
 let nameGateMod;
 function nameGate() {
   if (nameGateMod === undefined) {
@@ -393,6 +396,9 @@ function gateNames(s, facts, _rs, opts) {
   if (shapeOf(text)) return drop('name', NAME_REASON);
   const names = nameSetFor(f, o);
   if (names && names.has(text)) return drop('name', NAME_REASON);
+  // nameSpared (/api/admin/chat): a sentence the soft half spared, counted
+  // once here, the one place Coach v2 asks (round 8 review).
+  if (names && typeof names.spares === 'function') names.spares(text);
   if (typeof o.isName === 'function' && o.isName(text)) return drop('name', NAME_REASON);
   if (f.echo && f.echo.size && f.language !== 'de') {
     for (const tok of String(s || '').split(/[^\p{L}\p{N}'/]+/u)) {
@@ -740,7 +746,8 @@ const DISADVANTAGE = /\b(?:a player down|down a player|you were outnumbered|behi
 // player's clutch too, which the bare word missed (the verifier's probe, 23 Oct).
 const CLUTCH = /\b(?:clutch(?:ed|es|ing)?|last one (?:alive|standing)|alone against)\b/i;
 const AFTER_PLANT = /\b(?:after the plant|post[ -]plant|the spike (?:was|went) (?:down|planted)|spike down|once the spike was down|after (?:the spike|it) went down)\b/i;
-const FIRST_DEATH = /\b(?:first death|died first|first to die|first one to die|opening death|first player down|first one down)\b/i;
+// "where you were the first contact" (round 8, Pearl Iron) is the player's first death; "take first contact" is advice and no claim.
+const FIRST_DEATH = /\b(?:first death|died first|first to die|first one to die|opening death|first player down|first one down|(?<=\byou\s+were\s+the\s+)first contact)\b/i;
 const OPENING_KILL = /\b(?:first kill|opening kill|first blood|opened the round|entry kill)\b/i;
 const MATCH_POINT = /\bmatch point\b/i;
 const PISTOL_CLAIM = /\bpistol round\b/i;
@@ -1063,14 +1070,53 @@ const mateTradedClaim = (t) => {
 };
 const YOU_PLANTED = /\byou\s+(?:planted|got the plant|got the spike down|got the plant down)\b/i;
 
+/*
+ * EACH ROUND'S CLAIMS IN ITS OWN CLAUSE (round 8, the Pearl Silver Cypher
+ * answer of round 7). "In round 3 you died 13 s in at B Screen to his Phantom
+ * on a full buy, and in round 5, the pistol round, you died 9 s in at Mid
+ * Doors to his Classic." is true, and went: the pistol round of round 5 was
+ * held against round 3, and three true sentences went after it. In a sentence
+ * that names two rounds or more, a round's scope runs from its mention to the
+ * next one, and what comes before the first mention is shared by all. A list,
+ * "rounds 3 and 5" or "round 3 and round 5 were both", holds what follows it
+ * to every round of it: a mention followed only by a joining word joins the
+ * next. A sentence naming one round, or none, is read whole, as before.
+ */
+const ROUND_MENTION = /\brounds?\s+#?(\d{1,2})\b((?:\s*(?:,\s*(?:and\s+|or\s+)?|and\s+|or\s+|to\s+|through\s+)\s*\d{1,2}\b)*)/gi;
+const JOIN_ONLY = /^[\s,]*(?:and|or|&|then|plus|as well as)?[\s,]*(?:in|on|at)?\s*$/i;
+function scopeOf(t, n) {
+  const text = String(t || '');
+  const ms = [...text.matchAll(ROUND_MENTION)];
+  if (ms.length < 2) return text;
+  const groups = [];
+  let open = null;
+  ms.forEach((m, i) => {
+    const nums = [Number(m[1]), ...String(m[2] || '').match(/\d{1,2}/g) || []].map(Number);
+    const end = i + 1 < ms.length ? ms[i + 1].index : text.length;
+    const between = text.slice(m.index + m[0].length, end);
+    if (!open) open = { from: m.index, nums: [] };
+    open.nums.push(...nums);
+    // A mention with only a joining word after it is one item of a list.
+    if (i + 1 < ms.length && JOIN_ONLY.test(between)) return;
+    // A mention that says nothing after it ("and so was round 5.") takes its
+    // claim from before: such a round is read whole.
+    groups.push({ from: open.from, to: end, nums: open.nums, bare: !/[a-z]{2,}/i.test(between) });
+    open = null;
+  });
+  const own = groups.filter((g) => g.nums.includes(n));
+  if (!own.length || own.some((g) => g.bare)) return text;
+  return [text.slice(0, ms[0].index), ...own.map((g) => text.slice(g.from, g.to))].join(' ').replace(/\s+/g, ' ').trim();
+}
+
 function gateStanding(s, facts, rs) {
   const f = facts || {};
   if (!rs || !rs.round || f.language !== 'en' || !(f.rounds instanceof Map)) return null;
-  const t = String(s || '');
-  const neg = NEGATION.test(t);
+  const whole = String(s || '');
   for (const n of rs.rounds) {
     const r = f.rounds.get(n);
     if (!r) continue;
+    const t = rs.rounds.length > 1 ? scopeOf(whole, n) : whole;
+    const neg = NEGATION.test(t);
     const say = (what) => drop('timeline', `your reply said ${what} in round ${n}, which the record of it does not have`);
     const states = r.standings || [];
     // Every standing the sentence says (standingClaims), the player's side
@@ -1306,10 +1352,12 @@ function gateEconomy(s, facts, rs) {
   const f = facts || {};
   if (!rs || !rs.round || f.language !== 'en' || !(f.rounds instanceof Map)) return null;
   if (ECON_REFUSAL.test(String(s || ''))) return null;
-  const raw = [...String(s || '').matchAll(new RegExp(ECONOMY.source, 'gi'))].map((m) => m[1]);
-  const words = raw.map(econStem);
-  if (!words.length) return null;
+  const all = [...String(s || '').matchAll(new RegExp(ECONOMY.source, 'gi'))].map((m) => m[1]);
+  if (!all.length) return null;
   for (const n of rs.rounds) {
+    // Each round's words in its own clause (scopeOf, round 8).
+    const raw = rs.rounds.length > 1 ? [...scopeOf(s, n).matchAll(new RegExp(ECONOMY.source, 'gi'))].map((m) => m[1]) : all;
+    const words = raw.map(econStem);
     const r = f.rounds.get(n);
     const said = r && r.look ? `${r.look.what || ''} ${r.look.better || ''}` : '';
     const stems = new Set([...said.matchAll(new RegExp(ECONOMY.source, 'gi'))].map((m) => econStem(m[1])));
@@ -1588,6 +1636,9 @@ function subjectsNear(t, clause) {
 
 /** Which band of a gun a sentence names: "inside 30 m", "past 30 m", "at 40 metres", "close", "long range". */
 function bandNamed(t) {
+  // "from 20 to 50 m", the aim facts' own words (round 8, chat-prompt.js gunLineOf): the band that starts there.
+  const ft = /\bfrom\s+(\d+)\s+to\s+(\d+)\s*(?:m|metres?|meters?)\b/i.exec(t);
+  if (ft) return Number(ft[1]) > 0 ? { from: Number(ft[1]) } : { upTo: Number(ft[2]) };
   const m = /\b(?:inside|within|under|up to|closer than)\s+(\d+)\s*(?:m|metres?|meters?)\b/i.exec(t);
   if (m) return { upTo: Number(m[1]) };
   const p = /\b(?:past|beyond|over|farther than|further than|more than)\s+(\d+)\s*(?:m|metres?|meters?)\b/i.exec(t);
@@ -1616,7 +1667,8 @@ function hitsOk(prov, value, subjects, ctx) {
   let armor = null;
   for (const [re, a] of ARMOR_NAMED) if (re.test(ctx.sentence)) { armor = a; break; }
   if (!armor && ctx.armor) armor = ctx.armor;
-  const band = bandNamed(ctx.sentence);
+  // The clause's own band first: "1 head hit from 0 to 20 m, and 2 from 20 to 50 m" names two (round 8).
+  const band = bandNamed(String(ctx.clause || '')) || bandNamed(ctx.sentence);
   for (const gun of guns) {
     const rows = prov.filter((e) => e.attribute === 'hits' && lower(e.subject) === gun);
     if (!rows.length) continue;
@@ -2102,7 +2154,8 @@ const SOLO_MODE = /(?<![Tt]eam\s)(?<![A-Za-z])(?:[Dd]eath ?[Mm]atch|DEATHMATCH|t
 // And a teammate in other words (the blind audit of 8.7.8): "treat every fight
 // as one you must have a second person for", "ask whether anyone could follow
 // that fight", both told for Deathmatch.
-const TEAM_WORDS = /\b(?:teammates?|team ?mates?|allies|ally|your team|trade(?:s|d)?|trading|comms|call(?:s|ed)? out|duo|second (?:person|player)|(?:anyone|someone|somebody) (?:else )?(?:could|can|would|will|is able to) (?:help|follow|trade|answer|back|cover|swing))\b/i;
+// Since round 8 the shared one of game-claims.js, a teammate backing you up added.
+const TEAM_WORDS = claims.TEAM_WORDS;
 // And the drill sent away from the mode (the blind audit of 8.7.8): "Practise
 // it in your next match rather than in Deathmatch, because it needs teammates"
 // is the rule itself, and was dropped five times over the 8.7.7 replies.
@@ -2111,7 +2164,13 @@ function gateMode(s, facts) {
   const f = facts || {};
   if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
   const t = String(s || '');
-  if (!SOLO_MODE.test(t) || !TEAM_WORDS.test(t) || NO_TEAM.test(t)) return null;
+  // A disclaimer ("where there are no teammates") is read out first (round
+  // 8): it named the limitation and then gave the team drill anyway. The
+  // rule itself still passes: a "do not", a match, alone, after it.
+  const u = claims.stripDisclaimer(t);
+  // The wider absence words only where a disclaimer was read out, where the
+  // old NO_TEAM read "no teammates" in it and let the sentence stand.
+  if (!SOLO_MODE.test(t) || !TEAM_WORDS.test(u) || NO_TEAM.test(u) || (u !== t && claims.NO_TEAM_SAID.test(u))) return null;
   return drop('mode', 'your reply gave a drill for Deathmatch or the Range that needs teammates, which those modes never have; give a drill the player can do alone, and practise a team habit in a match');
 }
 
@@ -2504,6 +2563,69 @@ function gateStaleBuy(s, facts) {
   return drop('economy', "your reply said the record does not hold the buy, where the round lines give the team's buy; say the team's buy where its round states it, and that no one player's buy is held");
 }
 
+/*
+ * A ONE SHOT THE DAMAGE TABLE DOES NOT GIVE (round 8, round 7's Sunset Iron
+ * answer): "the Outlaw's one-shot body at any range", whose body hit is 140
+ * against Heavy Armor's 150. A one hit kill of a named part of one named gun
+ * goes where Heavy Armor from full health takes more than one, held to the
+ * primer's own hits for the match's patch (game-claims.js checkOneShot). A
+ * sentence naming its armour, a negation or no part judges nothing.
+ */
+function gateOneShot(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const why = claims.checkOneShot(s, Array.isArray(f.primer) ? f.primer : null);
+  return why ? drop('oneshot', why) : null;
+}
+
+/*
+ * FIRING WHILE MOVING TOLD AS THE PLAY (round 8, round 7's Pearl Iron aim
+ * answer): "pair that with bursting and moving", beside the primer's own
+ * "moving, jumping or spraying widens every gun" (game-claims.js checkMoveFire).
+ */
+function gateMoveFire(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const why = claims.checkMoveFire(s);
+  return why ? drop('move-fire', why) : null;
+}
+
+/*
+ * BULLETS THROUGH A KIT (round 8, round 7's Corrode Silver review): the game's
+ * text calls Contingency only "vision-blocking", and the model repeated it.
+ * "Contingency is just a smoke, bullets go through it" goes, held to
+ * kit-rules.json (game-claims.js checkBullets); "High Tide blocks bullets"
+ * goes by the kit gate's bullets class (ability-facts.js).
+ */
+function gateBullets(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const why = claims.checkBullets(s);
+  return why ? drop('kit', why) : null;
+}
+
+/*
+ * WHAT ONLY A LOOK COULD SEE (round 8, round 7's Corrode Plat aim answer):
+ * "your crosshair sat too deep toward the wall" of a death whose look said
+ * only "you held the gap and Fade appeared in it". Where the crosshair was,
+ * or what the player saw, said as fact of the match, goes unless the look of
+ * the round the sentence is about speaks of it, or, where no round is known,
+ * any look of the match does (game-claims.js checkUnobserved).
+ */
+function gateUnseen(s, facts, rs) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const t = String(s || '');
+  if (!claims.UNOBSERVED.test(t)) return null;
+  const rounds = f.rounds instanceof Map ? f.rounds : new Map();
+  // What the look saw, never its better play: "keep your crosshair at head height" is advice, no sight of where it sat.
+  const lookOf = (r) => (r && r.look ? String(r.look.what || '') : '');
+  const named = rs && Array.isArray(rs.rounds) && rs.rounds.length ? rs.rounds : (f.asked && f.oneRound ? [f.asked] : null);
+  const text = named ? named.map((n) => lookOf(rounds.get(n))).join(' ') : [...rounds.values()].map(lookOf).join(' ');
+  const why = claims.checkUnobserved(t, text);
+  return why ? drop('unseen', why) : null;
+}
+
 // ── All of them ────────────────────────────────────────────────────────────
 
 /*
@@ -2545,6 +2667,11 @@ const GATES = [
   ['lethal', gateLethal],
   ['team-utility', gateTeamUtility],
   ['stale-buy', gateStaleBuy],
+  // Round 8 (Nov 2026), after every gate before.
+  ['oneshot', gateOneShot],
+  ['move-fire', gateMoveFire],
+  ['bullets', gateBullets],
+  ['unseen', gateUnseen],
 ];
 
 /**
@@ -2577,7 +2704,7 @@ module.exports = {
   KILLED_YOU, YOU_DIED_TO, YOU_KILLED, PAST_ABOUT_YOU, AFTER_UNITS, BEFORE_UNITS, ARMOR_NAMED,
   GUNS, AGENTS, MAPS, GEAR, KIT, CALLOUTS,
   // The verifier's additions of 15 Oct, each asserted in test:chatgates.
-  lowerGameWords, GAME_CAPS, REVIEW_CAPS, AGENT_RANKED, TIER, RATE_RANKED, MOST_PICKED, PATCH_NOW, META_REFUSED,
+  lowerGameWords, GAME_CAPS, REVIEW_CAPS, CHAT_CAPS, AGENT_RANKED, TIER, RATE_RANKED, MOST_PICKED, PATCH_NOW, META_REFUSED,
   RESULT_NOUN_LOST, RESULT_NOUN_WON, YOUR_GUN_PAST, THEIRS_FIRST, ABS_TIME, DEATH_CLAIM, OTHER_EVENT, OWN_COUNT_BEFORE,
   ECON_REFUSAL, BUY_KIND_WORD, ROUND_TIMES, CHAMPION_RANKED, CHAMPION_META, quotesCounted,
   // The bench:chat run of 15 Oct, each asserted in test:chatgates.
@@ -2587,7 +2714,7 @@ module.exports = {
   GUN_MINE_BEFORE, GUN_THEIRS_BEFORE, GUN_WITH_BEFORE, YOU_KILLED_PASSIVE, TOWARD_SOMEONE, CLAUSE_START, PEEK_AGAIN, negatedAt,
   // The bench:chat run of 23 Oct, each asserted in test:chatgates.
   clutchOwner, standingClaims, leftByDeath, leansOn, STANDING_WORDS, ALONE_AGAINST, LEFT_BY, PLAYER_DEATH, AFTER_DEATH, EVENT_BETWEEN, CLAUSE_BETWEEN,
-  LEANS_TIME, LEANS_SUBJECT, IT_IS_THE_ROUND, LEANS_TRADE, LEAN_ANCHOR, CLUTCH,
+  scopeOf, ROUND_MENTION, LEANS_TIME, LEANS_SUBJECT, IT_IS_THE_ROUND, LEANS_TRADE, LEAN_ANCHOR, CLUTCH,
   // The verifier's probe of 23 Oct, each asserted in test:chatgates.
   gateLeftAcross, deathsWord, sinceDeath, CARRIES_ON, LEFT_FINITE, AFTER_DEATH_NEXT, AT_THE_DEATH, DATED_LATER, CLAUSE_MARK,
   DEATH_SUBJECT, OTHER_TIME, LEFT_OPENER, OWNER_CARRIES, NEW_CLAUSE,
@@ -2600,5 +2727,7 @@ module.exports = {
   gateProduct, gateLibrary, gateRoundState, gateFirstHabit, FIRST_HABIT, AIM_PRAISED, AVOIDABLE, CROSS_MATCH, SEASON, LIB_PAIR, AVG_BEFORE, AVG_AFTER, THIS_MATCH, PLANT_SAID,
   // The blind audit of 8.7.9 (Nov 2026), each asserted in test:chatgates.
   gatePriority, gateCounted, gateOwnAgent, gateLethal, gateTeamUtility, gateStaleBuy,
+  // Round 8 (Nov 2026), each asserted in test:chatgates and test:gameclaims.
+  gateOneShot, gateMoveFire, gateUnseen, gateBullets,
   BIGGEST_SAID, COUNTED_HOW_MANY, HEALTH_AT, ONE_HIT_KILLS, UTILITY_OWNERS, UTILITY_ASKED, UTIL_LIST, BUY_HEDGE_SAID, UTILITY_OURS, BUY_HELD_SAID, KIT_KILLS_YOU, KIT_KILLED_YOU,
 };

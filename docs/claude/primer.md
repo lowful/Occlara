@@ -202,3 +202,22 @@ that moved the shield and the plant withholding both, 14.01 over 13.08 a hole,
 Occlara's own rules never withheld); the slices' counts (a Judge's shell, a
 Regen Shield, an unknown armour, a name in a team list); check:playbook's
 planted controls; and where the primer goes.
+
+### Round 8: the one hit line and the kit rules (Nov 2026)
+
+- **A single body hit, in words.** GUNS IN THIS MATCH (`renderGuns`, `gunBullet(..., { oneHit:
+  true })`) adds, for a gun whose body hit kills in one somewhere but not through Heavy Armor
+  everywhere, "A single body hit kills only against no armour or Light Armor at any range" (the
+  Outlaw, the Marshal), computed by `hitsToKill` from the bands it names. Round 7 read the Outlaw's
+  "Head/body/legs 238/140/119 at any range" as a body one shot through Heavy Armor. The body only,
+  and never in the core, because of the two size budgets (`check:primer` 17,000, the chat dynamic
+  19,000); the head's falloff is held by the `oneshot` gate (`game-claims.js`). "A single", never
+  "One": a spelled number outside `n()` fails `check:primer`.
+- **Kit facts the game's text leaves out** live in `server/data/kit-rules.json`, by
+  `Agent/Ability`, each with kind, source, verifiedPatch and confirmed (null until someone checks
+  it in game). `bullets: true` (Contingency, Cove's shield, Barrier Orb) or `false` (High Tide,
+  Toxic Screen, Blaze, Fast Lane, Dark Cover, Sky Smoke); an ability not listed is never judged on
+  bullets. `extra` is appended to the kit line after the game's own words: Contingency's line now
+  says the wall also blocks bullets from both sides and players and abilities pass through it
+  (Hotspawn, Red Bull, Mobalytics; the game's text says only "indestructible vision-blocking
+  wall"). Re-stamp verifiedPatch after a patch that touches the agent.

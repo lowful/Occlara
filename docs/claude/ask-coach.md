@@ -608,6 +608,24 @@ the two gate fixes it found, with the player's yes (`coach.js chatPromoted`:
 unset is Sol). test:serverguards holds the default, the switch off, and an
 8.4.4 install's Ask Coach byte for byte as today.
 
+**Today's (v1) answer names nobody either** (round 8). Its reply goes a
+sentence at a time through `withoutNames`, with the match's name set when the
+body names the match (`chatNames`) and a Riot ID's or a handle's shape, in any
+language and game, and a reply left empty is the fallback line. Not the
+capital rule (`capitals: false`), as in v2, which counts it and never drops on
+it: enforced, it took League's "Ahri" and "Dragon", every German noun, and
+"RR", "Plat", "Ranked" and "Aim Lab", and served the fallback line for whole
+true answers (round 8 review). It is counted for English Valorant replies as
+`v1-name-log` in `/api/admin/chat` `logged`; its messages go through `scrubAsked`, so a
+typed Riot ID never reaches the model (8.8 review: in any script, as "Jürgen#EUW" or a CJK
+name, and with inner spaces, the words before the tag that are capitalised or in the match's
+name set, "Big Bob#NA1", up to 16 characters; v2 the same); settings and stat units are no
+handle (`name-gate.js GAME_FORM`: 240Hz, 1440p, 1920x1080, 800dpi, 18RR, 80cs, LP, GB); its retry log carries the reply's
+length, never its words; and a v2 request that fell back to it is counted
+(`fellToV1` in `/api/admin/chat`). Over all 84 round 7 outputs v1's pass
+drops no sentence; `test:serverguards` holds a League, a German and two
+English Valorant answers whole.
+
 ### The round record in Ask Coach (8.8)
 
 A match whose cards carry Riot's buy, the nearest teammate, the death's
@@ -620,6 +638,14 @@ into the gates, `gateEconomy` passes the kind of round a card names (an eco,
 a full buy) and nothing else about money, and `record-claims.js checkRecord`
 drops a sentence the round contradicts. Detail: `riot-record.md`, "Teaching
 the coach the round record".
+
+A death in a round Riot says the player sat out (8.8) is in no line or count
+of the enemy block (`enemyAskedOf`: it was listed as "nobody traded it" and
+counted in "Nobody traded 4 of the 5") and picks no case phase, and an old
+review's fill learns the flags (`chat-context.js applyRoundRecord`). The
+counted mistake `untraded` keeps every untraded death in one entry, its
+close ones told inside it (8.8 review, `grade-breakdown.md`); `leversOf`
+still reads a key `untraded-close` as the trade lever, which no client sends.
 
 ### The blind audit of round 6, stream B: the inputs (Nov 2026)
 
@@ -634,7 +660,8 @@ What the prompts are given, so the model has less to invent (the gates are strea
   placesNamed`, `samePlace`, `placeRegion`): where Riot places the death, a screen read or the
   look's words naming another callout are not sent (an area holding the callout agrees, "Mid"
   and "Mid Plaza"); where it places only the player's kills (`killPlaces`, sent by
-  `valorant-review.js requestBody` for a verified death with no Riot place), the screen spot and
+  `valorant-review.js requestBody` for a verified death with no Riot place, since round 8 for every
+  verified round with a kill Riot places, the region test still only where Riot has no death place), the screen spot and
   reads in no region of a kill go. Pearl R4 and R5, Corrode R10 and R11, Sunset 2 to 5 R6.
 - **The enemy asked about** (`chat-prompt.js enemyAskedOf`, byEnemy clients): each round that
   agent killed the player from Riot's record (gun, place, seconds, teammate close or far, traded,
@@ -645,7 +672,8 @@ What the prompts are given, so the model has less to invent (the gates are strea
   kills and the deaths, a range the look gives), and the question's notes are the lost duel notes,
   band narrowed first, never the basics (stop before the shot, counter strafe, a core all band
   note) unless a look saw a shot on the move. There is no per band headshot norm in the repo, so
-  none is stated.
+  none is stated. Since round 8 THE AIM FACTS come at every band, with the guns' own lines (see
+  "Round 8: usefulness" below); the notes rule above is still Platinum and up only.
 - The round record's economy sentence (both prompts) no longer says a pistol or eco death "costs
   little", which Sunset 4 to 13's Killjoy answer repeated.
 
@@ -671,3 +699,291 @@ Tests: `test:chatgates` and `test:valorantreview`, "the blind audit of round 6, 
 - Replayed offline over the 286 chat raws of the four audited versions: 16 sentences newly dropped,
   every one false or a lead to a cut, 14 of them in round 6; the six round 6 claims the judges
   called misleading in the three chat answers and all seven chat orphans are caught.
+
+### Round 8: counts over several rounds, and alone said of a teammate close (Nov 2026)
+
+The biggest share of round 7's wrong chat claims were counts over several rounds and distance
+contradictions: "Three of those six he was never traded" of Omen's six (Riot: 5), "both times
+nobody was close enough to trade you" of two traded deaths, "a couple of those early rounds a
+teammate was close and nobody answered" (round 6 alone), "Rounds 2, 7, 10 and 12 all show it"
+after an alone claim (round 2 close), "holding the angle alone" and "away from your teammate's
+reach" of deaths Riot has a teammate close at, and "The clearest one was round 2", a won and
+traded round, where round 5 cost most. The model copied counts it was given, and was given three
+that counted "untraded" three ways, so the fix is one counted input and gates that read it.
+
+- **THE TRADES AND THE DISTANCE** (`record-claims.js tradeLedger`, `ledgerLine`, `ledgerBins`):
+  one partition of the player's deaths from the rows the gate reads, every count with its rounds:
+  traded; nobody traded as the last one alive; nobody traded with a teammate close (a lesson about
+  when they took the fight); nobody traded with no teammate close (where they stood); nobody
+  traded with no distance; trade unknown; then the distance alone, traded or not. For the match
+  and the early deaths (30 s and under, before any plant, `earlyDeathsOf`) in the match's part,
+  before ROUNDS (`renderMatch`), and for the agent the question names in THE ENEMY ASKED ABOUT,
+  which no longer says "Nobody traded 3 of the 6" (the last one alive left out unsaid). A round
+  sat out (8.8) is in none of it. Computed on the server from the cards every client sends, so
+  8.7.9 gets it; its numbers are harvested (`factsOf`), its length sits on top of the budget as
+  the costliest deaths line does. The review gets the match's and the early lines beside SWING
+  AND COUNTS (`match-review.js ledgerOf`, every band, round 4 clients), its pairs quotable
+  (`allowedPairs`). No semicolon.
+- **The prompt's words.** The plain words rule keeps "a teammate close enough to kill your
+  killer" for a habit and says what happened as "no teammate was close" or "nobody traded you",
+  never "nobody was close enough to trade you". A round line of a close untraded death says "so
+  the fight came before that teammate could swing", a last one alive line no longer adds "with a
+  teammate close by". The costliest deaths say "nobody traded it though a teammate was close" or
+  "nobody traded it, with no teammate close" (`costRank`). The teammate rule (THE TEAMMATE AT THE
+  DEATH) moved above ROUNDS with "a death nobody traded is never proof the player was alone".
+  The counted untraded mistake and the cross match pattern render under the honest title "Deaths
+  not traded within five seconds", the counted line split by Riot's distance, the last one alive
+  apart, a fix per group (`untradedEntry`). The client's title in insights.js is unchanged here (a
+  src/ change ships only with a release); its 8.8 title "Deaths nobody traded" with the close
+  ones in its detail (one key, `untraded`) is the client half.
+- **Three claims told apart** (`MULTI_CLAIMS`): `far` (no teammate close, on your own, holding
+  the angle alone, spots where nobody could see, out of a teammate's reach; Riot's distance word
+  first, so a traded death Riot has far is far), `couldnt` (nobody close enough to trade, nobody
+  could trade or answer; false of a traded death and of one with a teammate close, never the last
+  one alive) and `untraded` (also "was never traded", "nobody answered"), with close, early and
+  traded. The untraded and traded judges now read the row's own untraded: before they read
+  `traded === false`, which a row never holds, so every round was unknown to them.
+- **The set a count names** (`resolveSet`, `anaphorSet`): the rounds of the clause; for those,
+  these, both times, each time or "a couple of those" the sentence's own list before the words,
+  "those early" the early deaths, else the first whose size fits of the list right before, an
+  agent's deaths a sentence counted ("Omen killed you six times", `AGENT_KILLS`; "Cypher got you
+  twice" is no soft "twice"), the asked agent's and the reply's last list. "And two more you were
+  the last one alive" takes those out only where exactly that many are (`LAST_ALIVE_APART`). A
+  bare count is exact where nothing in the set is unknown, unless "at least", "more than" or "a
+  couple" lead it. Two claims under one quantifier of a named set are judged together (`together`,
+  never two that cannot both be). One claim a round (`PER_ROUND`), a list split by counts
+  (`SHARE`, "twice with no teammate close and once with one close"), and a sentence that only
+  points its rounds at the claim before it (`POINTER`, two kept sentences back in its paragraph)
+  are judged too. Advice after the claim (`ADVICE_CUT`, ", so before you swing") is cut off first.
+- **Alone said of one death** (`checkAlone`, both surfaces, after `record`): alone, isolated, on
+  your own, out of a teammate's reach, where nobody could answer, of a death Riot has a teammate
+  close at goes, the reason naming the fact; "nobody could trade you" of a death with a teammate
+  close and no trade is rewritten to "nobody traded you" and kept (`{ rewrite }`, logged as
+  `record-rewrite`; the review rewrites the line in place), "dying where nobody could trade you"
+  of the untraded deaths the same, and either of a traded death goes. The round: named, else the
+  paragraph's, else the asked round, else the reply's only round so far. Plans, predictions and
+  rules in the present judge nothing; "rather than holding alone" is judged unless the sentence
+  states the teammate or the trade itself. Since the 8.8 review: a plan may open on avoid, stop,
+  focus, cut, limit, reduce or work on (`PLAN_OPEN`), so "Avoid fights nobody could answer." is no
+  longer rewritten to a past tense; alone in a sentence that names the teammate close itself ("took
+  the duel alone, when a teammate was close enough to trade you and nobody did", `MATE_COULD_SAID`)
+  is kept; and "nobody traded" with only the advice's "instead of taking the peek alone" (a peek or
+  a swing, `SWING_ALONE`, never a place held, `HELD_ALONE`) is kept. The round 8 replay's two false
+  drops, Fracture Plat round 5 and Sunset Iron round 6. A trade with no distance known proves nothing here: only
+  a teammate close makes alone certainly false. A list right after an alone claim and a habit (no
+  round, three deaths nobody traded at least, close in as many as far) are judged too.
+- **The clearest one** (`checkClearest`): "the clearest one was round N" after a sentence about
+  what cost the player, from Platinum, where round N was won and the costliest death lost.
+- **THE COACH'S EARLIER WORDS through the gates** (`chat-prompt.js earlierFilter`, at prompt time,
+  since a saved review keeps its build's words): a round line the record makes false is left out,
+  a summary or focus sentence alone, a rewrite used; the asked round's earlier line the same.
+- **Retrieval** (`knowledge.js recordSignals` `ruledOut`, `ISOLATION_LESSON`): where the deaths
+  nobody traded had a teammate close and none far, 'isolated' is ruled out, and no case for that
+  cause or teaching an isolation lesson by its words is served (`cases.js scored`, Ask Coach and
+  the review), nor an isolation note in Ask Coach (`pickNotes`). Fracture no longer gets k110.
+- **Proof.** Replayed over all 84 round 7 outputs (60 chat served and raw, 24 reviews): every
+  count and distance claim of the judges' list is caught (the Split raw "twice with no teammate
+  close" too, though in the reply a timeline gate drops it first), plus Pearl Iron's "both times
+  nobody close enough to answer" the judges missed. Every newly dropped sentence is listed with why it is wrong in the
+  round 8 stage report; the true ones dropped are only those leaning on a dropped one
+  (`leans`, `orphan`). Tests: test:chatgates "round 8, counts and contradictions".
+
+### Round 8: the timeline and the state (Nov 2026)
+
+Seven round 7 claims were true of another moment or another number. Each reader is in
+`record-claims.js` (both READERS lists, so Ask Coach and the review's round lines and summary),
+judges only what Riot's record makes certainly false, and is proven on its audit sentence and a
+true variant in test:chatgates "round 8, the timeline and the state".
+
+- **The plant phase** (`checkPlantPhase`, `PLANT_DURING`): "as your teammate plants", "while your
+  team was planting", "mid plant", "during the plant" of a death Riot has after the plant (Fracture
+  5 to 1 Iron round 5) or more than 4.5 s before it (planting takes 4 s). The review line now says
+  Riot's plant second and the death's side of it, and drops the screen's "while ally plants" read.
+- **The enemy by its side** (`checkEnemyRole`): "make the attacker expose themselves" to an attacker
+  (Corrode 3 to 13 Asc+ round 1): the noun a verb acts on, or one coming at "you", in one round of
+  known side. The player's own side named as theirs ("as the attacker") is not read, nor a role
+  noun after the other half is named (`OTHER_HALF`, "next half on defence, make the attackers
+  come to you", 8.8 review).
+- **The first contact** (`checkFirst`): "you were the first contact / the first one into" a death
+  with a teammate already down (Pearl 1 to 5 rounds 3 and 4, 4 against 5), or a first fight word
+  where the enemy had lost one and Riot gives the first kill to someone else (`row.firstKill`).
+- **What the death left, in words** (`checkLeftWords`): "your death left four players ... a man
+  down" of a death 4 against 5 (it left 3 against 5, two down). A death told between goes unjudged.
+  Not folded into `fact-gates.js standingClaims`, so `gateLeftAcross` does not hold it across two
+  sentences.
+- **A gap held to its anchor** (`checkLater`, Ask Coach only: it needs the feed's second, `row.deathAt`
+  and `row.ownKills` from `feedTimes`): "the spike landed at B. Six seconds later you were dead"
+  where the death came 1.5 s after the plant (Sunset 2 to 5 Iron round 2). The anchor is the event
+  the gap names, else the last plant or own kill told in the sentence or the kept one before it;
+  1 s of tolerance. The prompt now writes the computed gaps into the death's own feed entry ("27 s
+  in (1.5 s after the plant, 6.4 s after your last kill, ...)"), the plant to the tenth, with a rule
+  line on gaps (`VALORANT_RULES`); the sentence apart is kept only where the feed has no death.
+- **The kill's place** (`checkKillPlace`, `placesOf().canonOf`): "after the first kill at A Alley"
+  where Riot has the kill at A Elbow and the death at A Alley (Sunset 4 to 13 round 7, Plat, and
+  Silver, which the judges missed). Only a kill certainly the player's ("your", "you got", or the
+  first kill where Riot gives it to the player); a bare site of the kill's side passes. The
+  article is no site (8.8 review, `articleNotSite`, `placeMatch`): "a site retake", "a main
+  angle" and "holding a site alone" read as the A side under the 'i' flag; a place opening on a,
+  b or c and a space is a callout only with its capital, here, in `checkRecord` and in
+  `death-forensics.js`.
+- **The example held to the cost rank** (`checkClearest`, widened): "the plainest / most costly /
+  most obvious one" with the cost said before, and `COST_MOST`, "the one that cost you the most was
+  round N", which needs no cost sentence before. The Fracture Plat improve answer was already caught.
+- **The standing in the prompt** (`cardLine`): "4 against 5 standing as you died (you counted), not
+  the first death: 1 teammate already down, leaving 3 against 5".
+
+**Proof.** All 84 round 7 outputs (60 chats through `gateReply`, 24 reviews through `checkRows` with
+the kill places Riot has, as the round 8 client sends them): the seven target claims are caught plus
+the Silver Sunset round 7 kill place, and nothing else drops.
+
+### Round 8: what the game itself makes certain (Nov 2026)
+
+`server/services/game-claims.js`, pure, English only, asserted both ways in `test:gameclaims`
+and `test:chatgates`. Four gates run after every gate before (`GATES`, last four):
+
+- **`oneshot`** (`gateOneShot`, `checkOneShot`): a one hit kill of a named part of one named gun,
+  held to Heavy Armor from full health, simulated hit by hit with the primer's own absorption
+  (100 health, Heavy Armor 50 at 0.66). Chat reads the primer's `hits` entries for the match's
+  patch, the review the game data. "The Outlaw's one-shot body at any range" goes (140 body, Heavy
+  Armor takes 2); the Operator body, the Vandal head, a sentence naming its armour ("against no
+  armour or Light Armor"), a negation and one naming no part judge nothing. "At any range" judges
+  every band, "long range" the last, else the closest.
+- **`move-fire`** (`gateMoveFire`, `checkMoveFire`): "bursting and moving", "shoot while
+  strafing", "run and gun", "burst, move, burst". Passes moving between bursts, a negation before,
+  a shotgun, and the habit named as the error ("and missed", "stop instead"), and since the 8.8
+  review the habit diagnosed: a past lead ("you were", "lost", `MOVE_FIRE_PAST`) or a cost in the
+  sentence ("inaccurate", "everywhere", "wide", "counter-strafe", `MOVE_FIRE_COST`). "Try shooting
+  while moving" still goes.
+- **`bullets`** (gate `kit`, `checkBullets`): "Contingency is just a smoke, bullets go through
+  it", held to `server/data/kit-rules.json`. The other direction, "High Tide blocks bullets", goes
+  by the kit gate itself (`ability-facts.js` `CLAIM_VERBS.bullets`, judged only of an ability the
+  kit rules list with `bullets: false`). Since the 8.8 review a name is found as a whole word,
+  longest first ("Cove" was found inside "Dark Cover" and "Cover"), a negation right before a
+  claim flips it ("will not stop bullets", "cannot block bullets", "is not just a smoke"), and the
+  sentence goes only when no claim in its clip agrees with the kit rules.
+- **`unseen`** (`gateUnseen`, `checkUnobserved`): where the player's crosshair sat or what the
+  player saw, said as fact ("your crosshair sat too deep toward the wall"). Passes a hypothetical,
+  a place ("where you saw him"), the minimap, and a look whose WHAT (never its better play, which
+  is advice) speaks of the crosshair or of seeing, for the round the sentence names or the asked
+  round, else any look of the match.
+
+**Deathmatch and the Range, past one sentence.** `gateMode` now reads the sentence with its
+disclaimer taken out (`stripDisclaimer`: "where there are no teammates", "Deathmatch has no
+teammates"), so "practise in Deathmatch, where there are no teammates: ask whether a teammate
+could trade you" goes; the wider absence words (`NO_TEAM_SAID`: "do not practise trades there")
+apply only where a disclaimer was taken out, so nothing the old gate dropped passes. `TEAM_WORDS`
+is the shared one of `game-claims.js`, "backs you up" added. `gateReply` then runs
+`soloDrillFrame` after the record pass: a sentence naming the mode opens a frame to the end of its
+paragraph or to a sentence that moves the drill to a match (`MATCH_FRAME`, since the 8.8 review
+with "in the match", "once the match starts" and "in game"), and a team rule inside
+it goes as gate `mode` ("play Deathmatch ... Before every engagement, ask whether you have an
+escape or a teammate nearby"). The review reads the same frame across its summary and focus.
+
+**The prompt.** THE AIM FACTS ask for "where the crosshair should wait next time" and say no look
+states where it was unless a look line does; COACHING NOTES says each note is a rule for a kind of
+situation, not a record of this match. Not yet benched (`bench:chat` at Plat and Asc is the check).
+
+**Proof.** All 84 round 7 outputs replayed with the round 8 gates live and stubbed (60 chats
+through `gateReply` on the raw reply, 24 reviews through `claimGates`): exactly the four target
+sentences drop (Split Silver aim's teammate nearby, Corrode Plat aim's crosshair, Pearl Iron aim's
+bursting and moving, Sunset Iron's Outlaw), nothing else and no lean or orphan after them. Over the
+earlier rounds' outputs the checks find only the after1 failures the judges flagged (the review's
+"Burst, move, burst, move", two Deathmatch team drills).
+
+### Round 8: usefulness, aim as aim and the two weakest numbers (Nov 2026)
+
+Round 7's aim answers turned into a trading lecture at every band, the answers below Platinum were
+generic, and the Plat and Asc improve answers were one trade template. Every piece below is in
+`chat-prompt.js` unless named, and each is asserted in test:chatgates, "round 8, usefulness".
+
+- **An aim question is aim** (`questionTopics`): with aim asked, climbing is no topic of it ("get
+  better", "my rank" read as climbing and general), and it is general only where practice is asked
+  too. So no climbing notes, no band fundamentals and no three counted trade notes.
+- **No trade or spacing note in an aim answer** (`AIM_TEAM_NOTE`, `pickNotes`): the counted
+  pattern notes must be about the shot (`AIM_TOPIC.note`), and a note about trades, teammates,
+  solo fights or crossfires is left out of the retrieved fill and the final list.
+- **THE AIM FACTS at every band** (`aimFactsOf(m, aim, { band, primer })`), a client that sends no
+  band gets none as before. New: a line per gun (`gunLineOf`) for the two guns the player killed
+  with most and the one that killed them most, against Heavy Armor, the hits by band from the chat
+  facts' own primer entries (the match's patch), so "past 20 m one head hit no longer kills" is
+  finished in code; a gun the primer gives no hits for has no line. Below Platinum the ask is one
+  basic of the shot (the stop before the first bullet stays the basic there); from Platinum the
+  fine point, as before. Every band: the drill is the shot's in the Range or Deathmatch (crosshair
+  placement, counter strafing below Platinum or where a look saw a shot on the move, the first
+  bullet, spray control, bursts at range), and position or trading once at most, after the habit,
+  only for a round line that shows it. Notes tagged for those guns (`note.weapons`) now serve an
+  aim answer, two at most, after the question's own three.
+- **Five aim drill notes** (`playbook.json`, topics ending in "drill"): Range bots set to strafe,
+  a one rifle Deathmatch with the crosshair parked at head height, burst by range in Deathmatch,
+  spray control at a Range wall, the first bullet off an angle. Real tools only. The shooting error
+  graph note stays: the setting is real (Video, Stats, Shooting Error).
+- **The rules**: the aim rule answers about the shot first and mentions position or trading once at
+  most ("nobody able to trade, name that first" is gone); `IMPROVING_RULE` and THE LEVER say leave
+  trading out unless the lever is trading (no "as a second point"); the plain words rule says the
+  trade (a teammate killed your killer) and the distance (near or far) apart, never "close enough to
+  kill or trade". `IMPROVING_RULE_877` and `LEVER_BANDS` are as e9726e0 left them.
+- **The aim focus pass** (`gateReply`, gate `focus`, quiet): in an aim answer the first sentence
+  about trading or a teammate's distance (`TRADE_SENT`) is kept and every later one goes, unless it
+  also teaches the shot (`tradeOnly`). `parseReply` retries where those sentences were over half of
+  what the reply said (`FOCUS_SHARE`).
+- **A drill of "that" after a team habit** (`game-claims.js pronounDrill`, gate `mode`): "Practise
+  that in Deathmatch, where you have no teammates" right after a team habit goes, the disclaimer
+  notwithstanding. Its case is spelled, no 'i' flag (8.8 review), as in `MODE_AWAY`: "the range
+  you died from" is a distance, not the Range.
+- **THE TWO WEAKEST NUMBERS from Platinum** (`weakTwoOf`, `weakTwoLine`, `WEAK_WEIGHTS`): for an
+  improve, climb or biggest mistake question (never aim, practice or an agent), the two weakest
+  measured numbers ranked in code, one a family: a number against the player's own average, a grade
+  category under 75, the advantage given back with its rounds, the first death rate from a fifth of
+  the rounds, the spike records under half, the untraded count, the trade weighed lowest. Each a
+  finished line in words the number gate ties (`K/D in this match was`). This is not the lever that
+  e9726e0 took away above Gold: it names numbers, never a kind for the model to find evidence for.
+  Corrode Plat gets the advantage given back in rounds 7, 9 and 14 and K/D 1.08 against 1.92; Split
+  Asc K/D and headshot rate; Fracture Decisions 50 and headshot rate. The lead check
+  (`weakLeadOf`): an answer whose first two kept sentences say the untraded count and neither weak
+  number is retried (`WEAK_LEAD_REASON`). Not yet benched at Plat and Asc.
+- **"where you were the first contact"** (`record-claims.js FIRST_CONTACT`, kind `first`, and
+  `fact-gates.js FIRST_DEATH` for one round): held to Riot's first death, read even inside a plan.
+- The number gate reads "from 20 to 50 m" as the band it names, and a clause's own band first
+  (`bandNamed`, `hitsOk`), so the gun lines said back are kept and a wrong one still goes.
+
+**Iron and Bronze.** Round 7's Iron correctness fell on summaries the gates let through ("a couple
+of those", "both times", "all show it", "holding the angle alone", "three of those six", "first
+contact"); the ledger and the multi round gates of the earlier round 8 stages drop all of them on
+the replay, and the "second point" invitation that produced the Sunset practice one is gone.
+
+**Proof.** All 84 round 7 outputs replayed against the tree before this stage: no review changes;
+in the chats the focus pass drops three sentences (Split Asc aim's second and third trade sentences,
+Sunset Silver aim's "more of your kills come with a teammate nearby"), one orphan follows ("If
+nobody is,"), and the lead check retries the three improve and biggest answers that open on the
+untraded count (Split Asc both, Corrode Plat biggest). Nothing else changes.
+
+### Round 8: each round's clause, the asked agent's he, a connective after a cut (Nov 2026)
+
+From the Pearl Silver Cypher answer and the Fracture Ascendant aim answer of round 7:
+
+- **Each round's claims in its own clause** (`fact-gates.js scopeOf`, `ROUND_MENTION`, in
+  `gateStanding` and `gateEconomy`): in a sentence naming two rounds or more, a round's scope runs
+  from its mention to the next, the text before the first mention shared by all. "In round 3 you
+  died 13 s in at B Screen to his Phantom, and in round 5, the pistol round, you died 9 s in at Mid
+  Doors to his Classic." is no pistol claim about round 3, and the three true sentences that went
+  after it stay. A list ("rounds 3 and 5", "round 3 and round 5 you ...", a mention with only a
+  joining word after it) holds its claim to every round of it, and a mention with nothing after it
+  ("and so was round 3") reads the sentence whole. One mention, or none, reads whole as before.
+  Replayed over round 7, five sentences kept that went before, each checked true against Riot's
+  record (Pearl Iron and Silver, Fracture Plat, Sunset 2 to 5 Iron, Sunset 4 to 13 Silver).
+- **A he or a she the asked agent can be is no lean** (`chat-prompt.js leansHere`, in the first
+  lean loop of `gateReply` and in `leanPass`): a sentence that leans only by its opening he, his,
+  him (she, her) stays after a cut when an agent the question names can be that pronoun
+  (`coherence.js MALE`, `FEMALE`, or neither list). "His Trapwire tethers you" kept, asked about
+  Cypher; dropped asked about Reyna or with nobody asked. A lean by time, by a trade or by that,
+  this or it is a lean as before.
+- **A connective after a cut** (`coherence.js repairConnective`, last in `gateReply`, the review's
+  `structureGates` too): "So", "Thus", "Hence", "Therefore", "As a result" and "Because of that"
+  leading a clause, at the head of what is shown or right after a dropped sentence, are struck and
+  the clause capitalised: "So the fix is not a new sensitivity or a longer warmup." with its lead
+  cut by the name gate is served "The fix is not a new sensitivity or a longer warmup." "So far",
+  "so much", "so many", "so long", "so often" and "so that" are no connective. "That is why",
+  "This means", "Which is how" right after a cut go as orphans. The first gate that repairs rather
+  than drops, and only this. Nothing is touched where nothing was cut before it.
+
+Tests: `test:chatgates` ("ROUND 8: THE THIN REVIEW STAGE"), each regex on a positive and a negative.

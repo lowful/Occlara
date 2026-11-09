@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * RIOT'S RANK AS THE GAME SHOWS IT, AND RIOT'S OWN ACCOLADES (8.8.x).
+ * RIOT'S RANK AS THE GAME SHOWS IT, AND RIOT'S OWN ACCOLADES (8.7.9).
  *
  * The words the pages say about what the server's richer HenrikDev reads
  * hand back (server/services/henrik-rank.js): the RR chip on a review and in

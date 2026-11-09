@@ -46,6 +46,7 @@
 
 const { repeatTitle, specificOf, countable } = require('./insights');
 const { variantOf } = require('./death-causes');
+const { cardSatOut } = require('./sat-out');
 
 const MIN_MATCHES = 2;
 const WINDOW = 10;
@@ -72,6 +73,32 @@ function trendOf(newer, older, n) {
   return newerRate > olderRate + 0.15 ? 'rising' : newerRate < olderRate - 0.15 ? 'falling' : 'steady';
 }
 
+/*
+ * THE ROUNDS A SAVED REVIEW SAYS THE PLAYER SAT OUT (8.8, sat-out.js): its
+ * cards with Riot's AFK or spawn flag, or the chip that says so. A review
+ * saved before the lists left those rounds out still counts them, so the
+ * library takes them off an entry here: off its rounds and its count, and an
+ * entry left with none of its rounds is no sighting.
+ */
+const SAT_OUT_CHIPS = new Set(['Riot marked you AFK, not counted', 'Stayed in spawn all round, not counted']);
+function satOutRounds(review) {
+  const out = new Set();
+  for (const c of (review && Array.isArray(review.rounds) ? review.rounds : [])) {
+    if (!c || !Number.isInteger(c.n)) continue;
+    if (cardSatOut(c) || (Array.isArray(c.facts) && c.facts.some((f) => SAT_OUT_CHIPS.has(f)))) out.add(c.n);
+  }
+  return out;
+}
+function withoutSatOut(e, out) {
+  const rounds = Array.isArray(e.rounds) ? e.rounds : [];
+  if (!out.size || !rounds.length) return e;
+  const kept = rounds.filter((n) => !out.has(n));
+  if (kept.length === rounds.length) return e;
+  if (!kept.length) return null;
+  const count = typeof e.count === 'number' ? e.count : rounds.length;
+  return { ...e, rounds: kept, count: Math.max(kept.length, count - (rounds.length - kept.length)) };
+}
+
 function tally(reviews, list) {
   const map = new Map();
   // A cause's trend: the matches looked at by the newest look's prompt, newest first.
@@ -79,7 +106,9 @@ function tally(reviews, list) {
   const byPrompt = current ? reviews.filter((rv) => lookVariant(rv.review) === current) : [];
   reviews.forEach((rv, i) => {
     const seen = new Set();
-    for (const e of countable(rv.review)[list]) {
+    const out = satOutRounds(rv.review);
+    for (const raw of countable(rv.review)[list]) {
+      const e = raw && raw.key ? withoutSatOut(raw, out) : raw;
       if (!e || !e.key || seen.has(e.key)) continue;
       seen.add(e.key);
       const t = map.get(e.key) || {
