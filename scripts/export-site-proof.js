@@ -366,6 +366,10 @@ setTimeout(async () => {
     const win = mainWindow.create();
     win.show();
     win.setPosition(0, 0);
+    // NO HOVER IN A PICTURE: the real mouse never reaches the window (every
+    // step here clicks through the page's own scripts), so wherever the
+    // cursor rests on the desktop, no row picks up its hover tint.
+    win.setIgnoreMouseEvents(true);
     // A frameless window at a scale of 2 comes out a few DIPs over what was
     // asked (Windows' invisible resize border): asked again, less the delta.
     win.setContentSize(WIN.width, WIN.height);
@@ -401,6 +405,25 @@ setTimeout(async () => {
     const shot = async (name, what) => {
       if (JSON_ONLY) return;
       await wait(600);
+      // And a hover the cursor left before the window went click-through, or
+      // one a page set itself, is cleared: every surface on screen is told
+      // the mouse left it, then asked that nothing matches :hover.
+      const views = [shell, ...mainWindow.pageViews().values()];
+      const m = typeof mainWindow.menuState === 'function' ? mainWindow.menuState() : null;
+      if (m && m.open && m.view) views.push(m.view);
+      const t = typeof mainWindow.toastState === 'function' ? mainWindow.toastState() : null;
+      if (t && t.shown && t.view) views.push(t.view);
+      for (const v of views) {
+        if (v.webContents.isDestroyed()) continue;
+        v.webContents.sendInputEvent({ type: 'mouseMove', x: -1000, y: -1000 });
+        v.webContents.sendInputEvent({ type: 'mouseLeave', x: -1000, y: -1000 });
+      }
+      await wait(300);
+      for (const v of views) {
+        if (v.webContents.isDestroyed()) continue;
+        const hovered = await v.webContents.executeJavaScript("document.querySelectorAll(':hover').length");
+        if (hovered) throw new Error(`${name}: ${hovered} elements still hovered on ${v.webContents.getURL().split('/').slice(-2).join('/')}`);
+      }
       const pic = await composite(mainWindow, win, { verify: true });
       if (!pic) throw new Error(`${name}: the window could not be captured`);
       const want = [WIN.width * WIN.scale, WIN.height * WIN.scale];
