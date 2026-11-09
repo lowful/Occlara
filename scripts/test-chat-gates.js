@@ -3808,5 +3808,21 @@ console.log('\nround 8, the game facts gates:');
   'ASKED FLAGS: the closed list only, never the record\'s, and none sent is as before');
 }
 
+// bench:chat, 9 Nov: a Vandal answer's working, a hit with no gun named held
+// to the armour it goes through, and its sum tied to nothing.
+{
+  const q = [{ role: 'user', content: 'How many body shots does a Vandal need to kill someone with heavy armor?' }];
+  const fv = cp.factsOf({ game: 'valorant', agent: 'Jett' }, q);
+  const drop = (s) => gates.check(s, fv).drop;
+  ok(JSON.stringify(fv.askedGuns) === '["Vandal"]', 'ASKED GUNS: the Vandal of the question', JSON.stringify(fv.askedGuns));
+  ok(!drop('A Vandal needs 4 body hits to kill someone with Heavy Armor from full health, at any range.')
+    && !drop('Each body hit deals 40 damage, so the fourth hit brings the total to 160, enough to kill through Heavy Armor.'),
+  'ASKED GUN: the Vandal\'s 40 body damage and its 160 total stand', JSON.stringify(drop('Each body hit deals 40 damage, so the fourth hit brings the total to 160, enough to kill through Heavy Armor.')));
+  ok(drop('Each body hit deals 50 damage, so the fourth hit brings the total to 160, enough to kill through Heavy Armor.')
+    && drop('Each body hit deals 40 damage, so the fourth hit brings the total to 170, enough to kill through Heavy Armor.')
+    && drop('A Vandal needs 3 body hits to kill someone with Heavy Armor.'),
+  'ASKED GUN: a wrong damage, a wrong total and a wrong count still go');
+}
+
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');
 process.exit(fails ? 1 : 0);

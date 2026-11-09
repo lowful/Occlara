@@ -1978,8 +1978,24 @@ function gateNumbers(s, facts, rs) {
     }
     let attr = attributeOf(t, at, len);
     const ctx = { ...around(t, at, len), sentence: t, armor: f.armor || null };
-    const subjects = subjectsNear(t, ctx.clause);
+    let subjects = subjectsNear(t, ctx.clause);
     if (attr === 'damage?') attr = subjects.some((x) => x.kind === 'gun') || /\b(?:head|body|legs?)\b/i.test(ctx.clause) ? 'damage' : null;
+    // THE GUN THE PLAYER ASKED ABOUT IS THE SUBJECT OF A HIT WITH NONE NAMED
+    // (bench:chat, 9 Nov): "Each body hit deals 40 damage ... through Heavy
+    // Armor", the second sentence of a Vandal answer, was held to the Heavy
+    // Armor, which deals no damage, and the true answer went to the honest
+    // line. The armour a hit goes through is its target, not its source.
+    const askedGun = Array.isArray(f.askedGuns) && f.askedGuns.length === 1 ? f.askedGuns[0] : null;
+    if (askedGun && !subjects.some((x) => x.kind === 'gun') && /\b(?:hits?|shots?|damage|bullets?|taps?)\b/i.test(ctx.clause)) {
+      subjects = [{ kind: 'gun', name: askedGun }, ...subjects.filter((x) => !(x.kind === 'gear' && /armou?r|shield/i.test(x.name)))];
+    }
+    // "Brings the total to 160": a gun's own hit damage times a count of
+    // hits, the sum a hits to kill answer shows its working with (the same run).
+    if (!attr && /\btotal\b/i.test(ctx.clause)) {
+      const guns = new Set(subjects.filter((x) => x.kind === 'gun').map((x) => lower(x.name)));
+      const per = (f.primer || []).filter((e) => e.subjectKind === 'gun' && guns.has(lower(e.subject)) && ['head', 'body', 'legs'].includes(e.attribute) && fin(e.value));
+      if (per.some((e) => [2, 3, 4, 5, 6, 7, 8].some((k) => near(e.value * k, value, 1e-6)))) continue;
+    }
     if (attr === 'percent?') attr = null;
     if (attr === 'times' && /\b(?:hit|hits|shot|shoot|tap|taps|bullet)\b/i.test(ctx.clause)) attr = 'hits';
     // "You died 4 times" is a count of deaths, the scoreline's.

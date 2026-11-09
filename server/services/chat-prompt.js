@@ -865,6 +865,9 @@ function factsOf(input, messages, opts) {
     // The match's mode, for the standing reader of ability-facts.js (a deathmatch is no five a side).
     mode: m && typeof m.mode === 'string' ? m.mode : null,
     askedAgents: gates.agentsIn(asked).map((a) => a.name),
+    // The guns the question names: the subject of a hit or a damage number a
+    // sentence of the answer gives without its gun (fact-gates.js gateNumbers).
+    askedGuns: [...new Set(gates.gunsIn(asked).map((g) => g.name))],
     source: m ? m.source : null,
     verified: !!(m && m.verified),
     // No match at all: no record to cite (fact-gates.js gateNoRecord, the coach bench).
