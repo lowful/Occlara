@@ -8,19 +8,18 @@
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="../shared/dropdown.css" />
-  <link rel="stylesheet" href="../shared/marks.css" />
   <link rel="stylesheet" href="onboarding.css" />
 </head>
 <body>
   <main class="card glass">
-    <button id="close" class="icon-btn x no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+    <button id="close" class="icon-btn x no-drag" title="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
 
     <!-- ── 1. Welcome ─────────────────────────────────────────────────── -->
     <section class="page" data-page="0">
       <div class="hero">
         <img class="mark" src="../../../assets/logo-mark.svg" alt="" width="28" height="28" />
         <h1>You're in.</h1>
-        <p class="sub">Three steps from Start to your review.</p>
+        <p class="sub">Five quick things, then you're playing.</p>
       </div>
       <!-- Language first, before anything else is read, so the rest of the tour
            and every review arrive in the player's own language. One row with
@@ -54,7 +53,7 @@
         <div class="k"><span>Last review</span><kbd>Ctrl+Shift+E</kbd></div>
         <div class="k"><span>Matches</span><kbd>Ctrl+Shift+H</kbd></div>
         <div class="k"><span>Hide or show Occlara</span><kbd>Ctrl+Shift+M</kbd></div>
-        <div class="k"><span>Pause or resume</span><kbd>Ctrl+Shift+P</kbd></div>
+        <div class="k"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
       </div>
       <p class="keys-note">During a match <kbd>Ctrl+Shift+E</kbd> does nothing, on purpose: Occlara shows you
         nothing while you play, and everything it read is waiting in the review when the match ends.</p>
@@ -74,19 +73,16 @@
            here once claimed a grade and a mistake the product would never
            give that match, on the first review a new player ever sees. If the
            grader changes, rerun it on the fixture and update these numbers.
-           Written as the review writes it (8.8): the four categories as
-           figures in a line, the best on its own with the pen's tick in the
-           margin, and the fix for the repeated mistake under the pen's
-           underline (onboarding.js lays both, still). -->
+           Drawn as one ruled entry, the way the review itself is. -->
       <div class="ob-review" aria-hidden="true">
-        <div class="obr-head"><span class="obr-result">Victory</span><span class="obr-score"><b>13</b> to <b>11</b></span>
+        <div class="obr-head"><span class="obr-result">Victory</span><span class="obr-score">13 : 11</span>
           <span class="obr-grade"><b>71</b><i>B</i></span></div>
-        <p class="obr-cats"><span id="obr-best" class="obr-best">Impact <b>100</b>, your best</span></p>
-        <p class="obr-cats">Survival <b>61</b>, teamplay <b>54</b>, decisions <b>60</b></p>
+        <div class="obr-cats">
+          <span>Survival <b>61</b></span><span>Impact <b>100</b></span><span>Teamplay <b>54</b></span><span>Decisions <b>60</b></span>
+        </div>
         <div class="obr-card">
           <div class="obr-rn">Your repeated mistake</div>
-          <p class="obr-why">Died where nobody could trade: 20 of your 21 deaths went unanswered.</p>
-          <p class="obr-fix"><span id="obr-fix">Before you swing, check someone can see the same angle.</span></p>
+          <p class="obr-why">Died where nobody could trade: 20 of your 21 deaths went unanswered. Before you swing, check someone can see the same angle.</p>
         </div>
       </div>
       <p class="lead small">Advanced coaching gives you deeper coaching that fits your rank, from damage breakpoints to reads across rounds. Leave it on unless you want fundamentals only.</p>
@@ -122,7 +118,7 @@
             <span class="ob-opt-title">Record gameplay <span class="ob-tag" id="ob-rec-tag" hidden>Recommended</span></span>
             <span class="ob-opt-text">Valorant and League are recorded at about 30 fps (15 at 480p, the lightest), so your review can show clips of your deaths. The video stays on this PC.</span>
           </button>
-          <div class="ob-res" id="ob-res" role="radiogroup" aria-label="Recording quality">
+          <div class="ob-res seg" id="ob-res" role="radiogroup" aria-label="Recording quality">
             <button type="button" data-res="480" role="radio" aria-checked="false">480p</button>
             <button type="button" data-res="720" role="radio" aria-checked="true" class="active">720p</button>
             <button type="button" data-res="1080" role="radio" aria-checked="false">1080p</button>
@@ -159,11 +155,11 @@
     </section>
 
     <!-- ── Footer nav ─────────────────────────────────────────────────── -->
-    <!-- Back, a quiet rectangle; the progress rule (one segment a page,
-         filled as far as the tour has come; each segment is still the button
-         it was, so a page can be skimmed to); and the one primary capsule. -->
+    <!-- Back, the progress rule (one segment a page, filled as far as the
+         tour has come; each segment is still the button it was, so a page
+         can be skimmed to), and the one primary capsule. -->
     <div class="nav">
-      <button id="back" class="btn btn-secondary" style="visibility: hidden">Back</button>
+      <button id="back" class="btn btn-ghost md">Back</button>
       <div class="dots" id="dots" aria-label="Progress"></div>
       <button id="next" class="btn btn-primary md">Next</button>
     </div>
@@ -173,7 +169,6 @@
   <script src="../shared/seg.js"></script>
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/grade-view.js"></script>
-  <script src="../shared/marks.js"></script>
   <!-- How Occlara watches: its rules, a file of their own so test:pccheck runs them. -->
   <script src="pc-rules.js"></script>
   <script src="onboarding.js"></script>

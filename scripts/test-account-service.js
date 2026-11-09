@@ -456,7 +456,7 @@ async function main() {
       'GET /api/referral': { ok: true, status: 200, data: { code: 'ABC123', link: 'https://occlara.app/invite/ABC123', invited: 2, qualified: 1, earned: 4, max_friends: 5, max_games: 20 } },
     } });
     const r = await h.svc.referral();
-    ok(r && r.link === 'https://occlara.app/invite/ABC123' && r.line === '1 of 5 friends played a first match, 4 games earned, 1 more signed up and yet to play'
+    ok(r && r.link === 'https://occlara.app/invite/ABC123' && r.line === '1 of 5 friends joined, 4 games earned, 1 still to record a match'
       && Array.isArray(r.how) && r.how.length === 2, 'GET /api/referral with its line and the two lines of how', JSON.stringify(r));
     const bad = harness({ store: memStore({ [TOKEN_KEY]: stubSafe(true).encryptString(tok).toString('base64') }), routes: {
       'GET /api/referral': { ok: true, status: 200, data: { code: 'X', link: 'https://evil.example/invite/X', qualified: 0 } },

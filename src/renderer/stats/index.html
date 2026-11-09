@@ -9,7 +9,6 @@
   <script src="../shared/embed.js"></script>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
-  <link rel="stylesheet" href="../shared/marks.css" />
   <link rel="stylesheet" href="stats.css" />
 </head>
 <body>
@@ -35,28 +34,15 @@
            source. The dashboard is Valorant shaped end to end, so the honest
            answer for another game is to say so, never to paint Valorant's rank
            and agents under a different game's name. -->
-      <section id="nostats" class="stats-empty" hidden>
+      <section id="nostats" hidden>
         <h3 id="nostats-title"></h3>
         <p id="nostats-body" class="empty"></p>
-        <button id="nostats-go" class="btn btn-primary md no-drag" type="button">Open Settings</button>
       </section>
 
-      <!-- NO RIOT ID (8.8): the page's one empty state, with its one action.
-           The overview, the agents and the matches all read Riot's record, so
-           with no Riot ID they wait under this instead of saying three times
-           what is missing (stats.js applyRiot). Graded matches are Occlara's
-           own and stay below when there are any. -->
-      <section id="stats-connect" class="stats-empty" hidden>
-        <h3>Connect your Riot ID</h3>
-        <p class="empty">Your rank, your agents and your recent matches come from Riot, so Occlara needs to know which account is yours.</p>
-        <button id="stats-connect-go" class="btn btn-primary md no-drag" type="button">Connect Riot ID</button>
-      </section>
-
-      <!-- The rank on a line of its own, the page's lead figure, and the
-           categories and win rate under it as a ruled list, each number in
-           the margin (stats.js renderCards). -->
+      <!-- The rank on a line of its own, the page's hero, and the five numbers
+           under it in columns (stats.js renderCards). -->
       <section id="sec-overview">
-        <h3>Rank</h3>
+        <h3>Overview</h3>
         <div class="cards" id="cards"></div>
         <!-- The rank line's notes open under it by height (.reveal, ui.css). -->
         <div id="rank-reveal" class="reveal" hidden>
@@ -67,7 +53,7 @@
       <section id="sec-agents">
         <h3 id="agents-title">Top agents</h3>
         <div id="agent-tiles" class="agent-tiles"></div>
-        <p id="agent-empty" class="empty" hidden>Your most played agents show here after a few matches.</p>
+        <p id="agent-empty" class="empty" hidden>Play a few matches to see your most played agents here.</p>
       </section>
 
       <section id="sec-matches">
@@ -79,7 +65,7 @@
               <button type="button" data-mode="competitive" class="active">Competitive</button>
               <button type="button" data-mode="unrated">Unrated</button>
             </div>
-            <button id="refresh" class="btn btn-secondary sm no-drag" type="button">Refresh</button>
+            <button id="refresh" class="btn sm no-drag">Refresh</button>
           </div>
         </div>
         <div id="match-list" class="list"></div>
@@ -89,7 +75,7 @@
       <section id="sec-sessions">
         <h3>Graded matches</h3>
         <div id="session-list" class="list"></div>
-        <p id="session-empty" class="empty" hidden>Record a match with Occlara and its grade shows here.</p>
+        <p id="session-empty" class="empty" hidden>Finish a match with Occlara recording to see its grade here.</p>
       </section>
     </div>
   </div>
@@ -100,9 +86,6 @@
   <script src="../shared/grade-view.js"></script>
   <!-- The Competitive / Unrated capsule's sliding thumb. -->
   <script src="../shared/seg.js"></script>
-  <!-- Counts and days in the interface language (8.8), and the pen that ticks the best category. -->
-  <script src="../shared/intl.js"></script>
-  <script src="../shared/marks.js"></script>
   <script src="stats.js"></script>
 </body>
 </html>

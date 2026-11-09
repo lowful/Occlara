@@ -523,7 +523,7 @@ const notLive = (what) => { const e = new Error(`${what}: relation missing`); e.
       'the note says what is sent, what never is, and the facts');
     ok(q.$('fb-send').disabled, 'Send waits for the words');
     q.$('fb-kind').querySelectorAll('button')[1].click();
-    ok(q.$('fb-kind').querySelectorAll('button')[1].getAttribute('aria-checked') === 'true' && q.$('fb-kind').querySelectorAll('button')[0].getAttribute('aria-checked') === 'false', 'a kind is chosen');
+    ok(q.$('fb-kind').querySelectorAll('button')[1].getAttribute('aria-pressed') === 'true' && q.$('fb-kind').querySelectorAll('button')[0].getAttribute('aria-pressed') === 'false', 'a kind is chosen');
     q.$('fb-text').value = 'The coach said I died to an Operator but it was a Vandal.';
     q.fire(q.$('fb-text'), 'input');
     ok(!q.$('fb-send').disabled && q.$('fb-count').textContent === `${q.$('fb-text').value.length} of 4000`, 'with words, Send is ready and the count follows');

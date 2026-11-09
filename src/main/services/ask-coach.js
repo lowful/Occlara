@@ -326,7 +326,7 @@ class AskCoach {
    *
    * @returns { ok: true, reply, honest, match, moved, from }
    *        | { ok: true, which: { map, count }, match } | { ok: true, none: { map }, match }
-   *        | { ok: false, kind: 'mid-match' | 'held' | 'chat-daily' | 'chat-cap' | 'timeout' | 'error', error, resetsAt?, until? }
+   *        | { ok: false, kind: 'mid-match' | 'held' | 'chat-daily' | 'chat-cap' | 'error', error, resetsAt?, until? }
    */
   async chat(messages, opts) {
     const d = this.d;
@@ -397,10 +397,6 @@ class AskCoach {
       res = await d.api.post('/api/coach/chat', { messages: send, context }, key, CHAT_TIMEOUT_MS);
     } catch (e) {
       this.log('[chat] failed:', e && e.message);
-      // OUT OF TIME (8.8): the api aborts a request past CHAT_TIMEOUT_MS, and
-      // the page says that calmly on a line of its own, the question kept
-      // for a Retry, rather than calling a slow answer a failure to reach.
-      if (e && (e.name === 'AbortError' || e.name === 'TimeoutError')) return { ok: false, kind: 'timeout', error: 'The coach took too long to answer.' };
       return { ok: false, kind: 'error', error: 'Could not reach the coach server.' };
     }
     const data = (res && res.data) || {};
@@ -420,8 +416,6 @@ class AskCoach {
       return { ok: false, kind: 'chat-daily', resetsAt: Number.isFinite(at) ? at : null, error: d.failureText(429, data) };
     }
     this.log(`[chat] status=${res && res.status} ${(data && (data.error || data.message)) || 'no reply'}`);
-    // The host's own gateway timing out is the same slow answer.
-    if (res && res.status === 504) return { ok: false, kind: 'timeout', error: 'The coach took too long to answer.' };
     return { ok: false, kind: 'error', error: d.failureText(res && res.status, data) };
   }
 

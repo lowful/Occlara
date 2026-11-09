@@ -28,10 +28,10 @@
   flex: none;
   width: 40px; height: 40px; border-radius: var(--r-btn);
   display: inline-flex; align-items: center; justify-content: center;
-  font-family: var(--font); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1;
+  font-family: var(--font); font-size: 22px; font-weight: 600; letter-spacing: -0.5px; line-height: 1;
   border: 1px solid var(--line-2);
 }
-.gv-letter.sm { width: auto; min-width: 30px; height: 22px; padding: 0 8px; font-size: 11px; letter-spacing: 0; }
+.gv-letter.sm { width: auto; min-width: 30px; height: 22px; padding: 0 8px; font-size: 11px; letter-spacing: 0.02em; }
 .gv-letter.xs { width: 20px; height: 20px; font-size: 11px; letter-spacing: 0; }
 .gv-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
 .gv-letter.mid  { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
@@ -51,63 +51,24 @@
 .gv-cat-name { font-size: 14px; font-weight: 500; color: var(--text); }
 .gv-cat-score { font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .gv-cat.unmeasured .gv-cat-score { font-size: 12px; font-weight: 500; color: var(--text-mute); }
-/* The rule: the hairline, and over it the fill, the ink or the score's tone,
-   drawn at its value (8.8): the whole width scaled from the start edge to
-   the score (--f, 0 to 1, grade-view.js), never a width animated, and no
-   fill on a visit. */
+/* The rule: the hairline, and over it the fill, the ink or the score's tone. */
 .gv-bar { height: 2px; background: var(--line); overflow: hidden; }
 .gv-bar i {
-  display: block; height: 100%; width: 100%; background: var(--text);
-  transform-origin: left center; transform: scaleX(var(--f, 0));
+  display: block; height: 100%; width: var(--w, 0%); background: var(--text);
+  transition: width var(--t-slow) var(--ease);
 }
 .gv-bar i.good { background: var(--good); }
 .gv-bar i.warn { background: var(--warn); }
 .gv-bar i.bad  { background: var(--bad); }
 /* An unmeasured category keeps a dashed rule: its state in form. */
 .gv-cat.unmeasured .gv-bar { background: transparent; border-top: 1px dashed var(--line-2); height: 0; }
-/* The evidence (8.7), its leading number in the ink (grade-view.js chip),
-   one fact after the next as a sentence's list is, by a comma (8.8: never a
-   dot between them). No pill. */
+/* The evidence (8.7), its leading number in the ink (grade-view.js chip), a
+   dot of the quiet ink between one fact and the next. No pill. */
 .gv-chips { display: flex; flex-wrap: wrap; gap: 2px 0; }
 .gv-chip { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
-.gv-chip:not(:last-child)::after { content: ','; margin-right: 6px; color: var(--text-dim); }
+.gv-chip:not(:last-child)::after { content: '\00B7'; margin: 0 8px; color: var(--text-mute); }
 .gv-chip b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 .gv-note { font-size: 13px; line-height: 1.5; color: var(--text-dim); margin: 0; }
-/* THE RULED TABLE (8.8, gradeCard opts.table, the review's): a category a
-   row between hairlines, its name, its rule, its number and one line of
-   evidence, the columns lined up down the table by subgrid. Body weight for
-   the evidence, the label weight for the name, the number in the ink. */
-.gv-grade.table .gv-cats {
-  display: grid;
-  grid-template-columns: minmax(96px, max-content) minmax(72px, 140px) minmax(4ch, max-content) minmax(0, 1fr);
-  column-gap: var(--space-6); row-gap: 0;
-  border-top: 1px solid var(--line);
-}
-/* The gap is set on the row too, not only inherited through subgrid: one
-   state of the review lost it and ran the score into its evidence ("6121
-   deaths"). check:mainwindow holds every row to 12px or more. */
-.gv-grade.table .gv-cat {
-  display: grid; grid-template-columns: subgrid; grid-column: 1 / -1;
-  align-items: center; row-gap: 0; column-gap: var(--space-6);
-  padding: 10px 0;
-  border-bottom: 1px solid var(--line);
-}
-.gv-grade.table .gv-cat-name { font-weight: var(--w-label); }
-.gv-grade.table .gv-cat-score { text-align: right; font-size: 14px; }
-.gv-grade.table .gv-cat.unmeasured .gv-cat-score { font-weight: var(--w-body); }
-.gv-grade.table .gv-cat-ev {
-  font-size: 13px; line-height: 1.45; font-weight: var(--w-body); color: var(--text-dim);
-  min-width: 0; text-wrap: pretty;
-}
-.gv-grade.table .gv-cat-ev::after { content: none; }
-.gv-grade.table .gv-cat-ev b { font-weight: var(--w-label); }
-/* The best category takes the pen's tick in the margin beside its name
-   (review.js penMarks); its name in the full weight says it in type too. */
-.gv-grade.table .gv-cat.best .gv-cat-name { font-weight: var(--w-title); }
-@media (max-width: 620px) {
-  .gv-grade.table .gv-cats { grid-template-columns: minmax(88px, max-content) minmax(48px, 1fr) minmax(32px, max-content); }
-  .gv-grade.table .gv-cat-ev { grid-column: 1 / -1; padding-top: 4px; }
-}
 .gv-cat-score.good { color: var(--good); }
 .gv-cat-score.warn { color: var(--warn); }
 .gv-cat-score.bad  { color: var(--bad); }
@@ -119,8 +80,11 @@
 .gv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .gv-item { display: flex; flex-direction: column; gap: 6px; padding: var(--space-3) 0; border-top: 1px solid var(--line); }
 .gv-list > .gv-item:last-child { border-bottom: 1px solid var(--line); }
-/* No dot before a title (8.8): the list's heading says which kind it is. */
 .gv-item-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.gv-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
+.gv-item.bad .gv-dot  { background: var(--bad); }
+.gv-item.good .gv-dot { background: var(--good); }
+.gv-item.warn .gv-dot { background: var(--warn); }
 .gv-item-title { font-size: 14px; font-weight: 600; color: var(--text); }
 .gv-badge { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-left: auto; white-space: nowrap; }
 .gv-item-detail { font-size: 14px; line-height: 1.5; color: var(--text-dim); margin: 0; max-width: 72ch; }
@@ -136,7 +100,7 @@
 }
 button.gv-rchip { cursor: pointer; transition: color var(--t-fast) var(--ease); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
 button.gv-rchip:hover { color: var(--text); text-decoration-color: var(--text); }
-button.gv-rchip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+button.gv-rchip:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 .gv-empty { font-size: 14px; color: var(--text-mute); line-height: 1.5; margin: 0; }
 
 /* The lists ranked (8.7, insightLists hero): the top mistake set larger
@@ -150,6 +114,7 @@ button.gv-rchip:focus-visible { outline: 2px solid var(--focus-ring); outline-of
   margin: var(--space-1) 0 0; font-size: 20px; font-weight: 600; line-height: 1.35; letter-spacing: -0.015em; color: var(--text);
   max-width: 60ch; text-wrap: pretty;
 }
+.gv-action-mark { margin-right: 10px; color: var(--text-dim); font-weight: 500; }
 .gv-action .gv-fix-label { font-size: 13px; }
 .gv-rowed { padding: 0; }
 .gv-row > summary { list-style: none; cursor: pointer; padding: var(--space-3) 0; }
@@ -163,7 +128,7 @@ button.gv-rchip:focus-visible { outline: 2px solid var(--focus-ring); outline-of
 .gv-row[open] > summary::after { transform: translateY(1px) rotate(225deg); }
 .gv-row > summary:hover .gv-item-title { color: var(--text); }
 .gv-row > summary:hover::after { border-color: var(--text); }
-.gv-row > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.gv-row > summary:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: 2px; }
 .gv-row .gv-badge { margin-left: 0; }
 .gv-row-body { display: flex; flex-direction: column; gap: 6px; padding: 0 0 var(--space-3) 14px; }
 .gv-count {
@@ -172,14 +137,34 @@ button.gv-rchip:focus-visible { outline: 2px solid var(--focus-ring); outline-of
 }
 
 /* This match against the ones before it (8.7, grade-view.js progressStrip):
-   quiet sentences one after another (8.8: no dot before each), a gain in
-   --good and a drop in --bad, and the words saying the sign and the window,
-   so the colour is never the only signal. Still on the review's reveal: the
-   pen is its one moment (review.css). */
-.gv-progs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-6); }
-.gv-prog { font-size: 13px; font-weight: 500; line-height: 1.4; color: var(--text-dim); }
-.gv-prog.good { color: var(--good); }
-.gv-prog.bad { color: var(--bad); }
+   one quiet line, a dot in its tone before each, and its words saying the
+   sign and the window, so the colour is never the only signal. */
+.gv-progs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
+.gv-prog {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 500; line-height: 1.4; color: var(--text);
+}
+.gv-prog::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
+.gv-prog.good::before { background: var(--good); }
+.gv-prog.bad::before { background: var(--bad); }
+/* The review's reveal (8.7, review.js startReveal, review.css): under a
+   .revealing host the bars fill from nothing after the letter has stamped,
+   one after another by their place (--i, gradeCard's opts.reveal), and the
+   progress lines rise in after the bars. Transform and opacity only, so
+   nothing moves around them; .reveal-done is the end state at once. */
+.revealing:not(.reveal-done) .gv-bar i {
+  transform-origin: left center;
+  animation: gvFill var(--t-slow) var(--ease-expo) both;
+  animation-delay: calc(var(--t-slow) * 2 + var(--i, 0) * 80ms);
+}
+.revealing:not(.reveal-done) .gv-prog {
+  animation: riseIn var(--t-slow) var(--ease-expo) both;
+  animation-delay: calc(var(--t-slow) * 3.5);
+}
+@keyframes gvFill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
 
 /* A review still being checked (8.4.1, grade-view.js checking): its word
    beside a dot where its grade would be, and on Home's last match a block in
@@ -206,5 +191,7 @@ button.gv-rchip:focus-visible { outline: 2px solid var(--focus-ring); outline-of
   .gv-cats { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .gv-row > summary::after { transition: none; }
+  .gv-bar i, .gv-row > summary::after { transition: none; }
+  /* theme.css collapses durations, never delays: the reveal waits for nothing. */
+  .revealing:not(.reveal-done) .gv-bar i, .revealing:not(.reveal-done) .gv-prog { animation-delay: 0s; transition-delay: 0s; }
 }

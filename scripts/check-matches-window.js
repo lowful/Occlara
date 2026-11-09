@@ -694,11 +694,9 @@ setTimeout(async () => {
     const lists = (ins) => (ins ? { lists: ins.mistakes.length + ins.strengths.length + ins.missed.length, facts: (ins.facts || []).length } : null);
     const sentFacts = pushed.length ? lists(pushed[pushed.length - 1].insights) : null;
     const askedFacts = await rjs("window.occlara.getReview().then((r) => r && r.insights ? { lists: r.insights.mistakes.length + r.insights.strengths.length + r.insights.missed.length, facts: (r.insights.facts || []).length } : null)");
-    const painted = await rjs("(() => { const h = document.getElementById('insights-host'); return { heads: [...h.querySelectorAll('h3')].map((x) => x.textContent), facts: h.querySelectorAll('.gv-item.fact').length, fixes: h.querySelectorAll('.gv-item-fix').length, meta: document.getElementById('v-meta').textContent, foot: document.getElementById('v-foot').textContent, eye: !!document.querySelector('#eye-host .log-eye') }; })()");
+    const painted = await rjs("(() => { const h = document.getElementById('insights-host'); return { heads: [...h.querySelectorAll('h3')].map((x) => x.textContent), facts: h.querySelectorAll('.gv-item.fact').length, fixes: h.querySelectorAll('.gv-item-fix').length, meta: document.getElementById('v-meta').textContent, eye: !!document.querySelector('#eye-host .log-eye') }; })()");
     lines.push(`riot review: pushed=${JSON.stringify(sentFacts)} asked=${JSON.stringify(askedFacts)} painted=${JSON.stringify(painted)}`);
-    // 8.8: the meta is one sentence of two facts (agent and map, mode), and
-    // how the match was read is said once, at the foot.
-    if (!/from Riot's record/i.test(`${painted.meta} ${painted.foot}`)) return report(false, `the review page shows "${painted.meta}" and "${painted.foot}", not the match graded from Riot's record`);
+    if (!/From Riot's record/.test(painted.meta)) return report(false, `the review page shows "${painted.meta}", not the match graded from Riot's record`);
     if (!sentFacts || sentFacts.lists || !sentFacts.facts) return report(false, `the Riot only review was pushed with ${JSON.stringify(sentFacts)}`);
     if (!askedFacts || askedFacts.lists || askedFacts.facts !== sentFacts.facts) {
       return report(false, `the review page, asking for it, got ${JSON.stringify(askedFacts)}`);

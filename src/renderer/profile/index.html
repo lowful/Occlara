@@ -39,7 +39,7 @@
           <p id="pr-plan" class="pr-plan"></p>
           <p id="pr-split" class="pr-line"></p>
           <p id="pr-renew" class="pr-line"></p>
-          <button id="pr-retry" class="btn btn-secondary md" type="button" hidden>Try again</button>
+          <button id="pr-retry" class="btn btn-ghost md" type="button" hidden>Try again</button>
         </section>
 
         <!-- BUY MORE GAMES: a quick pick or any whole number, the total as it
@@ -50,8 +50,7 @@
             <p id="pr-rate" class="pr-hint"></p>
           </div>
           <div class="pr-pick">
-            <!-- Four quick picks: a row of text options, never a capsule (8.8). -->
-            <div id="pr-picks" class="pr-picks" role="group" aria-label="Quick picks"></div>
+            <div id="pr-picks" class="seg pr-picks" role="group" aria-label="Quick picks"></div>
             <div class="pr-step" role="group" aria-label="Any number of games">
               <button id="pr-less" class="icon-btn" type="button" aria-label="One game fewer">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>
@@ -74,8 +73,7 @@
           <dl id="pr-figs" class="pr-figs"></dl>
         </section>
 
-        <!-- PLANS (8.8): one table, a row a plan, the current one marked in
-             words, monthly or yearly by the one either/or switch. -->
+        <!-- PLANS: all three, the current one marked, monthly or yearly. -->
         <section class="pr-sec" aria-labelledby="pr-plans-title">
           <div class="pr-head row">
             <h3 id="pr-plans-title" class="pr-title">Plans</h3>
@@ -84,12 +82,7 @@
               <button id="pr-yearly" type="button" data-billing="yearly" aria-pressed="false">Yearly</button>
             </div>
           </div>
-          <table class="pr-table">
-            <thead>
-              <tr><th scope="col">Plan</th><th scope="col">Price</th><th scope="col">Games</th><th scope="col"><span class="sr-only">Action</span></th></tr>
-            </thead>
-            <tbody id="pr-plans" class="pr-plans"></tbody>
-          </table>
+          <ul id="pr-plans" class="pr-plans"></ul>
         </section>
 
         <!-- GIFTS (8.8): Pro or Max for a friend at the cycle the Plans toggle
@@ -111,7 +104,7 @@
             <label id="pr-redeem-label" for="pr-redeem-code" class="pr-redeem-label"></label>
             <div class="pr-redeem-row">
               <input id="pr-redeem-code" class="input pr-redeem-code" type="text" spellcheck="false" maxlength="200" />
-              <button id="pr-redeem-go" class="btn btn-secondary md" type="submit"></button>
+              <button id="pr-redeem-go" class="btn btn-ghost md" type="submit"></button>
             </div>
             <p id="pr-redeem-said" class="pr-note" aria-live="polite"></p>
           </form>

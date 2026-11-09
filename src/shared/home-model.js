@@ -117,11 +117,7 @@ function homeModel({ rows, patterns, review, previous }) {
   const first = Array.isArray(p.mistakes) && p.mistakes[0] ? p.mistakes[0] : null;
   const top = first ? {
     title: first.title,
-    // One whole sentence a count (8.8): "1 of your last 1 recorded matches"
-    // was the plural built around a variable.
-    detail: p.recorded === 1 ? 'In your last recorded match.'
-      : first.matches === p.recorded ? `In each of your last ${p.recorded} recorded matches.`
-      : `In ${first.matches} of your last ${p.recorded} recorded matches.`,
+    detail: `In ${first.matches} of your last ${p.recorded} recorded matches.`,
     fix: first.fix || null,
     trend: first.trend || null,
   } : null;

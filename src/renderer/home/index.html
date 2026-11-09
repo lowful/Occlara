@@ -10,28 +10,23 @@
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="../shared/grade-view.css" />
-  <link rel="stylesheet" href="../shared/marks.css" />
   <link rel="stylesheet" href="home.css" />
 </head>
 <body>
-  <!-- HOME, the main window's first page (8.1), THE COACH'S NOTEBOOK (8.8):
-       one column of ruled sections, each with a narrow left margin (about
-       72px) like a marked up match sheet. The margin holds the section's
-       label, dates, times and grades; the sentences stay in the column. The
-       fix for the next match comes first, in the coach's voice with the pen's
-       underline; then the last match as one line, with its four categories as
-       a compact ruled table and its milestone ticked by the pen; the rank;
-       one block for the grade trend and the recent matches; and the most
-       repeated mistake. Every figure is read from the library by
-       src/shared/home-model.js, nothing invented, and Valorant's rank
-       (8.2.1) from the rank history Stats reads, filled in once the rest is
-       painted. The sections keep the class "card" the tests and the arrival
-       read them by; the look is the ruled section (home.css). -->
+  <!-- HOME, the main window's first page (8.1), THE TRAINING LOG (8.7): the
+       fix for the next match set largest, the last match on one ruled line
+       with its grade, the grade trend, the recent matches as ruled rows and
+       the most repeated mistake as a ruled section. Nothing is framed: a
+       hairline and whitespace do the grouping. Every figure is read from the
+       library by src/shared/home-model.js, nothing invented, and Valorant's
+       rank (8.2.1) from the rank history Stats reads, filled in once the rest
+       is painted. The sections keep the class "card" the tests and the
+       arrival read them by; the look is the ruled section (home.css). -->
   <main class="home">
     <header class="h-head">
       <div class="h-titles">
-        <h1>Home</h1>
         <span id="h-game" class="h-game">Valorant</span>
+        <h1>Home</h1>
       </div>
       <!-- No aside (8.7): the games left stand in the rail under Start, and
            the Riot ID's bullet at the rail's foot, said once each. -->
@@ -45,79 +40,68 @@
       </p>
     </header>
 
-    <!-- Nothing yet: the heading is the next action, and the one control is
-         Start in the rail, named rather than drawn a second time. -->
     <section id="empty" class="card empty" hidden>
-      <div class="mg"><span class="label">First match</span></div>
-      <div class="body">
-        <h2>Press Start before your next match</h2>
-        <p class="hint">Start is in the sidebar. When the match ends, its graded review opens here, with the one thing to change next time.</p>
-      </div>
+      <h2>No reviewed matches yet</h2>
+      <p class="hint">Press Start in the sidebar before your next match. When it ends, its graded review opens here and is kept under Matches.</p>
     </section>
 
     <div id="content" class="rows" hidden>
-      <!-- The order home.js keeps (placeRank, closeUp): the first row and its
-           side column lay nothing out themselves (home.css), so the page is
-           one column: the fix, the last match, the rank, the recent matches
-           and the most repeated mistake. -->
+      <!-- The rows and the columns are the order home.js keeps (placeRank,
+           closeUp): the page lays them out as one column of ruled sections
+           (home.css), the focus first, then the last match. -->
       <div class="row">
         <section id="last" class="card last" aria-label="Last match"></section>
         <div id="side" class="col">
           <section id="focus" class="card focus" aria-label="Your next match" hidden>
-            <div class="mg">
-              <span class="label">Next match</span>
-              <span id="focus-was" class="pen-note dim" hidden>From your last review</span>
-            </div>
-            <div class="body">
-              <p id="focus-text" class="focus-text t-fix"></p>
-            </div>
+            <span class="label">Your next match</span>
+            <p id="focus-text" class="focus-text"></p>
           </section>
           <section id="rank" class="card rank" aria-label="Rank" hidden>
-            <div class="mg"><span class="label">Rank</span></div>
-            <div class="body">
-              <div class="rank-body">
-                <div class="rank-now">
-                  <b id="rank-tier" class="rank-tier"></b>
-                  <span id="rank-rr" class="rank-rr" title="RR from your last rated game"></span>
-                </div>
-                <div id="rank-line" class="rank-line" role="img" hidden></div>
+            <div class="card-head">
+              <span class="label">Rank</span>
+              <button id="rank-more" class="btn btn-link sm" type="button">Rank journey</button>
+            </div>
+            <div class="rank-body">
+              <div class="rank-now">
+                <b id="rank-tier" class="rank-tier"></b>
+                <span id="rank-rr" class="rank-rr" title="RR from your last rated game"></span>
               </div>
-              <button id="rank-more" class="btn btn-tertiary" type="button">See rank journey</button>
+              <div id="rank-line" class="rank-line" role="img" hidden></div>
             </div>
           </section>
           <section id="top" class="card top" aria-label="Most repeated mistake" hidden>
-            <div class="mg"><span class="label">Repeats most</span></div>
-            <div class="body">
-              <div class="top-head"><b id="top-title"></b><span id="top-trend" class="trend"></span></div>
-              <p id="top-detail" class="hint"></p>
-              <p id="top-fix" class="top-fix t-voice"></p>
-              <button id="top-more" class="btn btn-tertiary" type="button">See all patterns</button>
-            </div>
+            <span class="label">Most repeated mistake</span>
+            <div class="top-head"><span class="dot" aria-hidden="true"></span><b id="top-title"></b><span id="top-trend" class="trend"></span></div>
+            <p id="top-detail" class="hint"></p>
+            <p class="fix"><span class="fix-label">Fix</span> <span id="top-fix"></span></p>
+            <button id="top-more" class="btn btn-ghost sm" type="button">All your patterns</button>
           </section>
         </div>
       </div>
-      <!-- THE LOG (8.8): the grade trend and the recent matches as ONE block.
-           The margin holds its label and the average; the trend is written,
-           not charted, as one line of figures, oldest first, the pen ticking
-           the best (home.js paintTrend); the rows follow it. -->
-      <section id="recent" class="card recent" aria-label="Recent matches">
-        <div class="mg">
-          <span class="label">Recent</span>
-          <span id="trend-avg" class="mg-fig" hidden></span>
+      <div class="row">
+        <!-- The grade trend, and the rank above it when the column beside the
+             last match is full (home.js placeRank). -->
+        <div id="lower" class="col">
+          <section id="trend" class="card trend" aria-label="Grade over the last matches" hidden>
+            <div class="card-head">
+              <span class="label">Grade, last <span id="trend-n"></span> matches</span>
+              <span class="hint" id="trend-avg"></span>
+            </div>
+            <div id="trend-bars" class="bars" role="img"></div>
+          </section>
         </div>
-        <div class="body">
-          <p id="trend" class="trend-line" hidden></p>
+        <section id="recent" class="card recent" aria-label="Recent matches">
+          <div class="card-head">
+            <span class="label">Recent matches</span>
+            <button id="recent-all" class="btn btn-link sm" type="button">All matches</button>
+          </div>
           <div id="recent-list" class="recent-list" role="list"></div>
-          <button id="recent-all" class="btn btn-tertiary" type="button">See all matches</button>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   </main>
 
-  <script src="../shared/intl.js"></script>
   <script src="../shared/grade-view.js"></script>
-  <!-- The coach's pen (8.8): the underline under the fix, a tick by a milestone and by the best grade. -->
-  <script src="../shared/marks.js"></script>
   <script src="../shared/log-eye.js"></script>
   <script src="home.js"></script>
 </body>

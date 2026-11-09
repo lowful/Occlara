@@ -17,7 +17,7 @@
    player's own pass refines these at the end of this file. */
 .v-clip { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); border-radius: var(--r-sm); }
 .v-clip:focus { outline: none; }
-.v-clip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.v-clip:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 .v-clip-frame { position: relative; }
 .v-clip-video {
   display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain;
@@ -31,7 +31,7 @@
   border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.35);
   background: rgba(0, 0, 0, 0.55); color: var(--text);
   pointer-events: none;
-  transition: opacity var(--t-fast) ease;
+  transition: opacity var(--t-fast) var(--ease);
 }
 .v-clip-big .v-clip-mark { width: var(--icon-md); height: var(--icon-md); }
 .v-clip.started .v-clip-big { opacity: 0; }
@@ -102,7 +102,7 @@
 }
 .cp-rate:hover { color: var(--text); }
 .cp-rate[aria-pressed="true"] { background: var(--text); color: var(--bg); }
-.cp-rate:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cp-rate:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   .v-clip-big, .cp-btn, .cp-rate { transition: none; }
@@ -113,15 +113,15 @@
    stay as the tests read them (.cp-mark.death in --bad, .cp-fill scaled by
    --p, the reduced motion line); these refine them: a 2px hairline scrub bar
    with a precise thumb, the death a tick in --bad, the stills thinner ticks,
-   capsule transport buttons (the play one in ink), and the speed as a row
-   of words (8.8). */
+   capsule transport buttons (the play one in ink), and the speed as one
+   capsule whose thumb slides to the rate chosen (--i, set by the player). */
 .v-clip { gap: var(--space-3); border-radius: var(--r-card); }
 .v-clip-video { border-radius: var(--r-card); border-color: var(--line); }
 .v-clip-big {
   width: 48px; height: 48px; margin: -24px 0 0 -24px;
   border-color: var(--line-2); background: rgba(0, 0, 0, 0.6);
-  box-shadow: var(--hi);
-  transition: opacity var(--t-fast) ease, transform var(--t-med) var(--ease-out);
+  box-shadow: var(--hi), var(--drop);
+  transition: opacity var(--t-fast) var(--ease), transform var(--t-med) var(--ease-expo);
 }
 .v-clip.started .v-clip-big { transform: scale(0.9); }
 .cp-bar { gap: var(--space-2); }
@@ -132,23 +132,33 @@
 .cp-seek::-webkit-slider-thumb {
   width: 12px; height: 12px; margin-top: 6px;
   background: var(--text);
-  box-shadow: var(--hi-ink), 0 0 0 2px var(--bg);
+  box-shadow: var(--hi-ink), 0 0 0 2px var(--bg), var(--drop);
+  transition: transform var(--t-fast) var(--ease);
 }
-.cp-seek:focus-visible::-webkit-slider-thumb { box-shadow: var(--hi-ink), 0 0 0 2px var(--bg), 0 0 0 4px var(--focus-ring); }
+.cp-seek:hover::-webkit-slider-thumb, .cp-seek:active::-webkit-slider-thumb { transform: scale(1.15); }
+.cp-seek:focus-visible::-webkit-slider-thumb { box-shadow: var(--hi-ink), 0 0 0 2px var(--bg), 0 0 0 4px rgba(var(--cyan-rgb), 0.55); }
 .cp-row { gap: var(--space-2); }
 .cp-btn { width: 32px; height: 32px; border-radius: var(--r-btn); }
-.v-clip-play { background: var(--text); border-color: transparent; color: var(--bg); box-shadow: var(--hi-ink); }
-.v-clip-play:where(:not(:disabled)):hover { background: var(--cyan); border-color: transparent; color: var(--bg); }
+.v-clip-play { background: var(--text); border-color: transparent; color: var(--bg); box-shadow: var(--hi-ink), var(--drop); }
+.v-clip-play:where(:not(:disabled)):hover { background: var(--cyan); border-color: transparent; color: var(--bg); box-shadow: var(--hi-ink), var(--drop-hover); }
+.v-clip-play:where(:not(:disabled)):active { box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
 .cp-time { margin-left: var(--space-2); font-size: 12px; }
-/* THE SPEED IS A ROW OF WORDS (8.8): three choices are not an either/or, so
-   no capsule and no sliding thumb. The rate playing in the ink at 600, the
-   others dim, a colour change on hover and nothing that moves. */
-.cp-speed { position: relative; gap: var(--space-1); padding: 0; border: 0; background: transparent; }
-.cp-rate {
-  position: relative; width: auto; min-width: 36px; height: 32px; padding: 0 6px;
-  font: 500 12px var(--font); font-variant-numeric: tabular-nums;
-  border: 0; border-radius: var(--r-sm); background: transparent; color: var(--text-dim);
-  transition: color 150ms ease;
+.cp-speed {
+  position: relative; --i: 0;
+  gap: 0; padding: 3px;
+  border: 1px solid var(--line-2); border-radius: var(--r-btn);
+  background: rgba(0, 0, 0, 0.32); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
 }
-.cp-rate:hover { background: transparent; color: var(--text); }
-.cp-rate[aria-pressed="true"], .cp-rate[aria-pressed="true"]:hover { background: transparent; color: var(--text); font-weight: 600; }
+.cp-speed::before {
+  content: ''; position: absolute; top: 3px; bottom: 3px; left: 3px; width: 44px;
+  border-radius: var(--r-btn); background: var(--text); box-shadow: var(--hi-ink), var(--drop);
+  transform: translateX(calc(var(--i) * 44px));
+  transition: transform var(--t-med) var(--ease-expo);
+  pointer-events: none;
+}
+.cp-rate {
+  position: relative; width: 44px; height: 24px; padding: 0;
+  font: 500 12px var(--font); border-radius: var(--r-btn); color: var(--text-dim);
+  transition: color var(--t-fast) var(--ease);
+}
+.cp-rate[aria-pressed="true"], .cp-rate[aria-pressed="true"]:hover { background: transparent; color: var(--bg); }

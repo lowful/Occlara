@@ -1,167 +1,135 @@
 /* palette: tokens only */
-/* Stats (8.8, the coach's notebook). One page read down a margin: every
-   section's heading and sentences sit in the column, and its figures (the
-   RR, a category's score, a match's rating, a grade) sit in the --margin-w
-   margin to their left, like a marked up match sheet. The rank is the one
-   lead figure; everything under it is a ruled list, never a row of equal
-   tiles. No card anywhere; the only framed thing is an agent's portrait. The
-   pen ticks the best category, still. Held to the tokens by check:palette
-   (the first line above). */
+/* Stats (8.7 redesign, THE TRAINING LOG). One ruled page: the rank is the
+   hero, the numbers under it sit in columns divided by the hairline, and every
+   list is rows separated by a rule. No card anywhere; the only framed things
+   are an agent's portrait and the skeleton while the tracker answers. Held to
+   the tokens by check:palette (the first line above). */
 
 html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
 
 .sheet { margin: 10px; height: calc(100% - 20px); border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; }
 
 header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); flex: none; }
-.h-brand { display: flex; align-items: center; gap: var(--space-2); }
-header h2 { font-size: var(--fs-body); font-weight: 600; }
-.h-actions { display: flex; align-items: center; gap: var(--space-3); }
+.h-brand { display: flex; align-items: center; gap: 9px; }
+header h2 { font-size: 15px; font-weight: 600; }
+.h-actions { display: flex; align-items: center; gap: var(--space-2); }
 
-/* Groups 40px apart, 8 to 12px inside a group. */
-.body { flex: 1; overflow-y: auto; padding: var(--space-4) var(--space-4) var(--space-10); display: flex; flex-direction: column; gap: var(--space-10); }
+/* Groups 40px apart, 12px inside a group. */
+.body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: var(--space-10); }
 .body::-webkit-scrollbar { width: 8px; }
 .body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
 
-/* A section's heading sits over the column, the margin left open under it. */
-section h3 {
-  font-size: var(--fs-heading); font-weight: 600; line-height: var(--lh-heading); color: var(--text);
-  margin: 0 0 var(--space-3) var(--margin-w); text-wrap: balance;
-}
-.sec-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3) var(--space-6); margin: 0 0 var(--space-3) var(--margin-w); }
-.sec-head h3 { margin: 0; }
+section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: var(--space-3); letter-spacing: -0.005em; }
+.sec-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-3); }
+.sec-head h3 { margin-bottom: 0; }
 .sec-tools { display: flex; align-items: center; gap: var(--space-3); }
-.updated { font-size: var(--fs-caption); color: var(--text-mute); }
+.updated { font-size: 12px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
 
 /* Competitive / Unrated: one capsule, one thumb (shared/seg.js, .seg-slide in
-   ui.css), the one either/or on the page. Without the script the two buttons
-   stand as they are. */
+   ui.css). Without the script the two buttons stand as they are. */
 .mode-seg { display: inline-flex; }
 
-/* ── The empty states: one heading that is the next action, one line, one
-   button, in the column (stats.js applyRiot, showDashboard). ───────────── */
-.stats-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); padding-left: var(--margin-w); }
-.stats-empty h3 { margin: 0; font-size: var(--fs-h2); font-weight: 600; letter-spacing: var(--track-display); line-height: var(--lh-heading); }
-.stats-empty p.empty { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-dim); max-width: 60ch; padding: 0; text-wrap: pretty; }
-.stats-empty .btn { margin-top: var(--space-2); }
-
-/* ── Rank: the lead figure, then the ruled list ──────────────────────────────
-   Each line is .card for the scripts and tests that read it, a row of the
-   margin and the column, never a box. */
-.cards { display: flex; flex-direction: column; }
-.card { display: grid; grid-template-columns: var(--margin-w) minmax(0, 1fr); align-items: baseline; min-width: 0; }
-.card .label { font-size: var(--fs-ui); font-weight: 500; color: var(--text); }
-.card .value { font-variant-numeric: tabular-nums; color: var(--text); }
-/* Not known yet: words, quiet, never a placeholder mark. */
-.card .value.none { font-family: var(--font); font-size: var(--fs-caption); color: var(--text-mute); }
-.arrow { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--fs-caption); font-weight: 500; }
+/* ── Overview ────────────────────────────────────────────────────────────────
+   The rank first, the page's hero, on a line of its own; under it the four
+   category scores and the win rate as five columns divided by the hairline.
+   A tile is still .card for the scripts and tests that read it, but it is a
+   column, not a box. */
+.cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); row-gap: var(--space-6); }
+.card { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: 0 var(--space-5); border-left: 1px solid var(--line); animation: rowIn var(--t-slow) var(--ease-expo) both; }
+.card:nth-child(2) { padding-left: 0; border-left: 0; }
+.cards .card:nth-child(2) { animation-delay: 0ms; }
+.cards .card:nth-child(3) { animation-delay: 40ms; }
+.cards .card:nth-child(4) { animation-delay: 80ms; }
+.cards .card:nth-child(5) { animation-delay: 120ms; }
+.cards .card:nth-child(6) { animation-delay: 160ms; }
+.card .label { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.card .val-row { display: flex; align-items: baseline; gap: var(--space-2); }
+.card .value { font-family: var(--font); font-size: 36px; font-weight: 600; color: var(--text); line-height: var(--lh-display); letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; }
+/* Not known yet: a quiet mark, never a number. */
+.card .value.none { color: var(--text-mute); }
+.card .arrow { font-size: 12px; font-weight: 500; }
 .arrow.up   { color: var(--good); }
 .arrow.down { color: var(--bad); }
 .arrow.flat { color: var(--text-mute); }
-/* The RR from the last rated game, in the margin beside the tier (paintRankDelta). */
-.arrow.rr { font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The rank line's RR from the last rated game (paintRankDelta in stats.js). */
+.arrow.rr { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 15px; }
 .arrow.rr.gain { color: var(--good); }
 .arrow.rr.loss { color: var(--bad); }
 .arrow.rr.even { color: var(--text-mute); }
 
-/* The rank: the page's lead figure. The whole line opens its notes, so it
+/* The rank: the hero. The whole line opens its notes, so it is a row that
    answers the pointer with the faint fill a list row has, and the keyboard. */
 .card.clickable {
-  padding: var(--space-3) var(--space-3) var(--space-4); margin: 0 calc(-1 * var(--space-3)) var(--space-2);
-  border-radius: var(--r-control);
+  grid-column: 1 / -1; order: -1;
+  padding: var(--space-3); margin: 0 calc(-1 * var(--space-3));
+  border-left: 0; border-radius: var(--r-control);
   cursor: pointer;
-  transition: background-color var(--t-fast) ease;
+  transition: background var(--t-fast) var(--ease);
 }
-.card.clickable:hover { background-color: rgba(255,255,255,0.035); }
-.card.clickable:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.rank-margin { align-self: baseline; }
-.rank-col { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-.card.clickable .val-row { display: flex; align-items: baseline; gap: var(--space-3); }
-.card.clickable .value {
-  font-family: var(--font); font-size: var(--fs-fix); font-weight: 700;
-  line-height: var(--lh-display); letter-spacing: var(--track-display);
-}
-.card.clickable .value.none { font-size: var(--fs-fix); color: var(--text-mute); }
-.rank-chev { display: inline-flex; color: var(--text-mute); transition: transform var(--t-med) var(--ease-out); }
+.card.clickable:hover { background: rgba(255,255,255,0.035); }
+.card.clickable:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+.card.clickable .value { font-size: 44px; letter-spacing: -0.03em; line-height: 1.05; }
+.card.clickable .value.small { font-size: 44px; }
+.rank-chev { display: inline-block; font-size: 12px; color: var(--text-mute); transition: transform var(--t-med) var(--ease-expo); }
 .card.notes-open .rank-chev { transform: rotate(180deg); }
-/* The rank's quiet line under the tier: two facts at most, one dim line. */
-.rank-sub { font-size: var(--fs-label); color: var(--text-dim); font-variant-numeric: tabular-nums; }
-
-/* A category or the win rate: its number in the margin in Geist Mono, its
-   name in the column, the trend after it. Hairlines only inside this list. */
-.card.fig { padding: var(--space-2) 0; border-top: 1px solid var(--line); }
-.card.fig .value { font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500; }
-.fig-name { display: inline-flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
-/* The best category: the pen's tick sits in the margin's open right side
-   (marks.js draws it 12 to 32px left of the name), and the words say it. */
-.fig-best { margin-left: var(--space-1); }
-
-/* Opened and closed by height in place (#rank-reveal, .reveal in ui.css),
-   in the column under the rank. */
-#rank-reveal { margin-left: var(--margin-w); }
-.rank-notes { padding: var(--space-4) 0 var(--space-2); max-width: 68ch; }
-.rank-notes h4 { font-size: var(--fs-body); font-weight: 600; color: var(--text); margin-bottom: var(--space-2); }
-.rank-notes p  { font-size: var(--fs-voice); line-height: var(--lh-body); color: var(--text); margin-bottom: var(--space-4); text-wrap: pretty; }
-.rank-notes .rn-label { font-size: var(--fs-caption); font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-1); }
+/* The rank's quiet line under the tier (8.8.x, stats.js renderCards): peak,
+   RR, shields, this act, one dim line, never a second hero. */
+.rank-sub { font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+/* Opened and closed by height in place (#rank-reveal, .reveal in ui.css). */
+.rank-notes { padding: var(--space-3) 0 var(--space-2); }
+.rank-notes h4 { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: var(--space-2); }
+.rank-notes p  { font-size: 14px; line-height: 1.5; color: var(--text-dim); margin-bottom: var(--space-4); }
+.rank-notes .rn-label { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-1); }
 .rank-notes ul { margin: 0; padding: 0; list-style: none; }
-.rank-notes li { font-size: var(--fs-ui); line-height: 1.5; color: var(--text-dim); padding: var(--space-2) 0; border-top: 1px solid var(--line); }
+.rank-notes li { font-size: 14px; line-height: 1.5; color: var(--text-dim); padding: var(--space-2) 0; border-top: 1px solid var(--line); }
 
-/* ── Top agents: the portrait in the margin, the one framed thing ─────────── */
+/* ── Top agents: one row each, the portrait the one framed thing ───────────── */
 .agent-tiles { display: flex; flex-direction: column; }
 .agent-tile {
-  display: grid; grid-template-columns: var(--margin-w) minmax(0, 1fr) auto; align-items: center;
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: var(--space-3);
   padding: var(--space-2) 0; border-top: 1px solid var(--line); min-width: 0;
+  animation: rowIn var(--t-slow) var(--ease-expo) both;
 }
-.agent-tiles > .agent-tile:first-child { border-top-color: transparent; }
-.agent-icon {
-  width: 32px; height: 32px; border-radius: var(--r-card); flex: none; object-fit: cover;
-  background: rgba(255,255,255,0.04);
-  outline: 1px solid var(--image-outline); outline-offset: -1px;
-}
-.agent-icon.letter { display: grid; place-items: center; font-family: var(--font); font-size: var(--fs-ui); font-weight: 600; color: var(--text-dim); outline: 0; }
+.agent-icon { width: 32px; height: 32px; border-radius: var(--r-card); flex: none; object-fit: cover; background: rgba(255,255,255,0.04); }
+.agent-icon.letter { display: grid; place-items: center; font-family: var(--font); font-size: 14px; font-weight: 600; color: var(--text-dim); }
 .agent-info { display: contents; }
-.agent-name { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; font-size: var(--fs-ui); font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-name { font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agent-chips { display: flex; gap: var(--space-6); align-items: baseline; }
-.agent-chip { font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-dim); }
+.agent-chip { font-family: var(--font-mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-dim); }
 .agent-chip.good { color: var(--good); }
 .agent-chip.bad  { color: var(--bad); }
 .agent-chip.mid  { color: var(--text-dim); }
-.agent-chip.played { font-family: var(--font); font-weight: 400; color: var(--text-mute); }
+.agent-chip.played { color: var(--text-mute); font-family: var(--font); }
 
 /* ── Lists (matches and graded matches share the row) ─────────────────────── */
 .list { display: flex; flex-direction: column; }
 .row {
   padding: var(--space-3) var(--space-3); margin: 0 calc(-1 * var(--space-3));
   border-top: 1px solid var(--line);
-  transition: background-color var(--t-fast) ease;
+  animation: rowIn var(--t-slow) var(--ease-expo) both;
+  transition: background var(--t-fast) var(--ease);
 }
 .list > .row:first-child { border-top-color: transparent; }
-.row.expandable:hover { background-color: rgba(255,255,255,0.035); }
-.row.expandable:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: var(--r-control); }
-/* A row is still on a plain visit; one that is new since the last paint (a
-   match just graded, a Refresh that found a game) fades in once (stats.js). */
-.row.fresh { animation: fadeIn var(--t-med) var(--ease-out) both; }
+.row.expandable:hover { background: rgba(255,255,255,0.035); }
+.row.expandable:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-control); }
+@keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* The top line: the figure in the margin (one span, or the grade and its
-   letter sharing it), then the place and its meta, the numbers, the chevron. */
 .row .top { display: flex; align-items: baseline; gap: var(--space-3); }
-.row .top > :first-child { flex: none; width: calc(var(--margin-w) - var(--space-3)); text-align: left; }
-.row .place { font-size: var(--fs-ui); font-weight: 500; color: var(--text); }
-.row .sub   { font-size: var(--fs-label); color: var(--text-mute); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .place { font-size: 14px; font-weight: 500; color: var(--text); }
+.row .sub   { font-size: 13px; color: var(--text-mute); }
 .row .spacer { margin-left: auto; }
-.row .when { font-size: var(--fs-label); color: var(--text-mute); white-space: nowrap; }
-.kda { font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 400; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.kda { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* The result: its word says it, its colour agrees. */
-.res { font-size: var(--fs-label); font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.res { font-size: 13px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .res.win  { color: var(--good); }
 .res.loss { color: var(--bad); }
 
 /* Top score (the winning team's) in the ink, Team top score dim: the word says which. */
-.mvp { font-size: var(--fs-caption); font-weight: 500; white-space: nowrap; }
+.mvp { font-size: 12px; font-weight: 500; white-space: nowrap; }
 .mvp.match { color: var(--text); }
 .mvp.team  { color: var(--text-dim); }
 
-/* The tracker's match rating, the row's figure in the margin. */
-.rating { font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500; font-variant-numeric: tabular-nums; }
+.rating { font-family: var(--font-mono); font-size: 13px; font-weight: 500; min-width: 28px; text-align: right; font-variant-numeric: tabular-nums; }
 .rating.great { color: var(--good); }
 .rating.good  { color: var(--text); }
 .rating.mid   { color: var(--warn); }
@@ -169,128 +137,125 @@ section h3 {
 
 /* ── Expandable rows (matches and graded matches share the pattern) ───────── */
 .expandable { cursor: pointer; }
-.expandable .chev { align-self: center; display: inline-flex; color: var(--text-mute); transition: transform var(--t-med) var(--ease-out); }
+.expandable .chev { align-self: center; display: inline-flex; color: var(--text-mute); transition: transform var(--t-med) var(--ease-expo); }
 .expandable.open .chev { transform: rotate(90deg); }
 /* The drop down opens by height in place (dropDown in stats.js, .reveal in
-   ui.css), under the column. Closed, once the close is through, what is in it
-   is out of reach of the keyboard and a screen reader as well as out of sight. */
-.expandable .detail { padding: var(--space-4) 0 var(--space-2) var(--margin-w); cursor: default; }
+   ui.css). Closed, once the close is through, what is in it is out of reach of
+   the keyboard and a screen reader as well as out of sight. */
+.expandable .detail { padding-top: var(--space-4); cursor: default; }
 .expandable.open > .reveal { grid-template-rows: 1fr; }
 .expandable > .reveal > .reveal-clip { visibility: hidden; transition: visibility 0s linear var(--t-med); }
-.expandable.open > .reveal > .reveal-clip { visibility: visible; opacity: 1; transition: opacity var(--t-med) var(--ease-out), visibility 0s; }
+.expandable.open > .reveal > .reveal-clip { visibility: visible; transition-delay: 0s; }
 
-/* An opened match: its combat score as the one lead figure, the tracker's
-   other numbers as a ruled list beside it, each name then its number graded
-   good, okay or bad by its colour. */
-.d-figs { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: var(--space-6); align-items: start; }
-.d-lead { display: flex; flex-direction: column; gap: var(--space-1); }
-.d-lead-val {
-  font-family: var(--font); font-size: var(--fs-fix); font-weight: 700; line-height: var(--lh-display);
-  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text);
-}
-.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-8); margin: 0; }
-.tile { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--line); min-width: 0; }
-.tile:nth-child(-n+2) { border-top-color: transparent; }
-.t-label { font-size: var(--fs-label); color: var(--text-dim); min-width: 0; }
-.tile .t-val { margin: 0; font-family: var(--font-mono); font-size: var(--fs-ui); font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.t-val.g, .d-lead-val.g { color: var(--good); }
-.t-val.y, .d-lead-val.y { color: var(--warn); }
-.t-val.r, .d-lead-val.r { color: var(--bad); }
-.t-val.none, .d-lead-val.none { font-family: var(--font); color: var(--text-mute); }
-.detail .d-label { font-size: var(--fs-caption); font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-1); }
-.detail p { font-size: var(--fs-voice); line-height: var(--lh-body); color: var(--text); margin-bottom: var(--space-3); max-width: 65ch; text-wrap: pretty; }
+/* An opened match's numbers: eight columns divided by the hairline, each a
+   number graded good, okay or bad by its colour. */
+.tiles { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.tile { display: flex; flex-direction: column; gap: var(--space-1); padding: 0 var(--space-3); border-left: 1px solid var(--line); min-width: 0; }
+.tile:first-child { padding-left: 0; border-left: 0; }
+.tile .t-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-mute); white-space: nowrap; }
+.tile .t-val { font-family: var(--font); font-size: 24px; font-weight: 600; color: var(--text); line-height: var(--lh-display); letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; }
+.tile .t-val.g { color: var(--good); }
+.tile .t-val.y { color: var(--warn); }
+.tile .t-val.r { color: var(--bad); }
+.detail .d-label { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-1); }
+.detail p { font-size: 14px; line-height: 1.5; color: var(--text); margin-bottom: var(--space-3); }
 
-/* A row repainted that was already on screen: nothing moves. */
+/* A row repainted that was already on screen (a graded match after another
+   review was saved, a recent match after a Refresh): it does not slide in
+   again. */
 .row.settled { animation: none; }
 
 /* Your team for a match: each teammate by agent with their numbers, ordered
    by combat score like the in-game scoreboard, the player's own row marked
    "You" rather than removed. No teammate's name or tag (8.4.1, stats.js
    matchRow). */
-.team-list { margin-top: var(--space-6); max-width: 560px; }
-.team-head { font-size: var(--fs-caption); font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-1); }
+.team-list { margin-top: var(--space-4); }
+.team-head { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-1); }
 .team-row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--space-3);
   align-items: baseline; padding: var(--space-2) 0; border-top: 1px solid var(--line);
-  font-size: var(--fs-ui); color: var(--text-dim);
+  font-size: 14px; color: var(--text-dim);
 }
 .team-row.me { color: var(--text); }
 .team-agent { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .team-row.me .team-agent { font-weight: 500; }
-.team-you { color: var(--text-mute); font-size: var(--fs-caption); font-weight: 500; }
-.team-line { font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 400; font-variant-numeric: tabular-nums; color: var(--text-dim); white-space: pre; }
+.team-you { color: var(--text-mute); font-size: 12px; font-weight: 500; }
+.team-line { font-family: var(--font-mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-dim); white-space: pre; }
 .team-row.me .team-line { color: var(--text); }
 
 /* Rank journey graph inside the rank's notes. Tokens over one solid fill
    (8.4.1), the line and its dot as Home draws the same journey (home.css
-   .rank-line). Drawn at once: no chart redraws on a plain visit. */
-.rank-graph { margin-bottom: var(--space-6); }
+   .rank-line). */
+.rank-graph { margin-bottom: var(--space-6); animation: rowIn var(--t-slow) var(--ease-expo) both; }
 .rank-graph svg { width: 100%; height: 96px; display: block; }
 .rank-graph .rg-plot { position: relative; border-bottom: 1px solid var(--line); }
 .rank-graph .rg-area { fill: rgba(var(--cyan-rgb),0.06); stroke: none; }
 .rank-graph .rg-line { fill: none; stroke: var(--text-dim); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .rank-graph .rg-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--text); }
-.rg-loading { font-size: var(--fs-label); color: var(--text-mute); padding: var(--space-2) 0; }
-.rg-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); margin-bottom: var(--space-2); }
-.rg-title { font-size: var(--fs-caption); font-weight: 500; color: var(--text-mute); }
-.rg-net { font-family: var(--font-mono); font-size: var(--fs-ui); font-weight: 500; font-variant-numeric: tabular-nums; }
+.rg-loading { font-size: 13px; color: var(--text-mute); padding: var(--space-2) 0; }
+.rg-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-2); }
+.rg-title { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.rg-net { font-family: var(--font); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: var(--track-display); }
 .rg-net.up   { color: var(--good); }
 .rg-net.down { color: var(--bad); }
-.rg-foot { display: flex; justify-content: space-between; margin-top: var(--space-2); font-size: var(--fs-caption); color: var(--text-mute); }
+.rg-foot { display: flex; justify-content: space-between; margin-top: var(--space-2); font-size: 12px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
 
-/* A section with nothing in it says so in one line, in the column. */
-.empty { font-size: var(--fs-ui); color: var(--text-mute); padding: var(--space-2) 0 var(--space-2) var(--margin-w); }
-/* Nothing to count yet (stats.js renderCards): the rank row alone, its value
-   one line, no list under it. */
-.val-row:has(> #cards-none) { display: block; }
-#cards-none { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-dim); max-width: 60ch; }
+/* A section with nothing in it says so in one line. */
+.empty { font-size: 14px; color: var(--text-mute); padding: var(--space-2) 0; }
+/* No Riot ID (8.7, stats.js renderCards): the rank row alone, its value the
+   one line and its button, no columns under it. */
+.val-row:has(> #cards-none) { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+#cards-none { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+#nostats p.empty { color: var(--text-dim); line-height: 1.5; max-width: 60ch; }
 
-/* Loading skeleton for the rank while the tracker answers: flat blocks at
-   the content's height (no shimmer, no gradient, nothing looping), shown
-   after 200ms so a quick answer never flashes them. */
+/* Loading skeleton for the overview: a soft shimmer while the live tracker
+   fetch is in flight, so a cold open reads as loading not frozen. The one
+   gradient the app allows, because here the gradient IS the animation. */
 .card.skeleton {
-  display: block; min-height: 40px; margin: 0 0 var(--space-3) var(--margin-w); max-width: 240px;
-  border-radius: var(--r-card); background: rgba(255, 255, 255, 0.04);
-  animation: fadeIn var(--t-fast) var(--ease-out) 200ms both;
+  min-height: 56px; border-left: 0; border-radius: var(--r-card);
+  background: linear-gradient(100deg, rgba(255,255,255,0.03) 30%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 70%);
+  background-size: 200% 100%;
+  animation: skeleton 1.2s ease-in-out infinite;
   pointer-events: none;
 }
-.card.fig.skeleton { min-height: 18px; max-width: 160px; border-top: 0; padding: 0; }
+.card.skeleton:first-child { grid-column: 1 / -1; }
+@keyframes skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+/* Less motion: every entrance is its end state at once, with no stagger to
+   wait through (theme.css collapses the durations, not the delays). The
+   grade's count is skipped in stats.js revealScore. */
+@media (prefers-reduced-motion: reduce) { .card.skeleton, .card, .row, .agent-tile, .rank-graph { animation: none; } }
 
-/* Graded matches: the number and the letter beside it in the margin,
-   coloured by the grade's LETTER tone from shared/grade-view.js (good, mid,
-   warn, bad), the rule the review, the library and the panel use. The number
-   is simply there: nothing counts up on a plain visit. */
-.row.session .top > .grade-chip { width: 30px; }
+/* The window settles in rather than snapping on. */
+.sheet { animation: sheetIn 420ms var(--ease-expo) both; }
+
+/* Graded matches: the number and the letter beside it, coloured by the
+   grade's LETTER tone from shared/grade-view.js (good, mid, warn, bad), the
+   rule the review, the library and the panel use. The number counts up in
+   CSS as the review's does (@property, never JS arithmetic): the real number
+   is the text, and the count is drawn over it. */
+@property --n { syntax: '<integer>'; initial-value: 0; inherits: false; }
 .grade-chip {
-  font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500;
-  font-variant-numeric: tabular-nums; color: var(--text-dim);
+  position: relative;
+  font-family: var(--font); font-size: 20px; font-weight: 600; min-width: 28px; text-align: right;
+  line-height: var(--lh-display); letter-spacing: var(--track-display); font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
 }
 .grade-chip.good { color: var(--good); }
 .grade-chip.mid  { color: var(--text); }
 .grade-chip.warn { color: var(--warn); }
 .grade-chip.bad  { color: var(--bad); }
-.grade-letter {
-  flex: none; width: calc(var(--margin-w) - 30px - 2 * var(--space-3) + var(--space-2)); margin-left: calc(-1 * var(--space-2));
-  font-size: var(--fs-label); font-weight: 600; color: var(--text-dim);
-}
+/* After the tones, so the text under the count is transparent whatever its tone. */
+.top > .grade-chip.counting { color: transparent; counter-reset: n var(--n); animation: gradeCount var(--t-slow) var(--ease-expo) both; }
+.grade-chip.counting::after { content: counter(n); position: absolute; top: 0; right: 0; color: var(--text-dim); }
+@keyframes gradeCount { from { --n: 0; } to { --n: var(--to); } }
+.grade-chip.counting.good::after { color: var(--good); }
+.grade-chip.counting.mid::after  { color: var(--text); }
+.grade-chip.counting.warn::after { color: var(--warn); }
+.grade-chip.counting.bad::after  { color: var(--bad); }
+.grade-letter { font-size: 14px; font-weight: 600; color: var(--text-dim); min-width: 14px; text-align: center; }
 .grade-letter.good { color: var(--good); }
 .grade-letter.mid  { color: var(--text); }
 .grade-letter.warn { color: var(--warn); }
 .grade-letter.bad  { color: var(--bad); }
-.detail .d-note { font-size: var(--fs-label); line-height: 1.5; color: var(--text-mute); margin: 0; }
-.d-actions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-4); }
-
-/* Less motion: what fades still fades (theme.css), nothing moves. */
-@media (prefers-reduced-motion: reduce) {
-  .rank-chev, .expandable .chev { transition: none; }
-}
-
-/* Nothing to count yet: no RR beside a line that says there is no rank. */
-.card.clickable.no-rank .rank-margin { visibility: hidden; }
-
-/* A narrow window: an opened match's lead figure over its list, one column. */
-@media (max-width: 720px) {
-  .d-figs { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
-  .tiles { grid-template-columns: minmax(0, 1fr); }
-  .tile:nth-child(2) { border-top-color: var(--line); }
-}
+.d-note { font-size: 13px; color: var(--text-mute); margin: 0; }
+.d-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3); }

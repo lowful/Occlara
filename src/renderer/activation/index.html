@@ -15,14 +15,12 @@
     <button id="close" class="icon-btn no-drag" title="Quit" aria-label="Quit"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
   </div>
 
-  <!-- THE SIGN IN WINDOW (8.8, the coach's notebook): the window's own frame,
-       read from the top left like a sheet. The mark, the name and one line on
-       what Occlara is at the head; the way in at the foot, one primary
-       capsule, a quiet rectangle under it and a text button. No centred card
-       template: the frame is the window's edge, and nothing sits in a box. -->
-  <main class="card">
+  <!-- THE SIGN IN WINDOW (8.7): one calm column in the window's own frame,
+       the mark, the name, one line on what Occlara is, and the way in as
+       capsule controls. The frame is the window's edge, not a card. -->
+  <main class="card glass">
     <div class="logo">
-      <img class="mark" src="../../../assets/logo-mark.svg" alt="Occlara" width="36" height="36" />
+      <img class="mark" src="../../../assets/logo-mark.svg" alt="Occlara" width="56" height="56" />
       <h1>Occlara</h1>
       <!-- The first line a new buyer reads. It said "Real-time Valorant AI
            coaching", which 8.0 is the opposite of: nothing is shown during a
@@ -30,50 +28,48 @@
       <p class="sub">Your AI coach for Valorant, with League of Legends coming soon</p>
     </div>
 
-    <div class="way-in">
-      <!-- One line for both ways in: a sign in that did not finish, a key that
-           was refused, or the notice the window was opened with (?notice=). -->
-      <div id="error" class="error" role="status" hidden></div>
+    <!-- One line for both ways in: a sign in that did not finish, a key that
+         was refused, or the notice the window was opened with (?notice=). -->
+    <div id="error" class="error" role="status" hidden></div>
 
-      <!-- SIGN IN (8.7): through the browser on occlara.app, the account's
-           games and its key come with it. The licence key form is kept, as it
-           was, behind Use a licence key. -->
-      <section id="signin" class="pane" aria-label="Sign in">
-        <button id="signin-browser" class="btn btn-primary full" type="button">
-          <span class="label">Sign in with your browser</span>
-        </button>
-        <button id="use-key" class="btn btn-secondary wide" type="button">Use a licence key</button>
-      </section>
+    <!-- SIGN IN (8.7): through the browser on occlara.app, the account's
+         games and its key come with it. The licence key form is kept, as it
+         was, behind Use a licence key. -->
+    <section id="signin" class="pane" aria-label="Sign in">
+      <button id="signin-browser" class="btn btn-primary full" type="button">
+        <span class="label">Sign in with your browser</span>
+      </button>
+      <button id="use-key" class="btn btn-ghost full" type="button">Use a licence key</button>
+    </section>
 
-      <!-- Waiting on the browser: it says where to look, and Cancel ends it. -->
-      <section id="waiting" class="pane" aria-label="Waiting for your browser" hidden>
-        <div class="wait">
-          <span class="spinner" aria-hidden="true"></span>
-          <div class="wait-text">
-            <p class="wait-title">Continue in your browser</p>
-            <p class="wait-sub">Sign in on the page that opened. Occlara opens here once you have.</p>
-          </div>
+    <!-- Waiting on the browser: it says where to look, and Cancel ends it. -->
+    <section id="waiting" class="pane" aria-label="Waiting for your browser" hidden>
+      <div class="wait">
+        <span class="spinner" aria-hidden="true"></span>
+        <div class="wait-text">
+          <p class="wait-title">Continue in your browser</p>
+          <p class="wait-sub">Sign in on the page that opened. Occlara opens here once you have.</p>
         </div>
-        <button id="cancel" class="btn btn-secondary wide" type="button">Cancel</button>
-      </section>
+      </div>
+      <button id="cancel" class="btn btn-ghost full" type="button">Cancel</button>
+    </section>
 
-      <form id="form" class="pane" autocomplete="off" hidden>
-        <label class="lbl" for="key">Licence key</label>
-        <!-- The shape every key has (key.js PLACEHOLDER). It showed
-             XXXX-XXXX-XXXX-XXXX, and a key typed that way, with no GC-, was
-             refused. -->
-        <input id="key" class="input" type="text" placeholder="GC-XXXX-XXXX-XXXX-XXXX"
-               spellcheck="false" maxlength="40" autocomplete="off" />
-        <button id="activate" class="btn btn-primary full" type="submit">
-          <span class="label">Activate</span>
-          <span class="spinner" hidden></span>
-          <span class="check" hidden><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 7"/></svg></span>
-        </button>
-        <button id="back" class="btn btn-tertiary no-drag" type="button">Sign in with your browser instead</button>
-      </form>
+    <form id="form" class="pane" autocomplete="off" hidden>
+      <label class="lbl" for="key">Licence key</label>
+      <!-- The shape every key has (key.js PLACEHOLDER). It showed
+           XXXX-XXXX-XXXX-XXXX, and a key typed that way, with no GC-, was
+           refused. -->
+      <input id="key" class="input" type="text" placeholder="GC-XXXX-XXXX-XXXX-XXXX"
+             spellcheck="false" maxlength="40" autocomplete="off" />
+      <button id="activate" class="btn btn-primary full" type="submit">
+        <span class="label">Activate</span>
+        <span class="spinner" hidden></span>
+        <span class="check" hidden><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 7"/></svg></span>
+      </button>
+      <button id="back" class="link no-drag" type="button">Sign in with your browser instead</button>
+    </form>
 
-      <button id="purchase" class="btn btn-tertiary no-drag" type="button">Create a free account</button>
-    </div>
+    <button id="purchase" class="link no-drag" type="button">Create a free account</button>
   </main>
 
   <script src="../shared/i18n-apply.js"></script>

@@ -35,13 +35,8 @@ let latest = null;
 // whether they are current instead of guessing whether an update landed.
 let status = { state: 'idle', version: null, checkedAt: 0 };
 
-// The app's own version, from package.json as index.js reads it: run as
-// `electron scripts/...` (the main window check), app.getVersion() is
-// Electron's, and Settings said "Version 41.3.0" beside Home's 8.7.9.
-const CURRENT = (() => { try { return require('../../package.json').version; } catch { return app.getVersion(); } })();
-
 function getStatus() {
-  return { ...status, current: CURRENT, packaged: app.isPackaged };
+  return { ...status, current: app.getVersion(), packaged: app.isPackaged };
 }
 
 /** Whether the player is playing now, by index.js's busy(); a throw is not busy. */

@@ -105,12 +105,8 @@ $('discord').addEventListener('click', () => {
 const SEALED_TEXT = {
   live: { title: 'Recording', sub: 'Occlara shows nothing until the match ends. The review opens here the moment it does.' },
   held: { title: 'Recording stopped',
-    sub: 'You stopped in the middle of a match, so its review was saved to Matches without opening.' },
+    sub: 'You stopped in the middle of a match, so its review was saved to Matches without opening. Choose a page when that match is over.' },
 };
-
-// Held, the one next step is the library the review went to: opening a page
-// lifts the held seal, the same as choosing it in the sidebar.
-$('sealed-open').addEventListener('click', () => { const b = navButtons.get('matches'); if (b && !b.disabled) b.click(); });
 
 function paintNav() {
   // Mid match the pages are locked. Held, the sidebar stays open: a page is
@@ -146,7 +142,6 @@ function paintNav() {
   $('sealed-title').textContent = text.title;
   $('sealed-sub').textContent = text.sub;
   $('sealed-facts').hidden = !!shell.held;
-  $('sealed-open').hidden = !shell.held;
   $('w-max').title = shell.maximized ? 'Restore' : 'Maximize';
   $('w-max').setAttribute('aria-label', $('w-max').title);
   placeMarker();

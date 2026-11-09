@@ -7,11 +7,13 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
   /* A one pixel dark rim, then the soft fall: white on a light desktop kept
      only its blur, and the rim is what gives it an edge there. */
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
-  animation: dockIn var(--t-slow) var(--ease-out) both;
+  animation: dockIn var(--t-slow) var(--ease-expo) both;
 }
-/* The mark holds still (8.8: nothing loops on a persistent element; the
-   two pixel drift it had read as a loading state, not as a presence). */
-.mark { color: var(--text); }
+/* A slow drift of two pixels, the moon's own pace: the mark is a presence
+   between matches, and stillness read as crashed. It is gone mid match, and
+   asked for less motion it holds still (theme.css). */
+.mark { color: var(--text); animation: drift 6s ease-in-out infinite alternate; }
+@keyframes drift { from { transform: translateY(0); } to { transform: translateY(-2px); } }
 /* It arrives as the rest of the app does: up six pixels and in, on the
    arrival curve, never a scale from nothing. */
 @keyframes dockIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

@@ -112,7 +112,7 @@
    */
   function gradeCard(grade, opts) {
     const o = opts || {};
-    const card = el('section', 'gv-grade' + (o.compact ? ' compact' : '') + (o.table ? ' table' : ''));
+    const card = el('section', 'gv-grade' + (o.compact ? ' compact' : ''));
     if (!grade) return card;
     if (!o.compact) {
       const top = el('div', 'gv-top');
@@ -130,31 +130,6 @@
     const cats = el('div', 'gv-cats');
     (grade.categories || []).forEach((c, i) => {
       const row = el('div', 'gv-cat' + (c.score === null ? ' unmeasured' : ''));
-      /*
-       * THE RULED TABLE (8.8, `opts.table`, the review's): a category is one
-       * row, its name, its rule, its number and ONE line of evidence, the
-       * first fact it was built on, where it was every fact joined by dots.
-       * The rest stay on the line's title. Rows line up as columns down the
-       * table (grade-view.css, subgrid). A page that does not ask keeps the
-       * two a row card above.
-       */
-      if (o.table) {
-        row.append(el('span', 'gv-cat-name', c.label));
-        const bar = el('div', 'gv-bar');
-        const fill = el('i', c.score === null ? '' : scoreTone(c.score));
-        fill.style.setProperty('--w', (c.score === null ? 0 : Math.max(2, Math.min(100, c.score))) + '%');
-        fill.style.setProperty('--f', String((c.score === null ? 0 : Math.max(2, Math.min(100, c.score))) / 100));
-        if (o.reveal) fill.style.setProperty('--i', String(i));
-        bar.append(fill);
-        row.append(bar);
-        row.append(el('b', 'gv-cat-score ' + (c.score === null ? '' : scoreTone(c.score)), c.score === null ? 'not measured' : c.score));
-        const ev = Array.isArray(c.evidence) ? c.evidence.filter(Boolean) : [];
-        const line = ev.length ? chip(ev[0], 'gv-chip gv-cat-ev') : el('span', 'gv-cat-ev none', '');
-        if (ev.length > 1) line.title = ev.join('\n');
-        row.append(line);
-        cats.append(row);
-        return;
-      }
       const head = el('div', 'gv-cat-head');
       head.append(el('span', 'gv-cat-name', c.label));
       head.append(el('b', 'gv-cat-score ' + (c.score === null ? '' : scoreTone(c.score)), c.score === null ? 'not measured' : c.score));
@@ -162,7 +137,6 @@
       const bar = el('div', 'gv-bar');
       const fill = el('i', c.score === null ? '' : scoreTone(c.score));
       fill.style.setProperty('--w', (c.score === null ? 0 : Math.max(2, Math.min(100, c.score))) + '%');
-      fill.style.setProperty('--f', String((c.score === null ? 0 : Math.max(2, Math.min(100, c.score))) / 100));
       if (o.reveal) fill.style.setProperty('--i', String(i));
       bar.append(fill);
       row.append(bar);
@@ -202,6 +176,7 @@
   function item(e, kind, onRound, brief) {
     const li = el('li', 'gv-item ' + kind + (brief ? ' brief' : ''));
     const head = el('div', 'gv-item-head');
+    head.append(el('span', 'gv-dot'));
     head.append(el('b', 'gv-item-title', e.title));
     if (brief) head.append(roundChips(e.rounds, onRound));
     if (e.judged && kind !== 'fact') head.append(el('span', 'gv-badge', "coach's look"));
@@ -209,16 +184,22 @@
     if (brief) return li;
     if (e.detail) li.append(el('p', 'gv-item-detail', e.detail));
     // A fact is never a mistake, so it never carries a fix.
-    // The fix in the full ink under the detail's dim one (8.8): no "Fix"
-    // kicker before it, the ink says which line to act on.
-    if (e.fix && e.fix !== e.detail && kind !== 'fact') li.append(el('p', 'gv-item-fix', e.fix));
+    if (e.fix && e.fix !== e.detail && kind !== 'fact') {
+      const fix = el('p', 'gv-item-fix');
+      fix.append(el('span', 'gv-fix-label', 'Fix'), document.createTextNode(e.fix));
+      li.append(fix);
+    }
     if (e.rounds && e.rounds.length && onRound !== false) li.append(roundChips(e.rounds, onRound));
     return li;
   }
 
-  /** The fix as the line to act on: the sentence alone, larger than the detail (8.8: no arrow, no kicker). */
+  /** The fix as the line to act on: an arrow, its label, the sentence, larger than the detail. */
   function action(fix) {
-    return el('p', 'gv-action', fix);
+    const p = el('p', 'gv-action');
+    const mark = el('span', 'gv-action-mark', '→');
+    mark.setAttribute('aria-hidden', 'true');
+    p.append(mark, el('span', 'gv-fix-label', 'Fix'), document.createTextNode(fix));
+    return p;
   }
 
   /*
@@ -230,7 +211,7 @@
   function hero(e, kind, onRound) {
     const li = el('li', 'gv-item gv-hero ' + kind);
     const head = el('div', 'gv-item-head');
-    head.append(el('b', 'gv-item-title', e.title));
+    head.append(el('span', 'gv-dot'), el('b', 'gv-item-title', e.title));
     if (e.judged) head.append(el('span', 'gv-badge', "coach's look"));
     li.append(head);
     if (e.detail) li.append(el('p', 'gv-item-detail', e.detail));
@@ -244,14 +225,18 @@
     const li = el('li', 'gv-item gv-rowed ' + kind);
     const row = el('details', 'gv-row');
     const head = el('summary', 'gv-item-head');
-    head.append(el('b', 'gv-item-title', e.title));
+    head.append(el('span', 'gv-dot'), el('b', 'gv-item-title', e.title));
     const n = Array.isArray(e.rounds) ? e.rounds.length : 0;
     if (n) head.append(el('span', 'gv-count', `${n} round${n === 1 ? '' : 's'}`));
     if (e.judged) head.append(el('span', 'gv-badge', "coach's look"));
     row.append(head);
     const body = el('div', 'gv-row-body');
     if (e.detail) body.append(el('p', 'gv-item-detail', e.detail));
-    if (e.fix && e.fix !== e.detail) body.append(el('p', 'gv-item-fix', e.fix));
+    if (e.fix && e.fix !== e.detail) {
+      const fix = el('p', 'gv-item-fix');
+      fix.append(el('span', 'gv-fix-label', 'Fix'), document.createTextNode(e.fix));
+      body.append(fix);
+    }
     if (n && onRound !== false) body.append(roundChips(e.rounds, onRound));
     if (body.children.length) row.append(body);
     li.append(row);
@@ -317,9 +302,7 @@
       list.slice(0, o.limit || 6).forEach((e, i) => {
         const b = brief(e);
         if (!o.hero || b) ul.append(item(e, kind, o.onRound, b));
-        // 'rows' (8.8, the review's): the page leads with the top mistake in
-        // its own "Why" section, so here it is a closed row like the rest.
-        else if (key === 'mistakes' && i === 0 && o.hero !== 'rows') ul.append(hero(e, kind, o.onRound));
+        else if (key === 'mistakes' && i === 0) ul.append(hero(e, kind, o.onRound));
         else ul.append(closedRow(e, kind, o.onRound));
       });
       block.append(ul);

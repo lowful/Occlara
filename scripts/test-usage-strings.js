@@ -90,12 +90,12 @@ eq(usage.capNotice({ tier: 'free', left: 1, free_total: 2 }, U), '', 'and none w
 for (const c of [freeCap, proCap, maxCap]) lines.push(c.title, c.body);
 
 console.log('\n[usage] the invite');
-eq(say(usage.inviteProgress({ invited: 0, qualified: 0, earned: 0 })), '0 of 5 friends played a first match, 0 games earned', 'nobody yet');
-eq(say(usage.inviteProgress({ invited: 1, qualified: 1, earned: 4, max_friends: 5, max_games: 20 })), '1 of 5 friends played a first match, 4 games earned', 'one friend');
-eq(say(usage.inviteProgress({ invited: 3, qualified: 1, earned: 4 })), '1 of 5 friends played a first match, 4 games earned, 2 more signed up and yet to play',
+eq(say(usage.inviteProgress({ invited: 0, qualified: 0, earned: 0 })), '0 of 5 friends joined, 0 games earned', 'nobody yet');
+eq(say(usage.inviteProgress({ invited: 1, qualified: 1, earned: 4, max_friends: 5, max_games: 20 })), '1 of 5 friends joined, 4 games earned', 'one friend');
+eq(say(usage.inviteProgress({ invited: 3, qualified: 1, earned: 4 })), '1 of 5 friends joined, 4 games earned, 2 still to record a match',
   'friends signed up who have not recorded a match yet');
-eq(say(usage.inviteProgress({ invited: 5, qualified: 5, earned: 20 })), '5 of 5 friends played a first match, 20 games earned, the most there is', 'the most');
-eq(usage.inviteProgress({ invited: 9, qualified: 7, earned: 28 }), '5 of 5 friends played a first match, 20 games earned, the most there is', 'never past the most');
+eq(say(usage.inviteProgress({ invited: 5, qualified: 5, earned: 20 })), '5 of 5 friends joined, 20 games earned, the most there is', 'the most');
+eq(usage.inviteProgress({ invited: 9, qualified: 7, earned: 28 }), '5 of 5 friends joined, 20 games earned, the most there is', 'never past the most');
 eq(usage.INVITE_HOW, ['Each friend who signs up with your link gets 2 extra free games.',
   'You get 4 games for each friend who records their first match, up to 20.'], 'how it works, in two lines');
 lines.push(...usage.INVITE_HOW);

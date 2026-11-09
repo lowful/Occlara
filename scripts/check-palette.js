@@ -42,15 +42,6 @@
  * theme.css turns synthesis off, so a mono rule asking for 600 or 800 draws
  * at 500 and says something it does not do.
  *
- * THE PEN IN ITS PLACES (8.8). --ink-pen is the coach's pen
- * (shared/marks.css, PEN_ALLOWED), and no script or page names the ink.
- *
- * ONE TYPE FAMILY (8.8). Geist and Geist Mono, nothing else. theme.css
- * declares those two faces and the --font and --font-mono stacks alone,
- * every font-family elsewhere is one of those tokens, no file names a serif
- * or another face, and assets/fonts ships Geist's files only. The coach's
- * voice is a role (ui.css .t-fix, .t-voice), never a font.
- *
  * Run: npm run check:palette
  */
 const fs = require('fs');
@@ -123,8 +114,7 @@ const SIGNAL = /--(?:red(?:-2|-3|-rgb)?|signal(?:-rgb)?|glow-red)\b/;
 const SIGNAL_ALLOWED = {
   'shared/ui.css':         ['.btn-rec', '.btn-rec:hover:not(:disabled):not(.active)',
                             '.btn-rec:active:not(:disabled):not(.active)',
-                            '.btn-ghost.danger:hover:not(:disabled)',
-                            '.btn-tertiary.danger:hover:not(:disabled):not([aria-disabled="true"])', '.sig-dot'],
+                            '.btn-ghost.danger:hover:not(:disabled)', '.sig-dot'],
   'shell/shell.css':       ['.rec.live', '.toggle.active .t-ico', '.win-btn.close:hover',
                             '.sealed h1::before', '.top-notice.urgent::before'],
   'settings/settings.css': ['.rec-clear.armed'],
@@ -159,51 +149,6 @@ function monoWeights(css) {
 // shrink. Until then each draws at 500, as synthesis off draws it.
 const MONO_PENDING = {
 };
-
-// THE PEN'S INK (8.8). --ink-pen is the coach's pencil and nothing else: the
-// pen's strokes and its margin notes. A rule naming it is one PEN_ALLOWED
-// lists ('*' for every rule of a sheet that is the pen's own), and no script
-// or page names it (marks.js draws through marks.css's classes). A new place
-// for it is a deliberate edit here.
-const PEN = /--ink-pen(?:-dim)?\b/;
-const PEN_ALLOWED = {
-  'shared/marks.css': '*',
-};
-/** The rules of a stylesheet that name the token and are not its places. */
-function strayUse(rel, css, re, allowed) {
-  const ok = allowed[rel];
-  if (ok === '*') return [];
-  return rules(css).filter(([sel, body]) => re.test(body) && !(ok || []).includes(sel)).map(([sel]) => sel);
-}
-
-// ONE TYPE FAMILY (8.8). Geist and Geist Mono and nothing else: a second face
-// (8.8's first pass set the coach's voice in a serif) reads as random beside
-// the app's bold Geist. The voice is set apart by role (ui.css .t-fix and
-// .t-voice), never by font. So theme.css declares only those two faces and
-// only the --font and --font-mono stacks, each led by its face; every other
-// font-family or font shorthand anywhere is var(--font), var(--font-mono) or
-// inherited; and no file names a serif or another display face at all.
-const FACES_OK = ['Geist', 'Geist Mono'];
-const FONT_DECL = /(?:^|[;{\s"'])font(-family)?\s*:\s*([^;{}"]+)/g;
-const FAMILY_OK = /^(?:var\(--font(?:-mono)?\)|inherit|initial|unset)$/;
-const OTHER_FACE = /\b(?:Newsreader|Georgia|Iowan|Times New Roman|Garamond|Playfair|Merriweather|Lora|Inter|Fraunces|Charter|Cambria)\b|(?<![-\w])serif\b|\bcursive\b|\bfantasy\b/;
-/** A declaration naming a family that is not Geist's own token. */
-function strayFonts(text) {
-  const out = [];
-  for (const m of text.matchAll(FONT_DECL)) {
-    const v = m[2].trim();
-    if (m[1]) { if (!FAMILY_OK.test(v)) out.push(`font-family: ${v}`); continue; }
-    // The shorthand: its family is what follows the size (and line-height),
-    // either of which may be a token (var(--fs-label), var(--lh-body)).
-    if (FAMILY_OK.test(v)) continue;
-    const sized = /(?:^|\s)(?:[\d.]+(?:px|em|rem|%)|var\(--fs-[\w-]+\))(?:\s*\/|\s|$)/.test(v);
-    const fam = v.match(/\s(\S+)$/);
-    if (!sized || !fam || !FAMILY_OK.test(fam[1].trim())) out.push(`font: ${v}`);
-  }
-  return out;
-}
-/** Comments out of a stylesheet, a script or a page, so a note may say "no serif". */
-const uncomment = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
 
 let problems = 0;
 const fail = (line) => { problems++; console.log(line); };
@@ -253,18 +198,6 @@ if (strayReds('shared/ui.css', REDS_NEG).length) fail(`RULE BROKEN  a comment, a
 const MONO_POS = '.a { font-family: var(--font-mono); font-weight: 600; }\n.b { font: 800 13px var(--font-mono); }\n.c { font: italic bold 12px var(--font-mono); }';
 const MONO_NEG = '.a { font-family: var(--font-mono); font-weight: 500; }\n.b { font: 400 13px var(--font-mono); }\n.c { font-family: var(--font); font-weight: 700; }\n.d { font: 600 12px var(--font); }';
 if (monoWeights(MONO_POS).join(' | ') !== '.a (600) | .b (800) | .c (bold)') fail(`RULE BROKEN  the mono weight rule reads 600, 800 and bold as ${JSON.stringify(monoWeights(MONO_POS))}`);
-const PEN_POS = '.a { stroke: var(--ink-pen); }\n.b { color: var(--ink-pen-dim); }\n.v-focus-text { color: var(--ink-pen); }';
-const PEN_NEG = '/* .a { stroke: var(--ink-pen); } */\n.b { color: var(--text); }\n.c { --ink-penny: 1; }';
-if (strayUse('review/review.css', PEN_POS, PEN, PEN_ALLOWED).join(' | ') !== '.a | .b | .v-focus-text') fail(`RULE BROKEN  the pen rule reads three stray inks as ${JSON.stringify(strayUse('review/review.css', PEN_POS, PEN, PEN_ALLOWED))}`);
-if (strayUse('review/review.css', PEN_NEG, PEN, PEN_ALLOWED).length || strayUse('shared/marks.css', PEN_POS, PEN, PEN_ALLOWED).length) fail('RULE BROKEN  a comment, the text ink, a longer name or the pen\'s own sheet read as a stray pen');
-const FONT_POS = ".a { font-family: var(--font-voice); }\n.b { font: 500 15px/1.4 'Newsreader', serif; }\n.c { font-family: Georgia; }\n<p style=\"font-family: 'Lora'\">";
-const FONT_NEG = ".a { font-family: var(--font); }\n.b { font: 500 15px/1.4 var(--font-mono); }\n.c { font: inherit; }\n.d { font-family: inherit; font-weight: 700; font-size: 12px; }\n.e { font: 500 var(--fs-caption)/1.4 var(--font-mono); }\n.f { font: var(--w-label) var(--fs-label)/var(--lh-body) var(--font); }\nctx.font = `600 ${s}px ${F.sans}`;";
-if (strayFonts(FONT_POS).length !== 4) fail(`RULE BROKEN  the one family rule reads a token, a serif, Georgia and an inline face as ${JSON.stringify(strayFonts(FONT_POS))}`);
-if (strayFonts(FONT_NEG).length) fail(`RULE BROKEN  Geist's tokens, inherit and the weight and size read as strays: ${JSON.stringify(strayFonts(FONT_NEG))}`);
-if (!OTHER_FACE.test("font-family: 'Newsreader', Georgia, serif") || !OTHER_FACE.test('font: 16px serif') || OTHER_FACE.test("'Geist', -apple-system, 'Segoe UI', sans-serif") || OTHER_FACE.test('frameTimes, Interval')) {
-  fail('RULE BROKEN  the other face rule misses a serif or reads Geist\'s sans stack as one');
-}
-if (/serif/.test(uncomment('/* no serif */ .a { color: red; } // a serif\n<!-- serif -->')) || !/serif/.test(uncomment('.a { font: 1px serif; }'))) fail('RULE BROKEN  the comment strip keeps a comment or drops a rule');
 if (monoWeights(MONO_NEG).length) fail(`RULE BROKEN  Mono at 500 and 400 and Geist at 700 and 600 read as ${JSON.stringify(monoWeights(MONO_NEG))}`);
 
 function walk(dir, out = []) {
@@ -284,7 +217,7 @@ if (!files.some((f) => rel(f) === 'stats/stats.js') || !files.some((f) => rel(f)
 }
 // And a stylesheet held to tokens, or holding the signal, is one the scan
 // reads: renamed or moved, it would be held to nothing and pass.
-for (const f of [...TOKENS_ONLY, ...Object.keys(SIGNAL_ALLOWED), ...Object.keys(MONO_PENDING), ...Object.keys(PEN_ALLOWED)]) {
+for (const f of [...TOKENS_ONLY, ...Object.keys(SIGNAL_ALLOWED), ...Object.keys(MONO_PENDING)]) {
   if (!files.some((x) => rel(x) === f)) fail(`SCAN BROKEN  ${f} is named here, and the scan does not read it`);
 }
 const held = [];
@@ -329,48 +262,9 @@ for (const f of files) {
     for (const sel of pending) {
       if (!wrong.some((w) => w.replace(/ \([^)]*\)$/, '') === sel)) fail(`  mono  in ${r}: "${sel}" is on the scale now, so take it off MONO_PENDING`);
     }
-    for (const sel of strayUse(r, src, PEN, PEN_ALLOWED)) {
-      fail(`  pen  in ${r}: "${sel}" names the pen's ink, which is the pen's strokes and its margin notes alone`);
-      console.log('     a mark is drawn by shared/marks.js; a new place for the ink is an edit to PEN_ALLOWED');
-    }
-  } else {
-    if (SIGNAL.test(src)) {
-      const at = src.split(/\r?\n/).findIndex((l) => SIGNAL.test(l)) + 1;
-      fail(`  signal  in ${r}:${at} names the signal, and no script or page may: only the stylesheets' allowed rules do`);
-    }
-    if (PEN.test(src)) {
-      const at = src.split(/\r?\n/).findIndex((l) => PEN.test(l)) + 1;
-      fail(`  pen  in ${r}:${at} names the pen's ink, and no script or page may: marks.css draws it`);
-    }
-  }
-  const code = uncomment(src);
-  if (OTHER_FACE.test(code)) {
-    fail(`  font  in ${r}: names "${code.match(OTHER_FACE)[0]}", and the app is one family, Geist and Geist Mono`);
-    console.log('     the coach\'s voice is a role, not a face: shared/ui.css .t-fix (Geist 700) and .t-voice (Geist 400)');
-  }
-  if (!f.endsWith('.js')) {
-    for (const d of strayFonts(code)) {
-      fail(`  font  in ${r}: "${d}" sets a family that is not var(--font) or var(--font-mono)`);
-    }
-  }
-}
-// The faces themselves: theme.css declares Geist and Geist Mono and no other,
-// and its only stacks are --font and --font-mono, each led by its face.
-{
-  const themeCode = uncomment(fs.readFileSync(THEME, 'utf8'));
-  const faces = [...themeCode.matchAll(/@font-face\s*\{[^}]*font-family:\s*'([^']+)'/g)].map((m) => m[1]);
-  if (!faces.length) fail('SCAN BROKEN  theme.css declares no @font-face, so the face rule reads nothing');
-  for (const face of new Set(faces)) if (!FACES_OK.includes(face)) fail(`  font  in shared/theme.css: declares the face '${face}', and the app is Geist and Geist Mono alone`);
-  for (const face of FACES_OK) if (!faces.includes(face)) fail(`MISSING FACE  shared/theme.css no longer declares '${face}'`);
-  const stacks = [...themeCode.matchAll(/(--font[-\w]*)\s*:\s*([^;]+);/g)];
-  for (const [, name, v] of stacks) {
-    const lead = name === '--font' ? "'Geist'," : name === '--font-mono' ? "'Geist Mono'," : null;
-    if (!lead) fail(`  font  in shared/theme.css: ${name} is a font token beside --font and --font-mono, and there is one family`);
-    else if (!v.trim().startsWith(lead)) fail(`  font  in shared/theme.css: ${name} is not led by ${lead.slice(0, -1)}`);
-    if (OTHER_FACE.test(v)) fail(`  font  in shared/theme.css: ${name} falls back to "${v.match(OTHER_FACE)[0]}"`);
-  }
-  for (const m of fs.readdirSync(path.join(__dirname, '..', 'assets', 'fonts'))) {
-    if (/\.(woff2?|ttf|otf)$/i.test(m) && !/^geist(?:mono)?-\d{3}\.woff2$/.test(m)) fail(`  font  in assets/fonts: ${m} is a font file that is not Geist's, and only Geist ships`);
+  } else if (SIGNAL.test(src)) {
+    const at = src.split(/\r?\n/).findIndex((l) => SIGNAL.test(l)) + 1;
+    fail(`  signal  in ${r}:${at} names the signal, and no script or page may: only the stylesheets' allowed rules do`);
   }
 }
 for (const f of TOKENS_ONLY) if (!held.includes(f)) fail(`SCAN BROKEN  ${f} is held to tokens, and the scan did not hold it`);
@@ -381,10 +275,8 @@ for (const f of ['shared/ui.css', 'shared/grade-view.css', 'shared/dropdown.css'
 // The tokens themselves must exist, since everything above depends on them.
 const theme = fs.readFileSync(THEME, 'utf8');
 for (const t of ['--red-rgb', '--cyan-rgb', '--good', '--bad', '--warn', '--good-rgb', '--warn-rgb', '--on-accent',
-  '--signal', '--signal-rgb', '--red-3', '--line', '--line-2', '--line-input', '--focus-ring', '--image-outline', '--ink', '--paper', '--paper-ink', '--paper-ink-2', '--paper-ink-3',
-  '--paper-line', '--r-card', '--r-control', '--r-pill', '--t-press', '--track-display', '--track-hero', '--lh-display', '--lh-heading', '--lh-body',
-  '--fs-caption', '--fs-label', '--fs-ui', '--fs-body', '--fs-voice', '--fs-heading', '--fs-h2', '--fs-fix', '--fs-display', '--z-base', '--z-raised', '--z-menu', '--z-overlay',
-  '--ink-pen', '--ink-pen-dim', '--ease-out', '--ease-in-out', '--t-tap', '--t-pen', '--margin-w', '--w-body', '--w-label', '--w-title', '--w-display']) {
+  '--signal', '--signal-rgb', '--red-3', '--line', '--line-2', '--grid', '--paper', '--paper-ink', '--paper-ink-2', '--paper-ink-3',
+  '--paper-line', '--r-card', '--r-control', '--r-pill', '--t-press', '--track-display', '--lh-display', '--track-label']) {
   if (!new RegExp(`${t}\\s*:`).test(theme)) {
     problems++;
     console.log(`MISSING TOKEN  ${t} is not defined in shared/theme.css`);
@@ -393,5 +285,5 @@ for (const t of ['--red-rgb', '--cyan-rgb', '--good', '--bad', '--warn', '--good
 
 console.log(problems
   ? `\nFAIL: ${problems} colour(s) or weight(s) bypass the palette`
-  : `\nPASS: every brand and status colour goes through a token, the signal and the pen's ink are only in their places, the type is Geist and Geist Mono alone, the mono face only at the weights it ships (${files.length} stylesheets, scripts and pages read, ${held.length} held to tokens, ${Object.values(MONO_PENDING).flat().length} mono rules left for their surfaces)`);
+  : `\nPASS: every brand and status colour goes through a token, the signal is only in its places and the mono face only at the weights it ships (${files.length} stylesheets, scripts and pages read, ${held.length} held to tokens, ${Object.values(MONO_PENDING).flat().length} mono rules left for their surfaces)`);
 process.exit(problems ? 1 : 0);

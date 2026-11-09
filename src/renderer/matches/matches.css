@@ -1,12 +1,8 @@
 /* palette: tokens only */
-/* The match library as a marked up match sheet (8.8, the coach's notebook).
-   No card anywhere: a section is a heading, then rows parted by the hairline,
-   and a row's hover is a faint fill across it. A row has a margin of
-   --margin-w down its left, the grade and the day, or a pattern's count,
-   beside the column of words. The pen marks at most one thing a page: the
-   newest record on Matches, the top repeated mistake on Patterns. The
-   controls are ui.css's three ranks. A grade's colour always sits beside its
-   number and its letter. */
+/* The match library as a ruled log (8.7). No card anywhere: a section is a
+   heading, then rows parted by the hairline, and a row's hover is a faint fill
+   across it. The only tactile objects are the controls, which ui.css draws as
+   capsules. A grade's colour always sits beside its number and its letter. */
 
 html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
 
@@ -23,7 +19,7 @@ header {
   border-bottom: 1px solid var(--line);
 }
 .h-brand { display: flex; align-items: center; gap: var(--space-2); flex: none; }
-.h-brand h2 { font-size: var(--fs-label); font-weight: var(--w-title); letter-spacing: 0; }
+.h-brand h2 { font-size: 13px; font-weight: 600; letter-spacing: -0.1px; }
 
 /* WON AND LOST beside the title (matches.js paintWinLoss): a big number of
    the type scale, Geist 600 with figures one width, at the title's own size,
@@ -32,8 +28,8 @@ header {
    the colour is never the only signal. */
 .wl {
   display: inline-flex; align-items: baseline; margin-left: var(--space-2);
-  font-family: var(--font); font-size: var(--fs-label); font-weight: 600; line-height: 1;
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font); font-size: 13px; font-weight: 600; line-height: 1;
+  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums;
 }
 .wl b { font-weight: inherit; }
 .wl-w { color: var(--good); }
@@ -45,10 +41,11 @@ header {
 .tab {
   font: 500 12px var(--font); color: var(--text-dim);
   padding: 5px 12px; border-radius: var(--r-btn); border: 0; background: transparent; cursor: pointer;
-  transition: background-color var(--t-fast) ease, color var(--t-fast) ease;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .tab:hover { color: var(--text); }
 .tab[aria-selected="true"] { background: var(--text); color: var(--bg); }
+.tab:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 
 .body {
   flex: 1; overflow-y: auto;
@@ -60,128 +57,120 @@ header {
 
 /* Inside a group 8 to 12px; between groups 40px (.body's gap). */
 .block, .patterns { display: flex; flex-direction: column; gap: var(--space-3); }
-h3 { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--text); margin: 0; }
+h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); margin: 0; }
 .hint { font-size: 13px; color: var(--text-dim); line-height: 1.5; margin: 0; }
 .empty { font-size: 14px; color: var(--text-dim); line-height: 1.55; margin: 0; }
 
 /* ── Patterns ──────────────────────────────────────────────────────────────
-   A marked up sheet (8.8): every figure in the margin (--margin-w) and every
-   word in the column beside it. The title and its line, then the grades
-   written out with the average in the margin, then the four categories as a
-   ruled table with their averages in the same margin, then the lists, each
-   entry's count in it. */
-.p-head { display: flex; flex-direction: column; gap: var(--space-2); }
-.p-head .hint { max-width: 72ch; text-wrap: pretty; }
+   The line under the title on the left, the average grade on the right as
+   one quiet line, the number and its words (8.7): the same treatment Home
+   gives it, since the hero here is the first repeated mistake. */
+.p-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); }
+.p-head > div:first-child { min-width: 0; }
+.p-avg { flex: none; display: flex; align-items: baseline; gap: var(--space-1); white-space: nowrap; }
+.p-avg-num { font-family: var(--font); font-size: 14px; font-weight: 600; line-height: 1.5; font-variant-numeric: tabular-nums; color: var(--text); }
+.p-avg-label { font-size: 14px; font-weight: 400; color: var(--text-dim); }
 
-/* THE GRADES, WRITTEN (8.8, matches.js paintTrend). No chart for a handful
-   of numbers: the figures, oldest first, in Geist Mono at the heading's
-   size, the record ticked by the pen in the room its margin keeps (the tick
-   is drawn 12 to 32px left of the figure, marks.js), and the tick's fact in
-   words under them in the pen's ink. A provisional grade is quieter. */
-.p-figs { display: grid; grid-template-columns: var(--margin-w) minmax(0, 1fr); align-items: start; margin-top: var(--space-6); }
-.p-figs[hidden] { display: none; }
-.p-avg { grid-column: 1; display: flex; flex-direction: column; gap: 2px; padding-top: 18px; }
-.p-avg[hidden] { display: none; }
-.p-avg-num { font-family: var(--font-mono); font-size: var(--fs-heading); font-weight: 500; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--text); }
-.p-avg-label { font-size: var(--fs-caption); font-weight: var(--w-label); color: var(--text-mute); }
-.p-figs-col { grid-column: 2; display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-.p-figs-label { font-size: var(--fs-caption); font-weight: var(--w-label); line-height: 1.3; color: var(--text-mute); }
+/* The grade trend: one bar per match, oldest on the left, so improvement reads
+   as a line climbing to the right, standing on one hairline. The number sits
+   over every bar.
+
+   The fill's height is the score as a share of the WHOLE bar, so 0 to 100 uses
+   every pixel. The number is positioned off the fill's top instead of stacked
+   above it in the same flex column, because stacked it took its own height out
+   of the fill's: the fill was capped near 77% and every grade from B+ to S drew
+   the same bar. The bar's top margin is the room the number needs over a 100.
+   Both read --h, which matches.js sets on the bar. */
 .p-trend {
-  margin: 0; max-width: 60ch;
-  font-family: var(--font); font-size: var(--fs-heading); font-weight: 400; line-height: 1.5;
-  color: var(--text-mute);
+  display: flex; gap: var(--space-2); height: 128px;
+  padding: 0 0 var(--space-2);
+  border-bottom: 1px solid var(--line);
 }
-.p-trend[hidden] { display: none; }
-/* The figures in Geist Mono, the commas between them in Geist, so a comma
-   is a comma's width and not a whole mono cell. */
-.p-fig { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text); white-space: nowrap; }
-.p-fig.prov { color: var(--text-mute); font-weight: 400; }
-/* The tick is drawn over the figure (marks.js place: 'above'), taking no
-   width, so the commas of the run stay even (8.8 critique). */
-.p-fig.ticked { display: inline-block; }
-.p-trend-note { margin: 0; }
-.p-trend-note[hidden] { display: none; }
+/* A bar takes up to 56px, so four matches stand together at the left rather
+   than spread across the page; twenty shrink to share it. */
+.p-bar { position: relative; flex: 0 1 56px; min-width: 0; margin-top: 16px; --c: var(--text); }
+.p-bar i {
+  position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto;
+  width: 100%; max-width: 28px; height: var(--h, 0%);
+  border-radius: 2px 2px 0 0; background: var(--c);
+}
+.p-bar i.good { --c: var(--good); }
+.p-bar i.warn { --c: var(--warn); }
+.p-bar i.bad  { --c: var(--bad); }
+/* A provisional grade is a dashed outline, not a fill: form before hue. */
+.p-bar i.prov { background: transparent; border: 1.5px dashed var(--c); opacity: 0.8; }
+.p-bar span {
+  position: absolute; left: 0; right: 0; bottom: calc(var(--h, 0%) + 4px);
+  text-align: center; font: 500 11px/12px var(--font-mono); color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+/* A record in the ink with its number in --good, and the run underlined
+   (8.7, matches.js paintTrend, from progress.js): form before hue, and no
+   ring round a bar (a box round a box). The bar's hover says which. */
+.p-bar.best i { --c: var(--text); }
+.p-bar.best span { color: var(--good); font-weight: 600; }
+.p-bar.run::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -6px; margin: 0 auto;
+  width: 60%; max-width: 20px; height: 2px; border-radius: 1px;
+  background: var(--good);
+}
 
-/* THE FOUR CATEGORIES AS A COMPACT RULED TABLE (8.8, matches.js paintCats):
-   a row each, its average in the margin under the grades' average, its name
-   in the column and its last match at the end, each figure in a column that
-   reads down. Short rows, the header in the label's voice, the hairlines
-   only between rows, a dense list. */
-.p-cats { display: flex; flex-direction: column; max-width: 520px; margin-top: var(--space-6); }
-.p-cats[hidden] { display: none; }
-.p-cat {
-  display: grid; grid-template-columns: var(--margin-w) minmax(0, 1fr) 88px; align-items: baseline;
-  padding: var(--space-2) 0; border-bottom: 1px solid var(--line);
+/* The four categories as a stat row: columns parted by the hairline, a big
+   number each, its name and its last match under it. */
+.p-cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.p-cat { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; padding: 0 var(--space-6); border-left: 1px solid var(--line); }
+.p-cat:first-child { padding-left: 0; border-left: 0; }
+.p-cat b {
+  display: block; font-family: var(--font); font-size: 28px; font-weight: 600; line-height: 1;
+  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text);
 }
-.p-cat:last-child { border-bottom: 0; }
-.p-cat-head { padding-top: 0; }
-.p-cat-head > span { font-family: var(--font); font-size: var(--fs-caption); font-weight: var(--w-label); color: var(--text-mute); }
-.p-cat-name { font-size: var(--fs-ui); font-weight: var(--w-body); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.p-cat-num { font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 500; line-height: 1.4; font-variant-numeric: tabular-nums; color: var(--text); }
-.p-cat-last { text-align: right; font-weight: 400; color: var(--text-dim); }
+.p-cat span { display: block; font-size: 12px; font-weight: 500; color: var(--text-mute); margin-top: var(--space-1); }
+.p-cat small { display: block; font-size: 12px; color: var(--text-dim); }
 
 /* THE LISTS AS RULED ROWS. grade-view.css draws each entry as a card for the
-   review; here the host draws them as rows of the sheet: a heading over the
-   column, then one ruled row per entry, its count in the margin, the top
-   mistake set larger with its fix the biggest line on the page, every other
-   entry one closed line. */
+   review; here the host draws them as rows of the log: a heading over a
+   hairline, then one row per entry, the top mistake set larger with its fix
+   the biggest line on the page, every other entry one closed line. */
+/* The lists are their own group: 40px under the stat row, like every group. */
 #p-lists:not(:empty) { margin-top: calc(var(--space-10) - var(--space-3)); }
 #p-lists .gv-insights { gap: var(--space-10); }
 #p-lists .gv-block { gap: 0; }
 #p-lists .gv-block h3 {
-  font-family: var(--font); font-size: var(--fs-heading); font-weight: var(--w-title); line-height: var(--lh-heading); letter-spacing: 0;
-  text-transform: none; color: var(--text); text-wrap: balance;
-  padding: 0 0 var(--space-3) var(--margin-w); border-bottom: 1px solid var(--line);
+  font-family: var(--font); font-size: 15px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
+  text-transform: none; color: var(--text);
+  padding-bottom: var(--space-3); border-bottom: 1px solid var(--line);
 }
 #p-lists .gv-list { gap: 0; }
 #p-lists .gv-item {
-  position: relative;
   gap: var(--space-2);
-  padding: var(--space-3) 0 var(--space-3) var(--margin-w);
+  padding: var(--space-3) 0;
   background: transparent; border: 0; border-radius: 0;
   border-bottom: 1px solid var(--line);
 }
-#p-lists .gv-item-title { font-size: var(--fs-ui); font-weight: var(--w-label); }
-#p-lists .gv-item-detail, #p-lists .gv-item-fix { font-size: var(--fs-label); font-weight: var(--w-body); line-height: 1.5; text-wrap: pretty; max-width: 72ch; }
-#p-lists .gv-hero { padding-top: var(--space-5); padding-bottom: var(--space-5); }
-#p-lists .gv-hero .gv-item-title { font-size: var(--fs-heading); font-weight: var(--w-title); letter-spacing: 0; line-height: var(--lh-heading); text-wrap: balance; }
-#p-lists .gv-hero .gv-item-detail { font-size: var(--fs-ui); }
-/* The top mistake's words gathered in one column, which the pen's bracket
-   spans from title to fix (matches.js paintPatterns). */
-#p-lists .p-col { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-/* The fix runs on as one sentence (display: block), the page's biggest line.
-   The bracket says it is the thing to work on, so no arrow and no "Fix"
-   kicker stands before it (grade-view.js draws neither since 8.8). */
-#p-lists .gv-action { display: block; font-size: var(--fs-h2); font-weight: var(--w-display); letter-spacing: -0.02em; line-height: 1.2; margin-top: var(--space-2); max-width: 44ch; text-wrap: pretty; }
-#p-lists .gv-rowed { padding-top: 0; padding-bottom: 0; }
+#p-lists .gv-item-title { font-size: 14px; }
+#p-lists .gv-item-detail, #p-lists .gv-item-fix { font-size: 13px; }
+#p-lists .gv-hero { padding: var(--space-5) 0; }
+#p-lists .gv-hero .gv-item-title { font-size: 17px; letter-spacing: -0.01em; }
+#p-lists .gv-hero .gv-item-detail { font-size: 14px; }
+/* The fix runs on from its label as one sentence (display: block), where the
+   flex row it is elsewhere broke the whole sentence onto its own line. */
+#p-lists .gv-action { display: block; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.3; margin-top: var(--space-2); }
+#p-lists .gv-rowed { padding: 0; }
 #p-lists .gv-row > summary {
   margin: 0 calc(-1 * var(--space-3)); padding: var(--space-3);
   border-radius: 0;
-  transition: background-color var(--t-fast) ease;
+  transition: background var(--t-fast) var(--ease);
 }
 #p-lists .gv-row > summary:hover { background: rgba(255, 255, 255, 0.035); }
-#p-lists .gv-row > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+#p-lists .gv-row > summary:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
 #p-lists .gv-row-body { padding: 0 0 var(--space-3); }
 
-/* The count in the margin (matches.js patternCount): "2 of 5" in Geist Mono,
-   on the title's line. Beside the top mistake's bracket it is the pen's
-   figure (.pen-fig, marks.css, in the pen's ink), and the bracket keeps the
-   margin's last 22px. */
-#p-lists .p-count {
-  position: absolute; left: 0; top: calc(var(--space-3) + 1px);
-  width: calc(var(--margin-w) - var(--space-3));
-  font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: 400; line-height: 1.5; font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-#p-lists .p-count:not(.pen-fig) { color: var(--text-mute); }
-#p-lists .gv-hero > .p-count { top: calc(var(--space-5) + 4px); width: 46px; }
-
-/* Beside a pattern's title, quiet words and no chips (8.8, matches.js
-   patternChips): how many times in all, then the trend word in its tone. */
-.p-chips { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: baseline; gap: var(--space-3); margin-left: var(--space-3); }
+/* A pattern's chips beside its title (8.7, matches.js patternChips): how
+   often and how many times, each a chip since each carries a count; the trend
+   word is a word in its tone and no chip. */
+.p-chips { flex: 0 1 auto; min-width: 0; align-items: center; }
 .gv-row .p-chips { margin-right: var(--space-2); }
-.p-times { font-size: var(--fs-caption); font-weight: var(--w-body); color: var(--text-mute); white-space: nowrap; }
-#p-lists .p-trendword { font-size: var(--fs-caption); font-weight: var(--w-label); white-space: nowrap; }
+#p-lists .p-trendword { font-weight: 500; }
 /* The chevron of a closed row sits at the row's end, where the eye expects
    the thing that opens it. */
 #p-lists .gv-row > summary::after { margin-left: auto; }
@@ -193,79 +182,71 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--text); m
    One ruled row per match, holding two buttons side by side: the row, which
    opens the review, and the eye at its end, which opens the match's AI log
    (matches.js row()). The item answers the pointer as one, with a faint fill
-   across it and nothing that moves. The rows rise once, on the page's first
-   entry, by ui.css's shared .rise-in. */
+   across it and nothing that moves. */
 .list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .m-item {
   display: flex; align-items: center; gap: var(--space-3);
   border-bottom: 1px solid var(--line);
-  transition: background-color var(--t-fast) ease;
+  transition: background var(--t-fast) var(--ease);
 }
 .m-item:hover { background: rgba(255, 255, 255, 0.035); }
-/* THE MARGIN, THEN THE LINE (8.8): the grade, the day and the time down the
-   left in --margin-w, figures in Geist Mono that read down the list; the
-   place and the result beside them as the line, on its first baseline. */
+/* The rows rise once, as the list first appears on screen (matches.js load,
+   occlaraOnShown), 40ms apart and capped at the eighth; a repaint draws them
+   as they are. */
+.m-item.rise { animation: rowIn var(--t-slow) var(--ease-expo) both; animation-delay: calc(var(--i, 0) * 40ms); }
+@keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .m-row {
   flex: 1; min-width: 0;
-  display: grid; grid-template-columns: var(--margin-w) minmax(0, 1fr); align-items: start; column-gap: 0;
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--space-4);
   text-align: left;
   padding: var(--space-4) 0;
   background: transparent; border: 0; border-radius: 0;
   color: var(--text); font: inherit; cursor: pointer;
 }
-.m-margin { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); min-width: 0; }
-.m-date { display: flex; flex-direction: column; font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: 400; line-height: 1.4; color: var(--text-mute); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* "Checking" fits the margin as one quiet word. */
-.m-margin .gv-checking { align-self: flex-start; font-size: var(--fs-caption); }
-.m-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.m-row:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
 /* A row with no eye, in a list where others have one, keeps the eye's room
-   (its 30px in ui.css), so the rows' right edges line up down the list. */
+   (its 30px in ui.css), so the grades line up down the list. */
 .m-eye-gap { flex: none; width: 30px; }
 .m-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-.m-top { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
-.m-title { font-size: var(--fs-body); font-weight: var(--w-title); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-top { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.m-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The result and the score, one word and one number, in the outcome's tone. */
-.m-res { font-size: var(--fs-label); font-weight: var(--w-label); color: var(--text-mute); flex: none; font-variant-numeric: tabular-nums; }
+.m-res { font-size: 13px; font-weight: 500; color: var(--text-mute); flex: none; font-variant-numeric: tabular-nums; }
 .m-res.win { color: var(--good); }
 .m-res.loss { color: var(--bad); }
 /* The RR the match moved (8.7.9, matches.js paintRR): "RR +18", mono and
    quiet, as Home's rows draw it (home.css .r-rr), the tone on the number. */
-.m-rr { flex: none; font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: 500; color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.m-rr { flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .m-rr.gain { color: var(--good); }
 .m-rr.loss { color: var(--bad); }
 /* A milestone beside the result (8.7, matches.js row(), progress.js marks):
-   "Best in 23", "First A", "3 in a row", "3 without ...", as words in a tone
-   and no bullet: a record in --good, a run or a cleared habit quieter. No
-   capsule. A long habit's name is cut to fit, whole on hover. */
+   "Best in 23", "First A", "3 in a row", "3 without ...", the one mark Home's
+   rows draw (home.css .r-mark): a filled dot, then its words, in --good, so
+   the tone is never alone. No capsule. A long habit's name is cut to fit,
+   whole on hover. */
 .m-mark {
-  flex: 0 1 auto; min-width: 0; max-width: 45%;
-  font-size: var(--fs-caption); font-weight: var(--w-label); line-height: 1.4; color: var(--good);
+  flex: 0 1 auto; min-width: 0; max-width: 45%; align-self: center;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--good);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.m-mark::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .m-mark.run, .m-mark.cleared { color: var(--text-dim); }
-/* THE NEWEST RECORD, TICKED BY THE PEN (8.8, matches.js load): the tick is
-   drawn 12 to 32px before the words (marks.js), so the words keep 36px of
-   room before them and the tick never touches the result; the words are in
-   the pen's ink (.pen-note) and whole, since a record's are short. */
-.m-mark.ticked { flex: none; max-width: none; overflow: visible; margin-left: 36px; }
-.m-meta { font-size: var(--fs-caption); font-weight: var(--w-body); line-height: 1.5; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* The same line as the row above's (matches.js row): kept for a screen reader, not drawn. */
-.m-meta.same { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.m-top-mistake { font-size: var(--fs-label); font-weight: var(--w-body); line-height: 1.5; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-meta { font-size: 12px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-top-mistake { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-top-mistake .m-tm-label { color: var(--text-mute); }
-.m-top-mistake.same { color: var(--text-mute); }
-/* The grade in the margin: its figure in Geist Mono and the letter as a
-   small capsule mark in its tone, sized to sit inside --margin-w. A
-   provisional grade's capsule is dashed. */
+/* The grade: the number of the type scale and the letter as a small capsule
+   mark in its tone. A provisional grade's capsule is dashed. */
 .m-grade { display: flex; align-items: center; gap: var(--space-2); }
 .m-score {
-  font-family: var(--font-mono); font-size: var(--fs-heading); font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text);
-  min-width: 22px;
+  font-family: var(--font); font-size: 20px; font-weight: 600; line-height: 1;
+  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text);
+  min-width: 28px; text-align: right;
 }
 .m-letter {
   display: inline-flex; align-items: center; justify-content: center;
-  height: 20px; min-width: 22px; padding: 0 5px; border-radius: var(--r-btn);
-  font-size: var(--fs-caption); font-weight: var(--w-title); line-height: 1;
+  height: 22px; min-width: 30px; padding: 0 8px; border-radius: var(--r-btn);
+  font-size: 11px; font-weight: 600; line-height: 1; letter-spacing: 0.02em;
   border: 1px solid var(--line-2); color: var(--text);
 }
 .m-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
@@ -276,7 +257,11 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--text); m
 .m-letter.prov { border-style: dashed; }
 
 @media (max-width: 620px) {
-  .p-cat { grid-template-columns: var(--margin-w) minmax(0, 1fr) 72px; }
+  .p-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--space-4); }
+  .p-cat:nth-child(3) { padding-left: 0; border-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-item, .m-item.rise { animation: none; transition: none; }
 }
 
 /* ── The breakdown ─────────────────────────────────────────────────────────
@@ -293,30 +278,32 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--text); m
   border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
 }
 .b-sum::-webkit-details-marker { display: none; }
-.b-sum-title { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--text); flex: none; }
+.b-sum-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); flex: none; }
 .b-sum-hint { font-size: 13px; color: var(--text-dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .b-sum::after {
   content: ''; flex: none; margin-left: auto; align-self: center;
   width: 6px; height: 6px; border-right: 1.5px solid var(--text-mute); border-bottom: 1.5px solid var(--text-mute);
   transform: translateY(-2px) rotate(45deg);
-  transition: transform var(--t-fast) var(--ease-out);
+  transition: transform var(--t-fast) var(--ease);
 }
 .breakdown[open] > .b-sum::after { transform: translateY(1px) rotate(225deg); }
 .b-sum:hover::after { border-color: var(--text); }
-.b-sum:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.b-sum:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
 .b-body { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-4); }
 .b-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-6); }
 .b-head > div:first-child { min-width: 0; }
-/* The cut, by map or by agent, is an either/or: a segmented capsule
-   (shared/seg.js occlaraSeg, called once from matches.js) whose thumb slides
-   to the chosen button. The queues are a filter (8.8): ui.css's row of
-   words (.opts), its count in figures after each name. */
+/* The cut and the queue are segmented capsules (shared/seg.js occlaraSeg,
+   called once from matches.js): the thumb slides to the chosen button. The
+   buttons keep their own state, aria-selected and aria-pressed. */
 .seg-mini { flex: none; }
 .b-queues { align-self: flex-start; }
-.b-queues[hidden] { display: none; }
+.b-chip small { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: inherit; opacity: 0.7; margin-left: 6px; font-variant-numeric: tabular-nums; }
+#b-dims > button:focus-visible, #b-queues > button:focus-visible, .bf-go:focus-visible {
+  outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px;
+}
 /* A row's ring is drawn inset, inside the scrolling body, and a header, which
    reads as text, is underlined instead of ringed. */
-.b-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.b-row:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
 .b-sort:focus-visible {
   outline: none; color: var(--text);
   text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px;
@@ -347,40 +334,35 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--text); m
   position: relative;
   font: 500 12px/1.3 var(--font); color: var(--text-mute);
   background: transparent; border: 0; padding: var(--space-2) 0; cursor: pointer; text-align: right;
-  transition: color var(--t-fast) ease;
+  transition: color var(--t-fast) var(--ease);
 }
 .b-sort.left { text-align: left; }
 .b-sort:hover { color: var(--text); }
-/* The sort's direction is a small chevron drawn by two borders, as the
-   folded line's is, never an arrow glyph (8.8): down for descending. */
 [aria-sort="ascending"] > .b-sort::after,
-[aria-sort="descending"] > .b-sort::after {
-  content: ''; position: absolute; left: 100%; bottom: calc(var(--space-2) + 5px); margin-left: 5px;
-  width: 4px; height: 4px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
-  transform: rotate(45deg);
-}
-[aria-sort="ascending"] > .b-sort::after { bottom: calc(var(--space-2) + 3px); transform: rotate(225deg); }
+[aria-sort="descending"] > .b-sort::after { position: absolute; left: 100%; bottom: var(--space-2); margin-left: 3px; }
+[aria-sort="ascending"] > .b-sort::after { content: '\2191'; }
+[aria-sort="descending"] > .b-sort::after { content: '\2193'; }
 .b-row {
   min-height: 44px; border-bottom: 1px solid var(--line); cursor: pointer;
-  transition: background-color var(--t-fast) ease;
+  transition: background var(--t-fast) var(--ease);
 }
 .b-row:hover { background: rgba(255, 255, 255, 0.035); }
 .b-row[aria-expanded="true"] { background: rgba(255, 255, 255, 0.05); border-bottom-color: transparent; }
 .b-td {
-  font: 400 13px/1.2 var(--font-mono); color: var(--text); text-align: right;
+  font: 500 13px/1.2 var(--font-mono); color: var(--text); text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: var(--space-3) 0; min-width: 0;
 }
 .b-td.raw { color: var(--text-mute); font-size: 12px; }
 .b-td.none { color: var(--text-mute); }
-.b-td small { display: block; font-family: var(--font); font-size: var(--fs-caption); font-weight: 400; color: var(--text-mute); }
+.b-td small { display: block; font: 400 11px var(--font); color: var(--text-mute); }
 .b-name { font: 500 14px var(--font); text-align: left; display: flex; flex-direction: column; gap: 1px; }
 .b-name span { overflow: hidden; text-overflow: ellipsis; }
 .b-grade { display: inline-flex; align-items: center; gap: var(--space-2); }
 .b-letter {
   display: inline-flex; align-items: center; justify-content: center;
   height: 20px; min-width: 26px; padding: 0 7px; border-radius: var(--r-btn);
-  border: 1px solid var(--line-2); font-family: var(--font); font-size: var(--fs-caption); font-weight: 600; line-height: 1;
+  border: 1px solid var(--line-2); font: 600 11px/1 var(--font); letter-spacing: 0.02em;
 }
 .b-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
 .b-letter.mid  { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
@@ -431,6 +413,6 @@ html[data-section="patterns"] #patterns .p-head h3 { display: none; }
 /* The record beside the page title is the title's 24px (ui.css), on its
    baseline. */
 html.embedded .sheet > header .h-brand { align-items: baseline; }
-html.embedded .sheet > header .wl { font-size: var(--fs-h2); }
+html.embedded .sheet > header .wl { font-size: 24px; }
 /* On its page the list's grading line stands alone over the rows. */
 html[data-section="list"] #every .l-head { justify-content: flex-end; }

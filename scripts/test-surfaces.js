@@ -853,21 +853,32 @@ async function openShell(cfg, state, opts) {
       },
     });
     await settle();
-    // THE GRADES WRITTEN (8.8): no chart for a handful of numbers, the
-    // figures oldest first, a comma between two, the average in the margin.
-    const figs = m.document.querySelectorAll('#p-trend .p-fig');
-    ok(figs.length === 5 && !m.$('p-trend').hidden && !m.$('p-figs').hidden, 'one figure per graded match');
-    ok(same(figs.map((f) => Number(f.textContent)), [58, 69, 82, 77, 95]), 'oldest first');
-    ok(m.$('p-trend').textContent === '58, 69, 82, 77, 95', 'written as a run of figures', m.$('p-trend').textContent);
-    ok(m.$('p-avg-num').textContent === '76' && !m.$('p-avg').hidden, 'the average beside them, in the margin');
-    ok(!m.document.querySelector('#p-trend .p-bar, #p-trend i'), 'and no bar is drawn');
+    const bars = m.document.querySelectorAll('#p-trend .p-bar');
+    ok(bars.length === 5 && !m.$('p-trend').hidden, 'one bar per graded match');
+    const read = bars.map((b) => ({
+      score: Number(b.querySelector('span').textContent),
+      // Wherever the score's height is set, on the bar or on its fill.
+      h: parseFloat(b.style.getPropertyValue('--h') || b.querySelector('i').style.getPropertyValue('--h')),
+      fill: b.querySelector('i'),
+    }));
+    ok(same(read.map((r) => r.score), [58, 69, 82, 77, 95]), 'oldest on the left');
+    ok(read.every((r) => r.h === r.score), 'each bar is its grade as a share of the full height', read.map((r) => r.h).join(','));
+    ok(read.every((r) => toneOf(r.fill) === toneFor(r.score)),
+      'and each bar is its letter\'s colour', read.map((r) => `${r.score}:${r.fill.className}`).join(' '));
+
+    // Structure, since nothing here measures layout: the number must not share
+    // a flex column with the fill, which is what capped every bar near 77%.
     const css = fs.readFileSync(path.join(RENDERER, 'matches', 'matches.css'), 'utf8');
     const rule = (sel) => {
       const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       return (css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
     };
     ok(/border-radius/.test(rule('.m-letter')), 'the rule reader finds a known rule');
-    ok(/var\(--font-mono\)/.test(rule('.p-fig')) && /tabular-nums/.test(rule('.p-fig')), 'each figure in Geist Mono, one width');
+    ok(/position:\s*absolute/.test(rule('.p-bar span')) && /position:\s*absolute/.test(rule('.p-bar i'))
+      && /position:\s*relative/.test(rule('.p-bar')) && !/flex-direction/.test(rule('.p-bar')),
+      'the number is positioned off the fill, outside the layout that sizes it');
+    ok(/height:\s*var\(--h/.test(rule('.p-bar i')) && /bottom:\s*calc\(var\(--h/.test(rule('.p-bar span')),
+      'and both read the same --h');
 
     const letters = m.document.querySelectorAll('#list .m-row .m-letter');
     ok(letters.length === 5 && letters.every((el) => toneOf(el) === TONE[el.textContent]),
@@ -907,21 +918,17 @@ async function openShell(cfg, state, opts) {
       'a cleared habit on its own row, and a row with none carries none');
     const checkingRow = items.find((it) => !it.querySelector('.m-letter'));
     ok(checkingRow && marksOf(checkingRow).length === 0, 'a match still being checked shows no mark');
-    const figs = m.document.querySelectorAll('#p-trend .p-fig');
-    // Oldest first: 70, 64, 81, 88.
-    ok(same(figs.map((b) => b.classList.contains('best')), [false, false, false, true]), 'the record\'s figure is marked, and only it');
-    ok(same(figs.map((b) => b.classList.contains('ticked')), [false, false, false, true]), 'and the pen ticks it');
-    ok(same(figs.map((b) => b.classList.contains('run')), [false, false, true, true]), 'the run\'s figures, the newest run.count, are marked');
-    ok(m.$('p-trend-note').textContent === 'Best in 4, 2 in a row at B or better', 'and the note under them says both in words',
-      m.$('p-trend-note').textContent);
+    const bars = m.document.querySelectorAll('#p-trend .p-bar');
+    // Oldest on the left: 70, 64, 81, 88.
+    ok(same(bars.map((b) => b.classList.contains('best')), [false, false, false, true]), 'the record\'s bar is outlined, and only it');
+    ok(same(bars.map((b) => b.classList.contains('run')), [false, false, true, true]), 'the run\'s bars, the newest run.count, are marked');
+    ok(/Best in 4/.test(bars[3].title) && /One of 2 in a row at B or better/.test(bars[2].title), 'and each says so on hover', bars[3].title);
     const hero = m.document.querySelector('#p-lists .gv-hero');
     const closed = m.document.querySelectorAll('#p-lists .gv-rowed details.gv-row');
     ok(hero && hero.querySelector('.gv-item-title').textContent === 'Peeked alone' && closed.length === 1,
       'the patterns are ranked: the top mistake a card, the rest closed rows');
-    // 8.8: how often in the margin, how many times and the trend as words beside the title.
-    const words = (n) => n.querySelectorAll('.p-chips > span').map((x) => x.textContent);
-    ok(hero.querySelector('.p-count').title === '2 of 4 recorded matches' && hero.querySelector('.p-count-fig').textContent === '2 of 4'
-      && same(words(hero), ['7 times', 'more often lately']), 'its count in the margin, then how many times and the trend', JSON.stringify(words(hero)));
+    const chips = (n) => n.querySelectorAll('.p-chips .gv-chip').map((x) => x.textContent);
+    ok(same(chips(hero), ['2 of 4 recorded matches', '7 times', 'more often lately']), 'its chips: how often, how many times, the trend', JSON.stringify(chips(hero)));
     ok(hero.querySelector('.p-trendword').classList.contains('worse') && closed[0].querySelector('.p-trendword').classList.contains('better'),
       'a mistake rising is worse, falling better');
     ok(closed[0].querySelector('.gv-row-body .gv-item-detail').textContent === 'Latest match: Died where nobody could trade in round 4.',
@@ -1122,10 +1129,10 @@ async function openShell(cfg, state, opts) {
     const mixed = await open({ matches: 9, fromRiot: 7, recorded: 2, enough: true, mistakes: [mistake] });
     ok(mixed.$('p-sub').textContent === 'Grades across your last 9 matches, patterns across the last 2 you recorded. A pattern needs two of them to count.',
       'with Riot only matches among them, the grades and the patterns each say what they are over', mixed.$('p-sub').textContent);
-    // Its count is in the margin since 8.8, the detail the latest sighting alone.
-    const count = mixed.document.querySelector('#p-lists .p-count');
-    ok(count && count.title === '2 of 2 recorded matches' && count.querySelector('.sr-only').textContent === '2 of 2 recorded matches',
-      'and a pattern is counted out of the recorded ones', count && count.title);
+    // Its count is a chip since 8.7, the detail the latest sighting alone.
+    const count = mixed.document.querySelector('#p-lists .p-chips .gv-chip');
+    ok(count && count.textContent === '2 of 2 recorded matches', 'and a pattern is counted out of the recorded ones',
+      count && count.textContent);
     const detail = mixed.document.querySelector('#p-lists .gv-item-detail');
     ok(detail && detail.textContent === 'Latest match: 3 of your 5 deaths went unanswered.', 'with the latest sighting as its detail',
       detail && detail.textContent);
@@ -1137,10 +1144,10 @@ async function openShell(cfg, state, opts) {
       && !riotOnly.document.querySelectorAll('#p-lists .gv-item').length, 'every match from Riot\'s record: no pattern, and why',
     riotOnly.$('p-sub').textContent);
     const one = await open({ matches: 8, fromRiot: 7, recorded: 1, enough: false });
-    ok(one.$('p-sub').textContent === 'One match recorded. Record the next one, and this shows what repeats.', 'one recorded match waits for the next',
+    ok(one.$('p-sub').textContent === 'One match recorded. After the next one, this shows what repeats.', 'one recorded match waits for the next',
       one.$('p-sub').textContent);
     const none = await open({ matches: 0, fromRiot: 0, recorded: 0, enough: false });
-    ok(none.$('p-sub').textContent === 'Press Start before your next two matches, and this shows what keeps happening across them.', 'and an empty library asks for two');
+    ok(none.$('p-sub').textContent === 'Play two matches and this shows what keeps happening across them.', 'and an empty library asks for two');
 
     // A breakdown row: two recorded matches on Abyss with the same mistake,
     // and one graded from Riot's record alone, saved by 8.0.3 with it too.
@@ -1246,8 +1253,8 @@ async function openShell(cfg, state, opts) {
       && prop(base, 'font-variant-numeric') === 'tabular-nums'
       && prop(rule(css, '.wl b'), 'font-weight') === 'inherit', 'Geist 600 with tabular figures, its bold tags inheriting it', base.trim());
     ok(prop(base, 'font-size') === prop(rule(css, '.h-brand h2'), 'font-size')
-      && prop(rule(ui, 'html.embedded .sheet > header .h-brand h2'), 'font-size') === 'var(--fs-h2)'
-      && prop(rule(css, 'html.embedded .sheet > header .wl'), 'font-size') === 'var(--fs-h2)',
+      && prop(rule(css, 'html.embedded .sheet > header .wl'), 'font-size') === prop(rule(ui, 'html.embedded .sheet > header .h-brand h2'), 'font-size')
+      && prop(rule(css, 'html.embedded .sheet > header .wl'), 'font-size') === '24px',
     'at the title\'s size in a window and as a page');
     ok(prop(rule(css, '.wl-w'), 'color') === 'var(--good)' && prop(rule(css, '.wl-l'), 'color') === 'var(--bad)'
       && prop(rule(css, '.wl-sep'), 'color') === 'var(--text-mute)', 'wins --good, losses --bad, the colon dim');
@@ -1656,11 +1663,11 @@ async function openShell(cfg, state, opts) {
       'and the coach\'s raw notes are not shown anywhere');
     const rc = (n) => v.$(`round-${n}`);
     ok(rc(1).classList.contains('quiet') && rc(1).children.length === 1 && same(classes(rc(1).children[0]), ['v-rn', 'v-chip', 'v-side', 'v-facts'])
-      && rc(1).querySelector('.v-facts').textContent === 'Survived, 2 kills',
+      && rc(1).querySelector('.v-facts').textContent === 'Survived  ·  2 kills',
     'a round with nothing to say is one line: its number, the result, the side and its facts', classes(rc(1).children[0]).join(' | '));
     ok(rows.filter((r) => r !== rc(1)).every((r) => !r.classList.contains('quiet')), 'and only that one');
     // The look from the recording, inside its round.
-    ok(same(classes(rc(2)), ['v-round-head', 'v-facts', 'v-moment']) && rc(2).querySelector('.v-facts').textContent === base.rounds[1].facts.join(', '),
+    ok(same(classes(rc(2)), ['v-round-head', 'v-facts', 'v-moment']) && rc(2).querySelector('.v-facts').textContent === base.rounds[1].facts.join('  ·  '),
       'a death the coach looked at is its round\'s row: the round, its facts once, then the look', classes(rc(2)).join(' | '));
     const m2 = v.$('moment-2');
     // NO STRIP UNDER A CLIP (8.7, the player's ask): the clip plays every
@@ -1863,7 +1870,7 @@ async function openShell(cfg, state, opts) {
     const shape = (li) => [li.classList.contains('brief') ? 'brief' : 'whole', ...li.children.map((c) => c.className.split(' ')[0]),
       ...li.querySelector('.gv-item-head').children.map((c) => c.className.split(' ')[0])].join(' ');
     const misses = items('What you missed');
-    ok(misses.slice(0, 3).every((li) => shape(li) === 'brief gv-item-head gv-item-title gv-rounds gv-badge')
+    ok(misses.slice(0, 3).every((li) => shape(li) === 'brief gv-item-head gv-dot gv-item-title gv-rounds gv-badge')
       && same(misses.slice(0, 3).map((li) => li.querySelector('.gv-rchip').textContent), ['R2', 'R9', 'R14'])
       && !misses.slice(0, 3).some((li) => li.querySelector('.gv-item-detail') || li.querySelector('.gv-item-fix'))
       && same(misses.slice(0, 3).map((li) => li.textContent), ["Dry peeksR2coach's look", "Caught aloneR9coach's look", "Walked into crossfiresR14coach's look"]),
@@ -1875,11 +1882,11 @@ async function openShell(cfg, state, opts) {
     'and its chip lands on the round, where both of them are');
     // Ranked on the review (8.7, insightLists hero): any other entry is one
     // closed row with its sentences inside, rather than said in full.
-    const ROW = 'whole gv-row gv-item-title gv-count gv-badge';
-    ok(same(misses.slice(3).map(shape), ['whole gv-row gv-item-title gv-count', ROW, ROW])
+    const ROW = 'whole gv-row gv-dot gv-item-title gv-count gv-badge';
+    ok(same(misses.slice(3).map(shape), ['whole gv-row gv-dot gv-item-title gv-count', ROW, ROW])
       && misses.slice(3).every((li) => li.querySelector('details.gv-row') && !li.querySelector('details.gv-row').open)
       && misses[4].querySelector('.gv-item-detail').textContent === 'Round 9: You were somewhere else entirely.'
-      && misses[5].querySelector('.gv-item-fix').textContent === 'Stay where a teammate can trade you.',
+      && misses[5].querySelector('.gv-item-fix').textContent === 'FixStay where a teammate can trade you.',
     'any other entry keeps its sentences, closed: a miss that is no look\'s, one whose sentences its round does not say, and one for a round whose frame was unclear',
     misses.slice(3).map(shape).join(' / '));
     const repeated = items('Your repeated mistakes').find((li) => li.querySelector('.gv-item-title').textContent === 'Dry peeks');
@@ -1892,8 +1899,8 @@ async function openShell(cfg, state, opts) {
     'the lists drawn with no round to jump to, or without the review\'s rule, keep every sentence: the library\'s and Home\'s are as they were');
     // The order of the page: the score, the grade and the read, then the mistakes, then the rounds.
     const order = v.$('vreview').children.filter((c) => !c.hidden).map((c) => c.id || c.className);
-    ok(same(order, ['v-verdict', 'v-focus-wrap', 'v-proof-wrap', 'grade-host', 'v-summary-wrap', 'insights-host', 'v-rounds-wrap', 'v-foot']),
-      'the Verdict, the fix and the rounds that prove it, the grade and the coach\'s read, then the repeated mistakes, then the rounds', order.join(' | '));
+    ok(same(order, ['v-verdict', 'grade-host', 'v-summary-wrap', 'insights-host', 'v-rounds-wrap', 'v-foot']),
+      'the Verdict, the grade and the coach\'s read first, then the repeated mistakes, then the rounds', order.join(' | '));
     ok(!DASHES.test(vText), 'with no dash anywhere on the page');
     const gone = await open({ ...base, aiLog: 'gone' });
     // Five frames, round 2's four being under its clip, which shows no strip (8.7).
@@ -2030,9 +2037,9 @@ async function openShell(cfg, state, opts) {
     ok(none.$('v-patterns').hidden && !none.document.querySelectorAll('#v-patterns li').length, 'and no pattern left is no lines at all');
     // A focus with no read written above it: no empty line under the heading.
     const read = await open({ ...base, summary: 'You lost 2 to 5.' });
-    ok(v.$('v-summary').hidden && v.$('v-summary-wrap').hidden && !v.$('v-focus-wrap').hidden && v.$('v-focus-wrap').parentNode === v.$('vreview')
+    ok(v.$('v-summary').hidden && v.$('v-summary-wrap').hidden && !v.$('v-focus-wrap').hidden && v.$('v-focus-wrap').parentNode === v.$('v-verdict')
       && !read.$('v-summary').hidden && !read.$('v-summary-wrap').hidden && read.$('v-summary').textContent === 'You lost 2 to 5.',
-    'with no read written there is no heading over nothing: the focus is its own line after the Verdict (8.8), and the read shows only with lines');
+    'with no read written there is no heading over nothing: the focus is the Verdict\'s own line (8.7), and the read shows only with lines');
   });
 
   // STRUCTURE INSTEAD OF TEXT WALLS (8.7): the Verdict first, then this
@@ -2095,7 +2102,7 @@ async function openShell(cfg, state, opts) {
       && v.document.querySelector('#v-verdict .vd-score').textContent === '78'
       && want.stat && !v.$('v-stat').hidden && v.$('v-stat').querySelector('.vd-stat-value').textContent === want.stat.value
       && v.$('v-stat').querySelector('.vd-stat-label').textContent === want.stat.label
-      && !/verdict/i.test(v.$('v-verdict').querySelector('.vd-line').textContent) && !v.$('v-verdict').textContent.includes(want.reason),
+      && !/verdict/i.test(v.$('v-verdict').querySelector('.vd-top').textContent) && !v.$('v-verdict').textContent.includes(want.reason),
     'the Verdict first, as the share image draws it: its letter in the one grade colour, the number out of 100 and the standout, no VERDICT word and no reason line',
     want && JSON.stringify(want.stat));
     // The tile's URL is VerdictCard.iconUrl's, resolved against the script's
@@ -2115,8 +2122,8 @@ async function openShell(cfg, state, opts) {
     ok(v.document.querySelectorAll('#v-verdict #v-stats .v-stat').length === 4 && v.$('v-score').textContent === '13 : 11',
       'with the result\'s score and Riot\'s scoreboard folded into it');
     const order = v.$('vreview').children.filter((c) => !c.hidden).map((c) => c.id || c.className);
-    ok(same(order, ['v-verdict', 'v-prog', 'v-focus-wrap', 'v-proof-wrap', 'grade-host', 'v-summary-wrap', 'insights-host', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap', 'v-foot']),
-      'the Verdict, the strip against the matches before, the fix, Why, the grade, the read, the lists, the rounds, then what is kept closed', order.join(' | '));
+    ok(same(order, ['v-verdict', 'v-prog', 'grade-host', 'v-summary-wrap', 'insights-host', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap', 'v-foot']),
+      'the Verdict, the strip against the matches before, the grade, the read, the lists, the rounds, then what is kept closed', order.join(' | '));
     const progs = v.document.querySelectorAll('#v-prog .gv-prog');
     ok(same(progs.map((p) => p.textContent), [PROGRESS.lines[0].text, PROGRESS.lines[1].text]) && same(progs.map(toneOf), ['good', 'bad'])
       && same(v.bridge.invoked.filter((x) => x[0] === C.PROGRESS_GET), [[C.PROGRESS_GET, ID]]),
@@ -2126,25 +2133,20 @@ async function openShell(cfg, state, opts) {
     ok(v.document.querySelectorAll('#v-prog .gv-progs').length === 1 && v.document.querySelectorAll('#v-prog .gv-prog').length === 2,
       'painted again, the strip is drawn again rather than a second time under the first');
     const was = v.$('v-focus-was');
-    ok(!was.hidden && was.textContent === PROGRESS.lines[2].text && was.classList.contains('good') && was.classList.contains('pen-note')
-      && v.$('v-focus-wrap').children.indexOf(was) > v.$('v-focus-wrap').children.indexOf(v.$('v-focus')),
-    'last match\'s top mistake and how it went, the pen\'s note in the margin beside the focus (8.8), not a line above it nor among the chips', was.textContent);
+    ok(!was.hidden && was.textContent === PROGRESS.lines[2].text && was.classList.contains('good')
+      && v.$('v-focus-wrap').children.indexOf(was) < v.$('v-focus-wrap').children.indexOf(v.$('v-focus')),
+    'last match\'s top mistake and how it went, above the focus and not among the chips', was.textContent);
     ok(same(v.$('v-summary').children.map((li) => li.textContent), base.summaryLines) && v.$('v-focus').textContent === base.focus,
       'the coach\'s read a line a sentence, the focus under it');
     // The grade compact, its evidence chips, its bars indexed for the reveal.
     const card = v.document.querySelector('#grade-host .gv-grade');
     const chips = card ? card.querySelectorAll('.gv-chip') : [];
-    ok(card && card.classList.contains('compact') && card.classList.contains('table') && !card.querySelector('.gv-score') && !card.querySelector('.gv-top'),
-      'the grade a ruled table after Why, its letter and number said once in the Verdict');
-    ok(same(chips.map((c) => c.textContent), ['8 deaths in 13 rounds', '382 combat score a round'])
-      && same(chips.map((c) => (c.querySelector('b') || { textContent: null }).textContent), ['8', '382'])
-      && card.querySelectorAll('.gv-cat')[0].querySelector('.gv-cat-ev').title === '8 deaths in 13 rounds\nfirst to die in 3 of 13 rounds'
-      && same(card.querySelectorAll('.gv-bar i').map((i) => i.style['--f']), ['0.62', '0.91']),
-    'one line of evidence a category, its leading number bold, the rest on its title, and each bar drawn at its value', chips.map((c) => c.textContent).join(' | '));
-    const bestRow = card.querySelector('.gv-cat.best');
-    ok(bestRow && bestRow.querySelector('.gv-cat-name').textContent === 'Impact' && bestRow.querySelector('.gv-cat-name .pen-tick')
-      && card.querySelectorAll('.pen-tick').length === 1,
-    'the pen ticks the best category, and only it');
+    ok(card && card.classList.contains('compact') && !card.querySelector('.gv-score') && !card.querySelector('.gv-top'),
+      'the grade compact under the Verdict, its letter and number said once');
+    ok(same(chips.map((c) => c.textContent), ['8 deaths in 13 rounds', 'first to die in 3 of 13 rounds', '382 combat score a round'])
+      && same(chips.map((c) => (c.querySelector('b') || { textContent: null }).textContent), ['8', null, '382'])
+      && same(card.querySelectorAll('.gv-bar i').map((i) => i.style['--i']), ['0', '1']),
+    'each piece of evidence a chip, its leading number bold, and each bar its place for the reveal', chips.map((c) => c.textContent).join(' | '));
     const LEAD = v.window.GradeView.LEAD_NUM;
     ok(LEAD.test('8 deaths in 13 rounds') && LEAD.test('25% headshots') && LEAD.test('1.45 kills a round')
       && !LEAD.test('first to die in 3 of 13 rounds') && !LEAD.test('2026') && !LEAD.test('3rd round'),
@@ -2153,25 +2155,14 @@ async function openShell(cfg, state, opts) {
       'and a card drawn without the reveal carries no index');
     // The lists ranked.
     const heroes = v.document.querySelectorAll('#insights-host .gv-hero');
-    const notes = v.document.querySelectorAll('#v-proof .v-proof-note');
-    ok(!heroes.length && !v.$('v-proof-wrap').hidden && v.$('v-proof-lead').textContent === 'Died where nobody could trade'
-      && same(notes.map((n) => n.querySelector('.v-proof-n').textContent), ['R2', 'R3'])
-      && same(notes.map((n) => n.querySelector('.v-proof-said').textContent), [base.rounds[1].why, base.rounds[2].why])
-      && same(notes.map((n) => n.querySelector('.v-proof-go').textContent), ['Open round 2', 'Open round 3'])
-      && v.$('v-proof').querySelector('.pen-bracket') && v.$('v-focus').querySelector('.pen-underline'),
-    'Why: the top mistake\'s rounds that prove the fix, a note each with its number in the margin and a way to it, the pen\'s bracket beside them and its underline under the fix',
-    notes.map((n) => n.textContent).join(' | '));
+    const action = heroes[0] && heroes[0].querySelector('.gv-action');
+    ok(heroes.length === 1 && heroes[0].querySelector('.gv-item-title').textContent === 'Died where nobody could trade'
+      && action && action.textContent === '→Fix' + base.insights.mistakes[0].fix,
+    'the top mistake is the hero, its fix the line to act on', action && action.textContent);
     const rows = v.document.querySelectorAll('#insights-host details.gv-row');
-    ok(rows.length === 3 && rows.every((d) => !d.open) && same(rows.map((d) => d.querySelector('.gv-count').textContent), ['2 rounds', '2 rounds', '1 round'])
-      && rows[1].querySelector('.gv-item-detail').textContent === base.insights.mistakes[1].detail,
-    'every entry one closed row, its rounds counted, its sentences inside: the top one leads as Why', rows.map((d) => d.textContent).join(' | '));
-    notes[0].querySelector('.v-proof-go').click();
-    ok(v.document.activeElement === v.$('round-2') && v.$('round-2').classList.contains('open'), 'a note\'s button opens its round');
-    // Folded again, so the rounds below are read as served() left them.
-    v.$('round-2').querySelector('.v-fold').click();
-    ok(same(v.document.querySelectorAll('#v-rounds .v-rn.pen-host').map((b) => b.textContent), ['R2', 'R3'])
-      && v.document.querySelectorAll('#v-rounds .pen-circle').length === 2,
-    'the pen circles only the rounds Why names, in the sheet below');
+    ok(rows.length === 2 && rows.every((d) => !d.open) && same(rows.map((d) => d.querySelector('.gv-count').textContent), ['2 rounds', '1 round'])
+      && rows[0].querySelector('.gv-item-detail').textContent === base.insights.mistakes[1].detail,
+    'every other entry one closed row, its rounds counted, its sentences inside', rows.map((d) => d.textContent).join(' | '));
     const lib = v.window.GradeView.insightLists(base.insights, {});
     ok(!lib.querySelectorAll('.gv-hero').length && !lib.querySelectorAll('.gv-row').length && lib.querySelectorAll('.gv-item-detail').length === 3,
       'the library and Home, asking for no ranking, draw the lists as they were');
@@ -2223,10 +2214,9 @@ async function openShell(cfg, state, opts) {
     sheet.querySelector('.sh-opt[data-size="post"]').click();
     sheet.querySelector('.sh-opt[data-ground="dark"]').click();
     await settle();
-    ok(same(drawn.slice(-1), [[78, 'post', false]]) && sheet.querySelector('.sh-opt[data-size="post"]').getAttribute('aria-checked') === 'true'
-      && sheet.querySelector('.sh-opt[data-size="card"]').getAttribute('aria-checked') === 'false' && sheet.querySelector('.sh-opt[data-ground="dark"]').getAttribute('aria-pressed') === 'true'
-      && sheet.querySelector('.sh-words').getAttribute('role') === 'radiogroup' && !sheet.querySelector('.sh-words.sh-seg'),
-    'Post and Dark drawn again live, the size a radio of a row of words (8.8, three are not an either/or), the ground a capsule pressed', JSON.stringify(drawn));
+    ok(same(drawn.slice(-1), [[78, 'post', false]]) && sheet.querySelector('.sh-opt[data-size="post"]').getAttribute('aria-pressed') === 'true'
+      && sheet.querySelector('.sh-opt[data-size="card"]').getAttribute('aria-pressed') === 'false' && sheet.querySelector('.sh-opt[data-ground="dark"]').getAttribute('aria-pressed') === 'true',
+    'Post and Dark drawn again live, the buttons pressed by what is picked', JSON.stringify(drawn));
     v.$('sh-save').click();
     v.$('sh-copy').click();
     await settle();
@@ -2335,16 +2325,15 @@ async function openShell(cfg, state, opts) {
     await v.whole();
     const sc = v.score();
     ok(v.root().classList.contains('revealing') && !v.root().classList.contains('reveal-done')
-      && sc && !sc.classList.contains('counting') && sc.style['--to'] === undefined && sc.textContent === '78',
-    'whole, it is revealed: the number is its own text, never counted up (8.8)',
+      && sc && sc.classList.contains('counting') && sc.style['--to'] === '78' && sc.textContent === '78',
+    'whole, it is revealed: the number counted up in CSS to the --to the page sets, the real number still its text',
     sc && `${sc.className} --to=${sc.style['--to']} "${sc.textContent}"`);
-    ok(same(v.document.querySelectorAll('#grade-host .gv-bar i').map((i) => i.style['--f']), ['0.62', '0.91'])
-      && v.document.querySelector('#grade-host .gv-cat.best .pen-tick'),
-    'each bar drawn at its value, and the pen\'s tick by the best category');
-    await v.after(199);
-    ok(!v.heard.length, 'nothing heard before the pen starts', v.heard.join(' '));
+    ok(same(v.document.querySelectorAll('#grade-host .gv-bar i').map((i) => i.style['--i']), ['0', '1']),
+      'each bar has its place in the stagger');
+    await v.after(419);
+    ok(!v.heard.length, 'nothing heard before the letter has stamped in', v.heard.join(' '));
     await v.after(1);
-    ok(same(v.heard, ['reveal']), 'the pen\'s first stroke is heard, once, as the reveal cue', v.heard.join(' '));
+    ok(same(v.heard, ['reveal']), 'the letter landing is heard, once, as the reveal cue', v.heard.join(' '));
     await v.after(2000);
     ok(v.root().classList.contains('reveal-done') && !v.score().classList.contains('counting') && same(v.heard, ['reveal']),
       'then it ends on its own, the end state the page as it is painted, and heard no more', v.root().className);
@@ -2383,8 +2372,8 @@ async function openShell(cfg, state, opts) {
     sealed.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'forward' });
     await settle();
     ok(sealed.root().classList.contains('revealing') && !sealed.heard.length, 'on screen at last, it is revealed then');
-    await sealed.after(200);
-    ok(same(sealed.heard, ['reveal']), 'and heard as the pen starts', sealed.heard.join(' '));
+    await sealed.after(420);
+    ok(same(sealed.heard, ['reveal']), 'and heard as its letter lands', sealed.heard.join(' '));
 
     // A click or a key ends it at once, the letter heard as it lands then.
     const skip = await page();
@@ -2426,13 +2415,17 @@ async function openShell(cfg, state, opts) {
     // In the CSS alone, on the tokens, and not when asked for less motion.
     const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
     const gcss = fs.readFileSync(path.join(RENDERER, 'shared', 'grade-view.css'), 'utf8');
-    const rpart = rcss.slice(rcss.indexOf('THE REVEAL (8.8'), rcss.indexOf('.vd-said {'));
-    const gpart = gcss.slice(gcss.indexOf('/* The rule: the hairline'), gcss.indexOf('.gv-bar i.good'));
-    ok(rpart.length > 100 && rpart.includes('animation: fadeIn 200ms var(--ease-out) both')
-      && !/@property|counter\(|scale\(|vdStamp/.test(rpart) && !/vdCount|vdStamp/.test(rcss),
-    'the letter and the number fade in over 200ms, with no count up and no stamp anywhere (8.8): the pen is the reveal\'s one moment');
-    ok(gpart.includes('transform: scaleX(var(--f, 0))') && !gcss.includes('gvFill') && !/\.revealing[^{]*\.gv-(?:bar|prog)/.test(gcss),
-    'the bars are drawn at their value by scaleX, and nothing in the grade moves on the reveal');
+    const rpart = rcss.slice(rcss.indexOf('THE REVEAL (8.7'), rcss.indexOf('.vd-said {'));
+    const gpart = gcss.slice(gcss.indexOf("The review's reveal (8.7"), gcss.indexOf('@keyframes gvFill'));
+    ok(rpart.includes("@property --n { syntax: '<integer>'; initial-value: 0; inherits: false; }")
+      && rpart.includes('counter-reset: n var(--n)') && rpart.includes('content: counter(n)')
+      && rpart.includes('to { --n: var(--to); }') && rpart.includes('transform: scale(1.35)')
+      && rpart.includes('vdStamp var(--t-slow) var(--ease-spring) both') && rpart.includes('animation-delay: var(--t-slow)')
+      && rpart.includes('animation-delay: 0s'),
+    'the count is @property and counter(), the letter stamps from 1.35 on the spring after --t-slow, and less motion waits for nothing');
+    ok(gpart.includes('calc(var(--t-slow) * 2 + var(--i, 0) * 80ms)') && gcss.includes('from { transform: scaleX(0); }')
+      && gpart.includes('animation: riseIn') && gcss.includes('.revealing:not(.reveal-done) .gv-prog { animation-delay: 0s'),
+    'the bars fill from nothing by their place, the chips rise after them, and less motion waits for nothing');
     ok(![rpart, gpart].some((c) => c.includes('gradient') || c.includes('--signal') || c.includes('--red')),
       'with no gradient, and no signal: a reveal is no alarm');
     const js = fs.readFileSync(path.join(RENDERER, 'review', 'review.js'), 'utf8');
@@ -3013,29 +3006,24 @@ async function openShell(cfg, state, opts) {
       'its dot is still, as the loading screen is, and nothing of it is a gradient');
   });
 
-  // THE NOTEBOOK (8.8): five numbers are not a chart. The trend is written,
-  // oldest first, the sentence before it naming the best, and the pen ticks
-  // that figure; the recent rows follow it in the same block.
-  await section('Home\'s grade trend is written as figures, the pen ticking the best:', async () => {
+  // "Bring the bars lower so it's balanced and there's no dead space."
+  await section('Home\'s grade trend fills its card, each bar its grade of the whole height:', async () => {
     const h = await openHome();
-    const figs = h.document.querySelectorAll('#trend .trend-fig');
-    ok(!h.$('trend').hidden && same(figs.map((f) => f.textContent), ['58', '97', '74', '64', '83']),
-      'a figure per graded match, oldest first', figs.map((f) => f.textContent).join(','));
-    ok(h.$('trend').querySelector('.trend-say').textContent === 'Your last 5 grades, oldest first, best 97',
-      'the words before them say what they are and which was best', h.$('trend').querySelector('.trend-say').textContent);
-    const best = figs.filter((f) => f.classList.contains('best'));
-    ok(best.length === 1 && best[0].textContent === '97' && best[0].querySelector('svg.pen-tick'),
-      'the best, and only it, carries the pen\'s tick');
-    ok(!h.document.querySelector('#trend-bars, .bar, .bar-track') && !/\.bars\s*\{|barUp/.test(homeCss),
-      'and no bar chart is drawn or styled');
-    ok(h.$('trend').parentNode.parentNode === h.$('recent') && h.$('recent-list').parentNode === h.$('trend').parentNode,
-      'the trend leads the recent rows in one block');
-    ok(h.$('trend-avg').textContent === 'Average 75' && !h.$('trend-avg').hidden, 'the average in the block\'s margin');
-    ok(cssProp(homeRule('.hint'), 'font-size') === 'var(--fs-ui)', 'the rule reader finds a known rule');
-    const rows = h.document.querySelectorAll('#recent-list .r-row');
-    ok(rows.length === 5 && rows.every((r) => !r.querySelector('.r-mark')) && rows[0].querySelector('.r-meta').textContent === 'Jett, Competitive'
-      && !h.$('recent-list').textContent.includes(String.fromCharCode(183)),
-    'each row says who and how in one comma line, with no badge and no middle dot', rows[0] && rows[0].textContent);
+    const tracks = h.document.querySelectorAll('#trend-bars .bar-track');
+    const read = tracks.map((t) => ({ h: t.style.getPropertyValue('--h'), num: (t.querySelector('.bar-num') || {}).textContent, bar: t.querySelector('.bar') }));
+    ok(tracks.length === 5 && same(read.map((r) => r.num), ['58', '97', '74', '64', '83']) && read.every((r) => r.bar && r.h === `${r.num}%`),
+      'a track per match, oldest first, its --h the grade as a share of the whole', JSON.stringify(read.map((r) => r.h)));
+    ok(read.every((r) => toneOf(r.bar) === toneFor(Number(r.num))), 'each bar its letter\'s colour, the number beside it');
+    ok(cssProp(homeRule('.hint'), 'font-size') === '14px', 'the rule reader finds a known rule');
+    // 120px tall whatever stands beside it (8.7): the chart is a section, not
+    // a second hero, and no map is printed under a bar.
+    const homeCss = fs.readFileSync(path.join(RENDERER, 'home', 'home.css'), 'utf8');
+    ok(cssProp(homeRule('.bars'), 'height') === '120px' && !cssProp(homeRule('#trend'), 'flex') && /\.rows > \.row:last-child \{[^}]*align-items: flex-start;/.test(homeCss)
+      && cssProp(homeRule('.bar-track'), 'flex') === '1 1 auto' && !h.document.querySelectorAll('#trend-bars .bar-map').length,
+    'the bars keep to 120px over their baseline beside any list, and carry no map under them');
+    ok(cssProp(homeRule('.bar'), 'position') === 'absolute' && cssProp(homeRule('.bar'), 'height') === 'var(--h, 0%)'
+      && cssProp(homeRule('.bar-num'), 'position') === 'absolute' && /^calc\(var\(--h, 0%\)/.test(cssProp(homeRule('.bar-num'), 'bottom')),
+    'the bar and its number both read --h, the number off the bar\'s top rather than stacked in its column');
   });
 
   // "Show the player's rank journey and their most recent RR loss and gain."
@@ -3068,8 +3056,8 @@ async function openShell(cfg, state, opts) {
     ok(h.$('rank').parentNode === side && side.children.indexOf(h.$('rank')) === side.children.indexOf(h.$('focus')) + 1,
       'it sits under the next match\'s focus');
     const full = await openHome({ mistakes: [MISTAKE] });
-    ok(!full.$('top').hidden && full.$('rank').parentNode === full.$('side') && full.$('side').children.indexOf(full.$('rank')) === full.$('side').children.indexOf(full.$('focus')) + 1
-      && !full.$('rank').hidden, 'with the most repeated mistake shown too, it keeps its place under the focus: the notebook is one column (8.8)');
+    ok(!full.$('top').hidden && full.$('rank').parentNode === full.$('lower') && full.$('lower').children[0] === full.$('rank')
+      && !full.$('rank').hidden, 'with the focus and the most repeated mistake beside the last match, it stands above the grade trend');
     const noFocus = await openHome({ mistakes: [MISTAKE], focus: null });
     ok(noFocus.$('focus').hidden && !noFocus.$('top').hidden && noFocus.$('rank').parentNode === noFocus.$('side')
       && !noFocus.$('rank').hidden, 'with the mistake but no focus (a match graded from Riot\'s record alone), the column has the room, and it stays there');
@@ -3152,7 +3140,7 @@ async function openShell(cfg, state, opts) {
     let first = null;
     const h = await openHome({ history: () => new Promise((r) => { if (!first) first = r; }) });
     ok(first && !h.$('content').hidden && named(h) === 'Valorant', 'the setup: Valorant painted, its first rank answer still out');
-    ok(h.bridge.listening(C.PUSH_GAME) === 1 && h.bridge.listening(C.PUSH_REVIEWS) === 1 && h.bridge.listening(C.PUSH_STATE) >= 1,
+    ok(h.bridge.listening(C.PUSH_GAME) === 1 && h.bridge.listening(C.PUSH_REVIEWS) === 1 && h.bridge.listening(C.PUSH_STATE) === 1,
       'and Home already listening for a change of game, a review saved and the Riot ID',
       `game ${h.bridge.listening(C.PUSH_GAME)}, reviews ${h.bridge.listening(C.PUSH_REVIEWS)}, state ${h.bridge.listening(C.PUSH_STATE)}`);
     h.bridge.emit(C.PUSH_GAME, { id: 'lol', label: 'League of Legends' });
@@ -3206,8 +3194,8 @@ async function openShell(cfg, state, opts) {
     await settle();
     if (hold) hold();
     await settle();
-    const came = ['last', 'focus', 'recent'].filter((id) => q.$(id).classList.contains('card-in'));
-    ok(!q.$('content').hidden && came.length === 3,
+    const came = ['last', 'focus', 'trend', 'recent'].filter((id) => q.$(id).classList.contains('card-in'));
+    ok(!q.$('content').hidden && came.length === 4,
       'the first paint overtaken by a review saved meanwhile, its cards arrive with the paint that lands', `arrived: ${came.join(', ')}`);
   });
 
@@ -3287,7 +3275,7 @@ async function openShell(cfg, state, opts) {
     await repainted(st);
     const graph = (st.document.querySelector('.rg-title') || {}).textContent || '';
     const h = await openHome({ history: () => reset });
-    ok(/your last 3 competitive games/.test(graph) && /last 3 rated games, from Gold 1 to Gold 2/.test(h.$('rank-line').getAttribute('aria-label') || ''),
+    ok(/last 3 comp games/.test(graph) && /last 3 rated games, from Gold 1 to Gold 2/.test(h.$('rank-line').getAttribute('aria-label') || ''),
       'after an act reset both draw the three games since it', `Stats "${graph}", Home "${h.$('rank-line').getAttribute('aria-label')}"`);
   });
 
@@ -3764,7 +3752,7 @@ async function openShell(cfg, state, opts) {
     ok(l.$('r-deaths').classList.contains('v-rounds') && same(ld(1).children.map((c) => c.className.split(' ')[0]), ['v-round-head', 'v-moment'])
       && ld(3).classList.contains('quiet') && ld(3).children.length === 1 && ld(3).querySelector('.v-round-head .v-look-what'),
     'drawn as a Valorant review draws its rounds: a death with its clip a row with the clip beside its fact, one with its fact alone a line');
-    ok(l.$('r-meta').textContent === 'Middle in CLASSIC, 31:04', 'and its line about the game is one sentence, as the Valorant one is',
+    ok(l.$('r-meta').textContent === 'Middle  ·  CLASSIC  ·  31:04', 'and its line about the game is in middots, as the Valorant one is',
       l.$('r-meta').textContent);
     // In fixed columns a number past the last sat alone on a second row.
     const scoreRule = (rcss.match(/(?:^|\n)\.scoreline \{([^}]*)\}/) || [])[1] || '';
@@ -3874,8 +3862,8 @@ async function openShell(cfg, state, opts) {
     ok(same(controls.map((b) => b.getAttribute('aria-label')),
       ['Play the clip', 'Back to the start', 'Back one second', 'Back one frame', 'Forward one frame', 'Forward one second'])
       && controls.every((b) => b.getAttribute('type') === 'button' || b.type === 'button')
-      && same(controls.map((b) => b.title), ['Play the clip (K)', 'Back to the start (Home)', 'Back one second (Left arrow)', 'Back one frame (,)',
-        'Forward one frame (.)', 'Forward one second (Right arrow)'])
+      && same(controls.map((b) => b.title), ['Play the clip (K)', 'Back to the start (Home)', 'Back one second (←)', 'Back one frame (,)',
+        'Forward one frame (.)', 'Forward one second (→)'])
       && same(controls.map((b) => b.getAttribute('aria-keyshortcuts')), ['Space K', 'Home', 'ArrowLeft', ',', '.', 'ArrowRight'])
       && controls.every((b) => b.classList.contains('icon-btn') && b.querySelector('svg')),
     'play, back to the start, a second and a frame each way: each a button with its name, the key that does the same and its mark',
@@ -4931,7 +4919,7 @@ async function openShell(cfg, state, opts) {
     ok(!root.classList.contains('page-armed') && root.dataset.pageDir === 'forward',
       'told to come in from the right, it takes that side first, then comes in');
     const cards = arrived();
-    ok(cards.length >= 2 && same(cards.map((c) => c.style.getPropertyValue('--i')), cards.map((_c, i) => String(i))),
+    ok(cards.length >= 3 && same(cards.map((c) => c.style.getPropertyValue('--i')), cards.map((_c, i) => String(i))),
       'and its cards arrive one after another as it does', `${cards.length} cards`);
     h.bridge.emit(C.PUSH_PAGE, { phase: 'leave' });
     ok(root.classList.contains('page-leaving'), 'told another page is coming, it fades');
@@ -4951,13 +4939,13 @@ async function openShell(cfg, state, opts) {
     ok(!arrived().length, 'a review saved while it is open repaints it without the cards arriving again');
     h.bridge.emit(C.PUSH_GAME, { id: 'lol', label: 'League of Legends' });
     await settle();
-    ok(arrived().length >= 2, 'a change of game brings them in again');
+    ok(arrived().length >= 3, 'a change of game brings them in again');
 
     // A window of its own (no ?embed): never armed, and what waits for it to
     // be on screen runs at once.
     const own = loadSurface('home', { handlers: homeHandlers });
     await settle();
-    ok(!own.document.documentElement.classList.contains('page-armed') && own.document.querySelectorAll('.home .card.card-in').length >= 2
+    ok(!own.document.documentElement.classList.contains('page-armed') && own.document.querySelectorAll('.home .card.card-in').length >= 3
       && !own.bridge.sent.some((s) => s[0] === C.PAGE_READY), 'a surface that is not a page is never armed, and never says ready');
 
     // The CSS it moves by: armed at once, never animated into, and never for
@@ -4970,16 +4958,19 @@ async function openShell(cfg, state, opts) {
     const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
     ok(/clip:/.test(rule(ui, '.sr-only')) && prop(rule(ui, '.sr-only'), 'position') === 'absolute', 'the rule and property readers find a known rule');
     const armedCss = rule(ui, 'html.page-armed body');
-    ok(prop(armedCss, 'opacity') === '0' && prop(armedCss, 'transition') === 'none' && !prop(armedCss, 'transform'),
-      'armed: invisible, in place (8.8: no slide), and with no transition into it', armedCss.trim());
-    ok(prop(armedCss, 'animation') === 'page-disarm 0s linear 1.2s forwards' && ui.includes('@keyframes page-disarm { to { opacity: 1; } }'),
+    ok(prop(armedCss, 'opacity') === '0' && prop(armedCss, 'transition') === 'none'
+      && prop(armedCss, 'transform') === 'translateX(var(--page-from, 0px))', 'armed: invisible, offset, and with no transition into it', armedCss.trim());
+    ok(prop(armedCss, 'animation') === 'page-disarm 0s linear 1.2s forwards' && ui.includes('@keyframes page-disarm { to { opacity: 1; transform: none; } }'),
       'and let in by itself after 1.2 seconds if main never answers');
-    ok(!/--page-from|translateX/.test(ui.replace(/\/\*[\s\S]*?\*\//g, '')), 'no page slides in from a side');
-    ok(prop(rule(ui, 'html.embedded body'), 'transition') === 'opacity 150ms var(--ease-out)',
-      'coming in is one fade, 150ms on --ease-out, opacity alone');
-    ok(prop(rule(ui, 'html.page-leaving body'), 'transition') === 'opacity var(--t-fast) var(--ease-out)', 'leaving fades on --t-fast');
-    ok(!/html\.page-(?:armed|leaving) body,?\s*[^{]*\{ opacity: 1; transform: none; \}/.test(ui),
-      'a fade is no motion, so it stays with less motion asked for (8.8)');
+    ok(prop(rule(ui, 'html.page-armed[data-page-dir="forward"]'), '--page-from') === '12px'
+      && prop(rule(ui, 'html.page-armed[data-page-dir="back"]'), '--page-from') === '-12px', 'forward from 12px right, back from 12px left');
+    ok(prop(rule(ui, 'html.embedded body'), 'transition') === 'opacity var(--t-med) var(--ease-expo), transform var(--t-med) var(--ease-expo)',
+      'coming in is --t-med on --ease-expo, opacity and transform only');
+    ok(prop(rule(ui, 'html.page-leaving body'), 'transition') === 'opacity var(--t-fast) var(--ease)', 'leaving fades on --t-fast');
+    const CUT = /@media \(prefers-reduced-motion: reduce\) \{\s*html\.page-armed body,\s*html\.page-leaving body \{ opacity: 1; transform: none; \}/;
+    ok(CUT.test('@media (prefers-reduced-motion: reduce) {\n  html.page-armed body,\n  html.page-leaving body { opacity: 1; transform: none; }'),
+      'the reduced motion reader matches the rule it looks for');
+    ok(CUT.test(ui), 'asked for less motion, a page is painted as it is, armed or leaving: a plain cut with no blank frame');
     ok(prop(rule(ui, 'html.embedded .sheet'), 'animation') === 'none', 'and a surface\'s own card entrance does not play on top of it');
   });
 
@@ -4992,7 +4983,7 @@ async function openShell(cfg, state, opts) {
     };
     const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
     ok(prop(rule(ui, '.reveal'), 'grid-template-rows') === '0fr' && prop(rule(ui, '.reveal.open'), 'grid-template-rows') === '1fr'
-      && prop(rule(ui, '.reveal'), 'transition') === 'grid-template-rows var(--t-med) var(--ease-out)'
+      && prop(rule(ui, '.reveal'), 'transition') === 'grid-template-rows var(--t-med) var(--ease-expo)'
       && prop(rule(ui, '.reveal > .reveal-clip'), 'overflow') === 'hidden',
     'opening in place is one grid row from 0fr to 1fr on --t-med, its clip hiding the rest');
 
@@ -5000,7 +4991,7 @@ async function openShell(cfg, state, opts) {
     const shellCss = read('shell/shell.css');
     ok(!/background/.test(rule(shellCss, '.nav-item[aria-current="page"]')) && rule(shellCss, '.nav-item[aria-current="page"]').includes('color'),
       'the current item paints no background of its own');
-    ok(prop(rule(shellCss, '.nav-marker'), 'transition') === 'opacity var(--t-fast) ease', 'the marker moves at once and only fades as it appears (8.8)');
+    ok(prop(rule(shellCss, '.nav-marker'), 'transition').startsWith('transform var(--t-med) var(--ease-expo)'), 'the marker slides on --t-med');
     const p = await openShell({ language: 'en' }, {});
     const marker = p.$('nav-marker');
     ok(p.document.querySelectorAll('.nav-marker').length === 1 && marker.getAttribute('aria-hidden') === 'true', 'one marker for the whole sidebar');
@@ -5047,7 +5038,7 @@ async function openShell(cfg, state, opts) {
     p.clock.advance(10000);
     p.resized(p.$('rec'));
     ok(settingsAt() === before && onSettings(), 'recording, the card opens nothing and Settings and the marker on it stay put', where());
-    ok(prop(rule(shellCss, '.sealed'), 'animation') === 'riseIn var(--t-slow) var(--ease-out) both',
+    ok(prop(rule(shellCss, '.sealed'), 'animation') === 'riseIn var(--t-slow) var(--ease-expo) both',
       'the Recording screen rises in as it appears');
 
     // A dropdown closes as it opened.
@@ -5078,9 +5069,8 @@ async function openShell(cfg, state, opts) {
     ok(!list.hidden && !list.classList.contains('dd-closing') && ddBtn.getAttribute('aria-expanded') === 'true',
       'opened again while it closed, it is open, and the close it cut short never hides it');
     const ddCss = read('shared/dropdown.css');
-    ok(prop(rule(ddCss, '.dd-list.dd-closing'), 'opacity') === '0' && prop(rule(ddCss, '.dd-list.dd-closing'), 'transition-duration') === '100ms'
-      && prop(rule(ddCss, '.dd-list.dd-closing'), 'pointer-events') === 'none' && /@starting-style \{ \.dd-list \{ opacity: 0; transform: scale\(0\.97\); \} \}/.test(ddCss),
-      'it opens from .97 by a transition and closes in 100ms, shorter than it opened, taking no click');
+    ok(prop(rule(ddCss, '.dd-list.dd-closing'), 'animation') === 'ddOut var(--t-fast) var(--ease) both'
+      && prop(rule(ddCss, '.dd-list.dd-closing'), 'pointer-events') === 'none', 'closing plays ddOut on --t-fast and takes no click');
 
     // Stats' rank notes open under the tile by height, and close back.
     const session = { id: 'st1', at: Date.UTC(2026, 9, 1, 20), map: 'Abyss', title: 'Jett', grade: { score: 82, letter: grade.letter(82) } };
@@ -5193,14 +5183,13 @@ async function openShell(cfg, state, opts) {
     i0.click();
     ok(!f0.classList.contains('zoom') && atReflow[0].startsWith('translate(0px, 0px) scale(2.02'), 'and back out, scaled down from the zoom');
     const rcss = read('review/review.css');
-    ok(prop(rule(rcss, '.v-shot img'), 'transition') === 'transform var(--t-med) var(--ease-out)'
+    ok(prop(rule(rcss, '.v-shot img'), 'transition') === 'transform var(--t-med) var(--ease-expo)'
       && prop(rule(rcss, '.v-shot img'), 'transform-origin') === '0 0', 'on --t-med, from its top left corner');
 
-    // The weekly report eases in as its window opens; the AI log, opened by
-    // Ctrl+Shift+E, is simply there (8.8: what a shortcut opens does not animate).
-    ok(!prop(rule(read('ailog/ailog.css'), 'body'), 'animation')
-      && read('weekly/weekly.css').includes('.sheet { animation: sheetIn var(--t-slow) var(--ease-out) both; }')
-      && /@keyframes sheetIn\s*\{/.test(read('shared/theme.css')), 'the weekly report eases in on --t-slow, and the AI log opens with no entrance');
+    // The AI log and the weekly report ease in as their windows open.
+    ok(prop(rule(read('ailog/ailog.css'), 'body'), 'animation') === 'sheetIn var(--t-slow) var(--ease-expo) both'
+      && read('weekly/weekly.css').includes('.sheet { animation: sheetIn var(--t-slow) var(--ease-expo) both; }')
+      && ui.includes('@keyframes sheetIn {'), 'the AI log and the weekly report ease in on --t-slow');
   });
 
   // getConfig everywhere initI18n runs, or it cannot read the language at all.
@@ -5854,7 +5843,7 @@ async function openShell(cfg, state, opts) {
     };
     const q = await open(viewOf(FREE_LEFT), finished(REF));
     ok(shown(q, 'inv-body') && !shown(q, 'inv-wait') && !shown(q, 'inv-out') && !shown(q, 'inv-error'), 'signed in, it shows the link');
-    ok(q.$('inv-link').textContent === REF.link && q.$('inv-progress').textContent === '1 of 5 friends played a first match, 4 games earned, 1 more signed up and yet to play',
+    ok(q.$('inv-link').textContent === REF.link && q.$('inv-progress').textContent === '1 of 5 friends joined, 4 games earned, 1 still to record a match',
       'the link main gave and the line usage.js wrote', `${q.$('inv-link').textContent} | ${q.$('inv-progress').textContent}`);
     ok(same(q.document.querySelectorAll('#inv-how li').map((l) => l.textContent), usage.INVITE_HOW) && usage.INVITE_HOW.length === 2,
       'how it works, in main\'s two lines');
@@ -6115,12 +6104,10 @@ async function openShell(cfg, state, opts) {
     r2.querySelector('.mo-open').click();
     ok(q.bridge.sent.some(([ch, id, n]) => ch === C.REVIEW_OPEN && id === saved[0].id && n === 2), 'a row opens its review at its round');
 
-    // The filter (8.8): a radiogroup of secondary rectangles, the chosen one
-    // checked and the group's one tab stop, the list follows.
+    // The filter: one capsule, the chosen button pressed, the list follows.
     const deathsBtn = q.document.querySelector('#mo-filter button[data-kind="death"]');
     deathsBtn.click();
-    ok(deathsBtn.getAttribute('aria-checked') === 'true' && q.document.querySelector('#mo-filter button[data-kind="all"]').getAttribute('aria-checked') === 'false'
-      && deathsBtn.tabIndex === 0 && q.document.querySelector('#mo-filter button[data-kind="all"]').tabIndex === -1
+    ok(deathsBtn.getAttribute('aria-pressed') === 'true' && q.document.querySelector('#mo-filter button[data-kind="all"]').getAttribute('aria-pressed') === 'false'
       && q.document.querySelectorAll('#mo-list .mo-row').length === data.counts.deaths && !q.document.querySelector('#mo-list .mo-kind.highlight'),
       'Deaths shows the deaths alone', `${q.document.querySelectorAll('#mo-list .mo-row').length}`);
     q.document.querySelector('#mo-filter button[data-kind="highlight"]').click();
@@ -6137,7 +6124,7 @@ async function openShell(cfg, state, opts) {
     const isoRow = pickOf('cause:isolated').parentNode;
     ok(isoRow.querySelector('.mo-ctitle').textContent === iso.title && isoRow.querySelector('.mo-cline').textContent === iso.line
       && iso.line === '4 deaths over 2 matches, 2 clips kept', 'with its title and main\'s line', isoRow.textContent);
-    ok(isoRow.querySelector('button.btn') && /^Play [0-9]+ clips?$/.test(isoRow.querySelector('button.btn').textContent), 'and Play n clips where clips were kept');
+    ok(isoRow.querySelector('button.btn') && isoRow.querySelector('button.btn').textContent === 'Play all', 'and Play all where clips were kept');
     ok(data.compilation.every((c) => c.clips > 0) && ![...comps()].some((r) => r.querySelector('.mo-cnone')),
       'every pattern here holds a kept clip, so none says otherwise');
     pickOf('cause:isolated').click();
@@ -6200,8 +6187,8 @@ async function openShell(cfg, state, opts) {
 
     // The empty states, and the note on no clips.
     const none = await open(moments.build('valorant', [], { patterns: {}, clips: () => [], url, recordingMode: 'auto' }));
-    ok(!none.$('mo-empty').hidden && none.$('mo-log').hidden && none.$('mo-comp').hidden && none.$('mo-empty-title').textContent === 'Press Start before your next match'
-      && /deaths and highlights land here/.test(none.$('mo-empty-hint').textContent), 'no matches: its heading is how one gets here');
+    ok(!none.$('mo-empty').hidden && none.$('mo-log').hidden && none.$('mo-comp').hidden && none.$('mo-empty-title').textContent === 'No matches yet'
+      && /Press Start/.test(none.$('mo-empty-hint').textContent), 'no matches: it says how one gets here');
     const off = await open(moments.build('valorant', saved, { patterns: patterns.summarise(saved), clips: () => [], url, recordingMode: 'off' }));
     ok(!off.$('mo-note').hidden && /recording was off/.test(off.$('mo-note').textContent) && off.document.querySelectorAll('#mo-note').length === 1,
       'no clips because recording was off: said once, in main\'s words', off.$('mo-note').textContent);
@@ -6210,7 +6197,7 @@ async function openShell(cfg, state, opts) {
     ok([...off.document.querySelectorAll('#mo-comp-rows .mo-crow')].every((r) => !r.querySelector('button.btn') && r.querySelector('.mo-cnone').textContent === 'No clip kept'),
       'and every pattern says no clip was kept, with no Play all');
     const failed = await open({ ok: false, error: 'boom' });
-    ok(!failed.$('mo-empty').hidden && failed.$('mo-empty-title').textContent === 'Press Start before your next match', 'main failing to answer is the empty page, never a throw');
+    ok(!failed.$('mo-empty').hidden && failed.$('mo-empty-title').textContent === 'No matches yet', 'main failing to answer is the empty page, never a throw');
 
     // The nav: Moments in the sidebar where Breakdown was, locked by the seal.
     const nav = require('../src/shared/shell-nav');
@@ -6351,7 +6338,7 @@ async function openShell(cfg, state, opts) {
     const card = v.$('locked');
     ok(shown(v, 'vreview') && shown(v, 'locked') && before(card) && before(card).id === 'v-verdict',
       'the upgrade card sits under the result and Riot\'s scoreboard');
-    ok(v.$('v-result').textContent === 'Victory' && v.$('v-score').textContent === '13 : 11' && shown(v, 'v-stats-wrap')
+    ok(v.$('v-result').textContent === 'VICTORY' && v.$('v-score').textContent === '13 : 11' && shown(v, 'v-stats-wrap')
       && v.document.querySelectorAll('#v-stats .v-stat').length === 4, 'the result, the score and Riot\'s four numbers are there');
     ok(shown(v, 'v-grade') && !shown(v, 'v-icon') && !v.document.querySelector('#v-grade .vd-letter') && !v.document.querySelector('#v-grade .vd-score')
       && v.$('v-grade').textContent === 'Not graded' && !shown(v, 'v-stat') && !shown(v, 'v-focus-wrap') && !shown(v, 'share'),

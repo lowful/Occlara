@@ -54,7 +54,7 @@ html, body {
 /* The shade: from over the whole moon to its place. SVG geometry is CSS here
    (cx, cy, r), in the mark's own units. The markup carries the END state, so
    with no animation (reduced motion) the mark is simply whole. */
-.shade { animation: wax 1100ms 240ms var(--ease-out) both; }
+.shade { animation: wax 1100ms 240ms var(--ease-expo) both; }
 @keyframes wax {
   from { cx: 62.15px; cy: 60px; r: 52px; }
   to   { cx: 77.738px; cy: 51px; r: 42px; }
@@ -63,12 +63,12 @@ html, body {
 .wordmark {
   color: var(--text);
   font-family: var(--font);
-  font-size: var(--fs-h2);
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: var(--track-display);
   line-height: 1;
   opacity: 0;
-  animation: wordIn 600ms 900ms var(--ease-out) forwards;
+  animation: wordIn 600ms 900ms var(--ease-expo) forwards;
 }
 @keyframes wordIn {
   from { opacity: 0; transform: translateY(6px); }

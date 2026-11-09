@@ -43,7 +43,7 @@ header h2 { font-size: 20px; font-weight: 600; letter-spacing: var(--track-displ
   /* scaleX rather than width, so the bar animates on the compositor instead of
      relaying out the header on every frame. */
   transform: scaleX(0); transform-origin: left center;
-  transition: transform var(--t-med) var(--ease-out);
+  transition: transform var(--t-med) var(--ease-expo);
 }
 
 .body {
@@ -282,21 +282,21 @@ header h2 { font-size: 20px; font-weight: 600; letter-spacing: var(--track-displ
    register and then STOP. Nothing here loops, and every duration comes from
    the token scale. The list rises in row by row, once, as it first appears
    (learn.js sets the delay, capped). */
-.lesson-row { animation: riseIn var(--t-med) var(--ease-out) both; }
+.lesson-row { animation: riseIn var(--t-med) var(--ease-expo) both; }
 
 /* Switching view is a short settle, not a slide: the two views are the same
    place at different depths, so the movement is inward rather than sideways. */
-.view-in { animation: viewIn var(--t-med) var(--ease-out) both; }
+.view-in { animation: viewIn var(--t-med) var(--ease-expo) both; }
 @keyframes viewIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
 }
 
 /* The explanation rises in under the answer. */
-.why { animation: riseIn var(--t-med) var(--ease-out) both; }
+.why { animation: riseIn var(--t-med) var(--ease-expo) both; }
 
 /* A completed tick lands rather than blinks on. */
-.lesson-row.done .tick svg { animation: tickIn var(--t-med) var(--ease-out) both; }
+.lesson-row.done .tick svg { animation: tickIn var(--t-med) var(--ease-spring) both; }
 @keyframes tickIn {
   from { opacity: 0; transform: scale(0.5); }
   to   { opacity: 1; transform: none; }

@@ -11,7 +11,7 @@
  */
 
 const KINDS = ['broke', 'coaching', 'idea'];
-const KIND_LABEL = { broke: 'Something broke', coaching: 'Wrong coaching', idea: 'An idea' };
+const KIND_LABEL = { broke: 'Something broke', coaching: 'Wrong coaching', idea: 'Idea' };
 const TEXT_MIN = 10;
 const TEXT_MAX = 4000;
 const MAX_IMAGES = 3;

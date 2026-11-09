@@ -220,10 +220,10 @@
     playBtn.setAttribute('aria-keyshortcuts', 'Space K');
     playBtn.append(mark('play'), mark('pause'));
     const startBtn = control('start', 'Back to the start', 'Home', 'Home');
-    const backS = control('backSecond', 'Back one second', 'Left arrow', 'ArrowLeft');
+    const backS = control('backSecond', 'Back one second', '←', 'ArrowLeft');
     const backF = control('backFrame', 'Back one frame', ',', ',');
     const fwdF = control('forwardFrame', 'Forward one frame', '.', '.');
-    const fwdS = control('forwardSecond', 'Forward one second', 'Right arrow', 'ArrowRight');
+    const fwdS = control('forwardSecond', 'Forward one second', '→', 'ArrowRight');
     const time = el('span', 'cp-time');
     time.setAttribute('aria-hidden', 'true');
     const speed = el('div', 'cp-speed');

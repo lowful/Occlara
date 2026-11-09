@@ -65,6 +65,7 @@
     return {
       sans: tok('--font', "'Geist', 'Segoe UI', sans-serif"),
       mono: tok('--font-mono', "'Geist Mono', Consolas, monospace"),
+      label: em('--track-label', 0.08),
       display: em('--track-display', -0.02),
     };
   }
@@ -216,13 +217,15 @@
       return { width: m.width || 0, left: Number.isFinite(m.actualBoundingBoxLeft) ? m.actualBoundingBoxLeft : 0 };
     };
     return {
-      /** A small label: Geist Mono 500, untracked, in the case it is written in (8.8: no uppercase, no tracked labels). Its width, drawn only when given a colour. */
-      mono(text, x, y, px, color, align) {
-        const t = clean(text);
+      /** A small label: Geist Mono 500, tracked, upper case unless asked (a URL stays as typed). Its width, drawn only when given a colour. */
+      mono(text, x, y, px, color, align, keepCase) {
+        const t = keepCase ? clean(text) : clean(text).toUpperCase();
         if (!t) return 0;
         ctx.save();
-        style(`500 ${px}px ${F.mono}`, 0, color, align);
-        if (color) ctx.fillText(t, x, y);
+        const track = px * F.label;
+        style(`500 ${px}px ${F.mono}`, track, color, align);
+        // A right aligned tracked line ends in its own last spacing: take it back.
+        if (color) ctx.fillText(t, x + (align === 'right' ? track : 0), y);
         const w = measure(t).width;
         ctx.restore();
         return w;
@@ -415,7 +418,7 @@
     // right. The crescent's ink starts 21 of its 120 in, so the mark is drawn
     // that much left to stand on the margin the letter shares.
     mark(ctx, pad - 11 * (21 / 120), H - 32 - 9.5, 11, P.ink2);
-    t.mono('occlara.app', pad + 16, H - 32, 10, P.ink3, 'left');
+    t.mono('occlara.app', pad + 16, H - 32, 10, P.ink3, 'left', true);
     const day = dateLabel(v.at);
     if (day) t.mono(day, W - pad, H - 32, 10, P.ink3, 'right');
     ctx.restore();

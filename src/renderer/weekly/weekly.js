@@ -28,10 +28,11 @@ function stagger(node, i) {
 }
 
 function card(key, value, numeric) {
-  const c = el('div', 'top-card');
+  const c = el('div', 'top-card hover-lift');
   c.appendChild(el('div', 'k', key));
-  // A figure and a rank name are drawn alike, in the ink (8.8: no gradient text).
-  c.appendChild(el('div', 'v', value));
+  // The headline figures get the gradient treatment; text like a rank name
+  // stays plain so it never turns into an unreadable wash.
+  c.appendChild(el('div', 'v' + (numeric ? ' grad-num' : ''), value));
   return c;
 }
 

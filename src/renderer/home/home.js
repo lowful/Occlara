@@ -38,9 +38,10 @@ const RANK_AGAIN_TRIES = 2;
 let rankAgain = null;
 let rankTries = 0;
 
-// Dates, times and counts in the interface's language (shared/intl.js), with
-// a plain fallback where it is not loaded.
-const INTL = window.occlaraIntl || null;
+function when(at) {
+  if (!at) return '';
+  return new Date(at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
 const isWin = (result) => /vict|win/i.test(String(result || ''));
 const isLoss = (result) => /defeat|loss/i.test(String(result || ''));
 
@@ -49,90 +50,32 @@ const rrText = (change) => `${change > 0 ? '+' : ''}${change} RR`;
 /** A gain in --good, a loss in --bad, no change dim (home.css). */
 const rrTone = (change) => (change > 0 ? 'gain' : change < 0 ? 'loss' : 'even');
 
-/** "Nov 8" and "11:11 AM", the margin's two lines for a match. */
-function dayOf(at) {
-  if (!at) return '';
-  return INTL ? INTL.date(at) : new Date(at).toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-function timeOf(at) {
-  if (!at) return '';
-  return INTL ? INTL.time(at) : new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-/** "3 hours ago", "yesterday", then a short date: when a recent match was. */
-function agoOf(at) {
-  if (!at) return '';
-  return INTL ? INTL.ago(at) : dayOf(at);
-}
-/** One whole sentence for a count (shared/intl.js plural), English without it. */
-function plural(n, messages, values) {
-  if (INTL) return INTL.plural(n, messages, values);
-  const msg = n === 1 && messages.one ? messages.one : messages.other;
-  return String(msg).replace(/\{(\w+)\}/g, (m, k) => (k === 'n' ? String(n) : values && k in values ? String(values[k]) : m));
-}
-
-/** Agent and mode, the second line of a recent row: "Jett, Competitive". */
-function whoHow(m) {
-  const who = m.title || '';
-  const mode = m.mode || '';
-  if (who && mode) return `${who}, ${mode}`;
-  return who || mode;
-}
-
 /**
- * Who and where, as the line says it: "Jett on Abyss, Standard". Each case is
- * its own whole string, never words glued around a missing part.
- */
-function whoWhere(m) {
-  const who = m.title || '';
-  const where = m.map || '';
-  const mode = m.mode || '';
-  if (who && where && mode) return `${who} on ${where}, ${mode}`;
-  if (who && where) return `${who} on ${where}`;
-  if (who && mode) return `${who}, ${mode}`;
-  if (where && mode) return `${where}, ${mode}`;
-  return who || where || mode;
-}
-
-/**
- * THE LAST MATCH AS ONE LINE (8.8). The margin holds when it was; the line
- * reads as a sentence, "Victory 13 : 11, Jett on Abyss, Standard, 71 B", the
- * grade's number and letter (the shared card's top, moved onto the line) at
- * its end, and its two buttons at the right. Under it the four categories as
- * a compact ruled table, then the milestone with the pen's tick beside it.
- * STILL BEING CHECKED (8.4.1): its result, score and grade are the screen's
- * until the review is whole, and Riot's record changes them minutes later, so
- * the section says what it waits for in their place, as its review page
- * shows a loading screen.
- *
  * @param milestone  the last match against the ones before it (8.7,
  *   home-model.js milestone, progress.js libraryProgress latest): one finished
  *   line, { kind, tone, text }, drawn as the review draws its progress strip
- *   (GradeView.progressStrip). Left out while the match is still being
- *   checked, since its grade is not yet its own.
+ *   (GradeView.progressStrip), under the match's facts. Left out while the
+ *   match is still being checked, since its grade is not yet its own.
  */
 function paintLast(last, milestone) {
   const host = $('last');
   host.replaceChildren();
   const top = el('div', 'last-top');
-  const mg = el('div', 'mg last-when');
-  mg.append(el('span', 'label', 'Last match'));
-  if (last.at) mg.append(el('span', 'mg-day', dayOf(last.at)), el('span', 'mg-time', timeOf(last.at)));
-  top.append(mg);
-  // Read as one sentence: "Victory 13 : 11, Jett on Abyss, Standard". The
-  // parts are inline text, the comma a word of the sentence, never a gap.
-  const line = el('p', 'last-line');
-  const said = [];
-  if (last.result && !last.work) said.push(el('span', 'result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''), last.result));
-  if (last.score && !last.work) said.push(el('span', 'score', String(last.score).replace(/\s*-\s*/, ' : ')));
-  const meta = whoWhere(last);
-  const outcome = el('span', 'outcome');
-  said.forEach((s, i) => { if (i) outcome.append(' '); outcome.append(s); });
-  if (said.length) line.append(outcome);
-  if (meta) {
-    if (said.length) line.append(', ');
-    line.append(el('span', 'meta', meta));
-  }
-  top.append(line);
+  const facts = el('div', 'last-facts');
+  facts.append(el('span', 'label', `Last match${last.at ? ', ' + when(last.at) : ''}`));
+  // The result, the score and who and where on ONE LINE (8.7), the ruled
+  // entry of the log, with the grade and the two buttons beside it (home.css
+  // .last). STILL BEING CHECKED (8.4.1): its result, score and grade are the
+  // screen's until the review is whole, and Riot's record changes them
+  // minutes later, so the card says what it waits for in their place, as its
+  // review page shows a loading screen.
+  const line = el('div', 'last-line');
+  if (last.result && !last.work) line.append(el('span', 'result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''), last.result));
+  if (last.score && !last.work) line.append(el('span', 'score', String(last.score).replace(/\s*-\s*/, ' : ')));
+  const meta = [last.title, last.map, last.mode].filter(Boolean).join('  ·  ');
+  if (meta) line.append(el('span', 'meta', meta));
+  if (line.childNodes.length) facts.append(line);
+  top.append(facts);
   host.append(top);
   const strip = milestone && !last.work ? GV.progressStrip({ lines: [milestone] }) : null;
   if (strip) {
@@ -142,29 +85,21 @@ function paintLast(last, milestone) {
 
   const checking = last.work ? GV.checking(last.work, { full: true }) : null;
   if (checking) host.append(checking);
-  else if (last.grade) {
-    const card = GV.gradeCard({ ...last.grade, categories: last.categories || [] }, { label: 'Match grade', table: true });
-    // The number and the letter end the line; the categories stay below.
-    const gTop = card.querySelector('.gv-top');
-    if (gTop) line.append(' ', gTop);
-    host.append(card);
-  }
+  else if (last.grade) host.append(GV.gradeCard({ ...last.grade, categories: last.categories || [] }, { label: 'Match grade' }));
 
   /*
    * THE FOOT CARRIES TWO BUTTONS AND NOTHING ELSE (8.2.1): the eye, "View
    * match", which opens the match's AI log as its row in Matches does, and
-   * Open review, Home's one primary. No eye where nothing was recorded, a
-   * match graded from Riot's record alone, and a disabled one with its
-   * reason once the log no longer holds the match: the rule every eye
-   * follows (shared/log-eye.js).
+   * Open review. It used to say where the grade came from ("From what the
+   * screen read", "Checked against Riot's record of the match"), which the
+   * review itself says. No eye where nothing was recorded, a match graded
+   * from Riot's record alone, and a disabled one with its reason once the log
+   * no longer holds the match: the rule every eye follows (shared/log-eye.js).
    */
   const foot = el('div', 'last-foot');
   const eye = window.LogEye ? window.LogEye.labelled(last.aiLog, () => window.occlara.openAiLog(last.id), 'View match') : null;
   if (eye) foot.append(eye);
-  // While the review is still being written it opens on its loading page, so
-  // it is not the page's call to action yet: a quiet rectangle until it is
-  // whole (8.8 critique).
-  const open = el('button', last.work ? 'btn btn-secondary' : 'btn btn-primary', 'Open review');
+  const open = el('button', 'btn btn-ghost', 'Open review');
   open.type = 'button';
   open.addEventListener('click', () => window.occlara.openReview(last.id));
   foot.append(open);
@@ -172,51 +107,49 @@ function paintLast(last, milestone) {
 }
 
 /*
- * THE GRADE OVER THE LAST MATCHES, WRITTEN (8.8). Four or five numbers are
- * not a chart: the trend is one line of figures, oldest first, "58, 61, 64,
- * 71", the way a coach jots them down, and the pen ticks the best of them
- * (penMark). The sentence before them says what they are and which was best,
- * so the tick always has its words. The average stands in the block's margin.
+ * THE GRADE OVER THE LAST MATCHES FILLS ITS CARD (8.2.1). The card stands
+ * beside Recent matches, which sets the row's height, and bars drawn in a
+ * fixed 150px left a band of empty card under them. Now the bars' area grows
+ * to the card's foot, each bar is its grade as a share of that whole height,
+ * and the number is positioned off the bar's top instead of stacked above it
+ * in one column, which took its own height out of the bar's (the cap that
+ * flattened the library's trend, matches.css .p-bar).
  */
 function paintTrend(trend, average) {
-  const host = $('trend');
-  const shown = trend.length >= 2;
-  host.hidden = !shown;
-  host.replaceChildren();
-  // "Average 75": the word in Geist, the figure in the mono face.
-  const avg = $('trend-avg');
-  avg.replaceChildren();
-  avg.hidden = !(shown && typeof average === 'number');
-  if (!avg.hidden) avg.append(el('span', 'mg-word', 'Average'), ' ', el('span', 'mg-num', String(average)));
-  if (!shown) return;
-  const scores = trend.map((t) => Number(t.score));
-  const best = Math.max(...scores);
-  host.append(el('span', 'trend-say', plural(trend.length,
-    { one: 'Your last grade, best {best}', other: 'Your last {n} grades, oldest first, best {best}' }, { best })));
-  const figs = el('span', 'trend-figs');
+  $('trend').hidden = trend.length < 2;
+  if (trend.length < 2) return;
+  $('trend-n').textContent = String(trend.length);
+  $('trend-avg').textContent = typeof average === 'number' ? `Average ${average}` : '';
+  const bars = $('trend-bars');
+  bars.replaceChildren();
+  bars.setAttribute('aria-label', `Grades ${trend.map((t) => t.score).join(', ')}, oldest first`);
   trend.forEach((t, j) => {
-    const fig = el('span', 'trend-fig ' + GV.gradeTone(t), String(t.score));
-    if (t.map) fig.title = `${t.map}: ${t.score}`;
-    // The newest best, if two tie: the one the pen ticks.
-    if (Number(t.score) === best && scores.lastIndexOf(best) === j) fig.classList.add('best');
-    figs.append(fig);
-    if (j < trend.length - 1) figs.append(el('span', 'trend-sep', ','));
+    const col = el('div', 'bar-col');
+    // Its place in the row (--j), for the bars to rise one after another as
+    // the section arrives (home.css).
+    col.style.setProperty('--j', String(j));
+    const track = el('div', 'bar-track');
+    track.style.setProperty('--h', `${Math.max(4, Math.min(100, Number(t.score) || 0))}%`);
+    track.append(el('div', 'bar ' + GV.gradeTone(t)), el('span', 'bar-num', String(t.score)));
+    // No map under the bar (8.7): the row beside it names the match. The
+    // column's title keeps it for the pointer.
+    col.title = [t.map, t.score].filter((x) => x !== null && x !== undefined && x !== '').join(': ');
+    col.append(track);
+    bars.append(col);
   });
-  host.append(figs);
 }
 
 function paintRecent(recent) {
   const host = $('recent-list');
   host.replaceChildren();
-  recent.forEach((m) => {
+  recent.forEach((m, j) => {
     const b = el('button', 'r-row');
     b.type = 'button';
     b.setAttribute('role', 'listitem');
     b.dataset.id = m.id;
-    // When it was, in the block's margin, as the notebook keeps its dates.
-    const at = el('span', 'r-when', agoOf(m.at));
-    if (m.at) at.title = `${dayOf(m.at)}, ${timeOf(m.at)}`;
-    b.append(at);
+    // Its place in the list (--j), for the rows to rise one after another as
+    // the section arrives (home.css), and never on a repaint.
+    b.style.setProperty('--j', String(j));
     const main = el('span', 'r-main');
     const title = el('span', 'r-title', m.map || m.title || 'Match');
     // Still being checked (8.4.1): the screen's result and grade are not said
@@ -225,11 +158,20 @@ function paintRecent(recent) {
       title.append(el('span', 'r-res ' + (isWin(m.result) ? 'win' : isLoss(m.result) ? 'loss' : ''),
         [m.result, m.score].filter(Boolean).join(' ')));
     }
-    // No badges here (8.8): a best is the pen's tick on the trend above, and
-    // Matches keeps the row badges, so the fact is said once on this page.
+    // Its marks (8.7, home-model.js marks, as the library draws them beside
+    // the result): "Best in 23", "First A", "3 in a row". None while the
+    // match is still being checked, since its grade is not yet its own.
+    if (!m.work && Array.isArray(m.marks)) {
+      for (const k of m.marks) {
+        if (!k || typeof k.text !== 'string' || !k.text) continue;
+        const mark = el('span', 'r-mark' + (k.kind ? ' ' + k.kind : ''), k.text);
+        mark.title = k.text;
+        title.append(mark);
+      }
+    }
     main.append(title);
-    const meta = whoHow(m);
-    if (meta) main.append(el('span', 'r-meta', meta));
+    main.append(el('span', 'r-meta', [when(m.at), m.title, m.mode,
+      m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null].filter(Boolean).join('  ·  ')));
     b.append(main);
     // The RR the match moved, beside its grade, once the rank has answered
     // (fillRank): a match Riot's record calls Competitive, placed on its own
@@ -320,30 +262,36 @@ function paintLine(card) {
 }
 
 /*
- * WHERE THE RANK SITS (8.8): after the last match, always. To 8.7 it moved
- * above the grade trend when the column beside the last match was full; the
- * notebook is one column, so there is no room to balance and it keeps its
- * place in the order (home.css).
+ * WHERE THE RANK SITS. Under the next match's focus, in the room the last
+ * match leaves beside it, where it grows to fill whatever is left (home.css).
+ * With the focus AND the most repeated mistake in that column, the column is
+ * the taller of the two already, and the rank there opened a band of empty
+ * card inside the last match instead; so then it stands above the grade
+ * trend, a card that stretches to Recent matches' height anyway. With one of
+ * the two missing (a match graded from Riot's record alone has no focus) the
+ * column has the room, and the rank stays in it.
  */
 function placeRank() {
   const rank = $('rank');
-  if (rank.parentNode !== $('side')) $('focus').after(rank);
+  const full = !$('focus').hidden && !$('top').hidden;
+  if (full && rank.parentNode !== $('lower')) $('lower').prepend(rank);
+  else if (!full && rank.parentNode !== $('side')) $('focus').after(rank);
 }
 
-/** The side column closes up as its cards go, and goes itself when none is shown. */
+/** A column closes up as its cards go, and goes itself when none is shown. */
 function closeUp() {
-  const col = $('side');
-  col.hidden = [...col.children].every((c) => c.hidden);
+  for (const col of [$('side'), $('lower')]) col.hidden = [...col.children].every((c) => c.hidden);
 }
 
 /*
- * THE ARRIVAL ENDS (8.7). card-in is each section's one entrance (home.css,
- * 8.8: an opacity fade, nothing inside it moves). The class is taken off once
- * the fade is through, so a repaint (a review saved: load() with no arrive)
- * never plays it again; its end state is the natural state, so nothing
- * visible changes when it goes.
+ * THE ARRIVAL ENDS (8.7). card-in gates the rows', bars' and category fills'
+ * entrances (home.css), and left on, a repaint (a review saved: load() with
+ * no arrive) rebuilt them under it and they rose again, the list and the
+ * trend vanishing for a moment on every save. So the class is taken off once
+ * the longest entrance is through: every keyframe's end state is the natural
+ * state, so nothing visible changes when it goes.
  */
-const ARRIVAL_MS = 400;
+const ARRIVAL_MS = 1200;
 let arrivalEnd = null;
 function endArrival(cards) {
   clearTimeout(arrivalEnd);
@@ -353,7 +301,7 @@ function endArrival(cards) {
   }, ARRIVAL_MS);
 }
 
-/** A card shown after the others arrived fades in by itself, as they did. */
+/** A card shown after the others arrived rises in by itself, as they did. */
 function rise(card) {
   card.classList.remove('card-in');
   void card.offsetWidth;   // taken off and put back, so it plays again
@@ -389,9 +337,8 @@ async function fillRank(again) {
 }
 
 /*
- * THE CARDS ARRIVE (8.2; 8.8 together, one fade each, no stagger), the first
- * time Home is painted and on a change of game, never when a review saved in
- * the meantime repaints it. --i is kept as each card's place for the tests.
+ * THE CARDS ARRIVE ONE AFTER ANOTHER (8.2), the first time Home is painted and
+ * on a change of game, never when a review saved in the meantime repaints it.
  * Run once the page is on screen (embed.js), or they would play out while it
  * is still out of sight, waiting to come in.
  */
@@ -407,61 +354,6 @@ function arrive() {
     endArrival(cards);
   };
   if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(run); else run();
-}
-
-/*
- * THE COACH'S PEN ON HOME (8.8, shared/marks.js): the underline under the fix
- * for the next match and one tick, over the best of the written grades (it
- * takes no width, so the run of figures keeps its commas). Two marks at most,
- * never on a button or the nav. The milestone line beside the last match is
- * not ticked as well (8.8 critique: the same stamp twice on one screen reads
- * as an icon font, not a pen).
- *
- * Still on every paint. Drawn in once, on the FIRST PAINT AFTER A MATCH: the
- * first time this page is on screen (occlaraOnShown) with a last match whose
- * review is whole and that the pen has not drawn for yet, remembered by its
- * id. marks.js draws only with motion allowed and main saying coaching is
- * off; a match whose review is still being checked, or a fix carried over
- * from the review before it, is marked still and waits.
- */
-const PEN_KEY = 'occlara.home.penDrawn';
-let penAsk = 0;
-function penSeen() {
-  try { return window.localStorage ? window.localStorage.getItem(PEN_KEY) : null; } catch (e) { return null; }
-}
-function penKeep(id) {
-  try { if (window.localStorage) window.localStorage.setItem(PEN_KEY, String(id)); } catch (e) { /* kept for this paint only */ }
-}
-
-/** The pen's marks on the page as painted, with fresh asking them to draw in. */
-function penMark(model, fresh) {
-  const pen = window.occlaraPen;
-  if (!pen) return;
-  const fix = $('focus-text');
-  if (model && model.focus && !$('focus').hidden) {
-    pen.mark(fix, 'underline', { text: model.focus, draw: fresh, lines: 'last' });
-  } else pen.clear(fix);
-  const prog = $('last').querySelector('.last-prog .gv-prog.good');
-  if (prog) pen.clear(prog);
-  const best = $('trend').hidden ? null : $('trend').querySelector('.trend-fig.best');
-  if (best) {
-    best.classList.add('ticked');
-    pen.mark(best, 'tick', { text: `best ${best.textContent}`, draw: fresh, delay: fresh ? 320 : 0, place: 'above' });
-  }
-}
-
-function penStill(model) {
-  const ask = ++penAsk;
-  penMark(model, false);
-  const last = model && model.last;
-  const whole = !!(last && last.id && !last.work && !model.focusPrevious);
-  if (!whole || penSeen() === String(last.id)) return;
-  const draw = () => {
-    if (ask !== penAsk) return;   // a newer paint has marked the page since
-    penKeep(last.id);
-    penMark(model, true);
-  };
-  if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(draw); else draw();
 }
 
 /**
@@ -502,7 +394,7 @@ async function paint() {
   // review's fix, its label saying so (home.css #focus.previous), rather
   // than the page opening on the chart while the newest is still checked.
   $('focus').hidden = !model.focus;
-  $('focus-was').hidden = !model.focusPrevious;
+  $('focus').querySelector('.label').textContent = model.focusPrevious ? 'Your next match, from the last review' : 'Your next match';
   $('focus-text').textContent = model.focus || '';
   $('top').hidden = !model.top;
   if (model.top) {
@@ -512,13 +404,12 @@ async function paint() {
     $('top-trend').className = 'trend' + (model.top.trend === 'rising' ? ' rising' : '');
     $('top-detail').textContent = model.top.detail;
     $('top-fix').textContent = model.top.fix || '';
-    $('top-fix').hidden = !model.top.fix;
+    $('top-fix').parentNode.hidden = !model.top.fix;
   }
   placeRank();
   paintTrend(model.trend || [], model.average);
   closeUp();
   paintRecent(model.recent || []);
-  penStill(model);
   return true;
 }
 

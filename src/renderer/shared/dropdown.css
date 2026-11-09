@@ -10,32 +10,33 @@
 
 .dd { position: relative; }
 
-/* The trigger is a secondary like every other (8.8, ui.css .btn): the
-   rectangle at --r-control, one hairline, no shadow. Under the pointer its
-   fill and edge answer and nothing moves; pressed it goes to .97, never a
-   disabled one, and open it is not drawn as held down. Its focus is the one
-   ring (theme.css). */
+/* The trigger is a capsule like every control (8.7, ui.css .btn): the lit top
+   edge, the resting shadow, a pixel of rise under the pointer and a press
+   down into its shadow. */
 .dd-btn {
   width: 100%;
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
   height: 36px;
-  padding: 0 var(--space-3) 0 14px;
+  padding: 0 var(--space-3) 0 var(--space-4);
   font-family: var(--font);
-  font-size: var(--fs-label);
-  font-weight: var(--w-label);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text);
-  background: transparent;
+  background: rgba(255, 255, 255, 0.055);
   border: 1px solid var(--line-2);
-  border-radius: var(--r-control);
+  border-radius: var(--r-btn);
+  box-shadow: var(--hi), var(--drop);
   cursor: pointer;
-  user-select: none;
   text-align: left;
-  transition: background-color var(--t-fast) ease, border-color var(--t-fast) ease,
-              transform var(--t-tap) var(--ease-out);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+              transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
-.dd-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.24); }
-.dd-open .dd-btn { border-color: rgba(255, 255, 255, 0.24); }
-.dd-btn:not(:disabled):active { transform: scale(0.97); }
+.dd-btn:hover { background: rgba(255, 255, 255, 0.095); transform: translateY(-1px); box-shadow: var(--hi), var(--drop-hover); }
+.dd-btn:active, .dd-open .dd-btn { transform: translateY(0) scale(0.985); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); transition-duration: var(--t-press); }
+.dd-btn:focus-visible {
+  outline: 2px solid rgba(var(--cyan-rgb), 0.55);
+  outline-offset: 2px;
+}
 .dd-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dd-empty .dd-text { color: var(--text-mute); }
 
@@ -43,7 +44,7 @@
   flex: none;
   width: var(--icon-xs); height: var(--icon-xs);
   color: var(--text-mute);
-  transition: transform var(--t-fast) var(--ease-out), color var(--t-fast) ease;
+  transition: transform var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .dd-btn:hover .dd-chev { color: var(--text-dim); }
 /* The chevron turns over as the list opens, and back as it closes, with the
@@ -52,7 +53,7 @@
 
 .dd-list {
   position: absolute;
-  z-index: var(--z-overlay);
+  z-index: 40;
   /* Sized to its CONTENT, never to the trigger. The onboarding language button
      is only as wide as "English", and a list pinned to that clipped every
      longer name to "Portug..." and pushed the tags outside the box entirely.
@@ -70,26 +71,27 @@
      --glass-fill's 0.92 the text underneath still read through it: the panel's
      "Idle" row was legible through the option list. A menu has to be the only
      thing you can read where it is. The one framed thing the control draws:
-     the ground a shade up and a control's hairline, and no shadow (8.8). */
+     the ground a shade up, a control's hairline, and the shadow of something
+     lifted off the page. */
   background: var(--bg-2);
   border: 1px solid var(--line-2);
   border-radius: var(--r-control);
-  overscroll-behavior: contain;
-  /* It comes out of its trigger (8.8): a transition, so a list closed while
-     it opens turns back from where it is. From .97 and nothing in 150ms;
-     back in 100ms as it closes, the exit shorter than the entry. */
-  transform-origin: top;
-  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
+  box-shadow: var(--hi), var(--lift);
+  animation: ddIn var(--t-fast) var(--ease-expo) both;
 }
-@starting-style { .dd-list { opacity: 0; transform: scale(0.97); } }
 /* Flipped by place() when there is more room above than below. The class goes
    on the LIST, not the mount, because while open the list hangs off body. It
    comes out of the trigger either way: down from it, or up from it. */
-.dd-list.dd-up-list { transform-origin: bottom; }
+.dd-list.dd-up-list { transform-origin: bottom; animation-name: ddInUp; }
+@keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes ddInUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 /* And goes back into it as it closes (8.2): dropdown.js keeps the list on
-   screen for --t-fast, then hides it. Closed already, so it takes no click
-   while it fades. */
-.dd-list.dd-closing { opacity: 0; transform: scale(0.97); transition-duration: 100ms; pointer-events: none; }
+   screen for this, --t-fast, then hides it. Closed already, so it takes no
+   click while it fades. */
+.dd-list.dd-closing { animation: ddOut var(--t-fast) var(--ease) both; pointer-events: none; }
+.dd-list.dd-up-list.dd-closing { animation-name: ddOutUp; }
+@keyframes ddOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-4px); } }
+@keyframes ddOutUp { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(4px); } }
 
 .dd-opt {
   display: flex; align-items: center; gap: var(--space-2);
@@ -100,7 +102,7 @@
   color: var(--text-dim);
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color var(--t-fast) ease, color var(--t-fast) ease;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .dd-opt-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 /* Keyboard highlight and mouse hover are the SAME state on purpose: two
@@ -119,7 +121,8 @@
 /* A secondary note on an option (a preview tag, an untranslated warning). */
 .dd-opt-tag {
   flex: none;
-  font-family: var(--font); font-size: var(--fs-caption); font-weight: var(--w-label); line-height: 1;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500; line-height: 1;
+  text-transform: uppercase; letter-spacing: var(--track-label);
   color: var(--text-mute);
   border: 1px solid var(--line-2);
   border-radius: var(--r-btn);
@@ -131,11 +134,8 @@
 .dd-list::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); }
 
 @media (prefers-reduced-motion: reduce) {
-  /* The list still fades in and out; it does not grow. */
-  .dd-list { transition-property: opacity; }
-  @starting-style { .dd-list { transform: none; } }
-  .dd-list.dd-closing { transform: none; }
-  .dd-chev { transition: color var(--t-fast) ease; }
+  .dd-list { animation: none; }
+  .dd-chev { transition: color var(--t-fast) var(--ease); }
   .dd-open .dd-chev { transform: none; }
-  .dd-btn:active { transform: none; }
+  .dd-btn:hover, .dd-btn:active, .dd-open .dd-btn { transform: none; }
 }

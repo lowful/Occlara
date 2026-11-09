@@ -68,18 +68,6 @@ function paintPicks(picks) {
   }));
 }
 
-/** Left and Right move between the quick picks and choose the one they land on. */
-function pickKeys(e) {
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-  const list = [...$('pr-picks').children].filter((b) => b.tagName === 'BUTTON');
-  const at = list.indexOf(document.activeElement);
-  if (at < 0) return;
-  e.preventDefault();
-  const next = list[(at + (e.key === 'ArrowRight' ? 1 : list.length - 1)) % list.length];
-  next.focus();
-  next.click();
-}
-
 /** The button, the note and the chosen pick, for the number in the field. */
 function paintBuy() {
   if (!model) return;
@@ -151,10 +139,9 @@ function paintPlay(play) {
 function paintPlans(plans) {
   const items = plans && Array.isArray(plans.items) ? plans.items : [];
   $('pr-plans').replaceChildren(...items.map((p) => {
-    const li = document.createElement('tr');
+    const li = document.createElement('li');
     li.className = p.mine ? 'pr-plan-row mine' : 'pr-plan-row';
-    const name = document.createElement('th');
-    name.setAttribute('scope', 'row');
+    const name = document.createElement('span');
     name.className = 'pr-plan-name';
     name.textContent = p.label;
     if (p.mine) {
@@ -163,7 +150,7 @@ function paintPlans(plans) {
       tag.textContent = 'Your plan';
       name.append(tag);
     }
-    const price = document.createElement('td');
+    const price = document.createElement('span');
     price.className = 'pr-price';
     const amount = document.createElement('span');
     amount.className = 'pr-amount';
@@ -172,15 +159,15 @@ function paintPlans(plans) {
     per.className = 'pr-per';
     per.textContent = billing === 'yearly' ? p.yearlyPer : p.monthlyPer;
     price.append(amount, per);
-    const games = document.createElement('td');
+    const games = document.createElement('span');
     games.className = 'pr-plan-games';
     games.textContent = p.games;
-    const act = document.createElement('td');
+    const act = document.createElement('span');
     act.className = 'pr-plan-act';
     if (p.action) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'btn btn-tertiary';
+      b.className = 'btn btn-ghost sm';
       b.textContent = p.action;
       b.addEventListener('click', () => { if (typeof api.openPlans === 'function') api.openPlans(); });
       act.append(b);
@@ -213,7 +200,7 @@ function paintGiftOffers(g) {
   $('pr-gift-offers').replaceChildren(...(Array.isArray(offers) ? offers : []).map((o) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'btn btn-tertiary pr-gift';
+    b.className = 'btn btn-ghost pr-gift';
     b.dataset.offer = o.id;
     b.setAttribute('aria-label', o.aria || o.label);
     const name = document.createElement('span');
@@ -269,7 +256,7 @@ function paintGifts(g) {
     if (x.canCopy) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'btn btn-tertiary';
+      b.className = 'btn btn-ghost sm';
       b.textContent = g.copy;
       b.addEventListener('click', async () => {
         if (typeof api.copyGift !== 'function') return;
@@ -323,6 +310,7 @@ function paint(m) {
   show('body');
   if (!segsReady && typeof window.occlaraSeg === 'function') {
     segsReady = true;
+    window.occlaraSeg($('pr-picks'));
     window.occlaraSeg($('pr-billing'));
   }
 }
@@ -351,7 +339,6 @@ $('pr-games').addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowDown') { e.preventDefault(); stepBy(-1); }
   else if (e.key === 'Enter') { e.preventDefault(); settleField(); buy(); }
 });
-$('pr-picks').addEventListener('keydown', pickKeys);
 $('pr-less').addEventListener('click', () => stepBy(-1));
 $('pr-more').addEventListener('click', () => stepBy(1));
 $('pr-buy').addEventListener('click', buy);

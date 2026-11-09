@@ -8,8 +8,7 @@ const sessionEmptyEl = document.getElementById('session-empty');
 const updatedEl      = document.getElementById('updated');
 const refreshBtn     = document.getElementById('refresh');
 
-// What a trend says to a screen reader; the eye gets a drawn triangle (trendMark).
-const ARROW = { up: 'rising', down: 'falling' };
+const ARROW = { up: '▲', down: '▼', flat: '·' };
 let lastFetchedAt = 0;
 let refreshBlockedUntil = 0;
 let matchMode = 'competitive';   // always opens on Competitive; Unrated = unrated + swiftplay
@@ -52,13 +51,13 @@ async function loadMatches(mode) {
   const seq = ++matchSeq;
   matchListEl.innerHTML = '';
   matchEmptyEl.hidden = false;
-  matchEmptyEl.textContent = 'Loading your matches';
+  matchEmptyEl.textContent = 'Loading matches...';
   try {
     const res = await window.occlara.matchesFor(mode);
     if (seq !== matchSeq || mode !== matchMode) return;   // superseded by a newer click
     renderMatches(res);
   } catch {
-    if (seq === matchSeq) matchEmptyEl.textContent = 'Your matches could not be loaded. Choose the queue again to retry.';
+    if (seq === matchSeq) matchEmptyEl.textContent = 'Could not load matches. Click the mode again to retry.';
   }
 }
 
@@ -76,106 +75,25 @@ modeSeg.addEventListener('click', (e) => {
   refreshDashboardForMode(matchMode);   // overview + agents follow the queue too
 });
 
-// ── Overview ──────────────────────────────────────────────────────────────────
-/*
- * A trend is a small drawn triangle with its word for a screen reader, never a
- * glyph from the font (8.8). Steady, or no number at all, draws nothing: a
- * flat mark beside a number read as "no change" when it meant "not known".
- */
-const SVGNS = 'http://www.w3.org/2000/svg';
-function trendMark(direction, value) {
-  const a = document.createElement('span');
-  a.className = `arrow ${direction || 'flat'}`;
-  if (value == null || !ARROW[direction]) return a;
-  const svg = document.createElementNS(SVGNS, 'svg');
-  svg.setAttribute('viewBox', '0 0 10 10');
-  svg.setAttribute('width', '9');
-  svg.setAttribute('height', '9');
-  svg.setAttribute('aria-hidden', 'true');
-  const p = document.createElementNS(SVGNS, 'path');
-  p.setAttribute('d', direction === 'up' ? 'M5 1.5 L9 8.5 L1 8.5 Z' : 'M5 8.5 L9 1.5 L1 1.5 Z');
-  p.setAttribute('fill', 'currentColor');
-  svg.append(p);
-  const word = document.createElement('span');
-  word.className = 'sr-only';
-  word.textContent = ARROW[direction];
-  a.append(svg, word);
-  return a;
-}
-
-/**
- * The rank, the page's lead figure (8.8): the RR from the last rated game in
- * the margin, the tier in the column with its chevron, and its label for a
- * screen reader alone, since the section's heading already says Rank.
- */
-function card(label, value) {
+// ── Overview cards ────────────────────────────────────────────────────────────
+function card(label, value, direction, small) {
   const el = document.createElement('div');
   el.className = 'card';
-  const margin = document.createElement('span');
-  margin.className = 'rank-margin';
-  const a = document.createElement('span');
-  a.className = 'arrow';
-  margin.append(a);
-  const col = document.createElement('div');
-  col.className = 'rank-col';
   const l = document.createElement('span');
-  l.className = 'label sr-only';
+  l.className = 'label';
   l.textContent = label;
   const row = document.createElement('div');
   row.className = 'val-row';
   const v = document.createElement('span');
-  v.className = 'value' + (value == null ? ' none' : '');
-  v.textContent = value == null ? 'No rank yet' : value;
-  row.append(v);
-  col.append(l, row);
-  el.append(margin, col);
+  v.className = 'value' + (small ? ' small' : '') + (value == null ? ' none' : '');
+  v.textContent = value == null ? '·' : value;
+  const a = document.createElement('span');
+  a.className = `arrow ${direction || 'flat'}`;
+  // No number, no trend: a flat mark beside nothing would read as "no change".
+  a.textContent = value == null ? '' : (ARROW[direction] || ARROW.flat);
+  row.append(v, a);
+  el.append(l, row);
   return el;
-}
-
-/**
- * One line of the ruled list under the rank (8.8): the number in the margin,
- * the name in the column, the trend after it. It was one of five equal
- * columns, which made Utility as loud as the rank.
- */
-function figRow(label, value, direction) {
-  const el = document.createElement('div');
-  el.className = 'card fig';
-  const v = document.createElement('span');
-  v.className = 'value' + (value == null ? ' none' : '');
-  v.textContent = value == null ? 'None yet' : value;
-  const name = document.createElement('span');
-  name.className = 'fig-name';
-  const l = document.createElement('span');
-  l.className = 'label';
-  l.textContent = label;
-  name.append(l, trendMark(direction, value));
-  el.append(v, name);
-  return el;
-}
-
-/*
- * THE PEN TICKS THE BEST (8.8): of the four categories, the highest, ticked
- * in the margin beside its name and said in words after it, so the mark is
- * never the only way to know. Still, never drawn in: a plain visit to Stats
- * is not the first paint after a match. A tie ticks nothing, since no one
- * category is the best.
- */
-function tickBest(rows) {
-  const scored = rows.filter((r) => typeof r.value === 'number');
-  if (scored.length < 2) return;
-  const top = Math.max(...scored.map((r) => r.value));
-  const best = scored.filter((r) => r.value === top);
-  if (best.length !== 1) return;
-  const row = best[0].el;
-  const name = row.querySelector('.label');
-  const note = document.createElement('span');
-  note.className = 'pen-note fig-best';
-  note.textContent = 'your best';
-  row.querySelector('.fig-name').append(note);
-  row.classList.add('best');
-  if (window.occlaraPen && typeof window.occlaraPen.mark === 'function') {
-    window.occlaraPen.mark(name, 'tick', { text: best[0].label, draw: false });
-  }
 }
 
 // Per-rank field notes: what the rank is about and the mistakes that keep
@@ -274,7 +192,7 @@ async function renderRankGraph(host, opts) {
   if (old) old.remove();
   const wrap = document.createElement('div');
   wrap.className = 'rank-graph';
-  wrap.innerHTML = '<div class="rg-loading">Loading your rank journey</div>';
+  wrap.innerHTML = '<div class="rg-loading">Loading your rank journey...</div>';
   host.prepend(wrap);
   // Through the tile's shared read (rrPoints), so a Refresh with the notes
   // open asks for the history once, not twice at once on the one stats key.
@@ -304,7 +222,7 @@ async function renderRankGraph(host, opts) {
 
   wrap.innerHTML = `
     <div class="rg-head">
-      <span class="rg-title">Rank journey, your last ${points.length} competitive games</span>
+      <span class="rg-title">Rank journey · last ${points.length} comp games</span>
       <span class="rg-net ${net >= 0 ? 'up' : 'down'}">${net >= 0 ? '+' : ''}${net} RR</span>
     </div>
     <div class="rg-plot">
@@ -316,7 +234,7 @@ async function renderRankGraph(host, opts) {
     </div>
     <div class="rg-foot">
       <span>${points[0].tier || ''}</span>
-      <span>${last.tier || ''}</span>
+      <span>${last.tier || ''}${last.change != null ? ' · last game ' + (last.change >= 0 ? '+' : '') + last.change + ' RR' : ''}</span>
     </div>`;
 }
 
@@ -329,7 +247,7 @@ function toggleRankNotes(rankValue) {
   const body  = document.createElement('p');
   if (!tier) {
     title.textContent = 'Rank insights';
-    body.textContent = 'Play a rated match and this shows what usually holds players back at your rank.';
+    body.textContent = 'Connect your Riot ID in Settings and play ranked to see what typically holds players back at your rank.';
     rankNotesEl.append(title, body);
   } else {
     const n = RANK_NOTES[tier];
@@ -364,9 +282,6 @@ function toggleRankNotes(rankValue) {
 let shownRank;               // the rank the tile shows, undefined until it is painted
 let journeyWanted = false;   // asked for before the tile was there to open it under
 function showJourney() {
-  // With no Riot ID the page is its one empty state: an ask that lands after
-  // applyRiot is dropped too, never opened under the hidden tile.
-  if (riotMissing) { journeyWanted = false; return; }
   if (!journeyWanted || shownRank === undefined) return;
   journeyWanted = false;
   if (!rankOpen) toggleRankNotes(shownRank);
@@ -417,7 +332,7 @@ function nothingToShow(d) {
 
 function renderCards(d) {
   cardsEl.innerHTML = '';
-  const rankCard = card('Rank', d.rank?.value);
+  const rankCard = card('Rank', d.rank?.value, d.rank?.direction, true);
   // Empty until the rank history answers, never the trend's dash.
   const rr = rankCard.querySelector('.arrow');
   rr.className = 'arrow rr';
@@ -426,8 +341,8 @@ function renderCards(d) {
   rankCard.classList.add('clickable');
   const chev = document.createElement('span');
   chev.className = 'rank-chev';
-  chev.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
-  rankCard.querySelector('.val-row').append(chev);
+  chev.textContent = '▾';
+  rankCard.querySelector('.label').append(' ', chev);
   rankCard.title = 'What holds players back at this rank';
   // The whole line opens the notes, from the keyboard as well.
   rankCard.setAttribute('role', 'button');
@@ -449,41 +364,48 @@ function renderCards(d) {
   // never a rating, and nothing at all from a server before it.
   const said = (Array.isArray(d.rankLine) ? d.rankLine : []).filter((s) => typeof s === 'string' && s)
     .concat(typeof d.accolades === 'string' && d.accolades ? [d.accolades] : []);
-  // Two facts at most (8.8): a meta line is one sentence, never a chain.
   if (said.length && d.rank && d.rank.value) {
     const sub = document.createElement('span');
     sub.className = 'rank-sub';
-    sub.textContent = said.slice(0, 2).join(', ');
-    rankCard.querySelector('.rank-col').append(sub);
+    sub.textContent = said.join('  ·  ');
+    rankCard.append(sub);
   }
-  // NOTHING TO COUNT YET (8.7, 8.8): empty rows under their labels read as a
-  // broken page. The rank row alone stays, its value one line saying so; its
-  // notes still open under it (the journey Home asks for), and the list is
-  // painted once there is a number to show. With no Riot ID at all the
-  // overview is not shown: the page's one empty state says it (applyRiot).
+  // NO RIOT ID, NO EMPTY COLUMNS (8.7): six quiet marks under their labels
+  // read as a broken page. The rank row alone stays, its value one line
+  // saying what is missing and one ghost button to Settings; its notes still
+  // open under it (the journey Home asks for), and the five columns are
+  // painted once there is a number to show.
   if (nothingToShow(d)) {
     const p = document.createElement('p');
     p.id = 'cards-none';
-    p.textContent = 'Riot has no rank or numbers for this account yet. They show here after your next match.';
+    p.textContent = 'Connect your Riot ID in Settings to see your rank and numbers here.';
     const row = rankCard.querySelector('.val-row');
     row.replaceChildren(p);
-    rankCard.classList.add('no-rank');
+    if (typeof window.occlara.go === 'function') {
+      const go = document.createElement('button');
+      go.type = 'button';
+      go.id = 'cards-settings';
+      go.className = 'btn btn-ghost sm';
+      go.textContent = 'Open Settings';
+      go.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.go('settings'); });
+      row.append(go);
+    }
     cardsEl.append(rankCard);
     shownRank = null;
     showJourney();
     return;
   }
   const c = d.categories || {};
-  // The rank first, the page's lead figure on a line of its own; the other
-  // five under it as a ruled list, each number in the margin (stats.css .fig).
-  const cats = [['Impact', c.impact], ['Positioning', c.positioning], ['Utility', c.utility], ['Aim', c.aim]]
-    .map(([label, k]) => ({ label, value: k ? k.avg : null, el: figRow(label, k?.avg, k?.direction) }));
+  // The rank first, the page's hero on a line of its own; the five numbers
+  // under it in columns (stats.css .cards).
   cardsEl.append(
     rankCard,
-    ...cats.map((r) => r.el),
-    figRow('Win rate',    d.winRate?.value != null ? d.winRate.value + '%' : null, d.winRate?.direction),
+    card('Impact',      c.impact?.avg,      c.impact?.direction),
+    card('Positioning', c.positioning?.avg, c.positioning?.direction),
+    card('Utility',     c.utility?.avg,     c.utility?.direction),
+    card('Aim',         c.aim?.avg,         c.aim?.direction),
+    card('Win rate',    d.winRate?.value != null ? d.winRate.value + '%' : null, d.winRate?.direction),
   );
-  tickBest(cats);
   shownRank = (d.rank && d.rank.value) || null;
   showJourney();   // Home asked for the journey before the tile was painted
 }
@@ -516,32 +438,17 @@ function grade(kind, v) {
   }
 }
 
-/** One line of an opened match's ruled list: the name, then its number in its grade's colour. */
 function statTile(label, value, gradeClass) {
   const tile = document.createElement('div');
   tile.className = 'tile';
-  const l = document.createElement('dt');
-  l.className = 't-label';
-  l.textContent = label;
-  const v = document.createElement('dd');
-  v.className = `t-val ${value == null ? 'none' : gradeClass || ''}`;
-  v.textContent = value == null ? 'None' : value;
-  tile.append(l, v);
-  return tile;
-}
-
-/** An opened match's lead figure: its combat score, the number the scoreboard sorts by. */
-function leadFigure(label, value, gradeClass) {
-  const lead = document.createElement('div');
-  lead.className = 'd-lead';
-  const v = document.createElement('span');
-  v.className = `d-lead-val ${value == null ? 'none' : gradeClass || ''}`;
-  v.textContent = value == null ? 'None' : value;
   const l = document.createElement('span');
   l.className = 't-label';
   l.textContent = label;
-  lead.append(v, l);
-  return lead;
+  const v = document.createElement('span');
+  v.className = `t-val ${gradeClass || ''}`;
+  v.textContent = value == null ? '·' : value;
+  tile.append(l, v);
+  return tile;
 }
 
 /*
@@ -595,7 +502,7 @@ function matchRow(m) {
   place.textContent = m.map || 'Unknown';
   const sub = document.createElement('span');
   sub.className = 'sub';
-  sub.textContent = [m.agent, m.queue && m.queue !== 'Competitive' ? m.queue : null].filter(Boolean).join(', ');
+  sub.textContent = [m.agent, m.queue && m.queue !== 'Competitive' ? m.queue : null].filter(Boolean).join(' · ');
   const spacer = document.createElement('span');
   spacer.className = 'spacer';
   const kda = document.createElement('span');
@@ -607,9 +514,8 @@ function matchRow(m) {
   const rating = document.createElement('span');
   rating.className = `rating ${ratingClass(m.rating)}`;
   rating.textContent = m.rating;
-  rating.title = 'Match rating, out of 100';
-  // The rating is the row's figure, in the margin (8.8); the chevron closes the line.
-  top.append(rating, place, sub, spacer, kda, res);
+  rating.title = 'Match rating (0-100)';
+  top.append(chev, place, sub, spacer, kda, res);
   if (m.mvp) {
     const mvp = document.createElement('span');
     mvp.className = `mvp ${m.mvp}`;
@@ -619,28 +525,24 @@ function matchRow(m) {
       : 'Top combat score on your team';
     top.append(mvp);
   }
-  top.append(chev);
+  top.append(rating);
 
-  // Drop-down (8.8): the combat score as the one lead figure, the tracker's
-  // other numbers as a ruled list beside it, each graded good, okay or bad by
-  // its colour beside its number. It was eight equal columns.
+  // Drop-down: the tracker's most important stats, graded green/yellow/red.
   const detail = document.createElement('div');
   detail.className = 'detail';
-  const figs = document.createElement('div');
-  figs.className = 'd-figs';
-  const tiles = document.createElement('dl');
+  const tiles = document.createElement('div');
   tiles.className = 'tiles';
   const dmgVal = m.dmgDelta == null ? null : (m.dmgDelta > 0 ? '+' + m.dmgDelta : String(m.dmgDelta));
   tiles.append(
-    statTile('K/D',                                m.kd,  grade('kd',  m.kd)),
-    statTile('Damage per round',                   m.adr, grade('adr', m.adr)),
-    statTile('Headshot rate',                      m.headshotPct != null ? m.headshotPct + '%' : null, grade('hs', m.headshotPct)),
-    statTile('Kills per round',                    m.kpr, grade('kpr', m.kpr)),
-    statTile('Deaths per round',                   m.dpr, grade('dpr', m.dpr)),
-    statTile('Assists per round',                  m.apr, grade('apr', m.apr)),
-    statTile('Damage dealt minus taken, per round', dmgVal, grade('dmg', m.dmgDelta)),
+    statTile('K/D',        m.kd,          grade('kd',  m.kd)),
+    statTile('ACS',        m.acs,         grade('acs', m.acs)),
+    statTile('ADR',        m.adr,         grade('adr', m.adr)),
+    statTile('HS%',        m.headshotPct != null ? m.headshotPct + '%' : null, grade('hs', m.headshotPct)),
+    statTile('Kills/Rd',   m.kpr,         grade('kpr', m.kpr)),
+    statTile('Deaths/Rd',  m.dpr,         grade('dpr', m.dpr)),
+    statTile('Assists/Rd', m.apr,         grade('apr', m.apr)),
+    statTile('Dmg +/- Rd', dmgVal,        grade('dmg', m.dmgDelta)),
   );
-  figs.append(leadFigure('Average combat score', m.acs, grade('acs', m.acs)), tiles);
   // HOW THE TEAM PLAYED: each teammate by agent, with their numbers, ordered
   // by combat score like the in-game scoreboard, the player's own row marked
   // "You" rather than removed, so the row they are looking for is where they
@@ -677,7 +579,7 @@ function matchRow(m) {
     teamEl = team;
   }
 
-  detail.append(figs);
+  detail.append(tiles);
   if (teamEl) detail.append(teamEl);
   row.append(top, dropDown(detail));
   expandable(row);
@@ -686,10 +588,8 @@ function matchRow(m) {
 
 function timeAgo(ts) {
   if (!ts) return '';
-  // The shared Intl helper (8.8): one whole phrase in the interface language.
-  if (window.occlaraIntl) return window.occlaraIntl.ago(ts);
   const m = Math.max(0, Math.round((Date.now() - ts) / 60000));
-  return m < 1 ? 'just now' : m === 1 ? '1 minute ago' : `${m} minutes ago`;
+  return m < 1 ? 'just now' : m === 1 ? '1 minute ago' : m < 60 ? `${m} minutes ago` : `${Math.round(m / 60)}h ago`;
 }
 
 function renderMatches(res) {
@@ -702,8 +602,9 @@ function renderMatches(res) {
   if (!matches.length) {
     matchEmptyEl.hidden = false;
     const noRiot = !!(res && res.error === 'no-riot-id');
-    // With no Riot ID this section is not shown: the page's one empty state says it (applyRiot).
-    matchEmptyEl.textContent = 'No matches yet. A match shows here a few minutes after it ends.';
+    matchEmptyEl.textContent = noRiot
+      ? 'Connect your Riot ID in Settings to see your recent matches here.'
+      : 'No recent matches found yet. Matches appear a few minutes after they end.';
     // The queue switch and Refresh wait for a Riot ID too (8.7): with none,
     // nothing they do can answer.
     matchTools(!noRiot);
@@ -719,7 +620,7 @@ function renderMatches(res) {
   matches.forEach((m, i) => {
     const r = matchRow(m);
     if (m.id && had.has(m.id)) r.classList.add('settled');
-    else if (had.size) r.classList.add('fresh');   // new since the last paint: its one fade
+    else r.style.animationDelay = Math.min(i, 8) * 40 + 'ms';   // rows rise once, 40ms apart, eight at most
     matchListEl.append(r);
   });
 }
@@ -768,12 +669,21 @@ function tickRefresh() {
 setInterval(tickRefresh, 1000);
 
 // ── Coaching sessions ─────────────────────────────────────────────────────────
-/** When a match was graded, through the shared Intl helper (8.8): relative up
- *  to six days, then a short date, in the interface language. */
 function fmtDate(ts) {
-  if (!ts) return '';
-  if (window.occlaraIntl) return window.occlaraIntl.ago(ts);
-  return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const d = new Date(ts);
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+         d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+/** The grade counts up from 0 as the review's does, in CSS alone (stats.css
+ *  .grade-chip.counting, @property --n): the real number is the text from the
+ *  start, and the count is drawn over it, so nothing here does arithmetic. */
+function revealScore(el, target, delay) {
+  // Less motion: the number, at once (the count drew a 0 through its delay).
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  el.style.setProperty('--to', String(target));
+  el.style.animationDelay = delay + 'ms';
+  el.classList.add('counting');
 }
 
 /**
@@ -788,6 +698,7 @@ function sessionRow(s, i, settled) {
   const row = document.createElement('div');
   row.className = 'row expandable session' + (settled ? ' settled' : '');
   row.dataset.id = s.id || '';
+  if (!settled) row.style.animationDelay = Math.min(i, 8) * 40 + 'ms';   // rows rise once, 40ms apart, eight at most
   const top = document.createElement('div');
   top.className = 'top';
   const chev = document.createElement('span');
@@ -795,17 +706,13 @@ function sessionRow(s, i, settled) {
   chev.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
   const place = document.createElement('span');
   place.className = 'place';
-  place.textContent = s.map || 'Unknown map';
+  place.textContent = fmtDate(s.at);
   const sub = document.createElement('span');
   sub.className = 'sub';
   // Result in the collapsed row: whether the match was a win is the first
   // thing anyone wants next to its grade, and it should not need a click.
-  // Two facts at most (8.8): the agent and the result; the day sits at the end.
-  sub.textContent = [s.title, s.result && s.score ? `${s.result} ${s.score}` : s.score]
-    .filter(Boolean).join(', ');
-  const when = document.createElement('span');
-  when.className = 'when';
-  when.textContent = fmtDate(s.at);
+  sub.textContent = [s.map, s.title, s.result && s.score ? `${s.result} ${s.score}` : s.score]
+    .filter(Boolean).join(' · ');
   const spacer = document.createElement('span');
   spacer.className = 'spacer';
   const mvpSlot = document.createElement('span');
@@ -821,16 +728,16 @@ function sessionRow(s, i, settled) {
   score.title = s.grade && s.grade.provisional ? 'Match grade, provisional' : 'Match grade';
   score.textContent = String(target);
   if (tone) score.classList.add(tone);
+  if (!settled) revealScore(score, target, Math.min(i, 8) * 40);
   const letter = document.createElement('span');
   letter.className = 'grade-letter' + (tone ? ' ' + tone : '');
   letter.textContent = s.grade ? s.grade.letter : '';
-  // The grade and its letter are the row's figures, in the margin (8.8).
-  top.append(score, letter, place, sub, spacer, mvpSlot, when, chev);
+  top.append(chev, place, sub, spacer, mvpSlot, score, letter);
 
   const detail = document.createElement('div');
   detail.className = 'detail';
   if (s.topMistake) {
-    const wl = document.createElement('div'); wl.className = 'd-label w'; wl.textContent = 'Mistake you repeated most';
+    const wl = document.createElement('div'); wl.className = 'd-label w'; wl.textContent = 'Top repeated mistake';
     const wp = document.createElement('p');   wp.textContent = s.topMistake;
     detail.append(wl, wp);
   }
@@ -841,12 +748,12 @@ function sessionRow(s, i, settled) {
   const actions = document.createElement('div');
   actions.className = 'd-actions';
   const open = document.createElement('button');
-  open.className = 'btn btn-secondary sm ask-btn no-drag';
-  open.textContent = 'Open review';
+  open.className = 'btn sm ask-btn no-drag';
+  open.textContent = 'Open the review';
   open.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.openReview(s.id); });
   const ask = document.createElement('button');
-  ask.className = 'btn btn-tertiary ask-btn no-drag';
-  ask.textContent = 'Ask Coach about this match';
+  ask.className = 'btn sm ask-btn no-drag';
+  ask.textContent = 'Ask Coach about this';
   ask.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.askAboutSession({ reviewId: s.id }); });
   actions.append(open, ask);
   detail.append(actions);
@@ -918,7 +825,6 @@ function renderSessions(d) {
   shownGrades.clear();
   if (!sessions.length) {
     sessionEmptyEl.hidden = false;
-    sessionsShown();
     return;
   }
   sessionEmptyEl.hidden = true;
@@ -926,12 +832,9 @@ function renderSessions(d) {
     const score = s.grade ? s.grade.score : null;
     const row = sessionRow(s, i, before.has(s.id) && before.get(s.id) === score);
     if (open.has(s.id)) row.classList.add('open');
-    // A match graded since the page was painted: its one fade (8.8). A first paint has none.
-    if (before.size && !row.classList.contains('settled')) row.classList.add('fresh');
     shownGrades.set(s.id, score);
     sessionListEl.append(row);
   });
-  sessionsShown();
   annotateSessionMvps();   // matches may have loaded first
 }
 
@@ -1000,8 +903,9 @@ async function renderAgents(topAgents) {
     // How often the agent was played, in the row's numbers, said once.
     const count = document.createElement('span');
     count.className = 'agent-chip played';
-    count.textContent = a.matches === 1 ? `1 match, ${a.pct}%` : `${a.matches} matches, ${a.pct}%`;
+    count.textContent = `${a.matches} ${a.matches === 1 ? 'match' : 'matches'} · ${a.pct}%`;
     count.title = `${a.pct}% of your recent games`;
+    chips.append(count);
     const wr = document.createElement('span');
     wr.className = `agent-chip ${a.winRate >= 55 ? 'good' : a.winRate <= 45 ? 'bad' : 'mid'}`;
     wr.textContent = `${a.winRate}% WR`;
@@ -1012,10 +916,9 @@ async function renderAgents(topAgents) {
     acs.className = `agent-chip ${a.acs >= 220 ? 'good' : a.acs < 150 ? 'bad' : 'mid'}`;
     acs.textContent = `${a.acs} ACS`;
     chips.append(wr, kd, acs);
-    // How often, beside the name in words; the three figures stand at the end.
-    nm.append(count);
     info.append(nm, chips);
     tile.append(icon, info);
+    tile.style.animationDelay = Math.min(i, 8) * 40 + 'ms';
     agentTilesEl.append(tile);
   });
 }
@@ -1028,8 +931,6 @@ async function refreshDashboardForMode(mode, force) {
   try {
     const d = await window.occlara.getDashboard(mode, !!force);
     if (!d || seq !== dashSeq || mode !== matchMode) return;   // superseded
-    if (d.statsSupported === false) return;
-    applyRiot(noRiotId(d));
     renderCards(d);
     renderAgents(d.topAgents);
   } catch {}
@@ -1041,7 +942,7 @@ function showCardSkeleton() {
   cardsEl.innerHTML = '';
   for (let i = 0; i < 6; i++) {
     const s = document.createElement('div');
-    s.className = i ? 'card fig skeleton' : 'card skeleton';
+    s.className = 'card skeleton';
     cardsEl.append(s);
   }
 }
@@ -1062,46 +963,12 @@ function showDashboard(on) {
   }
   const ns = document.getElementById('nostats');
   if (ns) ns.hidden = on;
-  if (!on) document.getElementById('stats-connect').hidden = true;
-}
-
-/*
- * ONE EMPTY STATE, ONE ACTION (8.8). With no Riot ID the overview, the agents
- * and the recent matches all had their own line saying so, three sentences
- * stacked down the page, and one ghost button. Now they wait, unseen, under
- * one line and one button to Settings, where the Riot ID is entered. Graded
- * matches are Occlara's own, so they stay when there are any; with none, their
- * line is not shown either, so the page still says one thing.
- */
-let riotMissing = false;
-function noRiotId(d) {
-  if (!d) return false;
-  if (d.riotConnected === false) return true;
-  if (d.matches && d.matches.error === 'no-riot-id') return true;
-  return typeof d.riotId === 'string' && !d.riotId.includes('#');
-}
-function applyRiot(missing) {
-  riotMissing = !!missing;
-  for (const id of ['sec-overview', 'sec-agents', 'sec-matches']) document.getElementById(id).hidden = riotMissing;
-  document.getElementById('stats-connect').hidden = !riotMissing;
-  if (riotMissing) {
-    // Nothing to open the journey under: Home's ask is dropped, not kept.
-    journeyWanted = false;
-    if (rankOpen) closeRankNotes(true);
-  }
-  sessionsShown();
-}
-/** Graded matches: shown with rows, or with its empty line while a Riot ID is set. */
-function sessionsShown() {
-  const sec = document.getElementById('sec-sessions');
-  const rows = sessionListEl.children.length > 0;
-  sec.hidden = riotMissing && !rows;
 }
 
 async function load() {
   showCardSkeleton();
   matchEmptyEl.hidden = false;
-  matchEmptyEl.textContent = 'Loading your matches';
+  matchEmptyEl.textContent = 'Loading matches...';
   try {
     const d = await window.occlara.getDashboard(matchMode);
     if (!d) return;
@@ -1111,14 +978,15 @@ async function load() {
     // response under whatever game is now selected.
     if (d.statsSupported === false) {
       const label = d.gameLabel || 'This game';
-      document.getElementById('nostats-title').textContent = 'Switch to Valorant to see your stats';
+      document.getElementById('nostats-title').textContent = label + ' stats';
       document.getElementById('nostats-body').textContent =
-        `Occlara has no source for ${label} rank and match history yet. Valorant is chosen in Settings.`;
+        'Occlara has no stats source for ' + label + ' yet, so there is nothing here to show. '
+        + 'Rank and match history need a connection this app does not have yet. '
+        + 'Switch to Valorant in Settings for the full dashboard.';
       showDashboard(false);
       return;
     }
     showDashboard(true);
-    applyRiot(noRiotId(d));
 
     renderCards(d);
     renderAgents(d.topAgents);
@@ -1164,10 +1032,6 @@ if (window.occlara.onReviews) {
   });
 }
 
-// The empty states' one action each: Settings, where the Riot ID is entered and the game is chosen.
-for (const id of ['stats-connect-go', 'nostats-go']) {
-  document.getElementById(id).addEventListener('click', () => { if (typeof window.occlara.go === 'function') window.occlara.go('settings'); });
-}
 document.getElementById('weekly').addEventListener('click', () => window.occlara.openWeekly());
 document.getElementById('ailog').addEventListener('click', () => window.occlara.openAiLog());
 // A page of the main window has no window of its own to close.

@@ -1,66 +1,62 @@
 /* palette: tokens only */
-/* Shared UI primitives: the three button ranks, keycaps, inputs, the voice,
-   the segmented capsule, the page motion. Held to the tokens by check:palette (the first line
+/* Shared UI primitives: buttons, keycaps, the mono label, the viewfinder,
+   the stat block, inputs. Held to the tokens by check:palette (the first line
    above): no colour here but a token and the glass's neutral black and white,
    and no gradient. */
 
-/* ── Buttons: THREE RANKS (8.8) ─────────────────────────────────────────────
-   Set here once and never restyled by a page.
+/* ── Buttons (8.6) ──────────────────────────────────────────────────────────
+   FLAT. A control is a fill and a hairline: 44px, --r-control, Geist 500
+   15px. Before 8.6 a button had a lit top edge, two shadows, a lift under the
+   pointer and a light sweep across the primary, and together they read as a
+   game launcher rather than a tool. Under the pointer the fill moves toward
+   the ink and nothing else moves.
 
-   PRIMARY, .btn-primary: the filled capsule (--r-btn), the ink with the
-   ground on it, its lit top edge and nothing else. One per view. Start
-   (.btn-rec) is the other capsule, the signal, and is chrome: it does not
-   count as the view's primary.
+   A bare .btn is the secondary, the same as .btn-ghost: the bordered control
+   it always was. The hovers exclude a disabled control inside :where(), so
+   they weigh what .btn:hover weighed and a surface's own state (Settings'
+   armed Clear clips, Log out under the pointer, a button that says it is
+   done) still wins over them.
 
-   SECONDARY, a bare .btn (and .btn-ghost and .btn-secondary, which are the
-   same thing by older names): a quiet rectangle, 36px, --r-control,
-   transparent, one hairline of --line-2, no shadow and no lit edge.
-
-   TERTIARY, .btn-tertiary: words, underlined at rest in --line-2 so they read
-   as a control, the underline going to --text-mute under the pointer.
-
-   Under the pointer a control answers in its fill, its edge and its ink on
-   plain ease and nothing moves: no rise, no shadow. Pressed, it goes to scale
-   .97 over --t-tap on --ease-out, never a disabled one. The hovers exclude a
-   disabled control inside :where(), so they weigh what .btn:hover weighed and
-   a surface's own state (Settings' armed Clear clips, a button that says it
-   is done) still wins over them. A control is not text: it is never
-   selected by a drag.
-
-   A keycap at the right end takes the end padding down:
+   A keycap at the right end takes the end padding down to 6px:
    <button class="btn btn-primary">Open review<kbd class="kbd">E</kbd></button> */
 .btn {
   -webkit-app-region: no-drag;
   position: relative;
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-  height: 36px; padding: 0 14px;
-  font-family: var(--font); font-size: var(--fs-ui); font-weight: var(--w-label); line-height: 1; letter-spacing: 0;
+  height: 40px; padding: 0 20px;
+  font-family: var(--font); font-size: 14px; font-weight: 500; line-height: 1; letter-spacing: -0.005em;
   color: var(--text);
-  background: transparent;
+  background: rgba(255, 255, 255, 0.055);
   border: 1px solid var(--line-2);
-  border-radius: var(--r-control);
-  box-shadow: none;
+  border-radius: var(--r-btn);
+  box-shadow: var(--hi), var(--drop);
   cursor: pointer;
-  user-select: none;
 }
-.btn:where(:not(:disabled):not([aria-disabled="true"])):hover { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.24); }
-.btn:where(:not(:disabled):not([aria-disabled="true"])):active { transform: scale(0.97); }
-.btn:disabled, .btn[aria-disabled="true"] { opacity: 0.45; cursor: default; }
-/* An icon leading the words sits 2px closer to its edge than the words do to theirs. */
-.btn:has(> svg:first-child) { padding-left: 12px; }
+/* Under the pointer a capsule rises a pixel and its shadow opens; pressed, it
+   goes down into its resting shadow and gives a hair of scale. Both on the
+   compositor (transform, shadow), none of it layout. */
+.btn:where(:not(:disabled)):hover { background: rgba(255, 255, 255, 0.095); transform: translateY(-1px); box-shadow: var(--hi), var(--drop-hover); }
+.btn:where(:not(:disabled)):active { transform: translateY(0) scale(0.985); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); transition-duration: var(--t-press); }
+.btn:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
 .btn:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child) { padding-right: 8px; }
-.btn.md { height: 36px; }
-.btn.sm { height: 30px; padding: 0 10px; font-size: var(--fs-label); gap: var(--space-2); }
-.btn.sm:has(> svg:first-child) { padding-left: 8px; }
+.btn.md { height: 36px; padding: 0 18px; }
+.btn.sm { height: 30px; padding: 0 14px; font-size: 13px; gap: var(--space-2); }
 .btn.sm:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child) { padding-right: 6px; }
-.btn.sm .kbd, .btn.sm kbd { height: 20px; min-width: 20px; padding: 0 5px; font-size: 11px; }
-/* A small control's hit area reaches 40px tall, its look unchanged. */
-.btn.sm::before { content: ''; position: absolute; inset: -5px 0; }
+.btn.sm .kbd, .btn.sm kbd { height: 20px; min-width: 20px; padding: 0 5px; font-size: 10.5px; }
 
-/* The ghost and the secondary are the bare .btn by older names. */
-.btn-ghost, .btn-secondary { background: transparent; border-color: var(--line-2); color: var(--text); }
+/* The primary: the ink capsule, the ground's colour on it, a lit top edge and a
+   dark bottom one. It is no longer the red: the signal is Start's alone. */
+.btn-primary { background: var(--text); border-color: transparent; color: var(--bg); box-shadow: var(--hi-ink), var(--drop); }
+.btn-primary:where(:not(:disabled)):hover { background: var(--cyan); box-shadow: var(--hi-ink), var(--drop-hover); }
+.btn-primary:where(:not(:disabled)):active { box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
+.btn-primary .kbd, .btn-primary kbd { border-color: rgba(0, 0, 0, 0.22); color: rgba(0, 0, 0, 0.62); }
+.btn-primary .kbd.is-pressed, .btn-primary kbd.is-pressed { border-color: rgba(0, 0, 0, 0.45); color: var(--bg); }
 
-/* A destructive action is a secondary until the pointer is on it: one of the
+/* The ghost: the dark capsule, the same lit edge. */
+.btn-ghost { background: rgba(255, 255, 255, 0.055); border-color: var(--line-2); color: var(--text); }
+.btn-ghost:where(:not(:disabled)):hover { background: rgba(255, 255, 255, 0.095); }
+
+/* A destructive action is a ghost until the pointer is on it: one of the
    signal's places (check:palette SIGNAL_ALLOWED). */
 .btn-ghost.danger:hover:not(:disabled) {
   color: var(--signal);
@@ -68,129 +64,80 @@
   background: rgba(var(--signal-rgb), 0.08);
 }
 
-/* THE PRIMARY: the ink capsule. It is not the red: the signal is Start's alone. */
-.btn-primary {
-  height: 40px; padding: 0 20px;
-  background: var(--text); border-color: transparent; color: var(--bg);
-  border-radius: var(--r-btn);
-  box-shadow: var(--hi-ink);
-}
-.btn-primary:where(:not(:disabled):not([aria-disabled="true"])):hover { background: var(--cyan); border-color: transparent; }
-.btn-primary:has(> svg:first-child) { padding-left: 18px; }
-.btn-primary.md { height: 36px; padding: 0 18px; }
-.btn-primary.md:has(> svg:first-child) { padding-left: 16px; }
-.btn-primary.sm { height: 30px; padding: 0 14px; }
-.btn-primary.sm:has(> svg:first-child) { padding-left: 12px; }
-.btn-primary:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child) { padding-right: 8px; }
-.btn-primary.sm:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child) { padding-right: 6px; }
-.btn-primary .kbd, .btn-primary kbd { border-color: rgba(0, 0, 0, 0.22); color: rgba(0, 0, 0, 0.62); }
-.btn-primary .kbd.is-pressed, .btn-primary kbd.is-pressed { border-color: rgba(0, 0, 0, 0.45); color: var(--bg); }
-
-/* The link: borderless and flat, its words dim until the pointer is on them. */
+/* The link: borderless, flat, words dim until the pointer is on it. It has no
+   depth, so it does not rise. */
 .btn-link {
   height: auto; padding: var(--space-2) var(--space-3);
-  background: transparent; border-color: transparent; color: var(--text-dim);
+  background: transparent; border-color: transparent; color: var(--text-dim); box-shadow: none;
 }
-.btn-link:where(:not(:disabled)):hover { color: var(--text); background: rgba(255, 255, 255, 0.06); border-color: transparent; }
-
-.btn-secondary.sm { height: 30px; padding: 0 10px; font-size: var(--fs-label); }
-
-/* THE TERTIARY: words, underlined at rest so they read as a control, only the
-   underline's colour moving under the pointer. Its hit area is 32px tall
-   whatever the line's height. */
-.btn-tertiary {
-  height: auto; padding: var(--space-1) 2px;
-  border-color: transparent; background: transparent;
-  border-radius: var(--r-card);
-  color: var(--text-dim);
-  font-weight: var(--w-label);
-  text-decoration-line: underline;
-  text-decoration-color: var(--line-2);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 4px;
-}
-.btn-tertiary::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 32px; transform: translateY(-50%); }
-.btn-tertiary:where(:not(:disabled):not([aria-disabled="true"])):hover { color: var(--text); background: transparent; border-color: transparent; text-decoration-color: var(--text-mute); }
-.btn-tertiary:where(:not(:disabled):not([aria-disabled="true"])):active { transform: none; }
-/* A destructive tertiary (Log out, Sign out): its words and its underline go
-   to the signal under the pointer, one of the signal's places. */
-.btn-tertiary.danger:hover:not(:disabled):not([aria-disabled="true"]) { color: var(--signal); text-decoration-color: rgba(var(--signal-rgb), 0.5); }
+.btn-link:where(:not(:disabled)):hover { color: var(--text); background: rgba(255, 255, 255, 0.06); transform: none; box-shadow: none; }
+.btn-link:where(:not(:disabled)):active { transform: none; box-shadow: none; }
 
 /* START: the ONE saturated fill in the app, the signal, with the ground's
-   colour on it (4.65:1; white on it measures 4.23:1, under the 4.5 the label
-   needs). A capsule, its lit edge and nothing else. Its hover and its press
+   colour on it (4.65:1; white on it measures 4.23:1, under the 4.5 the label needs). Its hover and its press
    leave Stop alone (.active): unscoped, the press rule outweighed
    .toggle.active and flashed the signal across Stop as it was pressed. */
 .btn-rec {
-  height: 48px; padding: 0 20px;
-  border-radius: var(--r-btn);
+  height: 48px;
   background: var(--red); border-color: transparent; color: var(--on-accent);
-  font-size: var(--fs-heading); font-weight: var(--w-title); letter-spacing: 0;
-  box-shadow: var(--hi-signal);
+  font-size: 18px; font-weight: 600; letter-spacing: -0.01em;
+  box-shadow: var(--hi-signal), var(--drop);
 }
-.btn-rec:hover:not(:disabled):not(.active) { background: var(--red-2); border-color: transparent; }
-.btn-rec:active:not(:disabled):not(.active) { background: var(--red-3); }
+.btn-rec:hover:not(:disabled):not(.active) { background: var(--red-2); box-shadow: var(--hi-signal), var(--drop-hover); }
+.btn-rec:active:not(:disabled):not(.active) { background: var(--red-3); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
 
-/* An icon button is a secondary that holds an icon: the same rectangle,
-   34px square, its hit area reaching 40px. */
 .icon-btn {
   -webkit-app-region: no-drag;
   position: relative;
   display: grid; place-items: center;
   width: 34px; height: 34px;
-  border-radius: var(--r-control);
-  background: transparent;
-  border: 1px solid var(--line-2);
-  box-shadow: none;
+  border-radius: var(--r-btn);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--hi), var(--drop);
   color: var(--text-dim);
   cursor: pointer;
-  user-select: none;
 }
-.icon-btn::before { content: ''; position: absolute; inset: -3px; }
-.icon-btn:where(:not(:disabled):not([aria-disabled="true"])):hover {
+.icon-btn:where(:not(:disabled)):hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+  box-shadow: var(--hi), var(--drop-hover);
 }
-.icon-btn:where(:not(:disabled):not([aria-disabled="true"])):active { transform: scale(0.97); }
-.icon-btn:disabled, .icon-btn[aria-disabled="true"] { opacity: 0.45; cursor: default; }
+.icon-btn:where(:not(:disabled)):active { transform: translateY(0) scale(0.96); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); transition-duration: var(--t-press); }
+.icon-btn:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
 
 /* The eye that opens one match's AI log (shared/log-eye.js), on its row in
    Matches and in its review's header: an icon button a size down, beside rows
-   and small buttons, its hit area still 40px. Disabled once the log no
-   longer holds the match, and still there, so its tooltip can say why; it
-   does not light under the pointer like a control that would do something. */
+   and small buttons. Disabled once the log no longer holds the match, and
+   still there, so its tooltip can say why; it does not light under the
+   pointer like a control that would do something. */
 .log-eye { flex: none; }
 .log-eye:not(.labelled) { width: 30px; height: 30px; }
-.log-eye:not(.labelled)::before { inset: -5px; }
-.log-eye:disabled, .log-eye[aria-disabled="true"] { opacity: 0.4; cursor: default; }
+.log-eye:disabled { opacity: 0.4; cursor: default; }
 /* With its word beside it (log-eye.js labelled()), where it stands alone, on
-   Home's last match: a button of the class it carries, the eye leading the
-   word. */
+   Home's last match: a button of the class it carries, the size of the Open
+   review beside it, the eye leading the word. */
 .log-eye.labelled { display: inline-flex; align-items: center; gap: var(--space-2); }
 
 /* ── Inputs ──────────────────────────────────────────────────────────────── */
-/* A field is Geist, untracked (8.8: Geist Mono with 2px of tracking was a
-   costume), its edge --line-input at 3.75:1 so the box can be found. With
-   focus its edge goes to the ink and the one focus ring (theme.css) shows
-   for the keyboard; no glow. */
 .input {
   -webkit-app-region: no-drag;
   width: 100%; height: 44px;
   padding: 0 14px;
-  font-family: var(--font);
-  font-size: var(--fs-ui);
-  letter-spacing: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 2px;
   color: var(--text);
   background: transparent;
-  border: 1px solid var(--line-input);
+  border: 1px solid var(--line-2);
   border-radius: var(--r-control);
   outline: none;
-  transition: border-color var(--t-fast) ease;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
-.input:focus { border-color: var(--text-dim); }
-.input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.input::placeholder { color: var(--text-mute); }
+.input:focus { border-color: rgba(var(--cyan-rgb), 0.5); box-shadow: var(--glow-cyan); }
+.input::placeholder { color: var(--text-mute); letter-spacing: 1px; }
 
 /* ── Type ────────────────────────────────────────────────────────────────────
    THE LABEL (8.7): every small label is Geist 12/500 in --text-mute, sentence
@@ -203,24 +150,6 @@
   font-family: var(--font); font-weight: 600;
   letter-spacing: var(--track-display); line-height: var(--lh-display);
   font-variant-numeric: tabular-nums; color: var(--text);
-}
-/* THE COACH'S VOICE, BY ROLE (8.8). One family, Geist: the voice is set apart
-   by weight, size and ink, never by a second face. The fix line, and any
-   hero line, is .t-fix: Geist 700, tight and balanced, its size set by the
-   page. What the coach says (the read, a round's why, Ask Coach's answers)
-   is .t-voice: Geist 400 at --fs-voice (16px, 17 on a wide window) on a
-   1.55 line in the full ink, so it reads as sentences beside the 500 labels
-   in --text-dim, and never wider than 65 characters. */
-.t-fix {
-  font-family: var(--font); font-weight: var(--w-display);
-  letter-spacing: var(--track-hero); line-height: var(--lh-display);
-  color: var(--text); text-wrap: balance;
-}
-.t-voice {
-  font-family: var(--font); font-weight: var(--w-body);
-  font-size: var(--fs-voice); line-height: var(--lh-body); letter-spacing: 0;
-  color: var(--text); text-wrap: pretty;
-  max-width: 65ch; overflow-wrap: break-word;
 }
 
 /* ── Keycaps ─────────────────────────────────────────────────────────────────
@@ -240,8 +169,7 @@ kbd, .kbd {
   background: transparent;
   font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1; letter-spacing: 0;
   color: var(--text-dim); white-space: nowrap;
-  user-select: none;
-  transition: transform var(--t-press) var(--ease-out), border-color var(--t-fast) ease, color var(--t-fast) ease;
+  transition: transform var(--t-press) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 kbd.lg, .kbd.lg { height: 24px; min-width: 24px; }
 .keys { display: inline-flex; align-items: center; gap: 4px; }
@@ -261,20 +189,82 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
   color: var(--text-mute); white-space: nowrap;
 }
 
+/* ── The viewfinder ──────────────────────────────────────────────────────────
+   Only on a card that frames one moment (the last match, the Verdict, a clip,
+   the AI log's frame): no border, four 16px brackets, 1.5px of ink-2, 2px
+   outside the box, over a two point fill. ONE pseudo element draws all four:
+   a whole border clipped to its corners, never a gradient. Under the pointer
+   or with focus inside, the brackets open 2px further. It must not sit inside
+   an overflow: hidden ancestor, which cuts the brackets off. */
+.vf {
+  position: relative;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--r-card);
+}
+.vf::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 1.5px solid var(--text-dim);
+  pointer-events: none;
+  clip-path: polygon(
+    0 0, 16px 0, 16px 3px, calc(100% - 16px) 3px, calc(100% - 16px) 0, 100% 0,
+    100% 16px, calc(100% - 3px) 16px, calc(100% - 3px) calc(100% - 16px), 100% calc(100% - 16px), 100% 100%,
+    calc(100% - 16px) 100%, calc(100% - 16px) calc(100% - 3px), 16px calc(100% - 3px), 16px 100%, 0 100%,
+    0 calc(100% - 16px), 3px calc(100% - 16px), 3px 16px, 0 16px);
+  transition: inset var(--t-slow) var(--ease-expo);
+}
+.vf:hover::before, .vf:focus-within::before { inset: -4px; }
+
+/* ── The stat block ──────────────────────────────────────────────────────────
+   <div class="stats sm"><div class="stat"><b class="stat-n">7</b><span class="stat-l">Matches</span></div>...</div>
+   Columns divided by the hairline. Held under .stats, so the review's own
+   .stat tiles (review.css) are not touched. The app uses .sm and .xs. */
+.stats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.stats > .stat { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: 0 var(--space-6); border-left: 1px solid var(--line); }
+.stats > .stat:first-child { padding-left: 0; border-left: 0; }
+.stats .stat-n {
+  font-family: var(--font); font-size: 64px; font-weight: 600;
+  line-height: var(--lh-display); letter-spacing: var(--track-display);
+  font-variant-numeric: tabular-nums; color: var(--text);
+}
+.stats.sm .stat-n { font-size: 36px; }
+.stats.xs .stat-n { font-size: 24px; }
+.stats .stat-l {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.3;
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-mute);
+}
+
+/* ── The column grid ─────────────────────────────────────────────────────────
+   Twelve 1px lines behind Home's header band, drawn as elements (a repeating
+   gradient is a gradient): <div class="colgrid" aria-hidden="true"><i></i> x 12</div>
+   as the first child of a position: relative band whose content sits above
+   it. It follows the page's centred column (html.embedded, below). Never
+   behind a review, a table or a frame. */
+.colgrid {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: max(var(--space-8), calc((100% - 1040px) / 2));
+  right: max(var(--space-8), calc((100% - 1040px) / 2));
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  pointer-events: none;
+  z-index: 0;
+}
+.colgrid > i { border-left: 1px solid var(--grid); }
+.colgrid > i:last-child { border-right: 1px solid var(--grid); }
+
 /* ── The live dot and the urgent dot: two more of the signal's places ──── */
 .sig-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); }
 .sig-dot.off { background: var(--text-mute); }
 
 /* ── The segmented capsule (8.7) ────────────────────────────────────────────
-   One capsule, one thumb, for a real either/or alone (On and Off, Monthly
-   and Yearly). shared/seg.js (occlaraSeg) adds .seg-slide and an aria-hidden
-   .seg-thumb behind the buttons and moves it to the chosen one, and since
-   8.8 makes the row a radiogroup: each button a radio with aria-checked, one
-   tab stop, the arrow keys moving the choice. The buttons keep their own
-   state (aria-pressed, .on, .active, .picked) and are drawn flat and
-   transparent over the thumb, so the thumb is the only fill. */
-.seg-slide { position: relative; display: inline-flex; gap: 0; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: rgba(0, 0, 0, 0.32); user-select: none; }
-.seg-slide > button { position: relative; z-index: var(--z-raised); height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-btn); background: transparent; color: var(--text-dim); font: 500 13px var(--font); cursor: pointer; transition: color var(--t-fast) ease; }
+   One capsule, one thumb. shared/seg.js (occlaraSeg) adds .seg-slide and an
+   aria-hidden .seg-thumb behind the buttons and slides it to the chosen one;
+   the buttons keep their own state (aria-pressed, .on, .active, .picked) and
+   are drawn flat and transparent over it, so the thumb is the only fill. */
+.seg-slide { position: relative; display: inline-flex; gap: 0; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: rgba(0, 0, 0, 0.32); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
+.seg-slide > button { position: relative; z-index: 1; height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-btn); background: transparent; color: var(--text-dim); font: 500 13px var(--font); cursor: pointer; transition: color var(--t-fast) var(--ease); }
 .seg-slide > button:hover:not(:disabled) { color: var(--text); }
 .seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked), .seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked):hover { color: var(--bg); }
 /* A page's own `.seg > button:hover:not(:disabled) { color: var(--text) }` (onboarding, settings, learn)
@@ -284,53 +274,40 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
 .seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked):hover:not(:disabled) { color: var(--bg); }
 /* Transform and opacity alone (8.7): seg.js writes the new width before the
    transform, so the thumb takes its size as the slide starts and only the
-   slide is animated; a width tween relaid the thumb out every frame. The
-   thumb is something on screen moving to a new place, so --ease-in-out. */
-.seg-thumb { position: absolute; top: 0; left: 0; z-index: var(--z-base); border-radius: var(--r-btn); background: var(--text); box-shadow: var(--hi-ink); opacity: 0; transition: transform var(--t-med) var(--ease-in-out), opacity var(--t-fast) ease; pointer-events: none; }
+   slide is animated; a width tween relaid the thumb out every frame. */
+.seg-thumb { position: absolute; top: 0; left: 0; z-index: 0; border-radius: var(--r-btn); background: var(--text); box-shadow: var(--hi-ink), var(--drop); opacity: 0; transition: transform var(--t-med) var(--ease-expo), opacity var(--t-fast) var(--ease); pointer-events: none; }
 .seg-thumb.on { opacity: 1; }
-.seg-thumb.still { transition: opacity var(--t-fast) ease; }
-
-/* ── A row of words (8.8) ───────────────────────────────────────────────────
-   Three or more choices are no either/or, so no capsule: the values as words
-   in a row, the chosen one in the ink at 600 over a 1px rule in --text-mute,
-   the others --text-dim. A hidden twin of each word at 600 (data-text) holds
-   its width, so a choice never shifts the row. 12px apart, 32px tall. The
-   page sets radio semantics and the arrow keys (settings.js optsRow,
-   feedback.js, moments.js, matches.js radioKeys); the chosen one carries
-   aria-checked="true" (or .active, Settings' older state). */
-.opts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-3); user-select: none; }
-.opts > button {
-  display: inline-grid; place-items: center;
-  height: 32px; padding: 0 2px; border: 0; background: none; cursor: pointer;
-  font-family: var(--font); font-size: var(--fs-label); font-weight: var(--w-label); line-height: 1; color: var(--text-dim);
-  font-variant-numeric: tabular-nums; white-space: nowrap;
-  text-decoration-line: underline; text-decoration-color: transparent;
-  text-decoration-thickness: 1px; text-underline-offset: 6px;
-  transition: color var(--t-fast) ease, text-decoration-color var(--t-fast) ease;
-}
-.opts > button::after {
-  content: attr(data-text); font-weight: var(--w-title);
-  height: 0; overflow: hidden; visibility: hidden; pointer-events: none;
-}
-.opts > button:hover:not(:disabled) { color: var(--text); }
-.opts > button:is([aria-checked="true"], .active) { color: var(--text); font-weight: var(--w-title); text-decoration-color: var(--text-mute); }
-.opts > button small { font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: 400; color: var(--text-mute); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.seg-thumb.still { transition: opacity var(--t-fast) var(--ease); }
 
 /* Status dot */
-.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-mute); transition: background-color var(--t-med) ease, opacity var(--t-med) ease; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-mute); transition: all var(--t-med) var(--ease); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 /* ── Shared motion utilities ──────────────────────────────────────────────
-   Surfaces opt into these instead of redefining the same entrance five times
-   (the keyframes are theme.css's, where reduced motion turns them to fades).
-   A row rises six pixels, enough to read as arriving and never a slide deck.
-   A stagger is for a rare moment only (onboarding, a first run), by an
-   inline --i on each row: 0, 50, 90, 120, 140 and 150ms, every later row at
-   150ms, so the run settles instead of marching. The delay is 55i - 5i^2
-   milliseconds with i held to 5, which lands on exactly those six. */
+   Surfaces opt into these instead of redefining the same entrance five times.
+   Rows that arrive after load rise six pixels: enough to read as movement and
+   small enough never to look like a slide deck. Staggering is done with an
+   inline --i index on each row, 40ms apart (the caller caps it at eight). */
 .rise-in {
-  --rise-n: min(var(--i, 0), 5);
-  animation: riseIn var(--t-slow) var(--ease-out) both;
-  animation-delay: calc((55 * var(--rise-n) - 5 * var(--rise-n) * var(--rise-n)) * 1ms);
+  animation: riseIn var(--t-slow) var(--ease-expo) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Cards that respond to the pointer: a small lift reads as depth without
+   moving neighbours, since transform does not affect layout. */
+.hover-lift { transition: transform var(--t-med) var(--ease-expo), box-shadow var(--t-med) var(--ease-expo), border-color var(--t-med) var(--ease); }
+.hover-lift:hover { transform: translateY(-2px); box-shadow: var(--lift); border-color: rgba(255,255,255,0.16); }
+
+/* Numbers that should feel earned rather than printed. */
+.grad-num {
+  background: var(--cyan);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* A control group that is inapplicable right now (for example the tip
@@ -343,34 +320,63 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
 .disabled select { pointer-events: none; }
 
 /* A button that presses in properly rather than just changing colour. */
-.press { transition: transform var(--t-tap) var(--ease-out); }
-.press:where(:not(:disabled)):active { transform: scale(0.97); }
+.press { transition: transform var(--t-fast) var(--ease-spring); }
+.press:active { transform: scale(0.96); }
+
+/* Icon buttons get a soft halo with the keyboard's focus, but one whose
+   ::after is its keycap ([data-keys], above). */
+.icon-btn:not([data-keys])::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 rgba(var(--cyan-rgb), 0.28);
+  transition: box-shadow var(--t-med) var(--ease);
+  pointer-events: none;
+}
+.icon-btn:not([data-keys]):focus-visible::after { box-shadow: 0 0 0 3px rgba(var(--cyan-rgb), 0.18); }
+
+/* Numbers that count up rather than snapping into place. */
+@keyframes countIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Window surfaces settle in rather than appearing. */
+@keyframes sheetIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
 
 /* ── Motion ─────────────────────────────────────────────────────────────────
    Restraint is the point: short durations, small distances, and nothing that
    loops. Nothing here plays during a match, when the window shows only the
    Recording screen, and nothing on that screen moves but its arrival.
 
-   Controls answer the pointer in their fill, edge and ink on plain ease and
-   nothing else; a press moves on --t-tap and --ease-out (8.8). Each property
-   is listed, never `all`. */
-.btn, .icon-btn, .seg button {
-  transition: background-color var(--t-fast) ease,
-              border-color var(--t-fast) ease,
-              color var(--t-fast) ease,
-              text-decoration-color var(--t-fast) ease,
-              transform var(--t-tap) var(--ease-out);
-}
-.seg button:where(:not(:disabled)):active { transform: scale(0.97); }
+   prefers-reduced-motion is honoured at the bottom rather than per rule, so a
+   new animation cannot forget to opt in. */
 
-/* Asked for less motion (theme.css holds the one block and its reasons): a
-   control does not press, a keycap does not go down, the segmented thumb
-   jumps to its place, and a staggered run arrives at once. Fades and colour
-   changes keep their durations. */
+/* Controls answer the pointer in their fill and their ink. */
+.btn, .icon-btn, .seg button {
+  transition: background var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease),
+              color var(--t-fast) var(--ease),
+              transform var(--t-fast) var(--ease);
+}
+.seg button:active { transform: scale(0.97); }
+
+/* Focus is visible and uses the white accent, not a browser default outline. */
+.btn:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible,
+input:focus-visible, select:focus-visible {
+  outline: 2px solid rgba(var(--cyan-rgb), 0.55);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .btn:active, .icon-btn:active, .press:active, .seg button:active, kbd.is-pressed, .kbd.is-pressed { transform: none; }
-  .seg-thumb { transition: opacity var(--t-fast) ease; }
-  .rise-in { animation-delay: 0ms !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Words for a screen reader alone: the label the shell's agent box has no
@@ -400,6 +406,8 @@ html.embedded .sheet.glass {
   border-radius: 0;
   box-shadow: none;
   background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 html.embedded .drag { -webkit-app-region: no-drag; }
 html.embedded .sheet > header {
@@ -409,7 +417,7 @@ html.embedded .sheet > header {
 html.embedded .sheet > header .h-brand img { display: none; }
 /* The page title (8.6): Geist 600 at 24px on the app's own tracking. The size
    is the record's beside it in Matches (matches.css), so the two stay one. */
-html.embedded .sheet > header .h-brand h2 { font-size: var(--fs-h2); font-weight: 600; line-height: var(--lh-heading); letter-spacing: var(--track-display); }
+html.embedded .sheet > header .h-brand h2 { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); }
 html.embedded .sheet > header #close { display: none; }
 /* The page's title and content share one column, centred up to the width the
    mockups set, so a maximised window does not stretch a line of text across a
@@ -430,51 +438,57 @@ html.embedded .sheet > footer {
    plays as a window of its own would be a second one on top. */
 html.embedded .sheet { animation: none; }
 
-/* ── Moving between pages (8.2, a fade since 8.8) ────────────────────────
-   embed.js and main-window.js: a page is ARMED before it is shown
-   (invisible), painted that way out of sight, and only then let in. Coming
-   in is one fade, 150ms on --ease-out; the page it replaces fades out over
-   --t-fast, and is usually taken away before the fade is through. Opacity
-   alone: the 12px slide toward the side a page came from went in 8.8, and
-   the sidebar's marker moves at once.
+/* ── Moving between pages (8.2) ───────────────────────────────────────────
+   embed.js and main-window.js: a page is ARMED before it is shown (invisible,
+   12px toward the side it comes from: forward from the right, back from the
+   left), painted that way out of sight, and only then let in. Coming in is
+   the one transition, --t-med on --ease-expo, opacity and transform only, so
+   it stays on the compositor. The page it replaces fades as it goes, and is
+   usually taken away before the fade is through.
 
    Arming is instant (transition: none): the frame painted out of sight has to
    be the armed one, not a step of an animation toward it. And never for good:
    with no word from main within 1.2 seconds (a page loaded with no window to
    show it in, a message lost), page-disarm lets the page in by itself.
 
-   The body fades, never html, whose ground stays put under it, so a page
-   coming in shows the same --bg at its edge rather than whatever is behind
-   the view. A fade is no motion, so it stays with less motion asked for. */
+   The body moves, never html, whose ground stays put under it, so a page
+   moving in shows the same --bg at its edge rather than whatever is behind
+   the view. */
 html.embedded body {
-  transition: opacity 150ms var(--ease-out);
+  transition: opacity var(--t-med) var(--ease-expo), transform var(--t-med) var(--ease-expo);
 }
 html.page-leaving body {
   opacity: 0;
-  transition: opacity var(--t-fast) var(--ease-out);
+  transition: opacity var(--t-fast) var(--ease);
 }
 html.page-armed body {
   opacity: 0;
+  transform: translateX(var(--page-from, 0px));
   transition: none;
   animation: page-disarm 0s linear 1.2s forwards;
 }
-@keyframes page-disarm { to { opacity: 1; } }
+html.page-armed[data-page-dir="forward"] { --page-from: 12px; }
+html.page-armed[data-page-dir="back"] { --page-from: -12px; }
+@keyframes page-disarm { to { opacity: 1; transform: none; } }
+/* Asked for less motion, going from page to page is a plain cut. A page is
+   still painted out of sight before it is shown, which is what keeps a stale
+   frame off the screen, but painted as it is: an invisible armed page and the
+   fade out of the one leaving would only be a blank frame between the two. */
+@media (prefers-reduced-motion: reduce) {
+  html.page-armed body,
+  html.page-leaving body { opacity: 1; transform: none; }
+}
 
 /* ── Opening in place by height (8.2) ────────────────────────────────────
    For what opens under the thing that opened it (Stats' rank notes, a
    breakdown row): a one row grid whose row grows from 0fr to 1fr, so it opens
    to exactly its content's height and closes back, and nothing below jumps.
-   Small single rows only, where the height is cheap; its content fades with
-   it. The visible box goes INSIDE .reveal-clip: a padding or border on the
-   clip itself would still show at 0fr. */
+   The visible box goes INSIDE .reveal-clip: a padding or border on the clip
+   itself would still show at 0fr. */
 .reveal {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows var(--t-med) var(--ease-out);
+  transition: grid-template-rows var(--t-med) var(--ease-expo);
 }
 .reveal.open { grid-template-rows: 1fr; }
-.reveal > .reveal-clip { min-height: 0; overflow: hidden; opacity: 0; transition: opacity var(--t-med) var(--ease-out); }
-.reveal.open > .reveal-clip { opacity: 1; }
-@media (prefers-reduced-motion: reduce) {
-  .reveal { transition: none; }
-}
+.reveal > .reveal-clip { min-height: 0; overflow: hidden; }

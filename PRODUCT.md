@@ -28,19 +28,15 @@ Occlara is a post-match AI coach. It reads the game while it is played and shows
 
 ## Capabilities and Constraints
 - Nothing may show, animate or play during a match; the seal (`syncSeal`) locks every page. Reveal motion and sound run only after the review opens.
-- No framework, bundler or webfont URL. Fonts must be bundled locally because the renderer CSP forbids URLs: Geist and Geist Mono, and no other face.
-- The coach's pen (`shared/marks.js`) draws only on the review's reveal or a page's first paint after a match, never while coaching and never under reduced motion; `test:marks` holds it there.
+- No framework, bundler or webfont URL. Fonts must be bundled locally because the renderer CSP forbids URLs.
 - No em or en dashes in any copy.
 - Copy must never show another player's Riot ID. One game's data is never shown under another game's name.
 - `check:palette`, `check:dom`, `test:surfaces`, `check:mainwindow` and `check:seal` hold the UI's rules and must keep passing; when a rule is changed on purpose, the test changes with it.
 
 ## Brand Commitments
 - **Name:** Occlara. The crescent is the mark today, and the owner has said nothing is sacred.
-- **Owner's direction for 8.8, "the coach's notebook":** the app should look hand made rather than generated, mostly in its layout and in how information reaches the player. It should feel as if a coach marked up your match: warm and personal, on the same dark ground. Before anything is added, decide what it is for. "Fine" is the trap, because fine is easy now and says nothing about care.
-- **The one thing only Occlara makes:** the coach's pen, hand drawn strokes (underline, circle, bracket, arrow, tick, strike) on the fix, the rounds that prove it, a best and a cleared habit. Use one to three on a screen, never on chrome.
-- **One type family: Geist.** The app's look is bold, tight and confident (Geist 600 and 700 at -0.02 to -0.03em), and 8.8 keeps it, cleaner. There is no serif and no second display face: a new face looks random next to the system. The coach's voice is set apart by role: the fix line and hero lines are Geist 700 (`.t-fix`), the coach's read, round notes and Ask Coach's answers Geist 400 at 16 to 17px on a 1.55 line in the full ink (`.t-voice`), labels 500, titles 600, and Geist Mono 400 for round numbers, times and margin notes.
-- **8.7's direction still holds where 8.8 does not change it:** simple and calm while keeping all the information, precise, high quality motion, and not "vibe coded". What 8.8 changes: the one capsule everywhere becomes three button ranks, the flat 500 and 600 weights become 400, 500 and 600 roles, and "hairline, grey label, rows" becomes a margin layout like a marked up match sheet.
-- **The owner rejects:** boxes nested in boxes, walls of small grey text, glows or gradients, a handwriting font, centred template screens, and identical stat columns.
+- **Owner's direction for the 8.7 redesign:** dark ground; simple and calm while keeping all the information; Linear-quality precision and high-quality motion; a unique look, not "vibe coded".
+- **The owner rejects:** boxes nested in boxes, walls of small grey text, and glows or gradients.
 
 ## Evidence on Hand
 - Real screens from the current build are in `dist-surface-shots/` (`OCCLARA_SHOTS=1 npm run check:mainwindow`, `npx electron scripts/shot-surface.js <surface>`).
@@ -52,7 +48,6 @@ Occlara is a post-match AI coach. It reads the game while it is played and shows
 2. Each review leads with one thing to do next match; all the detail stays available, folded below it.
 3. Facts over adjectives. Show numbers from the record, never praise without a source.
 4. Calm between matches. The player has minutes, so the essential reads at a glance.
-5. A hand, not a template. Every mark, margin note and line of the coach's voice is there because a coach would have put it there. If it could appear in any app, it does not belong.
 
 ## Accessibility & Inclusion
-Text keeps at least 4.5:1 contrast on its ground, and UI parts and the pen's ink keep 3:1. Every motion has a `prefers-reduced-motion` path. Everything works from the keyboard, with a visible focus ring.
+Text keeps at least 4.5:1 contrast on its ground. Every motion has a `prefers-reduced-motion` path. Everything works from the keyboard, with a visible focus ring.
