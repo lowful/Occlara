@@ -301,7 +301,9 @@ async function run(model) {
   r.deaths = d;
   r.finalRead = finalRead;
   trace({ model, summary: true, lag: LAG, ...(VARIANT ? { variant: VARIANT } : {}), n: r.n, errs: r.errs, firstErr: r.firstErr, lobby: r.lobby, parsed: r.parsed,
-    labels: r.labels, labelsOk: r.labelsOk, hp: r.hp, finalRead, deaths: d, ...(r.usage ? { usage: r.usage } : {}),
+    labels: r.labels, labelsOk: r.labelsOk, hp: r.hp, finalRead,
+    // The artefact list only when it holds a round, so a trace without one is byte for byte 8.4.2's (test:benchsession).
+    deaths: d.artefact.length ? d : { riotDeaths: d.riotDeaths, agreed: d.agreed, invented: d.invented, missed: d.missed }, ...(r.usage ? { usage: r.usage } : {}),
     rounds: ledger.list(finalRead ? 24 : null).map((x) => ({ n: x.n, died: !!x.died, side: x.side, spot: x.deathSpot || null })) });
   return r;
 }
