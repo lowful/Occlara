@@ -180,6 +180,17 @@ if (String(process.env.OCCLARA_BENCH_KEY || '').trim()) cfg.licenseKey = String(
 const log = JSON.parse(fs.readFileSync(path.join(dir, 'log.json'), 'utf8'));
 const frames = log.records.filter((r) => r.frame && fs.existsSync(path.join(dir, r.frame))).slice(0, LIMIT);
 const riot = require('./fixtures/riot-abyss-13-11.json');
+// THE OLD APP'S OWN CARD ON SCREEN (9 Nov 2026). The gate's session was
+// recorded on 22 Sep, before 8.0, and ten of its frames carry the pre-8.0
+// overlay's DEATH REVIEW card, whose text opens "You are dead and
+// spectating". In round 17 that card (the old app's own false death, read
+// off a 7 HP player in a flash) sits on frames 0178 and 0179, and every run on
+// record, every model, prompt and lag, read a death there that Riot does not
+// have. No current player's screen can show that card, so the round is
+// reported apart, as an artefact, and never counted as invented: the gate's
+// "invented at most 1" then means one real mistake, not one plus a death the
+// old app printed. Only this session and only this round.
+const ARTEFACT_ROUNDS = SESSION === 'session-2026-09-22T04-24-07-240Z' ? new Set([17]) : new Set();
 const geo = require('../src/shared/valorant-data.generated.json').mapGeometry || {};
 const CALLOUTS = new Set();
 for (const c of (geo.abyss || {}).callouts || []) { CALLOUTS.add(c.n.toLowerCase()); if (c.a) CALLOUTS.add(String(c.a).toLowerCase()); }
@@ -277,13 +288,14 @@ async function run(model) {
   // Scored per Riot round, directly. A round the model never reached counts as
   // a miss, not as agreement, so a run that stops early cannot look perfect.
   const byN = new Map(ledger.list(finalRead ? 24 : null).map((x) => [x.n, x]));
-  const d = { riotDeaths: 0, agreed: 0, invented: [], missed: [] };
+  const d = { riotDeaths: 0, agreed: 0, invented: [], missed: [], artefact: [] };
   for (const rr of riot.perRound) {
     const saw = byN.get(rr.n);
     const sawDeath = !!(saw && saw.died);
     if (rr.died) d.riotDeaths++;
     if (rr.died && sawDeath) d.agreed++;
     else if (rr.died) d.missed.push(rr.n);
+    else if (sawDeath && ARTEFACT_ROUNDS.has(rr.n)) d.artefact.push(rr.n);
     else if (sawDeath) d.invented.push(rr.n);
   }
   r.deaths = d;
@@ -461,6 +473,8 @@ const q = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s.le
   }
   console.log('\ndeaths is the number that matters: agreed with Riot / invented / missed, out of Riot\'s real deaths.');
   console.log('gap is the read cadence auto holds at that p90, with up to four requests in flight.');
+  const art = results.filter((r) => r.deaths && r.deaths.artefact && r.deaths.artefact.length);
+  if (art.length) console.log(`round ${[...ARTEFACT_ROUNDS].join(', ')} carries the pre-8.0 overlay's DEATH REVIEW card on screen; a death read there is an artefact of the old app, reported here and not counted as invented (${art.map((r) => r.model).join(', ')}).`);
   if (LAG > 1) console.log(`each frame was sent with the context of ${LAG} reads earlier (--lag ${LAG}).`);
   if (VARIANT) console.log(`every frame was read with the read prompt's variant ${VARIANT} (--variant ${VARIANT}).`);
   usageLines(results);

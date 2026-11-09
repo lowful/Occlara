@@ -137,7 +137,13 @@ two digits ends no sentence (`sentencesOf`), where "a 1.48 K/D" came back
 **`npm run verify:ai` is the gate for any read prompt or model change.** It
 runs the live read over the 240 real frames and fails on parse under 95%,
 labels under 95%, more than one invented death, under 80% of Riot's deaths
-agreed, or a p90 over six seconds. With up to four reads in flight a tier holds
+agreed, or a p90 over six seconds. Round 17 of its session is not counted as
+invented (9 Nov 2026, `bench-read.js ARTEFACT_ROUNDS`): the session predates
+8.0 and frames 0178 and 0179 carry the old overlay's DEATH REVIEW card ("You
+are dead and spectating"), the old app's own false death over a 7 HP player,
+which every run on record read as a death. It is printed apart as an
+artefact, so "at most one invented" means one real mistake. A post-8.0 gate
+session would retire this. With up to four reads in flight a tier holds
 while p90 stays under its gap x 4 x 1.1, so the 1s tier holds while p90 stays
 under 4.4 seconds, and the table it prints gives the tier each model holds. Run
 it as `npm run verify:ai -- --lag 4` as well, before a release and for any
