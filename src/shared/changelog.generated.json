@@ -1,5 +1,37 @@
 [
   {
+    "version": "8.8.0",
+    "date": "2026-11-08",
+    "title": "A coach's notebook, and fewer wrong claims",
+    "summary": "The app looks like a coach's marked up notes, and reviews check what they say about your rounds more strictly.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Review, Home and Matches are redesigned like a coach's notebook, with the one thing to fix in bold, hand drawn pen marks on the rounds that prove it and a margin for times and grades."
+      },
+      {
+        "kind": "improved",
+        "text": "Buttons now have three clear ranks, one main action per screen, and press down a little when you click them."
+      },
+      {
+        "kind": "improved",
+        "text": "Counts in reviews and Ask Coach, like how many deaths nobody traded, now come from one list, so they no longer contradict each other or call a death alone when Riot shows a teammate close."
+      },
+      {
+        "kind": "improved",
+        "text": "A round where Riot marked you AFK is now left out of your grade, your missed list, your patterns and your Moments, not only your repeated mistakes."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach answers aim questions from your own numbers with drills you can really do, and the RR on your reviews keeps trying until Riot publishes the game."
+      },
+      {
+        "kind": "fixed",
+        "text": "A review no longer loses its round lines when a player in your match has a name that contains a word like aim."
+      }
+    ]
+  },
+  {
     "version": "8.7.9",
     "date": "2026-11-08",
     "title": "Where you died, and what you bought",

@@ -74,7 +74,7 @@ try {
   // no config, the server a closed port on this machine.
   const appData = path.join(temp, 'appdata');
   fs.mkdirSync(appData, { recursive: true });
-  const env = { ...process.env, APPDATA: appData, OCCLARA_SERVER: 'http://127.0.0.1:9', ADMIN_PASSWORD: 'offline-test' };
+  const env = { ...process.env, OCCLARA_BENCH_KEY: '', APPDATA: appData, OCCLARA_SERVER: 'http://127.0.0.1:9', ADMIN_PASSWORD: 'offline-test' };
   const run = (script, args) => {
     const r = spawnSync(process.execPath, [path.join(__dirname, script), ...args], { env, encoding: 'utf8', timeout: 30000 });
     return { status: r.status, out: `${r.stdout || ''}${r.stderr || ''}` };
@@ -139,7 +139,7 @@ async function variantRuns() {
   const port = server.address().port;
   const bench = (args) => new Promise((resolve) => {
     const child = spawn(process.execPath, [path.join(__dirname, 'bench-read.js'), ...args, '--session', NAME], {
-      env: { ...process.env, APPDATA: tmp, OCCLARA_SERVER: `http://127.0.0.1:${port}`, ADMIN_PASSWORD: 'offline-test' },
+      env: { ...process.env, OCCLARA_BENCH_KEY: '', APPDATA: tmp, OCCLARA_SERVER: `http://127.0.0.1:${port}`, ADMIN_PASSWORD: 'offline-test' },
       windowsHide: true,
     });
     let out = '';
@@ -387,7 +387,7 @@ async function scriptedRuns() {
     seen.length = 0;
     const traceFile = path.join(tmp, `trace-${++runs}.jsonl`);
     const child = spawn(process.execPath, [path.join(__dirname, 'bench-read.js'), ...args, '--session', NAME, '--trace', traceFile], {
-      env: { ...process.env, APPDATA: tmp, OCCLARA_SERVER: `http://127.0.0.1:${port}`, ADMIN_PASSWORD: '' },
+      env: { ...process.env, OCCLARA_BENCH_KEY: '', APPDATA: tmp, OCCLARA_SERVER: `http://127.0.0.1:${port}`, ADMIN_PASSWORD: '' },
       windowsHide: true,
     });
     let stdout = '';
@@ -541,7 +541,7 @@ async function sessionsRuns() {
   const port = server.address().port;
   const run = (a) => new Promise((resolve) => {
     const child = spawn(process.execPath, [path.join(__dirname, 'bench-sessions.js'), ...a], {
-      env: { ...process.env, APPDATA: tmp, OCCLARA_SERVER: `http://127.0.0.1:${port}`, ADMIN_PASSWORD: ADMIN }, windowsHide: true,
+      env: { ...process.env, OCCLARA_BENCH_KEY: '', APPDATA: tmp, OCCLARA_SERVER: `http://127.0.0.1:${port}`, ADMIN_PASSWORD: ADMIN }, windowsHide: true,
     });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
@@ -703,7 +703,7 @@ async function reviewRuns() {
   const port = server.address().port;
   const run = (a) => new Promise((resolve) => {
     const child = spawn(process.execPath, [path.join(__dirname, 'bench-review.js'), ...a], {
-      env: { ...process.env, APPDATA: tmp, OCCLARA_SERVER: `http://127.0.0.1:${port}`, ADMIN_PASSWORD: ADMIN }, windowsHide: true,
+      env: { ...process.env, OCCLARA_BENCH_KEY: '', APPDATA: tmp, OCCLARA_SERVER: `http://127.0.0.1:${port}`, ADMIN_PASSWORD: ADMIN }, windowsHide: true,
     });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
