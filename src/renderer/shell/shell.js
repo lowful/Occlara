@@ -209,7 +209,7 @@ $('discord').addEventListener('click', () => {
 
 // The screen in the page's place: mid match, or held after a stop mid match.
 const SEALED_TEXT = {
-  live: { title: 'Recording', sub: 'Occlara shows nothing until the match ends. The review opens here the moment it does.' },
+  live: { title: 'Recording', sub: 'No tips or advice until the match ends. The review opens here the moment it does.' },
   held: { title: 'Recording stopped',
     sub: 'You stopped in the middle of a match, so its review was saved to Matches without opening. Choose a page when that match is over.' },
 };
