@@ -83,7 +83,7 @@ const PLAYBOOK = [
   { situations: ['clutch'], text: 'In a clutch, isolate a duel at a time and play the timer for your side, because on defense before a plant they have to come to you while after a plant the defenders are the ones under the clock.', weight: 3 },
   { situations: ['clutch'], text: 'Solo means nobody can trade you, only take fights you choose, play the time, and make them walk into your crosshair.', weight: 3 },
   { situations: ['clutch'], text: 'In a 1vX play for information first, sound and the minimap tell you which duel is actually isolated.', weight: 2 },
-  { ranks: ['plat_diamond', 'asc_plus'], text: 'Patterns repeat until punished, if they hit the same site twice in a row, expect it again and pre stack util there.', weight: 2 },
+  { ranks: ['plat_diamond', 'asc_plus'], text: 'Patterns repeat until punished, if they hit the same site twice in a row and won it, expect it again and pre stack util there, but a hit that failed twice is rarely run a third time.', weight: 2 },
   { text: 'The first 15 seconds set the map, take your space early, taking it late costs util or blood.', weight: 1 },
   { text: 'Call your own death instantly, where you died and how many, it is the most valuable comm you will ever give.', weight: 2 },
   { text: 'Silence is a comm too, keep the channel clear during a teammate clutch.', weight: 1 },

@@ -11770,7 +11770,7 @@
     "why": "The anti eco and the bonus are won at range, and a Chamber who keeps the cheap buy has the Operator ready for the first round the enemy full buys."
   },
   {
-    "text": "On an eco, play for close, aggressive kills together with the team, a rush as a group or a corner they must walk into, rather than hiding to keep a cheap pistol, because a cheap gun wins most often up close and every kill on an eco takes a rifle from their next buy and can hand you one.",
+    "text": "On an eco, play for close, aggressive kills together with the team, a rush as a group or a corner they must walk into, rather than hiding to keep a cheap pistol, because a cheap gun wins most often up close and a kill taken together can hand you their rifle for the rest of the round.",
     "situations": [
       "eco"
     ],
@@ -11790,7 +11790,7 @@
     "why": "An eco is lost at range, and the only thing it can win is close fights taken together, which also break the enemy economy."
   },
   {
-    "text": "In solo queue a team rarely runs the same failed hit a third time, so after the attackers lose the same site twice, expect the other site next round and lean one player or the first rotation toward it, and keep the site that held able to delay, while a hit that worked will come again, because a team that lost twice changes its call and a team that won keeps it.",
+    "text": "In solo queue a team rarely runs the same failed hit a third time, so after the attackers lose at the same site twice, expect them at a different site next round, not at the one that held: move one player or the first rotation toward the site they have not hit, and leave the site that held to the player who held it, while a hit that worked will come again, because a team that lost twice changes its call and a team that won keeps it.",
     "side": "defense",
     "ranks": [
       "silver_gold",
@@ -11994,5 +11994,57 @@
     },
     "when": "A player on very low health in a winning post plant keeps taking fights.",
     "why": "Up in numbers after the plant the defenders must come, so a hidden low health player still counts, while a duel at that health is close to a lost one."
+  },
+  {
+    "text": "By the last rounds of a half, list the habits this enemy has actually shown, where each piece of utility goes, the spots they jump or peek to look, and whether anyone ever lurks, and set up against those rather than against utility they have never used, and when an area you had eyes on goes silent for a few seconds, play as if an enemy is there, because a habit seen twice is a better read than a guess.",
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "vod-review",
+      "topic": "plan the late half on the habits seen"
+    },
+    "when": "Late in a half a defender sets up to beat utility the attackers have never used, while their repeated habits go unanswered.",
+    "why": "Repeated habits are the evidence a defence has, and a setup aimed at something that never came wastes the round."
+  },
+  {
+    "text": "As Chamber, use a setup built to rotate fast only when you have no read on the hit, and when the early rounds point to one site, commit to it with your Trademark on its entrance and a tight angle for the first damage, and never place your Rendezvous where pressing it pulls you away from teammates who are fighting, because a teleport that leaves your site partner alone loses the site you left.",
+    "agents": [
+      "Chamber"
+    ],
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "vod-review",
+      "topic": "Chamber commits on a read"
+    },
+    "when": "A Chamber plays a fast rotation setup with the teleport far from the site the early rounds pointed to, and the teammates there fight alone.",
+    "why": "Rotation setups pay only without a read, and a teleport away from the fight subtracts the Chamber from it."
+  },
+  {
+    "text": "On defence set up from what this enemy has shown first and from your teammates second: after the attackers have hit two sites, or been stopped at one, expect the site they have not tried yet, and when a teammate holds its main aggressively alone, play beside them so their first fight can be traded, then rotate from there if the hit shows elsewhere, because a lone teammate dying untraded hands the attackers the space and a gun.",
+    "side": "defense",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "set up from the enemy pattern"
+    },
+    "when": "A defender sets up far from a teammate holding a main alone, at a site the attackers already lost at.",
+    "why": "Enemy patterns predict the next hit better than a fixed setup, and a teammate alone in a main needs a second player to make the fight worth taking."
   }
 ]

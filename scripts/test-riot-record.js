@@ -497,7 +497,8 @@ ok(JSON.stringify(card(1).riot.casts) === '[{"key":"C","name":"Cloudburst","n":1
   const withBuy = chatPrompt.normalise(chatContext.build(served, {}, null, 'what did I buy in round 2', {}));
   const rules = chatPrompt.rulesFor(withBuy);
   ok(chatPrompt.matchHasBuy(withBuy) && rules.includes(chatPrompt.BUY_HEDGE_RECORD) && !rules.includes(chatPrompt.BUY_HEDGE)
-    && rules.includes(chatPrompt.SAVE_HEDGE_RECORD), 'a match whose record holds the team buy is never told the record holds no buy');
+    // The save question rule gave way to the economy rule in the coach bench 9 (the economy out of scope).
+    && !rules.includes(chatPrompt.SAVE_HEDGE) && rules.includes(chatPrompt.ECONOMY_RULE), 'a match whose record holds the team buy is never told the record holds no buy');
   ok(!DASHES.test(chatPrompt.BUY_HEDGE_RECORD + chatPrompt.SAVE_HEDGE_RECORD) && !(chatPrompt.BUY_HEDGE_RECORD + chatPrompt.SAVE_HEDGE_RECORD).includes(';'),
     'the new rule has no dash and no semicolon');
   const noBuy = { ...withBuy, match: { ...withBuy.match, cards: withBuy.match.cards.map((c) => ({ ...c, riot: c.riot ? { ...c.riot, buy: undefined } : c.riot })) } };

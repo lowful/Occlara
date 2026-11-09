@@ -1201,3 +1201,70 @@ intended note before and 34 after, on each of 20 jitter seeds; `bench:chat --dry
 their notes and cases byte for byte. Tests: `test:chatgates`, "the coach bench, the notes for the round
 the player describes" (every new regex both ways, and twelve bench questions served their note). Not
 benched: the bench and `bench:chat` are the next step.
+
+### The coach bench 9: the economy out of scope, the pistol premise, the map habit (Nov 2026)
+
+Bench 9 (72 moments, judged blind, 8.8.1 code) left 7% weaker or wrong. Per topic (same, partial or
+sound over all): positioning 14 of 17 (82%), map control 7 of 9 (78%), every other topic 100% (aim 3,
+entry and trade 3 and comms 1 too few to judge). Its wrong facts were small: "the enemy is on their
+smallest loss pay" after two straight losses, "the Marshal's one-shot body hit at any range", an
+invented Haven habit and two invented won pistols. **The owner's rule after it: the coach does not
+coach the economy** (loss pay, buys, saves, credits, who buys what), since it could not be told right
+consistently, and any topic under 88% is fixed at its cause or dropped. What changed:
+
+- **The economy is out of scope** (`chat-prompt.js outOfScope`, `ECON_QUESTION`, `ECONOMY_OUT`): a
+  Valorant question in English whose question sentence asks whether or what to buy, save or force, how
+  much to spend, credits, the loss bonus or the economy ("should I buy up in round 3?", "Should I have
+  saved my gun in round 4?") is answered with `ECONOMY_OUT` by `coach.js chatV2`, no model call, no cap
+  spent, `outOfScope: 'economy'` in the answer. "Is pushing my own smoke a good eco play?" and "should I
+  save my ult" are in scope. The rules' save and buy question lines gave way to `ECONOMY_RULE`, and the
+  question topic `economy` is gone; `noteInScope` keeps every note that teaches the economy
+  (`game-claims.js economyClaim`, 84 of the corpus) and every case whose words do out of the prompt.
+  Gate `economy-scope` (`fact-gates.js gateEconomyScope`, after every gate before) drops a sentence
+  with an economy claim or economy advice whatever it says; a round's kind as the situation ("on an
+  eco", "against an eco or half buy"), money words that are no money ("your flash buys you the close
+  fight", "the seconds you buy", "cannot afford to be seen", `BUY_FOR`, `BUY_SUBJECT`,
+  `BUY_TIME_BEFORE`, `AFFORD_TO`, `ROUND_KIND_LABEL`), the record's own team buy of the round named, and
+  a sentence saying the record does not hold a buy (`ECON_REFUSAL`, what follows its "but" still read)
+  stay. Replayed over the bench's 657 answer sentences: 33 dropped, every one money advice or a money
+  claim, 25 of them in the questions now out of scope. **Not done**: the review (`match-review.js`)
+  still writes about the team's economy and its notes still serve economy notes; frame chat, v1 and
+  answers outside English have no scope check. `bench:chat`'s `abyss-econ-r4` and `pearl-econ-r4` are
+  now answered by the scope line, so their keys' must lists fail by design.
+- **The one shot beside a second gun** (`game-claims.js checkOneShot`, `GUN_BEFORE_CLAIM`): with two
+  guns named the claim's own is the one right before it ("a Spectre ... the Marshal's one-shot body
+  hit at any range" had judged nothing). The loss pay claim needed no gate of its own: it is economy.
+- **A pistol result nobody had** (gate `premise`, `game-claims.js checkPistolPremise`,
+  `chat-prompt.js pistolKnown`, `facts.pistol`): Riot's pistol round for the asked round's half where a
+  match is attached, else the player's own words (`pistolSaid`: "we lost pistol", "they lost the
+  pistol" is a won one). "After winning a pistol round" to "We lost pistol on C" goes, and "the round
+  after a won pistol" where nobody said one; a general rule ("when you win a pistol round") and a
+  hypothetical stay. And the cause of the first: the note "After you win the pistol round, treat the
+  next round ..." was served to a lost pistol; a note written for the other result is no longer served
+  (`notePistolConflict`).
+- **No habit of the whole map as fact** (gate `map-habit`, `game-claims.js checkMapHabit`, and
+  `MAP_HABIT_RULE` in the rules): "on Haven, C is the site a five-stack with no lurks reaches last",
+  "most teams usually hit B" go; advice ("C is the site you should rotate to first") and this enemy's
+  own habit stay.
+- **Map control and positioning** (`docs/claude/playbook.md`, "The coach bench 9"): FD8OFhwHF5M-3 had
+  the right note ("expect the other site next round") and leaned B, the site that held, since "the
+  other site" read as the other one from the player; it now says a different site, not the one that
+  held. Three notes added (the late half planned on the habits seen, Chamber commits on a read, set up
+  from the enemy pattern), the hand written "patterns repeat" note says it is about a hit that won, a
+  question topic `read` (patterns, earlier rounds, "changed our setup", "where should I have set up")
+  and the `pattern` situation words now reach them. WCgnalZDT_A-4 (pushing your own smoke) still has no
+  note, as the bench's retrieval pass decided.
+- **WCgnalZDT_A-5 cut to two sentences**: offline, the eco read its first answer leaned on ("they are
+  on a bonus, so ...") is an economy claim with a round named and no record, which the economy gate
+  drops; the retry then took its premise from the won pistol note. Both causes are closed above.
+
+The `sunset-r5-premise` slip was the bench's key, not the product: the answer corrected the premise and
+its last sentence was about the next round ("despite winning round 5, the next round was the turning
+point: you died before the plant"). The key's regex in the player's `userData/bench/chat/questions.json`
+no longer reads a death across "the next round" or another round's number, with that sentence and
+"After round 5, in round 6 you died" as negatives (`bench:chat --dry` holds it).
+
+Estimated offline, not measured: with the right note served and the false claims gated, four of the five
+weaker or wrong map control and positioning answers have their cause closed, which would put positioning
+at 16 of 17 and map control at 9 of 9 if the model follows; a live rerun of the bench measures it.
+Tests: `test:gameclaims` section 9 and `test:chatgates`, "the coach bench 9".

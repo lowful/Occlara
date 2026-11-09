@@ -70,6 +70,8 @@ const ARMOUR_QUALIFIED = /\b(?:no|without|light|half|low|broken|cracked|damaged|
 const ANY_RANGE = /\b(?:at|from) (?:any|every|all) ranges?\b|\banywhere on the map\b|\bfrom anywhere\b|\bat any distance\b/i;
 const LONG_RANGE = /\b(?:at|from) (?:long|far) range\b|\bacross the (?:map|site)\b|\bpast \d{2} ?m\b/i;
 const NEGATED = /\b(?:not|never|no longer|cannot|can't|won't|doesn't|does not|isn't|fails? to)\b[^.;]{0,20}$/i;
+// Between a gun and the claim it owns: "Marshal's one-shot", "Marshal one-shots", "Marshal can one-shot".
+const GUN_BEFORE_CLAIM = /^(?:'s)?\s+(?:[A-Za-z]+\s+){0,2}$/;
 
 /**
  * A one hit kill the damage table does not give. primer: optional, the chat
@@ -82,7 +84,15 @@ function checkOneShot(sentence, primer) {
   if (!k) return null;
   if (NEGATED.test(t.slice(Math.max(0, k.index - 40), k.index))) return null;
   if (ARMOUR_QUALIFIED.test(t)) return null;
-  const guns = [...new Set([...t.matchAll(GUN_RE)].map((m) => m[1]))];
+  let guns = [...new Set([...t.matchAll(GUN_RE)].map((m) => m[1]))];
+  // TWO GUNS, THE CLAIM'S OWN (the coach bench 9, Nov 2026): "a Spectre ...
+  // where the Marshal's one-shot body hit at any range" named two guns and
+  // judged nothing. The gun right before the claim, its possessive or with at
+  // most two words between, is the claim's subject.
+  if (guns.length > 1) {
+    const before = [...t.matchAll(GUN_RE)].filter((m) => m.index + m[0].length <= k.index).pop();
+    guns = before && GUN_BEFORE_CLAIM.test(t.slice(before.index + before[0].length, k.index)) ? [before[1]] : [];
+  }
   if (guns.length !== 1) return null;
   const w = W[guns[0].toLowerCase()];
   if (!w || w.pellets || !Array.isArray(w.ranges) || !w.ranges.length) return null;
@@ -282,7 +292,144 @@ function checkBullets(sentence) {
   return null;
 }
 
+// ── Economy is out of scope (the owner's rule, the coach bench 9) ─────────
+
+/*
+ * THE COACH DOES NOT COACH THE ECONOMY (Nov 2026, the owner's rule after the
+ * coach bench 9). Loss pay, buys, saves and credits could not be told right
+ * consistently ("the enemy is on their smallest loss pay" after two straight
+ * losses, "buy, eco, buy, buy"), so an economy claim or economy advice goes,
+ * whatever it says. A round named by its kind as the player told it ("on an
+ * eco", "their bonus", "the pistol round") is a label, no claim, and stays;
+ * so do the guns' own facts (Heavy Armor in a hit count) and a sentence
+ * saying the coach does not cover the economy. When in doubt, it goes.
+ */
+const ECON_CLAIM = new RegExp([
+  String.raw`\bcredits?\b|\bcreds\b|\bloss (?:bonus|pay|money|streak bonus)\b|\bbonus (?:pay|money)\b|\becon(?:omy|omies|omic|omics)\b`,
+  String.raw`\b(?:afford|affords|afforded|affording)\b`,
+  // "buys the team time" and "buy yourself a second" are time, and the buy phase is a phase.
+  String.raw`\b(?:buy|buys|buying|bought)\b(?!\s+(?:(?:you|yourself|your team|your teammates|the team|them|him|her|us)\s+)?(?:some\s+|a\s+few\s+|the\s+|more\s+|enough\s+|a\s+)?(?:time|space|seconds?|room)\b)(?!\s*(?:-\s*)?phase\b)`,
+  String.raw`\bforce[ -]?buy\w*|\bforce rounds?\b|\bforc(?:e|ed|ing)\s+(?:(?:this|next|that|the|a)\s+)?round\b`,
+  String.raw`\bsave rounds?\b|\bsav(?:e|es|ed|ing)\s+(?:(?:your|the|their|our|a|this|that)\s+)?(?:money|credits?|creds|guns?|rifles?|weapons?|loadout|Operator|Vandal|Phantom|Marshal|Outlaw|Guardian|Spectre|Odin|Ares|Judge|Bulldog)\b`,
+  String.raw`\b(?:should(?:\s+have)?|to|you|we|team|they|everyone|players?)\s+(?:all\s+|also\s+|just\s+)?sav(?:e|ed|ing)\b(?=\s*(?:[.,;:]|$|with\b|this round\b|that round\b|the round\b|for the next\b|and\b))`,
+  String.raw`\bsaving\b(?=\s*(?:[.,;:]|$|with\b|while\b|this round\b))`,
+  String.raw`\bspen(?:d|ds|ding|t)\s+(?:(?:all|your|the|their|that|this|some|more|less|no|any)\s+)?(?:money|credits?|creds|buffer|cash|bank)\b`,
+  String.raw`\b(?:full|half|light)[ -]buy\b|\bbank(?:ed|ing)\b`,
+].join('|'), 'i');
+// The coach saying it does not cover the economy, or that it cannot tell one: no claim.
+const ECON_OUT_SAID = /\b(?:don't|do not|doesn't|does not|can't|cannot|won't|will not|not)\s+(?:\w+\s+){0,2}(?:cover|coach|advise on|answer|give advice on|talk about|go into|judge)\b[^.]{0,60}\b(?:econom\w*|buy\w*|credits?|sav(?:e|es|ed|ing))\b|\b(?:econom\w*|buy\w*)\b[^.]{0,40}\b(?:is|are)\s+(?:outside|out of|beyond)\s+(?:what|my|the)\b/i;
+
+/*
+ * What reads as money and is not (replayed over the bench's 657 answer
+ * sentences): "your flash buys you the close fight", "the seconds you buy for
+ * the rotators", "it bought you no information", "you cannot afford to be seen
+ * first", and the enemy's round named as the situation ("against an eco or
+ * half buy"). Each is taken out before ECON_CLAIM reads the sentence.
+ */
+// A buy whose object is a person it buys something for, or time, space, a fight, an angle: no money.
+const BUY_FOR = /\b(?:buy|buys|buying|bought)(?=\s+(?:(?:you|yourself|your team|your teammates|the team|them|us|him|her|is|are|a|an|the|some|more|enough|one|two|a few|each|first|that|this)\s+){0,2}(?:time|space|seconds?|room|info|information|angles?|fights?|duels?|blind|delay|steps?|chance|opening|window|moment)\b)|\b(?:buy|buys|buying|bought)(?=\s+(?:you|yourself|your team|your teammates|the team|them|us|him|her)\b)/gi;
+// Utility or a play as the subject of a buy: "the ult buys nothing", "a turret that bought nothing".
+const BUY_SUBJECT = /\b(?:flash(?:es)?|smokes?|ult(?:imate)?s?|utility|wall|trap|turret|dart|drone|molly|stun|hold|peek|swing|death|trade)\s+(?:\w+\s+)?(?:buys|bought|will buy|can buy)\b/gi;
+// The seconds or the space a player buys: "the seconds you buy for the rotators".
+const BUY_TIME_BEFORE = /\b(?:seconds|time|space)\s+(?:that\s+|which\s+)?(?:you|your team|they|it)\s+(?:can\s+)?(?:buy|bought)\b/gi;
+const AFFORD_TO = /\b(?:afford|affords|afforded|affording)\s+to\s+(?!buy\b|spend\b|force\b|save\b|full)/gi;
+// The enemy's kind of round named as what a play is against ("against an eco or half buy").
+const ROUND_KIND_LABEL = /\b(?:against|versus|vs\.?)\s+(?:an?|their|the)\s+(?:(?:eco|bonus)\s+or\s+(?:an?\s+)?)?(?:full|half|force)[ -]buy(?:\s+rounds?)?\b/gi;
+
+/** An economy claim or economy advice, or null. */
+function economyClaim(sentence) {
+  let t = String(sentence || '');
+  if (ECON_OUT_SAID.test(t)) return null;
+  t = t.replace(ROUND_KIND_LABEL, ' roundkind ').replace(BUY_SUBJECT, ' gets').replace(BUY_TIME_BEFORE, ' time gotten')
+    .replace(BUY_FOR, 'gets').replace(AFFORD_TO, 'dare to ');
+  const m = ECON_CLAIM.exec(t);
+  return m ? `your reply talked about the economy ("${m[0]}"), which this coach does not cover: leave buys, saves, credits and the loss bonus out and coach the play` : null;
+}
+
+// ── A won or lost pistol said as the player's own (the coach bench 9) ─────
+
+/*
+ * THE PISTOL ROUND AS THE PLAYER HAD IT (Nov 2026, the coach bench 9). With no
+ * match, "You're in the round after a won pistol on defence" answered "round
+ * two after pistol, most of my team saving", and "positioning after winning a
+ * pistol round" answered "We lost pistol on C". A won (or lost) pistol said as
+ * the player's goes where the facts say the other result, and with nothing
+ * saying either, where it is said as a fact of the player's round. A general
+ * rule ("when you win a pistol round") and a hypothetical judge nothing.
+ */
+const WON_PISTOL = /\b(?:after|following|since|off|on the back of)\s+(?:(?:a|the|your|that)\s+)?(?:won|winning)\s+(?:(?:a|the|your)\s+)?pistol(?:\s+round)?\b|\b(?:after|since|because|now that|having)\s+(?:you|your team|we)\s+(?:have\s+|had\s+|just\s+)?won\s+(?:the\s+|a\s+|your\s+)?pistol\b|\b(?:you|your team|we)\s+(?:won|took)\s+(?:the\s+|your\s+|that\s+)?pistol\b|\b(?:a|the|your)\s+won\s+pistol\b|\bwinning\s+(?:a|the|your)\s+pistol\s+round\b|\bthe\s+pistol\s+win\b/i;
+const LOST_PISTOL = /\b(?:after|following|since|off)\s+(?:(?:a|the|your|that)\s+)?(?:lost|losing)\s+(?:(?:a|the|your)\s+)?pistol(?:\s+round)?\b|\b(?:after|since|because|now that|having)\s+(?:you|your team|we)\s+(?:have\s+|had\s+|just\s+)?lost\s+(?:the\s+|a\s+|your\s+)?pistol\b|\b(?:you|your team|we)\s+lost\s+(?:the\s+|your\s+|that\s+)?pistol\b|\b(?:a|the|your)\s+lost\s+pistol\b|\blosing\s+(?:a|the|your)\s+pistol\s+round\b|\bthe\s+pistol\s+loss\b/i;
+const PISTOL_HYPO = /\b(?:if|when|whenever|once|unless|whether|suppose|had)\b[^.;]{0,30}$/i;
+// What the player's own words say of their pistol: 'won', 'lost' or null (both, or neither).
+const SAID_WON = /\b(?:we|i|my team|our team|us)\s+(?:won|took)\s+(?:the\s+|our\s+|that\s+)?pistol\b|\b(?:won|winning)\s+(?:the\s+|a\s+|our\s+)?pistol\b|\b(?:they|the enemy|the enemies|the other team|the attackers|the defenders)\s+lost\s+(?:the\s+)?pistol\b|\bpistol (?:round )?win\b/i;
+const SAID_LOST = /\b(?:we|i|my team|our team)\s+(?:lost|dropped)\s+(?:the\s+|our\s+|that\s+)?pistol\b|\b(?:lost|losing)\s+(?:the\s+|a\s+|our\s+)?pistol\b|\b(?:they|the enemy|the enemies|the other team|the attackers|the defenders)\s+(?:won|took)\s+(?:the\s+)?pistol\b|\bpistol (?:round )?loss\b/i;
+function pistolSaid(text) {
+  const t = String(text || '');
+  // The enemy's loss is the player's win, read first so "they lost pistol" is no loss of ours.
+  const won = SAID_WON.test(t);
+  const lost = SAID_LOST.test(t.replace(/\b(?:they|the enemy|the enemies|the other team|the attackers|the defenders)\s+lost\s+(?:the\s+)?pistol\b/gi, ' '));
+  return won === lost ? null : won ? 'won' : 'lost';
+}
+
+/**
+ * A pistol result said as the player's against what is known of it.
+ * known: 'won' | 'lost' | null, from the match's record or the player's words.
+ */
+function checkPistolPremise(sentence, known) {
+  const t = String(sentence || '');
+  for (const [re, said, other] of [[WON_PISTOL, 'won', 'lost'], [LOST_PISTOL, 'lost', 'won']]) {
+    const m = re.exec(t);
+    if (!m) continue;
+    if (PISTOL_HYPO.test(t.slice(0, m.index)) || NEGATED.test(t.slice(Math.max(0, m.index - 30), m.index))) continue;
+    if (known === said) continue;
+    return known === other
+      ? `your reply said the player's team ${said} the pistol round, where they ${other} it; answer from the round as it was`
+      : `your reply said the player's team ${said} the pistol round, which nothing the player said or the facts hold; never add a premise of your own`;
+  }
+  return null;
+}
+
+/*
+ * A NOTE WRITTEN FOR THE OTHER PISTOL RESULT (the coach bench 9): "After you
+ * win the pistol round, treat the next round as one you must convert" was
+ * served to "We lost pistol on C" and the answer took its premise. A note is a
+ * rule, so its present tense ("after you win the pistol") is its situation:
+ * it fits only a player whose pistol went that way, or one nobody knows.
+ */
+const NOTE_WON_PISTOL = /\b(?:after|following|once|when)\s+(?:you\s+|your\s+team\s+|we\s+|a\s+team\s+)?(?:win|wins|won|winning)\s+(?:the\s+|a\s+|your\s+)?pistol\b|\b(?:a|the|your)\s+won\s+pistol\b|\bpistol\s+(?:round\s+)?win\b|\byou\s+won\s+(?:the\s+)?pistol\b/i;
+const NOTE_LOST_PISTOL = /\b(?:after|following|once|when)\s+(?:you\s+|your\s+team\s+|we\s+|a\s+team\s+)?(?:lose|loses|lost|losing)\s+(?:the\s+|a\s+|your\s+)?pistol\b|\b(?:a|the|your)\s+lost\s+pistol\b|\bpistol\s+(?:round\s+)?loss\b|\byou\s+lost\s+(?:the\s+)?pistol\b/i;
+/** Whether a note's situation is the pistol result the player did not have. */
+function notePistolConflict(text, known) {
+  const t = String(text || '');
+  if (known === 'lost') return NOTE_WON_PISTOL.test(t);
+  if (known === 'won') return NOTE_LOST_PISTOL.test(t);
+  return false;
+}
+
+// ── A habit of the whole map said as fact (the coach bench 9) ─────────────
+
+/*
+ * NO MAP-WIDE HABIT AS FACT (Nov 2026, the coach bench 9): "on Haven, C is
+ * the site a five-stack with no lurks reaches last", invented. A site said to
+ * be the one teams reach, hit or take first or last, or teams in general said
+ * to always, usually or never go somewhere, goes. Advice to the player ("C is
+ * the site you should rotate to first") and this enemy's own habit ("they
+ * always hit B") are not about the map, and stay.
+ */
+const MAP_HABIT = /\b(?:[ABC](?:\s+(?:site|main|long|short|link|lobby))?|the\s+(?:[ABC]\s+)?site)\s+is\s+(?:usually\s+|always\s+|often\s+)?(?:the|a)\s+(?:site|one|place|side)\b([^.;]{0,60}?)\b(?:first|last|most|least|always|never|usually|rarely|seldom)\b|\b(?:teams|most teams|attackers|defenders|a five[- ]stack|five[- ]stacks|stacks|everyone|most players|players)\s+(?:on\s+\w+\s+)?(?:almost\s+)?(?:always|usually|never|rarely|seldom|tend to|mostly|typically)\s+(?:go|hit|take|push|reach|rotate|attack|stack|play|default|run)\b/i;
+function checkMapHabit(sentence) {
+  const t = String(sentence || '');
+  const m = MAP_HABIT.exec(t);
+  if (!m) return null;
+  // Advice to the player, or a hypothetical, is no claim about the map.
+  if (m[1] !== undefined && /\b(?:you|your)\b/i.test(m[1])) return null;
+  if (PISTOL_HYPO.test(t.slice(0, m.index)) || NEGATED.test(t.slice(Math.max(0, m.index - 30), m.index))) return null;
+  return 'your reply stated where teams in general go on this map as a fact, which no fact you hold says; read the enemy only from what the player saw them do';
+}
+
 module.exports = {
+  economyClaim, ECON_CLAIM, ECON_OUT_SAID, BUY_FOR, BUY_SUBJECT, BUY_TIME_BEFORE, AFFORD_TO, ROUND_KIND_LABEL, checkPistolPremise, pistolSaid, WON_PISTOL, LOST_PISTOL, PISTOL_HYPO, SAID_WON, SAID_LOST,
+  checkMapHabit, MAP_HABIT, GUN_BEFORE_CLAIM, notePistolConflict, NOTE_WON_PISTOL, NOTE_LOST_PISTOL,
   checkOneShot, checkMoveFire, soloDrillFrame, teamDrill, pronounDrill, PRONOUN_DRILL, TEAM_HABIT, stripDisclaimer, checkUnobserved, checkBullets, hitsToKill,
   ONE_SHOT, ARMOUR_QUALIFIED, ANY_RANGE, LONG_RANGE, NEGATED, MOVE_FIRE, MOVE_FIRE_OK, MOVE_FIRE_PAST, MOVE_FIRE_COST, NAMED_ERROR, BULLET_NEGATED,
   SOLO_MODE, MODE_AWAY, TEAM_WORDS, MATCH_FRAME, DISCLAIMER, NO_TEAM_SAID, UNOBSERVED, HYPO, BULLET_CLAIM, BLOCKS,

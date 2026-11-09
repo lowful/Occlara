@@ -2847,6 +2847,60 @@ function gateLookCount(s, facts) {
   return null;
 }
 
+// ── The coach bench 9 (Nov 2026) ──────────────────────────────────────────
+
+/*
+ * THE ECONOMY IS OUT OF SCOPE (the owner's rule after the coach bench 9): a
+ * sentence with an economy claim or economy advice goes, whatever it says
+ * (game-claims.js economyClaim). The team's kind of round where Riot's record
+ * gives it for the round named ("round 4 was your team's full buy") is the
+ * record's own fact and stays, as gateEconomy keeps it; the record gate holds
+ * which kind. Valorant, English.
+ */
+const RECORD_KIND_WORDS = /\b(?:full|half|force)[ -]buy\b|\bforced\s+(?:a\s+)?buy\b/gi;
+// The clause after a refusal's turn: "..., but the rule answers it: buy what they buy".
+const ECON_REFUSAL_REST = /\b(?:but|however|still|instead|though)\b(.*)$/i;
+function gateEconomyScope(s, facts, rs) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  let t = String(s || '');
+  const rounds = f.rounds instanceof Map ? f.rounds : new Map();
+  if (rs && rs.round && rs.rounds.length && rs.rounds.every((n) => rounds.get(n) && RECORD_BUY_KINDS.has(rounds.get(n).buy))) {
+    t = t.replace(RECORD_KIND_WORDS, 'kind');
+  }
+  // Saying the record does not hold a buy is no claim (ECON_REFUSAL); what follows a "but" after it still is.
+  if (ECON_REFUSAL.test(t)) {
+    const rest = ECON_REFUSAL_REST.exec(t);
+    if (!rest) return null;
+    t = rest[1];
+  }
+  const why = claims.economyClaim(t);
+  return why ? drop('economy-scope', why) : null;
+}
+
+/*
+ * A WON OR LOST PISTOL THE PLAYER DID NOT HAVE (the coach bench 9): held to
+ * the match's pistol round where a match is attached, else to the player's own
+ * words (facts.pistol, chat-prompt.js factsOf; game-claims.js checkPistolPremise).
+ */
+function gatePistolPremise(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const why = claims.checkPistolPremise(s, f.pistol === 'won' || f.pistol === 'lost' ? f.pistol : null);
+  return why ? drop('premise', why) : null;
+}
+
+/*
+ * NO HABIT OF THE WHOLE MAP AS FACT (the coach bench 9): "on Haven, C is the
+ * site a five-stack with no lurks reaches last" (game-claims.js checkMapHabit).
+ */
+function gateMapHabit(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const why = claims.checkMapHabit(s);
+  return why ? drop('map-habit', why) : null;
+}
+
 // ── All of them ────────────────────────────────────────────────────────────
 
 /*
@@ -2897,6 +2951,10 @@ const GATES = [
   ['unseen', gateUnseen],
   // The blind audit of round 8, stream C, after every gate before.
   ['looks', gateLookCount],
+  // The coach bench 9 (Nov 2026), after every gate before.
+  ['economy-scope', gateEconomyScope],
+  ['premise', gatePistolPremise],
+  ['map-habit', gateMapHabit],
 ];
 
 /**
@@ -2958,5 +3016,7 @@ module.exports = {
   gateLabelAcross, ROUNDS_ANAPHOR, LOOK_SEEN, gateLookCount, LOOKED_AT, LOOKED_TOTAL, teamUtilityFix, UTIL_ITEM, UTIL_SEP,
   // Its review.
   LOOK_SEEN_SOFT, LOOK_WORDS, lookSeenAt, LOOK_ANAPHOR, LOOKED_BY, LOOK_SUBSET, LOOK_SUBSET_AGENT, UTIL_ART, UTIL_TEAM_ASK, UTIL_TEAM_AFTER, UTIL_ENEMY_OWNER,
+  // The coach bench 9 (Nov 2026), each asserted in test:chatgates.
+  gateEconomyScope, gatePistolPremise, gateMapHabit, RECORD_KIND_WORDS,
   BIGGEST_SAID, COUNTED_HOW_MANY, HEALTH_AT, ONE_HIT_KILLS, UTILITY_OWNERS, UTILITY_ASKED, UTIL_LIST, BUY_HEDGE_SAID, UTILITY_OURS, BUY_HELD_SAID, KIT_KILLS_YOU, KIT_KILLED_YOU,
 };

@@ -1184,8 +1184,32 @@ function factsOf(input, messages, opts) {
   if (inp.ask && inp.ask.switchedFrom) { score(inp.ask.switchedFrom.score); dayOf(inp.ask.switchedFrom.day); }
   f.days = [...new Set(f.days)];
   if (opts && opts.armor) f.armor = opts.armor;
+  // THE PISTOL ROUND AS THE PLAYER HAD IT (the coach bench 9, fact-gates.js gatePistolPremise).
+  f.pistol = pistolKnown(inp, messages, f);
   if (input && typeof input === 'object') factsCache.set(input, { messages, facts: f });
   return f;
+}
+
+/*
+ * Whether the player's team won or lost the pistol round a question is about:
+ * from Riot's record where a match is attached (the asked round's own half,
+ * else every pistol round of the match when they agree), else from the
+ * player's own words (game-claims.js pistolSaid). 'won', 'lost' or null.
+ */
+function pistolKnown(inp, messages, f) {
+  if (!f || f.game === 'lol') return null;
+  if (inp && inp.match) {
+    const pistols = [...f.rounds.values()].filter((r) => r && r.pistol && (r.result === 'won' || r.result === 'lost')).sort((a, b) => a.n - b.n);
+    if (!pistols.length) return null;
+    if (fin(f.asked)) {
+      const mine = pistols.filter((r) => r.n <= f.asked).pop();
+      return mine ? mine.result : null;
+    }
+    const all = new Set(pistols.map((r) => r.result));
+    return all.size === 1 ? pistols[0].result : null;
+  }
+  const said = (Array.isArray(messages) ? messages : []).filter((x) => x && x.role !== 'assistant').map((x) => String(x.content || '')).join(' ');
+  return gameClaims.pistolSaid(gates.straighten(said));
 }
 
 // ── Rendering ──────────────────────────────────────────────────────────────
@@ -1217,6 +1241,16 @@ function matchName(m) {
  * match's mode: the prefix every question of that mode shares, first in the
  * prompt so a provider's prefix cache can serve it.
  */
+/*
+ * THE ECONOMY RULE AND THE MAP RULE (the coach bench 9, Nov 2026). The save
+ * and buy question rules gave way to ECONOMY_RULE when the owner took the
+ * economy out of the coach's scope (outOfScope, fact-gates.js
+ * gateEconomyScope); MAP_HABIT_RULE answers "on Haven, C is the site a
+ * five-stack with no lurks reaches last" and the invented won pistol
+ * (fact-gates.js gateMapHabit, gatePistolPremise).
+ */
+const ECONOMY_RULE = '- The economy is not something you coach: never say what anyone should buy, save or force, never talk about credits, the loss bonus or what a team can afford, and never explain a play or a read by the economy. A round named by its kind as the player told it (an eco, a bonus, the pistol round) only says where the round sits.';
+const MAP_HABIT_RULE = '- Never state where teams in general go on a map, or which site they reach first or last, as a fact: read the enemy only from what the player says they saw them do. Never add a premise the player did not give, such as a pistol round won or lost.';
 const VALORANT_RULES = `You are Occlara's Valorant coach, talking with the player after a match to help them learn from it. You are never told about a match being played right now, and you never give advice for one.
 
 WHAT YOU ARE GIVEN, AND HOW FAR TO TRUST IT
@@ -1230,8 +1264,7 @@ WHAT YOU ARE GIVEN, AND HOW FAR TO TRUST IT
 
 WHAT YOU MUST NOT SAY
 - Nothing the facts do not hold. This match's record does not hold what anyone bought, the credits, the damage dealt and taken, or the utility used: if asked, say so and teach the rule instead.
-- A save question: say first that the record does not hold what anyone bought, then teach the rule once, in one sentence: on attack a save means staying alive and out of fights until the spike goes off or the clock runs out, on defence it means not retaking a planted spike, and a player who has already died in the round made no save decision. Then move to the fight that killed them.
-- A buy question (what to buy, or whether to buy or save): first name which round it is for the player, as they describe it or the round's line states it (a pistol round, the round after a won pistol, the team's full buy, a team save while the player can afford this round's full buy and the next one, or an eco), then teach the buy for that kind of round. The save rule above answers a save question only, never a buy question.
+${ECONOMY_RULE}
 - No ranking of agents, no meta, no pick or win rates for the current patch: you do not have them. Answer from the kit, the player's own numbers and the facts.
 - No player names, ever, even one the player typed: say your teammate, or the agent. No coach, player, team, video or other source for any advice.
 - Only Valorant and the player's play.
@@ -1239,7 +1272,7 @@ WHAT YOU MUST NOT SAY
 - No number across the player's other matches but as the counted lines across matches and the against line give it, said as they say it ("in 5 of your last 6 matches", "your own average of 38%"), and no season, act or episode. A pattern of this match is this match's, never one across matches.
 
 HOW TO ANSWER
-- Answer the question in your first sentence, and answer the question that was asked. A question about aim, practice, an agent, the mental side, comms or the economy is answered about that, and a counted mistake comes in only where it bears on it. Never turn every answer into the same habit. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
+- Answer the question in your first sentence, and answer the question that was asked. A question about aim, practice, an agent, the mental side or comms is answered about that, and a counted mistake comes in only where it bears on it. Never turn every answer into the same habit. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
 - A general question (the biggest mistake, how to improve or climb, what to practise, how to warm up) needs no single round: answer it from the counted mistakes, the patterns across matches, the player's own numbers and their rank, with the one lever that matters most at that level. Never answer it with only that you cannot tell.
 - About a round, a death or a play: tell it in order from the record (the side and the kind of round, the opening, the plant, the death with the numbers standing, how it ended), then the decision that decided it for the player, judged by what they could see at that moment, then what to do instead, written as the real situation to notice and the real move to make in it, concretely enough to do next round, and why it works in game terms: the guns and the range, the numbers standing, the clock and the spike, the kit. Rule out the larger causes before the shot: whether the fight needed taking, whether anyone could trade it, whether the player had information or utility first. When a death had both a decision and a shot that went wrong, name the decision first, then the one mechanic, in one sentence. Call a death lost on the shot only where the coach's look called the fight fair and lost on the shot.
 - A fair fight is one taken from where it should be taken, at a range the gun can fight. Whether a teammate could trade it is a separate question.
@@ -1258,6 +1291,7 @@ HOW TO ANSWER
 - Before advice about a round, read its side and whether the spike was down when the player died: on attack with no spike down the defenders never have to come to you, so waiting for them is no plan, and on defence with the spike down the defenders must retake.
 - If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (stopping before the shot, crosshair height, information before a peek, one angle at a time). Platinum to Diamond, the decision before the fight (predictability, playing the team's plan, when to take space). Ascendant and up, no basics, the specific timing or utility change and what it risks. An answer for a higher rank is never the one a lower rank would get for the same facts in longer words.
 - Name the match the first time you refer to it: the map, the agent and the result.
+${MAP_HABIT_RULE}
 - Write times as seconds into the round, "8 s in", never as a clock such as 0:08, which reads as the time left. Say a gap in seconds, "1.5 s after the plant" or "6 s later", only from the event the facts give it from, never from another event told just before it.
 - Speak to the player as you. Short paragraphs of plain text: no lists, no headings, no markdown. About 250 words, up to 400 when you walk through a round. Commas and periods, never dashes.
 - Write for a player who does not know coaching words: in a habit to build say a teammate killed your killer for a trade, and a teammate was near or far for the distance, never close enough to kill or trade, which mixes the two, and about what happened say no teammate was close or nobody traded you, each only where the round's line says it, never nobody was close enough to trade you, which says both, say the smoke, the flash or the drone by name, not utility, say take one piece of space and stop, not checkpoints, and never write impact, tempo, map control, situational awareness or utility potential.`;
@@ -1360,6 +1394,27 @@ function matchHasBuy(input) {
   const m = input && input.match;
   return !!(m && m.kind === 'valorant' && Array.isArray(m.cards) && m.cards.some((c) => c && c.riot && RECORD_BUYS.has(c.riot.buy)));
 }
+/*
+ * THE ECONOMY IS OUT OF SCOPE (the owner's rule after the coach bench 9, Nov
+ * 2026). Loss pay, buys and saves could not be told right consistently, so a
+ * Valorant question about the economy (whether or what to buy, save or force,
+ * how much to spend, credits, the loss bonus) is answered with ECONOMY_OUT and
+ * no model call (coach.js chatV2), and a sentence of any reply that makes an
+ * economy claim goes (fact-gates.js gateEconomyScope). Read from the question
+ * sentences of the player's last message, English only: "Is pushing my own
+ * smoke a good eco play?" is about the play, and "save my ult" is no save.
+ */
+const ECON_QUESTION = /\b(?:should|shall|do|did|does|would|could|can|when|how much|what|whether|is|was|are|were|worth)\b[^?.!]{0,50}?\b(?:buy|buying|bought|save|saving|saved|force|forcing|forced|spend|spending|spent|full[ -]buy|half[ -]buy)\b(?!\s+(?:(?:my|the|our|your|his|her|their|a|an)\s+)?(?:ult|ults|ultimate|ultimates|smoke|smokes|flash|flashes|dash|ability|abilities|utility|util|tailwind|teammate|teammates|time|space|life|round for)\b)|\bloss bonus\b|\bcredits?\b|\becon(?:omy|omic)\b|\bwhat (?:to|should (?:i|we)) buy\b/i;
+const ECONOMY_OUT = "I don't coach the economy, so buys, saves, credits and the loss bonus are outside what I answer. Ask me how you played the round, where you stood, your utility or your fights, and I'll go through that with you.";
+/** 'economy' for a Valorant question about the economy, in English; null otherwise. */
+function outOfScope(input, messages) {
+  if (!input || typeof input !== 'object' || input.game === 'lol' || (input.language && input.language !== 'en')) return null;
+  const last = [...(Array.isArray(messages) ? messages : [])].reverse().find((x) => x && x.role !== 'assistant');
+  const text = gates.straighten(String((last && last.content) || ''));
+  const asks = text.split(/(?<=[.!?])\s+/).filter((s) => /\?\s*$/.test(s));
+  return (asks.length ? asks : [text]).some((s) => ECON_QUESTION.test(s)) ? 'economy' : null;
+}
+
 /** Whether a Valorant question comes with no match at all (a general question, or the coach bench's cold moments). */
 function noMatch(input) {
   return !!(input && typeof input === 'object' && input.game !== 'lol' && !input.match);
@@ -2204,9 +2259,12 @@ const QUESTION_TOPICS = [
     note: /\btilt|\bmute\b|\bcalm\b|\btoxic|\bafter a lost round|\bloss limit|\bstreak/i },
   { key: 'comms', ask: /\bcomms?\b|\bcommunicat|\bcall ?outs?\b|\bcalling\b|\btalk(?:ing)?\b|\bmic\b|\bigl\b|\bsolo ?queue|\bteam (?:won't|will not|doesn't|does not) (?:follow|talk)/i,
     note: /\bcalls?\b|\bcomms?\b|\bannounce|\bsilence|\btell your team|\bwhen your team will not follow/i },
-  { key: 'economy', ask: /\beco\b|\beconomy|\bbuy(?:ing|s)?\b|\bsav(?:e|ing)\b|\bcredits?\b|\bforce\b|\bloss bonus|\bmoney/i,
-    note: /\bbuy|\bsave\b|\bsaving|\beco\b|\bcredits?\b|\bloss bonus|\bforce\b|\bfull buy|\bhalf buy/i },
+  // No 'economy' topic since the coach bench 9: the economy is out of scope (outOfScope, noteInScope).
   { key: 'ult', ask: /\bults?\b|\bultimates?\b/i, note: /\bultimates?\b|\bults?\b|\borbs?\b/i },
+  // Reading the enemy from the rounds before (the coach bench 9, map control): "They went B two rounds
+  // in a row ... should we have changed our setup", "How do I use what the enemies did in earlier rounds".
+  { key: 'read', ask: /\b(?:patterns?|habits?|earlier rounds|previous rounds|rounds before|what (?:the enemies|the enemy|they) (?:did|do|have done)|read (?:the enemy|them|their)|adapt|adjust(?:ed)? (?:our|my) setup|change(?:d)? (?:our|my) setup|(?:two|three) rounds in a row|twice in a row|(?:went|hit|go|going) [ABC] (?:twice|again|two rounds)|where should (?:i|we) (?:have )?set ?up)\b/i,
+    note: /\bhabits?\b|\bpatterns?\b|\bthird time\b|\bthe site they have not\b|\bwhat this enemy has shown\b|\bfailed hit\b|\bsame site twice\b/i },
 ];
 const FUNDAMENTAL_TOPICS = QUESTION_TOPICS.filter((t) => ['aim', 'practice', 'climb'].includes(t.key));
 const AIM_TOPIC = QUESTION_TOPICS.find((t) => t.key === 'aim');
@@ -2286,7 +2344,7 @@ const MATE_BEFORE = /\b(?:our|my)\s+$/i;
 const SIT_TOPICS = [
   { key: 'lowhp', ask: LOW_HP, note: /\blow (?:health|hp)\b|\bany hit ends you\b/i },
   { key: 'pattern', ask: PATTERN_ASK,
-    note: /\bthe same (?:failed )?(?:hit|site)\b|\bthird time\b|\bhabits (?:you have seen|they repeat|already shown)\b|\bpatterns? repeat|\bstack(?:ed|s)? the site\b|\bexpect the other site\b/i },
+    note: /\bthe same (?:failed )?(?:hit|site)\b|\bthird time\b|\bhabits (?:you have seen|they repeat|already shown)\b|\bpatterns? repeat|\bstack(?:ed|s)? the site\b|\bexpect the other site\b|\bhabits? (?:this enemy|they) ha(?:s|ve) (?:actually )?shown\b|\bwhat this enemy has shown\b|\bthe site they have not (?:hit|tried)\b/i },
   { key: 'hold', question: /\bhold(?:ing)? (?:an?|that|the|this) angle\b|\bkeep moving\b|\bmov(?:e|ing) a little\b|\bjiggl|\bstrafing\b/i,
     note: /\bhold still\b|\bstand completely still\b|\bsmall steps\b/i },
   { key: 'rich', ask: /\b(?:a lot of|lots of|far more|way more|more|enough|plenty of) (?:credits|money)\b|\b\d{1,2},\d{3} credits\b|\bcredits than\b/i,
@@ -2715,10 +2773,32 @@ function aimNote(note, band, moving) {
  * Advanced coaching honoured. None of the review's own study notes, which the
  * player has read already. Question words map to flags in English only.
  */
+/*
+ * A NOTE THE COACH MAY SERVE (the coach bench 9, Nov 2026). The economy is out
+ * of scope, so no note that teaches it (game-claims.js economyClaim, 84 of the
+ * corpus) reaches Ask Coach; nor a note resting on a pistol result the player
+ * did not have ("After you win the pistol round" was served to "We lost pistol
+ * on C" and answered as "after winning a pistol round"); nor one stating a
+ * habit of the whole map. The review keeps its own notes.
+ */
+function noteInScope(text, pistol) {
+  const t = String(text || '');
+  return !gameClaims.economyClaim(t) && !gameClaims.notePistolConflict(t, pistol || null)
+    && !gameClaims.checkMapHabit(t);
+}
+
 function pickNotes(input, messages) {
   if (input.game === 'lol') return [];
+  const picked = pickNotesAll(input, messages);
+  const pistol = factsOf(input, messages).pistol;
+  return picked.filter((t) => noteInScope(t, pistol));
+}
+
+function pickNotesAll(input, messages) {
   const k = knowledgeMod();
   if (!k || typeof k.retrieve !== 'function' || typeof k.all !== 'function') return [];
+  const pistol = factsOf(input, messages).pistol;
+  const inScope = (t) => noteInScope(t, pistol);
   const rev = reviewMod() || {};
   const m = input.match;
   const advanced = input.advanced === true;
@@ -2794,6 +2874,7 @@ function pickNotes(input, messages) {
   const ownRole = s.role || null;
   const fitsPlayer = (note) => {
     if (!note || !note.text || seen.has(note.text)) return false;
+    if (!inScope(note.text)) return false;
     if (!fitsSituation(note, sit)) return false;
     if (note.weapons && !(aimGuns.size && note.weapons.some((w) => aimGuns.has(lower(w))))) return false;
     if (note.tier === 'advanced' && !advanced) return false;
@@ -2880,6 +2961,7 @@ function pickNotes(input, messages) {
   for (const note of k.all()) {
     const src = note && note.source;
     if (!src || !src.topic || !wanted.has(src.topic) || seen.has(note.text)) continue;
+    if (!inScope(note.text)) continue;
     const versus = fitVs(note);
     if (versus === null) continue;
     if (note.tier === 'advanced' && !advanced) continue;
@@ -2966,6 +3048,7 @@ function pickNotes(input, messages) {
   for (const t of got) {
     if (out.length >= 8) break;
     if (seen.has(t)) continue;
+    if (!inScope(t)) continue;
     if (basicText && basicText.has(t)) continue;
     // No trade or spacing note in an aim answer from the retrieval either (round 8, AIM_TEAM_NOTE).
     if (qt.keys.has('aim') && AIM_TEAM_NOTE.test(t)) continue;
@@ -3077,7 +3160,9 @@ function buildParts(input, messages, opts) {
    * CASE_GROWTH at most and keeps under the dynamic budget, the last notes
    * going one at a time down to three, then the second case, else today's.
    */
-  const worked = casesFor(inp, msgs);
+  // No case that teaches the economy or rests on a pistol result the player did not have (the coach bench 9).
+  const pistol = inp.game === 'lol' ? null : factsOf(inp, msgs).pistol;
+  const worked = casesFor(inp, msgs).filter((c) => noteInScope([c.situation, c.signal, c.decision, c.why, c.mistakeToAvoid].filter(Boolean).join(' '), pistol));
   if (!worked.length) return today;
   const cap = Math.floor(today.parts.join('').length * (1 + CASE_GROWTH));
   for (const cs of [worked, worked.slice(0, 1)]) {
@@ -3547,6 +3632,8 @@ module.exports = {
   // The blind audit of 8.7.8 (Nov 2026): the lever below Platinum only.
   LEVER_BANDS, IMPROVING_RULE, IMPROVING_RULE_877, rulesFor, matchHasBuy, BUY_HEDGE, BUY_HEDGE_RECORD, SAVE_HEDGE, SAVE_HEDGE_RECORD,
   noMatch, NO_RECORD_HEDGE, NO_RECORD_SAVE,
+  // The coach bench 9 (Nov 2026), each asserted in test:chatgates.
+  outOfScope, ECON_QUESTION, ECONOMY_OUT, ECONOMY_RULE, MAP_HABIT_RULE, noteInScope, pistolKnown,
   RANK_BANDS,
   // The blind audit of round 6 (Nov 2026), stream B: the enemy asked about, the aim facts and notes.
   enemyAskedOf, aimFactsOf, aimNote, isAimBasic, AIM_BASIC, AIM_RANGE, SHOT_MOVING, enemyCases,

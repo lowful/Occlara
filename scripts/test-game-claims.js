@@ -190,6 +190,85 @@ ok(outlaw && /kills through Light Armor but not Heavy Armor/.test(outlaw.text), 
   ok(G.MODE_AWAY.test('rather than in the Range') && !G.MODE_AWAY.test('not the range you died from'), 'MODE_AWAY both ways');
 }
 
+// ── 9. The coach bench 9 (Nov 2026) ───────────────────────────────────────
+{
+  // checkOneShot: two guns named, the claim's own gun is the one right before it.
+  const marshal = "Swapping to a Spectre and heavy armour spends that buffer for a gun that loses every long fight, and Breeze is a map of long sightlines where the Marshal's one-shot body hit at any range is worth more than a Spectre that needs several close hits.";
+  ok(hit(G.checkOneShot, marshal), 'bench 9: the Marshal one-shot body at any range beside a Spectre is caught');
+  ok(hit(G.checkOneShot, 'The Marshal one-shots body at any range, unlike a Spectre.'), 'bench 9: the Marshal first, a Spectre after, caught');
+  ok(!hit(G.checkOneShot, "Next to a Spectre, the Operator's one-shot body hit at any range is the point."), 'bench 9: the Operator beside a Spectre kept (a true one shot)');
+  ok(!hit(G.checkOneShot, 'A Spectre and a Marshal both need two body hits on Heavy Armor, and a one-shot body hit needs no armour.'), 'bench 9: no gun right before the claim judges nothing');
+  ok(G.GUN_BEFORE_CLAIM.test("'s ") && G.GUN_BEFORE_CLAIM.test(' can ') && !G.GUN_BEFORE_CLAIM.test(' and Breeze is a map of long sightlines where the '), 'GUN_BEFORE_CLAIM both ways');
+
+  // economyClaim: the coach does not cover the economy.
+  const ECON_CAUGHT = [
+    'Winning the pistol and then round 2 means the enemy is on their smallest loss pay, and the round that follows is the one where a cheap gun still beats what they can field.',
+    'Keeping the Marshal costs you nothing this round and leaves your credits intact, so a lost bonus still leaves you a full buy next round.',
+    'The rhythm to aim for is buy, eco, buy, buy.',
+    'You should have saved with them.',
+    'With most of your team saving, buy nothing.',
+    'Force this round with the team.',
+    'Your team economy can carry a full buy next round.',
+    'If you can afford it, take the Vandal.',
+    'Spend your credits on armour first.',
+    'On a half-buy take a Spectre.',
+    'Save your Vandal for the next round.',
+  ];
+  for (const s of ECON_CAUGHT) ok(hit(G.economyClaim, s), `economy caught: ${s}`);
+  const ECON_KEPT = [
+    'On an eco, play for close fights together with the team.',
+    'Against their bonus, the risk of a fast rotation is a thin site.',
+    'Your smoke buys the team time to rotate.',
+    'Use the buy phase to agree on a site.',
+    'Save your Tailwind for the escape.',
+    'A Vandal needs 4 body hits to kill someone with Heavy Armor from full health.',
+    'I do not cover the economy, so here is how to play the round itself.',
+    'In the pistol round, hold together near the site.',
+    'Saving the smoke for the retake wins more rounds.',
+    // The bench answers' own money words that are no money (replayed over 657 sentences).
+    'Your flash buys you the close fight your gun can win, and it also slows the execute for the teammates rotating in behind you.',
+    'On a solo swing there is nobody behind the flash to trade you, so the only thing it can buy you is a blind enemy.',
+    'In a 1v1 at low health you cannot afford to be seen first.',
+    'Against an eco or half buy, the guns that beat you are shotguns and most pistols up close, so the round is won at distance.',
+    'So the flash bought you the first angle, and you spent it standing in the other three.',
+    'Peeling away means the enemy gets free, and your teammate\'s ult buys nothing.',
+    'Your job as the anchor is to stay alive and delay, so judge the hold by the seconds you buy for the rotators, not by kills.',
+    'A turret that saw nothing was placed where nobody could walk, so it bought you no information and no delay.',
+    'The flashes coming seconds apart is what buys each step forward.',
+  ];
+  for (const s of ECON_KEPT) ok(!hit(G.economyClaim, s), `economy kept: ${s} (${G.economyClaim(s)})`);
+  ok(new RegExp(G.BUY_FOR.source, 'i').test('buys you the fight') && !new RegExp(G.BUY_FOR.source, 'i').test('buy a Vandal')
+    && new RegExp(G.BUY_SUBJECT.source, 'i').test('ult buys nothing') && !new RegExp(G.BUY_SUBJECT.source, 'i').test('you buy nothing')
+    && new RegExp(G.BUY_TIME_BEFORE.source, 'i').test('the seconds you buy') && !new RegExp(G.BUY_TIME_BEFORE.source, 'i').test('the round you buy')
+    && new RegExp(G.AFFORD_TO.source, 'i').test('afford to be seen') && !new RegExp(G.AFFORD_TO.source, 'i').test('afford to buy')
+    && new RegExp(G.ROUND_KIND_LABEL.source, 'i').test('against an eco or half buy') && !new RegExp(G.ROUND_KIND_LABEL.source, 'i').test('a half buy next round'),
+  'BUY_FOR, BUY_SUBJECT, BUY_TIME_BEFORE, AFFORD_TO and ROUND_KIND_LABEL both ways');
+  ok(hit(G.economyClaim, 'On that round you buy nothing, or at most a cheap ability.') && hit(G.economyClaim, 'Take a half buy next round with the team.'),
+    'a buy of nothing and a half buy as advice are still economy');
+  ok(G.ECON_CLAIM.test('loss bonus') && !G.ECON_CLAIM.test('the buy phase') && G.ECON_OUT_SAID.test("I don't cover the economy") && !G.ECON_OUT_SAID.test('buy a Vandal'), 'ECON_CLAIM and ECON_OUT_SAID both ways');
+
+  // checkPistolPremise.
+  ok(G.pistolSaid('We lost pistol on C and won the eco on A.') === 'lost' && G.pistolSaid('round 3 after we won pistol and round two') === 'won'
+    && G.pistolSaid('round two after pistol, most of my team saving') === null && G.pistolSaid('They lost the pistol round.') === 'won', 'pistolSaid reads the player\'s words');
+  ok(hit(G.checkPistolPremise, 'Since I do not have the record of the round three on Lotus, I can only speak generally about positioning after winning a pistol round.', 'lost'),
+    'bench 9 WCgnalZDT_A-5: after winning a pistol round where they lost it, caught');
+  ok(hit(G.checkPistolPremise, "You're in the round after a won pistol on defence, and with most of your team saving, you should have saved with them.", null),
+    'bench 9 bNC4PU5AwEA-4: after a won pistol nobody said, caught');
+  ok(!hit(G.checkPistolPremise, 'Winning the pistol and then round 2 means the round that follows matters.', 'won'), 'a won pistol the player said, kept');
+  ok(!hit(G.checkPistolPremise, 'When you win a pistol round, play the next round tightly.', 'lost'), 'a general rule kept');
+  ok(!hit(G.checkPistolPremise, 'If you won the pistol, play the next round from range.', null), 'a hypothetical kept');
+  ok(hit(G.checkPistolPremise, 'After losing the pistol, your team is saving.', 'won'), 'a lost pistol where they won it, caught');
+  ok(G.WON_PISTOL.test('after a won pistol') && !G.WON_PISTOL.test('when you win a pistol round') && G.LOST_PISTOL.test('since you lost the pistol') && !G.LOST_PISTOL.test('the pistol round'), 'WON_PISTOL and LOST_PISTOL both ways');
+
+  // checkMapHabit.
+  ok(hit(G.checkMapHabit, 'You read the earlier rounds right, but on Haven, C is the site a five-stack with no lurks reaches last, so when Garage goes quiet that is the hit.'),
+    'bench 9 KVOVQ6jiQw8-6: C is the site a five-stack reaches last, caught');
+  ok(hit(G.checkMapHabit, 'On Bind, most teams usually hit B after a lost round.'), 'teams in general usually hit, caught');
+  ok(!hit(G.checkMapHabit, 'C is the site you should rotate to first.'), 'advice to the player kept');
+  ok(!hit(G.checkMapHabit, 'They hit B twice, so expect A next.'), "this enemy's own habit kept");
+  ok(!hit(G.checkMapHabit, 'B is the site they have not tried yet.'), 'the site not tried yet kept');
+}
+
 // ── 7. No backspace byte ──────────────────────────────────────────────────
 for (const f of ['server/services/game-claims.js', 'scripts/test-game-claims.js']) {
   ok(!fs.readFileSync(path.join(__dirname, '..', f)).includes(8), `${f} carries no backspace byte`);

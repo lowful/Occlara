@@ -36,7 +36,7 @@ automatically through `knowledge.all()`, and extra fields such as `source` pass
 through untouched. It began as 69 notes (42 imported from pro VOD reviews and
 27 of Occlara's own, computed from the damage table or written from round
 shapes), grew to 227 with the 2026 imports, to 308 with the 8.7.2 audit, to 469
-with the 8.8 coach consensus, to 602 with its second round, to 642 with its third, to 666 with the coach bench and to 667 with its retrieval pass (below); the live count is `knowledge.all().length` minus the hand written
+with the 8.8 coach consensus, to 602 with its second round, to 642 with its third, to 666 with the coach bench, to 667 with its retrieval pass and to 670 with the coach bench 9 (below); the live count is `knowledge.all().length` minus the hand written
 set, and the boot line `[knowledge] merged N` says it. **An imported note must
 carry `source.topic`**, which is what `study()` picks by, or the checker fails
 it.
@@ -578,3 +578,33 @@ What changed in the data:
   the pusher first. One source against several is not a note.
 
 Not benched: rerun the bench and `bench:chat` before a release that ships these.
+
+### The coach bench 9 (Nov 2026)
+
+Bench 9 left map control (7 of 9) and positioning (14 of 17) under the owner's 88% bar. Each weaker
+or wrong answer's cause, from the prompt it was given (`pickNotes` replayed on the bench's own
+questions):
+
+- **FD8OFhwHF5M-3** (a team beaten twice on B goes A): the right note was served and the answer leaned
+  B, the site that held. "Expect the other site next round" read as the other site from the player at
+  A; the note now says "expect them at a different site next round, not at the one that held: move one
+  player or the first rotation toward the site they have not hit". The hand written "Patterns repeat
+  until punished" note (knowledge.js) said a site hit twice comes again without saying the hit won; it
+  says so now, and that a hit that failed twice is rarely run a third time.
+- **KVOVQ6jiQw8-6** (plan the late half on the habits seen, not on a drone never used): no note said
+  it. Added "plan the late half on the habits seen" (defence, Platinum up, advanced), the bench's k204
+  as a note, since a question with no match reaches notes and not that case.
+- **KVOVQ6jiQw8-4** (Chamber: a fast rotation only without a read, never a teleport away from
+  teammates fighting): added "Chamber commits on a read" (agents Chamber, defence, Platinum up).
+- **WCgnalZDT_A-5** (set up from the enemy pattern, beside the lone teammate in B main): it was served
+  "After you win the pistol round" to a player who lost it (Ask Coach serves no note written for the
+  other pistol result now, `chat-prompt.js noteInScope`). Added "set up from the enemy pattern"
+  (defence, Silver up, core).
+- The eco note ("play the eco for kills") lost its economy clause ("every kill on an eco takes a rifle
+  from their next buy") for "a kill taken together can hand you their rifle for the rest of the round",
+  so Ask Coach, which serves no economy note since the economy left its scope, still serves it.
+
+Retrieval: the question topic `read` (`chat-prompt.js QUESTION_TOPICS`) and the `pattern` situation's
+note words (`SIT_TOPICS`) reach the new notes; each of the four moments is served its note
+(`test:chatgates`, "BENCH 9 SERVED"). Fact checked against 13.09 (no numbers, no kit claims beyond
+Trademark and Rendezvous by name). Not benched live.

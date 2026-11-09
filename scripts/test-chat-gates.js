@@ -259,7 +259,8 @@ const F3 = factsFor(IN3, M3, STAND_IN);
   ok(keeps('Check the minimap every round.', F3), 'advice in the present is no claim');
   // Buy blame.
   ok(drops('In round 2 you stood in spawn during the buy phase, which is why you died.', F3, 'buy-blame'), 'a death blamed on the buy phase drops');
-  ok(keeps('On a full buy, take a rifle and Heavy Armor.', F3), 'a rule about buying stays');
+  // Since the coach bench 9 the economy is out of scope: a rule about buying is economy advice, and goes.
+  ok(drops('On a full buy, take a rifle and Heavy Armor.', F3, 'economy-scope'), 'a rule about buying goes (the economy is out of scope since the coach bench 9)');
   // Time format.
   ok(drops('In round 3 you died at 0:19.', F3, 'time'), '"0:08" DROPS in a round sentence');
   ok(keeps('In round 3 you died 19 s in.', F3), 'and "19 s in" stays');
@@ -515,8 +516,7 @@ WHAT YOU ARE GIVEN, AND HOW FAR TO TRUST IT
 
 WHAT YOU MUST NOT SAY
 - Nothing the facts do not hold. This match's record does not hold what anyone bought, the credits, the damage dealt and taken, or the utility used: if asked, say so and teach the rule instead.
-- A save question: say first that the record does not hold what anyone bought, then teach the rule once, in one sentence: on attack a save means staying alive and out of fights until the spike goes off or the clock runs out, on defence it means not retaking a planted spike, and a player who has already died in the round made no save decision. Then move to the fight that killed them.
-- A buy question (what to buy, or whether to buy or save): first name which round it is for the player, as they describe it or the round's line states it (a pistol round, the round after a won pistol, the team's full buy, a team save while the player can afford this round's full buy and the next one, or an eco), then teach the buy for that kind of round. The save rule above answers a save question only, never a buy question.
+- The economy is not something you coach: never say what anyone should buy, save or force, never talk about credits, the loss bonus or what a team can afford, and never explain a play or a read by the economy. A round named by its kind as the player told it (an eco, a bonus, the pistol round) only says where the round sits.
 - No ranking of agents, no meta, no pick or win rates for the current patch: you do not have them. Answer from the kit, the player's own numbers and the facts.
 - No player names, ever, even one the player typed: say your teammate, or the agent. No coach, player, team, video or other source for any advice.
 - Only Valorant and the player's play.
@@ -524,7 +524,7 @@ WHAT YOU MUST NOT SAY
 - No number across the player's other matches but as the counted lines across matches and the against line give it, said as they say it ("in 5 of your last 6 matches", "your own average of 38%"), and no season, act or episode. A pattern of this match is this match's, never one across matches.
 
 HOW TO ANSWER
-- Answer the question in your first sentence, and answer the question that was asked. A question about aim, practice, an agent, the mental side, comms or the economy is answered about that, and a counted mistake comes in only where it bears on it. Never turn every answer into the same habit. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
+- Answer the question in your first sentence, and answer the question that was asked. A question about aim, practice, an agent, the mental side or comms is answered about that, and a counted mistake comes in only where it bears on it. Never turn every answer into the same habit. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
 - A general question (the biggest mistake, how to improve or climb, what to practise, how to warm up) needs no single round: answer it from the counted mistakes, the patterns across matches, the player's own numbers and their rank, with the one lever that matters most at that level. Never answer it with only that you cannot tell.
 - About a round, a death or a play: tell it in order from the record (the side and the kind of round, the opening, the plant, the death with the numbers standing, how it ended), then the decision that decided it for the player, judged by what they could see at that moment, then what to do instead, written as the real situation to notice and the real move to make in it, concretely enough to do next round, and why it works in game terms: the guns and the range, the numbers standing, the clock and the spike, the kit. Rule out the larger causes before the shot: whether the fight needed taking, whether anyone could trade it, whether the player had information or utility first. When a death had both a decision and a shot that went wrong, name the decision first, then the one mechanic, in one sentence. Call a death lost on the shot only where the coach's look called the fight fair and lost on the shot.
 - A fair fight is one taken from where it should be taken, at a range the gun can fight. Whether a teammate could trade it is a separate question.
@@ -543,6 +543,7 @@ HOW TO ANSWER
 - Before advice about a round, read its side and whether the spike was down when the player died: on attack with no spike down the defenders never have to come to you, so waiting for them is no plan, and on defence with the spike down the defenders must retake.
 - If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (stopping before the shot, crosshair height, information before a peek, one angle at a time). Platinum to Diamond, the decision before the fight (predictability, playing the team's plan, when to take space). Ascendant and up, no basics, the specific timing or utility change and what it risks. An answer for a higher rank is never the one a lower rank would get for the same facts in longer words.
 - Name the match the first time you refer to it: the map, the agent and the result.
+- Never state where teams in general go on a map, or which site they reach first or last, as a fact: read the enemy only from what the player says they saw them do. Never add a premise the player did not give, such as a pistol round won or lost.
 - Write times as seconds into the round, "8 s in", never as a clock such as 0:08, which reads as the time left. Say a gap in seconds, "1.5 s after the plant" or "6 s later", only from the event the facts give it from, never from another event told just before it.
 - Speak to the player as you. Short paragraphs of plain text: no lists, no headings, no markdown. About 250 words, up to 400 when you walk through a round. Commas and periods, never dashes.
 - Write for a player who does not know coaching words: in a habit to build say a teammate killed your killer for a trade, and a teammate was near or far for the distance, never close enough to kill or trade, which mixes the two, and about what happened say no teammate was close or nobody traded you, each only where the round's line says it, never nobody was close enough to trade you, which says both, say the smoke, the flash or the drone by name, not utility, say take one piece of space and stop, not checkpoints, and never write impact, tempo, map control, situational awareness or utility potential.`;
@@ -1483,7 +1484,8 @@ const riotOnly = (file, row, edit) => {
   gates.AIM_DISMISSED.forEach((re, i) => regexes.push([`AIM_DISMISSED[${i}]`, re, aimPos[i], 'Your aim is the first thing to fix.']));
   cp.QUESTION_TOPICS.forEach((t) => {
     const ask = { aim: 'How do I get better aim at my rank?', practice: 'What should I practice before my next game?', climb: 'How do I climb out of Silver?',
-      mental: 'How do I stop tilting after a loss?', comms: 'How should I use comms in solo queue?', economy: 'When should I save my credits?', ult: 'When should I use my ultimate?' }[t.key];
+      mental: 'How do I stop tilting after a loss?', comms: 'How should I use comms in solo queue?', ult: 'When should I use my ultimate?',
+      read: 'They went B two rounds in a row, should we have changed our setup?' }[t.key];
     regexes.push([`QUESTION_TOPICS.${t.key}.ask`, t.ask, ask, 'Why did I die in round 5 on Split?']);
   });
   for (const [name, re, pos, neg] of regexes) {
@@ -2087,9 +2089,10 @@ const riotOnly = (file, row, edit) => {
   const notes = seededRun(() => cp.pickNotes(input, msgs));
   const notesPlain = seededRun(() => cp.pickNotes(plain, msgs));
   const tagged = (t, f) => { const n = knowledge.all().find((x) => x.text === t); return !!(n && f(n)); };
-  ok(notes.some((t) => tagged(t, (n) => n.situations && n.situations.some((f) => ['eco', 'fullbuy'].includes(f))))
+  // Since the coach bench 9 the economy is out of scope: the match's economy brings no note that teaches it.
+  ok(notes.length >= 4 && notes.every((t) => !require('../server/services/game-claims').economyClaim(t))
     && !notesPlain.some((t) => tagged(t, (n) => n.situations && n.situations.includes('fullbuy'))),
-  'the match\'s economy brings an economy note');
+  'the match\'s economy brings no economy note (out of scope since the coach bench 9)', JSON.stringify(notes));
   ok(JSON.stringify(seededRun(() => cp.pickNotes(plain, msgs))) === JSON.stringify(seededRun(() => cp.pickNotes(cp.normalise(ctxOf(cards.map(stripCard))), msgs))),
     'without them the notes are as before');
   const askedFive = [{ role: 'user', content: 'Why did I die in round 2?' }];
@@ -2984,7 +2987,13 @@ console.log('\nround 8, the game facts gates:');
   ok(!g8('Keep your crosshair back from the corner, out in the open space a peeker moves into.', fl) && !g8('If your crosshair sat deep in the wall, a peeker lands off it.', fl), 'kept: the imperative and the hypothetical');
   const fl2 = { ...fl, rounds: new Map([[12, { n: 12, died: true, look: { what: 'Your crosshair was low on the gap when Fade appeared.' } }]]) };
   ok(!g8('Your crosshair was low when Fade swung into the gap.', fl2), 'kept: a look that says where the crosshair was');
-  ok(gates.GATES.map(([n]) => n).slice(-5, -1).join() === 'oneshot,move-fire,bullets,unseen' && gates.GATES[gates.GATES.length - 1][0] === 'looks', 'the round 8 gates run after every gate before, and the stream C looks gate after them');
+  {
+    const names = gates.GATES.map(([n]) => n);
+    const at = names.indexOf('oneshot');
+    // The coach bench 9's three gates come after them (asserted in their own section).
+    ok(names.slice(at, at + 5).join() === 'oneshot,move-fire,bullets,unseen,looks' && names.slice(at + 5).join() === 'economy-scope,premise,map-habit',
+      'the round 8 gates run after every gate before, and the stream C looks gate after them');
+  }
   // Deathmatch: the disclaimer loophole (gateMode) and the frame across sentences (gateReply).
   ok(g8('Practise in Deathmatch, where there are no teammates: before each peek, ask yourself whether a teammate could trade you.') === 'mode', 'CAUGHT: a disclaimer, then the team rule');
   ok(!g8('Play Deathmatch, since it needs no teammates: pick one angle and hold it.') && !g8('Deathmatch has no teammates, so do not practise trades there.')
@@ -3651,7 +3660,7 @@ console.log('\nround 8, the game facts gates:');
   ok(cp.noMatch(NONE) && !cp.noMatch(inputFor(ABYSS, NQ)) && !cp.noMatch({ game: 'lol', match: null }),
     'noMatch: a Valorant question with no match, never one with a match, never League');
   ok(rules.includes(cp.NO_RECORD_HEDGE) && !rules.includes(cp.BUY_HEDGE) && !rules.includes(cp.SAVE_HEDGE)
-    && rules.includes(`${cp.NO_RECORD_SAVE} once, in one sentence: on attack a save means`)
+    && rules.includes(cp.ECONOMY_RULE)
     && rules.split('\n').length === cp.VALORANT_RULES.split('\n').length,
   'WITH NO MATCH NEITHER HEDGE TALKS ABOUT A RECORD: the buy hedge says there is none, the save rule teaches the rule alone');
   ok(cp.rulesFor(inputFor(ABYSS, NQ)) === cp.VALORANT_RULES && cp.rulesFor({ ...inputFor(ABYSS, NQ), rankBand: 'asc_plus' }) === cp.VALORANT_RULES.replace(cp.IMPROVING_RULE, cp.IMPROVING_RULE_877),
@@ -3683,10 +3692,10 @@ console.log('\nround 8, the game facts gates:');
   ok(bench.reply && !/the record/i.test(bench.reply) && /fall back to a spot off the site/.test(bench.reply), 'the bench answer goes out without its record sentence', JSON.stringify(bench));
   ok(gates.GATES.map(([n]) => n).indexOf('no-record') === gates.GATES.map(([n]) => n).indexOf('product') + 1, 'the no record gate runs right after the product gate');
   // The two rules the bench asked for, in the static rules (and so in SPEC_RULES above).
-  ok(/^- A buy question \(what to buy, or whether to buy or save\): first name which round it is for the player/m.test(cp.VALORANT_RULES)
-    && /The save rule above answers a save question only, never a buy question\./.test(cp.VALORANT_RULES)
-    && /^- When the question names an ability, answer first how to use that ability in that moment/m.test(cp.VALORANT_RULES),
-  'THE BUY QUESTION NAMES ITS ROUND FIRST, and an ability question is answered with the ability first');
+  // The buy and save question rules gave way to the economy rule in the coach bench 9 (the economy out of scope).
+  ok(cp.VALORANT_RULES.includes(cp.ECONOMY_RULE) && !/^- A buy question/m.test(cp.VALORANT_RULES)
+    &&/^- When the question names an ability, answer first how to use that ability in that moment/m.test(cp.VALORANT_RULES),
+  'THE ECONOMY RULE STANDS FOR THE BUY QUESTION (the coach bench 9), and an ability question is answered with the ability first');
 }
 
 // ── The coach bench, retrieval: the player's own account with no match ──────
@@ -3782,13 +3791,17 @@ console.log('\nround 8, the game facts gates:');
     && ask('silver_gold', "What's the best agent on Abyss right now?").sit === null
     && cp.askedSituation({ ...s1.input, language: 'de' }, s1.messages) === null,
   'NOTHING READ with a match, with no account of a round, or outside English');
+  // The bench's three buy questions are out of scope since the coach bench 9 (outOfScope): no notes, the scope line.
+  for (const content of ['I was on Raze on Split, defense, round three, four teammates buying. I kept 950 credits and bought only a Bucky. What should I buy and how should I start the round when my team full buys?',
+    'I was on Killjoy on Breeze, attack, pistol round. I kept the Classic, skipped light shield and spent everything on utility. Is buying all my Killjoy utility with a shieldless Classic a good pistol round buy on Breeze?',
+    'I was on Chamber on Haven, defense, round 2 after we won pistol. I bought an Outlaw. As Chamber, what should I buy in round 2 after we win pistol on defense?']) {
+    const x = ask('silver_gold', content);
+    ok(cp.outOfScope(x.input, x.messages) === 'economy', `OUT OF SCOPE since the coach bench 9: "${content.slice(-60)}"`);
+  }
   // The notes the bench's gaps were written for now reach their questions.
   const served = (band, content) => { const x = ask(band, content); return cp.pickNotes(x.input, x.messages).map((t) => topicOf.get(t)); };
   for (const [band, content, topic] of [
     ['silver_gold', SNIPER, 'a sniper holds still'],
-    ['iron_bronze', 'I was on Raze on Split, defense, round three, four teammates buying. I kept 950 credits and bought only a Bucky. What should I buy and how should I start the round when my team full buys?', 'buy when the team full buys'],
-    ['silver_gold', 'I was on Killjoy on Breeze, attack, pistol round. I kept the Classic, skipped light shield and spent everything on utility. Is buying all my Killjoy utility with a shieldless Classic a good pistol round buy on Breeze?', 'shield before utility on the pistol round'],
-    ['asc_plus', 'I was on Chamber on Haven, defense, round 2 after we won pistol. I bought an Outlaw. As Chamber, what should I buy in round 2 after we win pistol on defense?', 'Chamber after a pistol win'],
     ['silver_gold', 'I was on Omen on Fracture, defense, eco round on B with a Bucky and Sheriff. Where should I go on B when I lose track of arcade and tower in an eco?', 'play the eco for kills'],
     ['silver_gold', 'I was on Jett on Sunset, defense, start of round three. They went B two rounds in a row and lost both. The enemies hit B twice and lost, should we have changed our setup for round three?', 'the hit they will not run again'],
     ['plat_diamond', 'I was on Sage on Split, attack. We had been fighting and using utility at A for over 20 seconds. We just killed the A players after a long fight there, should we keep hitting A?', 'the stack after a long fight'],
@@ -3822,6 +3835,79 @@ console.log('\nround 8, the game facts gates:');
     && drop('Each body hit deals 40 damage, so the fourth hit brings the total to 170, enough to kill through Heavy Armor.')
     && drop('A Vandal needs 3 body hits to kill someone with Heavy Armor.'),
   'ASKED GUN: a wrong damage, a wrong total and a wrong count still go');
+}
+
+// ── The coach bench 9 (Nov 2026): the economy out of scope, the pistol premise, the map habit ──
+{
+  console.log('\nthe coach bench 9, the economy out of scope, the pistol premise and the map habit:');
+  const gameClaims9 = require('../server/services/game-claims');
+  const NONE9 = cp.normalise({ v: 2, game: 'valorant', language: 'en', match: null, player: {}, ask: {} });
+  const ask9 = (content) => [{ role: 'user', content }];
+  // Economy questions are answered with the scope line, no model call (coach.js chatV2).
+  for (const q of ['I was on Raze on Split, defense, round two after pistol, most of my team saving. I bought light shield, a Bucky, two satchels and the Boom Bot. How much should I spend in round two when my team is saving?',
+    'I won the first two rounds and still have my Marshal, should I buy up in round 3?', 'Should I have saved my gun in round 4?', 'How does the loss bonus work?', 'What should I buy on a force?']) {
+    ok(cp.outOfScope(NONE9, ask9(q)) === 'economy' && cp.outOfScope(inputFor(ABYSS, q), ask9(q)) === 'economy', `OUT OF SCOPE: "${q.slice(-60)}"`);
+  }
+  for (const q of ["I was on Skye on Lotus, defense, eco round on A. Our Omen dropped a smoke on A main and I pushed into it right away. Is pushing straight into my controller's smoke on A main a good eco play?",
+    'Where should I have set up in round three after we won round two?', 'Should I save my ult for the retake?', 'When should I use a fast rotation setup on Haven as Chamber?', 'Why did I lose round 5?']) {
+    ok(cp.outOfScope(NONE9, ask9(q)) === null, `IN SCOPE: "${q.slice(-60)}"`);
+  }
+  ok(cp.outOfScope({ ...NONE9, game: 'lol' }, ask9('Should I buy boots first?')) === null && cp.outOfScope({ ...NONE9, language: 'de' }, ask9('Should I buy?')) === null,
+    'outOfScope: Valorant in English only');
+  ok(cp.ECON_QUESTION.test('should I buy up') && !cp.ECON_QUESTION.test('should I save my ult') && !DASHES.test(cp.ECONOMY_OUT + cp.ECONOMY_RULE + cp.MAP_HABIT_RULE),
+    'ECON_QUESTION both ways, and the new lines carry no dash');
+  ok(cp.VALORANT_RULES.includes(cp.ECONOMY_RULE) && cp.VALORANT_RULES.includes(cp.MAP_HABIT_RULE) && !/^- A buy question/m.test(cp.VALORANT_RULES) && !/^- A save question/m.test(cp.VALORANT_RULES),
+    'the rules: the economy rule replaces the save and buy question rules, and the map rule is in');
+  // The economy gate: any economy claim goes, with a match or without.
+  const fx9 = cp.factsOf(NONE9, ask9('round 3 after we won pistol and round two, should I have pushed?'));
+  for (const s of ['Winning the pistol and then round 2 means the enemy is on their smallest loss pay, and the round that follows is the one where a cheap gun still beats what they can field.',
+    'The rhythm to aim for is buy, eco, buy, buy.', 'You should have saved with them.']) {
+    const r = gates.check(s, fx9);
+    ok(r.drop && (r.drop.gate === 'economy-scope' || r.drop.gate === 'economy'), `ECONOMY DROPPED: "${s.slice(0, 60)}"`, JSON.stringify(r));
+  }
+  ok(!gates.check('On an eco, play for close fights together with the team.', fx9).drop && !gates.check('Your smoke buys the team time to rotate.', fx9).drop,
+    'an eco named as the round and time bought are kept');
+  // The record's own kind of round stays where the round's line gives it.
+  const kind = { language: 'en', game: 'valorant', rounds: new Map([[4, { n: 4, buy: 'full' }]]) };
+  ok(!gates.gateEconomyScope('Round 4 was your team\'s full buy.', kind, { round: true, rounds: [4] })
+    && gates.gateEconomyScope('Round 4 was your team\'s full buy.', { ...kind, rounds: new Map() }, { round: true, rounds: [4] }),
+  'the team full buy Riot gives for the round stays, and goes with no record of it');
+  // The pistol premise, from the player's words with no match.
+  const lostQ = ask9('I was on Skye on Lotus, defense, round three. We lost pistol on C and won the eco on A. Where should I have set up in round three after we won round two?');
+  const fLost = cp.factsOf(NONE9, lostQ);
+  ok(fLost.pistol === 'lost' && cp.factsOf(NONE9, ask9('round two after pistol, most of my team saving. Where should I play?')).pistol === null, 'facts.pistol: the player\'s own words');
+  ok(gates.check('Since I do not have the record of the round three on Lotus, I can only speak generally about positioning after winning a pistol round.', fLost).drop,
+    'WCgnalZDT_A-5: positioning after winning a pistol round, where they lost it, goes');
+  const fNone = cp.factsOf(NONE9, ask9('I was on Raze on Split, defense, round two after pistol. Where should I play?'));
+  ok(gates.gatePistolPremise("You're in the round after a won pistol on defence.", fNone)?.gate === 'premise', 'bNC4PU5AwEA-4: a won pistol nobody said goes');
+  ok(!gates.gatePistolPremise('When you win a pistol round, play the next round tightly.', fLost), 'a general rule stays');
+  // With a match, Riot's record says which pistol.
+  const pm = { game: 'valorant', language: 'en', asked: 3, rounds: new Map([[1, { n: 1, pistol: true, result: 'lost' }], [2, { n: 2, result: 'won' }], [3, { n: 3, result: 'won' }]]) };
+  ok(cp.pistolKnown({ match: {} }, [], pm) === 'lost' && gates.gatePistolPremise('After your won pistol, play it tight.', { ...pm, pistol: 'lost' }), 'a match: the asked round\'s pistol from the record');
+  // The notes: no economy note, and no won pistol note to a player who lost it.
+  const notes = cp.pickNotes(NONE9, lostQ);
+  ok(!notes.some((t) => /After you win the pistol round/.test(t)) && notes.every((t) => cp.noteInScope(t, 'lost')), 'WCgnalZDT_A-5: the won pistol note is not served to a lost pistol', JSON.stringify(notes));
+  const econNotes = cp.pickNotes(NONE9, ask9('I was on Skye on Lotus, defense, eco round on A. Is pushing into my own smoke a good eco play?'));
+  ok(econNotes.length >= 4 && econNotes.every((t) => !gameClaims9.economyClaim(t)), 'no economy note reaches Ask Coach', JSON.stringify(econNotes));
+  // The map habit.
+  const haven = 'You read the earlier rounds right, but on Haven, C is the site a five-stack with no lurks reaches last, so when Garage goes quiet that is the hit.';
+  ok(gates.check(haven, fx9).drop?.gate === 'map-habit' && !gates.check('They hit B and lost, so expect A next round.', fx9).drop, 'KVOVQ6jiQw8-6: the invented Haven habit goes, this enemy\'s own habit stays');
+  ok(gates.GATES.slice(-3).map(([n]) => n).join() === 'economy-scope,premise,map-habit', 'the three bench 9 gates run after every gate before');
+  // Map control and positioning: the notes the four weaker moments were missing now reach them.
+  const knowledge9 = require('../server/services/knowledge');
+  const topic9 = new Map(knowledge9.all().map((n) => [n.text, n.source && n.source.topic]));
+  const benchQ = (band, content) => { const ctx = chatContext.build(null, { rows: [] }, null, content, { game: 'valorant', language: 'en', advanced: true, switchedFrom: null, now: 0 }); ctx.rankBand = band; return cp.pickNotes(cp.normalise(ctx), ask9(content)).map((t) => topic9.get(t)); };
+  for (const [band, content, topic] of [
+    ['silver_gold', 'I was on Jett on Sunset, defense, start of round three. They went B two rounds in a row and lost both into our Viper anchoring B. Me and our Omen set up at A elbow with no real plan. The enemies hit B twice and lost, should we have changed our setup for round three?', 'the hit they will not run again'],
+    ['asc_plus', 'I was on Chamber on Haven, defense, around rounds 8 to 10. I held C expecting to beat a drone they had never used on C in any earlier round. They have been jump spotting C long, always five stacking with no lurks. How do I use what the enemies did in earlier rounds to plan the late rounds of the half?', 'plan the late half on the habits seen'],
+    ['asc_plus', 'I was on Chamber on Haven, defense, round 3, their bonus. They went C in round 1 and defaulted toward A and mid in round 2. I used a fast rotation setup with my teleport in A link, expecting an A rush. When should I use a fast rotation setup on Haven as Chamber, and when should I commit to a site?', 'Chamber commits on a read'],
+    ['plat_diamond', 'I was on Skye on Lotus, defense, round three. We lost pistol on C and won the eco on A, so they are on an eco or bonus now. Our Killjoy and Chamber sat on C, our Jett held B main aggressively alone, and I set up away from her. Where should I have set up in round three after we won round two?', 'set up from the enemy pattern'],
+  ]) {
+    const got = benchQ(band, content);
+    ok(got.includes(topic), `BENCH 9 SERVED: "${topic}"`, JSON.stringify(got));
+  }
+  const failedHit = knowledge9.all().find((n) => n.source && n.source.topic === 'the hit they will not run again');
+  ok(/expect them at a different site next round, not at the one that held/.test(failedHit.text), 'FD8OFhwHF5M-3: the failed hit note names the site to lean to without "the other site"');
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

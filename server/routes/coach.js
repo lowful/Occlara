@@ -4658,6 +4658,18 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
 
   const scope = costScope.getStore() || {};
   const counts = chatCounts();
+  /*
+   * THE ECONOMY IS OUT OF SCOPE (the owner's rule after the coach bench 9, Nov
+   * 2026, chat-prompt.js outOfScope): a question about buys, saves, credits or
+   * the loss bonus is answered with ECONOMY_OUT, no model call and no cap spent.
+   */
+  const outOf = typeof chatPrompt.outOfScope === 'function' ? chatPrompt.outOfScope(input, messages) : null;
+  if (outOf === 'economy' && typeof chatPrompt.ECONOMY_OUT === 'string') {
+    counts.outOfScope = (counts.outOfScope || 0) + 1;
+    res.json({ reply: chatPrompt.ECONOMY_OUT, v: 2, honest: false, outOfScope: outOf, retried: false, dropped: {}, logged: {}, sentences: 0,
+      ...(body.benchModel ? { model: benchModel(req) || AI.chatModel } : {}), ...(body.variant ? { variant } : {}) });
+    return true;
+  }
   if (!scope.bench) {
     const room = chatRoom(licenseKey, Date.now());
     if (!room.ok) {
