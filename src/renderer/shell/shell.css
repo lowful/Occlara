@@ -51,7 +51,11 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   box-shadow: var(--rim-2);
   opacity: 0;
   pointer-events: none;
-  transition: transform var(--t-med) var(--ease-expo), width var(--t-med) var(--ease-expo), opacity var(--t-fast) var(--ease);
+  /* Its glide is shell.js placeMarker's (8.9.2): a transform played from the
+     old tab to the new one, scaled from its left edge. Only the fade is a
+     transition here; a width tween laid it out every frame. */
+  transform-origin: 0 50%;
+  transition: opacity var(--t-fast) var(--ease);
 }
 .nav-marker.on { opacity: 1; }
 .nav-marker.still { transition: opacity var(--t-fast) var(--ease); }
@@ -123,6 +127,11 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .toggle.active { background: var(--s2); border: 1px solid var(--line-2); color: var(--text); box-shadow: var(--hi), var(--drop); }
 .toggle.active:hover { background: var(--s3); box-shadow: var(--hi), var(--drop-hover); }
 .toggle.active:active { box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
+/* THE RECORDING SCREEN MOVES NO MORE THAN IT DID (8.9.2): ui.css took every
+   press to .97 over 160ms; mid match Stop keeps the press it had, .985 over
+   --t-press, so nothing on that screen moves more than before. */
+.app.sealed-live .toggle:where(:not(:disabled)):active { transform: translateY(0) scale(0.985); transition-duration: var(--t-press); }
+@media (prefers-reduced-motion: reduce) { .app.sealed-live .toggle:where(:not(:disabled)):active { transform: none; } }
 .toggle.active .t-ico { color: var(--red); }
 .toggle:disabled { opacity: 0.55; cursor: default; filter: grayscale(0.35); }
 .toggle.ended:disabled { opacity: 1; filter: none; background: transparent; border: 1px solid var(--line-2); color: var(--text-dim); box-shadow: none; }
@@ -141,9 +150,19 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   border: 0; border-radius: 50%;
   background: var(--s3); box-shadow: var(--rim); color: var(--text-dim);
   cursor: pointer;
-  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), transform var(--dur-press) var(--ease-out);
 }
 .avatar-btn:hover, .avatar-btn[aria-expanded="true"] { color: var(--text); background: var(--s4); }
+/* A press lands (8.9.2): down to .97 over --dur-press, eased out, and not at
+   all under reduced motion. */
+.avatar-btn:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) { .avatar-btn:active { transform: none; } }
+/* It pops in once as the window first opens outside a match (shell.js), from
+   scale(0.96) and nothing over --dur-base: the one round thing in the bar
+   arriving last. */
+.avatar-btn.pop-in { animation: avatarIn var(--dur-base) var(--ease-out) both; }
+@keyframes avatarIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .avatar-btn.pop-in { animation: none; } }
 .avatar-btn:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 
 .win-controls { display: flex; gap: 2px; }

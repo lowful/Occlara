@@ -28,6 +28,22 @@ let model = null;
 let billing = 'monthly';
 let segsReady = false;
 
+/*
+ * MOTION (8.9.2, shared/motion.js). The games left count up and the plans
+ * rise once per visit of the page, only once it is on screen; a refresh (an
+ * account push, a review saved) paints them as they are. Nothing moves under
+ * reduced motion.
+ */
+const Mo = window.Motion || null;
+
+/** The field's number moved by the stepper: it eases in from the side it came. */
+function nudge(el, by) {
+  if (!Mo || Mo.reduced() || !el) return;
+  el.classList.remove('pr-nudge-up', 'pr-nudge-down');
+  void el.offsetWidth;
+  el.classList.add(by > 0 ? 'pr-nudge-up' : 'pr-nudge-down');
+}
+
 function show(which) {
   $('pr-wait').hidden = which !== 'wait';
   $('pr-body').hidden = which !== 'body';
@@ -43,6 +59,19 @@ function paintHero(h) {
   $('pr-hero').classList.toggle('has-number', games);
   $('pr-count').hidden = !games;
   $('pr-number').textContent = games ? h.number : '';
+  // The games left count up to their number, once per visit (tabular figures).
+  if (games && Mo && Number.isFinite(Number(h.number)) && String(h.number).trim() !== '' && Mo.once($('pr-number'), 'count') && !Mo.reduced()) {
+    Mo.whenShown(() => {
+      if (Mo.reduced()) return;
+      const el = $('pr-number');
+      const v = Number(el.textContent);
+      if (!Number.isInteger(v) || v < 0) { if (Number.isFinite(v)) Mo.countUp(el, v); return; }
+      // A whole number is counted in CSS over its real text (profile.css .m-counting).
+      el.style.setProperty('--to', String(v));
+      el.classList.add('m-counting');
+      setTimeout(() => el.classList.remove('m-counting'), 800 + 120);
+    });
+  }
   $('pr-unit').textContent = games ? h.unit : '';
   $('pr-plan').textContent = h.plan || '';
   $('pr-split').textContent = h.split || '';
@@ -92,7 +121,9 @@ function settleField() {
 
 function stepBy(by) {
   if (typeof api.step !== 'function') return;
+  const before = $('pr-games').value;
   $('pr-games').value = String(api.step($('pr-games').value, by));
+  if ($('pr-games').value !== before) nudge($('pr-games'), by);
   paintBuy();
 }
 
@@ -182,6 +213,10 @@ function setBilling(which) {
   $('pr-monthly').setAttribute('aria-pressed', String(billing === 'monthly'));
   $('pr-yearly').setAttribute('aria-pressed', String(billing === 'yearly'));
   if (model) { paintPlans(model.plans); paintGiftOffers(model.gifts); }
+  // What changed is the prices: they fade in where they stand (profile.css).
+  if (model && Mo && !Mo.reduced()) {
+    for (const a of document.querySelectorAll('#pr-plans .pr-amount, #pr-gift-offers .pr-gift-price')) a.classList.add('pr-swap');
+  }
 }
 
 // ── Gifts (8.8) ────────────────────────────────────────────────────────────
@@ -308,6 +343,8 @@ function paint(m) {
   paintPlans(m.plans);
   paintGifts(m.gifts);
   show('body');
+  // The plans rise one after another, once per visit (motion.css .m-stagger).
+  if (Mo && m.plans) Mo.stagger($('pr-plans'), 'rows');
   if (!segsReady && typeof window.occlaraSeg === 'function') {
     segsReady = true;
     window.occlaraSeg($('pr-picks'));

@@ -217,6 +217,23 @@ header {
 @media (prefers-reduced-motion: reduce) {
   #vreview.revealing:not(.reveal-done) .vd-letter, #vreview.revealing:not(.reveal-done) .vd-stat { animation-delay: 0s; transition-delay: 0s; }
 }
+/* 8.9.2 (shared/motion.css): the fix for next match rises in as the letter
+   lands, before the standout beside the letter (--t-slow 1.5), so the one
+   thing to do is the first line that arrives; and the four category bars
+   fill --stagger (40ms) apart, the fifth and on with the fifth, where they
+   were 80ms. Under reduced motion the fix is simply there and the bars wait
+   for nothing (this rule is stronger than grade-view.css's own zeroing). */
+#vreview.revealing:not(.reveal-done) #v-focus-wrap {
+  animation: m-rise var(--dur-slow) var(--ease-out) both;
+  animation-delay: var(--t-slow);
+}
+#vreview.revealing:not(.reveal-done) .gv-bar i {
+  animation-delay: calc(var(--t-slow) * 2 + min(var(--i, 0), 4) * var(--stagger));
+}
+@media (prefers-reduced-motion: reduce) {
+  #vreview.revealing:not(.reveal-done) #v-focus-wrap { animation: none; }
+  #vreview.revealing:not(.reveal-done) .gv-bar i { animation-delay: 0s; }
+}
 .vd-said { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 /* The standout (verdict.js stat), as on the share image: its value in Geist
    600 ink and its line in 500 beside it on the same baseline, wrapping under
@@ -611,8 +628,64 @@ header {
 .v-more > summary:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 4px; border-radius: 2px; }
 .v-more[open] > summary { margin-bottom: var(--space-2); }
 
+/* OPENED AND CLOSED IN PLACE (8.9.2): a folded round's body and the study
+   notes and refusals open by height and close the same way, one grid row
+   from 0fr to 1fr over --dur-base, never a height worked out in script.
+
+   A round's body keeps its `hidden` (foldRow sets it at once, as before):
+   here hidden is a closed row, not display: none (theme.css's [hidden] is
+   !important, so this one is too), and it goes invisible to the pointer and
+   a screen reader only once it has closed (visibility waits --dur-base).
+   The row is minmax(0, ...), so a child's own padding (the killer card's)
+   cannot hold a closed row open, and the body clips what it holds, with a
+   margin for a focus ring. The row's own gap and padding close with it, so
+   nothing jumps at either end.
+
+   The <details> fold its content box (::details-content) the same way,
+   content-visibility carried over as a discrete step so closing still
+   plays. Both are a cut under reduced motion. */
+.v-round.fold { transition: gap var(--dur-base) var(--ease-out), padding var(--dur-base) var(--ease-out); }
+.v-round.fold:not(.open) { gap: 0; }
+.v-round.fold > .v-round-body {
+  display: grid; grid-template-rows: minmax(0, 1fr); visibility: visible;
+  overflow: clip; overflow-clip-margin: 4px;
+  transition: grid-template-rows var(--dur-base) var(--ease-out), visibility 0s;
+}
+.v-round.fold > .v-round-body[hidden] {
+  display: grid !important; grid-template-rows: minmax(0, 0fr); visibility: hidden; overflow-clip-margin: 0px;
+  transition: grid-template-rows var(--dur-base) var(--ease-out), visibility 0s linear var(--dur-base);
+}
+.v-round.fold > .v-round-body > * { min-height: 0; }
+.v-more::details-content {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-out), content-visibility var(--dur-base) allow-discrete;
+}
+.v-more[open]::details-content { grid-template-rows: 1fr; }
+.v-more > ul { min-height: 0; overflow: hidden; }
+.v-more > summary { transition: margin-bottom var(--dur-base) var(--ease-out); }
+
+/* ARRIVING AS THEY COME INTO VIEW (8.9.2, review.js scrollIn): a round, a
+   death or a mistake below the fold waits unseen and rises in once when it
+   is scrolled to, --stagger apart for the ones that arrive together, six at
+   most. Once per row per visit: painted again, a row already seen is just
+   there. One in view when the page is painted is never held back. */
+.in-wait { opacity: 0; transform: translateY(8px); }
+.in-play {
+  animation: m-rise var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 5) * var(--stagger));
+}
+/* A clip's picture and a still fade in as they arrive, in place of a black
+   box turning into a frame at once (review.js fadeThumbs). */
+.v-shot img.th-wait, .v-clip-video.th-wait { opacity: 0; }
+.v-shot img.th-in { transition: opacity var(--dur-base) var(--ease-out), transform var(--t-med) var(--ease-expo); }
+.v-clip-video.th-in { transition: opacity var(--dur-base) var(--ease-out); }
+
 @media (prefers-reduced-motion: reduce) {
   .v-fold::before, .v-more > summary::after { transition: none; }
+  .v-round.fold, .v-round.fold > .v-round-body, .v-round.fold > .v-round-body[hidden],
+  .v-more::details-content, .v-more > summary { transition: none; }
+  .in-wait, .v-shot img.th-wait, .v-clip-video.th-wait { opacity: 1; transform: none; }
+  .in-play { animation: none; }
 }
 
 /* ── Share image (8.7, review.js openShare) ────────────────────────────────

@@ -52,8 +52,13 @@ const dots = pages.map((_, i) => {
 });
 
 function go(next) {
+  const from = index;
   index = Math.max(0, Math.min(pages.length - 1, next));
-  pages.forEach((p, i) => { p.hidden = i !== index; });
+  // STEPS CROSS-SLIDE 8px (8.9.2, onboarding.css .page): forward the new
+  // step comes in from the right, back from the left, set before it is shown
+  // so its entrance starts on the right side. The step left goes at once.
+  const back = typeof from === 'number' && index < from;
+  pages.forEach((p, i) => { if (i === index && index !== from) p.classList.toggle('from-back', back); p.hidden = i !== index; });
   dots.forEach((d, i) => {
     d.classList.toggle('active', i === index);
     d.classList.toggle('done', i < index);

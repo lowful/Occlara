@@ -270,6 +270,9 @@ function paintNav() {
  */
 const marker = $('nav-marker');
 let markerOn = null;
+let markerAt = { x: 0, y: 0, w: 0 };
+let markerGlide = null;
+const reducedMotion = () => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function placeMarker() {
   // TOP NAVIGATION (Progress v3): the marker is the tabs' pill, so a page
   // in the drawer (Settings, Profile and the rest) marks its own row there.
@@ -283,11 +286,39 @@ function placeMarker() {
   const id = b.dataset.page;
   const slide = markerOn !== null && markerOn !== id;
   marker.classList.toggle('still', !slide);
-  marker.style.width = `${b.offsetWidth}px`;
+  // THE PILL GLIDES (8.9.2), by transform alone. It is put where it ends at
+  // once, its new width and place, and then played from where it was: the
+  // old place and the old width as a scaleX from its left edge, over
+  // --dur-move on --ease-in-out. No width is tweened, so nothing is laid out
+  // per frame. Asked for less motion, or appearing, it is simply there.
+  // Slid again before the last glide ended: from where the pill is now.
+  let from = slide ? { x: markerAt.x, y: markerAt.y, w: markerAt.w } : null;
+  if (from && markerGlide && typeof DOMMatrix === 'function') {
+    try {
+      const m = new DOMMatrix(getComputedStyle(marker).transform);
+      from = { x: m.e, y: m.f, w: m.a * markerAt.w };
+    } catch (e) { /* from where it was set */ }
+  }
+  const w = b.offsetWidth;
+  const x = b.offsetLeft;
+  marker.style.width = `${w}px`;
   marker.style.height = `${b.offsetHeight}px`;
-  marker.style.transform = `translate(${b.offsetLeft}px, ${top}px)`;
+  marker.style.transform = `translate(${x}px, ${top}px)`;
   marker.classList.add('on');
   markerOn = id;
+  const moved = x !== markerAt.x || top !== markerAt.y || w !== markerAt.w;
+  markerAt = { x, y: top, w };
+  // The same tab measured again mid glide (a state push, the fonts) leaves the
+  // glide alone; a new place, or a new slide, ends it.
+  if (markerGlide && (slide || moved)) { markerGlide.cancel(); markerGlide = null; }
+  if (from && from.w > 0 && w > 0 && typeof marker.animate === 'function' && !reducedMotion()) {
+    const dur = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-move')) || 260;
+    markerGlide = marker.animate([
+      { transform: `translate(${from.x}px, ${from.y}px) scaleX(${from.w / w})` },
+      { transform: `translate(${x}px, ${top}px)` },
+    ], { duration: dur, easing: 'cubic-bezier(0.77, 0, 0.175, 1)' });
+    markerGlide.onfinish = () => { markerGlide = null; };
+  }
 }
 window.addEventListener('resize', placeMarker);
 // THE MARKER FOLLOWS THE RECORD CARD, whatever changes its height. Once the
@@ -710,6 +741,13 @@ document.querySelector('.bar').addEventListener('dblclick', (e) => {
   paintGames();
   paintAccount();
   paintNav();
+  // The avatar pops in once, as the window first opens (8.9.2), and never
+  // when it opens on the Recording screen: nothing there moves but its arrival.
+  if (!shell.sealed && !reducedMotion()) {
+    const av = $('menu-btn');
+    av.classList.add('pop-in');
+    av.addEventListener('animationend', () => av.classList.remove('pop-in'), { once: true });
+  }
   // Geist arriving can move the items by a pixel or two.
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeMarker).catch(() => {});
   if (window.initI18n) {

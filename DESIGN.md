@@ -251,6 +251,31 @@ loops, and nothing during a match.
 | `--ease-out` | `cubic-bezier(.25, 1, .5, 1)` | an arrival (ease-out-quart) |
 | `--ease-expo` | `cubic-bezier(.16, 1, .3, 1)` | a page, a thumb, a marker, a row rising |
 | `--ease-spring` | `cubic-bezier(.34, 1.56, .64, 1)` | the letter's stamp |
+| `--ease-in-out` | `cubic-bezier(.77, 0, .175, 1)` | a thing moving on screen: the tabs' pill, a segmented thumb (8.9.2) |
+| `--dur-fast`, `--dur-base`, `--dur-move`, `--dur-slow` | 140, 220, 260, 380ms | `motion.css`: feedback, a pop, a glide, an entrance |
+| `--dur-press` | 160ms | a press going down to `scale(.97)` |
+| `--dur-count`, `--stagger` | 800ms, 40ms | a result counting up; rows arriving, six at most |
+
+- **The shared entrances (8.9.2).** `shared/motion.css` (`.m-rise` 8px,
+  `.m-stagger`, `.m-pop` from .96, `.m-draw` for a path with `pathLength="1"`,
+  `.m-grow` and `.m-grow.x` for a bar from its baseline) and `shared/motion.js`
+  (`Motion.once`, `rise`, `pop`, `stagger`, `countUp`), loaded on Home, the
+  review, Matches, Stats, Settings, Profile, Moments and onboarding. Each plays
+  once per visit of a page (embed.js says each visit, `occlara-page-enter`),
+  only once the page is on screen, and not at all under reduced motion.
+  `Motion.countUp` is the one place a number is counted in script, for a value
+  `counter()` cannot draw (a K/D, a decimal): tabular figures, 600 to 900ms,
+  ending on exactly the formatted value, which is in `data-value` from the start.
+- **The tabs' pill glides** (`shell.js placeMarker`): put where it ends, then
+  played from the old tab as a transform with the old width as a `scaleX`
+  from its left edge, `--dur-move` on `--ease-in-out`. No width is tweened.
+- **Press and hover (8.9.2).** A capsule, an icon button, a segmented button
+  and the avatar press to `scale(.97)` over `--dur-press`, never when disabled;
+  mid match Stop keeps its old `.985` (`shell.css`). The 1px lift under the
+  pointer is only under `(hover: hover) and (pointer: fine)`. The keyboard's
+  ring comes in from 5px out (`focusIn`, outline only), and a `.u-link`
+  underline draws from the left by `scaleX`. The account menu's rows follow it
+  down 30ms apart, once per opening (`menu.css`).
 
 - **Continuity.** A page change slides 12px from the side it comes from on
   `--t-med` (`html.page-armed`, `ui.css`); the sidebar marker is one element slid
@@ -268,7 +293,8 @@ loops, and nothing during a match.
   screen: the number counts up over `--t-slow` twice (`@property --n`, drawn by
   `counter()` over the real number, which stays the text; no JS arithmetic), the
   letter stamps in after `--t-slow` (`vdStamp`, scale 1.35 to 1 on the spring),
-  the reason rises, the category rules fill from `scaleX(0)` 80ms apart, and the
+  the fix for next match rises as the letter lands, the reason rises, the
+  category rules fill from `scaleX(0)` `--stagger` (40ms) apart, and the
   progress lines rise after them. A click, a key or the clock adds
   `.reveal-done`, the end state at once. The letter landing is heard
   (`shared/sfx.js`), only with sounds on and `isCoaching` false.

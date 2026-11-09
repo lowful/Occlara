@@ -35,6 +35,10 @@ const rule = (src, sel) => {
   const clean = src.replace(/\/\*[\s\S]*?\*\//g, '');
   return (clean.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
 };
+/** 8.9.2: the pixel of rise under the pointer is a mouse's alone, and none when asked for less motion. */
+const HOVER_RISE = '@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {';
+const hoverRise = (src, sel) => src.split('\r\n').join('\n').replace(/\/\*[\s\S]*?\*\//g, '')
+  .includes(`${HOVER_RISE}\n  ${sel} { transform: translateY(-1px); }\n}`);
 const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
 const token = (css, name) => ((css.match(new RegExp(`(?:^|[;\\s{])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
 /** WCAG contrast of two #RRGGBB colours. */
@@ -123,8 +127,9 @@ const btn = rule(ui, '.btn');
 ok(prop(btn, 'height') === '40px' && prop(btn, 'border-radius') === 'var(--r-btn)' && prop(btn, 'font-size') === '14px'
   && prop(btn, 'font-weight') === '500' && prop(btn, 'padding') === '0 20px' && prop(btn, 'gap') === 'var(--space-2)'
   && prop(btn, 'box-shadow') === 'var(--hi), var(--drop)'
-  && /translateY\(-1px\)/.test(rule(ui, '.btn:where(:not(:disabled)):hover'))
+  && hoverRise(ui, '.btn:where(:not(:disabled)):hover')
   && /inset 0 1px 2px/.test(rule(ui, '.btn:where(:not(:disabled)):active'))
+  && /scale\(0\.97\)/.test(rule(ui, '.btn:where(:not(:disabled)):active'))
   && !/\.btn:hover\s*\{|\.btn:active\s*\{/.test(ui.replace(/\/\*[\s\S]*?\*\//g, '')),
 'a button is a capsule: 40px, --r-btn, Geist 500 14px, lit from above, a pixel of rise and a press into its shadow', btn.trim());
 ok(prop(rule(ui, '.btn.md'), 'height') === '36px' && prop(rule(ui, '.btn.sm'), 'height') === '30px' && prop(rule(ui, '.btn.sm'), 'font-size') === '13px'
@@ -177,7 +182,7 @@ ok(prop(input, 'height') === '44px' && prop(input, 'font-family') === 'var(--fon
   && prop(rule(ui, '.input:focus'), 'box-shadow') === 'var(--glow-cyan)' && !/SF Mono|Consolas/.test(ui.replace(/\/\*[\s\S]*?\*\//g, '')),
 'an input is 44px of Geist Mono 14px in the control hairline, no literal font left', input.trim());
 ok(prop(rule(ui, '.icon-btn'), 'border-radius') === 'var(--r-btn)' && prop(rule(ui, '.icon-btn'), 'box-shadow') === 'var(--hi), var(--drop)'
-  && /translateY\(-1px\)/.test(rule(ui, '.icon-btn:where(:not(:disabled)):hover')),
+  && hoverRise(ui, '.icon-btn:where(:not(:disabled)):hover'),
 'an icon button is the same capsule as the rest: --r-btn, lit from above, a pixel of rise (8.7)');
 ok(prop(rule(ui, 'html.embedded .sheet > header .h-brand h2'), 'font-weight') === '600'
   && prop(rule(ui, 'html.embedded .sheet > header .h-brand h2'), 'font-size') === '24px'

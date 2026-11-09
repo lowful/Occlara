@@ -1176,6 +1176,7 @@ function flashTo(card) {
   // A folded round opens first, so the jump lands on what it was for and the
   // scroll is to the row's whole height.
   openRow(card);
+  settleRow(card);
   const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   card.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
   if (!card.hasAttribute('tabindex')) card.tabIndex = -1;
@@ -1404,6 +1405,7 @@ function paintBuilding(work) {
   const said = now ? now.label : '';
   if ($('b-now').textContent !== said) $('b-now').textContent = said;
   host.hidden = false;
+  tickIn(list, (current && current.id) || '');
   const tick = () => tickBuilding(work);
   tick();
   buildTick = setInterval(tick, 1000);
@@ -1423,6 +1425,161 @@ function tickBuilding(work) {
     foot.textContent = work.path === 'riot' && work.step !== 'riot' ? "Riot's record is in." : '';
   }
   foot.hidden = !foot.textContent;
+}
+
+/*
+ * MOTION ON THE PAGE (8.9.2, shared/motion.js and motion.css, review.css).
+ * Each piece plays once and only on screen (Motion.whenShown, embed.js
+ * occlaraOnShown), so nothing moves on a sealed page or one nobody sees, and
+ * under reduced motion none of it is put on at all: the page is painted as it
+ * ends. No figure is worked out here and no animation event is read: a
+ * class goes on, and a timer takes it off.
+ *
+ *   tickIn      the loading screen's steps rise one after another the first
+ *               time it shows for a review, each done step's check drawn as
+ *               its row arrives; after that only a step that has just become
+ *               done draws its check. A repaint never rises again.
+ *   scrollIn    a round, a League death or a mistake below the fold rises in
+ *               once as it is scrolled to, --stagger apart for the ones that
+ *               arrive together. Keyed by review and row for the visit, so a
+ *               repaint of the same review (the screen look landing) leaves a
+ *               row already seen alone. A row in view when painted is never
+ *               held back, and with no IntersectionObserver nothing is.
+ *   fadeThumbs  a still and a clip's picture fade in as they load, where they
+ *               would have gone from a black box to a frame at once.
+ */
+const Mo = () => window.Motion || null;
+const still = () => { const m = Mo(); return !m || m.reduced(); };
+// The longest an arrival here takes: --dur-slow, five staggers, a margin.
+const ARRIVE_MS = 380 + 5 * 40 + 120;
+
+const built = { id: null, done: new Set() };
+/** The loading screen's steps, as painted for review `id`. */
+function tickIn(list, id) {
+  try { tickNow(list, id); } catch (e) { /* motion never costs a paint */ }
+}
+function tickNow(list, id) {
+  const done = new Set([...list.children].filter((li) => li.classList.contains('done')).map((li) => li.dataset.step));
+  const before = built.id === id ? built.done : null;
+  built.id = id;
+  built.done = done;
+  const m = Mo();
+  if (still()) return;
+  const first = m.stagger(list, `build:${id}`);
+  for (const li of [...list.children]) {
+    if (!li.classList.contains('done') || (!first && before && before.has(li.dataset.step))) continue;
+    const path = li.querySelector('.b-state path');
+    if (!path) continue;
+    path.setAttribute('pathLength', '1');
+    m.whenShown(() => { if (!still()) path.classList.add('m-draw'); });
+  }
+}
+
+const scrolled = new Set();
+const rowKey = new WeakMap();
+const watched = new Set();
+let rowWatch = null;
+// A new visit of the page sees its rows arrive again; a repaint does not.
+window.addEventListener('occlara-page-enter', (e) => { if (!(e && e.detail && e.detail.first)) scrolled.clear(); });
+
+function watcher() {
+  if (rowWatch) return rowWatch;
+  rowWatch = new IntersectionObserver((entries) => {
+    const come = entries.filter((e) => e.isIntersecting).map((e) => e.target);
+    come.forEach((n, i) => {
+      rowWatch.unobserve(n);
+      watched.delete(n);
+      const k = rowKey.get(n);
+      if (k) scrolled.add(k);
+      if (!n.classList.contains('in-wait')) return;
+      n.style.setProperty('--i', String(Math.min(i, 5)));
+      n.classList.remove('in-wait');
+      n.classList.add('in-play');
+      setTimeout(() => { n.classList.remove('in-play'); n.style.removeProperty('--i'); }, ARRIVE_MS);
+    });
+  });
+  return rowWatch;
+}
+
+/** A row there now, at once: one jumped to (flashTo) is not left to arrive. */
+function settleRow(n) {
+  if (!n || !n.classList) return;
+  const k = rowKey.get(n);
+  if (k) scrolled.add(k);
+  n.classList.remove('in-wait');
+  if (rowWatch && watched.has(n)) { rowWatch.unobserve(n); watched.delete(n); }
+}
+
+/** `nodes` rise in as they are scrolled to, once each, keyed in `scope`. */
+function scrollIn(nodes, scope) {
+  if (still() || typeof IntersectionObserver !== 'function') return;
+  const m = Mo();
+  const id = (current && current.id) || '';
+  const rows = [...nodes].map((n, i) => [n, `${id}|${scope}|${n.id || i}`]).filter(([, k]) => !scrolled.has(k));
+  for (const n of [...watched]) if (!n.isConnected) { watcher().unobserve(n); watched.delete(n); }
+  if (!rows.length) return;
+  m.whenShown(() => {
+    if (still()) return;
+    const fold = window.innerHeight || document.documentElement.clientHeight || 0;
+    for (const [n, k] of rows) {
+      if (!n.isConnected || scrolled.has(k)) continue;
+      const box = n.getBoundingClientRect();
+      // In view, or nothing to measure (hidden): there, not arriving.
+      if (!box.height || box.top < fold) { scrolled.add(k); continue; }
+      rowKey.set(n, k);
+      n.classList.add('in-wait');
+      watched.add(n);
+      watcher().observe(n);
+    }
+  });
+}
+
+/** A still or a clip's picture fades in once it has loaded. */
+function fadeThumbs(host) {
+  if (!host || still() || typeof Image !== 'function') return;
+  const wait = (node, src) => {
+    let shown = false;
+    const show = () => {
+      if (shown) return;
+      shown = true;
+      node.classList.remove('th-wait');
+      node.classList.add('th-in');
+      setTimeout(() => node.classList.remove('th-in'), ARRIVE_MS);
+    };
+    node.classList.add('th-wait');
+    src.addEventListener('load', show, { once: true });
+    src.addEventListener('error', show, { once: true });
+    // Never left unseen: a picture that says nothing is shown anyway.
+    setTimeout(show, 4000);
+  };
+  for (const img of host.querySelectorAll('.v-shot img')) {
+    if (!('complete' in img) || (img.complete && img.naturalWidth) || typeof img.addEventListener !== 'function') continue;
+    wait(img, img);
+  }
+  for (const v of host.querySelectorAll('video.v-clip-video')) {
+    const poster = v.getAttribute('poster');
+    if (!poster) continue;
+    const probe = new Image();
+    probe.src = poster;
+    if ((probe.complete && probe.naturalWidth) || typeof probe.addEventListener !== 'function') continue;
+    wait(v, probe);
+  }
+}
+
+/** The page's rows and pictures, as a review is painted whole. */
+function arriveRows() {
+  try { arriveNow(); } catch (e) { /* motion never costs a paint */ }
+}
+function arriveNow() {
+  if (still()) return;
+  for (const id of ['v-rounds', 'r-deaths']) {
+    const host = $(id);
+    if (!host || (host.closest && host.closest('[hidden]'))) continue;
+    fadeThumbs(host);
+    scrollIn(host.children, id);
+  }
+  const ins = $('insights-host');
+  if (ins && !ins.hidden) scrollIn(ins.querySelectorAll('.gv-item'), 'insights');
 }
 
 /*
@@ -1593,6 +1750,7 @@ function paint(r) {
       $('vreview').classList.add('v-arrive');
       startReveal(r, verdict);
     }
+    arriveRows();
     jumpIfAsked(r);
     return;
   }
@@ -1630,6 +1788,7 @@ function paint(r) {
     $('r-next-mistake').textContent = next.mistake;
     $('r-next-open').onclick = () => window.occlara.openLearn();
   }
+  arriveRows();
 }
 
 /*

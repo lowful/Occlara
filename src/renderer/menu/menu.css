@@ -6,3 +6,16 @@ html, body { width: 100%; height: 100%; margin: 0; background: transparent; over
 /* The menu itself holds the focus when a press opened it (menu.js draw): it
    is never ringed, only a row the keyboard reached is (shell.css). */
 #menu.drawer:focus, #menu.drawer:focus-visible { outline: none; }
+/* THE ROWS FOLLOW IT DOWN (8.9.2): as the menu comes down out of the bar
+   (shell.css menuIn, 160ms), its rows fade in and drop the last 4px one after
+   another, 30ms apart and the sixth and later together, once per opening
+   (menu.js puts .rows-in on and takes it off). Transform and opacity only;
+   asked for less motion they are simply there. */
+#menu.drawer.rows-in [role="menuitem"] {
+  animation: menuRowIn var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(40ms + var(--i, 0) * 30ms);
+}
+@keyframes menuRowIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  #menu.drawer.rows-in [role="menuitem"] { animation: none; }
+}

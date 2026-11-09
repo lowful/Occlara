@@ -352,9 +352,11 @@ AI log and the weekly report ease in. `npm run test:surfaces` pins each.
 `wasBuilding` branch of `paint()` in review.js, `startReveal`) arrives in
 order, once per review id the page holds in memory: the number counts up over
 `--t-slow` twice, the letter stamps in after `--t-slow` (`vdStamp`, scale 1.35
-to 1 on `--ease-spring`), the grade's bars fill from `scaleX(0)` one after
-another (`--i` from `gradeCard`'s `opts.reveal`, 80ms apart), and the progress
-chips rise in after them. A review opened later, from the library or Home, or
+to 1 on `--ease-spring`), the fix for next match (`#v-focus-wrap`) rises in
+as the letter lands (`m-rise` after `--t-slow`), before the standout, the
+grade's bars fill from `scaleX(0)` one after another (`--i` from `gradeCard`'s
+`opts.reveal`, `--stagger` 40ms apart since 8.9.2, review.css overriding
+grade-view.css's 80ms), and the progress chips rise in after them. A review opened later, from the library or Home, or
 painted again, is painted as it ends. It is all CSS (`#vreview.revealing`,
 review.css and grade-view.css): the count is `@property --n` (an integer)
 drawn by `counter()` over the real number, which stays the text, and the page
@@ -373,6 +375,25 @@ letter lands: the sound plays only with `sounds` not false and `isCoaching`
 false (screen-silence.md). review/index.html must load `../shared/sfx.js`
 for it to be heard; without it the reveal is silent. `test:surfaces` holds
 each part with a spy on the sound.
+
+**The rest of the review's motion (8.9.2, review.js "MOTION ON THE PAGE",
+review.css).** All of it on screen only (`Motion.whenShown`), none of it
+under reduced motion, and no animation event read. The loading screen's steps
+rise 40ms apart the first time it shows for a review (`tickIn`,
+`Motion.stagger`), each done step's check drawn (`.m-draw`); after that only a
+step just done draws its check, and a repaint never rises again. A round, a
+League death or a mistake below the fold waits unseen (`.in-wait`) and rises
+once as it is scrolled to (`scrollIn`, one IntersectionObserver, `.in-play`,
+40ms apart for rows arriving together, six at most), keyed by review and row
+for the visit, so the screen look landing repaints nothing that was seen; a
+row in view when painted is never held back, and a jump (`flashTo`) settles
+its row at once. A still and a clip's picture fade in as they load
+(`fadeThumbs`, 220ms, shown anyway after 4 s). A folded round's body and the
+study notes and refusals open and close by height, one grid row over
+`--dur-base`: the body keeps `hidden` (set at once, as the tests read it),
+which review.css draws as a closed `minmax(0, 0fr)` row going invisible only
+once closed, and the `<details>` fold their `::details-content` with
+`content-visibility` carried over as a discrete step.
 
 **A death's round: the clip alone, and the killer card (8.7, the player's
 ask).** Under a moment's clip there is no row of stills any more ("3 s

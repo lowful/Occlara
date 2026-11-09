@@ -3045,6 +3045,81 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     const gvCss2 = fs.readFileSync(path.join(RENDERER, 'shared', 'grade-view.css'), 'utf8');
     ok(/\.gl-line \{[^}]*stroke: var\(--text\)/.test(gvCss2) && /\.gl-dot\.now \{[^}]*fill: var\(--text\)/.test(gvCss2) && !/gradient/.test(gvCss2.slice(gvCss2.indexOf('THE GRADE LINE'))),
       'drawn in the ink, the newest filled, with no gradient');
+
+    // A NUMBER NEVER SITS ON THE LINE (8.9.2): the owner's picture had "64"
+    // on the climb to 97 and "71" and "73" on the line. From the drawing's
+    // own geometry: each number's box (12px figures, 7.4 a figure, the cap
+    // 9 over the baseline), grown by the line's half width, crosses no
+    // segment and no dot, overlaps no other number and no date under the
+    // line, and stays in the box over the foot.
+    const GVh = h.window.GradeView;
+    const segHit = (x1, y1, x2, y2, b) => {
+      const dx = x2 - x1, dy = y2 - y1;
+      let t0 = 0, t1 = 1;
+      const p = [-dx, dx, -dy, dy], q = [x1 - b.l, b.r - x1, y1 - b.t, b.b - y1];
+      for (let k = 0; k < 4; k++) {
+        if (p[k] === 0) { if (q[k] < 0) return false; continue; }
+        const t = q[k] / p[k];
+        if (p[k] < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; }
+      }
+      return true;
+    };
+    const lineFaults = (scores, w, hh, foot) => {
+      const pts = scores.map((score, i) => ({ score, at: Date.UTC(2026, 8, 17 + i * 6) }));
+      const s = GVh.gradeLine(pts, w, hh, foot ? { foot: (p) => foot[pts.indexOf(p)] || '' } : undefined);
+      if (!s) return ['nothing drawn'];
+      const P = s.querySelector('.gl-line').getAttribute('points').split(' ').map((q) => q.split(',').map(Number));
+      const dots = s.querySelectorAll('.gl-dot').map((c) => [Number(c.getAttribute('cx')), Number(c.getAttribute('cy')), Number(c.getAttribute('r'))]);
+      const nums = s.querySelectorAll('.gl-num').map((t) => {
+        const cx = Number(t.getAttribute('x')), base = Number(t.getAttribute('y')), half = (t.textContent.length * 7.4) / 2;
+        return { text: t.textContent, l: cx - half, r: cx + half, t: base - 9, b: base + 0.5 };
+      });
+      const dates = s.querySelectorAll('.gl-time').map((t) => {
+        const cx = Number(t.getAttribute('x')), base = Number(t.getAttribute('y')), half = (t.textContent.length * 6) / 2;
+        return { l: cx - half, r: cx + half, t: base - 8, b: base + 1 };
+      });
+      const over = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+      const bad = [];
+      if (nums.length !== scores.length || P.length !== scores.length) bad.push('a number or a point missing');
+      nums.forEach((n, i) => {
+        const g = { l: n.l - 1.25, r: n.r + 1.25, t: n.t - 1.25, b: n.b + 1.25 };
+        for (let k = 0; k < P.length - 1; k++) if (segHit(P[k][0], P[k][1], P[k + 1][0], P[k + 1][1], g)) bad.push(`${n.text} on segment ${k}`);
+        for (const [cx, cy, r] of dots) {
+          const nx = Math.min(Math.max(cx, g.l), g.r), ny = Math.min(Math.max(cy, g.t), g.b);
+          if (Math.hypot(nx - cx, ny - cy) < r + 1) bad.push(`${n.text} on a dot`);
+        }
+        if (n.l < 0 || n.r > w || n.t < 0) bad.push(`${n.text} out of the box`);
+        for (const d of dates) if (over(n, d) || n.b > d.t - 1) bad.push(`${n.text} on the foot`);
+        nums.forEach((o, j) => { if (j > i && over(n, o)) bad.push(`${n.text} on ${o.text}`); });
+      });
+      return bad;
+    };
+    const OWNER = [61, 64, 97, 71, 73, 84, 73, 61];
+    const OWNER_DAYS = ['Sep 17', '', 'Oct 4', '', 'Oct 13', '', 'Oct 27', ''];
+    const SHAPES = {
+      'the owner\'s eight': OWNER,
+      'all rising': [40, 47, 55, 61, 68, 74, 83, 91],
+      'all falling': [91, 83, 74, 68, 61, 55, 47, 40],
+      'flat': [70, 70, 70, 70, 70, 70, 70, 70],
+      'a zigzag': [50, 90, 45, 88, 52, 93, 48, 86],
+      'a steep zigzag with 100 and a single figure': [20, 100, 22, 99, 100, 5, 100, 9],
+      'two': [58, 83],
+    };
+    for (const [name, scores] of Object.entries(SHAPES)) {
+      const m = lineFaults(scores, 216, 160, OWNER_DAYS);
+      const home = lineFaults(scores, 400, 124);
+      ok(!m.length && !home.length, `${name}: no number on the line, a dot, another number or the foot, in Matches (216 by 160) and on Home (400 by 124)`,
+        JSON.stringify({ m, home }));
+    }
+    const ownerSvg = GVh.gradeLine(OWNER.map((score) => ({ score })), 216, 160);
+    const ownerNums = ownerSvg.querySelectorAll('.gl-num');
+    const dotY = ownerSvg.querySelectorAll('.gl-dot').map((c) => Number(c.getAttribute('cy')));
+    ok(Number(ownerNums[3].getAttribute('y')) > dotY[3] && Number(ownerNums[2].getAttribute('y')) < dotY[2],
+      'a valley\'s number (71) goes under its dot and a peak\'s (97) over it');
+    ok(ownerNums[7].classList.contains('now') && ownerNums.filter((t) => t.classList.contains('now')).length === 1, 'the newest number is the one in bold');
+    ok(/\.gl-num \{[^}]*paint-order: stroke[^}]*stroke: var\(--gl-ground, var\(--s1\)\)/.test(gvCss2) && /\.gl-num\.now \{[^}]*font-weight: 700/.test(gvCss2)
+      && /paint-order: stroke/.test('.gl-num { paint-order: stroke; stroke: var(--gl-ground, var(--s1)) }'),
+    'each number has a halo in the card\'s ground under its figures, and the newest is bold');
   });
 
   // "Show the player's rank journey and their most recent RR loss and gain."
@@ -5060,7 +5135,15 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     const shellCss = read('shell/shell.css');
     ok(!/background/.test(rule(shellCss, '.nav .nav-item[aria-current="page"]')) && rule(shellCss, '.nav .nav-item[aria-current="page"]').includes('color'),
       'the current tab paints no background of its own');
-    ok(prop(rule(shellCss, '.nav-marker'), 'transition').startsWith('transform var(--t-med) var(--ease-expo)'), 'the marker slides on --t-med');
+    // 8.9.2: the glide is shell.js placeMarker's, a transform played from the
+    // old tab (its width as a scaleX from the left edge) on --dur-move and
+    // --ease-in-out; only the fade is a CSS transition, and no width is tweened.
+    const shellJs = read('shell/shell.js');
+    ok(prop(rule(shellCss, '.nav-marker'), 'transition') === 'opacity var(--t-fast) var(--ease)'
+      && prop(rule(shellCss, '.nav-marker'), 'transform-origin') === '0 50%'
+      && shellJs.includes("getPropertyValue('--dur-move')") && shellJs.includes('marker.animate(')
+      && shellJs.includes("easing: 'cubic-bezier(0.77, 0, 0.175, 1)'") && shellJs.includes('!reducedMotion()'),
+    'the marker glides by a transform on --dur-move and --ease-in-out, never under reduced motion, and no width is tweened');
     const p = await openShell({ language: 'en' }, {});
     const marker = p.$('nav-marker');
     ok(p.document.querySelectorAll('.nav-marker').length === 1 && marker.getAttribute('aria-hidden') === 'true' && marker.parentNode === p.$('nav'), 'one marker, under the tabs');

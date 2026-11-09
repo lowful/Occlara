@@ -154,7 +154,7 @@ function momentRow(m, x) {
 
 /**
  * @param rise  the rows rise once as the list first appears for this game,
- *              40ms apart and capped at the eighth; a repaint draws them as
+ *              40ms apart and capped at the sixth; a repaint draws them as
  *              they are
  */
 function paintList(rise) {
@@ -187,7 +187,7 @@ function paintList(rise) {
     risen = game;
     const go = () => rows.forEach((r, i) => {
       if (!host.contains(r)) return;   // painted again meanwhile
-      r.style.setProperty('--i', String(Math.min(i, 8)));
+      r.style.setProperty('--i', String(Math.min(i, 5)));
       r.classList.add('rise');
     });
     if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(go); else go();
@@ -224,6 +224,18 @@ function paint(first) {
   paintCounts();
   paintNote();
   paintList(first);
+  // THE CARDS FADE UP once per visit (8.9.2), the compilation then the log
+  // --stagger apart, only once the page is on screen; nothing under reduced
+  // motion, and a refresh paints them as they are (moments.css .mo-in).
+  const Mo = window.Motion;
+  if (Mo && !Mo.reduced() && Mo.once($('mo-log'), 'cards')) {
+    Mo.whenShown(() => {
+      if (Mo.reduced()) return;
+      const cards = [$('mo-comp'), $('mo-log')].filter((c) => !c.hidden);
+      cards.forEach((c, i) => { c.style.setProperty('--i', String(i)); c.classList.add('mo-in'); });
+      setTimeout(() => cards.forEach((c) => c.classList.remove('mo-in')), 380 + 40 + 120);
+    });
+  }
 }
 
 async function load() {
@@ -276,6 +288,12 @@ function playerSay(x) {
   $('mo-pl-line').textContent = x ? `${who ? `${who}, ` : ''}round ${x.round}: ${x.title}${x.line ? `. ${x.line}` : ''}` : '';
   $('mo-pl-line').classList.remove('bad');
   $('mo-pl-count').textContent = player.items.length ? `${player.at + 1} of ${player.items.length}` : '';
+  // What changed: the moment's line and its count fade in as a clip takes the
+  // stage (moments.css .mo-swap), not under reduced motion.
+  const Mo = window.Motion;
+  if (Mo && !Mo.reduced()) {
+    for (const n of [$('mo-pl-line'), $('mo-pl-count')]) { n.classList.remove('mo-swap'); void n.offsetWidth; n.classList.add('mo-swap'); }
+  }
   $('mo-pl-prev').disabled = player.at <= 0;
   $('mo-pl-next').disabled = player.at >= player.items.length - 1;
 }

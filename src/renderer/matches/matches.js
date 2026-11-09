@@ -18,6 +18,53 @@ const { el, gradeTone } = window.GradeView;
 
 let game = null;
 
+/*
+ * MOTION (8.9.2, shared/motion.js). An entrance plays ONCE PER VISIT of the
+ * page, keyed on the host that stays (a list painted again on a refresh is
+ * new elements in the same host, so it never plays twice), only once the
+ * page is on screen, and not at all under reduced motion. fn finds what to
+ * move when it runs, so a repaint in between moves what is there; the
+ * classes come off once played, so nothing replays when the page shows again.
+ */
+const M = window.Motion || null;
+const SETTLE_MS = 380 + 6 * 40 + 420 + 120;
+function entrance(host, key, fn) {
+  if (!M || !host || !M.once(host, key) || M.reduced()) return;
+  M.whenShown(() => {
+    if (M.reduced()) return;
+    const undo = fn();
+    if (typeof undo === 'function') setTimeout(undo, SETTLE_MS);
+  });
+}
+/** Format a number on its way as the final one is written: as many decimals. */
+function likeFormat(v) {
+  const s = String(v);
+  const dec = s.includes('.') ? s.split('.')[1].length : 0;
+  return (n) => (dec ? n.toFixed(dec) : String(Math.round(n)));
+}
+/*
+ * A RESULT COUNTS UP. A whole number is counted in CSS (matches.css
+ * .m-counting, @property --m-n, as the review's score is): its real number
+ * stays the text the whole time and the count is drawn over it, ending on it.
+ * A decimal, which counter() cannot draw, is counted by Motion.countUp.
+ */
+function countUp(el, value) {
+  const v = Number(value);
+  if (!el || !Number.isFinite(v)) return;
+  if (Number.isInteger(v) && v >= 0) {
+    el.style.setProperty('--to', String(v));
+    el.classList.add('m-counting');
+    setTimeout(() => el.classList.remove('m-counting'), 800 + 120);
+  } else {
+    M.countUp(el, v, { format: likeFormat(value) });
+  }
+}
+/** el counts up to its number once per visit of host (key); its text is final throughout. */
+function countOnce(host, key, el, value) {
+  if (!el || !Number.isFinite(Number(value))) return;
+  entrance(host, key, () => { if (el.isConnected) countUp(el, value); });
+}
+
 function fmtWhen(at) {
   const d = new Date(at);
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', '
@@ -145,6 +192,26 @@ function paintTrend(grades, progress, average) {
   for (const r of records) key.append(keyItem('best', r.text, String(r.score)));
   if (run && inRun.size > 1) key.append(keyItem('run', `${run.count} in a row at ${run.floor || 'B'} or better`));
   host.append(key);
+
+  // THE BARS GROW FROM THE BASELINE, 40ms apart and six at most staggered,
+  // their numbers fading in as they land, then the average draws in from the
+  // left (matches.css .p-in, .p-draw). Once per visit: a refresh paints the
+  // chart as it is.
+  entrance(host, 'trend', () => {
+    const bs = [...host.querySelectorAll('.p-bar')];
+    bs.forEach((b, i) => {
+      b.style.setProperty('--i', String(Math.min(i, 5)));
+      b.classList.add('p-in');
+      const f = b.querySelector('i');
+      if (f) { f.style.setProperty('--i', String(Math.min(i, 5))); f.classList.add('m-grow'); }
+    });
+    const avg = host.querySelector('.p-avgline');
+    if (avg) avg.classList.add('p-draw');
+    return () => {
+      for (const b of bs) { b.classList.remove('p-in'); const f = b.querySelector('i'); if (f) f.classList.remove('m-grow'); }
+      if (avg) avg.classList.remove('p-draw');
+    };
+  });
 }
 
 /*
@@ -171,6 +238,13 @@ function paintCats(cats, matches) {
     box.append(el('em', 'p-cat-vs ' + side, words[side]));
     host.append(box);
   }
+  // The four averages count up once per visit, each ending on its number.
+  entrance(host, 'count', () => {
+    for (const b of host.querySelectorAll('.p-cat b')) {
+      const v = b.textContent;
+      if (Number.isFinite(Number(v)) && v !== '') countUp(b, v);
+    }
+  });
 }
 
 /**
@@ -217,6 +291,7 @@ function patternChips(p, total, bad) {
 function paintPatterns(p) {
   $('p-avg').hidden = p.average === null;
   $('p-avg-num').textContent = p.average === null ? '' : p.average;
+  if (p.average !== null) countOnce($('p-avg'), 'count', $('p-avg-num'), p.average);
   paintTrend(p.grades || [], p.progress, p.average);
   paintCats(p.categories || [], p.matches);
   const host = $('p-lists');
@@ -955,6 +1030,18 @@ function paintChart(patterns) {
   const svg = window.GradeView.gradeLine(grades, 216, 160, { foot });
   if (svg) line.append(svg);
   $('m-chart-avg').textContent = patterns && typeof patterns.average === 'number' ? `Average ${patterns.average}` : '';
+  // THE LINE DRAWS ITSELF once per visit (motion.css .m-draw), its dots and
+  // numbers fading in as it passes (matches.css .m-chart.gl-in), and the
+  // newest grade counts up to its number.
+  countOnce(box, 'count', $('m-chart-big'), last.score);
+  entrance(box, 'draw', () => {
+    const pl = box.querySelector('.gl-line');
+    if (!pl) return null;
+    pl.setAttribute('pathLength', '1');
+    pl.classList.add('m-draw');
+    box.classList.add('gl-in');
+    return () => { pl.classList.remove('m-draw'); pl.removeAttribute('pathLength'); box.classList.remove('gl-in'); };
+  });
 }
 
 async function load() {
@@ -979,14 +1066,14 @@ async function load() {
   const painted = rows.map((m) => row(m, eyes, marks[m.id], deltas[m.id]));
   for (const r of painted) host.append(r);
   // THE ROWS RISE ONCE, as this game's list first appears on screen (.rise,
-  // matches.css): 40ms apart, the stagger capped at the eighth row, and only
+  // matches.css): 40ms apart, the stagger capped at the sixth row, and only
   // once the page is shown (embed.js occlaraOnShown), so it is seen. A repaint
   // after that, a review saved or improved, draws the rows as they are.
   if (painted.length && host.dataset.risen !== game) {
     host.dataset.risen = game;
     const rise = () => painted.forEach((r, i) => {
       if (r.parentNode !== host) return;   // painted again meanwhile
-      r.style.setProperty('--i', String(Math.min(i, 8)));
+      r.style.setProperty('--i', String(Math.min(i, 5)));
       r.classList.add('rise');
     });
     if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(rise); else rise();

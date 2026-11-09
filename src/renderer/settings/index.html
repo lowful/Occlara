@@ -9,6 +9,7 @@
   <script src="../shared/embed.js"></script>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../shared/motion.css" />
   <link rel="stylesheet" href="../shared/dropdown.css" />
   <link rel="stylesheet" href="settings.css" />
 </head>
@@ -89,13 +90,19 @@
         <!-- TURNING RECORDING OFF ASKS FIRST (8.9, the owner's ask): what the
              recording gives the review, and that the AI log is turned on with
              it, since the look at each death then has only its frames. The
-             words are per game (settings.js REC_OFF_ASK). -->
+             words are per game (settings.js REC_OFF_ASK). It slides open
+             (8.9.2): its one row grows from 0fr to 1fr round a clip, so the
+             panel and its border open together (settings.css). -->
         <div class="rec-confirm" id="rec-confirm" role="alertdialog" aria-labelledby="rec-confirm-title" aria-describedby="rec-confirm-body" hidden>
-          <p class="rec-confirm-title" id="rec-confirm-title">Turn off recording?</p>
-          <p class="hint rec-confirm-body" id="rec-confirm-body"></p>
-          <div class="rec-confirm-actions">
-            <button id="rec-off-keep" class="btn btn-primary sm" type="button">Keep recording</button>
-            <button id="rec-off-yes" class="btn btn-ghost sm rec-off-yes" type="button">Turn recording off</button>
+          <div class="rec-confirm-clip">
+            <div class="rec-confirm-box">
+              <p class="rec-confirm-title" id="rec-confirm-title">Turn off recording?</p>
+              <p class="hint rec-confirm-body" id="rec-confirm-body"></p>
+              <div class="rec-confirm-actions">
+                <button id="rec-off-keep" class="btn btn-primary sm" type="button">Keep recording</button>
+                <button id="rec-off-yes" class="btn btn-ghost sm rec-off-yes" type="button">Turn recording off</button>
+              </div>
+            </div>
           </div>
         </div>
         <p class="rec-note" id="rec-note" aria-live="polite" hidden></p>
@@ -405,6 +412,7 @@
   <script src="../shared/dropdown.js"></script>
   <script src="../shared/seg.js"></script>
   <script src="../shared/i18n-apply.js"></script>
+  <script src="../shared/motion.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

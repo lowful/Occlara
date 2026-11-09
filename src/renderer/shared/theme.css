@@ -222,6 +222,19 @@ html { font-synthesis-weight: none; }
   --t-fast: 140ms;
   --t-med:  220ms;
   --t-slow: 420ms;
+  /* MOTION (8.9.2, shared/motion.css and motion.js). --ease-out above stays
+     the arrival; --ease-in-out is for a thing moving from one place on screen
+     to another (the tabs' pill, a thumb), slow at both ends so the eye can
+     follow it. --dur-press is a press going down, --dur-count a result
+     counting up, --stagger the gap between rows arriving (six at most). */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-move: 260ms;
+  --dur-slow: 380ms;
+  --dur-press: 160ms;
+  --dur-count: 800ms;
+  --stagger: 40ms;
 
   /* Surfaces stay ONE solid colour. An earlier pass put a white gradient wash
      down the top of every panel and it read as a smudge, so the only depth cue

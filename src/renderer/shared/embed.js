@@ -89,12 +89,17 @@
   }
   document.addEventListener('visibilitychange', flush);
 
+  let entered = false;
   function enter(dir) {
     turn++;
     // A page that loaded armed learns the way it comes in only now, and is
     // put on that side first, while it is still invisible.
     if (armed() && (dir || 'none') !== (root.dataset.pageDir || 'none')) { setDir(dir); settle(); }
     root.classList.remove('page-armed', 'page-leaving');
+    // A new visit (8.9.2): shared/motion.js plays a page's entrances once per
+    // visit. The first enter is the visit the page loaded in.
+    try { window.dispatchEvent(new CustomEvent('occlara-page-enter', { detail: { first: !entered } })); } catch (e) { /* no motion, no harm */ }
+    entered = true;
     flush();
   }
 

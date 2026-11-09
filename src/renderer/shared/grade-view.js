@@ -407,7 +407,98 @@
    * newest is always labelled; a label the same as that one is skipped, and
    * one at the edge is pulled inside the box. `opts.foot` names the label of a
    * point (the clock by default).
+   *
+   * A NUMBER NEVER SITS ON THE LINE (8.9.2): every number used to stand 12px
+   * over its dot, so a point the line rose into or fell from had its number
+   * on the segment ("64" on the climb to 97, "71" and "73" on the line). Each
+   * number now takes the clear side of its dot: over a peak or a flat point,
+   * under a valley, and on a slope whichever of above, below or the two
+   * diagonals away from the line is clear (`placeNums`). A place is clear when
+   * the number's box, grown by the line's half width and a margin, crosses no
+   * segment and no dot, overlaps no number already placed, and stays between
+   * the top of the box and the foot. The plot keeps room over its highest dot
+   * and under its lowest for a number, so either side always fits. A line that
+   * still passes behind a number (nothing was clear) is cut around it by the
+   * number's halo, a stroke in the card's ground painted under the figures.
    */
+  // Measured in the real window (Inter, 12px, 700, tabular figures).
+  const GL = { FIG: 7.4, ASC: 9, DESC: 0.5, PAD: 2.5, GAP: 5, R: 4, RNOW: 6, FOOT: 16 };
+  function numBox(cx, base, text) {
+    const half = (String(text).length * GL.FIG) / 2;
+    return { l: cx - half, r: cx + half, t: base - GL.ASC, b: base + GL.DESC };
+  }
+  /** Liang-Barsky: does the segment (x1,y1)-(x2,y2) cross the box at all? */
+  function segHitsBox(x1, y1, x2, y2, bx) {
+    const dx = x2 - x1, dy = y2 - y1;
+    let t0 = 0, t1 = 1;
+    const p = [-dx, dx, -dy, dy], q = [x1 - bx.l, bx.r - x1, y1 - bx.t, bx.b - y1];
+    for (let k = 0; k < 4; k++) {
+      if (p[k] === 0) { if (q[k] < 0) return false; continue; }
+      const t = q[k] / p[k];
+      if (p[k] < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; }
+    }
+    return true;
+  }
+  /*
+   * Where each number goes: [{ x, y }] (its centre and baseline), for dots
+   * at `xy` ([[x, y]], oldest first) whose grades are `v`, in a w by h box
+   * whose foot starts GL.FOOT over the bottom.
+   */
+  function placeNums(v, xy, w, h) {
+    const n = v.length;
+    const floor = h - GL.FOOT - 2;
+    const grow = (bx, by) => ({ l: bx.l - by, r: bx.r + by, t: bx.t - by, b: bx.b + by });
+    const placed = [];
+    const out = new Array(n);
+    const cost = (i, cx, base) => {
+      const text = String(v[i]);
+      const bx = numBox(cx, base, text);
+      let c = 0;
+      if (bx.t < 1 || bx.b > floor) c += 1000;
+      const g = grow(bx, GL.PAD);
+      for (let k = 0; k < n - 1; k++) if (segHitsBox(xy[k][0], xy[k][1], xy[k + 1][0], xy[k + 1][1], g)) c += 1000;
+      for (let k = 0; k < n; k++) {
+        const rad = (k === n - 1 ? GL.RNOW : GL.R) + GL.PAD;
+        const nx = Math.min(Math.max(xy[k][0], g.l), g.r), ny = Math.min(Math.max(xy[k][1], g.t), g.b);
+        if (Math.hypot(nx - xy[k][0], ny - xy[k][1]) < rad) c += 1000;
+      }
+      for (const o of placed) {
+        if (bx.l < o.r + 2 && bx.r > o.l - 2 && bx.t < o.b + 2 && bx.b > o.t - 2) c += 1000;
+      }
+      return c;
+    };
+    // The newest first, so it has the first pick; then right to left.
+    for (let i = n - 1; i >= 0; i--) {
+      const [px, py] = xy[i];
+      const r = i === n - 1 ? GL.RNOW : GL.R;
+      const half = (String(v[i]).length * GL.FIG) / 2;
+      const prev = i > 0 ? v[i - 1] : null, next = i < n - 1 ? v[i + 1] : null;
+      const nb = [prev, next].filter((t) => t !== null);
+      // A valley (every neighbour higher) wants under; anything else over.
+      const under = nb.length && nb.every((t) => t > v[i]);
+      const upY = (gap) => py - r - gap - GL.DESC;
+      const downY = (gap) => py + r + gap + GL.ASC;
+      const near = (side) => (side === 'up' ? upY(GL.GAP) : downY(GL.GAP));
+      const want = under ? 'down' : 'up', other = under ? 'up' : 'down';
+      // In order of preference: straight over or under on its own side, the
+      // other side, then the four diagonals, then a little further out.
+      const cands = [
+        [px, near(want)], [px, near(other)],
+        [px - half + 1, near(want)], [px + half - 1, near(want)],
+        [px - half + 1, near(other)], [px + half - 1, near(other)],
+        [px, want === 'up' ? upY(GL.GAP + 6) : downY(GL.GAP + 6)],
+        [px, other === 'up' ? upY(GL.GAP + 6) : downY(GL.GAP + 6)],
+      ].map(([cx, base]) => [Math.min(Math.max(cx, half + 1), w - half - 1), base]);
+      let best = null;
+      cands.forEach(([cx, base], rank) => {
+        const c = cost(i, cx, base) + rank;
+        if (!best || c < best.c) best = { c, cx, base };
+      });
+      out[i] = { x: best.cx, y: best.base };
+      placed.push(numBox(best.cx, best.base, String(v[i])));
+    }
+    return out;
+  }
   function gradeLine(points, w, h, opts) {
     const SVGNS = 'http://www.w3.org/2000/svg';
     const pts = (Array.isArray(points) ? points : []).filter((t) => t && Number.isFinite(Number(t.score)));
@@ -416,9 +507,13 @@
     const lo = Math.min(...v), hi = Math.max(...v);
     const span = Math.max(hi - lo, 8);
     const mid = (lo + hi) / 2;
-    const top = 28, bottom = h - 26;
+    // Room over the highest dot and under the lowest for a number and its
+    // gap, and under that the foot.
+    const room = GL.ASC + GL.DESC + GL.GAP + GL.RNOW + 1;
+    const top = room + 1, bottom = h - GL.FOOT - 2 - room;
     const x = (i) => 18 + i * ((w - 36) / (v.length - 1));
     const y = (n) => (top + bottom) / 2 - ((n - mid) / span) * (bottom - top);
+    const xy = v.map((n, i) => [Number(x(i).toFixed(1)), Number(y(n).toFixed(1))]);
     const mk = (tag, attrs, text) => {
       const n = document.createElementNS(SVGNS, tag);
       for (const [k, val] of Object.entries(attrs)) n.setAttribute(k, String(val));
@@ -427,12 +522,16 @@
     };
     const svg = mk('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, class: 'grade-line', role: 'img',
       'aria-label': `Grades ${v.join(', ')}, oldest first` });
-    svg.append(mk('polyline', { points: v.map((n, i) => `${x(i).toFixed(1)},${y(n).toFixed(1)}`).join(' '), class: 'gl-line' }));
+    svg.append(mk('polyline', { points: xy.map(([a, b]) => `${a},${b}`).join(' '), class: 'gl-line' }));
+    const numAt = placeNums(v, xy, w, h);
     v.forEach((n, i) => {
       const last = i === v.length - 1;
-      svg.append(
-        mk('circle', { cx: x(i).toFixed(1), cy: y(n).toFixed(1), r: last ? 6 : 4, class: 'gl-dot' + (last ? ' now' : '') }),
-        mk('text', { x: x(i).toFixed(1), y: (y(n) - 12).toFixed(1), class: 'gl-num' + (last ? ' now' : '') }, String(n)));
+      svg.append(mk('circle', { cx: xy[i][0], cy: xy[i][1], r: last ? GL.RNOW : GL.R, class: 'gl-dot' + (last ? ' now' : '') }));
+    });
+    // The numbers over every dot and the line, so a halo cuts the line.
+    v.forEach((n, i) => {
+      const last = i === v.length - 1;
+      svg.append(mk('text', { x: numAt[i].x.toFixed(1), y: numAt[i].y.toFixed(1), class: 'gl-num' + (last ? ' now' : '') }, String(n)));
     });
     const footOf = opts && typeof opts.foot === 'function' ? opts.foot : (t) => clock(t.at);
     const FIG = 6, GAP = 10;   // gl-time is 10px mono, a figure 0.6em wide

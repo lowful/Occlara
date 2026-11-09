@@ -288,6 +288,10 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
 .shots-head { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-2); }
 .shots-bar { display: flex; height: 8px; border-radius: var(--r-pill); overflow: hidden; background: var(--line); gap: 2px; }
 .shots-seg { display: block; height: 100%; min-width: 2px; }
+/* The split fills from the left, once per visit (stats.js): a clip, so the
+   three parts keep their widths and their ends while it opens. */
+.shots-bar.sh-fill { animation: sh-fill var(--dur-slow) var(--ease-out) both; animation-delay: var(--stagger); }
+@keyframes sh-fill { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 /* sh-*, never .body: that is the page's scroller (above), a flex column. */
 .shots-seg.sh-head, .shots-k.sh-head .sw { background: var(--text); }
 .shots-seg.sh-body, .shots-k.sh-body .sw { background: var(--text-mute); }
@@ -299,7 +303,9 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
 /* ── Maps and Acts (stats.js renderMaps, renderActs): a compact ledger, the
    name and any word left, the numbers right aligned in mono, one hairline a row. */
 .ledger { display: flex; flex-direction: column; }
-.lg-row { display: grid; grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)); gap: var(--space-3); align-items: baseline; padding: var(--space-2) 0; border-top: 1px solid var(--line); animation: rowIn var(--t-slow) var(--ease-expo) both; }
+/* A ledger's rows rise once per visit (stats.js, Motion.stagger: the shared
+   .m-stagger), never again on a refresh; the head stands still. */
+.lg-row { display: grid; grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)); gap: var(--space-3); align-items: baseline; padding: var(--space-2) 0; border-top: 1px solid var(--line); }
 .lg-row.lg-head { border-top: 0; padding-top: 0; animation: none; }
 .lg-cell { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lg-cell.name { font-family: var(--font); font-size: 14px; text-align: left; }
@@ -307,7 +313,17 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
 .lg-cell.word { font-family: var(--font); font-size: 13px; text-align: left; }
 .lg-cell.none { color: var(--text-mute); }
 .lg-head .lg-cell { font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-mute); }
-@media (prefers-reduced-motion: reduce) { .lg-row { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .lg-row, .shots-bar.sh-fill { animation: none; } }
 /* The Stats window on its own is 560 wide: the per round list stacks rather
    than cutting its labels short. */
 @media (max-width: 720px) { .nums-list { grid-template-columns: minmax(0, 1fr); } }
+
+/* A whole result counting up (8.9.2): drawn over its real number, which
+   stays the text, by counter() on @property --m-n, --dur-count on --ease-out,
+   ending on the number itself. Tabular, so the width holds still. */
+@property --m-n { syntax: '<integer>'; initial-value: 0; inherits: false; }
+.m-counting { position: relative; color: transparent !important; counter-reset: m-n var(--m-n); font-variant-numeric: tabular-nums;
+  animation: m-count var(--dur-count) var(--ease-out) both; }
+.m-counting::after { content: counter(m-n); position: absolute; top: 0; left: 0; color: var(--text); }
+@keyframes m-count { from { --m-n: 0; } to { --m-n: var(--to); } }
+@media (prefers-reduced-motion: reduce) { .m-counting { animation: none; color: inherit !important; } .m-counting::after { content: none; } }

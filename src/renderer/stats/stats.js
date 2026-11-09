@@ -973,6 +973,22 @@ const StatsProfile = window.StatsProfile || null;
 const queueWord = () => (matchMode === 'unrated' ? 'unrated and swiftplay' : 'competitive');
 const fmtNum = (v, digits) => (v == null ? '·' : (digits ? Number(v).toFixed(digits) : String(Math.round(v))));
 
+/*
+ * MOTION (8.9.2, shared/motion.js), once per visit of the page and only once
+ * it is on screen, keyed on the host that stays, so a refresh of the numbers
+ * (a mode switch, a Refresh) paints them as they are. Nothing under reduced
+ * motion. fn returns what takes the classes off again once played.
+ */
+const M = window.Motion || null;
+function entrance(host, key, fn) {
+  if (!M || !host || !M.once(host, key) || M.reduced()) return;
+  M.whenShown(() => {
+    if (M.reduced()) return;
+    const undo = fn();
+    if (typeof undo === 'function') setTimeout(undo, 800 + 120);
+  });
+}
+
 function leadItem(label, value, lead) {
   const el = document.createElement('div');
   el.className = 'nl-item' + (lead ? ' lead' : '');
@@ -1013,6 +1029,25 @@ function renderNumbers(d) {
     leadItem('K/D', fmtNum(n.kd, 2)),
     leadItem('Damage a round', fmtNum(n.adr)),
   );
+  // The three results count up once per visit, each ending on the text it was
+  // painted with (fmtNum's digits), tabular so the width holds still.
+  entrance(lead, 'count', () => {
+    const vals = [[n.acs, 0], [n.kd, 2], [n.adr, 0]];
+    const counted = [];
+    [...lead.querySelectorAll('.nl-val')].forEach((v, i) => {
+      const [x, digits] = vals[i] || [];
+      if (x == null || !Number.isFinite(Number(x))) return;
+      if (!digits) {
+        // A whole number: counted in CSS over its real text (stats.css .m-counting).
+        v.style.setProperty('--to', fmtNum(x));
+        v.classList.add('m-counting');
+        counted.push(v);
+      } else {
+        M.countUp(v, Number(x), { format: (k) => fmtNum(k, digits) });
+      }
+    });
+    return () => counted.forEach((v) => v.classList.remove('m-counting'));
+  });
   const list = document.getElementById('numbers-list');
   list.replaceChildren(
     ruledRow('Kills a round', fmtNum(n.kpr, 2)),
@@ -1050,6 +1085,13 @@ function renderNumbers(d) {
     key.append(k);
   }
   shots.append(head, bar, key);
+  // The split fills from the left once per visit (stats.css .sh-fill).
+  entrance(shots, 'fill', () => {
+    const b = shots.querySelector('.shots-bar');
+    if (!b) return null;
+    b.classList.add('sh-fill');
+    return () => b.classList.remove('sh-fill');
+  });
 }
 
 /** One row of a ledger: cells in the order of the head, the first one a name,
@@ -1083,6 +1125,8 @@ function renderMaps(matches) {
   for (const r of rows) {
     table.append(ledgerRow([r.map, String(r.played), String(r.won), fmtNum(r.kd, 2), fmtNum(r.acs)]));
   }
+  // The rows rise once per visit, --stagger apart, six at most (motion.css).
+  if (M) M.stagger(table, 'rows');
 }
 
 function renderActs(d) {
@@ -1097,6 +1141,7 @@ function renderActs(d) {
     table.append(ledgerRow([a.season, a.rank || '·', a.wins == null ? '·' : String(a.wins),
       a.games == null ? '·' : String(a.games), a.winRate == null ? '·' : a.winRate + '%'], false, [1]));
   }
+  if (M) M.stagger(table, 'rows');
 }
 
 // The whole dashboard follows the mode toggle: overview numbers, agent tiles,

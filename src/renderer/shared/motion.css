@@ -1,0 +1,68 @@
+/* palette: tokens only */
+/* MOTION (8.9.2): the few entrances a page reuses, so none is written twice.
+   Calm and short: transform and opacity only (stroke-dashoffset for a line
+   being drawn), never layout, never from scale(0), no bounce, nothing that
+   loops. Each one has a job: it shows where a thing came from, what changed,
+   or that a press landed.
+
+   ONCE. A class here plays when it is put on an element, so a page puts it
+   on once per visit through motion.js (Motion.once, Motion.rise,
+   Motion.stagger), never on every repaint or refresh of its data.
+
+   NEVER MID MATCH. Mid match the pages are not on screen (the Recording
+   screen is, and nothing on it uses these). A page still never plays one
+   while a match is read: motion.js checks nothing about the match, so a page
+   calls these only from what it already shows outside one.
+
+   REDUCED MOTION: none of them plays at all (bottom of this file), so the
+   element is simply there, in its final state, with no delay to wait out.
+
+     .m-rise     fades in and rises 8px, 380ms ease-out
+     .m-stagger  its children do the same, --stagger (40ms) apart, the
+                 seventh and later with the sixth (the cap)
+     .m-pop      fades in from scale(0.96), 220ms ease-out
+     .m-draw     an svg path or line draws itself: the class on it, or on the
+                 svg round it, and pathLength="1" on each line drawn
+     .m-grow     a bar grows from its baseline (scaleY from the bottom); a
+                 horizontal bar takes .m-grow.x and grows from its left */
+
+.m-rise { animation: m-rise var(--dur-slow) var(--ease-out) both; }
+
+.m-stagger > * {
+  animation: m-rise var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 5) * var(--stagger));
+}
+
+.m-pop { animation: m-pop var(--dur-base) var(--ease-out) both; }
+
+.m-draw[pathLength], .m-draw [pathLength] {
+  stroke-dasharray: 1;
+  animation: m-draw var(--t-slow) var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 5) * var(--stagger));
+}
+
+.m-grow {
+  transform-origin: 50% 100%;
+  animation: m-grow-y var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 5) * var(--stagger));
+}
+.m-grow.x { transform-origin: 0 50%; animation-name: m-grow-x; }
+
+/* A number counting up (Motion.countUp) keeps its width still. */
+.m-count { font-variant-numeric: tabular-nums; }
+
+@keyframes m-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes m-pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes m-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes m-grow-y { from { transform: scaleY(0.001); } to { transform: none; } }
+@keyframes m-grow-x { from { transform: scaleX(0.001); } to { transform: none; } }
+
+/* Asked for less motion: nothing here moves, fades or waits. theme.css only
+   shortens a duration, which would leave a delayed row invisible for its
+   delay; here the animation is taken off, so the final state is at once. */
+@media (prefers-reduced-motion: reduce) {
+  .m-rise, .m-stagger > *, .m-pop, .m-grow, .m-grow.x,
+  .m-draw[pathLength], .m-draw [pathLength] {
+    animation: none !important;
+  }
+}

@@ -17,6 +17,7 @@ const $ = (id) => document.getElementById(id);
 const menu = $('menu');
 const bridge = window.occlaraMenu;
 let open = false;
+let rowsTimer = 0;
 
 const items = () => [...menu.querySelectorAll('[role="menuitem"]')].filter((b) => !b.hidden && !b.disabled);
 function focusItem(which) {
@@ -43,11 +44,21 @@ function draw(m) {
   if (m.width > 0) menu.style.width = `${m.width}px`;
   if (m.height > 0) menu.style.height = `${m.height}px`;
   if (m.fresh || !open) {
-    // Each opening comes down out of the bar again (shell.css menuIn).
+    // Each opening comes down out of the bar again (shell.css menuIn), and
+    // its rows follow it down one after another, once per opening (8.9.2,
+    // menu.css): drawn again while open, they are simply there.
     menu.style.animation = 'none';
     menu.hidden = false;
+    menu.querySelectorAll('[role="menuitem"]').forEach((b, i) => b.style.setProperty('--i', String(Math.min(i, 5))));
+    menu.classList.remove('rows-in');
     void menu.offsetWidth;
     menu.style.animation = '';
+    menu.classList.add('rows-in');
+    clearTimeout(rowsTimer);
+    rowsTimer = setTimeout(() => menu.classList.remove('rows-in'), 600);
+  } else {
+    clearTimeout(rowsTimer);
+    menu.classList.remove('rows-in');
   }
   menu.hidden = false;
   open = true;

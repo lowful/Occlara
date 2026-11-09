@@ -35,8 +35,16 @@
 /* Under the pointer a capsule rises a pixel and its shadow opens; pressed, it
    goes down into its resting shadow and gives a hair of scale. Both on the
    compositor (transform, shadow), none of it layout. */
-.btn:where(:not(:disabled)):hover { background: rgba(255, 255, 255, 0.095); transform: translateY(-1px); box-shadow: var(--hi), var(--drop-hover); }
-.btn:where(:not(:disabled)):active { transform: translateY(0) scale(0.985); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); transition-duration: var(--t-press); }
+.btn:where(:not(:disabled)):hover { background: rgba(255, 255, 255, 0.095); box-shadow: var(--hi), var(--drop-hover); }
+/* The rise is a mouse's alone (8.9.2): a touch has no hover to lift under,
+   and asked for less motion the capsule changes its fill and nothing moves. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .btn:where(:not(:disabled)):hover { transform: translateY(-1px); }
+}
+/* The press landed (8.9.2): down to .97 over --dur-press, eased out, never
+   on a disabled control. Asked for less motion it keeps the inset shadow
+   and does not shrink (bottom of this file). */
+.btn:where(:not(:disabled)):active { transform: translateY(0) scale(0.97); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); transition-duration: var(--dur-press); transition-timing-function: var(--ease-out); }
 .btn:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
 .btn:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child) { padding-right: 8px; }
 .btn.md { height: 36px; padding: 0 18px; }
@@ -112,10 +120,12 @@
   color: var(--text);
   background: rgba(255, 255, 255, 0.09);
   border-color: rgba(255, 255, 255, 0.16);
-  transform: translateY(-1px);
   box-shadow: var(--hi), var(--drop-hover);
 }
-.icon-btn:where(:not(:disabled)):active { transform: translateY(0) scale(0.96); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); transition-duration: var(--t-press); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .icon-btn:where(:not(:disabled)):hover { transform: translateY(-1px); }
+}
+.icon-btn:where(:not(:disabled)):active { transform: translateY(0) scale(0.97); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); transition-duration: var(--dur-press); transition-timing-function: var(--ease-out); }
 .icon-btn:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
 
 /* The eye that opens one match's AI log (shared/log-eye.js), on its row in
@@ -285,12 +295,15 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
 /* Transform and opacity alone (8.7): seg.js writes the new width before the
    transform, so the thumb takes its size as the slide starts and only the
    slide is animated; a width tween relaid the thumb out every frame. */
-.seg-thumb { position: absolute; top: 0; left: 0; z-index: 0; border-radius: var(--r-btn); background: var(--text); box-shadow: var(--hi-ink), var(--drop); opacity: 0; transition: transform var(--t-med) var(--ease-expo), opacity var(--t-fast) var(--ease); pointer-events: none; }
+/* The thumb SLIDES (8.9.2): a thing moving from one place on screen to
+   another, so --ease-in-out over --dur-move, slow at both ends where the eye
+   picks it up and sets it down. */
+.seg-thumb { position: absolute; top: 0; left: 0; z-index: 0; border-radius: var(--r-btn); background: var(--text); box-shadow: var(--hi-ink), var(--drop); opacity: 0; transition: transform var(--dur-move) var(--ease-in-out), opacity var(--t-fast) var(--ease); pointer-events: none; }
 .seg-thumb.on { opacity: 1; }
 .seg-thumb.still { transition: opacity var(--t-fast) var(--ease); }
 
 /* Status dot */
-.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-mute); transition: all var(--t-med) var(--ease); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-mute); transition: background-color var(--t-med) var(--ease), opacity var(--t-med) var(--ease); }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 /* ── Shared motion utilities ──────────────────────────────────────────────
@@ -309,8 +322,11 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
 
 /* Cards that respond to the pointer: a small lift reads as depth without
    moving neighbours, since transform does not affect layout. */
-.hover-lift { transition: transform var(--t-med) var(--ease-expo), box-shadow var(--t-med) var(--ease-expo), border-color var(--t-med) var(--ease); }
-.hover-lift:hover { transform: translateY(-2px); box-shadow: var(--lift); border-color: rgba(255,255,255,0.16); }
+.hover-lift { transition: transform var(--t-med) var(--ease-expo), border-color var(--t-med) var(--ease); }
+.hover-lift:hover { box-shadow: var(--lift); border-color: rgba(255,255,255,0.16); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .hover-lift:hover { transform: translateY(-2px); }
+}
 
 /* Numbers that should feel earned rather than printed. */
 .grad-num {
@@ -330,8 +346,8 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
 .disabled select { pointer-events: none; }
 
 /* A button that presses in properly rather than just changing colour. */
-.press { transition: transform var(--t-fast) var(--ease-spring); }
-.press:active { transform: scale(0.96); }
+.press { transition: transform var(--dur-press) var(--ease-out); }
+.press:where(:not(:disabled)):active { transform: scale(0.97); }
 
 /* Icon buttons get a soft halo with the keyboard's focus, but one whose
    ::after is its keycap ([data-keys], above). */
@@ -372,7 +388,33 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
               color var(--t-fast) var(--ease),
               transform var(--t-fast) var(--ease);
 }
-.seg button:active { transform: scale(0.97); }
+.seg button:where(:not(:disabled)):active { transform: scale(0.97); transition-duration: var(--dur-press); }
+
+/* THE FOCUS RING ARRIVES (8.9.2): the keyboard's ring comes in from 3px
+   further out and from nothing, over --dur-fast, so the eye catches where
+   the focus landed. Outline only, which never lays anything out. */
+@keyframes focusIn { from { outline-color: transparent; outline-offset: 5px; } }
+@media (prefers-reduced-motion: no-preference) {
+  .btn:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible,
+  input:focus-visible, select:focus-visible { animation: focusIn var(--dur-fast) var(--ease-out); }
+}
+
+/* A LINK THAT READS AS TEXT (8.9.2): <a class="u-link"> or a button of that
+   class. Its underline draws in from the left under the pointer or the
+   keyboard's focus and leaves to the right, a 1px rule moved by scaleX,
+   never a text-decoration that would jump. */
+.u-link { position: relative; color: var(--text-dim); text-decoration: none; cursor: pointer; transition: color var(--t-fast) var(--ease); }
+.u-link::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px;
+  background: currentColor; transform: scaleX(0); transform-origin: 100% 50%;
+  transition: transform var(--dur-base) var(--ease-out);
+  pointer-events: none;
+}
+.u-link:hover, .u-link:focus-visible { color: var(--text); }
+.u-link:focus-visible::after { transform: none; transform-origin: 0 50%; }
+@media (hover: hover) and (pointer: fine) {
+  .u-link:hover::after { transform: none; transform-origin: 0 50%; }
+}
 
 /* Focus is visible and uses the white accent, not a browser default outline. */
 .btn:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible,
@@ -387,6 +429,10 @@ input:focus-visible, select:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+  /* No movement at all (8.9.2): a press keeps its inset shadow and its fill
+     and does not shrink; the ring is simply there. */
+  .btn:where(:not(:disabled)):active, .icon-btn:where(:not(:disabled)):active,
+  .seg button:where(:not(:disabled)):active, .press:where(:not(:disabled)):active { transform: none; }
 }
 
 /* Words for a screen reader alone: the label the shell's agent box has no

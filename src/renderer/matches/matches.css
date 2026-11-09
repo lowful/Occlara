@@ -267,10 +267,29 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .m-chart-since.down { background: rgba(var(--bad-rgb), 0.14); color: var(--bad); }
 .m-chart-line { margin-top: var(--space-2); }
 /* The rows rise once, as the list first appears on screen (matches.js load,
-   occlaraOnShown), 40ms apart and capped at the eighth; a repaint draws them
-   as they are. */
-.m-item.rise { animation: rowIn var(--t-slow) var(--ease-expo) both; animation-delay: calc(var(--i, 0) * 40ms); }
-@keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+   occlaraOnShown), --stagger apart and capped at the sixth (8.9.2: the
+   shared m-rise, 8px over --dur-slow); a repaint draws them as they are. */
+.m-item.rise { animation: m-rise var(--dur-slow) var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 5) * var(--stagger)); }
+
+/* MOTION ON THE CHARTS (8.9.2, matches.js entrance), once per visit.
+   The grade line draws (motion.css .m-draw) and its dots and numbers fade in
+   behind it; the Patterns bars grow from the baseline (.m-grow), each number
+   fading in as its bar lands, and the average draws in from the left after
+   them, its label with it. Opacity, transform and clip-path only. */
+.m-chart.gl-in .gl-dot, .m-chart.gl-in .gl-num, .m-chart.gl-in .gl-time {
+  animation: m-fade var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(var(--t-slow) * 0.6);
+}
+.p-bar.p-in span, .p-bar.p-in small {
+  animation: m-fade var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(var(--dur-slow) * 0.6 + var(--i, 0) * var(--stagger));
+}
+.p-avgline.p-draw {
+  animation: p-draw-x var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--dur-slow) + 5 * var(--stagger));
+}
+@keyframes m-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes p-draw-x { from { clip-path: inset(-16px 100% -16px 0); } to { clip-path: inset(-16px 0 -16px 0); } }
 .m-row {
   flex: 1; min-width: 0;
   display: flex; align-items: center; gap: var(--space-4);
@@ -350,6 +369,8 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 }
 @media (prefers-reduced-motion: reduce) {
   .m-item, .m-item.rise { animation: none; transition: none; }
+  .m-chart.gl-in .gl-dot, .m-chart.gl-in .gl-num, .m-chart.gl-in .gl-time,
+  .p-bar.p-in span, .p-bar.p-in small, .p-avgline.p-draw { animation: none; }
 }
 
 /* ── The breakdown ─────────────────────────────────────────────────────────
@@ -509,3 +530,13 @@ html.embedded .patterns { --p-ground: var(--bg); }
 /* PROGRESS V3: Patterns is a card on the ground, as Home's are. The card and
    the trend's numbers read one --p-ground, so they cannot drift apart. */
 html[data-section="patterns"] .patterns { --p-ground: var(--s1); padding: var(--space-5) var(--space-6); background: var(--p-ground); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }
+
+/* A whole result counting up (8.9.2): drawn over its real number, which
+   stays the text, by counter() on @property --m-n, --dur-count on --ease-out,
+   ending on the number itself. Tabular, so the width holds still. */
+@property --m-n { syntax: '<integer>'; initial-value: 0; inherits: false; }
+.m-counting { position: relative; color: transparent !important; counter-reset: m-n var(--m-n); font-variant-numeric: tabular-nums;
+  animation: m-count var(--dur-count) var(--ease-out) both; }
+.m-counting::after { content: counter(m-n); position: absolute; top: 0; left: 0; color: var(--text); }
+@keyframes m-count { from { --m-n: 0; } to { --m-n: var(--to); } }
+@media (prefers-reduced-motion: reduce) { .m-counting { animation: none; color: inherit !important; } .m-counting::after { content: none; } }

@@ -201,8 +201,12 @@ button.gv-rchip:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); 
 .gl-line { fill: none; stroke: var(--text); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .gl-dot { fill: var(--s1); stroke: var(--text); stroke-width: 2; }
 .gl-dot.now { fill: var(--text); }
-.gl-num { fill: var(--text-dim); font-family: var(--font); font-size: 12px; font-weight: 600; text-anchor: middle; }
-.gl-num.now { fill: var(--text); }
+/* Each number on the clear side of its dot (gradeLine placeNums), with a
+   halo in the card's ground painted under its figures, so a line that still
+   passes behind one is cut around it. */
+.gl-num { fill: var(--text-dim); font-family: var(--font); font-size: 12px; font-weight: 600; text-anchor: middle;
+  font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--gl-ground, var(--s1)); stroke-width: 4px; stroke-linejoin: round; }
+.gl-num.now { fill: var(--text); font-weight: 700; }
 .gl-time { fill: var(--text-mute); font-family: var(--font-mono); font-size: 10px; text-anchor: middle; }
 
 /* Nothing measured (Progress v3): one panel, the reason and one action. */

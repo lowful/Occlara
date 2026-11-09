@@ -35,7 +35,12 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .h-player-connect { height: auto; padding: 0 var(--space-1); font-size: 13px; color: var(--text-dim); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
 .h-player-connect:hover { color: var(--text); text-decoration-color: var(--text-dim); }
 /* The update line, at the right of the title: a quiet sentence and its
-   link, no box and no motion of its own. */
+   link, no box. It slides in from the right once, as it appears (h-slide,
+   home.js paintNews); the Riot ID fades in with the arrival (h-fade). */
+.h-news.h-slide { animation: hSlide var(--dur-slow) var(--ease-out) both; animation-delay: var(--dur-fast); }
+.h-player.h-fade { animation: hFade var(--dur-base) var(--ease-out) both; animation-delay: var(--dur-fast); }
+@keyframes hSlide { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+@keyframes hFade { from { opacity: 0; } to { opacity: 1; } }
 .h-news { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-1); margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
 .h-news[hidden] { display: none; }
 .h-news .btn-link { height: auto; padding: 0 var(--space-1); font-size: 13px; color: var(--text); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
@@ -69,11 +74,19 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   background: var(--s1);
   box-shadow: var(--rim);
 }
-/* The cards arrive one after another (home.js arrive), 40ms apart on the
-   riseIn every list shares (ui.css), once, when Home first paints. */
-.card.card-in {
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
-  animation-delay: calc(var(--i, 0) * 40ms);
+/* THE ARRIVAL (home.js arrive, 8.9.2): the head first, then the cards one
+   after another, --stagger apart and six at most staggered, on the shared
+   m-rise (motion.css: 8px, --dur-slow, --ease-out). Once per visit of the
+   page and on a change of game, never on a repaint for the same data:
+   card-in comes off once the longest entrance is through. */
+.card.card-in, .h-head.card-in {
+  animation: m-rise var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(min(var(--i, -1) + 1, 5) * var(--stagger));
+}
+/* The cards lift 2px under a pointer that hovers, transform only. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .panel { transition: transform var(--dur-base) var(--ease-out); }
+  .panel:hover { transform: translateY(-2px); }
 }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .card-head .btn-link { padding: var(--space-2) var(--space-3); margin: calc(var(--space-2) * -1) calc(var(--space-3) * -1) calc(var(--space-2) * -1) 0; }
@@ -150,6 +163,26 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   font-size: 76px; font-weight: 600; line-height: 1; letter-spacing: -0.055em;
   font-variant-numeric: tabular-nums; color: var(--text);
 }
+/* THE GRADE COUNTS UP ONCE (home.js playLast): CSS alone, as the review's
+   reveal does it, an integer --hn run from 0 to --to and drawn by counter()
+   over the real number, which stays the text for a test or a screen reader.
+   --dur-count on --ease-out, after the card's own delay (--d). */
+@property --hn { syntax: '<integer>'; initial-value: 0; inherits: false; }
+#last .gv-score.big.counting {
+  position: relative; color: transparent; counter-reset: hn var(--hn);
+  animation: hCount var(--dur-count) var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
+}
+#last .gv-score.big.counting::after { content: counter(hn); position: absolute; top: 0; right: 0; color: var(--text); }
+@keyframes hCount { from { --hn: 0; } to { --hn: var(--to); } }
+/* The grade line draws itself (the shared m-draw on its polyline), then its
+   dots and their numbers pop in, left to right, 30ms apart and six at most
+   staggered. Transform and opacity only; each dot scales round its centre. */
+#last .grade-line.h-dots .gl-dot, #last .grade-line.h-dots .gl-num {
+  transform-box: fill-box; transform-origin: center;
+  animation: m-pop var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(var(--d, 0ms) + var(--t-slow) + min(var(--k, 0), 5) * 30ms);
+}
 .grade-side { display: flex; align-items: center; gap: var(--space-2); padding-bottom: 10px; }
 /* The last game's K/D (9.0): the ratio large, the kills over the deaths
    under it, at the right of the grade, on the grade's baseline. */
@@ -181,10 +214,18 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   background: var(--text); color: var(--bg);
   box-shadow: var(--drop);
   cursor: pointer;
-  transition: transform var(--t-fast) var(--ease);
+  transition: transform var(--dur-press) var(--ease-out);
 }
-.play-mark:hover { transform: scale(1.04); }
 .play-mark:active { transform: scale(0.97); }
+/* The poster leans in a hair under the pointer (inside the media's overflow
+   hidden) and the play mark eases up with it; transform only. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .fix-poster { transition: transform var(--dur-slow) var(--ease-out); }
+  .fix-media:hover .fix-poster { transform: scale(1.02); }
+  .play-mark { transition: transform var(--dur-base) var(--ease-out); }
+  .fix-media:hover .play-mark { transform: scale(1.04); }
+  .fix-media .play-mark:active { transform: scale(0.97); transition-duration: var(--dur-press); }
+}
 .play-mark svg { margin-left: 3px; }
 /* The clip playing on Home (9.0): the review's own player in the poster's
    place, the picture at its own 16:9 with its timeline and controls under
@@ -230,10 +271,11 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 }
 .r-row:hover { background: rgba(255, 255, 255, 0.035); }
 .r-row:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
-/* The rows rise one after another as the section arrives, once. */
-.recent.card-in .r-row {
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
-  animation-delay: calc(var(--i, 0) * 40ms + var(--j, 0) * 40ms);
+/* The rows, recent matches and repeated mistakes, rise one after another
+   after their section, as it arrives, once: --stagger apart, six at most. */
+.recent.card-in .r-row, .top.card-in .top-row {
+  animation: m-rise var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0) + 1, 5) * var(--stagger) + min(var(--j, 0), 5) * var(--stagger));
 }
 .r-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .r-title { font-size: 14px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); }
@@ -267,5 +309,11 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 /* Less motion: every entrance is its end state at once, with no stagger to
    wait through (theme.css collapses the durations, not the delays). */
 @media (prefers-reduced-motion: reduce) {
-  .card.card-in, .recent.card-in .r-row { animation: none; }
+  .card.card-in, .h-head.card-in, .recent.card-in .r-row, .top.card-in .top-row,
+  .h-news.h-slide, .h-player.h-fade,
+  #last .grade-line.h-dots .gl-dot, #last .grade-line.h-dots .gl-num { animation: none !important; }
+  /* No count: the real number, at once. */
+  #last .gv-score.big.counting { animation: none !important; color: var(--text); }
+  #last .gv-score.big.counting::after { content: none; }
+  .play-mark { transition: none; }
 }

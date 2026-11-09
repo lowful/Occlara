@@ -106,10 +106,14 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   flex-direction: column;
   justify-content: center;
   gap: var(--space-1);
-  animation: pageIn var(--t-med) var(--ease-expo) both;
+  animation: pageIn var(--dur-move) var(--ease-out) both;
 }
 .page .hero { margin-bottom: var(--space-3); }
-@keyframes pageIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+/* A step comes in 8px from the side it is on (8.9.2, onboarding.js go):
+   from the right going forward, from the left going back. */
+.page.from-back { animation-name: pageInBack; }
+@keyframes pageIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+@keyframes pageInBack { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
 
 .lead { font-size: 13px; line-height: 1.6; color: var(--text-dim); margin-bottom: var(--space-3); }
 
@@ -333,5 +337,5 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .ob-res > button:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 1px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ob-bf-row, .page .hero, .page .steps li, .page .keys .k, .page .ob-opt, .page .ob-pc, .page .lead, .page .seg, .page .ob-review { animation: none; }
+  .page, .page.from-back, .ob-bf-row, .page .hero, .page .steps li, .page .keys .k, .page .ob-opt, .page .ob-pc, .page .lead, .page .seg, .page .ob-review { animation: none; }
 }

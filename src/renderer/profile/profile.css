@@ -26,7 +26,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
    its unit on the same baseline, then three lines, each one fact. */
 .pr-hero {
   display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1);
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
+  animation: m-rise var(--dur-slow) var(--ease-out) both;
 }
 .pr-count { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-2); }
 .pr-number {
@@ -44,8 +44,8 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   display: flex; flex-direction: column; gap: var(--space-5);
   padding-top: var(--space-5);
   border-top: 1px solid var(--line);
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
-  animation-delay: calc(var(--i, 0) * 40ms);
+  animation: m-rise var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 5) * var(--stagger));
 }
 .pr-body > .pr-sec:nth-child(2) { --i: 1; }
 .pr-body > .pr-sec:nth-child(3) { --i: 2; }
@@ -72,6 +72,15 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   font: 500 15px var(--font-mono); letter-spacing: 0; text-align: center;
   font-variant-numeric: tabular-nums;
 }
+/* The stepper (8.9.2, profile.js nudge): the number moved by - or + eases
+   in from the side it came, 3px and a fade, so the press is seen to land. */
+.pr-games.input.pr-nudge-up { animation: pr-nudge-up var(--dur-base) var(--ease-out); }
+.pr-games.input.pr-nudge-down { animation: pr-nudge-down var(--dur-base) var(--ease-out); }
+@keyframes pr-nudge-up { from { opacity: 0.55; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes pr-nudge-down { from { opacity: 0.55; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+/* Monthly and Yearly switched: the prices that changed fade in where they stand. */
+.pr-swap { animation: pr-swap var(--dur-base) var(--ease-out); }
+@keyframes pr-swap { from { opacity: 0; } to { opacity: 1; } }
 .pr-act { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
 .pr-act .btn { min-width: 220px; font-variant-numeric: tabular-nums; }
 .pr-note { font-size: 13px; line-height: 1.5; color: var(--text-mute); }
@@ -143,9 +152,19 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 
 /* Reduced motion: no entrance at all, every state at once. */
 @media (prefers-reduced-motion: reduce) {
-  .pr-hero, .pr-sec { animation: none; }
+  .pr-hero, .pr-sec, .pr-games.input.pr-nudge-up, .pr-games.input.pr-nudge-down, .pr-swap { animation: none; }
 }
 
 /* PROGRESS V3: a section is a card on the ground, as Home's are. */
 .pr-body { gap: var(--space-4); }
 .pr-sec, .pr-hero { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }
+
+/* A whole result counting up (8.9.2): drawn over its real number, which
+   stays the text, by counter() on @property --m-n, --dur-count on --ease-out,
+   ending on the number itself. Tabular, so the width holds still. */
+@property --m-n { syntax: '<integer>'; initial-value: 0; inherits: false; }
+.m-counting { position: relative; color: transparent !important; counter-reset: m-n var(--m-n); font-variant-numeric: tabular-nums;
+  animation: m-count var(--dur-count) var(--ease-out) both; }
+.m-counting::after { content: counter(m-n); position: absolute; top: 0; left: 0; color: var(--text); }
+@keyframes m-count { from { --m-n: 0; } to { --m-n: var(--to); } }
+@media (prefers-reduced-motion: reduce) { .m-counting { animation: none; color: inherit !important; } .m-counting::after { content: none; } }

@@ -1,5 +1,25 @@
 [
   {
+    "version": "8.9.2",
+    "date": "2026-11-09",
+    "title": "More motion, and chart numbers that stay off the line",
+    "summary": "The app moves with more care, and the numbers on your grade charts no longer sit on the line.",
+    "items": [
+      {
+        "kind": "improved",
+        "text": "The app has more motion: the tab marker glides between pages, numbers count up, lines draw themselves, bars grow, and pages and lists rise in once when you open them. Reduced motion in Windows turns all of it off."
+      },
+      {
+        "kind": "improved",
+        "text": "Buttons press in when you click them, and switches slide between choices."
+      },
+      {
+        "kind": "fixed",
+        "text": "The numbers on your grade charts on Home and Matches no longer sit on the line."
+      }
+    ]
+  },
+  {
     "version": "8.9.1",
     "date": "2026-11-09",
     "title": "Four free games, and a note when games arrive",

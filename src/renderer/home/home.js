@@ -173,7 +173,7 @@ function paintLast(last, model) {
   inner.append(row);
 
   const lineHost = el('div', 'last-line-host');
-  const svg = !last.work ? GV.gradeLine(model.trend || [], 400, 112) : null;
+  const svg = !last.work ? GV.gradeLine(model.trend || [], 400, 124) : null;
   if (svg) lineHost.append(svg);
   const under = el('div', 'last-under');
   if (svg && typeof model.average === 'number') under.append(el('span', 'line-avg', `Average ${model.average}`));
@@ -300,9 +300,12 @@ function paintMistakes(model) {
   $('top').hidden = !list.length;
   const host = $('top-list');
   host.replaceChildren();
-  for (const m of list) {
+  list.forEach((m, j) => {
     const row = el('div', 'top-row');
     row.setAttribute('role', 'listitem');
+    // Its place (--j), for the rows to rise one after another as the section
+    // arrives (home.css), never on a repaint.
+    row.style.setProperty('--j', String(j));
     row.append(el('span', 'top-mark'), el('span', 'top-title', m.title));
     if (typeof m.total === 'number') {
       const n = el('span', 'top-n', `${m.total}x`);
@@ -310,7 +313,7 @@ function paintMistakes(model) {
       row.append(n);
     }
     host.append(row);
-  }
+  });
 }
 
 function paintRecent(recent, model) {
@@ -485,17 +488,92 @@ async function fillRank(again) {
  */
 function arrive() {
   const run = () => {
+    const head = document.querySelector('.home .h-head');
     const cards = [...document.querySelectorAll('.home .card')].filter((c) => !c.hidden && !c.closest('[hidden]'));
     for (const c of cards) c.classList.remove('card-in');
+    if (head) head.classList.remove('card-in');
+    // Under less motion the classes still go on (the check and the site
+    // proof read them) and home.css plays nothing for them.
     void document.body.offsetWidth;   // taken off and put back, so it plays again
+    // The head first (no --i: no delay), then the cards, each --i, which
+    // home.css caps at the sixth.
+    if (head) head.classList.add('card-in');
     cards.forEach((c, i) => {
       c.style.setProperty('--i', String(i));
       c.classList.add('card-in');
     });
-    endArrival(cards);
+    endArrival(head ? [head, ...cards] : cards);
+    const last = $('last');
+    const at = cards.indexOf(last);
+    if (at >= 0) playLast(Math.min(at + 1, 5) * STAGGER_MS);
+    const player = $('h-player');
+    if (player && !player.hidden) play(player, 'h-fade', 600);
   };
   if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(run); else run();
 }
+
+/*
+ * THE MOTION OF HOME (8.9.2), on the shared layer (shared/motion.css,
+ * motion.js). Everything here plays from arrive() only, so once per visit of
+ * the page and on a change of game, and never on a repaint for the same data
+ * (a review saved, the rank answering): a repaint rebuilds the cards plainly,
+ * in their end state. Nothing plays under reduced motion, and nothing here
+ * knows of a match: Home is sealed mid match and not on screen.
+ */
+const STAGGER_MS = 40;   // --stagger
+const reduced = () => !!(window.Motion && window.Motion.reduced());
+
+/** A class put on, played once, and taken off after ms. */
+function play(node, cls, ms) {
+  if (!node || reduced()) return;
+  node.classList.remove(cls);
+  void node.offsetWidth;   // taken off and put back, so it plays again
+  node.classList.add(cls);
+  setTimeout(() => node.classList.remove(cls), ms);
+}
+
+/**
+ * The last match card's own entrance, delayMs after the arrival starts (the
+ * card's own delay): the grade counts up from 0 (CSS, home.css hCount), the
+ * K/D counts up to its exact two places (Motion.countUp), the grade line
+ * draws itself (the shared m-draw) and its dots pop in after it.
+ */
+function playLast(delayMs) {
+  if (reduced()) return;
+  const host = $('last');
+  const d = `${delayMs}ms`;
+  const score = host.querySelector('.gv-score.big');
+  const to = score ? Number(score.textContent) : NaN;
+  if (score && Number.isInteger(to) && to > 0) {
+    score.style.setProperty('--to', String(to));
+    score.style.setProperty('--d', d);
+    play(score, 'counting', delayMs + 800 + 120);   // --dur-count
+  }
+  const ratio = host.querySelector('.kd-ratio');
+  if (ratio && window.Motion) {
+    const value = Number(ratio.textContent);
+    if (Number.isFinite(value)) window.Motion.countUp(ratio, value, { format: (n) => n.toFixed(2), dur: 800 });
+  }
+  const svg = host.querySelector('.grade-line');
+  const line = svg && svg.querySelector('.gl-line');
+  if (line) {
+    line.setAttribute('pathLength', '1');
+    line.style.setProperty('--i', String(Math.min(delayMs / STAGGER_MS, 5)));
+    play(line, 'm-draw', delayMs + 420 + 120);   // --t-slow
+    svg.querySelectorAll('.gl-dot').forEach((n, k) => n.style.setProperty('--k', String(k)));
+    svg.querySelectorAll('.gl-num').forEach((n, k) => n.style.setProperty('--k', String(k)));
+    svg.style.setProperty('--d', d);
+    play(svg, 'h-dots', delayMs + 420 + 5 * 30 + 220 + 120);
+  }
+}
+
+// A new visit of the page (embed.js, 'occlara-page-enter'): the cards arrive
+// again, once. The first enter is the visit the page loaded in, whose first
+// paint brings them in (load({ arrive: true })).
+window.addEventListener('occlara-page-enter', (e) => {
+  if (e && e.detail && e.detail.first) return;
+  arrive();
+});
 
 /**
  * PAINTED FIRST, THEN THE RANK: the library is on this machine and the rank
@@ -571,8 +649,15 @@ function paintNews(n) {
   const line = n && typeof n.text === 'string' && n.text ? n : null;
   const host = document.getElementById('h-news');
   if (!host) return;
+  const appearing = host.hidden && !!line;
   host.hidden = !line;
   if (!line) return;
+  // It slides in from the right once, as it appears, and only on screen;
+  // the same line pushed again stays where it is.
+  if (appearing) {
+    const slide = () => play(host, 'h-slide', 140 + 380 + 120);   // --dur-fast, --dur-slow
+    if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(slide); else slide();
+  }
   document.getElementById('h-news-text').textContent = line.text;
   document.getElementById('h-news-open').textContent = line.link || "See what's new";
   const seen = () => { if (typeof window.occlara.newsSeen === 'function') window.occlara.newsSeen(line.version); };
@@ -625,6 +710,12 @@ function paintStrip(s) {
       if (!s || typeof s.riotId !== 'string' || s.riotId.trim() === riotId) return;
       riotId = s.riotId.trim();
       paintPlayer(riotId);
+      // A new ID fades in where the old one was (what changed), on screen.
+      const chip = $('h-player');
+      if (!chip.hidden) {
+        const fade = () => play(chip, 'h-fade', 140 + 220 + 120);
+        if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(fade); else fade();
+      }
       load();
     });
   }
