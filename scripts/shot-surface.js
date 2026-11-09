@@ -94,7 +94,7 @@ app.whenReady().then(async () => {
       // The surfaces are transparent by design and composite onto the desktop.
       // A screenshot needs an opaque ground or the card renders black-on-black
       // and the whole point of looking is lost.
-      backgroundColor: '#0A0B0E',   // --bg (theme.css)
+      backgroundColor: '#07080C',   // --bg (theme.css)
       // A PAGE IS REACHED AFTER LOAD, and a window that was never shown keeps
       // its first frame: every page shot came back as page 0. So a page
       // shot shows its window, inactive, fully transparent and ignoring the

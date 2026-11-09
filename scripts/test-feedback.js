@@ -583,15 +583,14 @@ const notLive = (what) => { const e = new Error(`${what}: relation missing`); e.
     await settle();
     ok(mid.$('fb-review-sec').hidden && mid.$('fb-send').disabled, 'info null (mid match) offers no review and sends nothing');
 
-    // The shell: the button at the end of Profile's row, directly above the Discord.
+    // The shell (Progress v3): a row of the account drawer, between Settings and the Discord.
     const shell = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'shell', 'index.html'), 'utf8');
     const doc = new Document(shell);
     const foot = doc.querySelector('.foot').children.map((c) => c.id);
-    ok(foot.indexOf('nav-feedback') === foot.indexOf('nav-profile') + 1 && foot.indexOf('nav-settings') === foot.indexOf('nav-feedback') + 1 && foot.indexOf('discord') === foot.indexOf('nav-settings') + 1,
-      'the foot reads Profile, Report a problem, Settings, the Discord', foot.join(', '));
-    const css = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'shell', 'shell.css'), 'utf8');
-    ok(css.includes('.foot > #nav-profile { grid-column: 1; }') && css.includes('.foot > .foot-icon { grid-column: 2; }') && /id="nav-feedback" class="foot-icon"/.test(shell),
-      'so on the grid it sits at the end of Profile\'s row, directly above the Discord at the end of Settings\'');
+    ok(foot.indexOf('nav-profile') === 0 && foot.indexOf('nav-feedback') > foot.indexOf('nav-settings') && foot.indexOf('discord') === foot.indexOf('nav-feedback') + 1,
+      'the drawer reads Profile, Invite, Settings, then Report a problem and the Discord', foot.join(', '));
+    ok(/id="nav-feedback" class="nav-item"/.test(shell) && doc.querySelector('#drawer .foot #nav-feedback'),
+      'so it is a row of the drawer the avatar opens, words and all');
     const sjs = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'shell', 'shell.js'), 'utf8');
     ok(sjs.includes("navButtons.set('feedback', $('nav-feedback'))") && /PAGE_ICO = \{[\s\S]*feedback:/.test(sjs), 'it is one of the pages the seal locks, with its own icon back after');
   }

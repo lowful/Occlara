@@ -60,7 +60,8 @@ const theme = read('shared/theme.css');
 const want = {
   '--red': '#E5383B', '--red-2': '#F04A4D', '--red-3': '#C9302F', '--red-rgb': '229, 56, 59',
   '--signal': 'var(--red)', '--signal-rgb': 'var(--red-rgb)', '--on-accent': '#0A0B0E',
-  '--cyan': '#FFFFFF', '--cyan-rgb': '255, 255, 255', '--bg': '#0A0B0E', '--bg-2': '#0F1116',
+  '--cyan': '#FFFFFF', '--cyan-rgb': '255, 255, 255', '--bg': '#07080C', '--bg-2': '#0B0D12',
+  '--s1': '#0B0D12', '--s2': '#10131A', '--s3': '#161A23', '--s4': '#1D212C',
   '--text': '#F5F5F7', '--text-dim': '#A1A1A6', '--text-mute': '#808086',
   '--good': '#52C88A', '--bad': '#E8636F', '--warn': '#D9A441', '--bad-rgb': '232, 99, 111',
   '--line': 'rgba(255, 255, 255, 0.09)', '--line-2': 'rgba(255, 255, 255, 0.16)', '--grid': 'rgba(255, 255, 255, 0.045)',
@@ -73,7 +74,7 @@ const want = {
   '--ease': 'cubic-bezier(0.22, 1, 0.36, 1)', '--ease-expo': 'cubic-bezier(0.16, 1, 0.30, 1)',
 };
 const off = Object.entries(want).filter(([k, v]) => token(theme, k) !== v).map(([k, v]) => `${k} is "${token(theme, k)}", not "${v}"`);
-ok(!off.length, 'theme.css holds the 8.6 tokens: the signal #E5383B, the ground #0A0B0E, the app\'s own ink, lines, paper, roles and tracking', off.join('; '));
+ok(!off.length, 'theme.css holds the tokens: the signal #E5383B, the indigo black ground #07080C (Progress v3) and its four surface steps, the app\'s own ink, lines, paper, roles and tracking', off.join('; '));
 ok(/\nhtml \{ font-synthesis-weight: none; \}/.test(theme), 'and draws no faked bold: font-synthesis-weight is none on html');
 ok(contrast(token(theme, '--on-accent'), token(theme, '--red')) >= 4.5 && contrast('#FFFFFF', token(theme, '--red')) < 4.5,
   `Start's label, the ground on the signal, passes at ${contrast(token(theme, '--on-accent'), token(theme, '--red')).toFixed(2)}:1, where white on it fails at ${contrast('#FFFFFF', token(theme, '--red')).toFixed(2)}:1`);
@@ -82,10 +83,10 @@ ok(['--text', '--text-dim', '--text-mute'].every((t) => contrast(token(theme, t)
 const mainWin = fs.readFileSync(path.join(ROOT, 'src', 'main', 'windows', 'main-window.js'), 'utf8');
 const ailogWin = fs.readFileSync(path.join(ROOT, 'src', 'main', 'windows', 'ailog-window.js'), 'utf8');
 const shot = fs.readFileSync(path.join(ROOT, 'scripts', 'shot-surface.js'), 'utf8');
-ok(/const GROUND = '#0A0B0E';/.test(mainWin) && /backgroundColor: '#0A0B0E'/.test(mainWin) && !/#08090A/i.test(mainWin)
-  && /backgroundColor: '#0A0B0E'/.test(ailogWin) && !/#0b1119/i.test(ailogWin),
-'the main window, its pages and the AI log open on the ground, #0A0B0E');
-ok(/backgroundColor: '#0A0B0E'/.test(shot) && !/\boverlay:|\bhistory:/.test(shot), 'and so does a surface\'s picture, with the retired overlay and history gone from its sizes');
+ok(/const GROUND = '#07080C';/.test(mainWin) && /backgroundColor: '#07080C'/.test(mainWin) && !/#08090A/i.test(mainWin)
+  && /backgroundColor: '#07080C'/.test(ailogWin) && !/#0b1119/i.test(ailogWin),
+'the main window, its pages and the AI log open on the ground, #07080C');
+ok(/backgroundColor: '#07080C'/.test(shot) && !/\boverlay:|\bhistory:/.test(shot), 'and so does a surface\'s picture, with the retired overlay and history gone from its sizes');
 
 // ── F4: Start keeps the signal by its own class; the primary is ink ──────
 const ui = read('shared/ui.css');
@@ -96,8 +97,8 @@ ok(/<button id="toggle" class="btn btn-rec toggle" type="button">/.test(shellHtm
 const rec = rule(ui, '.btn-rec');
 ok(prop(rec, 'background') === 'var(--red)' && prop(rec, 'color') === 'var(--on-accent)' && prop(rec, 'font-size') === '18px'
   && prop(rec, 'font-weight') === '600' && prop(rec, 'box-shadow') === 'var(--hi-signal), var(--drop)'
-  && prop(rule(shellCss, '.toggle'), 'font-weight') === '600',
-'its fill is the signal, its label the ground at 18px 600, lit from above like every capsule (8.7)', rec.trim());
+  && prop(rule(shellCss, '.toggle'), 'font-weight') === '700',
+'its fill is the signal, its label the ground at 18px 600 in the base rule, 15px 700 in the top bar, lit from above like every capsule (8.7, Progress v3)', rec.trim());
 ok(prop(rule(ui, '.btn-rec:hover:not(:disabled):not(.active)'), 'background') === 'var(--red-2)'
   && prop(rule(ui, '.btn-rec:active:not(:disabled):not(.active)'), 'background') === 'var(--red-3)'
   && !rule(ui, '.btn-rec:hover') && !rule(ui, '.btn-rec:active'),

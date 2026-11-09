@@ -13,23 +13,21 @@
   <link rel="stylesheet" href="home.css" />
 </head>
 <body>
-  <!-- HOME, the main window's first page (8.1), THE TRAINING LOG (8.7): the
-       fix for the next match set largest, the last match on one ruled line
-       with its grade, the grade trend, the recent matches as ruled rows and
-       the most repeated mistake as a ruled section. Nothing is framed: a
-       hairline and whitespace do the grouping. Every figure is read from the
-       library by src/shared/home-model.js, nothing invented, and Valorant's
-       rank (8.2.1) from the rank history Stats reads, filled in once the rest
-       is painted. The sections keep the class "card" the tests and the
-       arrival read them by; the look is the ruled section (home.css). -->
+  <!-- HOME, PROGRESS V3 (9.0): the Start strip first, the loudest thing on
+       the page; then the last match as an art led card (its map dimmed
+       behind, its agent's portrait, the grade large with its change and the
+       grade line) beside the fix for the next match over the kept clip's
+       poster (the map when no clip was kept); then the rank and the most
+       repeated mistakes; then the recent matches. Every figure is read from
+       the library by src/shared/home-model.js, nothing invented; the rank
+       and the RR only from Riot's rank history, and gone without it. The
+       sections keep the class "card" the tests and the arrival read them by. -->
   <main class="home">
     <header class="h-head">
       <div class="h-titles">
         <span id="h-game" class="h-game">Valorant</span>
         <h1>Home</h1>
       </div>
-      <!-- No aside (8.7): the games left stand in the rail under Start, and
-           the Riot ID's bullet at the rail's foot, said once each. -->
       <!-- THE UPDATE LINE: once, on the first launch after an update, main's
            words ("Occlara updated to 8.7.3.") and the way to What's new.
            Never a modal and never mid match: main holds it until the seal
@@ -40,64 +38,65 @@
       </p>
     </header>
 
-    <section id="empty" class="card empty" hidden>
-      <h2>No reviewed matches yet</h2>
-      <p class="hint">Press Start in the sidebar before your next match. When it ends, its graded review opens here and is kept under Matches.</p>
+    <!-- THE START STRIP: Start at 60px with what it does beside it. The same
+         Start as the sidebar's (COACH_START); Home is sealed mid match, so
+         it is only ever seen ready. -->
+    <section id="start-strip" class="card start-strip" aria-label="Start recording">
+      <span class="ss-dot" aria-hidden="true"></span>
+      <b class="ss-word">Ready</b>
+      <p class="ss-line">Press Start before you queue. Occlara records the match and grades it when it ends.</p>
+      <button id="h-start" class="btn btn-rec xl" type="button">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M7 4.6v14.8a.7.7 0 0 0 1.08.58l11.1-7.4a.7.7 0 0 0 0-1.16L8.08 4.02A.7.7 0 0 0 7 4.6z"/></svg>
+        <span>Start</span>
+      </button>
+    </section>
+
+    <section id="empty" class="card panel empty" hidden>
+      <span class="label">Fix for next match</span>
+      <h2>Play one match and your first fix lands here.</h2>
+      <p class="hint">Press Start before you queue. When the match ends its graded review opens here and is kept under Matches.</p>
     </section>
 
     <div id="content" class="rows" hidden>
-      <!-- The rows and the columns are the order home.js keeps (placeRank,
-           closeUp): the page lays them out as one column of ruled sections
-           (home.css), the focus first, then the last match. -->
-      <div class="row">
-        <section id="last" class="card last" aria-label="Last match"></section>
-        <div id="side" class="col">
-          <section id="focus" class="card focus" aria-label="Your next match" hidden>
-            <span class="label">Your next match</span>
+      <div class="row hero">
+        <section id="last" class="card panel last" aria-label="Last match"></section>
+        <section id="focus" class="card panel focus" aria-label="Fix for next match" hidden>
+          <div id="fix-media" class="fix-media"></div>
+          <div class="fix-body">
+            <span class="label">Fix for next match</span>
             <p id="focus-text" class="focus-text"></p>
-          </section>
-          <section id="rank" class="card rank" aria-label="Rank" hidden>
-            <div class="card-head">
-              <span class="label">Rank</span>
-              <button id="rank-more" class="btn btn-link sm" type="button">Rank journey</button>
-            </div>
-            <div class="rank-body">
-              <div class="rank-now">
-                <b id="rank-tier" class="rank-tier"></b>
-                <span id="rank-rr" class="rank-rr" title="RR from your last rated game"></span>
-              </div>
-              <div id="rank-line" class="rank-line" role="img" hidden></div>
-            </div>
-          </section>
-          <section id="top" class="card top" aria-label="Most repeated mistake" hidden>
-            <span class="label">Most repeated mistake</span>
-            <div class="top-head"><span class="dot" aria-hidden="true"></span><b id="top-title"></b><span id="top-trend" class="trend"></span></div>
-            <p id="top-detail" class="hint"></p>
-            <p class="fix"><span class="fix-label">Fix</span> <span id="top-fix"></span></p>
-            <button id="top-more" class="btn btn-ghost sm" type="button">All your patterns</button>
-          </section>
-        </div>
-      </div>
-      <div class="row">
-        <!-- The grade trend, and the rank above it when the column beside the
-             last match is full (home.js placeRank). -->
-        <div id="lower" class="col">
-          <section id="trend" class="card trend" aria-label="Grade over the last matches" hidden>
-            <div class="card-head">
-              <span class="label">Grade, last <span id="trend-n"></span> matches</span>
-              <span class="hint" id="trend-avg"></span>
-            </div>
-            <div id="trend-bars" class="bars" role="img"></div>
-          </section>
-        </div>
-        <section id="recent" class="card recent" aria-label="Recent matches">
-          <div class="card-head">
-            <span class="label">Recent matches</span>
-            <button id="recent-all" class="btn btn-link sm" type="button">All matches</button>
+            <div class="fix-foot"><button id="fix-open" class="btn btn-primary sm" type="button">Open review</button></div>
           </div>
-          <div id="recent-list" class="recent-list" role="list"></div>
         </section>
       </div>
+      <div class="row">
+        <section id="rank" class="card panel rank" aria-label="Rank" hidden>
+          <div class="card-head">
+            <span class="label">Rank</span>
+            <button id="rank-more" class="btn btn-link sm" type="button">Rank journey</button>
+          </div>
+          <div class="rank-now">
+            <b id="rank-tier" class="rank-tier"></b>
+            <span id="rank-rr" class="rr-chip" title="RR from your last rated game"></span>
+          </div>
+          <div id="rank-bar" class="rank-bar" hidden><i id="rank-fill"></i></div>
+          <div id="rank-foot" class="rank-foot" hidden><span id="rank-in"></span><span id="rank-to"></span></div>
+        </section>
+        <section id="top" class="card panel top" aria-label="Repeated mistakes" hidden>
+          <div class="card-head">
+            <span class="label">Repeated mistakes</span>
+            <button id="top-more" class="btn btn-link sm" type="button">All patterns</button>
+          </div>
+          <div id="top-list" class="top-list" role="list"></div>
+        </section>
+      </div>
+      <section id="recent" class="card panel recent" aria-label="Recent matches">
+        <div class="card-head">
+          <span class="label">Recent matches</span>
+          <button id="recent-all" class="btn btn-link sm" type="button">All matches</button>
+        </div>
+        <div id="recent-list" class="recent-list" role="list"></div>
+      </section>
     </div>
   </main>
 

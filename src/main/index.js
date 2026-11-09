@@ -373,6 +373,64 @@ function liveLogSealed() {
   return engine instanceof CoachingEngine && matchInProgress();
 }
 
+/*
+ * THE LIVE STATUS (Progress v3). The owner chose to show, on the Recording
+ * screen while a match is recorded, the four facts the player's own HUD
+ * already shows: the map, their agent, the score and the round. It reverses
+ * 8.0's "nothing reaches the screen" on purpose and stays as narrow as that
+ * choice allows (docs/claude/screen-silence.md): nothing else of the reader's
+ * context ever leaves main (no HP, positions, economy, the enemy, a read, a
+ * tip or anything of a review), only a Valorant match the reader is under
+ * way in, and each fact only while its Settings switch is on, decided here so
+ * a fact switched off never reaches a window. The agent is the one the look
+ * locked (agentConfirmed), the map the one the map lock holds, the score and
+ * the round the guarded scoreboard's. The round tape is the score's history:
+ * a round added to the team is a W, to the enemy an L, and a jump of more
+ * than one (reads missed) is that many rounds of unknown order, drawn as
+ * neither. Checked once a second and sent only when it changed.
+ */
+const LIVE_EVERY_MS = 1000;
+let liveSent = 'null';
+let liveNow = null;
+let liveTape = [];
+let liveLast = null;
+function liveView() {
+  if (!state.isCoaching || !(engine instanceof CoachingEngine)) { liveTape = []; liveLast = null; return null; }
+  if (!matchInProgress()) { liveTape = []; liveLast = null; return { state: 'waiting' }; }
+  const c = engine.matchContext || {};
+  const team = Number.isInteger(c.teamScore) && c.teamScore >= 0 ? c.teamScore : 0;
+  const enemy = Number.isInteger(c.enemyScore) && c.enemyScore >= 0 ? c.enemyScore : 0;
+  // A new match, or a score read lower than before: the tape starts again.
+  if (liveLast && (team < liveLast.team || enemy < liveLast.enemy)) liveTape = [];
+  const before = liveLast || { team: 0, enemy: 0 };
+  const dt = team - before.team, de = enemy - before.enemy;
+  if (dt === 1 && de === 0) liveTape.push('W');
+  else if (de === 1 && dt === 0) liveTape.push('L');
+  else if (dt > 0 || de > 0) for (let i = 0; i < dt + de; i++) liveTape.push('?');
+  liveLast = { team, enemy };
+  const on = (k) => store.get(k) !== false;
+  const out = { state: 'live', startedAt: state.sessionStartedAt || null,
+    mode: c.gameMode === 'swiftplay' || c.gameMode === 'standard' ? c.gameMode : null };
+  if (on('liveMap') && typeof c.map === 'string' && c.map) out.map = c.map;
+  if (on('liveAgent') && c.agentConfirmed && typeof c.agent === 'string' && c.agent) out.agent = c.agent;
+  if (on('liveScore')) { out.team = team; out.enemy = enemy; out.tape = liveTape.slice(-30); }
+  if (on('liveRound') && Number.isInteger(c.roundNumber) && c.roundNumber > 0) out.round = c.roundNumber;
+  return out;
+}
+function pushLive() {
+  let view = null;
+  try { view = liveView(); } catch (e) { view = null; }
+  const text = JSON.stringify(view);
+  if (text === liveSent) return;
+  liveSent = text;
+  liveNow = view;
+  registry.broadcast(C.PUSH_LIVE, view);
+}
+{
+  const t = setInterval(pushLive, LIVE_EVERY_MS);
+  if (t && typeof t.unref === 'function') t.unref();
+}
+
 /**
  * The window's notice line: a licence ending, capture blocked, the server
  * unreachable. There is no tip stream any more; Occlara says nothing about the
@@ -2435,6 +2493,9 @@ const controller = {
     if (action === 'minimize') mainWindow.minimize();
     else if (action === 'maximize') mainWindow.toggleMaximize();
     else if (action === 'close') mainWindow.close();
+    // The account drawer (Progress v3): the page makes room while it is open.
+    else if (action === 'drawer-open') mainWindow.setDrawer(true);
+    else if (action === 'drawer-close') mainWindow.setDrawer(false);
   },
   /** A page of the main window, by its id in src/shared/shell-nav.js. */
   showPage(id) {
@@ -2445,6 +2506,8 @@ const controller = {
   /** A page painted itself armed, and may be let in (main-window.js). */
   pageReady(id, sender) { mainWindow.pageReady(id, sender); },
   getShell() { syncSeal(); return mainWindow.shellState(); },
+  // The live status as it stands (pushLive), for a shell loaded mid match.
+  getLive() { pushLive(); return liveNow; },
   openSettings()  { openPage('settings'); },
   openHistory()   { openPage('matches'); },
   openWeekly()    { weeklyWindow.open(); },

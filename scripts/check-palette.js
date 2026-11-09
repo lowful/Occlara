@@ -116,8 +116,13 @@ const SIGNAL_ALLOWED = {
                             '.btn-rec:active:not(:disabled):not(.active)',
                             '.btn-ghost.danger:hover:not(:disabled)', '.sig-dot'],
   'shell/shell.css':       ['.rec.live', '.toggle.active .t-ico', '.win-btn.close:hover',
-                            '.sealed h1::before', '.top-notice.urgent::before'],
+                            '.sealed h1::before', '.top-notice.urgent::before',
+                            // Progress v3: the live status's still dot before Recording.
+                            '.live-dot'],
   'settings/settings.css': ['.rec-clear.armed'],
+  // Progress v3: Home's Start strip is ringed in the signal at low opacity,
+  // the strip Start sits in, so the eye goes to it first. On purpose.
+  'home/home.css':         ['.start-strip'],
 };
 /** The rules of a stylesheet that name the signal and are not its places. */
 function strayReds(rel, css) {

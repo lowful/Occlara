@@ -133,6 +133,9 @@
              A review with no grade to show keeps the result and the
              scoreboard alone. -->
         <section class="vd" id="v-verdict">
+          <!-- Progress v3: the match's map dimmed behind the Verdict, a
+               bundled file under one flat scrim (review.js paintVerdictArt). -->
+          <div id="v-art" class="vd-art" aria-hidden="true" hidden></div>
           <div class="vd-top">
             <div class="vd-who">
               <span id="v-icon" class="vd-icon" hidden></span>
@@ -158,9 +161,15 @@
                is read before anything is counted. Last match's top mistake
                and how it went in this one above it (progress.js focus). -->
           <div id="v-focus-wrap" class="v-focus" hidden>
-            <p id="v-focus-was" class="v-focus-was" hidden></p>
             <div class="v-focus-label">Next match</div>
             <p id="v-focus" class="v-focus-text"></p>
+            <!-- How last match's top mistake went, one quiet line UNDER the
+                 fix with its own label (it stood over "Next match" and read
+                 like a leftover). -->
+            <div id="v-focus-was-wrap" class="v-focus-was-wrap" hidden>
+              <span class="v-focus-label">Your last fix, checked</span>
+              <p id="v-focus-was" class="v-focus-was" hidden></p>
+            </div>
           </div>
           <div id="v-stats-wrap" class="v-stats-wrap" hidden>
             <div id="v-stats" class="v-stats"></div>
@@ -206,7 +215,7 @@
           <ul id="v-refused" class="r-refused"></ul>
         </details>
 
-        <p class="v-foot">Read silently. Nothing was shown on your screen while you played.</p>
+        <p class="v-foot">Read silently. Nothing was coached on your screen while you played.</p>
       </div>
 
       <div id="review" hidden>

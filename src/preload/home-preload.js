@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const GAMES = require('../shared/games');
 const { homeModel, rankModel, rrForRows, rrWaiting } = require('../shared/home-model');
+const { iconOf, mapArtOf } = require('../shared/agent-icons');
 const { pageMotion } = require('./page-motion');
 
 /**
@@ -20,6 +21,48 @@ function subscribe(channel, cb) {
   const h = (_e, payload) => cb(payload);
   ipcRenderer.on(channel, h);
   return () => ipcRenderer.removeListener(channel, h);
+}
+
+/** A path under assets/ as the page loads it, or null. */
+const asset = (rel) => (rel ? `../../../assets/${rel}` : null);
+
+/*
+ * PROGRESS V3, THE ART: the last match's map behind its card and the agent's
+ * portrait in it, and each recent row's agent, from the bundled files
+ * (sync:mapart, sync:agenticons), and only a name the generated data knows
+ * gets one (agent-icons.js). Valorant's alone.
+ */
+function artOf(game, model) {
+  if (game !== 'valorant' || !model) return { last: null, rows: {} };
+  const last = model.last ? { agent: asset(iconOf('valorant', model.last.title)), map: asset(mapArtOf(model.last.map)) } : null;
+  const rows = {};
+  for (const r of model.recent || []) rows[r.id] = { agent: asset(iconOf('valorant', r.title)), map: asset(mapArtOf(r.map)) };
+  return { last, rows };
+}
+
+/*
+ * THE FIX CARD'S PICTURE: the first death the coach looked at in the newest
+ * whole review that left something to see, its kept clip's poster (the
+ * still nearest the death from before it, as the review's player shows it,
+ * review.js posterOf) and whether the clip itself is still on disk. Null
+ * when no look kept a clip or a still: the card then falls back to the map.
+ */
+function fixClipOf(review) {
+  if (!review || !Array.isArray(review.rounds)) return null;
+  const frames = review.frameData && typeof review.frameData === 'object' ? review.frameData : {};
+  for (const c of review.rounds) {
+    const f = c && c.forensics;
+    if (!f || !Number.isInteger(c.n)) continue;
+    const names = Array.isArray(f.frames) ? f.frames : [];
+    const at = Array.isArray(f.frameAt) && f.frameAt.length === names.length ? f.frameAt : null;
+    const shots = names.map((name, i) => ({ src: frames[name], at: at ? at[i] : null })).filter((x) => typeof x.src === 'string' && x.src.startsWith('data:image/'));
+    const before = shots.filter((x) => typeof x.at === 'number' && x.at < 0);
+    const poster = (before.length ? before[before.length - 1] : shots[0] || {}).src || null;
+    const clip = typeof f.clipUrl === 'string' && !!f.clipUrl;
+    if (!poster && !clip) continue;
+    return { round: c.n, place: typeof c.spot === 'string' && c.spot ? c.spot : null, poster, clip, gone: !clip && !!f.clipGone };
+  }
+  return null;
 }
 
 contextBridge.exposeInMainWorld('occlara', {
@@ -41,7 +84,8 @@ contextBridge.exposeInMainWorld('occlara', {
     // one before it lends its fix (home-model.js focusPrevious).
     const writing = !!(list[0] && list[0].work) && !(review && typeof review.focus === 'string' && review.focus.trim());
     const before = writing && list[1] ? await ipcRenderer.invoke(C.REVIEW_GET, list[1].id).catch(() => null) : null;
-    return homeModel({ rows: list, patterns, review, previous: before });
+    const model = homeModel({ rows: list, patterns, review, previous: before });
+    return { ...model, art: artOf(game, model), fix: fixClipOf(review) };
   },
   /**
    * The rank card and the RR of each rated match in the library, by id, from
@@ -61,7 +105,10 @@ contextBridge.exposeInMainWorld('occlara', {
     return { card: rankModel(history), rr, waiting: rrWaiting(rows, rr, Date.now()) };
   },
   games:      () => GAMES.list(true).map((g) => ({ id: g.id, label: g.label })),
-  openReview: (id) => ipcRenderer.send(C.REVIEW_OPEN, id),
+  // A review, at one of its rounds when given (the Fix card's clip, as Moments opens one).
+  openReview: (id, round) => (Number.isInteger(round) && round > 0 ? ipcRenderer.send(C.REVIEW_OPEN, id, round) : ipcRenderer.send(C.REVIEW_OPEN, id)),
+  // The Start strip (Progress v3): the same Start as the sidebar's.
+  startCoaching: () => ipcRenderer.send(C.COACH_START),
   // The eye on the last match: the review's id only, and main finds its frames.
   openAiLog:  (id) => ipcRenderer.send(C.REVIEW_AILOG, id),
   go:         (page) => ipcRenderer.send(C.SHELL_NAV, page),

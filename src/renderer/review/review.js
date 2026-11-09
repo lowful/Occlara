@@ -183,6 +183,7 @@ function paintValorant(r, verdict) {
   // measured, grade.js). AS THE SHARE IMAGE DRAWS IT (8.8): the agent's icon
   // in its tile, no VERDICT word, and the standout where the reason was.
   paintVerdictIcon($('v-icon'), verdict);
+  paintVerdictArt($('v-art'), g.map);
   $('v-grade').replaceChildren(verdict ? verdictGrade(verdict) : notGraded(
     r.grade && typeof r.grade.score !== 'number' ? 'Not enough measured to grade this match' : 'Not graded'));
   $('v-grade').hidden = false;
@@ -234,6 +235,7 @@ function paintValorant(r, verdict) {
   // Last match's result on its top mistake comes with the progress, after.
   $('v-focus-was').hidden = true;
   $('v-focus-was').textContent = '';
+  $('v-focus-was-wrap').hidden = true;
 
   paintComps(r);
   paintPatterns(r);
@@ -283,6 +285,21 @@ function notGraded(text) {
  * same two bundled shapes only, and one that fails to load takes its tile
  * away. No icon, or no standout, and the slot is hidden.
  */
+/** The map behind the Verdict (Progress v3), or nothing without its file. */
+function paintVerdictArt(host, map) {
+  if (!host) return;
+  host.replaceChildren();
+  const url = typeof window.occlara.mapArt === 'function' ? window.occlara.mapArt(map) : null;
+  host.hidden = !url;
+  if (!url) return;
+  const img = document.createElement('img');
+  img.className = 'vd-art-img';
+  img.src = url;
+  img.alt = '';
+  img.addEventListener('error', () => { host.replaceChildren(); host.hidden = true; });
+  host.append(img, Object.assign(document.createElement('div'), { className: 'vd-art-scrim' }));
+}
+
 function paintVerdictIcon(host, v) {
   host.replaceChildren();
   const url = v && v.icon && window.VerdictCard && typeof window.VerdictCard.iconUrl === 'function'
@@ -452,6 +469,7 @@ function paintProgress(r) {
       was.textContent = focusLine.text;
       was.className = 'v-focus-was ' + (focusLine.tone || 'even');
       was.hidden = false;
+      $('v-focus-was-wrap').hidden = false;
     }
   }).catch(() => {});
 }
@@ -1252,7 +1270,17 @@ function paintCommon(r, at, verdict) {
   // number, so the card keeps the categories and their evidence (8.7).
   // A Valorant review's header says the letter and the number, or that there
   // is none (8.7, notGraded), so its card is always the categories alone.
-  if (r.grade) gHost.append(window.GradeView.gradeCard(r.grade, { compact: !!verdict || r.kind === 'valorant', reveal: true }));
+  if (r.grade) {
+    const card = window.GradeView.gradeCard(r.grade, { compact: !!verdict || r.kind === 'valorant', reveal: true,
+      onAddRiot: () => window.occlara.openSettings() });
+    gHost.append(card);
+    // The one action is only worth drawing without a Riot ID: with one, the
+    // record is what is missing and Settings has nothing to add.
+    const btn = card.querySelector('.gv-empty .btn');
+    if (btn && typeof window.occlara.getConfig === 'function') {
+      Promise.resolve(window.occlara.getConfig()).then((c) => { if (c && String(c.riotId || '').includes('#')) btn.remove(); }).catch(() => {});
+    }
+  }
   if (r.insights) {
     iHost.append(window.GradeView.insightLists(r.insights, {
       hero: true,

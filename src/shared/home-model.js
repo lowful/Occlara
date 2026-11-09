@@ -121,6 +121,11 @@ function homeModel({ rows, patterns, review, previous }) {
     fix: first.fix || null,
     trend: first.trend || null,
   } : null;
+  // Progress v3: the four most repeated, each with how often it happened
+  // (its total over the recorded matches) and in how many of them.
+  const mistakes = (Array.isArray(p.mistakes) ? p.mistakes : []).slice(0, 4)
+    .filter((m) => m && typeof m.title === 'string' && m.title)
+    .map((m) => ({ title: m.title, total: Number.isFinite(m.total) ? m.total : null, matches: Number.isFinite(m.matches) ? m.matches : null }));
 
   const grades = Array.isArray(p.grades) ? p.grades : [];
   const trend = grades.slice(0, TREND).reverse().map((g) => {
@@ -140,6 +145,8 @@ function homeModel({ rows, patterns, review, previous }) {
     focus: noSemicolons(ownFocus || prevFocus),
     focusPrevious: !!prevFocus,
     top,
+    mistakes,
+    recorded: Number.isFinite(p.recorded) ? p.recorded : null,
     trend,
     average: grades.length >= 2 && typeof p.average === 'number' ? p.average : null,
     // The newest match's first progress line (8.7, progress.js libraryProgress),
@@ -196,6 +203,12 @@ const gameRR = (p) => typeof p.elo === 'number' && p.elo > 0 && Number.isFinite(
  *   change is null when no game's RR is known; line is the journey's elos,
  *   oldest first, and empty below two points, because one point draws no line
  */
+function inTier(p) {
+  if (!p || typeof p.elo !== 'number' || /immortal|radiant/i.test(String(p.tier || ''))) return null;
+  const rr = p.elo % 100;
+  return Number.isInteger(rr) && rr >= 0 && rr < 100 ? rr : null;
+}
+
 function rankModel(history) {
   const points = pointsOf(history);
   const rated = points.filter(isRated);
@@ -213,6 +226,10 @@ function rankModel(history) {
     line: journey.length >= 2 ? journey.map((p) => p.elo) : [],
     games: journey.length,
     from: journey[0].tier,
+    // The RR inside the tier (Progress v3, the rank card's bar): Riot's elo
+    // is the tier's place times 100 plus the RR, so the RR is its last two
+    // digits, and only below Immortal, where the RR is not capped at 100.
+    rr: inTier(rated[rated.length - 1]),
   };
 }
 

@@ -167,6 +167,59 @@
         </details>
       </section>
 
+      <!-- MATCH STATUS WHILE RECORDING (Progress v3, the owner's choice): what
+           the Recording screen may show mid match, one switch each, all on by
+           default. Only what your own HUD already shows; nothing that tells you
+           what to do. Main leaves out what is off (index.js liveView). -->
+      <section class="group" id="live-group">
+        <div class="row">
+          <div class="row-text">
+            <h3>Match status while recording</h3>
+            <p class="hint">What the Recording screen shows while you play. Only what your own HUD already shows, and never a tip: your review stays locked until the match ends.</p>
+          </div>
+        </div>
+        <div class="row sub">
+          <div class="row-text">
+            <h4>Map</h4>
+            <p class="hint">The map you are playing on, with its art behind the card.</p>
+          </div>
+          <div class="seg ctl" id="livemap">
+            <button data-val="on">On</button>
+            <button data-val="off">Off</button>
+          </div>
+        </div>
+        <div class="row sub">
+          <div class="row-text">
+            <h4>Agent</h4>
+            <p class="hint">Your agent and its portrait, once it is read off your own HUD.</p>
+          </div>
+          <div class="seg ctl" id="liveagent">
+            <button data-val="on">On</button>
+            <button data-val="off">Off</button>
+          </div>
+        </div>
+        <div class="row sub">
+          <div class="row-text">
+            <h4>Score</h4>
+            <p class="hint">The score, and the round tape it draws as rounds are won and lost.</p>
+          </div>
+          <div class="seg ctl" id="livescore">
+            <button data-val="on">On</button>
+            <button data-val="off">Off</button>
+          </div>
+        </div>
+        <div class="row sub">
+          <div class="row-text">
+            <h4>Round</h4>
+            <p class="hint">The round being played.</p>
+          </div>
+          <div class="seg ctl" id="liveround">
+            <button data-val="on">On</button>
+            <button data-val="off">Off</button>
+          </div>
+        </div>
+      </section>
+
       <section class="group">
         <div class="row">
           <div class="row-text">

@@ -1,6 +1,6 @@
 {
   "name": "occlara",
-  "version": "8.8.1",
+  "version": "8.9.0",
   "description": "Occlara, an AI coach for Valorant, with League of Legends coming soon. Reads the screen, never the game, shows nothing during a match, and grades every match when it ends.",
   "main": "src/main/index.js",
   "scripts": {
@@ -46,6 +46,7 @@
     "sync:changelog": "node scripts/sync-changelog.js",
     "sync:lol": "node scripts/sync-lol.js",
     "sync:agenticons": "node scripts/sync-agent-icons.js",
+    "sync:mapart": "node scripts/sync-map-art.js",
     "sync:patch": "node scripts/sync-patch-notes.js",
     "sync:valorant": "node scripts/sync-valorant-data.js",
     "sync:weaponicons": "node scripts/sync-weapon-icons.js",

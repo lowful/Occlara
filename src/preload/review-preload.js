@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const { pageMotion } = require('./page-motion');
 const verdict = require('../shared/verdict');
+const { mapArtOf } = require('../shared/agent-icons');
 
 /**
  * Bridge for the post-game review.
@@ -43,6 +44,12 @@ contextBridge.exposeInMainWorld('occlara', {
   // The Verdict at the top of a graded review (8.6.0, shared/verdict.js),
   // built here so the page does no counting of its own.
   verdictOf: (r) => verdict.of(r),
+  // The map's bundled splash behind the Verdict (Progress v3), or null: only
+  // a map the generated data lists gets one (agent-icons.js mapArtOf).
+  mapArt: (name) => {
+    const rel = mapArtOf(name);
+    return rel ? `../../../assets/${rel}` : null;
+  },
   // This review against the ones before it (8.7, shared/progress.js): its
   // finished lines and the counts beside them, or null.
   progressOf: (id) => ipcRenderer.invoke(C.PROGRESS_GET, id),
@@ -66,5 +73,9 @@ contextBridge.exposeInMainWorld('occlara', {
   getAccount:  () => ipcRenderer.invoke(C.ACCOUNT_GET),
   openUpgrade: () => ipcRenderer.send(C.OPEN_UPGRADE),
   openInvite:  () => ipcRenderer.send(C.SHELL_NAV, 'invite'),
+  // The grade's empty state offers the Riot ID (Settings), and asks the config
+  // whether one is set already, so the button is only drawn without one.
+  openSettings: () => ipcRenderer.send(C.SHELL_NAV, 'settings'),
+  getConfig:    () => ipcRenderer.invoke(C.CONFIG_GET),
   close:     () => window.close(),
 });

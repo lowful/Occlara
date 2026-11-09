@@ -39,4 +39,18 @@ function iconOf(game, name) {
   return null;
 }
 
-module.exports = { iconOf, iconKey };
+const MAPS = new Map((valorant.maps || []).map((n) => [iconKey(n).toLowerCase(), iconKey(n)]));
+
+/**
+ * A Valorant map's splash, relative to assets/, or null (Progress v3: drawn
+ * dimmed behind the last match, the review's header and the Recording
+ * screen). Written by npm run sync:mapart; only a map the generated data
+ * lists gets a path, so a misread never asks for a file.
+ */
+function mapArtOf(name) {
+  if (typeof name !== 'string' || !name.trim() || name.includes('#')) return null;
+  const key = MAPS.get(iconKey(name).toLowerCase());
+  return key ? `valorant/maps/${key}.jpg` : null;
+}
+
+module.exports = { iconOf, iconKey, mapArtOf };

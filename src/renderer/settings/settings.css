@@ -255,3 +255,13 @@ html.embedded #gamepick { display: none !important; }
 .acct-out, .acct-wait { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); max-width: 72ch; }
 .acct-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .acct-actions [hidden] { display: none; }
+
+/* Match status while recording (Progress v3): its four switches as rows under
+   the group's heading, each a name, one line and its capsule. */
+.row.sub { padding-top: var(--space-3); }
+.row.sub h4 { font-size: 14px; font-weight: 500; line-height: 1.3; color: var(--text); }
+
+/* PROGRESS V3: a group is a card on the ground, as Home's are. */
+.body { gap: var(--space-4); }
+.group, .group.first { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }
+.wip { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }

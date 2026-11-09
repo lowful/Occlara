@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const GAMES = require('../shared/games');
 const { winLoss } = require('../shared/home-model');
+const { iconOf } = require('../shared/agent-icons');
 const { pageMotion } = require('./page-motion');
 
 /**
@@ -30,6 +31,12 @@ contextBridge.exposeInMainWorld('occlara', {
   listReviews:  (game) => ipcRenderer.invoke(C.REVIEWS_LIST, game || null),
   /** { wins, losses, draws, unknown } in the rows listReviews returned. */
   winLoss:      (rows) => winLoss(rows),
+  // An agent's bundled portrait as the page loads it (Progress v3), or null:
+  // only a name the generated data knows gets one (agent-icons.js).
+  agentArt:     (game, name) => {
+    const rel = iconOf(game, name);
+    return rel ? `../../../assets/${rel}` : null;
+  },
   getPatterns:  (game) => ipcRenderer.invoke(C.PATTERNS_GET, game || null),
   // Each rated row's RR chip, by row id (8.7.9, REVIEWS_RR): {} for League.
   getRR:        (game) => ipcRenderer.invoke(C.REVIEWS_RR, game || null),

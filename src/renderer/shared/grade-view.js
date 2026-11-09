@@ -127,8 +127,27 @@
       card.append(top);
     }
 
+    // NOTHING MEASURED (Progress v3): a match with no Riot record has every
+    // category unmeasured, and four "not measured" rows with one sentence read
+    // half empty. It is one panel instead: what is missing, why, and the one
+    // thing to do (opts.onAddRiot draws "Add your Riot ID").
+    const all = grade.categories || [];
+    if (all.length && all.every((c) => c.score === null) && !o.keepRows) {
+      const box = el('div', 'gv-empty');
+      box.append(el('b', 'gv-empty-title', 'The grade needs Riot\'s record'));
+      box.append(el('p', 'gv-empty-line', (grade.notes && grade.notes[0]) || 'Survival, impact, teamplay and decisions are counted from Riot\'s record of the match, so there is nothing to grade yet.'));
+      if (typeof o.onAddRiot === 'function') {
+        const b = el('button', 'btn btn-primary sm', 'Add your Riot ID');
+        b.type = 'button';
+        b.addEventListener('click', o.onAddRiot);
+        box.append(b);
+      }
+      card.append(box);
+      card.classList.add('empty');
+      return card;
+    }
     const cats = el('div', 'gv-cats');
-    (grade.categories || []).forEach((c, i) => {
+    all.forEach((c, i) => {
       const row = el('div', 'gv-cat' + (c.score === null ? ' unmeasured' : ''));
       const head = el('div', 'gv-cat-head');
       head.append(el('span', 'gv-cat-name', c.label));
@@ -366,7 +385,52 @@
     return ul;
   }
 
-  const api = { gradeCard, insightLists, factList, roundChips, progressStrip, chip, LEAD_NUM, letter, letterOf, tone, scoreTone, gradeTone, checking, el };
+  /** "9:46", the hour and minutes alone, for the grade line's foot. */
+  function clock(at) {
+    if (!at) return '';
+    const d = new Date(at);
+    const h = d.getHours() % 12 || 12;
+    return `${h}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /*
+   * THE GRADE LINE (Progress v3): grades as a line, oldest on the left, each
+   * a dot with its number over it and its time under it, the newest larger
+   * and filled. Home's last match, Matches' side card. Drawn in its own
+   * pixels at the size asked (no stretch), so the dots stay round; under two
+   * grades it draws nothing. `points` is [{ score, at }], oldest first.
+   */
+  function gradeLine(points, w, h) {
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    const pts = (Array.isArray(points) ? points : []).filter((t) => t && Number.isFinite(Number(t.score)));
+    if (pts.length < 2) return null;
+    const v = pts.map((t) => Number(t.score));
+    const lo = Math.min(...v), hi = Math.max(...v);
+    const span = Math.max(hi - lo, 8);
+    const mid = (lo + hi) / 2;
+    const top = 28, bottom = h - 26;
+    const x = (i) => 18 + i * ((w - 36) / (v.length - 1));
+    const y = (n) => (top + bottom) / 2 - ((n - mid) / span) * (bottom - top);
+    const mk = (tag, attrs, text) => {
+      const n = document.createElementNS(SVGNS, tag);
+      for (const [k, val] of Object.entries(attrs)) n.setAttribute(k, String(val));
+      if (text !== undefined) n.textContent = text;
+      return n;
+    };
+    const svg = mk('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, class: 'grade-line', role: 'img',
+      'aria-label': `Grades ${v.join(', ')}, oldest first` });
+    svg.append(mk('polyline', { points: v.map((n, i) => `${x(i).toFixed(1)},${y(n).toFixed(1)}`).join(' '), class: 'gl-line' }));
+    v.forEach((n, i) => {
+      const last = i === v.length - 1;
+      svg.append(
+        mk('circle', { cx: x(i).toFixed(1), cy: y(n).toFixed(1), r: last ? 6 : 4, class: 'gl-dot' + (last ? ' now' : '') }),
+        mk('text', { x: x(i).toFixed(1), y: (y(n) - 12).toFixed(1), class: 'gl-num' + (last ? ' now' : '') }, String(n)),
+        mk('text', { x: x(i).toFixed(1), y: h - 4, class: 'gl-time' }, clock(pts[i].at)));
+    });
+    return svg;
+  }
+
+  const api = { gradeLine, gradeCard, insightLists, factList, roundChips, progressStrip, chip, LEAD_NUM, letter, letterOf, tone, scoreTone, gradeTone, checking, el };
   if (typeof window !== 'undefined') window.GradeView = api;
   // Node, for the test that holds the colour rule to grade.js. Nothing here
   // touches the DOM until a card is drawn, so requiring it is safe.

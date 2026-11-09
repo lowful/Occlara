@@ -1,4 +1,4 @@
-# Occlara's visual system, as built (8.7, The Training Log)
+# Occlara's visual system, as built (Progress v3, over 8.7's Training Log)
 
 This records what the renderer draws today, read from `src/renderer/shared/theme.css`,
 `ui.css`, `seg.js` and the surface stylesheets. The rules for working on it are in
@@ -6,7 +6,45 @@ This records what the renderer draws today, read from `src/renderer/shared/theme
 `docs/claude/ui.md`. When the code and this file disagree, fix one of them in the
 same change.
 
-## The idea
+## Progress v3 (what changed, and what it overrides below)
+
+The owner approved Progress v3 (Fomo style). Where it disagrees with the 8.7
+sections further down, this section wins.
+
+- **Ground and surfaces.** `--bg` is indigo black `#07080C`. Content sits on
+  four surface steps, `--s1` `#0B0D12` (a card), `--s2` `#10131A` (a tile in a
+  card, a hovered row), `--s3` `#161A23` (a chip, a control's fill), `--s4`
+  `#1D212C` (a pill, the RR chip), each told from the ground by a low opacity
+  ring (`--rim` white at .07, `--rim-2` at .14) rather than a border or a
+  shadow. A card is `--r-panel` (20px), a tile `--r-tile` (16px).
+- **Cards are back, art led.** Home, Matches, the review's Verdict and the
+  Recording screen use cards. Art carries the colour: the map's splash
+  (`assets/valorant/maps`, `npm run sync:mapart`) dimmed behind a card under
+  one flat `--scrim`, the agent's portrait (`assets/valorant/agents`) as a
+  ringed circle, a kept clip's poster under the fix. Still no gradient and no
+  glow: a scrim is one flat colour.
+- **Start is the loudest thing.** Home opens on the Start strip, ringed in the
+  signal at .42 (a place of the signal, `check-palette.js SIGNAL_ALLOWED`),
+  with Start at 60px (`.btn-rec.xl`). No shortcut hint: Ctrl+Shift+S is
+  Settings and Start has no key of its own.
+- **Big numbers.** The grade is the hero number (76px on Home, 84px on the
+  review, 38px a row in Matches) with its letter beside it and its change
+  since the match before as a tinted pill (`.delta`, `.m-delta`). The grade
+  line (`GradeView.gradeLine`) draws the last grades as dots on a line.
+- **The live status** is the Recording screen in a Valorant match: the map
+  card with agent, score and round, the round tape and the locked review
+  ring (`docs/claude/screen-silence.md`).
+- **Top navigation.** No sidebar: a 64px bar on the ground with the crescent
+  and Occlara, pill tabs (the current one on a sliding `--s3` pill with the
+  `--rim-2` ring), the game switch, a compact 40px Start on every page but
+  Home (Home's strip carries the 60px one), the avatar and the window's
+  buttons. Mid match the tabs dim and Stop is the 44px capsule. Profile,
+  Invite, Settings, Report a problem, the Discord, the Riot ID and games
+  left are rows of the account drawer the avatar opens, an `--s1` panel at
+  the right with the ring.
+- **Type** is unchanged: Geist and Geist Mono only.
+
+## The idea (8.7)
 
 Every match is one ruled entry in a training log. Content is grouped by hairline
 rules and whitespace, never by cards. The one thing to do differently next match
@@ -21,8 +59,9 @@ literal outside it).
 
 | Token | Value | Job |
 | --- | --- | --- |
-| `--bg` | `#0A0B0E` | the ground of every surface, cool charcoal |
-| `--bg-2` | `#0F1116` | a second ground, now rarely used (the rail sits on `--bg`) |
+| `--bg` | `#07080C` | the ground of every surface, indigo black (Progress v3) |
+| `--bg-2` | `#0B0D12` | a second ground, the same as `--s1` |
+| `--s1` to `--s4` | `#0B0D12`, `#10131A`, `#161A23`, `#1D212C` | the surface steps (Progress v3) |
 | `--text` | `#F5F5F7` | the ink, 18.1:1 on the ground |
 | `--text-dim` | `#A1A1A6` | support text, 7.7:1 |
 | `--text-mute` | `#808086` | labels and quiet lines, 5.0:1 |
@@ -119,10 +158,9 @@ How each page keeps it:
   changes, and its capsule control on the same row at the right; the explanation
   is folded into a `<details>` line under the row, every word kept. The first
   group has no rule over it: it is the page's hero.
-- **The shell** (`shell.css`): the rail is the page's ground behind one hairline.
-  Its only fills are the marker on the current page, the thumb of the game
-  capsule and the two record capsules. The Recording screen is the crescent,
-  one line and three facts as ruled rows.
+- **The shell** (`shell.css`): the top bar and the account drawer (Progress v3,
+  above); the Recording screen is the live status in a Valorant match and the
+  crescent, one line and two facts as ruled rows held or in League.
 
 ## Capsule controls
 
@@ -251,8 +289,9 @@ reachable by keyboard, and text keeps 4.5:1 on its ground.
 
 ## The signal's places
 
-`--signal` is Start's fill, the live record controls and their Stop icon, the
-Recording screen's live dot, the notice line's urgent dot and a destructive action
+`--signal` is Start's fill, Home's Start strip's ring (Progress v3), the live
+record controls and their Stop icon, the Recording screen's live dot and the
+live status's dot, the notice line's urgent dot and a destructive action
 under the pointer (the window's close, `.btn-ghost.danger`, Clear clips armed).
 `scripts/check-palette.js SIGNAL_ALLOWED` lists the exact rules; no script or page
 may name it. A loss, a D, a lost round, a death and an error line are `--bad`.

@@ -18,16 +18,51 @@ a one week ban with the app flagged as third party. The anti-cheat axis (screen
 capture like OBS) was always clean; the written policy was not. League's policy
 is stricter still (see below). The second half of that sentence is the product.
 
+## The live status, the one exception (Progress v3)
+
+The owner chose, knowing the rule above and the ban behind it, to show the
+match's status on the Recording screen while it is recorded: a deliberate
+reversal, kept as narrow as that choice allows.
+
+- **Only the four facts the player's own HUD already shows**: the map, their
+  agent (the one the look locked, `agentConfirmed`), the score and the round,
+  plus the round tape, which is the score's own history (a round added to the
+  team a W, to the enemy an L, a jump of more than one rounds of unknown
+  order). Never HP, positions, economy, who is alive, the spike, the enemy, a
+  read, a tip, the read cadence, or anything of a review. Nothing on it says
+  what to do. The review stays a locked ring, "Nothing is coached while you
+  play".
+- **Main decides it** (`index.js liveView`, checked once a second, sent only
+  when it changed on `PUSH_LIVE`, `LIVE_GET` for a shell loaded mid match).
+  Only a Valorant match the reader is under way in; `{ state: 'waiting' }`
+  before it is; null when nothing is recorded. Each fact is left out in main
+  while its switch is off (`liveMap`, `liveAgent`, `liveScore`, `liveRound`,
+  on by default, Settings' "Match status while recording" and the screen's
+  own Choose), so a fact switched off never reaches a window.
+- **The pages stay sealed.** The live status is the Recording screen's alone;
+  every page, the AI log, Ask Coach, the eye, Ctrl+Shift+E and the rest below
+  stay exactly as sealed as before. League keeps the quiet screen.
+- **Nothing on it moves** but its arrival and the facts changing: no ticking
+  clock (it says when the recording started), no pulse.
+- **The read cadence line is gone** from the sealed screen
+  (`paintSealedFacts` used to write "Reading your game every 1s in a live
+  round" onto it, a live number about the match).
+- `check:mainwindow` plays a match by and holds the screen to the four facts
+  and the tape, and to none of the HP, credits, players alive, spot and spike
+  the reader's context also held.
+- The public site's fair-play copy and FAQ still say nothing is shown mid
+  match; they live in the website repo and must change with this.
+
 What still counts as "reaching the screen", and is sealed mid match:
 
 - The main window shows no page at all mid match, only a Recording screen, and
   its sidebar's pages are locked (`syncSeal`, below under The UI), because an
   open page on a second monitor is the same live feed. A stop in the middle of
-  a match holds that seal until the player opens a page. The screen's look
-  changed in 8.7 (the crescent, one line, the three facts as ruled rows,
-  `shell.css .sealed`) and its behaviour did not: it rises in once and nothing
-  on it moves after that, the live dot never pulses, and no capsule thumb or
-  reveal runs while it is up.
+  a match holds that seal until the player opens a page. Held, and in League,
+  the screen is the quiet one (the crescent, one line, two facts as ruled rows,
+  `shell.css .sealed-quiet`); in a Valorant match it is the live status above.
+  It rises in once, the live dot never pulses, and no capsule thumb or reveal
+  runs while it is up.
 - The corner mark, the always on top crescent the window leaves at the top
   right of the screen while it is hidden, goes while the seal is on, live or
   held, and comes back once it lifts with the window still hidden (8.3.2,

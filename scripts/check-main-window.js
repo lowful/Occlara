@@ -201,62 +201,46 @@ setTimeout(async () => {
     if (gamesLine !== SEEDED_VIEW.gamesLeft || gamesLine !== 'You have used your 2 free games' || homeGames) {
       return report(false, `the rail's games line reads "${gamesLine}", not main's "${SEEDED_VIEW.gamesLeft}" (copy on Home: ${homeGames})`);
     }
-    // THE INVITE AND PROFILE BUTTONS (8.7, 8.8), in the sidebar's foot: Invite,
-    // then Profile directly above Settings, one column, no gap between them.
-    const footer = await sjs(`(() => {
-      const f = document.querySelector('.side .foot');
-      const kids = [...f.children].filter((c) => !c.hidden).map((c) => c.dataset.page || c.id);
-      const inv = document.getElementById('nav-invite').getBoundingClientRect();
-      const pro = document.getElementById('nav-profile').getBoundingClientRect();
-      const set = document.getElementById('nav-settings').getBoundingClientRect();
-      // Report a problem (docs/claude/feedback.md): at the end of Profile's
-      // row, in the Discord's column, directly above it.
-      const rep = document.getElementById('nav-feedback').getBoundingClientRect();
-      const dc = document.getElementById('discord').getBoundingClientRect();
-      return { kids: kids.join(), text: document.getElementById('nav-invite').textContent.trim(), profile: document.getElementById('nav-profile').textContent.trim(),
-        gap: Math.round(pro.top - inv.bottom), gap2: Math.round(set.top - pro.bottom), sameX: inv.left === set.left && pro.left === set.left,
-        report: { row: Math.round(rep.top) === Math.round(pro.top), right: rep.left >= pro.right, aboveDiscord: Math.round(rep.left) === Math.round(dc.left)
-          && Math.round(rep.width) === Math.round(dc.width) && dc.top >= rep.bottom && dc.top - rep.bottom <= 4 } };
-    })()`);
-    lines.push(`sidebar foot: ${JSON.stringify(footer)}`);
-    if (!footer.kids.startsWith('invite,profile,feedback,settings') || footer.text !== 'Invite' || footer.profile !== 'Profile'
-      || !footer.report.row || !footer.report.right || !footer.report.aboveDiscord
-      || footer.gap < 0 || footer.gap > 4 || footer.gap2 < 0 || footer.gap2 > 4 || !footer.sameX) {
-      return report(false, `the Invite and Profile buttons are not directly above Settings in the sidebar's foot: ${JSON.stringify(footer)}`);
-    }    // THE RECORD CARD IS ITS TWO BUTTONS (8.3), measured on the real layout:
-    // no line of text under them, and the card's one padding the same above
-    // them as below.
-    const card = await sjs(`(() => {
+    // TOP NAVIGATION (Progress v3): the bar is TOP_H tall across the window,
+    // the tabs in it; on Home, not recording, the bar draws no Start (the
+    // page's Start strip is the big one) and no pause; the avatar opens the
+    // drawer, where Profile, Invite, Settings, Report a problem and the
+    // Discord are, every one of them a button, and the page makes room for it.
+    const barNow = () => sjs(`(() => {
+      const bar = document.querySelector('.bar').getBoundingClientRect();
       const rec = document.getElementById('rec');
-      const r = rec.getBoundingClientRect();
-      const b = rec.querySelector('.rec-controls').getBoundingClientRect();
-      const texts = [...rec.querySelectorAll('p')].filter((p) => getComputedStyle(p).display !== 'none' && p.getBoundingClientRect().height > 0);
-      return { line: !!document.getElementById('line'), texts: texts.length, buttons: rec.querySelectorAll('.rec-controls button').length,
-        height: Math.round(r.height), controls: Math.round(b.height), above: Math.round(b.top - r.top), below: Math.round(r.bottom - b.bottom) };
+      const d = document.getElementById('drawer');
+      return { h: Math.round(bar.height), w: Math.round(bar.width), tabs: document.querySelectorAll('.bar #nav .nav-item').length,
+        rec: getComputedStyle(rec).display !== 'none', pause: getComputedStyle(document.getElementById('pause')).display !== 'none',
+        drawer: !d.hidden, kids: [...d.querySelectorAll('.foot > button')].filter((c) => !c.hidden).map((c) => c.dataset.page || c.id).join(),
+        games: (document.getElementById('rail-games') || {}).textContent || '', inDrawer: !!d.querySelector('#rail-games') && !!d.querySelector('#account') };
     })()`);
-    lines.push(`record card: ${JSON.stringify(card)}`);
-    if (card.line || card.texts || card.buttons !== 2) return report(false, `the record card is not its two buttons alone: ${JSON.stringify(card)}`);
-    if (card.controls !== 48 || card.above !== card.below) return report(false, `the record card is not balanced on its buttons: ${JSON.stringify(card)}`);
-    // THE GRADE TREND KEEPS ITS HEIGHT (8.7), measured on the real layout:
-    // with Recent matches beside it made tall, the bars stay 120px tall over
-    // their baseline rather than growing into a second hero, no map is
-    // printed under a bar, and the tallest bar is its grade of the whole
-    // track.
-    const fill = await hjs(`(async () => {
-      const recentCard = document.getElementById('recent');
-      recentCard.style.minHeight = '440px';
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const trend = document.getElementById('trend');
-      const bars = trend.querySelector('.bars').getBoundingClientRect();
-      const track = trend.querySelector('.bar-track').getBoundingClientRect().height;
-      const bar = Math.max(...[...trend.querySelectorAll('.bar')].map((b) => b.getBoundingClientRect().height));
-      const maps = trend.querySelectorAll('.bar-map').length;
-      recentCard.style.minHeight = '';
-      return { bars: Math.round(bars.height), track: Math.round(track), bar: Math.round(bar), maps };
+    const bar = await barNow();
+    lines.push(`top bar on Home: ${JSON.stringify(bar)} errs=${errs.join(" | ")}`);
+    if (bar.h !== mainWindow.TOP_H || bar.tabs !== 6 || bar.rec || bar.pause || bar.drawer || !bar.inDrawer) {
+      return report(false, `the top bar on Home is not the tabs without a Start of its own: ${JSON.stringify(bar)}`);
+    }
+    if (bar.kids !== 'profile,invite,settings,feedback,discord') return report(false, `the drawer does not hold every page the sidebar's foot did: ${bar.kids}`);
+    const card = { height: 0 };
+    // THE GRADE LINE (Progress v3) at the foot of the last match: one dot a
+    // graded match, oldest first, the newest the match's own grade, inside
+    // its card; and the card carries its map behind it and its agent's
+    // portrait, both bundled files that loaded.
+    const fill = await hjs(`(() => {
+      const last = document.getElementById('last');
+      const svg = last.querySelector('.grade-line');
+      const nums = svg ? [...svg.querySelectorAll('.gl-num')].map((t) => t.textContent) : [];
+      const box = last.getBoundingClientRect();
+      const lb = svg ? svg.getBoundingClientRect() : null;
+      const map = last.querySelector('.art-img');
+      const face = last.querySelector('.agent-face');
+      return { dots: svg ? svg.querySelectorAll('.gl-dot').length : 0, nums, inside: !!lb && lb.bottom <= box.bottom && lb.right <= box.right,
+        map: !!(map && map.complete && map.naturalWidth > 0 && /maps\\/Abyss\\.jpg$/.test(map.src)),
+        face: !!(face && face.complete && face.naturalWidth > 0 && /agents\\/Jett\\.png$/.test(face.src)) };
     })()`);
-    lines.push(`home trend beside a tall Recent matches: ${JSON.stringify(fill)} for a grade of ${built.grade.score}`);
-    if (fill.bars !== 120 || fill.maps || Math.abs(fill.bar - Math.round((built.grade.score / 100) * fill.track)) > 2) {
-      return report(false, `the grade trend does not keep its 120px over a tall list: ${JSON.stringify(fill)}`);
+    lines.push(`home grade line and art: ${JSON.stringify(fill)} for a grade of ${built.grade.score}`);
+    if (fill.dots !== SEEDED || fill.nums[fill.nums.length - 1] !== String(built.grade.score) || !fill.inside || !fill.map || !fill.face) {
+      return report(false, `the last match's grade line or its art is wrong: ${JSON.stringify(fill)}`);
     }
     // The window's first page came in (8.2): staged, armed as it loaded, then
     // placed and let in, its cards arriving one after another as it did.
@@ -270,6 +254,18 @@ setTimeout(async () => {
     lines.push(`home came in: placed=${!!homeIn} ${JSON.stringify(homeState)}`);
     if (!homeIn || !homeState || homeState.leaving) return report(false, 'Home, the first page, never came in');
     if (homeState.cards < 3) return report(false, `only ${homeState.cards} of Home's cards arrived one after another`);
+    const homeView = mainWindow.pageViews().get('home');
+    const wideBefore = homeView ? homeView.getBounds().width : 0;
+    await sjs("document.getElementById('menu-btn').click(); true");
+    await wait(300);
+    const opened = await barNow();
+    const wideOpen = homeView ? homeView.getBounds().width : 0;
+    lines.push(`drawer open: ${JSON.stringify(opened)} page ${wideBefore}px to ${wideOpen}px`);
+    if (!opened.drawer || wideBefore - wideOpen !== mainWindow.DRAWER_W) return report(false, `the drawer opened over the page or did not open: ${wideBefore} to ${wideOpen}`);
+    await shot('drawer', mainWindow, win);
+    await sjs("document.getElementById('menu-btn').click(); true");
+    await wait(200);
+    if (homeView && homeView.getBounds().width !== wideBefore) return report(false, 'the page did not take its width back as the drawer closed');
     // WHAT'S NEW: launched as an update, Home says it once, main's words.
     const homeNews = await until(() => hjs(`(() => {
       const n = document.getElementById('h-news');
@@ -280,6 +276,12 @@ setTimeout(async () => {
       return report(false, `Home does not say the app was updated: ${JSON.stringify(homeNews)}`);
     }
     await shot('home', mainWindow, win);
+    if (process.env.OCCLARA_SHOTS === '1') {
+      // The rank, the repeated mistakes and the recent matches under the fold.
+      await hjs("document.getElementById('recent').scrollIntoView({ block: 'end' }); true");
+      await shot('home-lower', mainWindow, win);
+      await hjs("document.querySelector('.home').scrollTo(0, 0); true");
+    }
 
     // 3. A page from the sidebar shows beside it, at the sidebar's edge.
     await sjs("document.querySelector('#nav .nav-item[data-page=\"matches\"]').click(); true");
@@ -294,7 +296,7 @@ setTimeout(async () => {
     const b = mv && mv.getBounds();
     lines.push(`matches: shown=${mainWindow.current().shown} visible=${mv && mv.getVisible()} home visible=${hv && hv.getVisible()} bounds=${JSON.stringify(b)} window=${w}x${h}`);
     if (!mv || !mv.getVisible() || (hv && hv.getVisible())) return report(false, 'the Matches page is not the one showing');
-    if (!b || b.x !== mainWindow.SIDEBAR_W || b.y !== mainWindow.TOP_H || b.width !== w - mainWindow.SIDEBAR_W
+    if (!b || b.x !== 0 || b.y !== mainWindow.TOP_H || b.width !== w
       || b.height !== h - mainWindow.TOP_H) return report(false, `the page sits at ${JSON.stringify(b)}`);
     const current = await until(() => sjs("(document.querySelector('.nav-item[aria-current=\"page\"]') || {}).dataset.page"), 3000);
     if (current !== 'matches') return report(false, `the sidebar marks ${current} as the page`);
@@ -303,7 +305,7 @@ setTimeout(async () => {
       const m = document.getElementById('nav-marker');
       const b = document.querySelector('.nav-item[aria-current="page"]');
       const t = new DOMMatrix(getComputedStyle(m).transform);
-      return { on: m.classList.contains('on'), y: Math.round(t.m42), top: b ? b.offsetTop : -1, page: b ? b.dataset.page : null,
+      return { on: m.classList.contains('on'), y: Math.round(t.m41), top: b ? b.offsetLeft : -1, page: b ? b.dataset.page : null,
         markers: document.querySelectorAll('.nav-marker').length,
         itemBg: b ? getComputedStyle(b).backgroundColor : '', hover: !!(b && b.matches(':hover')) };
     })()`);
@@ -534,10 +536,10 @@ setTimeout(async () => {
     // around it still in it; and empty again once it clears.
     const noticeAt = () => sjs(`(() => {
       const n = document.getElementById('notice');
-      const top = document.querySelector('.top');
+      const top = document.querySelector('.bar');
       const t = top.getBoundingClientRect();
       const r = n.getBoundingClientRect();
-      const ctl = document.querySelector('.win-controls').getBoundingClientRect();
+      const ctl = document.querySelector('.bar-end').getBoundingClientRect();
       const cs = getComputedStyle(n);
       const region = (el) => getComputedStyle(el).getPropertyValue('-webkit-app-region') || getComputedStyle(el).webkitAppRegion || '';
       return { hidden: n.hidden, shown: cs.display !== 'none' && r.width > 0, text: n.textContent, title: n.title,
@@ -562,13 +564,14 @@ setTimeout(async () => {
     if (!['400', '500', '600', '700', '800'].includes(String(busy.weight)) || !/Geist/.test(busy.font)) {
       return report(false, `the notice line is drawn in ${busy.font} ${busy.weight}, not a Geist weight that ships`);
     }
-    if (busy.cut) return report(false, `at the default width the busy notice is cut (${busy.width} of ${busy.stripWidth}px), where shell.css says it is whole`);
+    // TOP NAVIGATION (Progress v3): the line sits between the tabs and the
+    // bar's end, so a long one is cut there, whole in its title.
     await shot('notice', mainWindow, win);
     shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: { text: BLOCKED, at: Date.now(), kind: 'capture' } });
     const long = await until(async () => { const n = await noticeAt(); return n.text === BLOCKED ? n : null; }, 3000);
     lines.push(`notice line, capture blocked: ${JSON.stringify(long)}`);
-    if (!long || !long.cut || long.lines !== 1 || long.title !== BLOCKED || !long.inStrip || long.width > Math.round(long.stripWidth * 0.7) + 1) {
-      return report(false, `a long notice is not cut on one line, whole in its title, within 70% of the strip: ${JSON.stringify(long)}`);
+    if (!long || !long.cut || long.lines !== 1 || long.title !== BLOCKED || !long.inStrip || !long.leftOfButtons) {
+      return report(false, `a long notice is not cut on one line, whole in its title, left of the bar's end: ${JSON.stringify(long)}`);
     }
     await shot('notice-long', mainWindow, win);
     shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: null });
@@ -918,12 +921,46 @@ setTimeout(async () => {
     await wait(600);
     const matchCard = await sjs(CARD_NOW);
     lines.push(`recording: card ${JSON.stringify(recCard)} | mid match: sealed=${!!inMatch} card ${JSON.stringify(matchCard)}`);
-    const twoButtons = (c) => c.kids === 'rec-controls' && c.buttons === 2 && c.text === 'Stop' && !c.agent && c.height === card.height;
+    const twoButtons = (c) => c.kids === 'rec-controls' && c.buttons === 2 && c.text === 'Stop' && !c.agent && c.height >= 40 && c.height <= 48;
     if (!inMatch) return report(false, 'recording, a match in progress did not seal the window');
     if (!twoButtons(recCard) || !twoButtons(matchCard)) {
-      return report(false, `recording, the record card is not its two buttons alone: ${JSON.stringify({ recCard, matchCard, before: card.height })}`);
+      return report(false, `recording, the record controls are not Stop and pause alone: ${JSON.stringify({ recCard, matchCard })}`);
+    }
+    // THE LIVE STATUS (Progress v3, the owner's choice): mid match the
+    // Recording screen shows the four facts the HUD shows, map, agent, score
+    // and round, and the round tape the score draws, from main's PUSH_LIVE,
+    // and nothing else of the reader's context. Played as rounds go by, a
+    // round a second (main checks once a second), 4 : 2 by round 7.
+    const steps = [[0, 0, 1], [1, 0, 2], [1, 1, 3], [2, 1, 4], [3, 1, 5], [3, 2, 6], [4, 2, 7]];
+    reader.matchContext = { map: 'Abyss', agent: 'Jett', agentConfirmed: true, gameMode: 'standard', teamScore: 0, enemyScore: 0, roundNumber: 1,
+      playerHp: 87, playerCredits: 3900, enemiesAlive: 3, teammatesAlive: 4, playerSpot: 'A Main', spike: 'carried' };
+    for (const [t, e, r] of steps) {
+      Object.assign(reader.matchContext, { teamScore: t, enemyScore: e, roundNumber: r });
+      await wait(1150);
+    }
+    const LIVE_NOW = `(() => {
+      const box = document.getElementById('live');
+      const seen = (id) => { const n = document.getElementById(id); return !!n && !n.hidden && !n.closest('[hidden]'); };
+      return { shown: seen('live'), who: document.getElementById('live-who').textContent, team: document.getElementById('live-team').textContent,
+        enemy: document.getElementById('live-enemy').textContent, round: document.getElementById('live-round').textContent,
+        pips: [...document.querySelectorAll('#live-tape .pip')].map((p) => p.getAttribute('class').replace('pip ', '')).slice(0, 8).join(),
+        face: !!document.querySelector('#live-face img'), map: !!document.querySelector('#live-art img'), locked: seen('live') && /locked|ends/i.test(box.querySelector('.live-review').textContent),
+        text: box.innerText.replace(/\\s+/g, ' ') };
+    })()`;
+    const liveSeen = await sjs(LIVE_NOW);
+    lines.push(`live status mid match: ${JSON.stringify({ ...liveSeen, text: liveSeen.text.slice(0, 160) })}`);
+    if (!liveSeen.shown || liveSeen.who !== 'Jett on Abyss' || liveSeen.team !== '4' || liveSeen.enemy !== '2' || liveSeen.round !== '7'
+      || liveSeen.pips !== 'won,lost,won,won,lost,won,now,next' || !liveSeen.face || !liveSeen.map) {
+      return report(false, `mid match, the live status does not show the map, agent, score, round and tape: ${JSON.stringify(liveSeen)}`);
+    }
+    // NOTHING ELSE OF THE MATCH: the HP, the credits, who is alive, the
+    // player's spot and the spike were in the reader's context and none of it
+    // reaches the screen.
+    if (/\b87\b|3900|A Main|carried|spike/i.test(liveSeen.text)) {
+      return report(false, `mid match, the live status shows more than the four facts: ${liveSeen.text}`);
     }
     await shot('recording', mainWindow, win);
+    reader.matchContext = null;
     reader.inLobby = true;
     ipc.emit(CH5.SHELL_NAV, { sender: null }, 'home');
     if (!await until(() => !mainWindow.current().sealed, 3000)) return report(false, 'recording, the match over, the seal did not lift');

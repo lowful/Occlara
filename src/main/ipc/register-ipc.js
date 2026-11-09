@@ -93,6 +93,7 @@ function registerIpc(deps) {
 
   safeHandle(C.STATE_GET, async () => controller.getState());
   safeHandle(C.SHELL_GET, async () => controller.getShell());
+  safeHandle(C.LIVE_GET, async () => (controller.getLive ? controller.getLive() : null));
 
   safeHandle(C.CHAT_SEND, async (_e, messages, opts) => controller.chat(messages, opts && typeof opts === 'object' ? opts : {}));
   // Ask Coach's match (8.5.0): the list and the chip, main's to decide.
@@ -184,6 +185,11 @@ function snapshotConfig() {
     riotConnected:   store.get('riotConnected') || null,
     aiLog:           store.get('aiLog'),
     sounds:          store.get('sounds'),
+    // The live status's four switches (Progress v3), on unless set off.
+    liveMap:         store.get('liveMap') !== false,
+    liveAgent:       store.get('liveAgent') !== false,
+    liveScore:       store.get('liveScore') !== false,
+    liveRound:       store.get('liveRound') !== false,
     panelMinimized:  store.get('panelMinimized'),
     // The log window's keyboard hint counts its own appearances. Same trap as
     // language below: without it here, getConfig() reads undefined, the counter

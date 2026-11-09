@@ -116,10 +116,23 @@ header {
    ground round it. Without a grade to show it is the result, the score and
    the scoreboard. */
 .vd {
+  position: relative; overflow: hidden;
   display: flex; flex-direction: column; gap: var(--space-5);
-  padding: var(--space-2) 0 var(--space-6);
-  border-bottom: 1px solid var(--line);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--r-panel);
+  background: var(--s1); box-shadow: var(--rim);
 }
+/* PROGRESS V3: the Verdict is a card with the match's map dimmed behind it
+   (review.js paintVerdictArt), one flat scrim over the picture. Everything
+   else in the card sits above it. */
+.vd-art { position: absolute; inset: 0; pointer-events: none; }
+.vd-art-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 40%; }
+.vd-art-scrim { position: absolute; inset: 0; background: var(--scrim); }
+/* TEXT OVER ART HOLDS 4.5:1 (Progress v3): the scrim is dense (--scrim, .9),
+   and the quietest ink over it is the dim one, since the brightest pixel of
+   a splash under .9 still leaves a ground the dim ink clears at 5.9:1. */
+.vd { --text-mute: var(--text-dim); }
+.vd > :not(.vd-art) { position: relative; }
 .vd-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 16px; }
 /* AS THE SHARE IMAGE DRAWS IT (8.8): no VERDICT word; the character's icon
    in a rounded tile on a quiet ground of its own, the agent, map and mode
@@ -127,20 +140,22 @@ header {
    margin. */
 .vd-who { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .vd-icon {
-  flex: 0 0 36px; width: 36px; height: 36px; overflow: hidden;
-  border-radius: var(--r-card); border: 1px solid var(--line); background: var(--bg-2);
+  flex: 0 0 56px; width: 56px; height: 56px; overflow: hidden;
+  border-radius: 50%; background: var(--s3); box-shadow: var(--rim-2);
 }
 .vd-icon[hidden] { display: none; }
 .vd-icon-img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .vd-main { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
 /* The letter large in its tone (GradeView.gradeTone), the number beside it,
    so the colour is never the only signal. Geist 600, figures one width. */
-.vd-grade { flex: none; display: flex; align-items: flex-end; gap: var(--space-4); }
+.vd-grade { flex: none; display: flex; flex-direction: row-reverse; align-items: flex-end; gap: var(--space-4); }
 /* The letter at 64 and the number at 28 (8.7): the fix under them is the one
    44px line on the page, so the grade is read first and the fix is read
    largest. */
+/* Progress v3: the number is the hero at 84, the letter beside it at 40 in
+   its tone. */
 .vd-letter {
-  font-family: var(--font); font-size: 64px; font-weight: 600; line-height: 0.8;
+  font-family: var(--font); font-size: 40px; font-weight: 600; line-height: 0.8;
   letter-spacing: -0.04em; color: var(--text);
 }
 /* ONE HEADER FOR EVERY STATE (8.7): a review with no grade to show, locked
@@ -160,8 +175,8 @@ header {
 .vd-num { display: flex; flex-direction: column; gap: 4px; padding-bottom: 4px; }
 .vd-num-line { display: flex; align-items: baseline; gap: 4px; }
 .vd-score {
-  font-family: var(--font); font-size: 28px; font-weight: 600; line-height: 0.9;
-  letter-spacing: -0.02em; color: var(--text); font-variant-numeric: tabular-nums;
+  font-family: var(--font); font-size: 84px; font-weight: 600; line-height: 0.85;
+  letter-spacing: -0.055em; color: var(--text); font-variant-numeric: tabular-nums;
 }
 .vd-out, .vd-prov {
   font-family: var(--font-mono); font-size: 12px; font-weight: 500; line-height: 1.2;
@@ -222,7 +237,10 @@ header {
 .v-result.loss { color: var(--bad); }
 /* The result's corner with the RR chip before it (8.7.9, review.js paintRiot). */
 .vd-end { display: flex; align-items: baseline; gap: var(--space-3); flex: none; }
-.v-rr { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.v-rr { height: 24px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: var(--r-pill);
+  background: var(--s4); box-shadow: var(--rim-2);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.v-rr[hidden] { display: none; }
 .v-rr.gain { color: var(--good); }
 .v-rr.loss { color: var(--bad); }
 .v-score {
@@ -283,16 +301,21 @@ header {
 /* THE FIX FOR NEXT MATCH IS THE HERO (8.7): Home's own 44px line, under the
    Verdict's row and over the numbers, with how last match's top mistake went
    above it. No arrow, no box: the size is the emphasis. */
-.v-focus { padding-top: var(--space-5); border-top: 1px solid var(--line); }
+/* The fix (Progress v3): a tile of its own inside the Verdict's card, the
+   one place a box sits in a box, because it is the thing to take away. */
+.v-focus { padding: var(--space-5) var(--space-6); border-radius: var(--r-tile); background: var(--s2); box-shadow: var(--rim); }
 .v-focus[hidden] { display: none; }
 .v-focus-label { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-2); }
 .v-focus-text {
-  font-size: 44px; font-weight: 600; line-height: 1.05; letter-spacing: -0.03em;
+  font-size: 32px; font-weight: 600; line-height: 1.12; letter-spacing: -0.035em;
   color: var(--text); margin: 0; text-wrap: pretty;
 }
+.v-focus-was-wrap { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.v-focus-was-wrap[hidden] { display: none; }
+.v-focus-was-wrap .v-focus-label { margin-bottom: var(--space-1); }
 .v-focus-was {
   display: flex; align-items: baseline; gap: 8px;
-  margin: 0 0 var(--space-3);
+  margin: 0;
   font-size: 13px; line-height: 1.45; color: var(--text-dim);
 }
 .v-focus-was::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); transform: translateY(-1px); }

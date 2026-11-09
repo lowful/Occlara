@@ -1,219 +1,145 @@
-/* The shell: the main window's sidebar, top strip and Recording screen (8.1).
-   The page beside the sidebar is a view of its own laid over #page-host, at
-   the sizes main-window.js uses: SIDEBAR_W 232 and TOP_H 40. Change one and
-   change both.
-
-   THE TRAINING LOG (8.7): the rail is the page's own ground behind one
-   hairline, nothing in it is boxed, and the only fills are the marker on the
-   current page, the thumb of the game capsule and the two record capsules. */
+/* The shell: the main window's top bar, account drawer and Recording screen.
+   TOP NAVIGATION (Progress v3): the sidebar went for a bar across the top,
+   the pages as pill tabs, the game switch, the record controls, the avatar
+   that opens the drawer and the window's buttons. The page under the bar is
+   a view of its own laid over #page-host, at the sizes main-window.js uses:
+   SIDEBAR_W 0 and TOP_H 64, narrowed by DRAWER_W 280 while the drawer is
+   open. Change one and change both. Tokens only, no gradient, no glow. */
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
-.app { display: flex; height: 100%; }
+.app { display: flex; flex-direction: column; height: 100%; }
 
-/* ── The sidebar ────────────────────────────────────────────────────────── */
-.side {
+/* ── The bar ────────────────────────────────────────────────────────────── */
+.bar {
   position: relative;
-  flex: 0 0 232px; width: 232px; height: 100%;
-  display: flex; flex-direction: column; gap: var(--space-4);
-  padding: var(--space-4) var(--space-3);
+  flex: 0 0 64px; height: 64px;
+  display: flex; align-items: center; gap: var(--space-5);
+  padding: 0 var(--space-2) 0 var(--space-6);
   background: var(--bg);
-  border-right: 1px solid var(--line);
-  overflow-y: auto;
 }
-/* The brand row sits on the nav's own left edge: its mark is centred where
-   the page icons are (10px in, a 22px mark, against 12px in and 18px). */
-.brand { display: flex; align-items: center; gap: var(--space-2); min-height: 32px; padding: 0 10px; }
+.brand { flex: none; display: flex; align-items: center; gap: 9px; }
 .brand .mark { color: var(--text); }
-.brand .name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.brand .name { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+
+/* The pages as pill tabs: words dim until chosen, the current one on the
+   marker's pill. Positioned, so the marker under them is laid against it. */
+.nav { position: relative; flex: none; display: flex; align-items: center; gap: 4px; }
+.nav .nav-item {
+  position: relative;
+  height: 32px; padding: 0 14px;
+  display: inline-flex; align-items: center;
+  border: 0; border-radius: var(--r-pill);
+  background: transparent; color: var(--text-mute);
+  font: 500 13.5px var(--font); white-space: nowrap; cursor: pointer;
+  transition: color var(--t-fast) var(--ease);
+}
+.nav .nav-item > svg { display: none; }
+.nav .nav-item:hover:not(:disabled) { color: var(--text); }
+.nav .nav-item:active:not(:disabled) { transform: scale(0.97); transition-duration: var(--t-press); }
+.nav .nav-item[aria-current="page"] { color: var(--text); }
+.nav .nav-item:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-pill); }
+/* Sealed: still readable, plainly not a way anywhere. */
+.nav .nav-item:disabled { cursor: default; color: var(--text-mute); opacity: 0.55; }
+/* THE MARKER (8.2): one pill for the whole bar, under the tabs, moved with
+   a transform, so it slides from tab to tab. */
+.nav-marker {
+  position: absolute; top: 0; left: 0;
+  width: 0; height: 0;
+  border-radius: var(--r-pill);
+  background: var(--s3);
+  box-shadow: var(--rim-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--t-med) var(--ease-expo), width var(--t-med) var(--ease-expo), opacity var(--t-fast) var(--ease);
+}
+.nav-marker.on { opacity: 1; }
+.nav-marker.still { transition: opacity var(--t-fast) var(--ease); }
+.sealed-note { flex: 0 1 auto; min-width: 0; font-size: 12px; line-height: 1.4; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sealed-note[hidden] { display: none; }
+
+/* THE NOTICE LINE (8.3): one line, cut with an ellipsis and whole in its
+   title, between the tabs and the bar's end, and nothing otherwise. Only the
+   text is out of the drag region. */
+.top-notice {
+  flex: 0 1 auto; min-width: 0; margin-left: auto;
+  font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* A notice from main, the licence ending above all, reads in full white;
+   paused, the record controls' own state, stays dim. */
+.top-notice.system { color: var(--text); }
+.top-notice:empty { margin-left: auto; width: 0; }
+
+.bar-end { flex: none; display: flex; align-items: center; gap: var(--space-3); }
 
 /* The game picker: one capsule (shared/seg.js occlaraSeg, ui.css .seg-slide),
-   one equal square per game, each the game's own logo (shared/game-logos.js)
-   in currentColor with the full name as its title and accessible name. The
-   thumb is the only fill and slides to the game picked; the buttons stay
-   transparent over it. A game with no logo keeps its name as text. */
-/* Its left edge is the Start capsule's and the page icons' (12px in), so the
-   rail reads as one column: mark, capsule, icons, Start. */
-.game-seg { align-self: flex-start; margin-left: var(--space-3); }
+   one square per game, each its own logo (shared/game-logos.js) with the full
+   name as its title. A game coming soon is dimmed, never picked, with a
+   popup on hover or focus (shell.js paintGames). */
 .game-seg button {
-  flex: 0 0 auto; width: 32px; height: 32px; padding: 0;
+  flex: 0 0 auto; width: 30px; height: 30px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
   white-space: nowrap;
 }
-.game-seg button .game-logo { width: var(--icon-md); height: var(--icon-md); flex: none; }
+.game-seg button .game-logo { width: var(--icon-sm); height: var(--icon-sm); flex: none; }
 .game-seg button.named { width: auto; padding: 0 var(--space-3); font: 500 13px var(--font); }
 .game-seg button:disabled { cursor: default; opacity: 0.55; }
-/* A game that is coming soon: dimmed, never picked, with a popup on hover or
-   focus (shell.js paintGames). */
 .game-seg button.soon { position: relative; cursor: default; }
 .game-seg button.soon .game-logo { opacity: 0.45; }
 .game-seg button.soon .soon-pop {
   position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-  padding: 6px 10px; border: 1px solid var(--line-2); border-radius: var(--r-btn);
-  background: var(--bg); color: var(--text); font: 500 12px var(--font); white-space: nowrap;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); pointer-events: none; opacity: 0; z-index: 20;
+  padding: 6px 10px; border-radius: var(--r-btn);
+  background: var(--s3); box-shadow: var(--rim-2); color: var(--text); font: 500 12px var(--font); white-space: nowrap;
+  pointer-events: none; opacity: 0; z-index: 20;
   transition: opacity var(--t-fast) var(--ease);
 }
 .game-seg button.soon:hover .soon-pop, .game-seg button.soon:focus-visible .soon-pop { opacity: 1; }
 
-.nav { display: flex; flex-direction: column; gap: 2px; }
-/* A page is a quiet row: no box, its words dim until the pointer is on it,
-   and under the pointer a faint fill across the whole row. */
-.nav-item {
-  position: relative;
-  display: flex; align-items: center; gap: var(--space-3);
-  width: 100%; min-height: 40px; padding: 0 var(--space-3);
-  border: 0; border-radius: var(--r-control);
-  background: transparent; color: var(--text-dim);
-  font: 500 14px var(--font); text-align: left; cursor: pointer;
-  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
-}
-.nav-item:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, 0.035); }
-.nav-item:active:not(:disabled) { color: var(--text); transition-duration: var(--t-press); }
-.nav-item:active:not(:disabled) > svg { transform: scale(0.92); }
-.nav-item > svg { flex: none; color: var(--text-mute); transition: color var(--t-fast) var(--ease), transform var(--t-press) var(--ease); }
-.nav-item:hover:not(:disabled) > svg { color: var(--text); }
-/* The current page is marked by .nav-marker below, not by a background of
-   its own: one marker sliding from the page left to the page shown. Its ink
-   is the only weight change in the rail. */
-.nav-item[aria-current="page"] { color: var(--text); font-weight: 600; }
-.nav-item[aria-current="page"] > svg { color: var(--text); }
-.nav-item:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-control); }
-/* THE MARKER (8.2). One element for the whole sidebar, under the items (they
-   and the record card are positioned, so they paint over it, and it passes
-   behind the card on its way down to Settings), moved with a transform. It
-   slides from page to page; appearing, or following the layout as the game
-   picker comes and goes, it is put in place at once. */
-.nav-marker {
-  position: absolute; top: 0; left: 0;
-  width: 0; height: 0;
-  border-radius: var(--r-control);
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: var(--hi);
-  opacity: 0;
-  pointer-events: none;
-  transition: transform var(--t-med) var(--ease-expo), height var(--t-med) var(--ease-expo),
-              opacity var(--t-fast) var(--ease);
-}
-.nav-marker.on { opacity: 1; }
-.nav-marker.still { transition: opacity var(--t-fast) var(--ease); }
-/* Sealed: still readable, plainly not a way anywhere. */
-.nav-item:disabled { cursor: default; color: var(--text-mute); background: transparent; }
-.nav-item:disabled > svg { color: var(--text-mute); }
-.sealed-note { margin: 0 var(--space-3); font-size: 12px; line-height: 1.5; color: var(--text-mute); }
-
-.spacer { flex: 1 1 auto; }
-
-/* ── The record controls, in the rail ───────────────────────────────────── */
-/* TWO BUTTONS AND NOTHING ELSE (8.3). The "Ready" over them went in 8.2.1 and
-   the line under them in 8.3, both at the player's ask, and the box around
-   them in 8.7: Start fills the width beside the round pause button, the two
-   the same height, sitting directly in the rail with one padding the same on
-   every side. The state is the button's word, the pause button's icon and the
-   Stop icon's colour; a notice is the top strip's. */
-.rec {
-  position: relative;
-  display: flex; flex-direction: column; gap: var(--space-3);
-  padding: var(--space-3);
-}
-.rec-controls { display: flex; align-items: stretch; gap: var(--space-2); }
-/* START STAYS THE SIGNAL (CLAUDE.md, 8.6): the one control a player must find
-   without looking, and the one saturated fill in the app. Its fill, hover and
-   press are .btn-rec's (ui.css), the ground's colour on it at 4.65:1, where
-   white measures 4.23:1; 19px at 600. */
+/* ── The record controls, at the bar's end ──────────────────────────────── */
+/* Start is .btn-rec's (ui.css), the one saturated fill in the bar, 40px; it
+   is not drawn on Home, whose Start strip carries the big one (.home-page).
+   Recording, Start is Stop: the dark capsule with its stop icon in the
+   signal, and mid match the large capsule (.sealed-live). */
+.rec { position: relative; display: flex; align-items: center; }
+.rec[hidden] { display: none; }
+.rec-controls { display: flex; align-items: center; gap: var(--space-2); }
 .toggle {
-  flex: 1 1 auto; min-width: 0; height: 48px; padding: 0 var(--space-3);
-  font-size: 19px; font-weight: 600; letter-spacing: -0.2px; white-space: nowrap;
-  display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+  height: 40px; padding: 0 var(--space-5);
+  font-size: 15px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
 }
-/* The licence ended: the button is where that is said now, in two lines at a
-   size that fits beside the pause button, with no icon before it. */
-.toggle.ended { font-size: 14px; line-height: 1.2; letter-spacing: 0; white-space: normal; text-align: center; }
+.app.sealed-live .toggle { height: 44px; padding: 0 var(--space-6); font-size: 16px; font-weight: 600; }
+.toggle.ended { font-size: 13px; line-height: 1.2; letter-spacing: 0; font-weight: 600; }
 .toggle .t-ico:empty { display: none; }
 .toggle .t-ico { display: inline-flex; align-items: center; }
-.toggle .t-ico svg { width: var(--icon-md); height: var(--icon-md); }
-/* Recording, Start is Stop: the dark capsule of every other control, its
-   stop icon the one thing in the signal. It rises and presses like a .btn. */
-.toggle.active { background: rgba(255, 255, 255, 0.055); border: 1px solid var(--line-2); color: var(--text); box-shadow: var(--hi), var(--drop); }
-.toggle.active:hover { background: rgba(255, 255, 255, 0.095); box-shadow: var(--hi), var(--drop-hover); }
+.toggle .t-ico svg { width: 13px; height: 13px; }
+.toggle.active { background: var(--s2); border: 1px solid var(--line-2); color: var(--text); box-shadow: var(--hi), var(--drop); }
+.toggle.active:hover { background: var(--s3); box-shadow: var(--hi), var(--drop-hover); }
 .toggle.active:active { box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
 .toggle.active .t-ico { color: var(--red); }
 .toggle:disabled { opacity: 0.55; cursor: default; filter: grayscale(0.35); }
-/* Ended, a ghost at full opacity: its two lines read at 7.7:1, where the
-   signal faded by the rule above measured 2.40:1. */
 .toggle.ended:disabled { opacity: 1; filter: none; background: transparent; border: 1px solid var(--line-2); color: var(--text-dim); box-shadow: none; }
-.icon-btn.lg { flex: none; width: 48px; height: 48px; }
-.icon-btn.lg svg { width: var(--icon-lg); height: var(--icon-lg); }
+.icon-btn.lg { flex: none; width: 40px; height: 40px; }
+.icon-btn.lg svg { width: var(--icon-md); height: var(--icon-md); }
 .icon-btn[disabled] { opacity: 0.3; cursor: default; pointer-events: none; }
+/* Not recording, the pause button is not drawn at all. */
+.rec:not(.recording) #pause, .toggle.ended + #pause { display: none; }
+/* On Home, not recording, Start is the page's own (its Start strip). */
+.app.home-page .rec:not(.recording) { display: none; }
 
-/* The games left under Start (8.7): the label's size, quiet, one line. */
-.rail-games {
-  margin: var(--space-2) 0 0; padding: 0 var(--space-3);
-  font-size: 12px; font-weight: 400; line-height: 1.4; color: var(--text-mute);
-  text-wrap: pretty;
-}
-.rail-games[hidden] { display: none; }
-
-/* The foot is one column of rows, and Settings' row holds the Discord icon
-   at its end: a grid, so the rows keep their order in the markup. */
-.foot { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px; }
-.foot > * { grid-column: 1 / -1; }
-.foot > #nav-settings { grid-column: 1; }
-/* Profile's row holds Report a problem at its end, directly above the Discord. */
-.foot > #nav-profile { grid-column: 1; }
-.foot > .foot-icon { grid-column: 2; }
-/* THE DISCORD ICON: quiet like the rows beside it, no capsule, its mark in
-   the rows' icon colour, and under the pointer the rows' faint fill. A
-   native tooltip names it. Locked mid match like the pages (paintNav). */
-.foot-icon {
+/* The avatar: a ringed circle that opens the drawer. */
+.avatar-btn {
+  flex: none; width: 36px; height: 36px;
   display: grid; place-items: center;
-  width: 40px; height: 40px; padding: 0;
-  border: 0; border-radius: var(--r-control);
-  background: transparent; color: var(--text-mute); cursor: pointer;
+  border: 0; border-radius: 50%;
+  background: var(--s3); box-shadow: var(--rim); color: var(--text-dim);
+  cursor: pointer;
   transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
-.foot-icon > svg { transition: transform var(--t-press) var(--ease); }
-.foot-icon:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, 0.035); }
-.foot-icon:active:not(:disabled) > svg { transform: scale(0.92); }
-.foot-icon:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
-.foot-icon:disabled { cursor: default; color: var(--text-mute); opacity: 0.6; }
-/* On its own page (Report a problem), the icon in the ink, the marker under it. */
-.foot-icon[aria-current="page"] { color: var(--text); }
-.account {
-  display: flex; align-items: center; gap: var(--space-2);
-  min-height: 32px; padding: 0 var(--space-3);
-  border: 0; border-radius: var(--r-control); background: transparent;
-  font: 500 12px var(--font); color: var(--text-mute); text-align: left; cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  transition: color var(--t-fast) var(--ease);
-}
-.account:hover { color: var(--text-dim); }
-.account::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
-.account.on::before { background: var(--good); }
+.avatar-btn:hover, .avatar-btn[aria-expanded="true"] { color: var(--text); background: var(--s4); }
+.avatar-btn:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 
-/* ── The top strip and the page host ───────────────────────────────────── */
-.main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
-.top { flex: 0 0 40px; height: 40px; display: flex; align-items: center; justify-content: flex-end; padding: 0 var(--space-1); background: var(--bg); }
-/* THE NOTICE LINE (8.3): what the record card's line said when it had
-   something to say, left of the window's buttons, and nothing otherwise. ONE
-   LINE, cut with an ellipsis and whole in its title: wrapped, its second line
-   would fall below the strip, under the page main-window.js lays at TOP_H.
-   Never more than 70% of the strip, so beside the longest notice the strip
-   still drags the window; only the text is out of the drag region, because a
-   drag region keeps the pointer from the page and its title would never show.
-   Measured at the default width (check:mainwindow): 666px of a 952px strip,
-   the busy notice whole at 577px, capture blocked cut at 661px. */
-.top-notice {
-  flex: 0 1 auto; min-width: 0; max-width: 70%;
-  margin-right: var(--space-3);
-  font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--text-dim);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-/* A notice from main, the licence ending above all, reads in full white, as
-   it did on the card's line; paused, the card's own state, stays dim. */
-.top-notice.system { color: var(--text); }
-/* Empty, it is there for the live region and takes nothing of the strip. */
-.top-notice:empty { margin: 0; }
 .win-controls { display: flex; gap: 2px; }
 .win-btn {
   width: 40px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
@@ -224,7 +150,59 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .win-btn:active { background: rgba(255, 255, 255, 0.09); transition-duration: var(--t-press); }
 .win-btn:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-control); }
 .win-btn.close:hover { background: rgba(var(--red-rgb), 0.16); color: var(--red); }
-.page-host { position: relative; flex: 1 1 auto; min-height: 0; background: var(--bg); }
+
+/* ── Under the bar: the drawer and the page host ────────────────────────── */
+.main { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
+.page-host { position: relative; flex: 1 1 auto; min-width: 0; background: var(--bg); }
+
+/* THE DRAWER: what the sidebar's foot held, a column at the window's right
+   under the bar, DRAWER_W wide (main narrows the page by it while open). A
+   surface step of its own with the ring, rows as quiet as the tabs. */
+.drawer {
+  order: 2; flex: 0 0 280px; width: 280px;
+  display: flex; flex-direction: column; gap: var(--space-3);
+  margin: 0 var(--space-4) var(--space-4) 0; padding: var(--space-4) var(--space-3);
+  border-radius: var(--r-panel); background: var(--s1); box-shadow: var(--rim);
+  overflow-y: auto;
+}
+.drawer[hidden] { display: none; }
+.foot { display: flex; flex-direction: column; gap: 2px; }
+.drawer .nav-item {
+  position: relative;
+  display: flex; align-items: center; gap: var(--space-3);
+  width: 100%; min-height: 40px; padding: 0 var(--space-3);
+  border: 0; border-radius: var(--r-control);
+  background: transparent; color: var(--text-dim);
+  font: 500 14px var(--font); text-align: left; cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.drawer .nav-item:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, 0.035); }
+.drawer .nav-item > svg { flex: none; color: var(--text-mute); }
+.drawer .nav-item:hover:not(:disabled) > svg, .drawer .nav-item[aria-current="page"] > svg { color: var(--text); }
+.drawer .nav-item[aria-current="page"] { color: var(--text); background: var(--s2); }
+.drawer .nav-item:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
+.drawer .nav-item:disabled { cursor: default; color: var(--text-mute); }
+/* The games left (8.7): the label's size, quiet, one line. */
+.rail-games { padding: 0 var(--space-3); font-size: 12px; line-height: 1.4; color: var(--text-mute); text-wrap: pretty; }
+.rail-games[hidden] { display: none; }
+.account {
+  display: flex; align-items: center; gap: var(--space-2);
+  min-height: 32px; padding: 0 var(--space-3);
+  border: 0; border-radius: var(--r-control); background: transparent;
+  font: 500 13px var(--font); color: var(--text-dim); text-align: left; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: color var(--t-fast) var(--ease);
+}
+.account:hover { color: var(--text); }
+.account::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
+.account.on::before { background: var(--good); }
+
+/* A narrow window: the brand keeps its crescent alone. */
+@media (max-width: 1100px) {
+  .brand .name { display: none; }
+  .bar { gap: var(--space-3); }
+  .nav .nav-item { padding: 0 11px; }
+}
 
 /* ── The Recording screen: what the window shows during a match ────────── */
 /* The pages go at once when the seal comes on (main-window.js); this screen
@@ -233,10 +211,10 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .sealed {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: var(--space-4); padding: var(--space-8);
-  text-align: center;
+  padding: var(--space-8);
   animation: riseIn var(--t-slow) var(--ease-expo) both;
 }
+.sealed-quiet { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); text-align: center; width: 100%; }
 .sealed-mark { color: var(--text); margin-bottom: var(--space-4); }
 /* THE LIVE DOT (8.6): one still dot in the signal before "Recording", the
    screen's only colour. It never pulses or loops: nothing on this screen
@@ -256,3 +234,90 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 }
 .sealed-facts li:last-child { border-bottom: 1px solid var(--line); }
 .sealed-facts b { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+
+/* ── THE LIVE STATUS (Progress v3) ────────────────────────────────────────
+   The owner's choice, a deliberate reversal of 8.0's rule
+   (docs/claude/screen-silence.md): mid a Valorant match the Recording
+   screen is a card over the map's art with the four facts the player's own
+   HUD shows (map, agent, score, round), each only while its switch is on,
+   the round tape the score has drawn, and beside it the review, locked.
+   No HP, positions, economy, enemy, advice, tip or review content. Nothing
+   on it moves but its arrival and the facts changing: the live dot never
+   pulses and no clock ticks. */
+.sealed:has(.live-status:not([hidden])) { align-items: stretch; justify-content: stretch; padding: var(--space-4) var(--space-8) var(--space-8); }
+.live-status { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--space-4); }
+.live-card {
+  --text-mute: var(--text-dim);
+  position: relative; overflow: hidden; min-height: 0;
+  border-radius: var(--r-panel); background: var(--s1); box-shadow: var(--rim);
+}
+.live-art { position: absolute; inset: 0; pointer-events: none; }
+.live-art-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 45%; }
+.live-art-scrim { position: absolute; inset: 0; background: var(--scrim); }
+.live-in { position: relative; height: 100%; display: flex; flex-direction: column; padding: var(--space-6) var(--space-8); text-align: left; }
+.live-head { display: flex; align-items: center; gap: var(--space-3); }
+.live-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--signal); }
+.live-word { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+.live-since { font-family: var(--font-mono); font-size: 12px; color: var(--text-mute); }
+.live-chip {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 11px;
+  border-radius: var(--r-pill); background: var(--scrim-chip); box-shadow: var(--rim-2);
+  font: inherit; font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap;
+}
+.live-head .live-chip { margin-left: auto; }
+.live-wait { margin: auto 0; max-width: 340px; font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+.live-main { margin: auto 0; display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
+.live-face { flex: none; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; background: var(--s3); box-shadow: var(--rim-2); }
+.live-face img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.live-score-block { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.live-who, .live-label { font-size: 12px; font-weight: 500; color: var(--text-dim); }
+.live-score { display: flex; align-items: center; gap: var(--space-4); }
+.live-score b { font-size: 96px; font-weight: 600; line-height: 1; letter-spacing: -0.06em; font-variant-numeric: tabular-nums; }
+.live-colon { font-size: 44px; font-weight: 500; line-height: 1; color: var(--text-mute); }
+.live-round-block { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
+.live-round-block b { font-size: 44px; font-weight: 600; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.live-foot { display: flex; flex-direction: column; gap: var(--space-4); }
+.live-tape-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); }
+.live-note { font-size: 12px; color: var(--text-mute); }
+.live-tape-head .live-note { margin-left: auto; }
+.live-tape { display: flex; flex-wrap: wrap; gap: 4px; }
+.pip { flex: none; display: block; overflow: visible; width: 16px; height: 16px; }
+.pip .pip-shape { fill: none; stroke: var(--text); stroke-opacity: 0.5; stroke-width: 1.6; }
+.pip.won .pip-shape { fill: var(--text); stroke: none; }
+.pip.now .pip-shape, .pip.unknown .pip-shape { stroke-opacity: 0.35; }
+.pip .pip-half { fill: var(--text); }
+.pip.unknown .pip-half { fill-opacity: 0.5; }
+.pip.next .pip-shape { stroke-opacity: 0.16; stroke-width: 1.4; }
+.live-choose { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.live-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.live-chip.chip-toggle { cursor: default; }
+.live-chip.chip-toggle:disabled { opacity: 1; }
+.live-chip.chip-toggle:not(:disabled) { cursor: pointer; }
+.live-chip.chip-toggle[aria-pressed="false"] { background: transparent; color: var(--text-mute); box-shadow: inset 0 0 0 1px var(--line-2); text-decoration: line-through; }
+.live-choose-btn {
+  margin-left: auto; padding: var(--space-1) 0;
+  border: 0; background: none; font: inherit; font-size: 12px; color: var(--text-dim);
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.live-choose-btn:hover { color: var(--text); }
+.live-review {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3);
+  padding: var(--space-6); text-align: center;
+  border-radius: var(--r-panel); background: var(--s1); box-shadow: var(--rim);
+}
+.live-dial { position: relative; width: 150px; height: 150px; color: var(--text-mute); }
+.live-dial svg { position: absolute; inset: 0; }
+.live-dial .tick { stroke: var(--text); stroke-opacity: 0.2; stroke-width: 2.2; stroke-linecap: round; }
+.live-dial .live-lock { inset: 0; margin: auto; }
+.live-review-title { font-size: 16px; font-weight: 600; }
+.live-review-sub { max-width: 220px; font-size: 13px; line-height: 1.5; color: var(--text-mute); }
+@media (max-width: 860px) {
+  .live-status { grid-template-columns: minmax(0, 1fr); }
+  .live-review { display: none; }
+}
+/* Mid match the game cannot be switched (its buttons are disabled while
+   recording), so the bar gives its room to Stop and keeps the window's
+   buttons in view. */
+.app.sealed-live .game-seg { display: none; }
+.bar-end { min-width: 0; }
+.nav { flex-shrink: 0; }

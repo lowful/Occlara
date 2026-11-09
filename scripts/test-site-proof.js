@@ -94,12 +94,12 @@ ok(mo && mo.matches.some((m) => m.moments.some((x) => x.kind === 'Highlight')) &
   'Moments: a highlight, and the one clip kept');
 ok(mo && mo.matches.some((m) => m.moments.some((x) => x.title === 'Caught alone' && x.line)), "Moments: a death titled by the coach's look");
 ok(mo && mo.matches.every((m) => !('when' in m)), 'the Moments matches carry no date');
-ok(p.sealed && p.sealed.title === 'Recording' && p.sealed.facts.length === 3, 'the Recording screen, its title and three facts');
+ok(p.sealed && p.sealed.title === 'Recording' && p.sealed.facts.length === 1, 'the Recording screen, its title and the locked review');
 ok(p.shell.pages.join() === 'Home,Matches,Patterns,Moments,Stats,Ask Coach' && p.shell.start === 'Start', 'the shell: its pages and Start');
 ok(p.invite && p.invite.progress && p.invite.how.length === 2, 'Invite: the progress line and how it works');
 
 const mark = JSON.parse(read(dirs[0], 'mark.json').toString('utf8'));
-ok(mark.path && mark.viewBox === '0 0 120 120' && mark.ground === '#0A0B0E' && mark.ink === '#F5F5F7' && mark.signal === '#E5383B' && mark.label === 'Sample match',
+ok(mark.path && mark.viewBox === '0 0 120 120' && mark.ground === '#07080C' && mark.ink === '#F5F5F7' && mark.signal === '#E5383B' && mark.label === 'Sample match',
   'mark.json: the crescent, the ground, the ink and the signal', JSON.stringify(mark));
 
 for (const d of dirs) fs.rmSync(d, { recursive: true, force: true });

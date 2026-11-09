@@ -183,13 +183,45 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
    opens the review, and the eye at its end, which opens the match's AI log
    (matches.js row()). The item answers the pointer as one, with a faint fill
    across it and nothing that moves. */
-.list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+/* PROGRESS V3: each match is a card of its own (--s1, the ring), the rows
+   beside the grade chart on the list page. */
+.every-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.every-grid.charted { grid-template-columns: minmax(0, 1fr) 264px; }
+.list { display: flex; flex-direction: column; gap: var(--space-2); }
 .m-item {
   display: flex; align-items: center; gap: var(--space-3);
-  border-bottom: 1px solid var(--line);
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border-radius: 18px;
+  background: var(--s1); box-shadow: var(--rim);
   transition: background var(--t-fast) var(--ease);
 }
-.m-item:hover { background: rgba(255, 255, 255, 0.035); }
+.m-item:hover { background: var(--s2); box-shadow: var(--rim-2); }
+.m-face { flex: none; width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--s3); box-shadow: var(--rim-2); }
+.m-delta {
+  flex: none; width: 46px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums;
+  background: var(--s3); color: var(--text-dim);
+}
+.m-delta.none { background: transparent; }
+.m-delta.first { font-family: var(--font); background: transparent; box-shadow: var(--rim-2); color: var(--text-mute); }
+.m-delta.up { background: rgba(var(--good-rgb), 0.14); color: var(--good); }
+.m-delta.down { background: rgba(var(--bad-rgb), 0.14); color: var(--bad); }
+/* The grade over the last matches, its own card. */
+.m-chart {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--r-panel);
+  background: var(--s1); box-shadow: var(--rim);
+}
+.m-chart-label, .m-chart-avg { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.m-chart-now { display: flex; align-items: center; gap: var(--space-3); }
+.m-chart-now b { font-size: 52px; font-weight: 600; line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+.m-chart-since { height: 24px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: var(--r-pill);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; background: var(--s3); color: var(--text-dim); }
+.m-chart-since.up { background: rgba(var(--good-rgb), 0.14); color: var(--good); }
+.m-chart-since.down { background: rgba(var(--bad-rgb), 0.14); color: var(--bad); }
+.m-chart-line { margin-top: var(--space-2); }
 /* The rows rise once, as the list first appears on screen (matches.js load,
    occlaraOnShown), 40ms apart and capped at the eighth; a repaint draws them
    as they are. */
@@ -197,9 +229,9 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .m-row {
   flex: 1; min-width: 0;
-  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--space-4);
+  display: flex; align-items: center; gap: var(--space-4);
   text-align: left;
-  padding: var(--space-4) 0;
+  padding: var(--space-3) 0;
   background: transparent; border: 0; border-radius: 0;
   color: var(--text); font: inherit; cursor: pointer;
 }
@@ -207,7 +239,7 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 /* A row with no eye, in a list where others have one, keeps the eye's room
    (its 30px in ui.css), so the grades line up down the list. */
 .m-eye-gap { flex: none; width: 30px; }
-.m-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.m-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .m-top { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
 .m-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The result and the score, one word and one number, in the outcome's tone. */
@@ -216,7 +248,10 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .m-res.loss { color: var(--bad); }
 /* The RR the match moved (8.7.9, matches.js paintRR): "RR +18", mono and
    quiet, as Home's rows draw it (home.css .r-rr), the tone on the number. */
-.m-rr { flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.m-rr { flex: none; height: 26px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: var(--r-pill);
+  background: var(--s4); box-shadow: var(--rim-2);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.m-rr[hidden] { display: none; }
 .m-rr.gain { color: var(--good); }
 .m-rr.loss { color: var(--bad); }
 /* A milestone beside the result (8.7, matches.js row(), progress.js marks):
@@ -237,15 +272,24 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .m-top-mistake .m-tm-label { color: var(--text-mute); }
 /* The grade: the number of the type scale and the letter as a small capsule
    mark in its tone. A provisional grade's capsule is dashed. */
-.m-grade { display: flex; align-items: center; gap: var(--space-2); }
+/* The grade (Progress v3): the number leads the row large, after the
+   portrait; the letter ends it (order), the one element laid out across the
+   row by display: contents. */
+.m-grade { display: contents; }
 .m-score {
-  font-family: var(--font); font-size: 20px; font-weight: 600; line-height: 1;
-  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text);
-  min-width: 28px; text-align: right;
+  order: 0;
+  font-family: var(--font); font-size: 38px; font-weight: 600; line-height: 1;
+  letter-spacing: -0.05em; font-variant-numeric: tabular-nums; color: var(--text);
+  min-width: 50px; text-align: left;
 }
+.m-row > .m-face { order: -1; }
+.m-row > .m-delta { order: 1; }
+.m-row > .m-main { order: 2; }
+.m-row > .m-rr { order: 3; }
+.m-grade > .m-letter, .m-grade > .gv-checking { order: 4; }
 .m-letter {
-  display: inline-flex; align-items: center; justify-content: center;
-  height: 22px; min-width: 30px; padding: 0 8px; border-radius: var(--r-btn);
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  height: 26px; min-width: 26px; padding: 0 8px; border-radius: var(--r-btn);
   font-size: 11px; font-weight: 600; line-height: 1; letter-spacing: 0.02em;
   border: 1px solid var(--line-2); color: var(--text);
 }
@@ -416,3 +460,11 @@ html.embedded .sheet > header .h-brand { align-items: baseline; }
 html.embedded .sheet > header .wl { font-size: 24px; }
 /* On its page the list's grading line stands alone over the rows. */
 html[data-section="list"] #every .l-head { justify-content: flex-end; }
+html[data-section="list"] #every .l-head:has(#bf[hidden]) { display: none; }
+@media (max-width: 860px) { .every-grid.charted { grid-template-columns: minmax(0, 1fr); } }
+
+/* The record beside the title says what it counts. */
+.wl-label { margin-left: var(--space-2); font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-mute); }
+
+/* PROGRESS V3: Patterns is a card on the ground, as Home's are. */
+html[data-section="patterns"] .patterns { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }

@@ -85,6 +85,16 @@
 }
 .btn-rec:hover:not(:disabled):not(.active) { background: var(--red-2); box-shadow: var(--hi-signal), var(--drop-hover); }
 .btn-rec:active:not(:disabled):not(.active) { background: var(--red-3); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
+/* PROGRESS V3: Home's Start strip carries Start at 60px, the loudest thing on
+   the page, a rounded block rather than a capsule so it reads as the one
+   action. Same fill, same states, only bigger: the class is .btn-rec, so the
+   signal stays in its place (check:palette). */
+.btn-rec.xl {
+  height: 60px; padding: 0 26px 0 24px; gap: 12px;
+  border-radius: var(--r-tile);
+  font-size: 21px; font-weight: 700; letter-spacing: -0.02em;
+}
+.btn-rec.xl svg { width: 16px; height: 16px; }
 
 .icon-btn {
   -webkit-app-region: no-drag;

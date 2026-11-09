@@ -306,3 +306,17 @@ webview. A link out of the app goes through main with a URL main holds
   or null (nothing to say, recording, mid match, sealed); `PUSH_CHANGELOG`
   carries it once the seal lifts, and null once What's new opened.
   `CHANGELOG_SEEN` (send, the version): Home had it on screen.
+
+### The live status's channels (Progress v3, screen-silence.md)
+
+- `PUSH_LIVE` (push, main to the shell alone): `{ state: 'waiting' }`
+  before a Valorant match is under way, then `{ state: 'live', startedAt,
+  mode, map?, agent?, team?, enemy?, tape?, round? }`, each fact only while
+  its switch is on (`liveMap`, `liveAgent`, `liveScore` carries the score and
+  the tape, `liveRound`), and null when nothing is recorded. Built by
+  `index.js liveView` from `coaching-engine.js matchContext` and nothing else
+  of it; checked once a second, sent only when it changed.
+- `LIVE_GET` (invoke): the same, for a shell loaded mid match.
+- The four switches are page writable booleans (`config-keys.js`), written by
+  Settings and the Recording screen's Choose (`shell-preload.js setLive`,
+  which takes those four keys alone).

@@ -13,7 +13,7 @@ function slideSeg(id) {
   if (el && typeof window.occlaraSeg === 'function' && typeof MutationObserver === 'function') window.occlaraSeg(el);
   return el;
 }
-for (const id of ['capturespeed', 'recording', 'recordingres', 'clipcap', 'advanced', 'capturequality', 'sounds', 'ailog']) slideSeg(id);
+for (const id of ['capturespeed', 'recording', 'recordingres', 'clipcap', 'advanced', 'capturequality', 'sounds', 'ailog', 'livemap', 'liveagent', 'livescore', 'liveround']) slideSeg(id);
 
 function markSeg(seg, value) {
   for (const btn of seg.querySelectorAll('button')) {
@@ -69,6 +69,9 @@ function wireBoolSeg(id, key) {
 const advancedSeg = wireBoolSeg('advanced', 'advancedTips');
 const aiLogSeg    = wireBoolSeg('ailog', 'aiLog');
 const soundsSeg   = wireBoolSeg('sounds', 'sounds');
+// Match status while recording (Progress v3): one switch each, on by default.
+const LIVE_SEGS = [['livemap', 'liveMap'], ['liveagent', 'liveAgent'], ['livescore', 'liveScore'], ['liveround', 'liveRound']]
+  .map(([id, key]) => [wireBoolSeg(id, key), key]);
 // Capture quality is a VALUE segment, not a boolean: 'standard' or
 // 'performance'. Naming the values rather than on/off keeps the meaning in the
 // stored config, where a future third profile would slot in without a migration.
@@ -672,6 +675,7 @@ async function load() {
       // Default on, so an older config with no key set reads as on rather than
       // as off, which is what `=== true` would do here.
       markSeg(soundsSeg, cfg.sounds === false ? 'off' : 'on');
+      for (const [seg, key] of LIVE_SEGS) markSeg(seg, cfg[key] === false ? 'off' : 'on');
       if (typeof cfg.riotId === 'string') riotEl.value = cfg.riotId;
       // Already connected from a previous session? Show it, no reconnect
       // needed: the profile saved for the Riot ID in config. Connected means

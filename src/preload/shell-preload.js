@@ -6,6 +6,7 @@ const I18N = require('../shared/i18n');
 const GAMES = require('../shared/games');
 const { PAGES } = require('../shared/shell-nav');
 const { DISCORD_URL } = require('../shared/config');
+const { iconOf, mapArtOf } = require('../shared/agent-icons');
 
 /**
  * Bridge for the shell, the main window's own document (8.1): the sidebar,
@@ -61,4 +62,15 @@ contextBridge.exposeInMainWorld('occlara', {
   openDiscord: () => ipcRenderer.invoke(C.DISCORD_OPEN, DISCORD_URL),
   getAccount: () => ipcRenderer.invoke(C.ACCOUNT_GET),
   onAccount:  (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
+
+  // THE LIVE STATUS (Progress v3): main's four facts while a match is
+  // recorded (PUSH_LIVE), each only while its switch is on, and the
+  // switches themselves, the four keys alone (config-keys.js).
+  getLive: () => ipcRenderer.invoke(C.LIVE_GET),
+  onLive:  (cb) => subscribe(C.PUSH_LIVE, cb),
+  setLive: (key, on) => (['liveMap', 'liveAgent', 'liveScore', 'liveRound'].includes(key) && typeof on === 'boolean'
+    ? ipcRenderer.invoke(C.CONFIG_SET, { [key]: on }) : Promise.resolve(null)),
+  // The bundled art of a map and an agent, or null (agent-icons.js).
+  mapArt:   (name) => { const r = mapArtOf(name); return r ? `../../../assets/${r}` : null; },
+  agentArt: (name) => { const r = iconOf('valorant', name); return r ? `../../../assets/${r}` : null; },
 });

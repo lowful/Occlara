@@ -30,6 +30,12 @@ const RULES = Object.freeze({
   advancedTips:   bool,
   aiLog:          bool,
   sounds:         bool,
+  // The live status's four switches (Progress v3), Settings and the
+  // Recording screen's own Choose.
+  liveMap:        bool,
+  liveAgent:      bool,
+  liveScore:      bool,
+  liveRound:      bool,
   ailogHintSeen:  (v) => Number.isInteger(v) && v >= 0 && v <= 1000,
   // Typed a character at a time, so a Riot ID without its # yet is a value.
   riotId:         (v) => typeof v === 'string' && v.length <= 64,

@@ -10,127 +10,181 @@
   <link rel="stylesheet" href="shell.css" />
 </head>
 <body>
-  <!-- THE ONE WINDOW (8.1). This document is the sidebar, the top strip and
-       the Recording screen; every page beside it is a view of its own that
-       src/main/windows/main-window.js lays over #page-host. Nothing here says
-       anything about a match being played. -->
+  <!-- THE ONE WINDOW (8.1), TOP NAVIGATION (Progress v3). This document is the
+       top bar, the account drawer and the Recording screen; every page under
+       the bar is a view of its own that src/main/windows/main-window.js lays
+       over #page-host, at x 0 and y TOP_H (64), narrowed by the drawer's
+       width while the drawer is open (SHELL_DRAWER), because a page's view
+       paints over this document and would cover anything drawn there. -->
   <div class="app">
-    <aside class="side" aria-label="Occlara">
-      <!-- The current page's marker, one for the whole sidebar, moved to the
-           current item by shell.js placeMarker() so it slides between pages. -->
-      <span id="nav-marker" class="nav-marker" aria-hidden="true"></span>
-      <div class="brand drag">
+    <header class="bar drag" aria-label="Occlara">
+      <div class="brand">
         <img class="mark" src="../../../assets/logo-mark.svg" alt="" width="22" height="22" />
         <span class="name">Occlara</span>
       </div>
 
-      <div id="gamepick" class="game-seg" role="group" aria-label="Game" hidden></div>
+      <!-- The pages as pill tabs. The current page's marker is one pill under
+           them, slid to the current tab by shell.js placeMarker(). -->
+      <nav id="nav" class="nav no-drag" aria-label="Pages">
+        <span id="nav-marker" class="nav-marker" aria-hidden="true"></span>
+      </nav>
+      <!-- Mid match the tabs are locked (syncSeal), and this says so. -->
+      <p id="sealed-note" class="sealed-note" hidden>Locked until the match ends</p>
+      <!-- THE NOTICE LINE (8.3): one line, and only when there is something to
+           say: the licence ending, paused, or a notice from main. Never
+           anything about the match being played. Out of the drag region, the
+           text only, so its title (the whole of a line cut short) can show.
+           Never hidden, only empty, which takes no width: a live region shown
+           and filled in the same moment is not always read out. -->
+      <p id="notice" class="top-notice no-drag" aria-live="polite"></p>
 
-      <nav id="nav" class="nav" aria-label="Pages"></nav>
-      <button id="learn" class="nav-item" type="button" hidden>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 015.5 4H10a2 2 0 012 2v13a1.5 1.5 0 00-1.5-1.5H4z"/><path d="M20 5.5A1.5 1.5 0 0018.5 4H14a2 2 0 00-2 2v13a1.5 1.5 0 011.5-1.5H20z"/></svg>
-        <span>Learn</span>
-      </button>
-      <p id="sealed-note" class="sealed-note" hidden>Sealed until the match ends, so nothing on this screen can change how you play it.</p>
-
-      <div class="spacer"></div>
-
-      <!-- The record controls (8.3, unboxed in 8.7): two buttons directly in
-           the rail and nothing under them, the player's ask. What state they
-           are in is the button's word (Start, Stop, Subscription ended), the
-           pause button's icon and the Stop icon's colour while recording;
-           what the line under them said when there was something to say is
-           the top strip's notice line now. And nothing over them (8.4.4): the
-           agent check that asked which agent was being played at Start is
-           gone, the agent read off the player's own HUD in the match and
-           named by Riot's record after it. -->
-      <section id="rec" class="rec" aria-label="Recording">
-        <div class="rec-controls">
-          <button id="toggle" class="btn btn-rec toggle" type="button">
-            <span class="t-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg></span><span class="t-label">Start</span>
-          </button>
-          <button id="pause" class="icon-btn lg" type="button" title="Pause or resume (Ctrl+Shift+P)" aria-label="Pause or resume" disabled>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-blocked="false" aria-hidden="true"><path d="M9 5v14"/><path d="M15 5v14"/></svg>
-          </button>
-        </div>
-      </section>
-      <!-- THE GAMES LEFT (8.7): one quiet line under Start, main's words
-           alone (usage.js gamesLeft, shell.js paintGamesLeft), said here and
-           nowhere else in the window. Nothing while a match is read: main
-           holds a change until it ends, and the rail says nothing then. -->
-      <p id="rail-games" class="rail-games" hidden></p>
-
-      <div class="foot">
-        <!-- Invite friends (8.7), directly above Settings, a page like it and
-             locked by the seal like every page (shell.js paintNav). -->
-        <button id="nav-invite" class="nav-item" type="button" data-page="invite">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="8" r="3.5"/><path d="M3.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/></svg>
-          <span>Invite</span>
+      <div class="bar-end no-drag">
+        <div id="gamepick" class="game-seg" role="group" aria-label="Game" hidden></div>
+        <!-- The record controls: Start on every page but Home (Home's Start
+             strip is the big one), Stop and pause while recording, and mid
+             match Stop is the large capsule. What state they are in is the
+             button's word, the pause button's icon and the Stop icon's colour;
+             a notice is the notice line's. -->
+        <section id="rec" class="rec" aria-label="Recording">
+          <div class="rec-controls">
+            <button id="toggle" class="btn btn-rec toggle" type="button">
+              <span class="t-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg></span><span class="t-label">Start</span>
+            </button>
+            <button id="pause" class="icon-btn lg" type="button" title="Pause or resume (Ctrl+Shift+P)" aria-label="Pause or resume" disabled>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-blocked="false" aria-hidden="true"><path d="M9 5v14"/><path d="M15 5v14"/></svg>
+            </button>
+          </div>
+        </section>
+        <!-- The account drawer's button: the player's own ring. -->
+        <button id="menu-btn" class="avatar-btn" type="button" title="Account, invite, settings and more" aria-label="Account, invite, settings and more" aria-expanded="false" aria-controls="drawer">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5a7 7 0 0 1 14 0"/></svg>
         </button>
-        <!-- Profile (8.8), between Invite and Settings: the games left, buying
-             more, the player's own figures and the plans. Locked by the seal
-             like every page. -->
-        <button id="nav-profile" class="nav-item" type="button" data-page="profile">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.8 18.3a6 6 0 0 1 10.4 0"/></svg>
-          <span>Profile</span>
-        </button>
-        <!-- REPORT A PROBLEM (docs/claude/feedback.md): a quiet icon at the
-             end of Profile's row, directly above the Discord, opening the
-             page where the player says what went wrong and adds pictures.
-             A page like the others, locked by the seal (shell.js paintNav). -->
-        <button id="nav-feedback" class="foot-icon" type="button" data-page="feedback" title="Report a problem" aria-label="Report a problem">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 21V4.5"/><path d="M5.5 4.5h11.2a.6.6 0 0 1 .5.92L15.2 8.5l2 3.08a.6.6 0 0 1-.5.92H5.5"/></svg>
-        </button>
-        <button id="nav-settings" class="nav-item" type="button" data-page="settings">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
-          <span data-i18n="common.settings">Settings</span>
-        </button>
-        <!-- THE DISCORD (the community): a quiet icon at the end of Settings'
-             row, not a page. Main opens the invite in the browser, only as
-             config.js DISCORD_URL and never mid match; the seal locks it like
-             every page (shell.js paintNav). The plain mark, one path, in
-             currentColor. -->
-        <button id="discord" class="foot-icon" type="button" title="Join the Occlara Discord" aria-label="Join the Occlara Discord">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M19.27 5.33A16.6 16.6 0 0 0 15.1 4l-.2.4a15.4 15.4 0 0 1 3.7 1.86 12.6 12.6 0 0 0-13.2 0A15.4 15.4 0 0 1 9.1 4.4L8.9 4a16.6 16.6 0 0 0-4.17 1.33C2.1 9.2 1.38 12.97 1.74 16.69a16.8 16.8 0 0 0 5.1 2.58l.83-1.37a10.8 10.8 0 0 1-1.76-.85l.43-.33a11.9 11.9 0 0 0 11.32 0l.43.33c-.56.33-1.15.62-1.76.85l.83 1.37a16.8 16.8 0 0 0 5.1-2.58c.43-4.3-.73-8.04-2.99-11.36zM8.68 14.4c-1 0-1.82-.92-1.82-2.05s.8-2.05 1.82-2.05 1.84.93 1.82 2.05c0 1.13-.8 2.05-1.82 2.05zm6.64 0c-1 0-1.82-.92-1.82-2.05s.8-2.05 1.82-2.05 1.84.93 1.82 2.05c0 1.13-.8 2.05-1.82 2.05z"/></svg>
-        </button>
-        <button id="account" class="account" type="button" hidden></button>
-      </div>
-    </aside>
-
-    <div class="main">
-      <div class="top drag">
-        <!-- THE NOTICE LINE (8.3): one line, left of the window's buttons, and
-             only when there is something to say: the licence ending, paused,
-             or a notice from main. Never anything about the match being
-             played. Out of the drag region, the text only, so its title (the
-             whole of a line cut short) can show. Never hidden, only empty,
-             which takes no width: a live region shown and filled in the same
-             moment is not always read out, so it is there from the start. -->
-        <p id="notice" class="top-notice no-drag" aria-live="polite"></p>
-        <div class="win-controls no-drag">
+        <div class="win-controls">
           <button id="w-min" class="win-btn" type="button" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg></button>
           <button id="w-max" class="win-btn" type="button" title="Maximize" aria-label="Maximize"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
           <button id="w-close" class="win-btn close" type="button" title="Close Occlara" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
         </div>
       </div>
+    </header>
+
+    <div class="main">
+      <!-- THE ACCOUNT DRAWER (Progress v3): what the sidebar's foot held, at
+           the window's right under the bar, opened from the avatar. Every page
+           in it is locked by the seal like the tabs (shell.js paintNav). -->
+      <aside id="drawer" class="drawer" aria-label="Account and more" hidden>
+        <button id="account" class="account" type="button" hidden></button>
+        <!-- THE GAMES LEFT (8.7): main's words alone (usage.js gamesLeft,
+             shell.js paintGamesLeft), said here and nowhere else. Nothing
+             while a match is read. -->
+        <p id="rail-games" class="rail-games" hidden></p>
+        <div class="foot">
+          <button id="nav-profile" class="nav-item" type="button" data-page="profile">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.8 18.3a6 6 0 0 1 10.4 0"/></svg>
+            <span>Profile</span>
+          </button>
+          <button id="nav-invite" class="nav-item" type="button" data-page="invite">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="8" r="3.5"/><path d="M3.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/></svg>
+            <span>Invite</span>
+          </button>
+          <button id="nav-settings" class="nav-item" type="button" data-page="settings">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
+            <span data-i18n="common.settings">Settings</span>
+          </button>
+          <button id="learn" class="nav-item" type="button" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 015.5 4H10a2 2 0 012 2v13a1.5 1.5 0 00-1.5-1.5H4z"/><path d="M20 5.5A1.5 1.5 0 0018.5 4H14a2 2 0 00-2 2v13a1.5 1.5 0 011.5-1.5H20z"/></svg>
+            <span>Learn</span>
+          </button>
+          <!-- REPORT A PROBLEM (docs/claude/feedback.md): a page like the
+               others, locked by the seal (shell.js paintNav). -->
+          <button id="nav-feedback" class="nav-item" type="button" data-page="feedback" title="Report a problem" aria-label="Report a problem">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 21V4.5"/><path d="M5.5 4.5h11.2a.6.6 0 0 1 .5.92L15.2 8.5l2 3.08a.6.6 0 0 1-.5.92H5.5"/></svg>
+            <span>Report a problem</span>
+          </button>
+          <!-- THE DISCORD (the community): not a page. Main opens the invite in
+               the browser, only as config.js DISCORD_URL and never mid match;
+               the seal locks it like every page (shell.js paintNav). -->
+          <button id="discord" class="nav-item" type="button" title="Join the Occlara Discord" aria-label="Join the Occlara Discord">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M19.27 5.33A16.6 16.6 0 0 0 15.1 4l-.2.4a15.4 15.4 0 0 1 3.7 1.86 12.6 12.6 0 0 0-13.2 0A15.4 15.4 0 0 1 9.1 4.4L8.9 4a16.6 16.6 0 0 0-4.17 1.33C2.1 9.2 1.38 12.97 1.74 16.69a16.8 16.8 0 0 0 5.1 2.58l.83-1.37a10.8 10.8 0 0 1-1.76-.85l.43-.33a11.9 11.9 0 0 0 11.32 0l.43.33c-.56.33-1.15.62-1.76.85l.83 1.37a16.8 16.8 0 0 0 5.1-2.58c.43-4.3-.73-8.04-2.99-11.36zM8.68 14.4c-1 0-1.82-.92-1.82-2.05s.8-2.05 1.82-2.05 1.84.93 1.82 2.05c0 1.13-.8 2.05-1.82 2.05zm6.64 0c-1 0-1.82-.92-1.82-2.05s.8-2.05 1.82-2.05 1.84.93 1.82 2.05c0 1.13-.8 2.05-1.82 2.05z"/></svg>
+            <span>Discord</span>
+          </button>
+        </div>
+      </aside>
       <div id="page-host" class="page-host">
         <!-- While a match is in progress no page shows: only this. Held (a stop
              in the middle of a match), it says so and the sidebar stays open. -->
         <section id="sealed" class="sealed" aria-label="Recording" hidden>
-          <!-- The crescent, inline so it takes currentColor: the same path as
-               assets/logo-mark.svg, so change both. The live dot is the
-               title's, drawn by shell.css, and it never moves. -->
-          <svg class="sealed-mark" viewBox="0 0 120 120" width="88" height="88" fill="none" role="img" aria-label="Occlara">
-            <path d="M67.444,10.281 A50,50 0 1,0 107.855,80.274 A42,42 0 1,1 67.444,10.281 Z" fill="currentColor"/>
-          </svg>
-          <h1 id="sealed-title">Recording</h1>
-          <p id="sealed-sub" class="sealed-sub">Occlara shows nothing until the match ends. The review opens here the moment it does.</p>
-          <!-- The three facts as ruled rows (8.7): no box, a hairline between. -->
-          <ul id="sealed-facts" class="sealed-facts">
-            <li id="sealed-capture-row"><b>Capture</b><span id="sealed-capture">Auto, as fast as the connection keeps up</span></li>
-            <li><b>Game</b><span id="sealed-game">Read the way OBS reads it: the display only, never memory or files</span></li>
-            <li><b>Afterwards</b><span id="sealed-after">Checked against Riot's record once it is published, 90 seconds to four minutes after the end</span></li>
-          </ul>
+          <!-- HELD, and LEAGUE: the crescent, one line, nothing of the match.
+               The crescent is inline so it takes currentColor: the same path
+               as assets/logo-mark.svg, so change both. -->
+          <div id="sealed-quiet" class="sealed-quiet">
+            <svg class="sealed-mark" viewBox="0 0 120 120" width="88" height="88" fill="none" role="img" aria-label="Occlara">
+              <path d="M67.444,10.281 A50,50 0 1,0 107.855,80.274 A42,42 0 1,1 67.444,10.281 Z" fill="currentColor"/>
+            </svg>
+            <h1 id="sealed-title">Recording</h1>
+            <p id="sealed-sub" class="sealed-sub">Occlara shows nothing until the match ends. The review opens here the moment it does.</p>
+            <!-- The facts as ruled rows: how the game is read and what comes after. -->
+            <ul id="sealed-facts" class="sealed-facts">
+              <li><b>Game</b><span id="sealed-game">Read the way OBS reads it: the display only, never memory or files</span></li>
+              <li><b>Afterwards</b><span id="sealed-after">Checked against Riot's record once it is published, 90 seconds to four minutes after the end</span></li>
+            </ul>
+          </div>
+          <!-- THE LIVE STATUS (Progress v3, the owner's choice, a deliberate
+               reversal of 8.0's rule): mid a Valorant match, the four facts
+               the player's own HUD shows, map, agent, score and round, each
+               only while its switch is on (main's PUSH_LIVE, shell.js
+               paintLive), over the map's art; the round tape the score has
+               drawn so far; and the review, locked until the match ends.
+               Nothing else of the match: no HP, positions, economy, enemy,
+               advice, tip or review content, and nothing that moves but the
+               facts themselves changing. -->
+          <div id="live" class="live-status" hidden>
+            <div id="live-card" class="live-card">
+              <div id="live-art" class="live-art" aria-hidden="true"></div>
+              <div class="live-in">
+                <div class="live-head">
+                  <span class="live-dot" aria-hidden="true"></span>
+                  <b class="live-word">Recording</b>
+                  <span id="live-since" class="live-since"></span>
+                  <span id="live-mode" class="live-chip"></span>
+                </div>
+                <div id="live-wait" class="live-wait" hidden>
+                  <p>Waiting for the match to begin. What you choose below shows here once you are in.</p>
+                </div>
+                <div id="live-main" class="live-main">
+                  <span id="live-face" class="live-face" hidden></span>
+                  <div class="live-score-block">
+                    <span id="live-who" class="live-who"></span>
+                    <div id="live-score" class="live-score" aria-label="Score">
+                      <b id="live-team"></b><span class="live-colon" aria-hidden="true">:</span><b id="live-enemy"></b>
+                    </div>
+                  </div>
+                  <div id="live-round-block" class="live-round-block">
+                    <span class="live-label">Round</span>
+                    <b id="live-round"></b>
+                  </div>
+                </div>
+                <div class="live-foot">
+                  <div id="live-tape-block" class="live-tape-block">
+                    <div class="live-tape-head"><span class="live-label">Round tape</span><span class="live-note">Becomes your rounds timeline when the match ends</span></div>
+                    <div id="live-tape" class="live-tape" role="img"></div>
+                  </div>
+                  <div class="live-choose">
+                    <span class="live-note">Shown while recording</span>
+                    <div id="live-chips" class="live-chips" role="group" aria-label="Shown while recording"></div>
+                    <button id="live-choose" class="live-choose-btn" type="button" aria-expanded="false">Choose</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <aside class="live-review" aria-label="Your review">
+              <div class="live-dial" aria-hidden="true">
+                <svg id="live-dial" viewBox="0 0 150 150" width="150" height="150"></svg>
+                <svg class="live-lock" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+              </div>
+              <b class="live-review-title">Your review</b>
+              <p class="live-review-sub">Grade, mistakes and the fix open here when the match ends. Nothing is coached while you play.</p>
+            </aside>
+          </div>
         </section>
       </div>
     </div>

@@ -1,22 +1,22 @@
 /* palette: tokens only */
-/* Home, THE TRAINING LOG (8.7). One column of ruled sections on the ground:
-   a hairline over each, whitespace between them, and no frame around any.
-   The fix for the next match is the one large thing on the page; the last
-   match is one ruled line with its grade; the trend, the recent matches and
-   the most repeated mistake follow as sections. The grade card is the shared
-   one (grade-view.css), laid on the line by this sheet. */
+/* Home, PROGRESS V3 (9.0). Cards on the indigo black ground, each a surface
+   step (--s1) told from the ground by a low opacity ring, and art carrying
+   the colour: the last match's map dimmed behind it, the agent's portrait,
+   the kept clip's poster under the fix. Start is the loudest thing on the
+   page, in its strip at the top. No gradient and no glow: a scrim is one
+   flat colour over the art. */
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
 .home {
   height: 100%;
   overflow-y: auto;
-  padding: var(--space-6) max(var(--space-8), calc((100% - 1040px) / 2)) var(--space-10);
-  display: flex; flex-direction: column; gap: var(--space-8);
+  padding: var(--space-6) max(var(--space-8), calc((100% - 1120px) / 2)) var(--space-10);
+  display: flex; flex-direction: column; gap: var(--space-4);
 }
 
 /* ── The head: the game and the page ────────────────────────────────────── */
-.h-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3); }
+.h-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-1); }
 .h-titles { display: flex; flex-direction: column; gap: var(--space-1); }
 .h-game { font-size: 12px; font-weight: 500; color: var(--text-mute); }
 .h-head h1 { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); line-height: 1.1; }
@@ -27,191 +27,180 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .h-news .btn-link { height: auto; padding: 0 var(--space-1); font-size: 13px; color: var(--text); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
 .h-news .btn-link:hover { text-decoration-color: var(--text-dim); }
 .hint { font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+.label { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
 
-/* ── The order of the log ────────────────────────────────────────────────
-   The markup keeps the rows and columns home.js moves the rank between
-   (placeRank, closeUp): the first row and its side column lay nothing out
-   themselves (display: contents), so their sections are entries of the one
-   column and take the log's order: the fix first, the last match, the rank,
-   then the trend beside the recent matches, and the most repeated mistake
-   last. A hidden column still hides what it holds ([hidden] wins). */
-.rows { display: flex; flex-direction: column; gap: var(--space-10); }
-.rows > .row:first-child, #side { display: contents; }
-#focus { order: 1; }
-#last { order: 2; }
-#side > #rank { order: 3; }
-.rows > .row:last-child { order: 4; }
-#top { order: 5; }
-/* The trend and the recent matches share a row, each its own height (8.7):
-   the trend's bars keep to 120px however long the list beside them runs. */
-.rows > .row:last-child { display: flex; flex-wrap: wrap; gap: var(--space-10); align-items: flex-start; }
-.col { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: var(--space-10); }
-
-/* ── A section: a hairline, its label, its rows ─────────────────────────── */
-.card {
-  min-width: 0;
-  display: flex; flex-direction: column; gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
+/* ── The Start strip ────────────────────────────────────────────────────────
+   One strip, ringed in the signal at low opacity (a place of the signal,
+   check-palette.js SIGNAL_ALLOWED), Start at 60px at its right. */
+.start-strip {
+  display: flex; align-items: center; gap: var(--space-5);
+  min-height: 80px; padding: var(--space-2) var(--space-3) var(--space-2) var(--space-6);
+  border-radius: 22px;
+  background: var(--s1);
+  box-shadow: 0 0 0 1px rgba(var(--signal-rgb), 0.42);
 }
-/* The sections arrive one after another (home.js arrive), 40ms apart on the
+.ss-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--good); }
+/* Recording between matches: the dot goes to the ink, Stop is the bar's. */
+.start-strip.recording .ss-dot { background: var(--text); }
+.ss-word { flex: none; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; }
+.ss-line { flex: 1 1 auto; min-width: 0; max-width: 360px; font-size: 13px; line-height: 1.5; color: var(--text-mute); }
+.start-strip .btn-rec { margin-left: auto; flex: none; }
+
+/* ── A card ─────────────────────────────────────────────────────────────── */
+.panel {
+  position: relative; overflow: hidden; min-width: 0;
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--r-panel);
+  background: var(--s1);
+  box-shadow: var(--rim);
+}
+/* The cards arrive one after another (home.js arrive), 40ms apart on the
    riseIn every list shares (ui.css), once, when Home first paints. */
 .card.card-in {
   animation: riseIn var(--t-slow) var(--ease-expo) both;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-/* A way on from a section's head (All matches, Rank journey) keeps its
-   padding to be pressed, and gives it back in margin, so the head is as tall
-   as its label and the word lines up with the section's edge. */
 .card-head .btn-link { padding: var(--space-2) var(--space-3); margin: calc(var(--space-2) * -1) calc(var(--space-3) * -1) calc(var(--space-2) * -1) 0; }
-.label { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
 
-/* ── Nothing yet: the one line on the page ──────────────────────────────── */
-.empty { gap: var(--space-3); padding-top: var(--space-5); }
-.empty h2 { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); line-height: 1.1; }
-.empty .hint { max-width: 60ch; }
-.empty .btn { align-self: flex-start; margin-top: var(--space-2); }
+/* Art behind a card: the picture, then one flat scrim over it. */
+.art { position: absolute; inset: 0; pointer-events: none; }
+.art-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.art-scrim { position: absolute; inset: 0; background: var(--scrim); }
+.in { position: relative; display: flex; flex-direction: column; min-height: 100%; }
 
-/* ── The fix for the next match, the hero ───────────────────────────────── */
-#focus { gap: var(--space-3); padding-top: var(--space-5); }
+/* A chip: a capsule label, dark over art. */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 10px;
+  border-radius: var(--r-pill);
+  background: var(--scrim-chip); box-shadow: var(--rim-2);
+  font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap;
+}
+.chip.quiet { color: var(--text-dim); }
+.chip.result.win { color: var(--good); }
+.chip.result.loss { color: var(--bad); }
+.chip .score { color: var(--text); font-variant-numeric: tabular-nums; }
+.rr-chip {
+  display: inline-flex; align-items: center;
+  height: 24px; padding: 0 10px;
+  border-radius: var(--r-pill);
+  background: var(--s4); box-shadow: var(--rim-2);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.rr-chip[hidden] { display: none; }
+
+/* An agent's portrait, a ringed circle. */
+.agent-face { flex: none; border-radius: 50%; object-fit: cover; background: var(--s3); box-shadow: var(--rim-2); }
+.agent-face.lg { width: 58px; height: 58px; }
+.agent-face.sm { width: 38px; height: 38px; }
+
+/* A grade's change since the match before. */
+.delta {
+  display: inline-flex; align-items: center; height: 24px; padding: 0 9px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums;
+  background: var(--s3); color: var(--text-dim);
+}
+.delta.up { background: rgba(var(--good-rgb), 0.14); color: var(--good); }
+.delta.down { background: rgba(var(--bad-rgb), 0.14); color: var(--bad); }
+
+/* ── Nothing yet ────────────────────────────────────────────────────────── */
+.empty { gap: var(--space-3); padding: var(--space-6); }
+.empty h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.25; max-width: 28ch; }
+.empty .hint { max-width: 60ch; font-size: 13px; color: var(--text-mute); }
+
+/* ── The rows of cards ──────────────────────────────────────────────────── */
+.rows { display: flex; flex-direction: column; gap: var(--space-4); }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.22fr); gap: var(--space-4); }
+.row.single { grid-template-columns: minmax(0, 1fr); }
+
+/* ── The last match ─────────────────────────────────────────────────────── */
+/* TEXT OVER ART HOLDS 4.5:1 (Progress v3): the dense scrim, and the dim ink
+   as the quietest one over a map. */
+.last, .focus, .live-card { --text-mute: var(--text-dim); }
+.last { min-height: 374px; padding: 0; }
+.last .in { padding: var(--space-5) var(--space-6); gap: 0; }
+.last-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.last-head .label { color: var(--text-dim); margin-right: 2px; }
+.last-head .last-rr { margin-left: auto; }
+.last-who { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-5); }
+.who-names { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.who-name { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; }
+.who-sub { font-size: 12px; color: var(--text-mute); }
+.last-grade-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3) var(--space-4); margin-top: var(--space-3); }
+#last .gv-grade.last-grade { display: flex; flex-direction: row; align-items: flex-end; gap: var(--space-3); }
+.gv-score.big {
+  font-size: 76px; font-weight: 600; line-height: 1; letter-spacing: -0.055em;
+  font-variant-numeric: tabular-nums; color: var(--text);
+}
+.grade-side { display: flex; align-items: center; gap: var(--space-2); padding-bottom: 10px; }
+.last-under { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-2); }
+.last-foot { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+/* Still being checked (8.4.1): the checking card where the grade would be. */
+.last-grade-row .gv-checking-card { flex: 1 1 100%; }
+.last-line-host { margin-top: auto; padding-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-1); }
+.line-avg { font-size: 12px; color: var(--text-mute); }
+
+/* ── The fix for next match, over its picture ───────────────────────────── */
+.focus { padding: 0; gap: 0; }
+.fix-media { position: relative; height: 236px; flex: none; background: var(--s2); overflow: hidden; }
+.focus.no-media .fix-media { display: none; }
+.fix-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.fix-media .art-scrim { background: var(--scrim-soft); }
+.fix-poster.map + .art-scrim { background: var(--scrim); }
+.fix-chips { position: absolute; left: 14px; top: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.play-mark {
+  position: absolute; left: 50%; top: 50%;
+  width: 54px; height: 54px; margin: -27px 0 0 -27px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 50%;
+  background: var(--text); color: var(--bg);
+  box-shadow: var(--drop);
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease);
+}
+.play-mark:hover { transform: scale(1.04); }
+.play-mark:active { transform: scale(0.97); }
+.play-mark svg { margin-left: 3px; }
+.fix-body { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-5) var(--space-6); flex: 1 1 auto; }
 .focus-text {
-  font-size: 44px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.05;
+  font-size: 23px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.22;
   text-wrap: pretty;
 }
+.focus.no-media .focus-text { font-size: 32px; line-height: 1.12; }
+.fix-foot { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
 
-/* ── The last match, one ruled line ─────────────────────────────────────────
-   Its facts on the left (the result, the score, who and where), its grade in
-   the middle (the shared grade card's top, laid on the line: display:
-   contents takes the card's own box away), and its two buttons on the right.
-   Under the line, the four categories as a quiet row, then the milestone. */
-.last {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  column-gap: var(--space-8); row-gap: var(--space-4);
-  align-items: center;
-}
-.last-top { grid-column: 1; grid-row: 1; min-width: 0; }
-.last-facts { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-.last-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); min-width: 0; }
-.result { font-size: 14px; font-weight: 500; }
-.result.win { color: var(--good); }
-.result.loss { color: var(--bad); }
-.score { font-size: 28px; font-weight: 600; line-height: 1; letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; }
-.meta { font-size: 14px; color: var(--text-dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#last .gv-grade { display: contents; }
-#last .gv-top { grid-column: 2; grid-row: 1; gap: var(--space-3); }
-#last .gv-score { font-size: 28px; }
-#last .gv-letter { width: auto; min-width: 34px; height: 24px; padding: 0 9px; font-size: 12px; letter-spacing: 0.02em; }
-#last .gv-cats { grid-column: 1 / -1; grid-row: 2; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3) var(--space-6); }
-/* Still being checked (8.4.1): the checking card where the grade would be. */
-#last .gv-checking-card { grid-column: 1 / -1; grid-row: 2; }
-/* The milestone (8.7, home.js paintLast): the line the review's progress
-   strip leads with, drawn as a plain line here, its dot in its tone, never
-   as a chip inside the section. */
-.last-prog { grid-column: 1 / -1; grid-row: 3; }
-.last-prog .gv-prog { padding: 0; border: 0; background: transparent; font-size: 14px; font-weight: 400; }
-.last-foot {
-  grid-column: 3; grid-row: 1;
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2);
-}
-/* The arrival: the category bars fill once the line has risen (gvFill is
-   grade-view.css's), transform only. */
-#last.card-in .gv-bar i {
-  transform-origin: left center;
-  animation: gvFill var(--t-slow) var(--ease-expo) both;
-  animation-delay: calc(var(--i, 0) * 40ms + 120ms);
-}
-/* ── The most repeated mistake ──────────────────────────────────────────── */
-.top-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: 15px; font-weight: 600; }
-.top-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
-.trend { font-size: 12px; font-weight: 500; color: var(--text-mute); }
-.trend.rising { color: var(--bad); }
-.fix { font-size: 14px; line-height: 1.5; }
-.fix-label { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-right: var(--space-1); }
-#top .hint, #top .fix { max-width: 72ch; }
-#top .btn { align-self: flex-start; margin-top: var(--space-1); }
+/* ── The rank ───────────────────────────────────────────────────────────── */
+.rank { gap: var(--space-2); }
+.rank-now { display: flex; align-items: baseline; gap: var(--space-3); margin-top: var(--space-1); }
+.rank-tier { font-size: 28px; font-weight: 600; letter-spacing: -0.04em; line-height: 1.1; white-space: nowrap; }
+.rank-bar { position: relative; height: 5px; margin-top: var(--space-4); border-radius: 3px; background: var(--s4); overflow: hidden; }
+.rank-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--text); }
+.rank-foot { display: flex; justify-content: space-between; gap: var(--space-3); font-family: var(--font-mono); font-size: 11px; color: var(--text-mute); }
 
-/* ── The rank (home.js paintRank) ───────────────────────────────────────────
-   The rank the newest rated game left with the last game's RR beside it, and
-   the journey as a line, the newest game the dot at its end. A gain is
-   --good, a loss --bad, no change dim, and the sign is always printed. */
-.rank { gap: var(--space-3); }
-/* Beside the last match it fills what that card leaves of the column, and
-   the line grows with it; above the grade trend it keeps its own height. */
-#side .rank { flex: 1 1 auto; }
-.rank-body { flex: 1 1 auto; display: flex; align-items: stretch; gap: var(--space-6); }
-.rank-now { flex: none; align-self: center; display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
-.rank-tier { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; white-space: nowrap; }
-.rank-rr, .r-rr { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.rank-rr.gain, .r-rr.gain { color: var(--good); }
-.rank-rr.loss, .r-rr.loss { color: var(--bad); }
-.rank-rr.even, .r-rr.even { color: var(--text-mute); }
-/* The line is laid over its box rather than in it: in the flow, its own
-   shape (100 by 40) set the box's height from its width. */
-.rank-line { position: relative; flex: 1 1 auto; min-width: 0; max-width: 360px; min-height: 40px; }
-.rank-line svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; overflow: visible; }
-.rank-line path { fill: none; stroke: var(--text-dim); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.rank-dot {
-  position: absolute; right: 0;
-  width: 8px; height: 8px; margin: -4px -4px 0 0;
-  border-radius: 50%; background: var(--text);
-}
+/* ── The most repeated mistakes ─────────────────────────────────────────── */
+.top-list { display: flex; flex-direction: column; }
+.top-row { display: flex; align-items: center; gap: var(--space-3); min-height: 32px; border-top: 1px solid var(--line); }
+.top-mark { flex: none; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bad); }
+.top-title { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top-n { flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
 
-/* ── The grade over the last matches (home.js paintTrend) ──────────────────
-   The bars stand on one ruled baseline, 120px tall whatever stands beside
-   them (8.7): a chart taller than the fix line was a second hero. Each bar
-   is its grade as a share of its track's whole height; the number sits off
-   the bar's top, never stacked over it in the same column, and the track's
-   top margin is the room the number needs over a 100. The number is always
-   beside the colour. No map under a bar: the match beside it names it. */
-.bars { height: 120px; display: flex; gap: var(--space-3); }
-.bar-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
-.bar-track { position: relative; flex: 1 1 auto; width: 100%; margin-top: 18px; border-bottom: 1px solid var(--line-2); }
-.bar {
-  position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto;
-  width: 100%; max-width: 20px; height: var(--h, 0%);
-  border-radius: 2px 2px 0 0; background: var(--text-mute);
-}
-.bar.good { background: var(--good); }
-.bar.mid { background: var(--text); }
-.bar.warn { background: var(--warn); }
-.bar.bad { background: var(--bad); }
-.bar-num {
-  position: absolute; left: 0; right: 0; bottom: calc(var(--h, 0%) + 6px);
-  text-align: center; font-family: var(--font-mono); font-size: 12px; font-weight: 500; line-height: 12px; color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-/* The arrival: each bar rises from its baseline after the one before it, by
-   its clip alone, so a measurement of the bar's box reads its grade at any
-   moment of it. */
-#trend.card-in .bar {
-  animation: barUp var(--t-slow) var(--ease-expo) both;
-  animation-delay: calc(var(--i, 0) * 40ms + var(--j, 0) * 40ms + 80ms);
-}
-#trend.card-in .bar-num {
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
-  animation-delay: calc(var(--i, 0) * 40ms + var(--j, 0) * 40ms + 200ms);
-}
-@keyframes barUp {
-  from { clip-path: inset(100% 0 0 0); }
-  to   { clip-path: inset(0); }
-}
-
-/* ── The recent matches, a ruled row each, opening its review ───────────── */
-.recent { flex: 2 1 520px; gap: var(--space-2); }
+/* ── The recent matches, a row each, opening its review ─────────────────── */
+.recent { gap: var(--space-2); }
 .recent-list { display: flex; flex-direction: column; }
 .r-row {
   display: flex; align-items: center; gap: var(--space-3);
-  min-height: 56px; padding: var(--space-2) var(--space-2);
-  margin: 0 calc(var(--space-2) * -1);
+  min-height: 58px; padding: var(--space-2) var(--space-3);
+  margin: 0 calc(var(--space-3) * -1);
   border: 0; border-top: 1px solid var(--line);
   background: transparent; color: var(--text); text-align: left;
   font: inherit; cursor: pointer;
-  border-radius: var(--r-card);
+  border-radius: var(--r-control);
   transition: background var(--t-fast) var(--ease);
 }
-.r-row:last-child { border-bottom: 1px solid var(--line); }
 .r-row:hover { background: rgba(255, 255, 255, 0.035); }
 .r-row:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
 /* The rows rise one after another as the section arrives, once. */
@@ -224,9 +213,8 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .r-res { font-size: 13px; font-weight: 500; color: var(--text-dim); }
 .r-res.win { color: var(--good); }
 .r-res.loss { color: var(--bad); }
-/* A mark beside the result (8.7, home-model.js marks, as the library draws
-   them): "Best in 23", "First A", "3 in a row". A filled mark, then its
-   words, so the tone is never alone. */
+/* A mark beside the result (8.7, home-model.js marks): "Best in 23",
+   "First A", "3 in a row". A filled mark, then its words. */
 .r-mark {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; font-weight: 500; color: var(--good); white-space: nowrap;
@@ -234,14 +222,23 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .r-mark::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .r-mark.run, .r-mark.cleared { color: var(--text-dim); }
 .r-meta { font-size: 12px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A rated match's RR beside its grade, coloured as the rank's is. */
-.r-rr { flex: none; }
-.r-score { font-family: var(--font-mono); font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; min-width: 24px; text-align: right; }
-/* The same capsule mark as a row of Matches (.m-letter). */
+/* A rated match's RR beside its grade. A gain is --good, a loss --bad, no
+   change dim, and the sign is always printed. */
+.r-rr { flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums;
+  height: 24px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: var(--r-pill); background: var(--s3); color: var(--text-mute); }
+.r-rr[hidden] { display: none; }
+.r-rr.gain { color: var(--good); }
+.r-rr.loss { color: var(--bad); }
+.r-score { font-size: 22px; font-weight: 600; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; min-width: 32px; text-align: right; }
 .r-row .gv-letter { width: auto; min-width: 30px; height: 22px; padding: 0 8px; font-size: 11px; letter-spacing: 0.02em; }
+
+@media (max-width: 900px) {
+  .row { grid-template-columns: minmax(0, 1fr); }
+  .ss-line { display: none; }
+}
 
 /* Less motion: every entrance is its end state at once, with no stagger to
    wait through (theme.css collapses the durations, not the delays). */
 @media (prefers-reduced-motion: reduce) {
-  .card.card-in, .recent.card-in .r-row, #trend.card-in .bar, #trend.card-in .bar-num, #last.card-in .gv-bar i { animation: none; }
+  .card.card-in, .recent.card-in .r-row { animation: none; }
 }

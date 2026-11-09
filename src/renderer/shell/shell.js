@@ -1,7 +1,8 @@
 'use strict';
 
 /*
- * The shell: the main window's sidebar, top strip and Recording screen (8.1).
+ * The shell: the main window's top bar, account drawer and Recording screen
+ * (8.1; the sidebar became the top bar in Progress v3).
  *
  * It carries what the panel window used to, ported with the same rules: Start,
  * Stop and Pause, one line of notices (since 8.3 in the top strip, and only
@@ -56,8 +57,6 @@ const noticeEl = $('notice');
 let isCoaching = false;
 let isPaused = false;
 let notice = null;
-let cadence = null;
-let captureSpeed = 'auto';
 let licenseActive = true;
 let gameId = 'valorant';
 let shell = { page: 'home', shown: 'home', sealed: false, held: false, maximized: false };
@@ -92,7 +91,27 @@ $('nav-feedback').addEventListener('click', () => window.occlara.go('feedback'))
 $('nav-invite').addEventListener('click', () => window.occlara.go('invite'));
 $('nav-profile').addEventListener('click', () => window.occlara.go('profile'));
 $('nav-settings').addEventListener('click', () => window.occlara.go('settings'));
-$('learn').addEventListener('click', () => window.occlara.openLearn());
+$('learn').addEventListener('click', () => { setDrawer(false); window.occlara.openLearn(); });
+
+/*
+ * THE ACCOUNT DRAWER (Progress v3): what the sidebar's foot held, opened from
+ * the avatar at the bar's end. Main narrows the page while it is open
+ * (SHELL_WINDOW 'drawer-open'), because a page's view paints over this
+ * document. A page chosen in it, Escape or the avatar again closes it.
+ */
+function setDrawer(open) {
+  const d = $('drawer');
+  const next = !!open;
+  if (d.hidden === !next) return;
+  d.hidden = !next;
+  $('menu-btn').setAttribute('aria-expanded', String(next));
+  window.occlara.windowAction(next ? 'drawer-open' : 'drawer-close');
+}
+$('menu-btn').addEventListener('click', () => setDrawer($('drawer').hidden));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setDrawer(false); });
+for (const id of ['nav-invite', 'nav-profile', 'nav-settings', 'nav-feedback', 'discord', 'account']) {
+  $(id).addEventListener('click', () => setDrawer(false));
+}
 // The Discord (the community): main opens the invite in the browser, never
 // mid match, and the seal locks the button like the pages (paintNav).
 // The plain mark, the same path as index.html draws, put back once the lock goes.
@@ -142,6 +161,12 @@ function paintNav() {
   $('sealed-title').textContent = text.title;
   $('sealed-sub').textContent = text.sub;
   $('sealed-facts').hidden = !!shell.held;
+  paintLive();
+  // The bar's modes (Progress v3): on Home, not recording, Start is the
+  // page's own strip; mid match Stop is the large capsule.
+  const app = document.querySelector('.app');
+  app.classList.toggle('home-page', shell.page === 'home' && !shell.sealed);
+  app.classList.toggle('sealed-live', !!shell.sealed && !shell.held);
   $('w-max').title = shell.maximized ? 'Restore' : 'Maximize';
   $('w-max').setAttribute('aria-label', $('w-max').title);
   placeMarker();
@@ -159,7 +184,9 @@ function paintNav() {
 const marker = $('nav-marker');
 let markerOn = null;
 function placeMarker() {
-  const b = [...navButtons.values()].find((x) => x.getAttribute('aria-current') === 'page');
+  // TOP NAVIGATION (Progress v3): the marker is the tabs' pill, so a page
+  // in the drawer (Settings, Profile and the rest) marks its own row there.
+  const b = [...navButtons.values()].find((x) => x.getAttribute('aria-current') === 'page' && x.parentNode === $('nav'));
   const top = b ? b.offsetTop : NaN;
   if (!b || b.hidden || !Number.isFinite(top)) {
     marker.classList.remove('on');
@@ -281,24 +308,161 @@ function readConfig(fallback) {
 // ── The record controls ────────────────────────────────────────────────────
 // What the Recording screen says, per game: how it is read and what happens
 // after. League is recorded from the game's own local data, not the screen.
+// NO READ CADENCE ON THE SCREEN (Progress v3): the row that said how often
+// the game was being read mid match ("Reading your game every 1s in a live
+// round") is gone. It was a live number about the match on the sealed screen.
 const SEALED_FACTS = {
-  valorant: { capture: true, game: 'Read the way OBS reads it: the display only, never memory or files',
+  valorant: { game: 'Read the way OBS reads it: the display only, never memory or files',
     after: "Checked against Riot's record once it is published, 90 seconds to four minutes after the end" },
-  lol: { capture: false, game: "Recorded from the game's own local data, never memory or files",
+  lol: { game: "Recorded from the game's own local data, never memory or files",
     after: 'Graded from what was recorded, the moment the game ends' },
 };
 function paintSealedFacts() {
   const f = SEALED_FACTS[gameId] || SEALED_FACTS.valorant;
-  $('sealed-capture-row').hidden = !f.capture;
   $('sealed-game').textContent = f.game;
   $('sealed-after').textContent = f.after;
-  const every = cadence ? (cadence < 1000 ? `${cadence}ms` : `${Math.round(cadence / 100) / 10}s`) : null;
-  // The gap is the live round's: menus, a confirmed buy phase and the time
-  // spent dead are read less often (read-cadence.js, 8.3.2), as Settings says.
-  $('sealed-capture').textContent = every
-    ? `Reading your game every ${every} in a live round${captureSpeed === 'auto' ? ', as fast as the connection keeps up' : ', pinned in Settings'}`
-    : 'Auto, as fast as the connection keeps up';
 }
+
+/*
+ * THE LIVE STATUS (Progress v3, the owner's choice and a deliberate reversal
+ * of 8.0's rule, docs/claude/screen-silence.md). Mid a Valorant match the
+ * Recording screen shows what main sends (PUSH_LIVE) and nothing else: the
+ * map behind the card, the agent's portrait, the score, the round, and the
+ * round tape the score has drawn, each only while its switch is on (main
+ * leaves out what is off). The review is a locked ring until the match
+ * ends. Textcontent only; the art is bundled files (agent-icons.js).
+ * Nothing moves on it but the facts changing: no timer, no pulse.
+ */
+let live = null;
+let liveEditing = false;
+const LIVE_ITEMS = [['liveMap', 'Map'], ['liveAgent', 'Agent'], ['liveScore', 'Score'], ['liveRound', 'Round']];
+const liveOn = (k) => !cfg || cfg[k] !== false;
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs) {
+  const n = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+  return n;
+}
+/** One pip of the tape: a round won filled, lost a ring, unknown half, to come dashed. */
+function pip(kind) {
+  const svg = svgEl('svg', { width: 18, height: 18, viewBox: '0 0 18 18', class: 'pip ' + kind });
+  if (kind === 'now' || kind === 'unknown') {
+    svg.append(svgEl('circle', { cx: 9, cy: 9, r: 8.2, class: 'pip-shape' }), svgEl('path', { d: 'M9 0.8 A8.2 8.2 0 0 1 9 17.2 Z', class: 'pip-half' }));
+  } else {
+    // A round still to come is dashed: form before hue. The dash is an
+    // attribute here, as the old mark's detector keeps it out of the sheet.
+    const c = svgEl('circle', { cx: 9, cy: 9, r: kind === 'won' ? 8.6 : 8.2, class: 'pip-shape' });
+    if (kind === 'next') c.setAttribute('stroke-dasharray', '2 3');
+    svg.append(c);
+  }
+  return svg;
+}
+function paintRing() {
+  const svg = $('live-dial');
+  if (!svg || svg.childNodes.length) return;
+  const n = 24, r = 75;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * 2 * Math.PI - Math.PI / 2;
+    const c = Math.cos(a), si = Math.sin(a);
+    svg.append(svgEl('line', { x1: (r + (r - 10) * c).toFixed(2), y1: (r + (r - 10) * si).toFixed(2),
+      x2: (r + (r - 1.5) * c).toFixed(2), y2: (r + (r - 1.5) * si).toFixed(2), class: 'tick' }));
+  }
+}
+function paintChips() {
+  const host = $('live-chips');
+  host.replaceChildren();
+  for (const [key, label] of LIVE_ITEMS) {
+    const on = liveOn(key);
+    if (!on && !liveEditing) continue;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'live-chip chip-toggle';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', String(on));
+    b.disabled = !liveEditing;
+    b.title = liveEditing ? (on ? `Hide the ${label.toLowerCase()} while recording` : `Show the ${label.toLowerCase()} while recording`) : '';
+    b.addEventListener('click', async () => {
+      if (!liveEditing) return;
+      const next = !liveOn(key);
+      cfg = { ...(cfg || {}), [key]: next };
+      paintChips();
+      await Promise.resolve(window.occlara.setLive(key, next)).catch(() => {});
+    });
+    host.append(b);
+  }
+  if (!host.childNodes.length) host.append(Object.assign(document.createElement('span'), { className: 'live-note', textContent: 'Nothing' }));
+  $('live-choose').textContent = liveEditing ? 'Done' : 'Choose';
+  $('live-choose').setAttribute('aria-expanded', String(liveEditing));
+}
+$('live-choose').addEventListener('click', () => { liveEditing = !liveEditing; paintChips(); });
+
+function paintLive() {
+  const box = $('live');
+  const show = !!shell.sealed && !shell.held && gameId === 'valorant';
+  box.hidden = !show;
+  $('sealed-quiet').hidden = show;
+  if (!show) { liveEditing = false; return; }
+  paintRing();
+  paintChips();
+  const v = live && live.state === 'live' ? live : null;
+  $('live-wait').hidden = !!v;
+  $('live-main').hidden = !v;
+  $('live-tape-block').hidden = !v || !Array.isArray(v.tape);
+  const since = live && live.startedAt ? new Date(live.startedAt) : null;
+  $('live-since').textContent = since ? `since ${since.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '';
+  $('live-mode').textContent = v && v.mode ? `Valorant \u00b7 ${v.mode === 'swiftplay' ? 'Swiftplay' : 'Standard'}` : 'Valorant';
+  // The map behind the card.
+  const art = $('live-art');
+  const mapSrc = v && v.map && typeof window.occlara.mapArt === 'function' ? window.occlara.mapArt(v.map) : null;
+  if ((art.dataset.src || '') !== (mapSrc || '')) {
+    art.replaceChildren();
+    art.dataset.src = mapSrc || '';
+    if (mapSrc) {
+      const img = document.createElement('img');
+      img.src = mapSrc; img.alt = ''; img.className = 'live-art-img';
+      img.addEventListener('error', () => img.remove());
+      art.append(img);
+    }
+    art.append(Object.assign(document.createElement('div'), { className: 'live-art-scrim' }));
+  }
+  if (!v) return;
+  // The agent's portrait.
+  const face = $('live-face');
+  const faceSrc = v.agent && typeof window.occlara.agentArt === 'function' ? window.occlara.agentArt(v.agent) : null;
+  face.hidden = !faceSrc;
+  if ((face.dataset.src || '') !== (faceSrc || '')) {
+    face.replaceChildren();
+    face.dataset.src = faceSrc || '';
+    if (faceSrc) {
+      const img = document.createElement('img');
+      img.src = faceSrc; img.alt = v.agent;
+      img.addEventListener('error', () => { face.replaceChildren(); face.hidden = true; });
+      face.append(img);
+    }
+  }
+  $('live-who').textContent = [v.agent, v.map].filter(Boolean).join(' on ');
+  $('live-who').hidden = !v.agent && !v.map;
+  const scored = typeof v.team === 'number' && typeof v.enemy === 'number';
+  $('live-score').hidden = !scored;
+  $('live-team').textContent = scored ? String(v.team) : '';
+  $('live-enemy').textContent = scored ? String(v.enemy) : '';
+  $('live-score').setAttribute('aria-label', scored ? `Score ${v.team} to ${v.enemy}` : 'Score');
+  $('live-round-block').hidden = typeof v.round !== 'number';
+  $('live-round').textContent = typeof v.round === 'number' ? String(v.round) : '';
+  // The tape: one pip a round played, the round under way half, the rest to come dashed.
+  const tape = $('live-tape');
+  tape.replaceChildren();
+  if (Array.isArray(v.tape)) {
+    const played = v.tape.length;
+    const total = Math.max(v.mode === 'swiftplay' ? 9 : 24, played + 1);
+    for (const r of v.tape) tape.append(pip(r === 'W' ? 'won' : r === 'L' ? 'lost' : 'unknown'));
+    tape.append(pip('now'));
+    for (let i = played + 1; i < total; i++) tape.append(pip('next'));
+    const won = v.tape.filter((r) => r === 'W').length, lost = v.tape.filter((r) => r === 'L').length;
+    tape.setAttribute('aria-label', `${played} rounds played, ${won} won and ${lost} lost`);
+  }
+}
+if (typeof window.occlara.onLive === 'function') window.occlara.onLive((v) => { live = v || null; paintLive(); });
 
 /*
  * THE NOTICE LINE (8.3), in the top strip. The player asked for the text under
@@ -354,12 +518,14 @@ function render() {
     pauseBtn.disabled = true;
     pauseBtn.innerHTML = ICO.pause;
     recEl.classList.remove('live');
+    recEl.classList.add('recording');
   } else {
     toggleBtn.disabled = false;
     toggleLbl.textContent = tr(isCoaching ? 'panel.stop' : 'panel.start');
     toggleIco.innerHTML = isCoaching ? ICO.stop : ICO.play;
     toggleBtn.classList.toggle('active', isCoaching);
     recEl.classList.toggle('live', isCoaching && !isPaused);
+    recEl.classList.toggle('recording', isCoaching);
     pauseBtn.disabled = !isCoaching;
     pauseBtn.innerHTML = isPaused ? ICO.play : ICO.pause;
   }
@@ -397,9 +563,7 @@ function applyState(s) {
   isCoaching = !!s.isCoaching;
   isPaused = !!s.isPaused;
   if ('notice' in s) notice = s.notice || null;
-  if ('cadence' in s) cadence = s.cadence || null;
   if ('sounds' in s) soundsOn = s.sounds !== false;
-  if (s.captureSpeed) captureSpeed = s.captureSpeed;
   if (typeof s.licenseActive === 'boolean') licenseActive = s.licenseActive;
   $('learn').hidden = gameId !== 'lol';
   render();
@@ -407,7 +571,7 @@ function applyState(s) {
   // it again after layout: the Learn entry above shows or goes with the game.
   placeMarker();
   soundCue();
-  if (gameChanged || wasCoaching !== isCoaching) { paintGames(); paintAccount(); paintGamesLeft(); }
+  if (gameChanged || wasCoaching !== isCoaching) { paintGames(); paintAccount(); paintGamesLeft(); paintLive(); }
 }
 
 window.occlara.onState(applyState);
@@ -434,8 +598,8 @@ $('w-max').addEventListener('click', () => window.occlara.windowAction('maximize
 $('w-close').addEventListener('click', () => window.occlara.windowAction('close'));
 // The notice line is a hole in the strip's drag region, and no part of the
 // strip's caption either: a double click on its text maximises nothing.
-document.querySelector('.top').addEventListener('dblclick', (e) => {
-  if (!e.target.closest('.win-controls, .top-notice')) window.occlara.windowAction('maximize');
+document.querySelector('.bar').addEventListener('dblclick', (e) => {
+  if (!e.target.closest('.no-drag, .top-notice')) window.occlara.windowAction('maximize');
 });
 
 // ── Boot ───────────────────────────────────────────────────────────────────
@@ -446,6 +610,7 @@ document.querySelector('.top').addEventListener('dblclick', (e) => {
     window.occlara.getShell().catch(() => null),
   ]);
   if (s) shell = s;
+  if (typeof window.occlara.getLive === 'function') live = await Promise.resolve(window.occlara.getLive()).catch(() => null);
   applyState(state);
   paintGames();
   paintAccount();

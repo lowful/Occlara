@@ -1,5 +1,33 @@
 [
   {
+    "version": "8.9.0",
+    "date": "2026-11-09",
+    "title": "A new look, and a live status while you play",
+    "summary": "A new look with a top bar, and a live status of your Valorant match on the Recording screen.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "A new look across the app. The sidebar is replaced by a top bar with your pages, the game switch and your account menu, and Home, Matches, reviews and Settings are redrawn."
+      },
+      {
+        "kind": "new",
+        "text": "While a Valorant match is on, the Recording screen shows its map, your agent, the score and the round, with a strip that draws the rounds as they go. Each one has a switch in Settings, and nothing else about the match is shown until it ends."
+      },
+      {
+        "kind": "improved",
+        "text": "Maps have their own art on Home and in reviews."
+      },
+      {
+        "kind": "fixed",
+        "text": "Ask Coach no longer drops a correct answer about how many hits a gun needs to kill through armor."
+      },
+      {
+        "kind": "improved",
+        "text": "With no match attached, Ask Coach reads the round you describe and picks advice that fits it far more often."
+      }
+    ]
+  },
+  {
     "version": "8.8.1",
     "date": "2026-11-08",
     "title": "The previous look is back, and the coach checks more of what it says",

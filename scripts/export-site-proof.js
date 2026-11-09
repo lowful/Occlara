@@ -194,15 +194,19 @@ const READ_HOME = `(() => { ${READ_HELPERS}
   const last = Q('#last');
   return {
     fix: txt('#focus-text'),
+    // Progress v3: the last match card. The result is its chip's word, the
+    // score the chip's number, the meta the agent, map and queue as the old
+    // line said them, and the milestone and categories it no longer draws.
     last: {
-      result: txt('.result', last), score: txt('.score', last), meta: txt('.meta', last),
-      milestone: list('.last-prog .gv-prog', last),
-      grade: { score: txt('.gv-score', last), letter: txt('.gv-letter', last), label: txt('.gv-label', last), sub: txt('.gv-sub', last) },
-      categories: QA('.gv-cat', last).map((c) => ({ name: txt('.gv-cat-name', c), score: txt('.gv-cat-score', c) })),
+      result: T(Q('.chip.result', last) && Q('.chip.result', last).firstChild), score: txt('.chip .score', last),
+      meta: [txt('.who-name', last), txt('.last-head .chip:not(.result):not(.quiet)', last), txt('.who-sub', last).replace(/^Your last agent\s*\u00b7?\s*/, '')].filter(Boolean).join('  \u00b7  '),
+      milestone: [],
+      grade: { score: txt('.gv-score', last), letter: txt('.gv-letter', last), label: '', sub: '' },
+      categories: [],
       buttons: list('.last-foot button', last),
     },
-    top: shown(Q('#top')) ? { title: txt('#top-title'), trend: txt('#top-trend'), detail: txt('#top-detail'), fix: txt('#top-fix') } : null,
-    trend: shown(Q('#trend')) ? { label: txt('#trend .label'), average: txt('#trend-avg'), grades: list('#trend-bars .bar-num') } : null,
+    top: shown(Q('#top')) ? { title: txt('.top-title'), trend: '', detail: '', fix: '' } : null,
+    trend: Q('#last .grade-line') ? { label: 'Grade over the last matches', average: txt('.line-avg'), grades: list('#last .gl-num') } : null,
     recent: QA('#recent-list .r-row').map((r) => ({ title: T(Q('.r-title', r).firstChild), result: txt('.r-res', r), marks: list('.r-mark', r),
       meta: noDate(txt('.r-meta', r)), grade: txt('.r-score', r), letter: txt('.gv-letter', r) })),
   };
@@ -211,8 +215,11 @@ const READ_SHELL = `(() => { ${READ_HELPERS}
   return { pages: list('#nav .nav-item'), foot: list('.side .foot button'), start: txt('#toggle .t-label'), games: txt('#rail-games') };
 })()`;
 const READ_SEALED = `(() => { ${READ_HELPERS}
-  return { title: txt('#sealed-title'), sub: txt('#sealed-sub'),
-    facts: QA('#sealed-facts li').filter(shown).map((li) => ({ label: txt('b', li), text: txt('span', li) })) };
+  // Progress v3: in a Valorant match the screen is the live status, here
+  // before the match is under way (the stand-in reader has no round), so its
+  // facts are what it says while it waits and the locked review beside it.
+  return { title: txt('.live-word'), sub: txt('.live-wait p'),
+    facts: [{ label: 'Your review', text: txt('.live-review-sub') }] };
 })()`;
 const READ_MATCHES = `(() => { ${READ_HELPERS}
   return { heading: txt('#every h3, #every h2, #every .block-title'),

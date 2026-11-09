@@ -47,8 +47,30 @@ html { font-synthesis-weight: none; }
   /* Cool charcoal (8.6): the ground of every surface, a breath cooler than the
      neutral near-black before it, so the white ink and the one red signal
      read as the only colour on it. */
-  --bg:    #0A0B0E;
-  --bg-2:  #0F1116;
+  --bg:    #07080C;
+  --bg-2:  #0B0D12;
+  /* PROGRESS V3 (9.0): the ground went a step darker and toward indigo, and
+     content sits on four surface steps above it, each told from the ground
+     by a low opacity ring rather than a border or a shadow. No gradient and
+     no glow: the art (a map, an agent, a kept clip) carries the colour.
+       --s1  a card or a panel on the ground
+       --s2  a tile inside a panel, a selected row
+       --s3  a chip or a control's resting fill
+       --s4  a pill's fill, the RR chip
+     --rim and --rim-2 are the hairline round a card and round a raised
+     thing on it, --scrim the dark wash that keeps text readable over art. */
+  --s1:    #0B0D12;
+  --s2:    #10131A;
+  --s3:    #161A23;
+  --s4:    #1D212C;
+  --rim:   0 0 0 1px rgba(255, 255, 255, 0.07);
+  --rim-2: 0 0 0 1px rgba(255, 255, 255, 0.14);
+  --scrim:      rgba(7, 8, 12, 0.9);
+  --scrim-soft: rgba(7, 8, 12, 0.22);
+  --scrim-chip: rgba(7, 8, 12, 0.72);
+  /* A card is --r-panel, a tile inside the page --r-tile. */
+  --r-panel: 20px;
+  --r-tile:  16px;
 
   /* The same two brand colours as bare RGB triplets, for use inside rgba().
      A colour needs this form to be tinted: rgba(var(--red-rgb), 0.12). Without

@@ -732,14 +732,25 @@ $('bf-go').addEventListener('click', async () => {
  *   result, "Best in 23", "First A", "3 in a row", "3 without ...". None
  *   while the match is still being checked, since its grade is not yet its own.
  */
-function row(m, gutter, marks) {
+function row(m, gutter, marks, delta) {
   const item = el('div', 'm-item');
   item.setAttribute('role', 'listitem');
   const b = el('button', 'm-row');
   b.type = 'button';
+  // PROGRESS V3: the agent's portrait leads the row, a bundled file, and a
+  // ringed blank where none is known so the grades still line up.
+  const src = typeof window.occlara.agentArt === 'function' ? window.occlara.agentArt(game, m.title) : null;
+  const face = el(src ? 'img' : 'span', 'm-face');
+  if (src) {
+    face.src = src;
+    face.alt = '';
+    face.addEventListener('error', () => face.replaceWith(el('span', 'm-face')));
+  }
+  face.setAttribute('aria-hidden', 'true');
+  b.append(face);
   const main = el('div', 'm-main');
   const top = el('div', 'm-top');
-  top.append(el('span', 'm-title', m.title || 'Unknown'));
+  top.append(el('span', 'm-title', m.title && m.map ? `${m.title} on ${m.map}` : (m.title || m.map || 'Unknown')));
   // STILL BEING CHECKED (8.4.1): its result, its top mistake and its grade
   // are the screen's until the review is whole, and Riot's record changes
   // them minutes later, so the row says it is being checked where its grade
@@ -751,11 +762,8 @@ function row(m, gutter, marks) {
   }
   // The RR the match moved, "RR +18" (8.7.9), filled in once main answers
   // (paintRR); empty and hidden until then, and for any row without one.
-  if (!checking) {
-    const rrChip = el('span', 'm-rr');
-    rrChip.hidden = true;
-    top.append(rrChip);
-  }
+  const rrChip = checking ? null : el('span', 'm-rr');
+  if (rrChip) rrChip.hidden = true;
   item.dataset.id = m.id;
   if (!checking && Array.isArray(marks)) {
     for (const k of marks) {
@@ -766,7 +774,7 @@ function row(m, gutter, marks) {
     }
   }
   main.append(top);
-  main.append(el('div', 'm-meta', [fmtWhen(m.at), m.map, m.mode,
+  main.append(el('div', 'm-meta', [fmtWhen(m.at), m.mode,
     m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null]
     .filter(Boolean).join('  ·  ')));
   // The top mistake as the row's quiet second line, its label quieter still.
@@ -785,7 +793,15 @@ function row(m, gutter, marks) {
     grade.append(el('span', 'm-letter ' + (g ? gradeTone(g) + (g.provisional ? ' prov' : '') : 'none'), g ? g.letter : '?'));
     if (g && g.provisional) grade.title = 'Provisional: some of the record was missing';
   }
-  b.append(main, grade);
+  // The grade's change since the match before it (Progress v3), "First" for
+  // the oldest graded one; nothing while it is still being checked.
+  const d = checking || !g ? null : delta;
+  const dEl = d === undefined || d === null ? el('span', 'm-delta none')
+    : d === 'first' ? el('span', 'm-delta first', 'First')
+      : el('span', 'm-delta ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'even'), `${d > 0 ? '+' : ''}${d}`);
+  if (typeof d === 'number') dEl.title = 'Since the match before';
+  b.append(grade, dEl, main);
+  if (rrChip) b.append(rrChip);
   b.addEventListener('click', () => window.occlara.openReview(m.id));
   item.append(b);
   const eye = window.LogEye.button(m.aiLog, () => window.occlara.openAiLog(m.id));
@@ -843,6 +859,34 @@ async function paintRR(forGame) {
   }
 }
 
+/*
+ * THE GRADE OVER THE LAST MATCHES (Progress v3), beside the rows on the list
+ * page alone: the newest grade large, its change since the oldest of them,
+ * the grades as a line (GradeView.gradeLine) and their average. From the
+ * patterns' grades (newest first, the last matches graded), so it is the
+ * same numbers Patterns and Home show. Hidden under two grades.
+ */
+function paintChart(patterns) {
+  const box = $('m-chart');
+  const grades = (patterns && Array.isArray(patterns.grades) ? patterns.grades : []).slice(0, 8).reverse();
+  const listPage = document.documentElement.dataset.section === 'list';
+  box.hidden = !listPage || grades.length < 2;
+  box.parentNode.classList.toggle('charted', !box.hidden);
+  if (box.hidden) return;
+  const first = grades[0], last = grades[grades.length - 1];
+  $('m-chart-n').textContent = String(grades.length);
+  $('m-chart-big').textContent = String(last.score);
+  const d = last.score - first.score;
+  const since = $('m-chart-since');
+  since.textContent = `${d > 0 ? '+' : ''}${d} since ${first.score}`;
+  since.className = 'm-chart-since ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'even');
+  const line = $('m-chart-line');
+  line.replaceChildren();
+  const svg = window.GradeView.gradeLine(grades, 216, 160);
+  if (svg) line.append(svg);
+  $('m-chart-avg').textContent = patterns && typeof patterns.average === 'number' ? `Average ${patterns.average}` : '';
+}
+
 async function load() {
   const [list, patterns, cfg] = await Promise.all([
     window.occlara.listReviews(game), window.occlara.getPatterns(game),
@@ -854,7 +898,15 @@ async function load() {
   host.replaceChildren();
   const eyes = rows.some((m) => m.aiLog === 'kept' || m.aiLog === 'gone');
   const marks = (patterns && patterns.progress && patterns.progress.marks) || {};
-  const painted = rows.map((m) => row(m, eyes, marks[m.id]));
+  // Each graded row's change since the graded row under it (older), and
+  // "First" for the oldest graded one.
+  const deltas = {};
+  const graded = rows.filter((m) => !m.work && m.grade && Number.isFinite(Number(m.grade.score)));
+  graded.forEach((m, i) => {
+    const older = graded[i + 1];
+    deltas[m.id] = older ? Number(m.grade.score) - Number(older.grade.score) : 'first';
+  });
+  const painted = rows.map((m) => row(m, eyes, marks[m.id], deltas[m.id]));
   for (const r of painted) host.append(r);
   // THE ROWS RISE ONCE, as this game's list first appears on screen (.rise,
   // matches.css): 40ms apart, the stagger capped at the eighth row, and only
@@ -871,6 +923,7 @@ async function load() {
   }
   $('empty').hidden = rows.length > 0;
   paintWinLoss(rows);
+  paintChart(patterns);
   paintRR(game);
   paintPatterns(patterns || { matches: 0, enough: false, grades: [], categories: [], average: null });
   paintBf();

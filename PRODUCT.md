@@ -12,22 +12,22 @@ web
 Players of Valorant and League of Legends who want to improve. They open Occlara at their gaming PC, often in a dim room. They use it in two moments: they press Start before a match, then read the review when the match ends, usually in the few minutes before the next queue. Some come back later to look over their match library and the patterns that keep repeating.
 
 ## Product Purpose
-Occlara is a post-match AI coach. It reads the game while it is played and shows nothing during the match. When the match ends it opens a graded review: a score out of 100 with four categories and their evidence, the player's repeated mistakes with a fix for each, what went well, and what was missed. Success means the player leaves each review knowing the one thing to do differently next match, and sees that mistake shrink over time.
+Occlara is a post-match AI coach. It reads the game while it is played and coaches nothing during the match: mid match it shows only the status the player's own HUD already shows (map, agent, score, round), each behind a switch. When the match ends it opens a graded review: a score out of 100 with four categories and their evidence, the player's repeated mistakes with a fix for each, what went well, and what was missed. Success means the player leaves each review knowing the one thing to do differently next match, and sees that mistake shrink over time.
 
 ## Positioning
 - The client never reads game memory, never touches game files and never automates input; it captures the display the way OBS does.
-- Nothing reaches the screen during a match, in any game. That keeps it within Riot's policy, where live tips have cost players bans.
+- Nothing that coaches reaches the screen during a match, in any game. That keeps it within Riot's policy, where live tips have cost players bans. The one exception, the owner's deliberate choice (Progress v3), is the live status on the Recording screen: map, agent, score and round in a Valorant match, nothing that says what to do (`docs/claude/screen-silence.md`).
 - The review is checked against Riot's own match record, so the grade rests on facts rather than impressions.
 
 ## Operating Context
 - **Before a match:** Home and the Start button.
-- **During a match:** a sealed Recording screen only. Every page is locked, and no notice or sound mentions the match.
+- **During a match:** a sealed Recording screen only. Every page is locked, and no notice or sound mentions the match. In Valorant the screen shows the live status (map, agent, score, round and the round tape, each behind a Settings switch) and the review as a locked ring.
 - **After the match:** the review opens, with Home, Matches, Patterns, Moments, Stats, Ask Coach, Invite and Settings around it.
 - **Separate windows:** Sign in (activation), onboarding, splash, the dock, the clip player, the AI log viewer and the Verdict share image.
 - **Accounts (8.7):** Free, Pro and Max, with a monthly game cap and referral invites.
 
 ## Capabilities and Constraints
-- Nothing may show, animate or play during a match; the seal (`syncSeal`) locks every page. Reveal motion and sound run only after the review opens.
+- Nothing that coaches may show, animate or play during a match; the seal (`syncSeal`) locks every page. The live status's four facts are the only exception and may never grow. Reveal motion and sound run only after the review opens.
 - No framework, bundler or webfont URL. Fonts must be bundled locally because the renderer CSP forbids URLs.
 - No em or en dashes in any copy.
 - Copy must never show another player's Riot ID. One game's data is never shown under another game's name.
@@ -44,7 +44,7 @@ Occlara is a post-match AI coach. It reads the game while it is played and shows
 - There are no testimonials, user counts or benchmarks, and none may be invented.
 
 ## Product Principles
-1. Silence during play is the product. A design that could show or play anything mid match is wrong, however good it looks.
+1. Silence during play is the product. A design that could coach, advise or play anything mid match is wrong, however good it looks; the live status says only what the HUD already says.
 2. Each review leads with one thing to do next match; all the detail stays available, folded below it.
 3. Facts over adjectives. Show numbers from the record, never praise without a source.
 4. Calm between matches. The player has minutes, so the essential reads at a glance.

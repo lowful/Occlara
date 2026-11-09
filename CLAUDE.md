@@ -15,7 +15,7 @@ This is the short core that always loads. The deep detail of each area lives in
 `docs/claude/`, one file per area, and is read on demand (table below). Put new
 detail there, not here, so this file stays short.
 
-## Nothing reaches the screen during a match, in any game
+## Nothing that coaches reaches the screen during a match, in any game
 
 Live tips, the overlay window and the voice coach were removed in 8.0, not
 paused: do not add any of it back, and do not add anything else that tells a
@@ -24,8 +24,17 @@ that changes behaviour immediately as unapproved, League's is stricter still,
 and a player got a one week ban. Mid match the main window shows only a
 Recording screen with its pages locked (`syncSeal`); the AI log, Ask Coach, a
 review's eye, Ctrl+Shift+E, the corner mark and the update restart question
-are sealed or wait; the notice line never says anything about the match. Every
-sealed surface and why: `docs/claude/screen-silence.md`.
+are sealed or wait; the notice line never says anything about the match.
+
+**The one exception, on purpose (Progress v3, the owner's choice):** in a
+Valorant match the Recording screen shows the live status, the four facts the
+player's own HUD already shows, map, agent, score and round, plus the round
+tape the score draws, each behind its Settings switch (`liveMap`,
+`liveAgent`, `liveScore`, `liveRound`). Main decides it (`index.js liveView`,
+`PUSH_LIVE`) and sends nothing else of the reader's context: never HP,
+positions, economy, the enemy, a read, a tip, the read cadence or anything of
+a review. Never widen it. Every sealed surface, the exception and why:
+`docs/claude/screen-silence.md`.
 
 ## Never forget
 

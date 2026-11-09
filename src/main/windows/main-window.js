@@ -76,8 +76,14 @@ const { pageOf, createNav, createMotion } = require('../../shared/shell-nav');
  */
 
 // The shell lays itself out at these sizes (shell.css): change both together.
-const SIDEBAR_W = 232;
-const TOP_H = 40;
+// TOP NAVIGATION (Progress v3): no sidebar, a 64px bar across the top, and
+// the account drawer at the right under it, 280px and its 16px margin, which
+// the page is narrowed by while it is open (setDrawer), since a page's view
+// paints over the shell's document and would cover it.
+const SIDEBAR_W = 0;
+const TOP_H = 64;
+const DRAWER_W = 296;
+let drawerOpen = false;
 const DEFAULT_W = 1200;
 const DEFAULT_H = 780;
 const MIN_W = 960;
@@ -86,8 +92,8 @@ const MIN_H = 640;
 // to paint it, and only the page's own left margin.
 const STAGE_PX = 1;
 // A page view's ground, and its see-through state while a page is on its way
-// under it. #0A0B0E is --bg (theme.css).
-const GROUND = '#0A0B0E';
+// under it. #07080C is --bg (theme.css).
+const GROUND = '#07080C';
 const CLEAR = '#00000000';
 
 let win = null;
@@ -199,7 +205,7 @@ function create(opts) {
     minWidth: MIN_W,
     minHeight: MIN_H,
     frame: false,
-    backgroundColor: '#0A0B0E',   // is --bg (theme.css)
+    backgroundColor: '#07080C',   // is --bg (theme.css)
     show: false,
     title: 'Occlara',
     webPreferences: {
@@ -376,12 +382,21 @@ function ensureView(id) {
 function layout() {
   if (!win || win.isDestroyed()) return;
   const [w, h] = win.getContentSize();
-  const rect = { x: SIDEBAR_W, y: TOP_H, width: Math.max(0, w - SIDEBAR_W), height: Math.max(0, h - TOP_H) };
+  const right = drawerOpen ? DRAWER_W : 0;
+  const rect = { x: SIDEBAR_W, y: TOP_H, width: Math.max(0, w - SIDEBAR_W - right), height: Math.max(0, h - TOP_H) };
   for (const [id, v] of views) {
     if (!alive(v)) continue;
     // A staged page keeps the page area's size and sits off its right edge.
     v.setBounds(id === staged ? { ...rect, x: w - STAGE_PX } : rect);
   }
+}
+
+/** The account drawer opened or closed in the shell: the page makes room for it. */
+function setDrawer(open) {
+  const next = !!open;
+  if (next === drawerOpen) return;
+  drawerOpen = next;
+  layout();
 }
 
 function state() {
@@ -575,5 +590,5 @@ function motionState() { return { ...motion.state(), staged, reloading: [...relo
 
 module.exports = {
   create, get, reveal, show, setSealed, current, shellState, minimize, hide, close, toggleMaximize, isHidden, toggleHidden,
-  onWindowChange, onSessionEnd, onCloseAsk, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, STAGE_PX,
+  onWindowChange, onSessionEnd, onCloseAsk, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, DRAWER_W, setDrawer, STAGE_PX,
 };

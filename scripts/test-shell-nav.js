@@ -681,14 +681,18 @@ function rig() {
       return (css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
     };
     const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
-    ok(prop(rule('.side'), 'width') === `${mw.SIDEBAR_W}px` && prop(rule('.top'), 'height') === `${mw.TOP_H}px`
-      && prop(rule('.top'), 'flex') === `0 0 ${mw.TOP_H}px`,
-    `the shell's sidebar is SIDEBAR_W (${mw.SIDEBAR_W}px) wide and its top strip TOP_H (${mw.TOP_H}px) tall, where the pages are laid`);
-    const strip = (markup.match(/<div class="top drag">([\s\S]*?)<div class="win-controls/) || [])[1] || '';
+    // TOP NAVIGATION (Progress v3): no sidebar (SIDEBAR_W 0), the bar TOP_H
+    // tall, and the drawer DRAWER_W with its margin, the width the page gives up.
+    const drawer = rule('.drawer');
+    ok(mw.SIDEBAR_W === 0 && !/class="side"/.test(markup) && prop(rule('.bar'), 'height') === `${mw.TOP_H}px`
+      && prop(rule('.bar'), 'flex') === `0 0 ${mw.TOP_H}px`
+      && parseInt(prop(drawer, 'width'), 10) + 16 === mw.DRAWER_W && /var\(--space-4\)/.test(prop(drawer, 'margin')),
+    `the shell has no sidebar, its bar is TOP_H (${mw.TOP_H}px) tall, and its drawer and margin are DRAWER_W (${mw.DRAWER_W}px), where the pages are laid`);
+    const strip = (markup.match(/<header class="bar drag"[^>]*>([\s\S]*?)<div class="bar-end/) || [])[1] || '';
     ok(/<p id="notice" class="top-notice no-drag" aria-live="polite"><\/p>/.test(strip)
       && prop(rule('.top-notice'), 'white-space') === 'nowrap' && prop(rule('.top-notice'), 'text-overflow') === 'ellipsis'
       && !/id="line"|rec-line/.test(markup + css),
-    'and the notice line is in that strip, before the window\'s buttons, empty and never hidden until it has something to say, and one line when it does');
+    'and the notice line is in that bar, before its end, empty and never hidden until it has something to say, and one line when it does');
   } finally {
     Object.assign(global, real);
   }

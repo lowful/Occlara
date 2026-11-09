@@ -23,7 +23,7 @@
              sentence is for a screen reader; the tooltip adds the draws and
              the matches with no result. -->
         <div id="wl" class="wl" hidden>
-          <b class="wl-w" aria-hidden="true"></b><span class="wl-sep" aria-hidden="true">:</span><b class="wl-l" aria-hidden="true"></b>
+          <b class="wl-w" aria-hidden="true"></b><span class="wl-sep" aria-hidden="true">:</span><b class="wl-l" aria-hidden="true"></b><span class="wl-label" aria-hidden="true">wins : losses</span>
           <span class="wl-sr sr-only"></span>
         </div>
       </div>
@@ -87,7 +87,17 @@
             <button id="bf-go" class="btn sm bf-go" type="button">Grade my recent matches</button>
           </div>
         </div>
-        <div id="list" class="list" role="list"></div>
+        <!-- PROGRESS V3: the rows beside the grade over the last matches,
+             a card of its own on the list page alone (matches.js paintChart). -->
+        <div class="every-grid">
+          <div id="list" class="list" role="list"></div>
+          <aside id="m-chart" class="m-chart" aria-label="Grade over your last matches" hidden>
+            <span class="m-chart-label">Grade over your last <span id="m-chart-n"></span></span>
+            <div class="m-chart-now"><b id="m-chart-big"></b><span id="m-chart-since" class="m-chart-since"></span></div>
+            <div id="m-chart-line" class="m-chart-line"></div>
+            <span id="m-chart-avg" class="m-chart-avg"></span>
+          </aside>
+        </div>
         <p id="empty" class="empty" hidden>No reviewed matches yet. Press Start, play a match, and its graded review lands here when it ends.</p>
       </section>
     </main>

@@ -149,6 +149,13 @@ const STORE_DEFAULTS = {
   // When Advanced coaching was turned on for this install, once (ms). 0 means
   // not yet: the next launch turns it on and stamps this (turnOnOnce).
   advancedTipsOnAt: 0,
+  // THE LIVE STATUS (Progress v3): what the Recording screen may show while
+  // a match is recorded, one switch each, all on by default (the owner's
+  // choice). Main leaves out what is off before anything leaves it.
+  liveMap:         true,
+  liveAgent:       true,
+  liveScore:       true,
+  liveRound:       true,
   sounds:          true,         // the two interface sounds: recording armed, recording stood down
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,

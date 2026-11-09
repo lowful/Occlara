@@ -141,7 +141,9 @@ const CHANNELS = {
   // for a page by its id in src/shared/shell-nav.js, and the top strip's
   // buttons move the window.
   SHELL_NAV:       'shell:nav',          // (pageId) show that page
-  SHELL_WINDOW:    'shell:window',       // ('minimize' | 'maximize' | 'close')
+  SHELL_WINDOW:    'shell:window',       // ('minimize' | 'maximize' | 'close' | 'drawer-open' | 'drawer-close')
+  // The live status as it stands (PUSH_LIVE's shape), for a shell loaded mid match.
+  LIVE_GET:        'shell:liveGet',
   SHELL_GET:       'shell:get',          // () -> { page, shown, sealed, maximized }
   // A page has painted itself armed (8.2): main-window.js may now hide the
   // page on screen and let this one in (PUSH_PAGE).
@@ -202,6 +204,16 @@ const CHANNELS = {
   // Home's update line (CHANGELOG_NOTICE's shape, or null once What's new
   // opened). Held like the account's pushes: never mid match or sealed.
   PUSH_CHANGELOG:    'push:changelog',
+  // THE LIVE STATUS (Progress v3, a deliberate reversal of 8.0's rule, the
+  // owner's choice): what the Recording screen shows while a match is
+  // recorded, and nothing else. Read only, main to the shell alone:
+  // { state: 'waiting' } before the match is under way, then
+  // { state: 'live', map, agent, team, enemy, round, tape, mode, startedAt },
+  // each of map, agent, the score (team, enemy, tape) and round only when its
+  // Settings switch is on (liveMap, liveAgent, liveScore, liveRound), and null
+  // when nothing is recorded. Only what the player's own HUD already shows:
+  // never HP, positions, economy, the enemy, advice or anything of a review.
+  PUSH_LIVE:         'push:live',
 
   // ── the match recorder (8.3, src/main/services/recorder.js) ───────────────
   // Between main and the recorder's hidden page (src/renderer/recorder) and
@@ -246,6 +258,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_PAGE,
   CHANNELS.ACCOUNT_CHANGED,
   CHANNELS.PUSH_CHANGELOG,
+  CHANNELS.PUSH_LIVE,
   CHANNELS.PUSH_RECORDER,
   CHANNELS.PUSH_FRAMES,
 ];

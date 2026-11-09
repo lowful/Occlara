@@ -25,6 +25,8 @@ let paintAsk = 0;
 // The cards are to arrive with the next paint that lands (arrive()), so a
 // paint that was to bring them in and was overtaken hands that on.
 let arriving = false;
+// The last match's id, for its RR chip and the Fix card's Open review.
+let lastId = null;
 
 /*
  * THE NEWEST RATED MATCH WITHOUT ITS RR (8.2.1) is asked about again once the
@@ -50,98 +52,191 @@ const rrText = (change) => `${change > 0 ? '+' : ''}${change} RR`;
 /** A gain in --good, a loss in --bad, no change dim (home.css). */
 const rrTone = (change) => (change > 0 ? 'gain' : change < 0 ? 'loss' : 'even');
 
+/** An agent's portrait, or nothing when the file is not bundled or fails to load. */
+function portrait(src, cls, alt) {
+  if (!src) return null;
+  const img = document.createElement('img');
+  img.className = cls;
+  img.src = src;
+  img.alt = alt || '';
+  img.decoding = 'async';
+  img.addEventListener('error', () => img.remove());
+  return img;
+}
+
+/** A map's splash laid behind a card, under its scrim; nothing without one. */
+function backdrop(host, src, at) {
+  if (!src) return;
+  const art = el('div', 'art');
+  const img = portrait(src, 'art-img', '');
+  if (!img) return;
+  if (at) img.style.objectPosition = at;
+  art.append(img, el('div', 'art-scrim'));
+  host.prepend(art);
+}
+
+/** A grade's change since the match before it in the trend, or null without one. */
+function deltaOf(trend, id) {
+  const i = trend.findIndex((t) => t.id === id);
+  if (i < 1) return null;
+  const a = Number(trend[i].score), b = Number(trend[i - 1].score);
+  return Number.isFinite(a) && Number.isFinite(b) ? a - b : null;
+}
+function deltaEl(d) {
+  if (d === null) return null;
+  return el('span', 'delta ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'even'), `${d > 0 ? '+' : ''}${d}`);
+}
+
 /**
- * @param milestone  the last match against the ones before it (8.7,
- *   home-model.js milestone, progress.js libraryProgress latest): one finished
- *   line, { kind, tone, text }, drawn as the review draws its progress strip
- *   (GradeView.progressStrip), under the match's facts. Left out while the
- *   match is still being checked, since its grade is not yet its own.
+ * THE LAST MATCH (Progress v3): its map dimmed behind it, the result and the
+ * map as chips with the RR at the right once the rank has answered, the
+ * agent's portrait and name, the grade large with its letter and its change
+ * since the match before, the eye and Open review, and the grade line at its
+ * foot. STILL BEING CHECKED (8.4.1): its result, score and grade are the
+ * screen's until the review is whole, so the card says what it waits for in
+ * their place, as its review page shows a loading screen.
  */
-function paintLast(last, milestone) {
+function paintLast(last, model) {
   const host = $('last');
   host.replaceChildren();
-  const top = el('div', 'last-top');
-  const facts = el('div', 'last-facts');
-  facts.append(el('span', 'label', `Last match${last.at ? ', ' + when(last.at) : ''}`));
-  // The result, the score and who and where on ONE LINE (8.7), the ruled
-  // entry of the log, with the grade and the two buttons beside it (home.css
-  // .last). STILL BEING CHECKED (8.4.1): its result, score and grade are the
-  // screen's until the review is whole, and Riot's record changes them
-  // minutes later, so the card says what it waits for in their place, as its
-  // review page shows a loading screen.
-  const line = el('div', 'last-line');
-  if (last.result && !last.work) line.append(el('span', 'result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''), last.result));
-  if (last.score && !last.work) line.append(el('span', 'score', String(last.score).replace(/\s*-\s*/, ' : ')));
-  const meta = [last.title, last.map, last.mode].filter(Boolean).join('  ·  ');
-  if (meta) line.append(el('span', 'meta', meta));
-  if (line.childNodes.length) facts.append(line);
-  top.append(facts);
-  host.append(top);
-  const strip = milestone && !last.work ? GV.progressStrip({ lines: [milestone] }) : null;
-  if (strip) {
-    strip.classList.add('last-prog');
-    host.append(strip);
+  const art = (model.art && model.art.last) || {};
+  backdrop(host, art.map, 'center 40%');
+  const inner = el('div', 'in');
+  const head = el('div', 'last-head');
+  head.append(el('span', 'label', `Last match${last.at ? ', ' + when(last.at) : ''}`));
+  if (last.result && !last.work) {
+    const res = el('span', 'chip result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''));
+    res.append(document.createTextNode(last.result + ' '));
+    if (last.score) res.append(el('span', 'score', String(last.score).split('-').map((x) => x.trim()).join(' : ')));
+    head.append(res);
   }
+  if (last.map) head.append(el('span', 'chip', last.map));
+  // The mode is the who line's (Standard, Competitive), not a third chip.
+  // The RR the match moved, once the rank has answered (fillRank), and
+  // nothing at all where Riot's record has none.
+  const rrChip = el('span', 'rr-chip last-rr');
+  rrChip.hidden = true;
+  head.append(rrChip);
+  inner.append(head);
+
+  const who = el('div', 'last-who');
+  const face = portrait(art.agent, 'agent-face lg', last.title || '');
+  if (face) who.append(face);
+  if (last.title) {
+    const names = el('div', 'who-names');
+    names.append(el('b', 'who-name', last.title), el('span', 'who-sub', ['Your last agent', last.mode].filter(Boolean).join(' · ')));
+    who.append(names);
+  }
+  if (who.childNodes.length) inner.append(who);
 
   const checking = last.work ? GV.checking(last.work, { full: true }) : null;
-  if (checking) host.append(checking);
-  else if (last.grade) host.append(GV.gradeCard({ ...last.grade, categories: last.categories || [] }, { label: 'Match grade' }));
-
+  const row = el('div', 'last-grade-row');
+  if (checking) row.append(checking);
+  else if (last.grade) {
+    const g = el('div', 'gv-grade last-grade');
+    g.title = 'Match grade, out of 100, from what the record shows';
+    g.append(el('span', 'gv-score big', String(last.grade.score)));
+    const side = el('span', 'grade-side');
+    side.append(GV.letter(last.grade, { size: 'sm' }));
+    const d = deltaEl(deltaOf(model.trend || [], last.id));
+    if (d) { d.title = 'Since the match before'; side.append(d); }
+    g.append(side);
+    row.append(g);
+  }
   /*
    * THE FOOT CARRIES TWO BUTTONS AND NOTHING ELSE (8.2.1): the eye, "View
    * match", which opens the match's AI log as its row in Matches does, and
-   * Open review. It used to say where the grade came from ("From what the
-   * screen read", "Checked against Riot's record of the match"), which the
-   * review itself says. No eye where nothing was recorded, a match graded
-   * from Riot's record alone, and a disabled one with its reason once the log
-   * no longer holds the match: the rule every eye follows (shared/log-eye.js).
+   * Open review. No eye where nothing was recorded, a match graded from
+   * Riot's record alone, and a disabled one with its reason once the log no
+   * longer holds the match: the rule every eye follows (shared/log-eye.js).
    */
   const foot = el('div', 'last-foot');
   const eye = window.LogEye ? window.LogEye.labelled(last.aiLog, () => window.occlara.openAiLog(last.id), 'View match') : null;
   if (eye) foot.append(eye);
-  const open = el('button', 'btn btn-ghost', 'Open review');
+  const open = el('button', 'btn btn-ghost sm', 'Open review');
   open.type = 'button';
   open.addEventListener('click', () => window.occlara.openReview(last.id));
   foot.append(open);
-  host.append(foot);
+  inner.append(row);
+
+  const lineHost = el('div', 'last-line-host');
+  const svg = !last.work ? GV.gradeLine(model.trend || [], 400, 112) : null;
+  if (svg) lineHost.append(svg);
+  const under = el('div', 'last-under');
+  if (svg && typeof model.average === 'number') under.append(el('span', 'line-avg', `Average ${model.average}`));
+  under.append(foot);
+  lineHost.append(under);
+  inner.append(lineHost);
+  host.append(inner);
 }
 
 /*
- * THE GRADE OVER THE LAST MATCHES FILLS ITS CARD (8.2.1). The card stands
- * beside Recent matches, which sets the row's height, and bars drawn in a
- * fixed 150px left a band of empty card under them. Now the bars' area grows
- * to the card's foot, each bar is its grade as a share of that whole height,
- * and the number is positioned off the bar's top instead of stacked above it
- * in one column, which took its own height out of the bar's (the cap that
- * flattened the library's trend, matches.css .p-bar).
+ * THE FIX FOR NEXT MATCH, over its picture: the kept clip's poster of the
+ * first death the coach looked at, with the round and where, and a play
+ * mark that opens the review at that round, where the clip plays. With no
+ * clip and no still kept (disk space, Clear clips, a match graded from
+ * Riot's record) the map stands in, and says the clip was not kept when
+ * only its stills stayed. THE FIX STAYS WHILE A REVIEW IS WRITTEN (8.7): the
+ * last whole review's, its label saying so.
  */
-function paintTrend(trend, average) {
-  $('trend').hidden = trend.length < 2;
-  if (trend.length < 2) return;
-  $('trend-n').textContent = String(trend.length);
-  $('trend-avg').textContent = typeof average === 'number' ? `Average ${average}` : '';
-  const bars = $('trend-bars');
-  bars.replaceChildren();
-  bars.setAttribute('aria-label', `Grades ${trend.map((t) => t.score).join(', ')}, oldest first`);
-  trend.forEach((t, j) => {
-    const col = el('div', 'bar-col');
-    // Its place in the row (--j), for the bars to rise one after another as
-    // the section arrives (home.css).
-    col.style.setProperty('--j', String(j));
-    const track = el('div', 'bar-track');
-    track.style.setProperty('--h', `${Math.max(4, Math.min(100, Number(t.score) || 0))}%`);
-    track.append(el('div', 'bar ' + GV.gradeTone(t)), el('span', 'bar-num', String(t.score)));
-    // No map under the bar (8.7): the row beside it names the match. The
-    // column's title keeps it for the pointer.
-    col.title = [t.map, t.score].filter((x) => x !== null && x !== undefined && x !== '').join(': ');
-    col.append(track);
-    bars.append(col);
-  });
+function paintFix(model) {
+  const host = $('focus');
+  host.hidden = !model.focus;
+  if (!model.focus) return;
+  host.querySelector('.label').textContent = model.focusPrevious ? 'Fix for next match, from the last review' : 'Fix for next match';
+  $('focus-text').textContent = model.focus;
+  const media = $('fix-media');
+  media.replaceChildren();
+  const fix = model.focusPrevious ? null : model.fix;
+  const art = (model.art && model.art.last) || {};
+  host.classList.toggle('no-media', !(fix && fix.poster) && !art.map);
+  if (fix && fix.poster) {
+    const img = portrait(fix.poster, 'fix-poster', `Round ${fix.round}, the moment before the death`);
+    if (img) media.append(img);
+  } else if (art.map) {
+    const img = portrait(art.map, 'fix-poster map', '');
+    if (img) media.append(img, el('div', 'art-scrim'));
+  }
+  if (fix) {
+    const chips = el('div', 'fix-chips');
+    chips.append(el('span', 'chip over', `Round ${fix.round}${fix.place ? ' · Died at ' + fix.place : ''}`));
+    if (!fix.clip) chips.append(el('span', 'chip over quiet', 'Clip not kept'));
+    media.append(chips);
+    if (fix.clip) {
+      const play = el('button', 'play-mark');
+      play.type = 'button';
+      play.title = 'Play it in the review';
+      play.setAttribute('aria-label', `Play the clip of round ${fix.round} in the review`);
+      play.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg>';
+      play.addEventListener('click', () => window.occlara.openReview(model.last.id, fix.round));
+      media.append(play);
+    }
+  }
 }
 
-function paintRecent(recent) {
+/** The most repeated mistakes, each with how often it happened. */
+function paintMistakes(model) {
+  const list = Array.isArray(model.mistakes) ? model.mistakes : [];
+  $('top').hidden = !list.length;
+  const host = $('top-list');
+  host.replaceChildren();
+  for (const m of list) {
+    const row = el('div', 'top-row');
+    row.setAttribute('role', 'listitem');
+    row.append(el('span', 'top-mark'), el('span', 'top-title', m.title));
+    if (typeof m.total === 'number') {
+      const n = el('span', 'top-n', `${m.total}x`);
+      if (typeof m.matches === 'number' && typeof model.recorded === 'number') n.title = `In ${m.matches} of your last ${model.recorded} recorded matches`;
+      row.append(n);
+    }
+    host.append(row);
+  }
+}
+
+function paintRecent(recent, model) {
   const host = $('recent-list');
   host.replaceChildren();
+  const rows = (model && model.art && model.art.rows) || {};
   recent.forEach((m, j) => {
     const b = el('button', 'r-row');
     b.type = 'button';
@@ -150,17 +245,18 @@ function paintRecent(recent) {
     // Its place in the list (--j), for the rows to rise one after another as
     // the section arrives (home.css), and never on a repaint.
     b.style.setProperty('--j', String(j));
+    const face = portrait(rows[m.id] && rows[m.id].agent, 'agent-face sm', m.title || '');
+    if (face) b.append(face);
     const main = el('span', 'r-main');
-    const title = el('span', 'r-title', m.map || m.title || 'Match');
+    const title = el('span', 'r-title', [m.title, m.map].filter(Boolean).join(' on ') || 'Match');
     // Still being checked (8.4.1): the screen's result and grade are not said
     // until Riot's record has had its say, the pill in their place.
     if (m.result && !m.work) {
       title.append(el('span', 'r-res ' + (isWin(m.result) ? 'win' : isLoss(m.result) ? 'loss' : ''),
         [m.result, m.score].filter(Boolean).join(' ')));
     }
-    // Its marks (8.7, home-model.js marks, as the library draws them beside
-    // the result): "Best in 23", "First A", "3 in a row". None while the
-    // match is still being checked, since its grade is not yet its own.
+    // Its marks (8.7, home-model.js marks): "Best in 23", "First A", "3 in a
+    // row". None while the match is still being checked.
     if (!m.work && Array.isArray(m.marks)) {
       for (const k of m.marks) {
         if (!k || typeof k.text !== 'string' || !k.text) continue;
@@ -170,12 +266,10 @@ function paintRecent(recent) {
       }
     }
     main.append(title);
-    main.append(el('span', 'r-meta', [when(m.at), m.title, m.mode,
+    main.append(el('span', 'r-meta', [when(m.at), m.mode,
       m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null].filter(Boolean).join('  ·  ')));
     b.append(main);
-    // The RR the match moved, beside its grade, once the rank has answered
-    // (fillRank): a match Riot's record calls Competitive, placed on its own
-    // game in the rank history (home-model.js rrForRows).
+    // The RR the match moved, beside its grade, once the rank has answered.
     b.append(el('span', 'r-rr'));
     const checking = m.work ? GV.checking(m.work) : null;
     const g = m.grade;
@@ -190,7 +284,7 @@ function paintRecent(recent) {
   paintRowRR();
 }
 
-/** Each recent match's RR from the last rank answer; nothing where none is known. */
+/** Each recent match's RR, and the last match's chip, from the last rank answer; nothing where none is known. */
 function paintRowRR() {
   for (const b of $('recent-list').querySelectorAll('.r-row')) {
     const span = b.querySelector('.r-rr');
@@ -202,14 +296,22 @@ function paintRowRR() {
     span.className = 'r-rr' + (known ? ' ' + rrTone(change) : '');
     span.title = known ? 'RR from this match' : '';
   }
+  const chip = document.querySelector('#last .last-rr');
+  if (chip) {
+    const change = lastId ? rr[lastId] : null;
+    const known = typeof change === 'number' && Number.isFinite(change);
+    chip.hidden = !known;
+    chip.textContent = known ? `RR ${change > 0 ? '+' : ''}${change}` : '';
+    chip.title = known ? 'RR from this match' : '';
+  }
 }
 
 /*
  * THE RANK (8.2.1), Valorant's, with a Riot ID: the rank the newest rated game
- * left, the RR the last one moved, and the rank journey as a line, by the rules
- * Stats keeps (home-model.js rankModel), and a way to the journey itself on
+ * left, the RR the last one moved and the RR inside the tier as a bar, by the
+ * rules Stats keeps (home-model.js rankModel), and a way to the journey on
  * Stats. Filled in once the page is painted, because the history can be a
- * network read away, and gone, the column closing up, without a rated game.
+ * network read away, and gone without a rated game. RR only, never MMR.
  */
 function paintRank(card) {
   const host = $('rank');
@@ -221,66 +323,25 @@ function paintRank(card) {
     const known = typeof card.change === 'number' && Number.isFinite(card.change);
     span.hidden = !known;
     span.textContent = known ? rrText(card.change) : '';
-    span.className = 'rank-rr' + (known ? ' ' + rrTone(card.change) : '');
-    paintLine(card);
+    span.className = 'rr-chip rank-rr' + (known ? ' ' + rrTone(card.change) : '');
+    const inTier = typeof card.rr === 'number' && Number.isFinite(card.rr) ? card.rr : null;
+    $('rank-bar').hidden = inTier === null;
+    $('rank-foot').hidden = inTier === null;
+    if (inTier !== null) {
+      $('rank-fill').style.width = `${Math.max(1, Math.min(100, inTier))}%`;
+      $('rank-in').textContent = `${inTier} RR`;
+      $('rank-to').textContent = `${100 - inTier} to the next rank`;
+    }
   }
   closeUp();
   if (was && card) rise(host);
 }
 
-/**
- * The journey as a line, oldest game on the left, the newest a dot at its end.
- * Drawn on a 100 by 40 box stretched to the card (preserveAspectRatio none,
- * with a stroke that does not stretch), so the dot is a span laid over it
- * rather than a circle that would stretch into an ellipse. A journey that
- * barely moved is drawn level through the middle rather than along the floor.
- */
-function paintLine(card) {
-  const host = $('rank-line');
-  host.replaceChildren();
-  const line = Array.isArray(card.line) ? card.line.filter((e) => Number.isFinite(e)) : [];
-  host.hidden = line.length < 2;
-  if (host.hidden) { host.removeAttribute('aria-label'); return; }
-  const W = 100, H = 40, PAD = 5;
-  const lo = Math.min(...line), hi = Math.max(...line);
-  const mid = (lo + hi) / 2;
-  const half = Math.max((hi - lo) / 2, 10);
-  const x = (i) => (i / (line.length - 1)) * W;
-  const y = (e) => H / 2 - ((e - mid) / half) * (H / 2 - PAD);
-  const svg = document.createElementNS(SVG, 'svg');
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.setAttribute('preserveAspectRatio', 'none');
-  svg.setAttribute('aria-hidden', 'true');
-  const path = document.createElementNS(SVG, 'path');
-  path.setAttribute('d', line.map((e, i) => `${i ? 'L' : 'M'}${x(i).toFixed(2)} ${y(e).toFixed(2)}`).join(' '));
-  path.setAttribute('vector-effect', 'non-scaling-stroke');
-  svg.append(path);
-  const dot = el('span', 'rank-dot');
-  dot.style.top = `${((y(line[line.length - 1]) / H) * 100).toFixed(2)}%`;
-  host.append(svg, dot);
-  host.setAttribute('aria-label', `Rank journey over your last ${card.games} rated games, from ${card.from} to ${card.tier}`);
-}
-
-/*
- * WHERE THE RANK SITS. Under the next match's focus, in the room the last
- * match leaves beside it, where it grows to fill whatever is left (home.css).
- * With the focus AND the most repeated mistake in that column, the column is
- * the taller of the two already, and the rank there opened a band of empty
- * card inside the last match instead; so then it stands above the grade
- * trend, a card that stretches to Recent matches' height anyway. With one of
- * the two missing (a match graded from Riot's record alone has no focus) the
- * column has the room, and the rank stays in it.
- */
-function placeRank() {
-  const rank = $('rank');
-  const full = !$('focus').hidden && !$('top').hidden;
-  if (full && rank.parentNode !== $('lower')) $('lower').prepend(rank);
-  else if (!full && rank.parentNode !== $('side')) $('focus').after(rank);
-}
-
-/** A column closes up as its cards go, and goes itself when none is shown. */
+/** The row of the rank and the mistakes closes up as its cards go. */
 function closeUp() {
-  for (const col of [$('side'), $('lower')]) col.hidden = [...col.children].every((c) => c.hidden);
+  const row = $('rank').parentNode;
+  row.hidden = $('rank').hidden && $('top').hidden;
+  row.classList.toggle('single', $('rank').hidden !== $('top').hidden);
 }
 
 /*
@@ -389,31 +450,20 @@ async function paint() {
   $('empty').hidden = has;
   $('content').hidden = !has;
   if (!has) return true;
-  paintLast(model.last, model.milestone || null);
-  // THE FIX STAYS THE HERO WHILE A REVIEW IS WRITTEN (8.7): the last whole
-  // review's fix, its label saying so (home.css #focus.previous), rather
-  // than the page opening on the chart while the newest is still checked.
-  $('focus').hidden = !model.focus;
-  $('focus').querySelector('.label').textContent = model.focusPrevious ? 'Your next match, from the last review' : 'Your next match';
-  $('focus-text').textContent = model.focus || '';
-  $('top').hidden = !model.top;
-  if (model.top) {
-    $('top-title').textContent = model.top.title;
-    $('top-trend').textContent = model.top.trend === 'rising' ? 'More often lately'
-      : model.top.trend === 'falling' ? 'Less often lately' : model.top.trend === 'steady' ? 'Steady' : '';
-    $('top-trend').className = 'trend' + (model.top.trend === 'rising' ? ' rising' : '');
-    $('top-detail').textContent = model.top.detail;
-    $('top-fix').textContent = model.top.fix || '';
-    $('top-fix').parentNode.hidden = !model.top.fix;
-  }
-  placeRank();
-  paintTrend(model.trend || [], model.average);
+  lastId = model.last.id;
+  paintLast(model.last, model);
+  paintFix(model);
+  $('last').parentNode.classList.toggle('single', $('focus').hidden);
+  paintMistakes(model);
   closeUp();
-  paintRecent(model.recent || []);
+  paintRecent(model.recent || [], model);
   return true;
 }
 
 $('top-more').addEventListener('click', () => window.occlara.go('patterns'));
+$('fix-open').addEventListener('click', () => { if (lastId) window.occlara.openReview(lastId); });
+// The Start strip: the same Start as the sidebar's (COACH_START).
+$('h-start').addEventListener('click', () => { if (typeof window.occlara.startCoaching === 'function') window.occlara.startCoaching(); });
 $('recent-all').addEventListener('click', () => window.occlara.go('matches'));
 // Stats with the journey open, which this button names (8.4.1): it opened
 // Stats with the journey folded in the Rank tile, one more click away.
@@ -454,9 +504,26 @@ if (typeof window.occlara.getNews === 'function') {
   Promise.resolve(window.occlara.getNews()).then((n) => { if (n) paintNews(n); }).catch(() => {});
 }
 
+/*
+ * THE START STRIP FOLLOWS THE RECORDING (Progress v3): ready, it is Start;
+ * recording between matches (Home is sealed mid match), it says so and its
+ * Start goes, Stop being the bar's.
+ */
+function paintStrip(s) {
+  if (!s || typeof s.isCoaching !== 'boolean') return;
+  const rec = s.isCoaching;
+  $('start-strip').classList.toggle('recording', rec);
+  document.querySelector('.ss-word').textContent = rec ? 'Recording' : 'Ready';
+  document.querySelector('.ss-line').textContent = rec
+    ? 'Occlara is recording. Your review opens here when the match ends. Stop is at the top right.'
+    : 'Press Start before you queue. Occlara records the match and grades it when it ends.';
+  $('h-start').hidden = rec;
+}
+
 (async () => {
   const state = await window.occlara.getState().catch(() => null);
   game = (state && state.gameId) || 'valorant';
+  paintStrip(state);
   let riotId = String((state && state.riotId) || '').trim();
   // A review saved or improved (Riot's record landing after the match, a match
   // graded from it) repaints Home, and so does a change of game, whose cards
@@ -471,6 +538,7 @@ if (typeof window.occlara.getNews === 'function') {
   // it paints Home again.
   if (typeof window.occlara.onState === 'function') {
     window.occlara.onState((s) => {
+      paintStrip(s);
       if (!s || typeof s.riotId !== 'string' || s.riotId.trim() === riotId) return;
       riotId = s.riotId.trim();
       load();

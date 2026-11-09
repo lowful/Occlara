@@ -6,6 +6,25 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
 
 Every surface is a plain folder with `index.html`, a `.css` and usually a `.js`.
 
+**Top navigation (Progress v3).** The sidebar is gone. The shell is a 64px bar
+across the window (`main-window.js` `SIDEBAR_W` 0, `TOP_H` 64): the crescent
+and Occlara, the pages as pill tabs with one sliding pill marker
+(`placeMarker`, the tabs alone), the notice line, then the game switch, the
+record controls, the avatar and the window's buttons. Start is drawn in the
+bar on every page but Home, whose Start strip is the big one (`.home-page`);
+recording, Stop and pause are there on every page, and mid match Stop is the
+large capsule (`.sealed-live`). Mid match the tabs are locked by `syncSeal`
+as the sidebar's items were, and "Locked until the match ends" sits beside
+them. The avatar opens the account drawer (`#drawer`): the Riot ID line, the
+games left, Profile, Invite, Settings, Learn (League), Report a problem and
+the Discord, each locked by the seal like a tab. A page's view paints over
+the shell's document, so while the drawer is open main narrows the page by
+`DRAWER_W` (296, the drawer and its margin; `SHELL_WINDOW` 'drawer-open' and
+'drawer-close', `setDrawer`); a page chosen in it, Escape or the avatar again
+closes it. Where the text below says "the sidebar", read the bar and the
+drawer: the ids (`#nav`, `#rec`, `#nav-settings`, `#discord`, `#rail-games`,
+`#account`) are the same.
+
 **The Training Log (8.7).** Every page is one ruled column on the dark ground:
 a section is a heading and rows parted by the hairline, no card and no box in a
 box, one hero per page (Home's fix for the next match at 44px, the review's
@@ -134,7 +153,13 @@ foot of Patterns.
 for one. `syncSeal()` in `src/main/index.js` sets it from `isCoaching &&
 matchInProgress()` on a one second tick and before every `openPage()`; the
 navigation then answers `shown: null`, the shell paints the Recording screen
-and locks every page in the sidebar, Settings included. A page asked for
+and locks every page in the sidebar, Settings included. In a Valorant match
+that screen is the live status (Progress v3, the owner's choice): the map's
+art behind one card with the agent, the score, the round and the round tape,
+each only while its switch is on, and the review as a locked ring beside it
+(`shell.js paintLive`, main's `PUSH_LIVE`); held, or in League, it is the
+quiet crescent and its line (`.sealed-quiet`). What it may show and why:
+`screen-silence.md`, "The live status, the one exception". A page asked for
 meanwhile, the review of the match that just ended above all, is remembered
 and shows when the seal lifts. Open pages through `openPage()`, never
 `mainWindow.show()` directly, which would skip the seal for up to the tick. A

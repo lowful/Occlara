@@ -441,16 +441,16 @@ async function openShell(cfg, state, opts) {
     const p = await openShell({ language: 'en' });
     const rec = p.$('rec');
     const note = p.$('notice');
-    const top = p.document.querySelector('.top');
+    const top = p.document.querySelector('.bar');
     ok(!p.$('status-text') && !p.$('dot') && !rec.querySelector('.rec-state') && !/\bReady\b/.test(rec.textContent)
       && !/id="status-text"|id="dot"|rec-state/.test(html), 'no status row: no dot, no Ready, in the markup or on the card');
     ok(rec.children.map((c) => c.id || c.className).join() === 'rec-controls' && !p.$('line') && !rec.querySelector('p')
       && rec.querySelector('.rec-controls').children.map((c) => c.id).join() === 'toggle,pause',
     'the card holds the two buttons and nothing else, no agent check over them and no line of text under them',
     rec.children.map((c) => c.id || c.className).join());
-    ok(note && top.children.map((c) => c.id || c.className).join() === 'notice,win-controls no-drag' && top.classList.contains('drag')
+    ok(note && note.parentNode === top && top.children.indexOf(note) < top.children.indexOf(top.querySelector('.bar-end')) && top.classList.contains('drag')
       && note.classList.contains('no-drag') && note.getAttribute('aria-live') === 'polite',
-    'the notice line is in the top strip, left of the window\'s buttons, a polite live region, out of the drag region the strip still is',
+    'the notice line is in the top bar, before its end, a polite live region, out of the drag region the strip still is',
     top.children.map((c) => c.id || c.className).join());
     const pauseIcon = () => (p.$('pause').querySelector('path') || { getAttribute: () => '' }).getAttribute('d');
     ok(p.label() === 'Start' && p.$('pause').disabled && !rec.classList.contains('live') && !note.hidden && !note.textContent && !note.hasAttribute('title'),
@@ -458,13 +458,14 @@ async function openShell(cfg, state, opts) {
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching', cadence: 1000, sounds: false });
     ok(p.label() === 'Stop' && !p.$('pause').disabled && rec.classList.contains('live') && pauseIcon() === 'M9 5v14' && p.notice() === null,
       'recording: Stop, the pause icon and the live card say it, and the notice line says nothing, no "Reading your game"', `read "${p.notice()}"`);
-    // The live round's gap (read-cadence.js reads menus, a confirmed buy
-    // phase and the time spent dead less often), as Settings' line says it.
-    ok(p.$('sealed-capture').textContent === 'Reading your game every 1s in a live round, as fast as the connection keeps up',
-      'while the Recording screen\'s capture row still says how often the game is read, in a live round', p.$('sealed-capture').textContent);
+    // PROGRESS V3: THE READ CADENCE IS OFF THE SCREEN. The row that said how
+    // often the game was read mid match is gone, whatever the cadence is; the
+    // live status shows the four facts and nothing about the reading.
+    ok(!p.$('sealed-capture') && !p.$('sealed-capture-row') && !/Reading your game|every \d/.test(p.$('sealed').textContent),
+      'the Recording screen says nothing of how often the game is read', p.$('sealed').textContent);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching', cadence: 2000, captureSpeed: 2000, sounds: false });
-    ok(p.$('sealed-capture').textContent === 'Reading your game every 2s in a live round, pinned in Settings' && p.notice() === null,
-      'and follows the cadence as it moves, with the notice line still silent', p.$('sealed-capture').textContent);
+    ok(!/Reading your game|every \d/.test(p.$('sealed').textContent) && p.notice() === null,
+      'and the cadence moving changes nothing on it, with the notice line still silent', p.$('sealed').textContent);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, isPaused: true, status: 'paused', cadence: 1000, sounds: false });
     ok(p.label() === 'Stop' && !rec.classList.contains('live') && p.notice() === 'Paused. Nothing is read until you resume.'
       && !note.classList.contains('system') && note.title === p.notice() && /^M8 5\.2/.test(pauseIcon()),
@@ -509,7 +510,7 @@ async function openShell(cfg, state, opts) {
     const maximised = () => va.bridge.sent.filter(([ch, a]) => ch === C.SHELL_WINDOW && a === 'maximize').length;
     va.fire(va.$('notice'), 'dblclick');
     ok(maximised() === 0, 'a double click on the notice line maximises nothing');
-    va.fire(va.document.querySelector('.top'), 'dblclick');
+    va.fire(va.document.querySelector('.bar'), 'dblclick');
     ok(maximised() === 1, 'one on the strip around it still maximises the window');
     va.bridge.emit(C.PUSH_STATE, live(true, BLOCKED, 'valorant'));
     ok(va.notice() === PAUSED && va.$('notice').title === PAUSED, 'paused, the paused line is shown over a capture notice', `read "${va.notice()}"`);
@@ -530,8 +531,8 @@ async function openShell(cfg, state, opts) {
     // notice up too. The card's line returned before the row whenever a notice
     // took it, so the row kept saying every 1s.
     va.bridge.emit(C.PUSH_STATE, { ...live(false, DOWN, 'valorant'), cadence: 3000 });
-    ok(va.notice() === DOWN.text && va.$('sealed-capture').textContent === 'Reading your game every 3s in a live round, as fast as the connection keeps up',
-      'with a notice up, the Recording screen\'s capture row still follows the cadence', va.$('sealed-capture').textContent);
+    ok(va.notice() === DOWN.text && !/Reading your game|every \d/.test(va.$('sealed').textContent),
+      'with a notice up, the Recording screen still says nothing of the cadence', va.$('sealed').textContent);
     const CHECKED = { text: "Checked 1 recent match against Riot's record. It is in Matches.", at: 6, kind: 'review' };
     va.bridge.emit(C.PUSH_STATE, { ...BASE, notice: CHECKED });
     ok(va.notice() === CHECKED.text && va.$('notice').classList.contains('system'), 'a review notice between matches is shown', `read "${va.notice()}"`);
@@ -552,20 +553,21 @@ async function openShell(cfg, state, opts) {
     };
     const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
     ok(prop(rule('.nav'), 'display') === 'flex', 'the rule reader finds a known rule');
-    ok(prop(rule('.toggle'), 'flex') === '1 1 auto' && prop(rule('.toggle'), 'height') === '48px'
-      && prop(rule('.icon-btn.lg'), 'width') === '48px' && prop(rule('.icon-btn.lg'), 'height') === '48px'
-      && prop(rule('.icon-btn.lg'), 'flex') === 'none', 'Start fills the width beside a 48px square pause button, the two the same height');
-    ok(prop(rule('.rec'), 'padding') === 'var(--space-3)' && !rule('.rec-line') && !/rec-line/.test(css + html + js),
-      'with one padding on every side of them, and the line\'s styles gone with it');
+    // TOP NAVIGATION (Progress v3): Start and the round pause button sit in the
+    // bar at the same 40px; mid match Stop is the large capsule.
+    ok(prop(rule('.toggle'), 'height') === '40px' && prop(rule('.icon-btn.lg'), 'width') === '40px' && prop(rule('.icon-btn.lg'), 'height') === '40px'
+      && prop(rule('.icon-btn.lg'), 'flex') === 'none' && prop(rule('.app.sealed-live .toggle'), 'height') === '44px',
+      'Start beside a 40px square pause button, the two the same height, and mid match Stop the larger capsule');
+    ok(!rule('.rec-line') && !/rec-line/.test(css + html + js), 'and the old line styles gone');
     ok(!rule('.rec-state') && !rule('#status-text.ended') && !/\.dot\b/.test(css), 'and the status row\'s styles went with it');
     const tn = rule('.top-notice');
     const widest = prop(tn, 'max-width');
     ok(prop(tn, 'white-space') === 'nowrap' && prop(tn, 'overflow') === 'hidden' && prop(tn, 'text-overflow') === 'ellipsis'
-      && prop(tn, 'min-width') === '0' && prop(tn, 'flex') === '0 1 auto' && /^\d+%$/.test(widest) && parseInt(widest, 10) < 100,
-    'the notice line is one line, cut with an ellipsis rather than wrapped, and never the whole strip, so the strip still drags', tn);
+      && prop(tn, 'min-width') === '0' && prop(tn, 'flex') === '0 1 auto' && !widest,
+    'the notice line is one line, cut with an ellipsis rather than wrapped, shrinking between the tabs and the end of the bar', tn);
     ok([400, 500, 600, 700, 800].includes(Number(prop(tn, 'font-weight'))) && /^var\(--[\w-]+\)$/.test(prop(tn, 'color'))
-      && /^var\(--[\w-]+\)$/.test(prop(rule('.top-notice.system'), 'color')) && prop(rule('.top'), 'height') === '40px',
-    'in a Geist weight that ships and the theme\'s colours, in a strip still 40px tall');
+      && /^var\(--[\w-]+\)$/.test(prop(rule('.top-notice.system'), 'color')) && prop(rule('.bar'), 'height') === '64px',
+    'in a Geist weight that ships and the theme colours, in the 64px bar');
     // Read as code, comments out: they may say what went.
     const code = (src) => src.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
     const OLD_LINES = /panel\.noTips|Press Start|Your review opens when the match ends|\(pinned\)/;
@@ -732,7 +734,7 @@ async function openShell(cfg, state, opts) {
     // Both logos are the icon size, on the tokens, and none is sized apart:
     // the rule that drew the Marvel Rivals emblem a size up went with it.
     const css = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8');
-    ok(/\.game-seg button \.game-logo \{ width: var\(--icon-md\); height: var\(--icon-md\);/.test(css)
+    ok(/\.game-seg button \.game-logo \{ width: var\(--icon-sm\); height: var\(--icon-sm\);/.test(css)
       && !/\.game-logo\[data-game=/.test(css) && logos.ids().every((id) => logos.svg(id).includes(`data-game="${id}"`)),
     'the logos are the icon size, on the tokens, with no logo sized apart', (css.match(/\.game-logo\[[^\n]*/) || [''])[0]);
 
@@ -945,17 +947,15 @@ async function openShell(cfg, state, opts) {
     });
     const h = home(progress);
     await settle();
-    const line = h.$('last').querySelectorAll('.gv-prog');
-    ok(line.length === 1 && line[0].textContent === 'Best grade in your last 4 graded matches.' && line[0].classList.contains('good'),
-      'Home\'s last match carries its milestone line, in its tone', line.map((x) => x.textContent).join(' | '));
-    const order = h.$('last').children.map((c) => c.className.split(' ')[0]);
-    ok(order.indexOf('gv-progs') === 1 && order.indexOf('gv-progs') < order.indexOf('gv-grade'), 'under the match\'s facts, above its grade', order.join(' | '));
-    const none = home({ marks: {}, run: null, latest: null });
-    await settle();
-    ok(!none.$('last').querySelector('.gv-progs'), 'and nothing where there is no milestone');
+    // PROGRESS V3: the last match is an art led card (its map, its agent, the
+    // grade and its change, the grade line) and no longer carries the
+    // milestone line; the milestones stay as the marks on the recent rows.
+    ok(!h.$('last').querySelector('.gv-progs') && h.$('last').querySelector('.gv-score'),
+      "Home's last match card carries its grade and no milestone line, the marks being the recent rows");
+    ok(h.$('recent-list').querySelectorAll('.r-mark').some((m) => /Best/.test(m.textContent)), 'and the milestone is a mark on its recent row');
     const busy = home(progress, [{ ...homeRows[0], work: { path: 'riot' } }, ...homeRows.slice(1)]);
     await settle();
-    ok(!busy.$('last').querySelector('.gv-progs'), 'nor while the last match is still being checked');
+    ok(!busy.$('last').querySelector('.gv-score') && !!busy.$('last').querySelector('.gv-checking-card'), 'nor a grade while the last match is still being checked, the checking card in its place');
   });
 
   // K/D/A took K/D's place in the breakdown (8.2): the cell is an average
@@ -2134,8 +2134,8 @@ async function openShell(cfg, state, opts) {
       'painted again, the strip is drawn again rather than a second time under the first');
     const was = v.$('v-focus-was');
     ok(!was.hidden && was.textContent === PROGRESS.lines[2].text && was.classList.contains('good')
-      && v.$('v-focus-wrap').children.indexOf(was) < v.$('v-focus-wrap').children.indexOf(v.$('v-focus')),
-    'last match\'s top mistake and how it went, above the focus and not among the chips', was.textContent);
+      && !v.$('v-focus-was-wrap').hidden && v.$('v-focus-wrap').children.indexOf(v.$('v-focus-was-wrap')) > v.$('v-focus-wrap').children.indexOf(v.$('v-focus')),
+    "last match's top mistake and how it went, under the fix in a line of its own with its label, not among the chips", was.textContent);
     ok(same(v.$('v-summary').children.map((li) => li.textContent), base.summaryLines) && v.$('v-focus').textContent === base.focus,
       'the coach\'s read a line a sentence, the focus under it');
     // The grade compact, its evidence chips, its bars indexed for the reveal.
@@ -2830,8 +2830,8 @@ async function openShell(cfg, state, opts) {
       && prop(rule('.rank-graph .rg-area'), 'fill') === 'rgba(var(--cyan-rgb),0.06)',
     'its line is --text-dim, its dot --text, over one solid tint of the accent');
     const home = fs.readFileSync(path.join(RENDERER, 'home', 'home.css'), 'utf8');
-    ok(/\.rank-line path \{[^}]*stroke: var\(--text-dim\)/.test(home) && /\.rank-dot \{[^}]*background: var\(--text\)/.test(home),
-      'the line and the dot Home draws the same journey with');
+    ok(/\.rank-bar i \{[^}]*background: var\(--text\)/.test(home) && /\.rank-bar \{[^}]*background: var\(--s4\)/.test(home),
+      'the bar Home draws the RR inside the tier with, the ink over the fourth surface step');
   });
 
   // ── Home (8.2.1) ─────────────────────────────────────────────────────────
@@ -3000,6 +3000,18 @@ async function openShell(cfg, state, opts) {
     ok(GV.checking(null) === null && GV.checking({ path: 'other' }) === null && GV.checking({ path: 'riot' }).className === 'gv-checking'
       && GV.checking({ path: 'riot' }, { full: true }).className === 'gv-checking-card',
     'GradeView.checking draws the pill and the card, and nothing for no work');
+    // PROGRESS V3: a grade with nothing measured is one panel and one action,
+    // not four "not measured" rows and a sentence.
+    let asked = 0;
+    const none = GV.gradeCard({ score: null, letter: null, categories: ['Survival', 'Impact', 'Teamplay', 'Decisions'].map((label) => ({ label, score: null })), notes: [] },
+      { compact: true, onAddRiot: () => { asked++; } });
+    const addBtn = none.querySelector('.gv-empty .btn');
+    ok(none.querySelector('.gv-empty') && !none.querySelector('.gv-cat') && none.querySelectorAll('button').length === 1 && addBtn && addBtn.textContent === 'Add your Riot ID',
+      'nothing measured: one panel, no category rows, one action, Add your Riot ID');
+    if (addBtn) addBtn.click();
+    ok(asked === 1, 'and the action does what it says');
+    const some = GV.gradeCard({ score: 70, letter: 'B', categories: [{ label: 'Survival', score: 61 }, { label: 'Impact', score: null }], notes: [] }, { compact: true });
+    ok(!some.querySelector('.gv-empty') && some.querySelectorAll('.gv-cat').length === 2, 'a grade with something measured keeps its rows');
     const gvCss = fs.readFileSync(path.join(RENDERER, 'shared', 'grade-view.css'), 'utf8');
     const gvPart = gvCss.slice(gvCss.indexOf('A review still being checked'), gvCss.indexOf('@media (max-width: 520px)'));
     ok(gvPart.length > 200 && /\.gv-checking-dot \{/.test(gvPart) && !/animation|infinite|gradient/.test(gvPart),
@@ -3007,23 +3019,18 @@ async function openShell(cfg, state, opts) {
   });
 
   // "Bring the bars lower so it's balanced and there's no dead space."
-  await section('Home\'s grade trend fills its card, each bar its grade of the whole height:', async () => {
+await section('Home\'s last match draws the grades as a line, one dot a match:', async () => {
     const h = await openHome();
-    const tracks = h.document.querySelectorAll('#trend-bars .bar-track');
-    const read = tracks.map((t) => ({ h: t.style.getPropertyValue('--h'), num: (t.querySelector('.bar-num') || {}).textContent, bar: t.querySelector('.bar') }));
-    ok(tracks.length === 5 && same(read.map((r) => r.num), ['58', '97', '74', '64', '83']) && read.every((r) => r.bar && r.h === `${r.num}%`),
-      'a track per match, oldest first, its --h the grade as a share of the whole', JSON.stringify(read.map((r) => r.h)));
-    ok(read.every((r) => toneOf(r.bar) === toneFor(Number(r.num))), 'each bar its letter\'s colour, the number beside it');
+    const svg = h.document.querySelector('#last .grade-line');
+    const nums = h.document.querySelectorAll('#last .gl-num').map((t) => t.textContent);
+    ok(svg && h.document.querySelectorAll('#last .gl-dot').length === 5 && same(nums, ['58', '97', '74', '64', '83']),
+      'a dot a match, oldest first, each with its grade over it', JSON.stringify(nums));
+    ok(h.document.querySelectorAll('#last .gl-dot.now').length === 1 && h.document.querySelectorAll('#last .gl-num.now').length === 1,
+      'the newest is the one large, filled dot');
     ok(cssProp(homeRule('.hint'), 'font-size') === '14px', 'the rule reader finds a known rule');
-    // 120px tall whatever stands beside it (8.7): the chart is a section, not
-    // a second hero, and no map is printed under a bar.
-    const homeCss = fs.readFileSync(path.join(RENDERER, 'home', 'home.css'), 'utf8');
-    ok(cssProp(homeRule('.bars'), 'height') === '120px' && !cssProp(homeRule('#trend'), 'flex') && /\.rows > \.row:last-child \{[^}]*align-items: flex-start;/.test(homeCss)
-      && cssProp(homeRule('.bar-track'), 'flex') === '1 1 auto' && !h.document.querySelectorAll('#trend-bars .bar-map').length,
-    'the bars keep to 120px over their baseline beside any list, and carry no map under them');
-    ok(cssProp(homeRule('.bar'), 'position') === 'absolute' && cssProp(homeRule('.bar'), 'height') === 'var(--h, 0%)'
-      && cssProp(homeRule('.bar-num'), 'position') === 'absolute' && /^calc\(var\(--h, 0%\)/.test(cssProp(homeRule('.bar-num'), 'bottom')),
-    'the bar and its number both read --h, the number off the bar\'s top rather than stacked in its column');
+    const gvCss2 = fs.readFileSync(path.join(RENDERER, 'shared', 'grade-view.css'), 'utf8');
+    ok(/\.gl-line \{[^}]*stroke: var\(--text\)/.test(gvCss2) && /\.gl-dot\.now \{[^}]*fill: var\(--text\)/.test(gvCss2) && !/gradient/.test(gvCss2.slice(gvCss2.indexOf('THE GRADE LINE'))),
+      'drawn in the ink, the newest filled, with no gradient');
   });
 
   // "Show the player's rank journey and their most recent RR loss and gain."
@@ -3032,11 +3039,10 @@ async function openShell(cfg, state, opts) {
     ok(!h.$('rank').hidden && h.$('rank-tier').textContent === 'Diamond 1', 'the rank the newest rated game left', h.$('rank-tier').textContent);
     const rrEl = h.$('rank-rr');
     ok(!rrEl.hidden && rrEl.textContent === '+24 RR' && rrEl.classList.contains('gain'), 'the last game\'s RR, a gain in its colour', rrEl.textContent);
-    const line = h.$('rank-line');
-    const d = (line.querySelector('path') || { getAttribute: () => '' }).getAttribute('d') || '';
-    ok(!line.hidden && (d.match(/[ML]/g) || []).length === 12 && line.querySelector('.rank-dot')
-      && line.getAttribute('aria-label') === 'Rank journey over your last 12 rated games, from Platinum 3 to Diamond 1',
-    'the journey as a line through its twelve games, the newest a dot, and said in words', line.getAttribute('aria-label'));
+    ok(!h.$('rank-bar').hidden && h.$('rank-fill').style.width === '44%' && h.$('rank-in').textContent === '44 RR' && h.$('rank-to').textContent === '56 to the next rank',
+      'the RR inside the tier as a bar, 44 of the 100 to the next rank', h.$('rank-fill').style.width);
+    const lastRR = h.document.querySelector('#last .last-rr');
+    ok(lastRR && !lastRR.hidden && lastRR.textContent === 'RR +24', 'the last match card carries the RR its game moved', lastRR && lastRR.textContent);
     const rowRR = (x) => x.document.querySelectorAll('#recent-list .r-row').map((b) => {
       const s = b.querySelector('.r-rr');
       return !s || s.hidden ? '' : `${s.textContent}:${['gain', 'loss', 'even'].find((t) => s.classList.contains(t)) || ''}`;
@@ -3050,20 +3056,13 @@ async function openShell(cfg, state, opts) {
       'Rank journey asks main for Stats with the journey open (OPEN_STATS, \'journey\')', JSON.stringify(h.bridge.sent));
     ok(h.bridge.invoked.filter((x) => x[0] === C.STATS_RANK_HISTORY).every((x) => x[1] === false),
       'read from the history main keeps, never forced past its cache');
-    // Where it sits: under the focus, in the room the last match leaves; with
-    // the most repeated mistake there too, above the grade trend.
-    const side = h.$('side');
-    ok(h.$('rank').parentNode === side && side.children.indexOf(h.$('rank')) === side.children.indexOf(h.$('focus')) + 1,
-      'it sits under the next match\'s focus');
+    // Where it sits: with the repeated mistakes, in the row under the last match and the fix.
     const full = await openHome({ mistakes: [MISTAKE] });
-    ok(!full.$('top').hidden && full.$('rank').parentNode === full.$('lower') && full.$('lower').children[0] === full.$('rank')
-      && !full.$('rank').hidden, 'with the focus and the most repeated mistake beside the last match, it stands above the grade trend');
+    ok(!full.$('top').hidden && !full.$('rank').hidden && full.$('rank').parentNode === full.$('top').parentNode && !full.$('rank').parentNode.classList.contains('single'),
+      'with a repeated mistake, the rank and the mistakes share a row');
     const noFocus = await openHome({ mistakes: [MISTAKE], focus: null });
-    ok(noFocus.$('focus').hidden && !noFocus.$('top').hidden && noFocus.$('rank').parentNode === noFocus.$('side')
-      && !noFocus.$('rank').hidden, 'with the mistake but no focus (a match graded from Riot\'s record alone), the column has the room, and it stays there');
-    ok(cssProp(homeRule('#side .rank'), 'flex') === '1 1 auto' && cssProp(homeRule('.rank-line'), 'min-height') === '40px'
-      && cssProp(homeRule('.rank-line svg'), 'position') === 'absolute',
-    'beside the last match it fills what is left of the column, its line growing with it');
+    ok(noFocus.$('focus').hidden && noFocus.$('last').parentNode.classList.contains('single') && !noFocus.$('rank').hidden,
+      'with no focus (a match graded from Riot\'s record alone) the last match takes its row');
 
     // Painted first, filled in after: a slow rank history never holds Home back.
     let answer = null;
@@ -3091,10 +3090,10 @@ async function openShell(cfg, state, opts) {
   await section('Home has a rank only for Valorant, with a Riot ID and a rated game, and the column closes up:', async () => {
     const asked = (x) => x.bridge.invoked.some((c) => c[0] === C.STATS_RANK_HISTORY);
     const noId = await openHome({ riotId: '' });
-    ok(noId.$('rank').hidden && !asked(noId) && !noId.$('side').hidden, 'no Riot ID: no rank card, nothing asked, and the focus keeps its column');
+    ok(noId.$('rank').hidden && !asked(noId) && !noId.$('focus').hidden, 'no Riot ID: no rank card, nothing asked, and the fix stays');
     const none = await openHome({ history: () => ({ points: [] }), focus: null });
-    ok(none.$('rank').hidden && none.$('side').hidden && !none.$('last').hidden,
-      'no rated game: no rank card, and with no focus either the column goes and the last match takes the row');
+    ok(none.$('rank').hidden && none.$('focus').hidden && !none.$('last').hidden,
+      'no rated game: no rank card and no RR chip, and with no focus either the last match takes the row');
     const error = await openHome({ history: () => ({ error: 'no-riot-id' }) });
     ok(error.$('rank').hidden && error.document.querySelectorAll('#recent-list .r-rr').every((s) => s.hidden), 'a history that did not answer: none');
     const league = await openHome({ game: 'lol' });
@@ -3194,7 +3193,7 @@ async function openShell(cfg, state, opts) {
     await settle();
     if (hold) hold();
     await settle();
-    const came = ['last', 'focus', 'trend', 'recent'].filter((id) => q.$(id).classList.contains('card-in'));
+    const came = ['start-strip', 'last', 'focus', 'recent'].filter((id) => q.$(id).classList.contains('card-in'));
     ok(!q.$('content').hidden && came.length === 4,
       'the first paint overtaken by a review saved meanwhile, its cards arrive with the paint that lands', `arrived: ${came.join(', ')}`);
   });
@@ -3275,8 +3274,8 @@ async function openShell(cfg, state, opts) {
     await repainted(st);
     const graph = (st.document.querySelector('.rg-title') || {}).textContent || '';
     const h = await openHome({ history: () => reset });
-    ok(/last 3 comp games/.test(graph) && /last 3 rated games, from Gold 1 to Gold 2/.test(h.$('rank-line').getAttribute('aria-label') || ''),
-      'after an act reset both draw the three games since it', `Stats "${graph}", Home "${h.$('rank-line').getAttribute('aria-label')}"`);
+    ok(/last 3 comp games/.test(graph) && h.$('rank-tier').textContent === 'Gold 2',
+      'after an act reset Stats draws the three games since it and Home says the rank they left', `Stats "${graph}", Home "${h.$('rank-tier').textContent}"`);
   });
 
   await section('Settings, the game picker:', async () => {
@@ -4987,57 +4986,34 @@ async function openShell(cfg, state, opts) {
       && prop(rule(ui, '.reveal > .reveal-clip'), 'overflow') === 'hidden',
     'opening in place is one grid row from 0fr to 1fr on --t-med, its clip hiding the rest');
 
-    // The sidebar's marker: one element, moved to the current page.
+    // THE MARKER (Progress v3): one pill under the tabs, moved along them.
     const shellCss = read('shell/shell.css');
-    ok(!/background/.test(rule(shellCss, '.nav-item[aria-current="page"]')) && rule(shellCss, '.nav-item[aria-current="page"]').includes('color'),
-      'the current item paints no background of its own');
+    ok(!/background/.test(rule(shellCss, '.nav .nav-item[aria-current="page"]')) && rule(shellCss, '.nav .nav-item[aria-current="page"]').includes('color'),
+      'the current tab paints no background of its own');
     ok(prop(rule(shellCss, '.nav-marker'), 'transition').startsWith('transform var(--t-med) var(--ease-expo)'), 'the marker slides on --t-med');
     const p = await openShell({ language: 'en' }, {});
     const marker = p.$('nav-marker');
-    ok(p.document.querySelectorAll('.nav-marker').length === 1 && marker.getAttribute('aria-hidden') === 'true', 'one marker for the whole sidebar');
-    // Layout, which the fake DOM does not do: each item where the sidebar has it.
-    const items = p.document.querySelectorAll('.nav-item');
-    items.forEach((b, i) => Object.assign(b, { offsetTop: 120 + i * 46, offsetLeft: 12, offsetWidth: 208, offsetHeight: 44 }));
-    p.$('nav-settings').offsetTop = 690;
-    const top = (id) => p.document.querySelector(`.nav-item[data-page="${id}"]`).offsetTop;
+    ok(p.document.querySelectorAll('.nav-marker').length === 1 && marker.getAttribute('aria-hidden') === 'true' && marker.parentNode === p.$('nav'), 'one marker, under the tabs');
+    // Layout, which the fake DOM does not do: each tab where the bar has it.
+    const items = p.$('nav').querySelectorAll('.nav-item');
+    items.forEach((b, i) => Object.assign(b, { offsetTop: 0, offsetLeft: i * 90, offsetWidth: 84, offsetHeight: 32 }));
+    const left = (id) => p.document.querySelector(`#nav .nav-item[data-page="${id}"]`).offsetLeft;
     p.bridge.emit(C.PUSH_SHELL, { page: 'matches', shown: 'matches', sealed: false });
-    ok(marker.classList.contains('on') && marker.style.transform === `translate(12px, ${top('matches')}px)` && marker.style.height === '44px',
-      'it sits on the current page', marker.style.transform);
+    ok(marker.classList.contains('on') && marker.style.transform === `translate(${left('matches')}px, 0px)` && marker.style.width === '84px',
+      'it sits on the current tab', marker.style.transform);
     p.bridge.emit(C.PUSH_SHELL, { page: 'stats', shown: 'stats', sealed: false });
-    ok(marker.style.transform === `translate(12px, ${top('stats')}px)` && !marker.classList.contains('still'), 'going to another page it slides there');
+    ok(marker.style.transform === `translate(${left('stats')}px, 0px)` && !marker.classList.contains('still'), 'going to another tab it slides there');
     p.bridge.emit(C.PUSH_SHELL, { page: 'settings', shown: 'settings', sealed: false });
-    ok(marker.style.transform === 'translate(12px, 690px)', 'down to Settings at the foot as well');
+    ok(!marker.classList.contains('on') && p.$('nav-settings').getAttribute('aria-current') === 'page', 'on Settings, a row of the drawer, the drawer marks it and the pill goes');
     p.bridge.emit(C.PUSH_SHELL, { page: 'settings', shown: null, sealed: true });
     ok(!marker.classList.contains('on'), 'sealed, no page is current and it fades out');
     p.bridge.emit(C.PUSH_SHELL, { page: 'review', shown: 'review', sealed: false });
-    ok(marker.classList.contains('on') && marker.classList.contains('still') && marker.style.transform === `translate(12px, ${top('matches')}px)`,
+    ok(marker.classList.contains('on') && marker.classList.contains('still') && marker.style.transform === `translate(${left('matches')}px, 0px)`,
       'unsealed on the review, it appears on Matches, put there rather than slid');
-    // THE MARKER FOLLOWS THE RECORD CARD, and with the sidebar overflowing
-    // (the window's minimum height) Settings, below it, moves with it. Layout
-    // again: Settings under a card as tall as what it shows, which since 8.3
-    // is no line and since 8.4.4 no agent check, its two buttons alone.
-    const settingsAt = () => 520 + p.$('rec').children.filter((c) => c.className !== 'rec-controls' && !c.hidden).length * 48
-      + (p.$('rec').querySelector('p') ? 18 : 0);
-    Object.defineProperty(p.$('nav-settings'), 'offsetTop', { get: settingsAt, configurable: true });
-    const onSettings = () => marker.style.transform === `translate(12px, ${settingsAt()}px)`;
-    const where = () => `marker ${marker.style.transform}, Settings at ${settingsAt()}`;
-    p.bridge.emit(C.PUSH_SHELL, { page: 'settings', shown: 'settings', sealed: false });
-    ok(onSettings(), 'on Settings, the marker is on it', where());
     const blocked = 'Capture is blocked: Windows will not let Occlara read the screen. Set the game to Windowed Fullscreen and press Start again.';
-    const before = settingsAt();
     p.bridge.emit(C.PUSH_STATE, { ...BASE, notice: { text: blocked, at: 1 } });
-    ok(p.notice() === blocked && settingsAt() === before && onSettings(),
-      'a notice is the top strip\'s (8.3): the card stays as it was, and so do Settings and the marker on it', where());
+    ok(p.notice() === blocked && marker.style.transform === `translate(${left('matches')}px, 0px)`, 'a notice in the bar leaves the marker where it is');
     p.bridge.emit(C.PUSH_STATE, { ...BASE, notice: null });
-    ok(p.notice() === null && settingsAt() === before && onSettings(), 'and stay when it clears', where());
-    // Recording Valorant: nothing opens in the card (8.4.4), so Settings
-    // stays where it was and so does the marker on it, and a resize of the
-    // card still puts the marker back after layout.
-    p.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
-    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching' });
-    p.clock.advance(10000);
-    p.resized(p.$('rec'));
-    ok(settingsAt() === before && onSettings(), 'recording, the card opens nothing and Settings and the marker on it stay put', where());
     ok(prop(rule(shellCss, '.sealed'), 'animation') === 'riseIn var(--t-slow) var(--ease-expo) both',
       'the Recording screen rises in as it appears');
 
@@ -5902,8 +5878,8 @@ async function openShell(cfg, state, opts) {
     const kids = foot.children.map((c) => c.id);
     // Report a problem sits at the end of Profile's row (docs/claude/feedback.md),
     // between them in the markup, beside Profile on the grid.
-    ok(kids[0] === 'nav-invite' && kids[1] === 'nav-profile' && kids[2] === 'nav-feedback' && kids[3] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite',
-      'the foot leads with Invite, then Profile (with Report a problem at its end) directly above Settings (8.8)', kids.join(', '));
+    ok(kids[0] === 'nav-profile' && kids[1] === 'nav-invite' && kids[2] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite' && foot.parentNode === s.$('drawer'),
+      'the drawer leads with Profile, then Invite, then Settings (Progress v3: the sidebar\'s foot moved into the avatar\'s drawer)', kids.join(', '));
     s.$('nav-invite').click();
     ok(s.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'invite'), 'Invite goes to the Invite page');
     s.bridge.emit(C.PUSH_SHELL, { page: 'invite', shown: 'invite', sealed: false, held: false });
@@ -6285,9 +6261,9 @@ async function openShell(cfg, state, opts) {
     };
     const h = await open(viewOf(FREE_LEFT));
     const line = h.$('rail-games');
-    const underRec = line.parentNode && line.parentNode.children.indexOf(line) === line.parentNode.children.indexOf(h.$('rec')) + 1;
+    const underRec = line.parentNode === h.$('drawer') && line.parentNode.children.indexOf(line) === line.parentNode.children.indexOf(h.$('account')) + 1;
     ok(shown(h, 'rail-games') && line.textContent === '1 of 2 free games left' && underRec,
-      'it says the games left as main wrote them, directly under the record buttons', line.textContent);
+      'it says the games left as main wrote them, in the drawer under the account line', line.textContent);
     h.bridge.emit(C.ACCOUNT_CHANGED, viewOf(PRO_USED));
     await settle();
     ok(line.textContent === "You have used this month's 25 games, renews Nov 30", 'and follows a change of the account', line.textContent);
@@ -6427,8 +6403,8 @@ async function openShell(cfg, state, opts) {
     const s = await openShell({ game: 'valorant' });
     const dc = s.$('discord');
     const kids = s.document.querySelector('.foot').children.map((c) => c.id);
-    ok(!!dc && kids.indexOf('discord') === kids.indexOf('nav-settings') + 1 && kids[0] === 'nav-invite' && kids[3] === 'nav-settings',
-      'it sits right after Settings, the foot\'s rows in their order', kids.join(', '));
+    ok(!!dc && kids.indexOf('discord') === kids.length - 1 && kids.indexOf('discord') === kids.indexOf('nav-feedback') + 1 && kids[0] === 'nav-profile',
+      'it is the drawer\'s last row, after Report a problem', kids.join(', '));
     ok(dc.getAttribute('title') === 'Join the Occlara Discord' && dc.getAttribute('aria-label') === 'Join the Occlara Discord' && dc.getAttribute('type') === 'button',
       'a button named and tooltipped Join the Occlara Discord');
     const mark = dc.querySelector('svg');
@@ -6453,7 +6429,7 @@ async function openShell(cfg, state, opts) {
     await settle();
     ok(s.$('nav-settings').getAttribute('aria-current') === 'page', 'on What\'s new the sidebar marks Settings, where it is reached from');
     const css = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8');
-    ok(/\.foot-icon:focus-visible\s*\{[^}]*outline:/.test(css), 'it shows a focus ring on the keyboard');
+    ok(/\.drawer \.nav-item:focus-visible\s*\{[^}]*outline:/.test(css), 'it shows a focus ring on the keyboard');
   });
 
   // REPORT A PROBLEM (docs/claude/feedback.md): the quiet icon at the end of
@@ -6463,8 +6439,8 @@ async function openShell(cfg, state, opts) {
     const s = await openShell({ game: 'valorant' });
     const b = s.$('nav-feedback');
     const kids = s.document.querySelector('.foot').children.map((c) => c.id);
-    ok(!!b && kids.indexOf('nav-feedback') === kids.indexOf('nav-profile') + 1 && kids.indexOf('discord') === kids.indexOf('nav-feedback') + 2
-      && b.classList.contains('foot-icon'), 'a foot icon after Profile, the Discord one row below it', kids.join(', '));
+    ok(!!b && kids.indexOf('nav-feedback') > kids.indexOf('nav-settings') && kids.indexOf('discord') === kids.indexOf('nav-feedback') + 1
+      && b.classList.contains('nav-item') && b.textContent.trim() === 'Report a problem', 'a row of the drawer after Settings, the Discord right under it', kids.join(', '));
     ok(b.getAttribute('title') === 'Report a problem' && b.getAttribute('aria-label') === 'Report a problem', 'named and tooltipped Report a problem');
     b.click();
     ok(s.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'feedback'), 'a click goes to the Report a problem page');

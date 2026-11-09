@@ -145,3 +145,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 @media (prefers-reduced-motion: reduce) {
   .pr-hero, .pr-sec { animation: none; }
 }
+
+/* PROGRESS V3: a section is a card on the ground, as Home's are. */
+.pr-body { gap: var(--space-4); }
+.pr-sec, .pr-hero { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }
