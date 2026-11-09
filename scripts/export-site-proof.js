@@ -370,6 +370,11 @@ setTimeout(async () => {
     // step here clicks through the page's own scripts), so wherever the
     // cursor rests on the desktop, no row picks up its hover tint.
     win.setIgnoreMouseEvents(true);
+    // NOTHING FROZEN IN A PICTURE: a window behind another still reads
+    // visible but gets no animation frames, so a count up stops on 0.00 and
+    // two captures agree on it. On top, nothing on the desktop covers it.
+    win.setAlwaysOnTop(true, 'screen-saver');
+    win.moveTop();
     // A frameless window at a scale of 2 comes out a few DIPs over what was
     // asked (Windows' invisible resize border): asked again, less the delta.
     win.setContentSize(WIN.width, WIN.height);
@@ -464,8 +469,10 @@ setTimeout(async () => {
     places.tabs = Object.fromEntries(tabs.map((t) => [t.page, inWindow(t.at, false)]));
     // The K/D counts up to its two places as the card arrives (Motion.countUp):
     // read once it has landed, the same text a beat apart.
-    const ratioNow = "(() => { const n = document.querySelector('#last .kd-ratio'); return n ? n.textContent : ''; })()";
-    await until(async () => { const a = await hjs(ratioNow); await wait(300); return a === await hjs(ratioNow); }, 4000);
+    // Landed means its text is the final one countUp keeps in data-value, not
+    // only the same twice: a frozen count reads the same twice too.
+    const ratioLanded = "(() => { const n = document.querySelector('#last .kd-ratio'); return !!n && !!n.textContent && n.textContent === (n.dataset.value || n.textContent); })()";
+    if (!await until(() => hjs(ratioLanded), 4000)) return finish(false, 'the K/D never landed on its value, the window is likely covered and gets no frames');
     out.home = await hjs(READ_HOME);
     lines.push(`home: fix "${out.home.fix.slice(0, 40)}" grade ${out.home.last.grade.score} recent ${out.home.recent.length}`);
     if (!out.home.fix || out.home.last.grade.score !== String(seeded.built.grade.score) || out.home.recent.length !== seeded.SEEDED) {
