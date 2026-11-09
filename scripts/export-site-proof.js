@@ -188,7 +188,6 @@ const READ_HELPERS = `
   const shown = (el) => !!el && !el.hidden && getComputedStyle(el).display !== 'none';
   const txt = (sel, root) => T(Q(sel, root));
   const list = (sel, root) => QA(sel, root).map(T).filter(Boolean);
-  const noDate = (s) => s.split(/\\s+\\u00b7\\s+/).slice(1).join(' \\u00b7 ');
 `;
 const READ_HOME = `(() => { ${READ_HELPERS}
   const last = Q('#last');
@@ -202,9 +201,10 @@ const READ_HOME = `(() => { ${READ_HELPERS}
       buttons: list('.last-foot button', last),
     },
     top: shown(Q('#top')) ? { title: txt('#top-title'), trend: txt('#top-trend'), detail: txt('#top-detail'), fix: txt('#top-fix') } : null,
-    trend: shown(Q('#trend')) ? { label: txt('#trend .label'), average: txt('#trend-avg'), grades: list('#trend-bars .bar-num') } : null,
-    recent: QA('#recent-list .r-row').map((r) => ({ title: T(Q('.r-title', r).firstChild), result: txt('.r-res', r), marks: list('.r-mark', r),
-      meta: noDate(txt('.r-meta', r)), grade: txt('.r-score', r), letter: txt('.gv-letter', r) })),
+    trend: shown(Q('#trend')) ? { label: txt('#trend .trend-say'), average: txt('#trend-avg .mg-num'), grades: list('#trend .trend-fig'),
+      best: txt('#trend .trend-fig.best') } : null,
+    recent: QA('#recent-list .r-row').map((r) => ({ title: T(Q('.r-title', r).firstChild), result: txt('.r-res', r),
+      meta: txt('.r-meta', r), grade: txt('.r-score', r), letter: txt('.gv-letter', r) })),
   };
 })()`;
 const READ_SHELL = `(() => { ${READ_HELPERS}
@@ -217,14 +217,14 @@ const READ_SEALED = `(() => { ${READ_HELPERS}
 const READ_MATCHES = `(() => { ${READ_HELPERS}
   return { heading: txt('#every h3, #every h2, #every .block-title'),
     rows: QA('#list .m-item').map((m) => ({ title: txt('.m-title', m), result: txt('.m-res', m), marks: list('.m-mark', m),
-      meta: noDate(txt('.m-meta', m)), topMistake: txt('.m-top-mistake', m).replace(/^Top mistake:\\s*/, ''),
+      meta: txt('.m-meta', m), topMistake: ((Q('.m-top-mistake', m) && Q('.m-top-mistake', m).title) || txt('.m-top-mistake', m)).replace(/^Top mistake:\\s*/, ''),
       grade: txt('.m-score', m), letter: txt('.m-letter', m) })) };
 })()`;
 const READ_PATTERNS = `(() => { ${READ_HELPERS}
   const item = (li) => ({ title: txt('.gv-item-title', li), count: txt('.gv-count', li), detail: txt('.gv-item-detail', li),
     fix: txt('.gv-item-fix', li).replace(/^Fix\\s*/, ''), rounds: list('.gv-rchip', li) });
   return { sub: txt('#p-sub'), average: shown(Q('#p-avg')) ? txt('#p-avg-num') : '',
-    grades: list('#p-trend .p-bar span'),
+    grades: list('#p-trend .p-fig'),
     categories: QA('#p-cats .p-cat').map((c) => ({ average: txt('b', c), label: txt('span', c), last: txt('small', c) })),
     lists: QA('#p-lists .gv-block').map((b) => ({ heading: txt('h3', b), items: QA('.gv-item', b).map(item) })) };
 })()`;

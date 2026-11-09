@@ -64,7 +64,7 @@ ok(p.label === 'Sample match', 'the proof is labelled "Sample match"', p.label);
 ok(/^[0-9a-f]{40}$/.test(p.commit) && typeof p.dirty === 'boolean', 'the proof is stamped with the git commit', p.commit);
 ok(p.window && p.window.width === 1280 && p.window.height === 800 && p.window.scale === 2, 'the proof names the window its pictures are of');
 const v = p.review && p.review.verdict;
-ok(v && v.letter === 'B' && v.score === '71' && v.out === '/100' && v.stat && v.stat.value && v.stat.label && v.result === 'VICTORY' && v.scoreline === '13 : 11',
+ok(v && v.letter === 'B' && v.score === '71' && v.out === '/100' && v.stat && v.stat.value && v.stat.label && v.result === 'Victory' && v.scoreline === '13 : 11',
   'the Verdict is a B of 71 on a 13 : 11 victory with its standout', JSON.stringify(v));
 ok(v && v.stats.length >= 2 && v.stats.every((s) => s.value && s.label), "Riot's numbers are there, each a value and a label");
 const cats = p.review && p.review.grade.categories;
@@ -74,8 +74,10 @@ ok(p.review.read.heading === "The coach's read" && p.review.read.lines.length ==
 ok(p.review.fix.text === p.home.fix && p.review.fix.text.length > 20, 'the fix line, the same on Home and the review', p.review.fix.text);
 ok(p.review.progress.length >= 3 && p.review.progress.every((l) => l.text && l.tone), 'the progress lines', JSON.stringify(p.review.progress));
 const mistakes = p.review.lists.find((l) => l.heading === 'Your repeated mistakes');
-ok(mistakes && mistakes.items[0].title === 'Died where nobody could trade' && mistakes.items[0].hero && mistakes.items[0].detail,
-  'the repeated mistakes, the top one first as the hero', JSON.stringify(mistakes && mistakes.items.map((i) => i.title)));
+// 8.8: the top mistake leads the review as Why, the rounds that prove the
+// fix, so in the list it is the first closed row and no longer the hero.
+ok(mistakes && mistakes.items[0].title === 'Died where nobody could trade' && mistakes.items[0].detail,
+  'the repeated mistakes, the top one first',JSON.stringify(mistakes && mistakes.items.map((i) => i.title)));
 ok(mistakes && mistakes.items.every((i) => !/^(?:→\s*)?Fix\b/.test(i.fix)), 'a fix carries its sentence, not its label');
 ok(mistakes && mistakes.items.slice(1).every((i) => i.fix), 'every mistake after the first carries a fix');
 ok(p.review.rounds.rows.length === 24 && p.review.rounds.halves.length === 2 && p.review.rounds.rows.every((r) => /^R\d+$/.test(r.n) && r.result && r.side),

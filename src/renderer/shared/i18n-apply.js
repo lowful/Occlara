@@ -22,17 +22,20 @@
 function applyI18n(t, root = document) {
   if (typeof t !== 'function') return 0;
   let n = 0;
+  // A translator hands the key back for a string it does not know (i18n.js
+  // t), and a key is never copy: the English already in the markup stays.
+  const say = (key) => { const v = t(key); return v && v !== key ? v : null; };
 
   for (const el of root.querySelectorAll('[data-i18n]')) {
-    const v = t(el.getAttribute('data-i18n'));
+    const v = say(el.getAttribute('data-i18n'));
     if (v && v !== el.textContent) { el.textContent = v; n++; }
   }
   for (const el of root.querySelectorAll('[data-i18n-placeholder]')) {
-    const v = t(el.getAttribute('data-i18n-placeholder'));
+    const v = say(el.getAttribute('data-i18n-placeholder'));
     if (v) { el.setAttribute('placeholder', v); n++; }
   }
   for (const el of root.querySelectorAll('[data-i18n-title]')) {
-    const v = t(el.getAttribute('data-i18n-title'));
+    const v = say(el.getAttribute('data-i18n-title'));
     if (v) { el.setAttribute('title', v); n++; }
   }
 

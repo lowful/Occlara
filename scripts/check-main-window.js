@@ -237,26 +237,25 @@ setTimeout(async () => {
     lines.push(`record card: ${JSON.stringify(card)}`);
     if (card.line || card.texts || card.buttons !== 2) return report(false, `the record card is not its two buttons alone: ${JSON.stringify(card)}`);
     if (card.controls !== 48 || card.above !== card.below) return report(false, `the record card is not balanced on its buttons: ${JSON.stringify(card)}`);
-    // THE GRADE TREND KEEPS ITS HEIGHT (8.7), measured on the real layout:
-    // with Recent matches beside it made tall, the bars stay 120px tall over
-    // their baseline rather than growing into a second hero, no map is
-    // printed under a bar, and the tallest bar is its grade of the whole
-    // track.
-    const fill = await hjs(`(async () => {
-      const recentCard = document.getElementById('recent');
-      recentCard.style.minHeight = '440px';
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    // THE GRADE TREND IS WRITTEN (8.8), measured on the real layout: no bar
+    // chart, the newest figure the review's grade, the pen's tick on the best
+    // figure clear of every word and figure around it, and every recent row's
+    // words starting on the column's edge, under the trend's.
+    const fill = await hjs(`(() => {
       const trend = document.getElementById('trend');
-      const bars = trend.querySelector('.bars').getBoundingClientRect();
-      const track = trend.querySelector('.bar-track').getBoundingClientRect().height;
-      const bar = Math.max(...[...trend.querySelectorAll('.bar')].map((b) => b.getBoundingClientRect().height));
-      const maps = trend.querySelectorAll('.bar-map').length;
-      recentCard.style.minHeight = '';
-      return { bars: Math.round(bars.height), track: Math.round(track), bar: Math.round(bar), maps };
+      const figs = [...trend.querySelectorAll('.trend-fig')];
+      const tick = trend.querySelector('.trend-fig.best svg.pen-tick path');
+      const tb = tick ? tick.getBoundingClientRect() : null;
+      const others = [...trend.querySelectorAll('.trend-say, .trend-fig, .trend-sep')].map((n) => n.getBoundingClientRect());
+      const clear = !tb || others.every((r) => tb.right <= r.left + 1 || tb.left >= r.right - 1 || tb.bottom <= r.top || tb.top >= r.bottom);
+      const edge = Math.round(trend.getBoundingClientRect().left);
+      const rows = [...document.querySelectorAll('#recent-list .r-main')].map((m) => Math.round(m.getBoundingClientRect().left));
+      return { bars: document.querySelectorAll('#trend .bar, #trend-bars').length, newest: figs.length ? figs[figs.length - 1].textContent : null,
+        tick: !!tick, clear, edge, rows };
     })()`);
-    lines.push(`home trend beside a tall Recent matches: ${JSON.stringify(fill)} for a grade of ${built.grade.score}`);
-    if (fill.bars !== 120 || fill.maps || Math.abs(fill.bar - Math.round((built.grade.score / 100) * fill.track)) > 2) {
-      return report(false, `the grade trend does not keep its 120px over a tall list: ${JSON.stringify(fill)}`);
+    lines.push(`home trend, written: ${JSON.stringify(fill)} for a grade of ${built.grade.score}`);
+    if (fill.bars || fill.newest !== String(built.grade.score) || !fill.clear || !fill.rows.every((x) => Math.abs(x - fill.edge) <= 1)) {
+      return report(false, `the written grade trend is not laid out as the notebook's: ${JSON.stringify(fill)}`);
     }
     // The window's first page came in (8.2): staged, armed as it loaded, then
     // placed and let in, its cards arriving one after another as it did.
@@ -576,9 +575,15 @@ setTimeout(async () => {
     lines.push(`notice line cleared: ${JSON.stringify(cleared)}`);
     if (!cleared || cleared.hidden || cleared.shown || cleared.text || cleared.title) return report(false, `a notice cleared stays on the line: ${JSON.stringify(cleared)}`);
 
-    // 4. The seal.
+    // 4. The seal. A window is only ever sealed while a session records, so
+    // the shell is told it records first: the sealed shot shows Stop, never a
+    // Start that says the opposite of the Recording screen beside it.
+    shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: null, isCoaching: true, isPaused: false });
     mainWindow.setSealed(true);
     await wait(400);
+    const sealedButton = await sjs("document.getElementById('toggle').innerText.trim()");
+    lines.push(`sealed: the record button reads "${sealedButton}"`);
+    if (!/Stop/.test(String(sealedButton || ''))) return report(false, `sealed while recording, the record button reads "${sealedButton}", not Stop`);
     const anyShown = [...mainWindow.pageViews().values()].some((v) => v.getVisible());
     const sealedScreen = await sjs("!document.getElementById('sealed').hidden");
     const navLocked = await sjs("[...document.querySelectorAll('#nav .nav-item'), document.getElementById('nav-invite'), document.getElementById('nav-profile'), document.getElementById('nav-settings')].every((b) => b.disabled)");
@@ -590,6 +595,7 @@ setTimeout(async () => {
     await wait(400);
     if (mainWindow.current().shown !== null) return report(false, 'a review opened over a sealed window');
     mainWindow.setSealed(false);
+    shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: null, isCoaching: false, isPaused: false });
     await until(() => mainWindow.current().shown === 'review', 3000);
     const rv = mainWindow.pageViews().get('review');
     lines.push(`unsealed: shown=${mainWindow.current().shown} review visible=${rv && rv.getVisible()}`);
@@ -619,7 +625,21 @@ setTimeout(async () => {
     }
 
     await wait(1500);
+    // THE GRADE TABLE'S SCORE NEVER TOUCHES ITS EVIDENCE (8.8 critique): one
+    // state of the review ran "61" into "21 deaths" and the player read 6121.
+    // Every row keeps at least 12px between the number and the line beside it.
+    const gaps = await review.webContents.executeJavaScript(`[...document.querySelectorAll('.gv-grade.table .gv-cat')].map((r) => {
+      const s = r.querySelector('.gv-cat-score'), e = r.querySelector('.gv-cat-ev');
+      return s && e && e.textContent ? Math.round(e.getBoundingClientRect().left - s.getBoundingClientRect().right) : null;
+    }).filter((g) => g !== null)`);
+    lines.push(`grade table, score to evidence gaps: ${JSON.stringify(gaps)}`);
+    if (!gaps.length || gaps.some((g) => g < 12)) return report(false, `a grade table score runs into its evidence: gaps ${JSON.stringify(gaps)}`);
     await shot('review', mainWindow, win);
+    if (process.env.OCCLARA_SHOTS === '1') {
+      await review.webContents.executeJavaScript("document.querySelector('.gv-grade.table').scrollIntoView({ block: 'start' }); true");
+      await shot('review-grade', mainWindow, win);
+      await review.webContents.executeJavaScript("document.querySelector('.body').scrollTo(0, 0); true");
+    }
     if (process.env.OCCLARA_SHOTS === '1') {
       // The strip and the comps line under it (8.5.0), scrolled into view.
       await review.webContents.executeJavaScript("document.getElementById('v-rounds-wrap').scrollIntoView({ block: 'start' }); true");
@@ -787,6 +807,14 @@ setTimeout(async () => {
     // version line opening the What's new page, the bundled changelog painted
     // there with the running version marked, the sidebar marking Settings,
     // and Home's update line gone once the page has opened.
+    // THE VERSION LINE IS THE APP'S (8.8 critique): run under Electron as a
+    // script, app.getVersion() is Electron's, and Settings said 41.3.0.
+    {
+      const want = require(path.join(REPO, 'package.json')).version;
+      const verText = await until(async () => { const t = await setjs("document.getElementById('version').textContent"); return /\d/.test(t) ? t : null; }, 4000);
+      lines.push(`settings version line: "${verText}" (package.json ${want})`);
+      if (verText !== `Version ${want}`) return report(false, `Settings says "${verText}", not the app's version ${want}`);
+    }
     if (process.env.OCCLARA_SHOTS === '1') {
       await setjs("document.getElementById('discord-open').scrollIntoView({ block: 'center' }); true");
       await wait(150);
@@ -840,15 +868,15 @@ setTimeout(async () => {
       return { matches: q('#mo-list .mo-match'), rows: q('#mo-list .mo-row'), deaths: q('#mo-list .mo-kind.death'), highlights: q('#mo-list .mo-kind.highlight'),
         comp: q('#mo-comp-rows .mo-crow'), playAll: [...document.querySelectorAll('#mo-comp-rows button.btn')].map((b) => b.textContent).join(),
         plays: q('#mo-list .mo-play'), gone: q('#mo-list .mo-gone'), marks: q('#mo-list .mo-mark.across'), note: document.getElementById('mo-note').hidden,
-        filter: document.querySelectorAll('#mo-filter.seg-slide .seg-thumb').length, counts: document.getElementById('mo-counts').textContent,
+        filter: document.querySelectorAll('#mo-filter.opts[role="radiogroup"] > button[role="radio"]').length, counts: document.getElementById('mo-counts').textContent,
         risen: q('#mo-list .mo-row.rise'), causeTitle: (document.querySelector('#mo-list .mo-row .mo-mtitle') || {}).textContent };
     })()`), 6000);
     lines.push(`moments page: ${JSON.stringify(momentsPage)}`);
     if (!momentsPage || momentsPage.matches !== SEEDED || !momentsPage.rows || !momentsPage.deaths || !momentsPage.highlights) {
       return report(false, `the Moments page does not list the seeded matches with their deaths and highlights: ${JSON.stringify(momentsPage)}`);
     }
-    if (!momentsPage.comp || !/Play all/.test(momentsPage.playAll) || momentsPage.plays !== 1 || momentsPage.gone < 1 || !momentsPage.marks
-      || !momentsPage.note || momentsPage.filter !== 1 || momentsPage.risen < 8) {
+    if (!momentsPage.comp || !/(^|,)Play [0-9]+ clips?(,|$)/.test(momentsPage.playAll) || momentsPage.plays !== 1 || momentsPage.gone < 1 || !momentsPage.marks
+      || !momentsPage.note || momentsPage.filter !== 3 || momentsPage.risen < 8) {
       return report(false, `the Moments page is missing its compilation, its one kept clip, its marks, its sliding filter or its rising rows: ${JSON.stringify(momentsPage)}`);
     }
     await shot('moments', mainWindow, win);
@@ -875,6 +903,9 @@ setTimeout(async () => {
       for (const page of ['patterns', 'stats', 'coach', 'settings']) {
         mainWindow.show(page);
         await wait(3000);
+        // Shot at its top: an earlier step scrolled Settings' rows into view.
+        await pjsOf(page)("document.scrollingElement.scrollTop = 0; for (const b of document.querySelectorAll('.body')) b.scrollTop = 0; true");
+        await wait(150);
         await shot(page, mainWindow, win);
       }
       // The breakdown, folded at the foot of Patterns (8.7), opened.
@@ -1037,31 +1068,44 @@ setTimeout(async () => {
     // On screen, not only asked for: the page it replaced is out of sight.
     const settledOn = (to, from) => until(() => mainWindow.current().shown === to
       && !!mainWindow.pageViews().get(from) && !mainWindow.pageViews().get(from).getVisible(), 4000);
+    // 8.8: with no Riot ID (the sample library sets none) Stats is ONE
+    // empty state, "Connect your Riot ID", and there is no rank to open the
+    // journey under, so Home's ask lands there and is dropped (stats.js
+    // applyRiot). With an ID set, the journey is held as before.
     ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');
-    const firstOpen = await until(async () => mainWindow.current().shown === 'stats' && mainWindow.pageViews().get('stats')
-      && await statsJs(notesOpen), 8000);
-    await fold();
-    mainWindow.show('home');
-    await settledOn('home', 'stats');
-    mainWindow.show('stats');
-    await settledOn('stats', 'home');
-    await wait(400);
-    const plainFolded = !(await statsJs(notesOpen));
-    mainWindow.show('home');
-    await settledOn('home', 'stats');
-    ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');
-    const armOpen = await until(async () => mainWindow.current().shown === 'stats' && await statsJs(notesOpen), 5000);
-    await fold();
-    await wait(300);
-    mainWindow.show('home');           // and before Home has come in,
-    ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');   // Stats is called back
-    const enterOpen = await until(async () => mainWindow.current().shown === 'stats' && await statsJs(notesOpen), 5000);
-    lines.push(`Rank journey: opened=${!!firstOpen} shown plainly after it is folded=${plainFolded ? 'folded' : 'open'}`
-      + ` from Home again=${!!armOpen} called back mid switch=${!!enterOpen}`);
-    if (!firstOpen) return report(false, 'Home\'s Rank journey opened Stats with the journey folded in the Rank tile');
-    if (!plainFolded) return report(false, 'Stats shown plainly opened the journey the player had folded');
-    if (!armOpen) return report(false, 'Home\'s Rank journey, with Stats kept from before, did not open the journey');
-    if (!enterOpen) return report(false, 'Home\'s Rank journey, Stats called back before Home came in, did not open the journey');
+    const onStats = await until(() => mainWindow.current().shown === 'stats' && !!mainWindow.pageViews().get('stats'), 8000);
+    await wait(600);
+    const connectAsk = onStats ? await statsJs("!document.getElementById('stats-connect').hidden") : false;
+    if (connectAsk) {
+      const journeyOpen = await statsJs(notesOpen);
+      lines.push(`Rank journey with no Riot ID: the one empty state=${connectAsk} journey open=${journeyOpen}`);
+      if (journeyOpen) return report(false, 'with no Riot ID, Home\'s Rank journey opened a journey Stats has no rank for');
+    } else {
+      const firstOpen = await until(async () => mainWindow.current().shown === 'stats' && mainWindow.pageViews().get('stats')
+        && await statsJs(notesOpen), 8000);
+      await fold();
+      mainWindow.show('home');
+      await settledOn('home', 'stats');
+      mainWindow.show('stats');
+      await settledOn('stats', 'home');
+      await wait(400);
+      const plainFolded = !(await statsJs(notesOpen));
+      mainWindow.show('home');
+      await settledOn('home', 'stats');
+      ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');
+      const armOpen = await until(async () => mainWindow.current().shown === 'stats' && await statsJs(notesOpen), 5000);
+      await fold();
+      await wait(300);
+      mainWindow.show('home');           // and before Home has come in,
+      ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');   // Stats is called back
+      const enterOpen = await until(async () => mainWindow.current().shown === 'stats' && await statsJs(notesOpen), 5000);
+      lines.push(`Rank journey: opened=${!!firstOpen} shown plainly after it is folded=${plainFolded ? 'folded' : 'open'}`
+        + ` from Home again=${!!armOpen} called back mid switch=${!!enterOpen}`);
+      if (!firstOpen) return report(false, 'Home\'s Rank journey opened Stats with the journey folded in the Rank tile');
+      if (!plainFolded) return report(false, 'Stats shown plainly opened the journey the player had folded');
+      if (!armOpen) return report(false, 'Home\'s Rank journey, with Stats kept from before, did not open the journey');
+      if (!enterOpen) return report(false, 'Home\'s Rank journey, Stats called back before Home came in, did not open the journey');
+    }
     mainWindow.show('patterns');
     await until(() => mainWindow.current().shown === 'patterns', 3000);
 

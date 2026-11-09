@@ -140,7 +140,7 @@ form.addEventListener('submit', async (e) => {
     showError((result && result.error) || 'That key could not be activated.');
   } catch (err) {
     setState('idle');
-    showError('Something went wrong. Please try again.');
+    showError('The key was not checked. Check your connection and try again.');
   }
 });
 

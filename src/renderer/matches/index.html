@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="../shared/grade-view.css" />
+  <link rel="stylesheet" href="../shared/marks.css" />
   <link rel="stylesheet" href="matches.css" />
 </head>
 <body>
@@ -37,17 +38,25 @@
            is what a player can actually work on between sessions. -->
       <section id="patterns" class="patterns">
         <div class="p-head">
-          <div>
-            <h3>Your patterns</h3>
-            <p id="p-sub" class="hint"></p>
-          </div>
+          <h3>Your patterns</h3>
+          <p id="p-sub" class="hint"></p>
+        </div>
+        <!-- THE GRADES, WRITTEN (8.8, matches.js paintTrend): the average in
+             the margin, the grades oldest first beside it as figures, the
+             record ticked by the pen and said in words under them. -->
+        <div id="p-figs" class="p-figs" hidden>
           <div id="p-avg" class="p-avg" hidden>
             <span class="p-avg-num" id="p-avg-num"></span>
-            <span class="p-avg-label">average grade</span>
+            <span class="p-avg-label">average</span>
+          </div>
+          <div class="p-figs-col">
+            <span id="p-figs-label" class="p-figs-label">Your grades, oldest first</span>
+            <p id="p-trend" class="p-trend" hidden></p>
+            <p id="p-trend-note" class="p-trend-note pen-note" hidden></p>
           </div>
         </div>
-        <div id="p-trend" class="p-trend" hidden></div>
-        <div id="p-cats" class="p-cats" hidden></div>
+        <!-- The four categories as a compact ruled table (8.8, matches.js paintCats). -->
+        <div id="p-cats" class="p-cats" role="table" aria-label="Categories" hidden></div>
         <div id="p-lists"></div>
 
         <!-- WHERE AND ON WHAT (folded, 8.7). The patterns say what keeps
@@ -62,12 +71,13 @@
             <span id="b-sub" class="b-sum-hint"></span>
           </summary>
           <div class="b-body">
-            <!-- The cut and the queue are segmented capsules whose thumb
-                 slides (shared/seg.js, occlaraSeg in matches.js). -->
+            <!-- The cut is an either/or, a segmented capsule whose thumb
+                 slides (shared/seg.js, occlaraSeg in matches.js); the queues
+                 are a filter, a row of secondary rectangles (8.8). -->
             <div class="b-head">
               <div id="b-dims" class="seg-mini" role="tablist" aria-label="Break down by"></div>
             </div>
-            <div id="b-queues" class="b-queues" role="group" aria-label="Queue" hidden></div>
+            <div id="b-queues" class="opts b-queues" role="radiogroup" aria-label="Queue" hidden></div>
             <!-- The rest of the sample's sentences (why a column is empty), wrapping
                  here rather than cut beside the title above. -->
             <p id="b-sample" class="b-note" hidden></p>
@@ -84,19 +94,21 @@
           <h3>Every match</h3>
           <div id="bf" class="bf" hidden>
             <span id="bf-status" class="bf-status" aria-live="polite"></span>
-            <button id="bf-go" class="btn sm bf-go" type="button">Grade my recent matches</button>
+            <button id="bf-go" class="btn btn-secondary sm bf-go" type="button">Grade my recent matches</button>
           </div>
         </div>
         <div id="list" class="list" role="list"></div>
-        <p id="empty" class="empty" hidden>No reviewed matches yet. Press Start, play a match, and its graded review lands here when it ends.</p>
+        <p id="empty" class="empty" hidden>Press Start before your next match. Its graded review lands here when the match ends.</p>
       </section>
     </main>
   </div>
 
   <script src="../shared/i18n-apply.js"></script>
+  <script src="../shared/intl.js"></script>
   <script src="../shared/seg.js"></script>
   <script src="../shared/grade-view.js"></script>
   <script src="../shared/log-eye.js"></script>
+  <script src="../shared/marks.js"></script>
   <script src="matches.js"></script>
 </body>
 </html>

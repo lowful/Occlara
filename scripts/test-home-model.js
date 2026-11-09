@@ -66,7 +66,7 @@ const summary = patterns.summarise(saved);
     `and its categories (${m.last.categories.map((c) => `${c.label} ${c.score}`).join(', ')})`);
   ok(m.focus === built.focus, 'the focus is the newest review\'s next match line');
   ok(m.top && m.top.title === summary.mistakes[0].title && m.top.fix === summary.mistakes[0].fix
-    && m.top.detail === `In ${summary.mistakes[0].matches} of your last 6 recorded matches.`,
+    && m.top.detail === (summary.mistakes[0].matches === 6 ? 'In each of your last 6 recorded matches.' : `In ${summary.mistakes[0].matches} of your last 6 recorded matches.`),
     `the top mistake is the first pattern (${m.top && m.top.title}: ${m.top && m.top.detail})`);
   ok(m.trend.length === 5 && m.trend[m.trend.length - 1].id === saved[0].id,
     `the trend is the last five grades, oldest first (${m.trend.map((t) => t.score).join(', ')})`);
@@ -114,7 +114,7 @@ const summary = patterns.summarise(saved);
   ok(m.last && m.last.id === mix[0].id && m.last.source === 'riot' && m.last.grade,
     'the last match is the newest, graded from Riot\'s record, with its grade');
   ok(m.top && m.top.title === saved[0].review.insights.mistakes[0].title
-    && m.top.detail === 'In 2 of your last 2 recorded matches.',
+    && m.top.detail === 'In each of your last 2 recorded matches.',
     `the most repeated mistake is the recorded matches', out of them (${m.top && m.top.title}: ${m.top && m.top.detail})`);
   ok(m.trend.length === 4 && m.average === sum.average, 'while the trend and the average are every match\'s');
   const riotOnly = [fromRiot(2), fromRiot(1)];

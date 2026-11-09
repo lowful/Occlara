@@ -1,11 +1,12 @@
 /* palette: tokens only */
-/* Settings, THE TRAINING LOG (8.7). Every setting is one ruled group: a
-   heading, one line that says what it changes, and its control on the same
-   row, a capsule at the right. A hairline above each group and the dark
-   between them do the grouping; no group is a box, no box sits in a box. The
-   explanation a group used to open with is folded into a details line under
-   the row, every word kept. The only framed things left are the Riot ID
-   field and the keycaps. */
+/* Settings (8.8, THE COACH'S NOTEBOOK). Four sections, Recording,
+   Coaching, Account and App, named in the margin's index. Every setting is
+   one group: a heading, one line that says what it changes, and its control
+   on the same row at the right, the capsule for On and Off, a row of words
+   for three or more. Space does the grouping, no rule between groups; no
+   group is a box, no box sits in a box. The explanation a group used to open
+   with is folded into a details line under the row, every word kept. The
+   only framed things are the Riot ID field and the keycaps. */
 
 html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
 
@@ -41,35 +42,86 @@ header {
 }
 .gamepick .dd-btn {
   height: 34px;
-  font-size: 13px;
+  font-size: var(--fs-label);
   padding: 0 var(--space-2) 0 var(--space-3);
 }
 .gamepick .dd-chev { width: var(--icon-sm); height: var(--icon-sm); }
 .h-brand { flex: none; display: flex; align-items: center; gap: var(--space-2); }
-header h2 { font-size: 15.5px; font-weight: 600; }
+header h2 { font-size: var(--fs-body); font-weight: var(--w-title); }
 
-/* The body is one column of groups. No gap of its own: each group carries
-   its rule and its space, so the space BETWEEN groups (52px) always beats the
-   space within one (8 to 12px). */
+/* THE NOTEBOOK (8.8): the margin and the column. The margin (--margin-w)
+   holds the section index, which stays in view as the column scrolls; the
+   column holds four sections, Recording, Coaching, Account and App, each a
+   title over its ruled groups. No gap inside a section of its own: each group
+   carries its rule and its space, so the space BETWEEN groups always beats
+   the space within one (8 to 12px), and the space between sections beats
+   both. */
 .body {
   flex: 1; overflow-y: auto;
   padding: var(--space-2) var(--space-4) var(--space-10);
-  display: flex; flex-direction: column;
+  display: grid;
+  grid-template-columns: var(--margin-w) minmax(0, 1fr);
+  column-gap: 0;
+  align-items: start;
 }
 .body::-webkit-scrollbar { width: 8px; }
 .body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
 .body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
-/* A scrolling flex column: no group shrinks to fit the window. */
-.body > * { flex: none; }
 
-/* The first group with no rule over it: it is the page's hero, the one thing
-   the page opens on. */
+/* The index: the four sections in the margin, words that read as the
+   interface's (Geist 13, the label's weight), the one in view in the ink with
+   a short rule at its left. A tertiary in every way but its place, so it is
+   drawn here: it is navigation, not a button rank. */
+.set-index {
+  position: sticky; top: var(--space-6);
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1);
+  padding-top: var(--space-1); padding-right: var(--space-3);
+}
+.set-index-link {
+  position: relative;
+  padding: var(--space-1) 0; border: 0; background: none; cursor: pointer;
+  font-family: var(--font); font-size: var(--fs-label); font-weight: var(--w-label); line-height: 1.4; color: var(--text-mute);
+  text-align: left;
+  transition: color var(--t-fast) ease;
+}
+.set-index-link::before {
+  content: ''; position: absolute; left: -10px; top: 50%;
+  width: 2px; height: 12px; margin-top: -6px; border-radius: 1px;
+  background: var(--text);
+  opacity: 0; transition: opacity var(--t-fast) ease;
+}
+.set-index-link:hover { color: var(--text-dim); }
+.set-index-link[aria-current="true"] { color: var(--text); }
+.set-index-link[aria-current="true"]::before { opacity: 1; }
+
+.set-col { min-width: 0; display: flex; flex-direction: column; }
+/* A section: its title, then its groups. More room above a title than under
+   it, and a scrolled-to section keeps the title clear of the top edge. */
+.set-section { display: flex; flex-direction: column; scroll-margin-top: var(--space-4); }
+.set-section + .set-section { margin-top: var(--space-10); }
+.set-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-heading); font-weight: var(--w-title); line-height: var(--lh-heading); letter-spacing: 0;
+  text-wrap: balance;
+}
+/* A scrolling column: no group shrinks to fit the window. */
+.set-section > * { flex: none; }
+
+/* A group is its space (8.8): no rule over it, the 40px between two groups
+   against the 12px inside one does the grouping. */
 .group {
   display: flex; flex-direction: column; gap: var(--space-3);
-  padding: var(--space-5) 0 var(--space-8);
-  border-top: 1px solid var(--line);
+  padding: 0 0 var(--space-10);
 }
-.group.first { border-top: 0; padding-top: var(--space-2); }
+.group.first { padding-top: var(--space-2); }
+.set-section:last-child > .group:last-of-type { padding-bottom: var(--space-6); }
+
+/* Narrower than a margin and a column can share, the index goes and the
+   sections stack, their titles still saying where you are. */
+@media (max-width: 600px) {
+  .body { grid-template-columns: minmax(0, 1fr); }
+  .set-index { display: none; }
+}
 
 /* The control row: heading and its one line at the left, the capsule at the
    right, centred on each other. */
@@ -79,8 +131,8 @@ header h2 { font-size: 15.5px; font-weight: 600; }
 .row-text { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 .ctl { flex: none; display: flex; align-items: center; gap: var(--space-2); }
 
-section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; margin: 0; }
-.hint { font-size: 13px; color: var(--text-dim); line-height: 1.5; margin: 0; }
+section h3 { font-size: var(--fs-body); font-weight: var(--w-title); letter-spacing: 0; line-height: 1.3; margin: 0; }
+.hint { font-size: var(--fs-label); font-weight: var(--w-body); color: var(--text-dim); line-height: 1.5; margin: 0; text-wrap: pretty; max-width: 72ch; }
 
 /* The folded explanation: a quiet line with a chevron that turns as it opens,
    the paragraph rising in under it. */
@@ -89,9 +141,9 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
   list-style: none;
   display: inline-flex; align-items: center; gap: var(--space-2);
   padding: var(--space-1) 0;
-  font-size: 12px; font-weight: 500; color: var(--text-mute);
+  font-size: var(--fs-caption); font-weight: var(--w-label); color: var(--text-mute);
   cursor: pointer;
-  transition: color var(--t-fast) var(--ease);
+  transition: color var(--t-fast) ease;
 }
 .more summary::-webkit-details-marker { display: none; }
 .more summary::before {
@@ -99,13 +151,12 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
   width: 6px; height: 6px; margin: 0 2px 2px 1px;
   border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
   transform: rotate(-45deg);
-  transition: transform var(--t-fast) var(--ease);
+  transition: transform var(--t-fast) var(--ease-out);
 }
 .more[open] summary::before { transform: rotate(45deg); margin-bottom: 4px; }
 .more summary:hover { color: var(--text); }
-.more summary:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: var(--r-card); }
 .more > p { margin-top: var(--space-2); max-width: 72ch; }
-.more[open] > p { animation: riseIn var(--t-med) var(--ease-expo) both; }
+.more[open] > p { animation: riseIn var(--t-med) var(--ease-out) both; }
 
 /* The segmented capsule, drawn here as shared/seg.js draws it once it has
    slid its thumb in (ui.css .seg-slide), so a page painted before the script
@@ -125,51 +176,46 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
 .seg > button:hover:not(:disabled) { color: var(--text); }
 .seg:not(.seg-slide) > button.active { background: var(--text); color: var(--bg); }
 
+/* Capture speed, the recording's size and the clips' space are ui.css's
+   row of words (.opts), not a capsule, which is kept for On and Off. */
+
 /* The Riot ID: the one field on the page, in the control hairline, Connect
    beside it. */
-.riot-row { display: flex; gap: var(--space-2); align-items: center; max-width: 520px; }
-.riot-input { flex: 1; min-width: 0; height: 40px; font-size: 13px; letter-spacing: 0.4px; text-align: left; }
+.riot-row { display: flex; gap: var(--space-3); align-items: center; max-width: 520px; }
+.riot-input { flex: 1; min-width: 0; height: 36px; font-size: var(--fs-label); letter-spacing: 0; text-align: left; }
 .trk-btn { flex: none; }
 .trk-btn.busy { opacity: 0.6; pointer-events: none; }
 /* Save sits beside the picker and is dead until the choice actually changes, so
    the button itself says whether there is anything to apply. */
 .trk-btn:disabled { opacity: 0.4; pointer-events: none; }
 .lang-select { width: 220px; }
+/* A choice from a list, so it is drawn as the field it is (8.8): the
+   control's rectangle, not a capsule, its size the secondary Save beside it. */
 .lang-select .dd-btn {
-  height: 32px; padding: 0 var(--space-3) 0 14px;
-  font-size: 13px; font-weight: 500;
-  border-radius: var(--r-btn); border-color: var(--line-2);
-  background: rgba(255, 255, 255, 0.055);
-  box-shadow: var(--hi), var(--drop);
+  height: 30px; padding: 0 var(--space-2) 0 var(--space-3);
+  font-size: var(--fs-label); font-weight: var(--w-body);
+  border-radius: var(--r-control); border-color: var(--line-2);
+  background: transparent;
+  box-shadow: none;
 }
-.lang-select .dd-btn:hover { background: rgba(255, 255, 255, 0.095); }
+.lang-select .dd-btn:hover { background: rgba(255, 255, 255, 0.05); }
 
-/* A status line is a line: a dot, then its words. Good news fills the dot in
-   --good, a failure rings it in --bad, so the state is a shape before it is a
-   colour. */
+/* A status line is a sentence (8.8, no dot before it): its words say the
+   state, good news in the ink, a failure in --bad. */
 .trk-status, .rec-note, .live-cadence {
-  display: flex; align-items: baseline; gap: var(--space-2);
-  margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim);
-}
-.trk-status::before, .rec-note::before, .live-cadence::before {
-  content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%;
-  background: var(--text-mute); transform: translateY(-1px);
+  margin: 0; font-size: var(--fs-label); line-height: 1.5; color: var(--text-dim);
+  max-width: 72ch; text-wrap: pretty;
 }
 .trk-status.ok { color: var(--text); }
-.trk-status.ok::before { background: var(--good); }
 .trk-status.err { color: var(--bad); }
-.trk-status.err::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--bad); }
 /* Record match video: the size beside On and Off, and one status line under
-   both, recording now or why it is not. Recording now carries the good dot
-   beside its words, never the colour alone. */
+   both, recording now or why it is not, in the ink while it records. */
 .rec-note.live { color: var(--text); }
-.rec-note.live::before { background: var(--good); }
 .live-cadence { color: var(--text); }
-.live-cadence::before { background: var(--good); }
 .rec-retry { align-self: flex-start; }
 /* The clips kept beside the reviews: what they take, the cap, Clear clips,
-   under a hairline inside the recording group. */
-.rec-clips { margin-top: var(--space-2); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+   a step of space under the recording rows. */
+.rec-clips { margin-top: var(--space-4); }
 .rec-usage { margin: 0; }
 .rec-clear:disabled { opacity: 0.4; pointer-events: none; }
 /* Asked once, it says what the second press does, in the danger colour. */
@@ -181,30 +227,27 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
 .kv {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
   min-height: 40px; padding: var(--space-2) 0;
-  font-size: 14px; color: var(--text-dim);
+  font-size: var(--fs-ui); color: var(--text-dim);
   border-top: 1px solid var(--line);
 }
-.kv b { color: var(--text); font-weight: 500; text-transform: capitalize; }
+.kv b { color: var(--text); font-weight: var(--w-label); text-transform: capitalize; font-variant-numeric: tabular-nums; }
 
-.lic-ended { margin: 0; font-size: 13px; line-height: 1.5; color: var(--bad); max-width: 72ch; }
+.lic-ended { margin: 0; font-size: var(--fs-label); line-height: 1.5; color: var(--bad); max-width: 72ch; }
 
-/* The licence's status: a word with a dot, active filled in --good, ended
-   ringed in --bad. */
-.badge { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 14px; font-weight: 500; color: var(--text-dim); text-transform: capitalize; }
-.badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
+/* The licence's status: its word (8.8, no dot), active in the ink, ended
+   in --bad. */
+.badge { font-size: var(--fs-ui); font-weight: var(--w-label); color: var(--text-dim); text-transform: capitalize; }
 .badge.active { color: var(--text); }
-.badge.active::before { background: var(--good); }
 .badge.expired, .badge.cancelled, .badge.payment_failed { color: var(--bad); }
-.badge.expired::before, .badge.cancelled::before, .badge.payment_failed::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--bad); }
 
 /* The colophon: the version, the way to say something, and the games'
    owner's notice, in the quiet small type, under the last rule. */
-.wip { display: flex; flex-direction: column; gap: var(--space-1); padding-top: var(--space-6); border-top: 1px solid var(--line); }
+.wip { display: flex; flex-direction: column; gap: var(--space-1); padding-top: var(--space-2); }
 .wip-line { font-size: 12px; line-height: 1.5; color: var(--text-mute); margin: 0; }
 .wip-mail {
-  color: var(--text-dim); font-weight: 500; cursor: pointer; white-space: nowrap;
+  color: var(--text-dim); font-weight: var(--w-label); cursor: pointer; white-space: nowrap;
   user-select: text; border-bottom: 1px solid var(--line-2);
-  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  transition: color var(--t-fast) ease, border-color var(--t-fast) ease;
 }
 .wip-mail:hover { color: var(--text); border-bottom-color: var(--text-dim); }
 .wip-mail.copied { color: var(--good); border-bottom-color: var(--good); }
@@ -216,14 +259,13 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
    read as text and underline under the pointer, a ring on the keyboard. */
 .ver-link {
   padding: 0; border: 0; background: none; cursor: pointer;
-  font: 500 12px var(--font); line-height: 1.5; color: var(--text-dim);
-  text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px;
-  transition: color var(--t-fast) var(--ease), text-decoration-color var(--t-fast) var(--ease);
+  font-family: var(--font); font-size: var(--fs-caption); font-weight: var(--w-label); line-height: 1.5; color: var(--text-dim);
+  text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px;
+  transition: color var(--t-fast) ease, text-decoration-color var(--t-fast) ease;
 }
 .ver-link.quiet { font-weight: 400; color: var(--text-mute); }
 .ver-link:hover { color: var(--text); text-decoration-color: var(--text-dim); }
-.ver-link:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: var(--r-card); }
-.upd { font-size: 12px; color: var(--text-mute); }
+.upd { font-size: var(--fs-caption); color: var(--text-mute); }
 .upd.ok  { color: var(--good); }
 .upd.new { color: var(--text); }
 
@@ -232,14 +274,14 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
 .wip-line.legal { font-size: 12px; line-height: 1.5; color: var(--text-mute); max-width: 80ch; }
 .wip-line.ver + .wip-line.legal { margin-top: var(--space-2); }
 
-/* The footer: quiet capsules, the plan and Log out at the left, Quit at the
-   right, under one rule. */
+/* The footer: Manage subscription a quiet rectangle and Log out in words at
+   the left, Quit at the right, under one rule. */
 footer {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--line);
 }
-.footer-actions { display: flex; gap: var(--space-2); }
+.footer-actions { display: flex; align-items: center; gap: var(--space-3); }
 
 /* As a page of the main window (8.1) the sidebar picks the game, so the
    header's own picker would be a second control for the same setting. */
@@ -248,10 +290,14 @@ html.embedded #gamepick { display: none !important; }
 /* The Account section (8.7): ruled rows like the licence's, main's lines, the
    account key in the mono face beside its Copy, and the actions under them
    in one wrapping row of small capsules. */
-.account .acct-val { color: var(--text); font-weight: 500; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account .acct-val { color: var(--text); font-weight: var(--w-label); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account .kv > span:first-child { flex: none; }
 .acct-key-wrap { display: inline-flex; align-items: center; gap: var(--space-3); min-width: 0; }
-.acct-key { font: 500 13px var(--font-mono); color: var(--text); letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
-.acct-out, .acct-wait { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); max-width: 72ch; }
-.acct-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.acct-key { font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 400; color: var(--text); letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
+.acct-out, .acct-wait { margin: 0; font-size: var(--fs-label); line-height: 1.5; color: var(--text-dim); max-width: 72ch; }
+.acct-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .acct-actions [hidden] { display: none; }
+
+/* Recording off, the sizes step back (settings.js paintRecording): still a
+   choice for when it is on again, but no size reads as in use. */
+.rec-res.idle > button, .rec-res.idle > button[aria-checked="true"] { color: var(--text-mute); font-weight: var(--w-body); }

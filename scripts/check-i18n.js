@@ -102,5 +102,27 @@ for (const [surface, s] of bySurface) {
 }
 if (!anyChanges) note('NOTHING CHANGES: no wired key differs in German, the setting would look broken');
 
+// NEVER A KEY ON SCREEN (8.8): a translator that does not know a key hands it
+// back, and the standalone Ask Coach drew "panel.askCoach" and "chat.lead"
+// where its title and lead were. applyI18n keeps the markup's English then.
+{
+  const { applyI18n } = require(path.join(ROOT, 'renderer', 'shared', 'i18n-apply.js'));
+  const el = (attr, key, text) => {
+    const a = { [attr]: key };
+    return { textContent: text, getAttribute: (n) => a[n] ?? null, setAttribute: (n, v) => { a[n] = v; }, attrs: a };
+  };
+  const h = el('data-i18n', 'panel.askCoach', 'Ask Coach');
+  const p = el('data-i18n-placeholder', 'chat.placeholder', '');
+  p.attrs.placeholder = 'Why did I lose round 4?';
+  const root = { querySelectorAll: (sel) => (sel === '[data-i18n]' ? [h] : sel === '[data-i18n-placeholder]' ? [p] : []) };
+  global.document = {};
+  applyI18n((k) => k, root);
+  delete global.document;
+  const keyish = /^[a-z]+\.[a-zA-Z]+$/;
+  if (keyish.test(h.textContent) || keyish.test(p.attrs.placeholder)) {
+    note(`a translator that hands back the key puts it on screen: "${h.textContent}", "${p.attrs.placeholder}"`);
+  }
+}
+
 console.log(problems ? `\nFAIL: ${problems} problem(s)` : '\nPASS: every key resolves and t() is called correctly');
 process.exit(problems ? 1 : 0);

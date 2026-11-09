@@ -98,7 +98,9 @@ setTimeout(async () => {
     let gotPush = null;
     await js("window.__sawGame = null; window.occlara.onGame((g) => { window.__sawGame = g; }); true");
 
-    const vis = () => js("JSON.stringify({over: !document.getElementById('sec-overview').hidden,"
+    // Valorant's dashboard is the overview, or with no Riot ID its one empty
+    // state in the overview's place (8.8, stats.js applyRiot); either is Valorant's.
+    const vis = () => js("JSON.stringify({over: !document.getElementById('sec-overview').hidden || !document.getElementById('stats-connect').hidden,"
       + " nostats: !document.getElementById('nostats').hidden})");
     const v1 = JSON.parse(await vis());
     lines.push('valorant  overview=' + v1.over + ' nostats=' + v1.nostats);

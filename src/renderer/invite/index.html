@@ -12,12 +12,12 @@
   <link rel="stylesheet" href="invite.css" />
 </head>
 <body>
-  <!-- THE INVITE PAGE (8.7). The player's invite link with Copy, how many
-       friends joined and the games earned, and how it works in two lines,
-       as one calm column of ruled sections. Every line is main's
-       (account-service.js referral, usage.js inviteProgress and INVITE_HOW):
-       this page only paints, and names no URL. Opened from the button above
-       Settings, locked by the seal like every page. -->
+  <!-- THE INVITE PAGE (8.8). A short note, not a form: what a friend gets and
+       what you get in two sentences, then the link with Copy, then how many
+       friends joined. Every line is main's (account-service.js referral,
+       usage.js inviteProgress and INVITE_HOW): this page only paints, and
+       names no URL. Opened from the button above Settings, locked by the seal
+       like every page. -->
   <div class="sheet glass">
     <header class="drag">
       <div class="h-brand">
@@ -30,23 +30,30 @@
       <!-- Asking main for the link. -->
       <p id="inv-wait" class="inv-wait" aria-live="polite">Getting your invite link</p>
 
-      <!-- No account here (a licence key alone, or nobody): invites need one. -->
-      <section id="inv-out" class="inv-sec" hidden>
-        <h3 class="inv-title">Invites need an account</h3>
-        <p class="inv-hint">Sign in with your browser from Settings, then your invite link shows here.</p>
-        <button id="inv-settings" class="btn btn-ghost md" type="button">Open Settings</button>
+      <!-- No account here (a licence key alone, or nobody): invites need one.
+           The heading is the next action, with its one control. -->
+      <section id="inv-out" class="inv-state" hidden>
+        <h3 class="inv-title">Sign in to get your invite link</h3>
+        <p class="inv-hint">Invites belong to an Occlara account. Sign in with your browser from Settings, and your link shows here.</p>
+        <button id="inv-settings" class="btn btn-primary md" type="button">Open Settings</button>
       </section>
 
       <!-- Signed in, and the server did not answer. -->
-      <section id="inv-error" class="inv-sec" hidden>
+      <section id="inv-error" class="inv-state" hidden>
         <h3 class="inv-title">Your invite link could not be fetched</h3>
-        <p class="inv-hint">Check your connection and try again.</p>
-        <button id="inv-retry" class="btn btn-ghost md" type="button">Try again</button>
+        <p class="inv-hint">Check your connection, then try again.</p>
+        <button id="inv-retry" class="btn btn-secondary md" type="button">Try again</button>
       </section>
 
       <div id="inv-body" class="inv-body" hidden>
-        <section class="inv-sec" aria-labelledby="inv-link-label">
-          <span id="inv-link-label" class="inv-label">Your link</span>
+        <!-- The note: main's two sentences, read as one paragraph. -->
+        <section class="inv-note" aria-labelledby="inv-how-label">
+          <h3 id="inv-how-label" class="inv-lead">What a friend gets, and what you get</h3>
+          <ul id="inv-how" class="inv-how"></ul>
+        </section>
+
+        <section class="inv-share" aria-labelledby="inv-link-label">
+          <span id="inv-link-label" class="sr-only">Your invite link</span>
           <div class="inv-link-row">
             <span id="inv-link" class="inv-link"></span>
             <button id="inv-copy" class="btn btn-primary md inv-copy" type="button">Copy link</button>
@@ -55,14 +62,9 @@
           <p id="inv-said" class="sr-only" aria-live="polite"></p>
         </section>
 
-        <section class="inv-sec" aria-labelledby="inv-how-label">
-          <span id="inv-how-label" class="inv-label">How it works</span>
-          <ol id="inv-how" class="inv-how"></ol>
-        </section>
-
         <!-- The games left are the rail's line under Start (8.7), said once. -->
         <p class="inv-foot">
-          <button id="inv-upgrade" class="btn btn-link sm" type="button">See plans</button>
+          <button id="inv-upgrade" class="btn btn-tertiary" type="button">See plans</button>
         </p>
       </div>
     </main>

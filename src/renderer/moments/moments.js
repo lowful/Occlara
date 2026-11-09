@@ -12,7 +12,7 @@
  * review at that round. Over the list the compilation by repeated mistake,
  * with Play all, which plays the kept clips of those deaths back to back in a
  * player over the page: Esc closes it, the arrows move, Space plays and
- * pauses. The filter is one capsule (shared/seg.js).
+ * pauses. The filter is a row of secondary rectangles, a radiogroup (8.8).
  *
  * Nothing here counts: every title, line and number is main's. And nothing
  * here plays mid match: the seal hides the page, the player asks main whether
@@ -23,23 +23,30 @@ const $ = (id) => document.getElementById(id);
 const api = window.occlara || {};
 const { el, letter } = window.GradeView;
 
-// The empty states' words; every other line on the page is main's
-// (moments.js NOTES and GONE come with the data).
+// The empty states' words, each heading the next thing to do (8.8); every
+// other line on the page is main's (moments.js NOTES and GONE come with the
+// data).
 const EMPTY = {
-  none: ['No matches yet', 'Press Start, play a match, and its deaths and highlights land here when the review opens.'],
-  quiet: ['Nothing to show yet', 'Your saved matches have no deaths or highlights on record. A match checked against Riot\'s record fills this page.'],
+  none: ['Press Start before your next match', 'When it ends, its deaths and highlights land here with its review.'],
+  quiet: ['Record your next match', "Your saved matches have no deaths or highlights on record yet. A match checked against Riot's record fills this page."],
 };
 
 let game = null;
 let data = null;
 let ask = 0;
 const state = { kind: 'all', pattern: null };
-let risen = null;   // the game whose rows have risen once
+let risen = false;  // the rows rise on the page's first entry alone (8.8)
 
-function fmtWhen(at) {
-  const d = new Date(at);
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', '
-    + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+// Dates, times and counts through one helper (shared/intl.js, 8.8), in the
+// interface's language; the fallbacks are for a page loaded without it.
+const INTL = window.occlaraIntl || null;
+const fmtDay = (at) => (INTL ? INTL.date(at) : new Date(at).toLocaleDateString([], { month: 'short', day: 'numeric' }));
+const fmtTime = (at) => (INTL ? INTL.time(at) : new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+/** One whole sentence for count n (intl.js plural), {n} and any {name} filled. */
+function say(n, forms, values) {
+  if (INTL) return INTL.plural(n, forms, values);
+  const msg = n === 1 && forms.one != null ? forms.one : forms.other;
+  return String(msg).replace(/\{(\w+)\}/g, (m, k) => (k === 'n' ? String(n) : values && k in values ? String(values[k]) : m));
 }
 
 const resultClass = (r) => {
@@ -70,16 +77,22 @@ function paintCompilation() {
     pick.setAttribute('aria-pressed', String(state.pattern === c.key));
     pick.append(el('span', 'mo-ctitle', c.title), el('span', 'mo-cline', c.line));
     pick.title = state.pattern === c.key ? 'Show every moment again' : 'Show only these deaths';
+    row.classList.toggle('on', state.pattern === c.key);
     pick.addEventListener('click', () => {
       state.pattern = state.pattern === c.key ? null : c.key;
       paintCompilation();
       paintList(false);
     });
     row.append(pick);
+    // Play all is the row's tertiary action (8.8): text, not a capsule on
+    // every row; the row's title is what chooses it.
     if (c.clips > 0) {
-      const play = el('button', 'btn btn-ghost sm', 'Play all');
+      // Named for what it plays (8.8 critique): "Play all" beside 80 deaths
+      // promised 80 clips where one was kept.
+      const words = c.clips === 1 ? `Play ${c.clips} clip` : `Play ${c.clips} clips`;
+      const play = el('button', 'btn btn-link sm mo-playall', words);
       play.type = 'button';
-      play.setAttribute('aria-label', `Play all ${c.clips} clips of ${c.title}`);
+      play.setAttribute('aria-label', c.clips === 1 ? `Play the kept clip of ${c.title}` : `Play the ${c.clips} kept clips of ${c.title}`);
       play.addEventListener('click', () => openPlayer(c));
       row.append(play);
     } else {
@@ -96,13 +109,21 @@ function shown(x) {
   return true;
 }
 
+/*
+ * THE MATCH'S LINE (8.8): the day in the margin, where its moments' rounds
+ * are, the result and who and where as the line, the grade at its end.
+ */
 function matchHead(m) {
   const head = el('div', 'mo-mhead');
+  const when = el('time', 'mo-when', fmtDay(m.at));
+  when.title = `${fmtDay(m.at)}, ${fmtTime(m.at)}`;
+  if (Number.isFinite(new Date(m.at).getTime())) when.setAttribute('datetime', new Date(m.at).toISOString());
+  const line = el('div', 'mo-mline-head');
   const res = el('span', 'mo-res ' + resultClass(m.result));
   res.textContent = [m.result, m.score].filter(Boolean).join(' ') || 'No result';
   const who = el('span', 'mo-who', [[m.title, m.map ? `on ${m.map}` : null].filter(Boolean).join(' '), m.mode].filter(Boolean).join(', '));
-  const when = el('span', 'mo-when', fmtWhen(m.at));
-  head.append(res, who, when);
+  line.append(res, who);
+  head.append(when, line);
   if (m.grade) {
     const g = el('span', 'mo-grade');
     g.append(el('b', 'mo-score', m.grade.score), letter(m.grade, { size: 'sm' }));
@@ -118,22 +139,31 @@ function momentRow(m, x) {
   const open = el('button', 'mo-open');
   open.type = 'button';
   open.setAttribute('aria-label', `${x.kind === 'death' ? 'Death' : 'Highlight'} in round ${x.round}: ${x.title}. Open the review at this round`);
-  open.append(el('span', 'mo-round', `R${x.round}`));
-  open.append(el('span', `mo-kind ${x.kind}`, x.kind === 'death' ? 'Death' : 'Highlight'));
+  // THE MARGIN (8.8): the round and, under it, when in the round, figures
+  // that read down the match; the words in the column beside them.
+  const margin = el('span', 'mo-margin');
+  margin.append(el('span', 'mo-round', `R${x.round}`));
+  if (x.time) margin.append(el('span', 'mo-time', x.time));
+  open.append(margin);
   const main = el('div', 'mo-main');
-  main.append(el('span', 'mo-mtitle', x.title));
+  const top = el('span', 'mo-mtop');
+  // The kind as a word in its tone after the title, no dot before it.
+  top.append(el('span', 'mo-mtitle', x.title), el('span', `mo-kind ${x.kind}`, x.kind === 'death' ? 'Death' : 'Highlight'));
+  main.append(top);
   if (x.line) main.append(el('span', 'mo-mline', x.line));
   if (x.repeats && x.repeats.length) {
+    // The repeated mistakes it belongs to, named in a quiet line, a comma
+    // between two, the ones across matches a step brighter.
     const marks = el('div', 'mo-marks');
-    for (const r of x.repeats) {
+    x.repeats.forEach((r, i) => {
+      if (i) marks.append(document.createTextNode(', '));
       const mk = el('span', 'mo-mark' + (r.across ? ' across' : ''), r.title);
       mk.title = r.across ? 'One of your repeated mistakes across matches' : 'Repeated in this match';
       marks.append(mk);
-    }
+    });
     main.append(marks);
   }
   open.append(main);
-  open.append(el('span', 'mo-time', x.time || ''));
   open.addEventListener('click', () => api.openReview(m.id, x.round));
   row.append(open);
   const clip = el('div', 'mo-clip');
@@ -153,9 +183,10 @@ function momentRow(m, x) {
 }
 
 /**
- * @param rise  the rows rise once as the list first appears for this game,
- *              40ms apart and capped at the eighth; a repaint draws them as
- *              they are
+ * @param rise  the rows rise once, on the page's first entry (ui.css
+ *              .rise-in, the shared stagger, held to its sixth step); every
+ *              later paint, a visit, a filter, a change of game, draws them
+ *              as they are
  */
 function paintList(rise) {
   const host = $('mo-list');
@@ -183,12 +214,12 @@ function paintList(rise) {
         : state.kind === 'highlight' ? 'No highlights on record yet: a 2K, 3K, 4K or 5K round, a clutch won or the first kill rounds running.'
           : 'Nothing to show.';
   }
-  if (rise && rows.length && risen !== game) {
-    risen = game;
+  if (rise && rows.length && !risen) {
+    risen = true;
     const go = () => rows.forEach((r, i) => {
       if (!host.contains(r)) return;   // painted again meanwhile
-      r.style.setProperty('--i', String(Math.min(i, 8)));
-      r.classList.add('rise');
+      r.style.setProperty('--i', String(Math.min(i, 5)));
+      r.classList.add('rise', 'rise-in');
     });
     if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(go); else go();
   }
@@ -196,8 +227,12 @@ function paintList(rise) {
 
 function paintCounts() {
   const c = (data && data.counts) || { matches: 0, deaths: 0, highlights: 0, clips: 0 };
-  const say = (n, one, many) => `${n} ${n === 1 ? one : (many || `${one}s`)}`;
-  $('mo-counts').textContent = `${say(c.deaths, 'death')}, ${say(c.highlights, 'highlight')}, ${say(c.clips, 'clip')} across ${say(c.matches, 'match', 'matches')}`;
+  const across = say(c.matches, { one: 'across {n} match', other: 'across {n} matches' });
+  $('mo-counts').textContent = [
+    say(c.deaths, { one: '{n} death', other: '{n} deaths' }),
+    say(c.highlights, { one: '{n} highlight', other: '{n} highlights' }),
+    `${say(c.clips, { one: '{n} clip', other: '{n} clips' })} ${across}`,
+  ].join(', ');
 }
 
 function paintNote() {
@@ -231,18 +266,34 @@ async function load() {
   const got = await api.getMoments(game).catch(() => null);
   if (mine !== ask) return;
   data = got && !got.error ? got : { matches: [], compilation: [], counts: { matches: 0, deaths: 0, highlights: 0, clips: 0 }, clipsNote: null };
-  paint(risen !== game);
+  paint(!risen);
 }
 
 // ── The filter ────────────────────────────────────────────────────────────
-for (const b of $('mo-filter').querySelectorAll('button')) {
-  b.addEventListener('click', () => {
-    state.kind = b.dataset.kind || 'all';
-    for (const o of $('mo-filter').querySelectorAll('button')) o.setAttribute('aria-pressed', String(o === b));
-    paintList(false);
-  });
+// A radiogroup, ui.css's row of words (8.8): a click chooses, the arrow
+// keys (Home and End to the ends) move the choice and the focus with it, and
+// the chosen one is the group's one tab stop.
+const filterButtons = () => [...$('mo-filter').querySelectorAll('button')];
+function chooseKind(b) {
+  state.kind = b.dataset.kind || 'all';
+  for (const o of filterButtons()) {
+    o.setAttribute('aria-checked', String(o === b));
+    o.tabIndex = o === b ? 0 : -1;
+  }
+  paintList(false);
 }
-try { if (typeof window.occlaraSeg === 'function') window.occlaraSeg($('mo-filter')); } catch { /* drawn flat */ }
+for (const b of filterButtons()) b.addEventListener('click', () => { if (b.getAttribute('aria-checked') !== 'true') chooseKind(b); });
+$('mo-filter').addEventListener('keydown', (e) => {
+  const all = filterButtons();
+  const at = all.indexOf(document.activeElement);
+  if (at < 0) return;
+  const next = { ArrowRight: at + 1, ArrowDown: at + 1, ArrowLeft: at - 1, ArrowUp: at - 1, Home: 0, End: all.length - 1 }[e.key];
+  if (next === undefined) return;
+  e.preventDefault();
+  const to = all[(next + all.length) % all.length];
+  to.focus();
+  chooseKind(to);
+});
 
 // ── The compilation player ────────────────────────────────────────────────
 // The kept clips of one pattern's deaths, back to back, each in THE REVIEW'S

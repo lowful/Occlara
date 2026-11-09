@@ -47,6 +47,10 @@ const EN = {
   'chat.which': '{count} of your last ten matches are on {map}. Which one do you mean? Pick it from the match list above.',
   'chat.noneOnMap': 'None of your last ten matches is on {map}. Pick a match from the list above, or ask about this one.',
   'chat.failed': 'Could not reach your coach right now. Try again in a moment.',
+  'chat.timeout': 'Your coach took too long with that one. Your question is still in the box below.',
+  'chat.retry': 'Ask again',
+  'chat.writing': 'Your coach is writing',
+  'chat.roundShort': 'R{n}',
   'chat.midMatch': 'A match is in progress. Ask Coach is back once it ends.',
   'chat.honest': "I couldn't give you an answer I can stand behind for that one. Ask me about a round, a death or your agent in this match.",
   'chat.clipOpen': 'Watch round {n}',
@@ -94,8 +98,14 @@ function place(el, before) {
 function addMsg(role, text, opts = {}) {
   introEl.hidden = true;
   const el = document.createElement('div');
-  el.className = `msg ${role === 'user' ? 'user' : 'coach'}${opts.error ? ' error' : ''}`;
-  const clips = role === 'user' || opts.error ? [] : clipsOf(opts.clips);
+  el.className = role === 'user' ? 'msg user' : 'msg coach t-voice';
+  const clips = role === 'user' ? [] : clipsOf(opts.clips);
+  // THE ROUNDS IN THE MARGIN (8.8): the rounds an answer talks about, beside
+  // it in the margin as a marked up sheet has them. An attribute the sheet
+  // draws (chat.css .msg.coach[data-rounds]), so the answer's own text, and
+  // a plain reply's one pre-line node, stay exactly the reply.
+  const rounds = role === 'user' ? [] : roundsOf(text);
+  if (rounds.length) el.dataset.rounds = rounds.map((n) => say('chat.roundShort', { n })).join(String.fromCharCode(10));
   // A reply's paragraphs are kept: the bubble is pre-line (chat.css).
   if (!clips.length) el.textContent = text;
   else paintWithClips(el, text, clips);
@@ -128,6 +138,23 @@ function clipsOf(list) {
   }).slice(0, 3);
 }
 
+/*
+ * The rounds a reply names, in the order it names them, three at most: "round
+ * 5", "rounds 3 and 7", "rounds 4, 9 or 11", in the languages the coach
+ * answers in (Runde, ronda, rodada, manche). A number past 30 is no round.
+ */
+const ROUND_WORDS = /\b(?:rounds?|runden?|rondas?|rodadas?|manches?)\s+(\d{1,2})((?:\s*(?:,|&|and|or|und|oder|y|o|e|ou|et)\s*\d{1,2}\b)*)/gi;
+function roundsOf(text) {
+  const out = [];
+  for (const m of String(text || '').matchAll(ROUND_WORDS)) {
+    for (const d of [m[1], ...(m[2].match(/\d{1,2}/g) || [])]) {
+      const n = Number(d);
+      if (n >= 1 && n <= 30 && !out.includes(n)) out.push(n);
+    }
+  }
+  return out.slice(0, 3);
+}
+
 /** A reply's paragraphs, each its own text, with the clips under theirs. */
 function paintWithClips(el, text, clips) {
   el.classList.add('with-clips');
@@ -147,7 +174,7 @@ function clipCard(c) {
   box.className = 'chat-clip';
   const open = document.createElement('button');
   open.type = 'button';
-  open.className = 'chat-clip-open';
+  open.className = 'btn btn-secondary sm chat-clip-open';
   open.setAttribute('aria-label', say('chat.clipOpen', { n: c.round }));
   const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   icon.setAttribute('viewBox', '0 0 24 24');
@@ -195,7 +222,7 @@ function addLocked(opts = {}) {
   if (window.occlara && typeof window.occlara.go === 'function') {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'btn btn-ghost sm chat-line-action';
+    b.className = 'btn btn-secondary sm chat-line-action';
     b.textContent = t('chat.openProfile');
     b.addEventListener('click', () => window.occlara.go('profile'));
     el.append(b);
@@ -203,10 +230,28 @@ function addLocked(opts = {}) {
   return el;
 }
 
+/** The line a failed or slow question leaves, with the way to ask it again. */
+function addFailed(kind, text, q, opts = {}) {
+  const el = addLine(kind, text, opts);
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn btn-tertiary chat-line-action chat-retry';
+  b.textContent = t('chat.retry');
+  b.addEventListener('click', () => {
+    if (busy) return;
+    const again = inputEl.value.trim() || q;
+    el.remove();
+    send(again);
+  });
+  el.append(b);
+  return el;
+}
+
+/** The coach is writing: one quiet line where the answer will stand, still (8.8: nothing loops). */
 function showTyping() {
-  const el = document.createElement('div');
+  const el = document.createElement('p');
   el.className = 'typing';
-  for (let i = 0; i < 3; i++) el.append(document.createElement('i'));
+  el.textContent = t('chat.writing');
   threadEl.append(el);
   scrollDown();
   return el;
@@ -233,8 +278,9 @@ function newThread(row, before) {
 
 // ── Starters, from the match on the chip ───────────────────────────────────
 
-// Each is a ghost capsule holding the question alone (8.7): the icons that
-// led them went, the words are the whole of it.
+// Each is a secondary rectangle holding the question alone (8.8, was a ghost
+// capsule), one under another at the column's left edge: the words are the
+// whole of it.
 
 /** The questions the page offers for the match on the chip, or for no match. */
 function starterTexts() {
@@ -249,7 +295,7 @@ function paintStarters() {
   starterTexts().forEach((text) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'starter';
+    b.className = 'btn btn-secondary starter';
     b.textContent = text;
     b.addEventListener('click', () => send(text));
     startersEl.append(b);
@@ -306,6 +352,9 @@ async function send(text) {
   busy = true;
   sendBtn.disabled = true;
   inputEl.value = '';
+  // A question asked again, or a new one, takes the place of the line that
+  // said the last one failed.
+  for (const old of threadEl.querySelectorAll('.chat-line.failed, .chat-line.timeout')) old.remove();
 
   const bubble = addMsg('user', q);
   history.push({ role: 'user', content: q });
@@ -348,7 +397,15 @@ async function send(text) {
       else if (kind === 'chat-cap') addLocked(at);
       else if (kind === 'held') addLine('held', t('chat.held'), at);
       else if (kind === 'mid-match') addLine('note', t('chat.midMatch'), at);
-      else addMsg('assistant', (res && res.error) || t('chat.failed'), { error: true, ...at });
+      else {
+        // A QUESTION THAT FAILED IS KEPT (8.8): it goes back in the box, its
+        // bubble goes (the retry asks it again), and a calm line says what
+        // happened with the way to ask it again. A slow answer is its own
+        // line (main's 'timeout'), never called a failure to reach.
+        bubble.remove();
+        if (!inputEl.value.trim()) inputEl.value = q;
+        addFailed(kind === 'timeout' ? 'timeout' : 'failed', kind === 'timeout' ? t('chat.timeout') : ((res && res.error) || t('chat.failed')), q, at);
+      }
     }
   } finally {
     typing.remove();

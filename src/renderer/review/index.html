@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="../shared/grade-view.css" />
+  <link rel="stylesheet" href="../shared/marks.css" />
   <link rel="stylesheet" href="clip-player.css" />
   <link rel="stylesheet" href="review.css" />
 </head>
@@ -21,35 +22,40 @@
       <div class="h-brand">
         <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
         <h2>Match review</h2>
+        <!-- The way back (8.8): a text button by the title, not a peer of
+             the actions. -->
+        <button id="matches" class="btn btn-tertiary no-drag" type="button">Back to matches</button>
       </div>
       <div class="h-actions">
+        <!-- The Verdict as an image (8.7, docs/claude/verdict.md): drawn on
+             this PC, saved or copied from here, never uploaded. Shown only
+             beside a Verdict. A text button (8.8): Ask leads. -->
+        <button id="share" class="btn btn-tertiary no-drag" type="button" aria-expanded="false" aria-controls="share-sheet" hidden>Share image</button>
         <!-- The eye: this match's AI log, opened on its frames, under the rule
              its row in Matches follows (shared/log-eye.js). Absent where
              nothing was recorded, disabled once the log no longer holds it. -->
         <span id="eye-host" class="eye-host no-drag" hidden></span>
-        <button id="ask" class="btn btn-ghost sm no-drag" hidden>Ask about this match</button>
-        <!-- The Verdict as an image (8.7, docs/claude/verdict.md): drawn on
-             this PC, saved or copied from here, never uploaded. Shown only
-             beside a Verdict. -->
-        <button id="share" class="btn btn-ghost sm no-drag" aria-expanded="false" aria-controls="share-sheet" hidden>Share image</button>
-        <button id="matches" class="btn btn-ghost sm no-drag">All matches</button>
+        <button id="ask" class="btn btn-ghost sm no-drag" type="button" hidden>Ask about this match</button>
       </div>
       <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
     </header>
 
     <!-- THE SHARE SHEET, under the header (8.7, review.js openShare): the
-         image as it will be saved, its three sizes and two grounds, and Save
+         image as it will be saved, its three sizes and its two grounds, and Save
          and Copy, each saying it worked for 1.4 s. Esc closes it before the
          page. -->
     <section id="share-sheet" class="share" aria-label="Share image" hidden>
       <div id="sh-preview" class="sh-preview"></div>
       <div class="sh-controls">
+        <!-- Three sizes are a row of words, not a capsule (8.8): the one
+             picked in the ink at 600, the others dim, a radio group the
+             arrow keys move through (review.js pressOptions). -->
         <div class="sh-group">
-          <span class="sh-label">Size</span>
-          <div class="sh-seg" role="group" aria-label="Size">
-            <button type="button" class="sh-opt" data-size="card" aria-pressed="true">Card</button>
-            <button type="button" class="sh-opt" data-size="post" aria-pressed="false">Post</button>
-            <button type="button" class="sh-opt" data-size="discord" aria-pressed="false">Discord</button>
+          <span class="sh-label" id="sh-size-label">Size</span>
+          <div class="sh-words" role="radiogroup" aria-labelledby="sh-size-label">
+            <button type="button" class="sh-opt sh-word" role="radio" data-size="card" aria-checked="true">Card</button>
+            <button type="button" class="sh-opt sh-word" role="radio" data-size="post" aria-checked="false" tabindex="-1">Post</button>
+            <button type="button" class="sh-opt sh-word" role="radio" data-size="discord" aria-checked="false" tabindex="-1">Discord</button>
           </div>
         </div>
         <div class="sh-group">
@@ -69,15 +75,20 @@
     </section>
 
     <main class="body">
-      <p id="empty" class="empty" hidden>No match has been reviewed yet. Press Start, play a match, and the review opens here when it ends.</p>
+      <!-- No review yet (8.8): the heading is the next move, and the one
+           control for it is Start in the sidebar, named, never a second one. -->
+      <section id="empty" class="empty" hidden>
+        <h3 class="empty-title">Press Start before your next match</h3>
+        <p class="empty-line">Occlara reads the match while you play and shows nothing. When it ends, its review opens here.</p>
+      </section>
 
       <!-- A REVIEW STILL BEING BUILT (8.4.1): the steps it is on, until it is
            whole, in place of a review that would change under the player as
            Riot's record, the coach's look and the review written again land
-           (review.js paintBuilding, shared/review-work.js). The Recording
-           screen's shape: the mark, a title, a line, then one card a step. -->
+           (review.js paintBuilding, shared/review-work.js). Left aligned in
+           the page's column (8.8): a title, a line, then a checklist, what
+           each step checks under its name, the one under way with its clock. -->
       <section id="building" class="building" aria-labelledby="b-title" hidden>
-        <img class="b-mark" src="../../../assets/logo-mark.svg" alt="" width="56" height="56" />
         <h3 id="b-title" class="b-title">Checking your match</h3>
         <p id="b-sub" class="b-sub"></p>
         <ol id="b-steps" class="b-steps"></ol>
@@ -105,7 +116,6 @@
            of its own when main has none to give. No Verdict, no progress, no
            reveal and no sound. -->
       <section id="locked" class="locked" aria-labelledby="lk-title" hidden>
-        <span class="lk-label">No games left</span>
         <h3 id="lk-title" class="lk-title">This review is locked</h3>
         <p id="lk-body" class="lk-body">Upgrade for more games each month, or invite friends for free games.</p>
         <p id="lk-note" class="lk-note">This match was played with no games left, so it shows its numbers alone: no grade, no coach's read and no look at your deaths.</p>
@@ -124,44 +134,32 @@
            first; the repeated mistakes; then every round in one list, each
            death the coach looked at inside its own round. -->
       <div id="vreview" hidden>
-        <!-- THE VERDICT (8.7, shared/verdict.js through the preload), drawn
-             as the share image draws it (8.8): the agent's icon in its tile
-             and the agent, map and mode beside it, the result on the right,
-             then the letter and the number with the standout beside them,
-             and Riot's scoreboard in its row, against the player's own
-             average under each number. No VERDICT word and no reason line.
-             A review with no grade to show keeps the result and the
-             scoreboard alone. -->
+        <!-- THE VERDICT ON ONE LINE (8.8, "the coach's notebook"): the
+             agent's icon in the margin, then the result and the score, the
+             letter and the number, and the standout, each parted by the
+             hairline, as the share image draws them (shared/verdict.js
+             through the preload). Under it one sentence, "Jett on Abyss,
+             Competitive", then Riot's scoreboard written as a line of
+             figures against the player's own average. No VERDICT word and
+             no reason line. A review with no grade to show keeps its slot,
+             "Not graded" over a dashed rule. -->
         <section class="vd" id="v-verdict">
-          <div class="vd-top">
-            <div class="vd-who">
-              <span id="v-icon" class="vd-icon" hidden></span>
-              <div id="v-meta" class="v-meta"></div>
-            </div>
-            <!-- The RR the match moved, "RR +18", beside the result (8.8.x,
-                 review.js paintRiot): only RR as the game shows it, by the
-                 match's Riot id, hidden until main answers and without one. -->
+          <div class="vd-line">
+            <span id="v-icon" class="vd-icon" hidden></span>
             <div class="vd-end">
-              <span id="v-rr" class="v-rr" hidden></span>
-              <div id="v-result" class="v-result"></div>
+              <div class="vd-result-line">
+                <div id="v-result" class="v-result"></div>
+                <!-- The RR the match moved, "RR +18", beside the result
+                     (8.8.x, review.js paintRiot): only RR as the game shows
+                     it, by the match's Riot id, hidden until main answers. -->
+                <span id="v-rr" class="v-rr" hidden></span>
+              </div>
+              <div id="v-score" class="v-score"></div>
             </div>
-          </div>
-          <div class="vd-main">
             <div id="v-grade" class="vd-grade-host" hidden></div>
-            <div class="vd-said">
-              <p id="v-stat" class="vd-stat" hidden></p>
-            </div>
-            <div id="v-score" class="v-score"></div>
+            <p id="v-stat" class="vd-stat" hidden></p>
           </div>
-          <!-- THE FIX FOR NEXT MATCH (8.7): the one 44px line on the page,
-               straight under the Verdict's row and before the numbers, so it
-               is read before anything is counted. Last match's top mistake
-               and how it went in this one above it (progress.js focus). -->
-          <div id="v-focus-wrap" class="v-focus" hidden>
-            <p id="v-focus-was" class="v-focus-was" hidden></p>
-            <div class="v-focus-label">Next match</div>
-            <p id="v-focus" class="v-focus-text"></p>
-          </div>
+          <div id="v-meta" class="v-meta"></div>
           <div id="v-stats-wrap" class="v-stats-wrap" hidden>
             <div id="v-stats" class="v-stats"></div>
             <p id="v-against-note" class="v-against-note" hidden></p>
@@ -170,22 +168,45 @@
         </section>
 
         <!-- This match against the ones before it (8.7, shared/progress.js),
-             a chip a line; hidden until main answers, and with nothing to say. -->
+             one quiet line; hidden until main answers, and with nothing to say. -->
         <div id="v-prog" class="v-prog" hidden></div>
+
+        <!-- THE FIX FOR NEXT MATCH (8.8): the one line in the coach's voice,
+             the pen's underline under it, "Next match" in the margin beside
+             it and last match's top mistake as the pen's short note on its
+             other side (progress.js focus), never a stray line above it. -->
+        <section id="v-focus-wrap" class="v-focus" hidden>
+          <div class="v-focus-label">Next match</div>
+          <p id="v-focus" class="v-focus-text t-fix"></p>
+          <p id="v-focus-was" class="v-focus-was pen-note" hidden></p>
+        </section>
+
+        <!-- WHY (8.8, review.js paintProof): the two or three rounds that
+             prove the fix, from the top mistake the list counted, a note a
+             round with its number and time in the margin and a way to watch
+             it. The pen brackets them on the reveal. -->
+        <section class="block v-proof" id="v-proof-wrap" aria-labelledby="v-proof-title" hidden>
+          <h3 id="v-proof-title">Why</h3>
+          <p id="v-proof-lead" class="v-proof-lead" hidden></p>
+          <ol id="v-proof" class="v-proof-list"></ol>
+        </section>
+
+        <!-- The four categories, a ruled table (grade-host, paintCommon:
+             GradeView.gradeCard table), go here, after Why: a name, a rule,
+             a number and one line of evidence each, the pen's tick by the
+             best. -->
 
         <section class="block" id="v-summary-wrap">
           <h3>The coach's read</h3>
           <ul id="v-summary" class="v-summary"></ul>
         </section>
 
-        <!-- EVERY ROUND, ONCE (8.3.1). What the numbers say about the rounds
-             and nothing the lists above said; then one row a round, the two
-             halves headed by their side (review.js paintRounds), each row's
-             mark saying won or lost. The strip of cells and its legend that
-             stood over the list said the same rounds twice (8.7). A death
-             the coach looked at carries its clip, its frames and what the
-             coach saw in its own row, where it used to be a section of its
-             own at the bottom of the page. -->
+        <!-- EVERY ROUND, ONCE (8.3.1), as a marked up sheet (8.8): the round
+             number and the time of the death in the margin, the coach's note
+             in the voice, the facts as small type, and the pen circling only
+             the rounds Why names. The two halves headed by their side. A
+             death the coach looked at carries its clip, its frames and what
+             the coach saw in its own row. -->
         <section class="block" id="v-rounds-wrap">
           <h3>Round by round</h3>
           <!-- Both team comps from Riot's record (8.5.0), agents only, one line. -->
@@ -206,7 +227,9 @@
           <ul id="v-refused" class="r-refused"></ul>
         </details>
 
-        <p class="v-foot">Read silently. Nothing was shown on your screen while you played.</p>
+        <!-- How the match was read, and that nothing showed (review.js
+             paintValorant): the rounds watched, or Riot's record. -->
+        <p id="v-foot" class="v-foot">Read silently. Nothing was shown on your screen while you played.</p>
       </div>
 
       <div id="review" hidden>
@@ -273,9 +296,12 @@
   </div>
 
   <script src="../shared/i18n-apply.js"></script>
-  <!-- The share sheet's two segmented capsules (8.7 redesign), one thumb each. -->
+  <!-- The share sheet's ground, Paper or Dark, one segmented capsule (8.7). -->
   <script src="../shared/seg.js"></script>
   <script src="../shared/grade-view.js"></script>
+  <!-- The coach's pen (8.8): the underline under the fix, the bracket by Why's
+       rounds and the tick by the best category, drawn in on the reveal. -->
+  <script src="../shared/marks.js"></script>
   <script src="../shared/log-eye.js"></script>
   <!-- The share image (8.6.0), drawn here from the Verdict on the page. -->
   <script src="../shared/verdict-card.js"></script>

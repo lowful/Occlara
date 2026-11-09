@@ -1,15 +1,16 @@
 /* palette: tokens only */
-/* The Invite page (8.7), an entry of the training log: the link with Copy,
-   the friends joined and the games earned, and how it works, as ruled
-   sections in one column. No frame but the link's, which is a control; the
-   page title is the embedded header's (ui.css). */
+/* The Invite page (8.8), a short note rather than a form: a heading, main's
+   two sentences as one paragraph in the coach's voice, the link in Geist
+   Mono with Copy beside it, and one quiet line of how many friends joined.
+   Space parts the groups, never a hairline; the only frame is the link's,
+   which is a control. The page title is the embedded header's (ui.css). */
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
 .sheet { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .sheet > header { display: flex; align-items: center; padding: var(--space-4); }
 .h-brand { display: flex; align-items: center; gap: var(--space-2); }
-.h-brand h2 { font-size: 15.5px; font-weight: 700; }
+.h-brand h2 { font-size: var(--fs-body); font-weight: 700; }
 
 .body {
   flex: 1 1 auto; min-height: 0; overflow-y: auto;
@@ -17,56 +18,46 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   display: flex; flex-direction: column; gap: var(--space-10);
 }
 
-.inv-wait { font-size: 14px; color: var(--text-mute); }
-.inv-body { display: flex; flex-direction: column; gap: var(--space-10); }
+.inv-wait { font-size: var(--fs-ui); color: var(--text-mute); }
+.inv-body { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-8); max-width: 640px; }
 
-/* A section: a hairline, its label, its lines, the rules running the page's
-   measure as Home's and Matches' do (8.7). The sections arrive one after
-   another once, as the page does. */
-.inv-sec {
-  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
-  animation-delay: calc(var(--i, 0) * 40ms);
+/* The two states with no link: the heading is the next action, one line, one control. */
+.inv-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+.inv-title { font-size: var(--fs-h2); font-weight: 600; line-height: var(--lh-heading); letter-spacing: var(--track-display); text-wrap: balance; }
+.inv-hint { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-dim); max-width: 60ch; text-wrap: pretty; }
+.inv-state .btn { margin-top: var(--space-2); }
+
+/* The note: its heading, then main's two lines run together as one paragraph
+   in the coach's voice. */
+.inv-note { display: flex; flex-direction: column; gap: var(--space-3); }
+.inv-lead { font-size: var(--fs-h2); font-weight: 600; line-height: var(--lh-heading); letter-spacing: var(--track-display); color: var(--text); text-wrap: balance; }
+.inv-how {
+  margin: 0; padding: 0; list-style: none; max-width: 60ch;
+  font-size: var(--fs-voice); line-height: var(--lh-body); color: var(--text); text-wrap: pretty;
 }
-.inv-body .inv-sec:nth-child(2) { --i: 1; }
-.inv-label { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
-.inv-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
-.inv-hint { font-size: 14px; line-height: 1.5; color: var(--text-dim); max-width: 60ch; }
-.inv-sec .btn { margin-top: var(--space-1); }
+.inv-how li { display: inline; }
+.inv-how li + li::before { content: ' '; }
 
-/* The link in the mono face beside Copy, one line, cut with an ellipsis and
+/* The link in Geist Mono beside Copy, one line, cut with an ellipsis and
    whole in its title. Selectable, so it can be taken by hand too. */
-.inv-link-row { display: flex; align-items: stretch; gap: var(--space-2); width: 100%; max-width: 640px; }
+.inv-share { display: flex; flex-direction: column; gap: var(--space-3); width: 100%; }
+.inv-link-row { display: flex; align-items: center; gap: var(--space-3); width: 100%; }
 .inv-link {
   flex: 1 1 auto; min-width: 0;
   display: flex; align-items: center;
   height: 36px; padding: 0 var(--space-3);
   border: 1px solid var(--line-2); border-radius: var(--r-control);
-  background: transparent;
-  font: 400 13px var(--font-mono); color: var(--text);
+  font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 400; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   user-select: text; cursor: text;
 }
 .inv-copy { flex: none; min-width: 112px; }
-.inv-progress { font-size: 14px; line-height: 1.5; color: var(--text); }
+.inv-progress { font-size: var(--fs-ui); line-height: 1.5; color: var(--text-dim); }
 
-/* How it works: main's two lines, numbered by the mono face, no box. */
-.inv-how {
-  list-style: none; counter-reset: how;
-  display: flex; flex-direction: column; gap: var(--space-2);
-}
-.inv-how li {
-  counter-increment: how;
-  display: flex; align-items: baseline; gap: var(--space-3);
-  font-size: 14px; line-height: 1.5; color: var(--text-dim);
-}
-.inv-how li::before {
-  content: counter(how);
-  flex: none; min-width: 16px;
-  font: 500 12px var(--font-mono); color: var(--text-mute);
-  font-variant-numeric: tabular-nums;
-}
+.inv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 
-.inv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--text-mute); }
+/* ONE NOTEBOOK GRID (8.8 critique): Home, Matches and the review set their
+   text in the column after the margin (--margin-w), so this page does too,
+   under the title that stays at the page edge. Without it the text jumped
+   72px going from Home to here. */
+html.embedded .sheet > .body { padding-left: calc(max(var(--space-8), calc((100% - 1040px) / 2)) + var(--margin-w)); }
