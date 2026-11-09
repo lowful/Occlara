@@ -520,6 +520,8 @@ try {
 }
 
 const BUY = primer.buyLines();
+// The round types a question with no match may name (situationOf `asked`).
+const ASKED_FLAGS = new Set(['pistol', 'antieco', 'lostpistol', 'eco', 'forcebuy', 'fullbuy', 'winstreak']);
 
 /** Read the live context into the flags the notes are tagged with. */
 function situationOf(ctx) {
@@ -579,6 +581,13 @@ function situationOf(ctx) {
   // none, so every other context reads as before.
   const record = new Set();
   for (const f of [].concat(ctx.economy || [])) if (RECORD_ECONOMY.has(f)) { flags.add(f); record.add(f); }
+
+  // THE ROUND THE PLAYER DESCRIBES (the coach bench, Nov 2026): Ask Coach with
+  // no match reads the round type from the player's own words (chat-prompt.js
+  // askedSituation) and passes it as `asked`, closed to ASKED_FLAGS. They are
+  // flags like the credits' own, never the record's, so recordSlot ignores
+  // them. A caller that sends none reads as before.
+  for (const f of [].concat(ctx.asked || [])) if (ASKED_FLAGS.has(f)) flags.add(f);
 
   return { phase, side: sideKey, flags, agent, role, map, weapon, causes, record };
 }
@@ -1162,6 +1171,6 @@ function block(ctx, limit) {
 
 module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: () => ALL,
   roleOf: (agent) => ROLE_OF[String(agent || '').toLowerCase()] || null,
-  ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust,
+  ASKED_FLAGS, ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust,
   ENEMY_FIT, enemiesOf, enemyFit, enemyWeaponsOf, WEAPON_NAMES, ADVANCED_SLOTS_BY_BAND, advancedSlots, bandFirst,
   teamOf, teamFit, recordSignals, anySignal, placeOf, placesNamed, samePlace, placeRegion, RECORD_ECONOMY, RECORD_MIN, REPEAT_MIN, PLACE_FIT, ISOLATION_LESSON };

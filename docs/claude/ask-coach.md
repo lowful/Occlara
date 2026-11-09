@@ -1062,13 +1062,56 @@ in the review"):
   rounds 1, 3, 5 and 6, 12 of your 13 deaths went unanswered", twelve deaths told as four rounds.
 - `gateLookCount` skips a part of the deaths ("that ended in lost duels", "on defence", "to
   Sova", a word before "deaths") and reads the passive and noun forms ("was looked at by the
-  coach", "got a look from the coach", "had a look at", "the coach's look covered"). Not run on
-  reviews: the review input drops unclear looks, so a true count could drop there.
+  coach", "got a look from the coach", "had a look at", "the coach's look covered"). Run on
+  reviews too since the open gaps pass below.
 - `LOOK_SEEN`: a bare "the coach" says what a look found only by its look verbs (saw, called,
   looked at, reviewed round N), or by found, says or reads with a look's own words in the clause
   (`LOOK_WORDS`), so "the coach found that Cypher killed you twice" is the record's fact.
   `gateLabelAcross` also holds a look or coach that says it of "both" or "them" as its object
   (`LOOK_ANAPHOR`).
+
+#### The open gaps of stream C (Nov 2026)
+
+Two gaps the review of stream C left, closed with deterministic gates:
+
+- **A list with no count told as the whole set** (`record-claims.js checkWholeList`, reader
+  `wholelist` right after `countlist`). "Your early deaths came in rounds 1, 3, 4 and 5", "the
+  rounds where you died early were ...", "the deaths nobody traded were ...": a list after "your"
+  or "the" deaths of one kind (early, before any plant, untraded, traded, opening) and a verb is
+  the whole set. Where the match has that set (`wholeSets`: a counted line whose list is as long
+  as its count, the first death line, or Riot's rows when they are every round of the final score
+  and every death's trade is known), a list that is a strict subset of it is written as the set.
+  A list with a round outside the set judges nothing. Never touched: "two of", "the worst of"
+  (`WHOLE_PART_BEFORE`), "including", "among others", "and 2 more", a further "and round 1", a part
+  after it ("on defence", "to Cypher", `WHOLE_PART_AFTER`), a list in its own clause, one round.
+  Since the review of this reader (a rewrite that makes a true sentence false is worse than a
+  miss): only a list that **ends its clause** is rewritten (`WHOLE_CLEAN_TAIL`: the end of the
+  sentence, or ", so", ", which", ", each", ", and each" and the like), so "then again in rounds 15
+  and 18", "and 2 other rounds", "for instance", "too", "mostly", "this half", "before the switch",
+  ", both lost", "among four" are never touched; a negated or limited head ("Not all of", "Even",
+  "Only", `WHOLE_NOT_BEFORE`, or a not earlier in the sentence) judges nothing. The audited claim's
+  rephrasings are read too: "occurred", "showed up", "took place", a colon ("Your early deaths:
+  rounds ..."), "Each of your", "Every early death came in" (`WHOLE_EVERY`) and "Rounds 1, 3, 4 and
+  5 were your early deaths" (`WHOLE_REVERSED`), in Ask Coach and in the review alike.
+- **The look count on reviews** (`match-review.js lookGates`, after `utilityGates`). Every client
+  already sends an unclear look as `cause: 'unclear'`; `normalise` still makes it `cause: null` and
+  now also sets `unclearLook: true` on that round (left out on every other round, so nothing else
+  changes). `lookFacts` builds the gate's facts: a look on each death with a cause or an unclear
+  look, and the scoreline's deaths. `gateLookCount` then holds a review's count as it holds Ask
+  Coach's, with the unclear looks or without them. A round line goes whole, a summary or focus
+  sentence alone. A review with no look judges nothing. No client change was needed. Since its
+  review: a sentence scoped to a part the gate's subset readers do not know (`LOOK_SCOPE_REVIEW`:
+  "this round", "here", "in R2", "before" or "after", "deaths you took" or "lost") judges nothing,
+  and in a round line "one death" without "of your" or "of the" is that round's own death
+  (`LOOK_ONE_DEATH`, `LOOK_OF_ALL`); "the coach looked at one of your deaths" there still goes.
+
+Tests: `test:chatgates` ("The open gap" in the stream C review block) and `test:valorantreview`
+("the open gaps of stream C, in the review"). The offline replay of the 84 round 8 outputs is
+unchanged by both (no output used either form), and all six of the blind audit's wrong claims stay
+gated. Known false drops left, outside these gates: `checkMulti` drops "Two of your early deaths
+came in rounds 1 and 3" (it reads "two" as the count of early deaths), an older summary count pass
+drops "The coach looked at 3 of your 5 deaths", and `gateNumbers` drops "one head hit kills" of the
+Vandal where the facts carry no damage line.
 
 ### The coach bench: no match, no record (Nov 2026)
 
@@ -1100,3 +1143,61 @@ The "rounds 1 to 24" budget check measures against `DYNAMIC_MAX_CHARS` while `bu
 the cost and ledger lines on top (`costRoom`), so it sits about 15 to 25 characters under the bar
 with the notes' jitter: a longer note in that prompt fails it, as the first wording of the rifle
 note did (40 of 300 draws).
+
+### The coach bench: the notes for the round the player describes (Nov 2026)
+
+Asked cold, the bench's moments tell their agent, map, side, gun and round ("I was on Jett on Sunset,
+defense, round three ... with the Outlaw"), and `pickNotes` read none of it. With no match there was no
+agent, map, side or gun, so every agent and weapon note and every side note of `retrieve()` was out,
+the player's own agent was read as an enemy named (its notes' text mentions scored, "Count enemy ults,
+a Jett with knives" in every Jett answer), and the 16 notes written for the bench's gaps reached 6 of
+the 34 questions they were written for.
+
+- **`askedSituation(input, messages)`** (`chat-prompt.js`, beside `questionTopics`): with no match and
+  in English only, the player's account read as `{ agent, map, side, phase, round, flags, guns, topics,
+  retake, abilities, abilitiesAsked, mates, inQuestion }`. The agent is the one after "I was on", "as",
+  "playing" (`OWN_AGENT_BEFORE`), the map one after "on" or "in", the side the first of defense or attack
+  said (a retake alone is defence), the phase `buy` when the question sentence asks a buy (`ASK_BUY`;
+  "should I have saved" is the gun, not the buy), `postplant` for a plant, a retake or a defuse unless
+  "not planted", else `active`. The round type (`flags`, `knowledge.js ASKED_FLAGS`): pistol, a won
+  pistol (`antieco` in round 2, `winstreak` in 3), a lost pistol, an eco the enemy is on (`antieco`, an
+  enemy word within 30 characters before it, `ENEMY_BEFORE`) or the player's own or a team save
+  (`eco`), a full buy, a force or half buy. Guns are the player's only after "with", "bought", "had"
+  and the like and never after "one with" or "into" (`OWN_GUN_BEFORE`, `NOT_OWN_GUN`); teammates are the
+  agents after "our" or "my" (`mates`). `SIT_TOPICS` names the rest, each with the account's words and a
+  note's: low HP, the enemy's pattern across rounds, holding an angle still, a rich player, the numbers
+  up, who to play beside, the peek. Abilities are the agent's kit as the data names them or as players
+  say them (`ABILITY_SAID`: dash, bird, slows, satchel, teleport, flash). **Whose words they are**
+  (the review of this reader, each a reproduced wrong note set): the enemy as subject or owner right
+  before a word (`ENEMY_SUBJECT`, `byEnemy`, `mentionsOf`) turns it around. "Their defense" is the
+  player's attack and "their attack" the defence ("attacked" and "defended" count too); "they won the
+  pistol" is the player's lost pistol and "they lost pistol" a won one; "they were defusing" or "they
+  retook" is no retake and an attacker's side; "they full buy" is no full buy; "their team was saving"
+  is no team save but `antieco` (`ENEMY_SAVE`, and `TEAM_SAVE` refuses "their team"). "Won the eco" is
+  a past round, not this round's eco (`PAST_ECO_BEFORE`), and round three after "won round two" or
+  "won the eco" is no lost pistol save (`WON_ROUND_TWO`). A force is the buy, never the verb ("forced
+  me off my angle", `FORCE_BUY`'s lookahead). A gun is never the player's after "killed me with",
+  "died to ... with", "by a" or an agent who holds it ("a Jett with an Operator", `ENEMY_GUN_BEFORE`,
+  `AGENT_GUN_BETWEEN`, `enemyGun`). A bare "as" names the player's agent only outside a clause ("As
+  Chamber, what", "as Sova on Bind"), never "I pushed as Omen smoked the door" (`BARE_AS_BEFORE`,
+  `BARE_AS_AFTER`). Tests: `test:chatgates`, "THE KILLER'S GUN" to "A BARE AS". **No account of a round** (no
+  agent, side, phase, round type, gun or topic, "What's the best agent on Abyss right now?") is null,
+  and so is every question with a match: a match's own facts are exact.
+- **In `pickNotes`**: the agent and map stand in for the match's; the player's agent is no agent asked
+  about unless the question sentence names it, and a teammate never an enemy; the guns join `aimGuns`,
+  so their notes take the two gun slots; each note scores `SIT_HIT` (3) for every part of the account it
+  answers (`situationHits`: a round type, a buy note in a buy question, a retake, a topic, the gun, the
+  ability used, the ability asked again; no ability in a buy question, where it is what was bought), and
+  `fitsSituation` leaves out another side's note, a buy note outside a buy question, another phase's
+  note in a buy or post plant question, and a note for another round type. From Platinum the aim
+  question's duel rule (`aimNote`) does not drop a note on the ability the question asks about. The
+  context for `retrieve()` takes the side, the phase, the round, the first gun as `playerWeapon` and the
+  round type as `asked` flags, in place of the eco words' stand in credits.
+- **In `casesFor`**: the agent, the map, the side, the post plant (`retake` on defence) and the round
+  types a case names, so k201 reaches the Chamber buy question; a case still needs its second anchor.
+
+Measured (the replay is in the bench's research folder, `retr/`): of the 34 gap questions, 6 had the
+intended note before and 34 after, on each of 20 jitter seeds; `bench:chat --dry`'s 29 questions keep
+their notes and cases byte for byte. Tests: `test:chatgates`, "the coach bench, the notes for the round
+the player describes" (every new regex both ways, and twelve bench questions served their note). Not
+benched: the bench and `bench:chat` are the next step.

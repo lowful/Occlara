@@ -36,7 +36,7 @@ automatically through `knowledge.all()`, and extra fields such as `source` pass
 through untouched. It began as 69 notes (42 imported from pro VOD reviews and
 27 of Occlara's own, computed from the damage table or written from round
 shapes), grew to 227 with the 2026 imports, to 308 with the 8.7.2 audit, to 469
-with the 8.8 coach consensus, to 602 with its second round, to 642 with its third and to 666 with the coach bench (below); the live count is `knowledge.all().length` minus the hand written
+with the 8.8 coach consensus, to 602 with its second round, to 642 with its third, to 666 with the coach bench and to 667 with its retrieval pass (below); the live count is `knowledge.all().length` minus the hand written
 set, and the boot line `[knowledge] merged N` says it. **An imported note must
 carry `source.topic`**, which is what `study()` picks by, or the checker fails
 it.
@@ -550,5 +550,31 @@ technique and low health notes are served every draw; the pattern note and the e
 every draw to the corpus's stronger notes. In Ask Coach with **no match** none of them reaches
 the bench's questions: the question's own notes go by topic words and weight, and agent and
 weapon notes need the player's agent and gun, which a question with no match does not give
-(`chat-prompt.js pickNotes`). That is retrieval, not data, and is not changed here. Not benched:
-rerun the bench and `bench:chat` before a release that ships these.
+(`chat-prompt.js pickNotes`). That is retrieval, not data, and the next pass fixed it (below).
+
+### The bench's retrieval pass (Nov 2026)
+
+With no match `pickNotes` now reads the player's own account (`chat-prompt.js askedSituation`, details
+in `ask-coach.md`, "The coach bench: the notes for the round the player describes"). Replaying the
+72 questions through `pickNotes` and `casesFor` exactly as the server builds them, with the jitter
+seeded, 34 of them have a note the report's gaps name as the one to serve: 6 got it before, 34 after,
+on each of 20 seeds. The 29 questions `bench:chat --dry` builds (the repo's fixtures and the player's)
+get the same notes and cases byte for byte. The replay scripts live in the bench's research folder.
+
+What changed in the data:
+
+- **Four technique notes lost a tag that kept them from their moment.** The Guiding Light note, the
+  blind spray note and the Turret note dropped `phase: 'active'` (a retake and a post plant are where
+  the bird and the swarms are used), and the wide swing note dropped `side: 'attack'` as well (a
+  defender re-peeking a held angle peeks the same way). "Play beside the aggressive teammate" dropped
+  its phase too: it was served to almost every no match answer through `retrieve()`'s phase score,
+  and never after a plant, where the bench asked it.
+- **One note added**, `the stack after a long fight` (attack, Platinum up, advanced): after a long fight
+  at one site that spent the utility there without breaking it, with a pick elsewhere, expect the
+  defence to stack it and hit the other site with the utility kept. It is k203 as a note, because a
+  case needs a cause or a pattern beside its phase and a question with no match has neither.
+- Not added: a note on pushing your own controller's smoke on an eco (WCgnalZDT_A-4). The coach said
+  it can work after the spray into it stops; the guides found say the player outside a smoke sees
+  the pusher first. One source against several is not a note.
+
+Not benched: rerun the bench and `bench:chat` before a release that ships these.

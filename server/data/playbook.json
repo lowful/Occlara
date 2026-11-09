@@ -11807,6 +11807,23 @@
     "why": "Teams without a fixed plan answer a failed hit by going somewhere else, so the setup should follow the read rather than the last result."
   },
   {
+    "text": "After a long fight at one site that spent your utility there without breaking it, and with a pick on the other side of the map, expect the defence to stack the site you have been loud on: rotate together and hit the other site with the utility you kept, rather than pushing on into the players arriving, because a long fight tells every defender where you are and the rotation they make toward it empties the other site.",
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "vod-review",
+      "topic": "the stack after a long fight"
+    },
+    "when": "An attack keeps forcing the site it has fought at for a long time, with its utility spent there, after a teammate got a pick elsewhere, and meets the defenders who rotated in.",
+    "why": "A loud site draws the rotations, so the site the defence left is the one with fewer players on it, and the utility kept back is what takes it."
+  },
+  {
     "text": "When the spike has too little time left to step off at the half and come back, smoke the spike and stick the defuse to the end, and with a teammate alive, before you start, let them defuse while you stand guard on the angle the last attacker must come from, because a fight taken with no time left loses the round even when you win it.",
     "side": "defense",
     "phase": "postplant",
@@ -11849,7 +11866,6 @@
   },
   {
     "text": "Play beside the teammate most likely to take the first fight, the aggressive one, so you can trade them, rather than beside the teammate who is holding back, because the trade only exists next to the fight that happens first.",
-    "phase": "active",
     "ranks": [
       "iron_bronze",
       "silver_gold",
@@ -11869,7 +11885,6 @@
     "agents": [
       "Skye"
     ],
-    "phase": "active",
     "ranks": [
       "plat_diamond",
       "asc_plus"
@@ -11894,7 +11909,6 @@
       "Skye",
       "Gekko"
     ],
-    "phase": "active",
     "ranks": [
       "plat_diamond",
       "asc_plus"
@@ -11910,8 +11924,6 @@
   },
   {
     "text": "Against a held angle, never walk your shoulder out slowly along the wall: back off the wall and wide swing at full speed, stopping only for the shot, because the holder sees a slow shoulder first, while a fast swing from distance reaches their screen before they can react to it.",
-    "side": "attack",
-    "phase": "active",
     "ranks": [
       "plat_diamond",
       "asc_plus"
@@ -11951,7 +11963,6 @@
       "Killjoy"
     ],
     "side": "attack",
-    "phase": "active",
     "ranks": [
       "silver_gold",
       "plat_diamond",

@@ -2159,13 +2159,22 @@ function casesFor(input, messages) {
     // An aim question is a duel lost on the shot (questionTopics, the round 3 audit).
     if (questionTopics(input, messages).keys.has('aim')) causes.add('lost-duel');
   }
+  // With no match, the round as the player told it (askedSituation): their
+  // side, the post plant or retake, and the round types a case can name.
+  const sit = askedSituation(input, messages);
+  if (sit) {
+    if (sit.side) sides.add(sit.side);
+    if (sit.phase === 'postplant') phases.add(sit.side === 'defense' ? 'retake' : 'postplant');
+    if (sit.phase === 'buy') phases.add('buy');
+    for (const f of sit.flags) if (['pistol', 'antieco', 'lostpistol', 'eco'].includes(f)) economies.add(f);
+  }
   try {
     // The seed (cases.js VARIETY): Riot's match id, else the review's own id,
     // else the match's facts, so every question about one match draws the
     // same cases.
     const seed = m ? String(m.matchId || m.id || [m.map, m.agent, m.score, m.at,
       ...(m.cards || []).map((c) => [c.n, c.side, c.result, c.died ? 1 : 0].join(':'))].join('|')) : null;
-    return cm.pick({ agent: m && m.agent, map: m && m.map, sides, phases, economies, causes, patterns,
+    return cm.pick({ agent: m ? m.agent : sit && sit.agent, map: m ? m.map : sit && sit.map, sides, phases, economies, causes, patterns,
       enemies: enemyCases(input, messages), rankBand: input.rankBand, advanced: input.advanced === true, seed, ruledOut }, cm.MAX_CASES) || [];
   } catch { return []; }
 }
@@ -2220,6 +2229,236 @@ function questionTopics(input, messages) {
   let general = GENERAL_ASK.test(q);
   if (keys.has('aim')) { keys.delete('climb'); general = general && keys.has('practice'); }
   return { keys, general, agents: [...new Set(gates.agentsIn(q).map((a) => a.name))] };
+}
+
+/*
+ * THE PLAYER'S OWN SITUATION, IN THEIR WORDS, WITH NO MATCH (the coach bench,
+ * Nov 2026). Asked cold, the bench's 72 moments told their agent, map, side,
+ * gun and round ("I was on Jett on Sunset, defense, round three ... with the
+ * Outlaw"), and pickNotes read none of it: with no match there was no agent,
+ * map, side or gun, so the agent and weapon notes and every side note of
+ * retrieve() were out, the player's own agent counted as an enemy named, and
+ * the notes written for the bench's gaps reached 6 of its 34 gap questions.
+ * askedSituation reads the player's account into what a match would have
+ * given: { agent, map, side ('attack' | 'defense'), phase ('buy' | 'postplant'
+ * | 'active'), round, flags (knowledge.js ASKED_FLAGS), guns, lowHp, retake,
+ * pattern, abilities, inQuestion (the agent named in the question sentence
+ * itself) }. English only, and null with a match: a match's own facts are exact.
+ */
+const OWN_AGENT_BEFORE = /\b(?:i was|i am|i'm|im|i play|i played|i'm playing|playing|i main|maining)\s+(?:on\s+|as\s+)?(?:an?\s+)?$/i;
+// A bare "as" is the player's agent only when the agent is not the subject of
+// a clause ("As Chamber, what should I buy", "as Sova on Bind"), never "I
+// pushed as Omen smoked the door", which is a teammate's (the review of the bench reader).
+const BARE_AS_BEFORE = /\bas\s+(?:an?\s+)?$/i;
+const BARE_AS_AFTER = /^(?:\s*[,.?!;:]|\s*$|\s+(?:on|in|i|i'm|and i|with|main|player|this|that|for|at|my|we)\b)/i;
+const OWN_GUN_BEFORE = /\b(?:with|bought|buy|buying|my|had|have|holding|held|kept|keep|on|using|use|got|picked up)\b(?:\s+[a-z]+){0,2}\s+$/i;
+const NOT_OWN_GUN = /\b(?:one|someone|enemy|enemies|they|their|them|him|her|his|into)\s+(?:\w+\s+)?(?:with\s+)?(?:an?\s+|the\s+)?$/i;
+// A gun the enemy killed the player with ("killed me with an Operator", "died to a Jett with an Operator").
+const ENEMY_GUN_BEFORE = /\b(?:killed|shot|hit|tapped|headshot|beat|got|one tapped|outgunned|sprayed)\s+(?:me|us)\b[^.?!]*\b(?:with|using)\s+(?:an?\s+|the\s+|his\s+|her\s+|their\s+)?$|\b(?:died|dying|dies|lost|losing)\s+to\b[^.?!]*\b(?:with|using|holding)\s+(?:an?\s+|the\s+|his\s+|her\s+|their\s+)?$|\b(?:by|(?:died|dying|dies|lost|losing)\s+to)\s+(?:an?|the|their|his|her)\s+$/i;
+// An agent right before the gun is its holder: "a Jett with an Operator" is the enemy's gun.
+const AGENT_GUN_BETWEEN = /^\s+(?:\w+\s+)?(?:with|using|had|holding|has)\s+(?:an?\s+|the\s+|his\s+|her\s+|their\s+)?$/i;
+const ENEMY_BEFORE = /\b(?:they|their|them|enemy|enemies|attackers|defenders|against|anti)\b/i;
+// The enemy as the subject or owner right before a word: "their defense",
+// "they were defusing", "the enemy won pistol", "against a full buy".
+const ENEMY_SUBJECT = /\b(?:they|they're|they've|their(?:\s+team)?|them|the enemy|the enemies|enemy|enemies|the other team|against)\s+(?:\w+\s+)?$/i;
+const SIDE_DEFENSE = /\bdefen[cs]e\b|\bdefending\b|\bdefended\b/i;
+const SIDE_ATTACK = /\battack(?:ing|ed)?\b/i;
+const WON_PISTOL = /\b(?:won|win|winning)\s+(?:the\s+)?pistol\b|\bpistol win\b/i;
+const LOST_PISTOL = /\b(?:lost|losing|lose)\s+(?:the\s+)?pistol\b|\blost pistol\b/i;
+const PISTOL_ROUND = /\bpistol round\b|\bon pistol\b|\bfirst round\b|\bround (?:one|1)\b/i;
+const ROUND_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, first: 1, second: 2, third: 3 };
+const ROUND_N = /\bround (one|two|three|four|five|\d{1,2})\b|\b(first|second|third) round\b/i;
+const ASK_BUY = /\bbuy(?:s|ing)?\b|\bbought\b|\bspend\b|\bafford\b|\bcredits\b|\bsave or\b/i;
+const ASK_POSTPLANT = /\bpost ?plant\b|\bafter (?:the|we|they|our) plant(?:ed)?\b|\bspike (?:was |is )?(?:down|planted)\b|\bwe planted\b|\bretak(?:e|es|ing)\b|\bdefus/i;
+const NOT_PLANTED = /\bnot planted\b|\bwas not planted\b/i;
+const LOW_HP = /\blow (?:hp|health)\b|\b(?:[1-9]|[1-4]\d) hp\b|\bone hp\b/i;
+const RETAKE_ASK = /\bretak|\bdefus/i;
+const PATTERN_ASK = /\btwice\b|\b(?:two|three|2|3) rounds in a row\b|\bboth of the first\b|\b(?:earlier|previous|last few) rounds\b|\bwhat (?:the enemy|the enemies|they) did\b|\bnever the same\b|\bkeep hitting\b|\bpattern|\bhabits?\b|\bevery round\b|\bthe same (?:site|hit)\b/i;
+const MATE_BEFORE = /\b(?:our|my)\s+$/i;
+/*
+ * What the player described beyond the round type, each with the words of the
+ * account (`ask`, over the whole account, or `question`, over the question
+ * sentence alone) and the words of a note that answers it (`note`).
+ */
+const SIT_TOPICS = [
+  { key: 'lowhp', ask: LOW_HP, note: /\blow (?:health|hp)\b|\bany hit ends you\b/i },
+  { key: 'pattern', ask: PATTERN_ASK,
+    note: /\bthe same (?:failed )?(?:hit|site)\b|\bthird time\b|\bhabits (?:you have seen|they repeat|already shown)\b|\bpatterns? repeat|\bstack(?:ed|s)? the site\b|\bexpect the other site\b/i },
+  { key: 'hold', question: /\bhold(?:ing)? (?:an?|that|the|this) angle\b|\bkeep moving\b|\bmov(?:e|ing) a little\b|\bjiggl|\bstrafing\b/i,
+    note: /\bhold still\b|\bstand completely still\b|\bsmall steps\b/i },
+  { key: 'rich', ask: /\b(?:a lot of|lots of|far more|way more|more|enough|plenty of) (?:credits|money)\b|\b\d{1,2},\d{3} credits\b|\bcredits than\b/i,
+    note: /\byour credits cover\b|\bonly one who can afford\b|\bbuy the same way as your team\b/i },
+  { key: 'numbers', question: /\bup (?:a player|players|numbers)\b|\bmore players\b|\bnumbers advantage\b|\b[2-5] ?v ?[1-4]\b/i,
+    note: /\bwith the numbers\b|\bnumbers up\b|\bup in numbers\b|\bthe numbers advantage\b|\bup a player\b/i },
+  { key: 'partner', question: /\bwho (?:should|do) i play (?:with|beside|next to)\b|\bwho (?:should|do) i (?:stay|stick) with\b/i,
+    note: /\bplay beside the teammate\b|\bnext to the fight that happens first\b/i },
+  { key: 'peek', question: /\bmy peek\b|\bpeek(?:ing|ed)? (?:carefully|slowly)\b|\bwalking around the corner\b|\bshoulder\b|\bshift walk/i,
+    note: /\bwide swing\b|\bshoulder\b|\bswing at full speed\b|\bpeeker'?s advantage\b/i },
+];
+const FULL_BUY = /\bfull ?b(?:uy(?:s|ing)?|ought)\b|\b(?:four|4) teammates buying\b/i;
+// The buy, not the verb: "forced me off my angle" is no force buy.
+const FORCE_BUY = /\bforc(?:e|es|ed|ing)\b(?!\s+(?:me|us|him|her|them|my|our|his|their|you|your|the|a|an|it|that|this|off|out|back|into|to)\b)|\bhalf buy\b/i;
+const TEAM_SAVE = /(?<!\b(?:their|enemy|other|opposing)\s+)\b(?:team|we|everyone|most of (?:my|the) team)\b(?:\s+[a-z]+){0,3}\s+sav(?:e|ing)\b|(?<!\b(?:their|enemy|other|opposing)\s+)\bteam save\b/i;
+// The enemy saving is the player's anti eco.
+const ENEMY_SAVE = /\b(?:their team|they|the enemy|the enemies|enemies|the other team)\s+(?:were|was|are|is|kept)\s+saving\b|\btheir team save\b/i;
+// An earlier round's result, not this round's economy: "we won the eco".
+const PAST_ECO_BEFORE = /\b(?:won|win|lost|lose|beat)\s+(?:the|their|our|that)\s+$/i;
+// Round two already won: round three is no lost pistol save any more.
+const WON_ROUND_TWO = /\bwon (?:round (?:two|2)\b|the (?:second|2nd) round\b|the eco\b|(?:the|our) (?:eco|bonus|save) round\b)/i;
+// The words a player uses for an ability the game data names otherwise.
+const FLASH_SAID = /\bflash(?:es|ed|ing)?\b/i;
+const ABILITY_SAID = { tailwind: /\bdash(?:es|ed|ing)?\b/i, 'guiding light': /\bbirds?\b|\bflash(?:es|ed|ing)?\b/i, 'slow orb': /\bslows?\b/i,
+  alarmbot: /\balarm ?bots?\b/i, 'blast pack': /\bsatchels?\b/i, rendezvous: /\bteleport/i, 'boom bot': /\bboom ?bots?\b/i,
+  curveball: FLASH_SAID, blindside: FLASH_SAID, flashpoint: FLASH_SAID, 'flash/drive': FLASH_SAID, flashbulb: FLASH_SAID };
+const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+const abilityRe = (ab) => new RegExp(`\\b${esc(ab)}s?\\b`, 'i');
+
+/** Whether a regex matches in the text before `at` without an enemy word close in front. */
+function ownMention(text, re) {
+  const g = new RegExp(re.source, 'gi');
+  let m;
+  while ((m = g.exec(text)) !== null) {
+    if (!ENEMY_BEFORE.test(text.slice(Math.max(0, m.index - 30), m.index))) return true;
+  }
+  return false;
+}
+/** Whether the enemy is the subject or owner right before `at` (ENEMY_SUBJECT). */
+function byEnemy(text, at) {
+  return ENEMY_SUBJECT.test(text.slice(Math.max(0, at - 28), at));
+}
+/** Each match of `re` in the text, with whether the enemy is its subject: [{ at, enemy }]. */
+function mentionsOf(text, re) {
+  const g = new RegExp(re.source, 'gi');
+  const out = [];
+  let m;
+  while ((m = g.exec(text)) !== null) { out.push({ at: m.index, enemy: byEnemy(text, m.index) }); if (!m[0]) g.lastIndex += 1; }
+  return out;
+}
+/** Whether a gun named at `g.at` is an enemy's: the killer's gun or an agent's that is not the player's own. */
+function enemyGun(text, g, agent) {
+  const before = text.slice(Math.max(0, g.at - 60), g.at);
+  if (ENEMY_GUN_BEFORE.test(before)) return true;
+  const holder = gates.agentsIn(before).pop();
+  return !!(holder && holder.name !== agent && !MATE_BEFORE.test(before.slice(Math.max(0, holder.at - 8), holder.at))
+    && AGENT_GUN_BETWEEN.test(before.slice(holder.end)));
+}
+function enemyMention(text, re) {
+  const g = new RegExp(re.source, 'gi');
+  let m;
+  while ((m = g.exec(text)) !== null) {
+    if (ENEMY_BEFORE.test(text.slice(Math.max(0, m.index - 30), m.index))) return true;
+  }
+  return false;
+}
+
+/** The player's own situation from their words, with no match; null otherwise. */
+function askedSituation(input, messages) {
+  if (!noMatch(input) || input.language !== 'en') return null;
+  const lastAsk = [...(Array.isArray(messages) ? messages : [])].reverse().find((x) => x && x.role !== 'assistant');
+  const text = String((lastAsk && lastAsk.content) || '');
+  if (!text.trim()) return null;
+  const sentences = text.split(/(?<=[.!?])\s+/).filter((x) => x.trim());
+  const question = [...sentences].reverse().find((x) => x.includes('?')) || sentences[sentences.length - 1] || '';
+  const own = gates.agentsIn(text).find((a) => {
+    const pre = text.slice(Math.max(0, a.at - 24), a.at);
+    return OWN_AGENT_BEFORE.test(pre) || (BARE_AS_BEFORE.test(pre) && BARE_AS_AFTER.test(text.slice(a.end)));
+  });
+  const agent = own ? own.name : null;
+  const mapHit = MAPS.map((m) => ({ m, at: text.search(new RegExp(`(?<=\\b(?:on|in) )${esc(m)}\\b`)) })).filter((x) => x.at >= 0).sort((a, b) => a.at - b.at)[0];
+  const map = mapHit ? mapHit.m : null;
+  // The side: the player's own first word for it, else the opposite of the
+  // enemy's ("their defense stacked A" is an attacker's account).
+  const sideWords = [...mentionsOf(text, SIDE_DEFENSE).map((x) => ({ ...x, side: 'defense' })), ...mentionsOf(text, SIDE_ATTACK).map((x) => ({ ...x, side: 'attack' }))]
+    .sort((x, y) => x.at - y.at);
+  const ownSide = sideWords.find((x) => !x.enemy);
+  const enemySide = sideWords.find((x) => x.enemy);
+  let side = ownSide ? ownSide.side : enemySide ? (enemySide.side === 'defense' ? 'attack' : 'defense') : null;
+  // A retake or a defuse is the player's only when the enemy is not doing it:
+  // "they were defusing" is an attacker holding the post plant.
+  const retakes = mentionsOf(text, RETAKE_ASK);
+  const retake = retakes.some((x) => !x.enemy);
+  if (!side && retake) side = 'defense';
+  if (!side && retakes.length && !retake) side = 'attack';
+  const planted = ASK_POSTPLANT.test(text) && !NOT_PLANTED.test(text);
+  const phase = ASK_BUY.test(question) ? 'buy' : planted ? 'postplant' : 'active';
+  const rn = ROUND_N.exec(text);
+  let round = rn ? (ROUND_WORDS[lower(rn[1] || rn[2])] || Number(rn[1]) || null) : null;
+  const flags = new Set();
+  // Who won the pistol: "they won the pistol" is the player's lost pistol.
+  const wonAt = mentionsOf(text, WON_PISTOL);
+  const lostAt = mentionsOf(text, LOST_PISTOL);
+  const won = wonAt.some((x) => !x.enemy) || lostAt.some((x) => x.enemy);
+  const lost = lostAt.some((x) => !x.enemy) || wonAt.some((x) => x.enemy);
+  const wonTwo = mentionsOf(text, WON_ROUND_TWO).some((x) => !x.enemy);
+  if (PISTOL_ROUND.test(text) && !won && !lost && !(round && round > 1)) { flags.add('pistol'); round = 1; }
+  if (won && (!round || round === 2)) flags.add('antieco');
+  if (won && round === 3) flags.add('winstreak');
+  if (lost && (!round || round <= 2 || (round === 3 && !wonTwo))) flags.add('lostpistol');
+  if (enemyMention(text, /\beco\b/) || ENEMY_SAVE.test(text)) flags.add('antieco');
+  const ownEco = mentionsOf(text, /\beco\b/).some((x) => !PAST_ECO_BEFORE.test(text.slice(Math.max(0, x.at - 16), x.at))
+    && !ENEMY_BEFORE.test(text.slice(Math.max(0, x.at - 30), x.at)));
+  if (ownEco || TEAM_SAVE.test(text)) flags.add('eco');
+  if (mentionsOf(text, FULL_BUY).some((x) => !x.enemy)) flags.add('fullbuy');
+  if (ownMention(text, FORCE_BUY)) flags.add('forcebuy');
+  const guns = [];
+  for (const g of gates.gunsIn(text)) {
+    const before = text.slice(Math.max(0, g.at - 30), g.at);
+    if (OWN_GUN_BEFORE.test(before) && !NOT_OWN_GUN.test(before) && !enemyGun(text, g, agent) && !guns.includes(lower(g.name))) guns.push(lower(g.name));
+  }
+  const kit = agent ? kitOf(agent) : [];
+  const said = (ab, t) => abilityRe(ab).test(t) || !!(ABILITY_SAID[ab] && ABILITY_SAID[ab].test(t));
+  const abilities = kit.filter((ab) => said(ab, text));
+  // The abilities the question sentence itself asks about (VALORANT_RULES: that ability first).
+  const abilitiesAsked = abilities.filter((ab) => said(ab, question));
+  // The agents the account calls the player's own team's ("our Omen"), never an enemy named.
+  const mates = [...new Set(gates.agentsIn(text).filter((x) => x.name !== agent && MATE_BEFORE.test(text.slice(Math.max(0, x.at - 8), x.at))).map((x) => x.name))];
+  const topics = new Set(SIT_TOPICS.filter((t) => (t.ask && t.ask.test(text)) || (t.question && t.question.test(question))).map((t) => t.key));
+  // No account of a round of their own ("What's the best agent on Abyss right
+  // now?"): no situation, and the notes are as before.
+  if (!agent && !side && phase === 'active' && !flags.size && !guns.length && !topics.size && !retake) return null;
+  return { agent, map, side, phase, round, flags, guns, lowHp: topics.has('lowhp'), retake, pattern: topics.has('pattern'), topics,
+    abilities, abilitiesAsked, mates, inQuestion: !!(agent && gates.agentsIn(question).some((x) => x.name === agent)) };
+}
+
+/** Whether a note is the player's own agent's and names one of `list`, an ability of that kit (askedSituation). */
+function abilityNote(note, sit, list) {
+  if (!sit || !note || !list || !list.length || !sit.agent || !Array.isArray(note.agents) || !note.agents.includes(sit.agent)) return false;
+  const text = String(note.text || '');
+  return list.some((ab) => abilityRe(ab).test(text) || !!(ABILITY_SAID[ab] && ABILITY_SAID[ab].test(text)));
+}
+
+const SIT_HIT = 3;
+/** How many of the player's described situation a note answers (askedSituation), for the question's own notes. */
+function situationHits(note, sit) {
+  if (!sit || !note) return 0;
+  const text = String(note.text || '');
+  let n = 0;
+  if (Array.isArray(note.situations) && note.situations.some((f) => sit.flags.has(f))) n += 1;
+  // A question about the buy is answered by a buy note before an agent's or a gun's.
+  if (sit.phase === 'buy' && note.phase === 'buy') n += 1;
+  if (sit.retake && ((Array.isArray(note.situations) && note.situations.includes('retake')) || /\bretak|\bdefus/i.test(text))) n += 1;
+  for (const t of SIT_TOPICS) if (sit.topics.has(t.key) && t.note.test(text)) n += 1;
+  if (Array.isArray(note.weapons) && sit.guns.length && note.weapons.some((w) => sit.guns.includes(lower(w)))) n += 1;
+  // The ability the player used, and again when the question sentence asks
+  // about it; not in a buy question, where the abilities are what was bought.
+  if (sit.phase === 'buy') return n;
+  if (abilityNote(note, sit, sit.abilities)) n += 1;
+  if (abilityNote(note, sit, sit.abilitiesAsked)) n += 1;
+  return n;
+}
+
+/** Whether a note fits the side and phase the player described (askedSituation); true with none. */
+function fitsSituation(note, sit) {
+  if (!sit || !note) return true;
+  if (note.side && sit.side && note.side !== sit.side) return false;
+  // A buy note only for a question about the buy; a buy or post plant question
+  // only its own phase's notes. 'active' is the default read, so a note of the
+  // post plant still reaches an account that did not say the spike was down.
+  if (note.phase === 'buy' && sit.phase !== 'buy') return false;
+  if (note.phase && sit.phase !== 'active' && note.phase !== sit.phase) return false;
+  if (Array.isArray(note.situations) && sit.flags.size && !note.situations.some((f) => sit.flags.has(f))
+    && note.situations.some((f) => ['pistol', 'antieco', 'lostpistol', 'eco', 'forcebuy', 'fullbuy'].includes(f))) return false;
+  return true;
 }
 
 /*
@@ -2480,8 +2719,10 @@ function pickNotes(input, messages) {
   const rev = reviewMod() || {};
   const m = input.match;
   const advanced = input.advanced === true;
-  const agent = m && m.agent ? m.agent : null;
-  const map = m && m.map ? m.map : null;
+  // With no match, the player's own account of the round (askedSituation, the coach bench).
+  const sit = askedSituation(input, messages);
+  const agent = m && m.agent ? m.agent : (sit && sit.agent) || null;
+  const map = m && m.map ? m.map : (sit && sit.map) || null;
   const own = new Set();
   if (m && typeof rev.study === 'function') {
     try {
@@ -2540,10 +2781,17 @@ function pickNotes(input, messages) {
   const aimMoving = !!(aimFx && aimFx.moving);
   // The guns the aim facts tally first (round 8): their own notes may serve an aim answer, two at most.
   const aimGuns = new Set(((aimFx && aimFx.guns) || []).map((g) => lower(g)));
+  // And the guns the player says they held, with no match (askedSituation).
+  for (const g of (sit && sit.guns) || []) aimGuns.add(g);
+  // The player's own agent told in the account is no agent asked about, nor an
+  // enemy one, unless the question sentence itself names it (askedSituation).
+  if (sit && sit.agent && !sit.inQuestion) qt.agents = qt.agents.filter((a) => lower(a) !== lower(sit.agent));
+  if (sit) qt.agents = qt.agents.filter((a) => !sit.mates.includes(a));
   let gunNotes = 0;
   const ownRole = s.role || null;
   const fitsPlayer = (note) => {
     if (!note || !note.text || seen.has(note.text)) return false;
+    if (!fitsSituation(note, sit)) return false;
     if (note.weapons && !(aimGuns.size && note.weapons.some((w) => aimGuns.has(lower(w))))) return false;
     if (note.tier === 'advanced' && !advanced) return false;
     if (fitVs(note) === null) return false;
@@ -2556,10 +2804,13 @@ function pickNotes(input, messages) {
   };
   const rankScore = (note) => (input.rankBand && typeof k.rankAdjust === 'function' ? k.rankAdjust(note, input.rankBand, false) || 0 : 0);
   const asks = [];
-  if (qt.keys.size || qt.agents.length) {
+  if (qt.keys.size || qt.agents.length || sit) {
     const topicsOf = QUESTION_TOPICS.filter((t) => qt.keys.has(t.key));
     for (const note of k.all()) {
       const words = `${note && note.text} ${(note && note.source && note.source.topic) || ''}`;
+      // What the player described, with no match: each part a note answers
+      // counts above a topic word (SIT_HIT), since it is the round itself.
+      const sitHit = situationHits(note, sit);
       let hits = topicsOf.filter((t) => t.note.test(words)).length;
       let agentHit = 0;
       for (const a of qt.agents) {
@@ -2568,18 +2819,19 @@ function pickNotes(input, messages) {
         else if (!ownAgent && note.enemyAgents && note.enemyAgents.some((x) => lower(x) === lower(a))) agentHit = 2;
         else if (!ownAgent && !note.agents && new RegExp(`(?<![A-Za-z0-9])${a.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}(?![A-Za-z0-9])`).test(String(note.text || ''))) agentHit = Math.max(agentHit, 1);
       }
-      if (!hits && !agentHit) continue;
+      if (!hits && !agentHit && !sitHit) continue;
       if (!fitsPlayer(note)) continue;
       // From Platinum an aim question's own notes are the duel's (aimNote).
       let aimBonus = 0;
-      if (highAim && !agentHit) {
+      // A note on the ability the question asks about is no aim basic (askedSituation).
+      if (highAim && !agentHit && !abilityNote(note, sit, sit && sit.abilitiesAsked)) {
         aimBonus = aimNote(note, input.rankBand, aimMoving);
         if (aimBonus === null) continue;
       }
       // A note for the player's own gun answers the aim question for these fights (+2, round 8).
       const gunHit = note.weapons ? 2 : 0;
       asks.push({ text: note.text, topic: (note.source && note.source.topic) || note.text, gun: !!note.weapons,
-        score: (note.weight || 1) + hits * 2 + agentHit * 3 + rankScore(note) + (fitVs(note) || 0) + aimBonus + gunHit });
+        score: (note.weight || 1) + hits * 2 + agentHit * 3 + rankScore(note) + (fitVs(note) || 0) + aimBonus + gunHit + sitHit * SIT_HIT });
     }
     asks.sort((a, b) => b.score - a.score);
     const tops = new Set();
@@ -2681,6 +2933,18 @@ function pickNotes(input, messages) {
     // An aim question is the situation of a duel lost on the shot, so the aim
     // notes tagged for one are retrieved with no look at all (the round 3 audit).
     if (qt.keys.has('aim') && !ctx.cause) ctx.cause = 'lost-duel';
+  }
+  // With no match, the round as the player told it (askedSituation): their
+  // side, the phase their question is about, the gun they held and the round
+  // type, as `asked` flags (knowledge.js ASKED_FLAGS), in place of the eco
+  // words' stand in credits. A match, or no account, keeps the context above.
+  if (sit) {
+    if (sit.side) ctx.side = sit.side === 'attack' ? 'attacking' : 'defending';
+    ctx.phase = sit.phase;
+    delete ctx.playerCredits;
+    if (sit.round) ctx.roundNumber = sit.round;
+    if (sit.guns.length) ctx.playerWeapon = sit.guns[0];
+    if (sit.flags.size) ctx.asked = [...sit.flags];
   }
   // Riot's round record (8.8): the asked round's own signals (one death is
   // enough there), else the match's, as the economy flags, the causes and
@@ -3274,7 +3538,7 @@ module.exports = {
   factsOf, cleanReply, gateReply, askedRounds, matchName, pickNotes, casesFor, enemiesOf, CASE_GROWTH, primerFacts, normEntry, echoOf, gateText, stated, standingsOf, deathStandingsOf, LEANS_REASON,
   renderPlayer, renderMatch, renderAsked, renderEarlier, renderSlices, staticPrefix, languageLine, gunsInCore,
   VALORANT_RULES, LEAGUE_RULES, RIOT_ONLY, NO_MATCH, DYNAMIC_MAX_CHARS, MATCH_MAX_CHARS, MAX_CHARS, MAX_ASKED_ROUNDS, VERDICT, VERDICT_REASON,
-  FALLBACK_KEPT, questionTopics, QUESTION_TOPICS,
+  FALLBACK_KEPT, questionTopics, QUESTION_TOPICS, askedSituation, situationHits,
   // The re-audit of 8.7.7 (Nov 2026), each asserted in test:chatgates.
   leverLine, leversOf, LEVER_WEIGHTS, ORPHAN_REASON, KIT_HEAD,
   // The blind audit of 8.7.8 (Nov 2026): the lever below Platinum only.

@@ -1972,6 +1972,133 @@ function checkCountList(sentence, ctx) {
   return changed ? { rewrite: out } : null;
 }
 
+/*
+ * A LIST OF ROUNDS WITH NO COUNT, TOLD AS THE WHOLE SET (the stream C review's
+ * open gap, Nov 2026). "Your early deaths came in rounds 1, 3, 4 and 5" where
+ * the counted line says "5 of your 5 deaths came in the first 30 seconds,
+ * before any plant, in rounds 1, 3, 4, 5 and 6": no count to hold the list
+ * to, and the player reads round 6 as no early death. A list after "your" or
+ * "the" deaths of one kind (early, untraded, traded, opening, "before any
+ * plant", "nobody traded") and a verb is the whole set of that kind, and
+ * where the match has that whole set (wholeSets: a counted line whose list
+ * is as long as its count, or Riot's rows where every death's trade is known
+ * and the rows are the whole match) a list missing some of its rounds is
+ * written as the set ({ rewrite }). A list with a round outside the set, or
+ * of two kinds, judges nothing (the other readers judge each round). Never
+ * touched: "two of your early deaths", "including", "and 3 more", a part of
+ * them ("your early deaths to Omen", "on defence"), a list in its own clause.
+ */
+const WHOLE_RUN = '([0-9]{1,2}(?:(?:\\s*,\\s*(?:and\\s+)?|\\s+and\\s+|\\s+(?:to|through)\\s+)[0-9]{1,2}(?![0-9]|\\s*(?:s|secs?|seconds?)\\b))*)';
+const WHOLE_KIND = '(early|untraded|unanswered|unavenged|opening|traded)\\s+deaths|deaths\\s+(?:that\\s+(?:went|were|came)\\s+)?(untraded|unanswered|unavenged|nobody\\s+traded|no\\s+one\\s+traded|before\\s+(?:any|the)\\s+plant|in\\s+the\\s+first\\s+30\\s+seconds(?:\\s+of\\s+the\\s+round)?)';
+// The verbs a whole list is told with, and a colon ("Your early deaths: rounds 1, 3 and 4").
+const WHOLE_VERB = '(?:(?:were|was|came|happened|fell|landed|occurred|showed\\s+up|took\\s+place|turned\\s+up)\\s+(?:all\\s+)?(?:(?:in|on|during)\\s+)?(?:the\\s+)?|:\\s*)';
+const WHOLE_LIST = new RegExp(`\\b(?:all\\s+(?:of\\s+)?|each\\s+of\\s+|every\\s+one\\s+of\\s+)?(?:your|the)\\s+(?:${WHOLE_KIND})\\s*(?:in\\s+(?:this|the)\\s+match\\s+)?(?:all\\s+)?${WHOLE_VERB}(rounds?\\s+)${WHOLE_RUN}`, 'gi');
+// "Every early death came in rounds 1, 3 and 4": (kind, word, run).
+const WHOLE_EVERY = new RegExp(`\\b(?:every|each)\\s+(early|untraded|unanswered|unavenged|opening|traded)\\s+death\\s*(?:in\\s+(?:this|the)\\s+match\\s+)?${WHOLE_VERB}(rounds?\\s+)${WHOLE_RUN}`, 'gi');
+// "Rounds 1, 3 and 4 were your early deaths": (word, run, kind, kind).
+const WHOLE_REVERSED = new RegExp(`\\b(rounds\\s+)${WHOLE_RUN}\\s+(?:were|are)\\s+(?:all\\s+)?(?:your|the)\\s+(?:${WHOLE_KIND})`, 'gi');
+// Only a list that ends its clause is told as the whole set: the end of the
+// sentence, or a new clause ("so slow down", "and each one left you short").
+// Anything else after it ("then again in 15 and 18", "and 2 other rounds",
+// "for instance", "this half", "too", "among four") may make it a part.
+const WHOLE_CLEAN_TAIL = /^\s*(?:[.!?]|$|,\s*(?:so|which|because|since|each|every|and\s+(?:that|this|it|each|every))\b)/i;
+// A negated or limited head is never the whole set: "Not all of", "Even your", "Only".
+const WHOLE_NOT_BEFORE = /\b(?:not|never|nor|even|only|just|if|unless)\s+$/i;
+// "The rounds where you died early were rounds 1, 3 and 4".
+const WHOLE_ROUNDS = new RegExp(`\\bthe\\s+rounds\\s+(?:where|in\\s+which|when)\\s+you\\s+(died\\s+early|died\\s+first|were\\s+the\\s+first\\s+to\\s+die|died\\s+before\\s+(?:any|the)\\s+plant|died\\s+untraded)\\s+(?:were|are)\\s+(rounds?\\s+)?${WHOLE_RUN}`, 'gi');
+// A part of the set, never the whole: "two of", "the worst of", "most".
+const WHOLE_PART_BEFORE = /(?:\bof|[0-9]|\b(?:some|most|both|few|several|many|two|three|four|five|six|seven|eight|nine|ten|other|worst|costliest|clearest))\s+$/i;
+// The list said of a part after it: "rounds 1 and 3 on defence", "to Omen".
+const WHOLE_PART_AFTER = /^\s+(?:to|against|by|on|at|in|during|when|while|with|from|as)\b/i;
+const FIRST_LINE = /\bfirst\s+player\s+to\s+die\s+in\s+(\d{1,2})\s+of\s+\d{1,2}\s+rounds?,\s*(?:in\s+)?rounds?\s+([0-9]{1,2}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)[0-9]{1,2})*)/i;
+const wholeKind = (w) => {
+  const x = String(w || '').toLowerCase().replace(/\s+/g, ' ');
+  if (/^(?:early|before (?:any|the) plant|in the first 30 seconds.*|died early|died before (?:any|the) plant)$/.test(x)) return 'early';
+  if (/^(?:untraded|unanswered|unavenged|nobody traded|no one traded|died untraded)$/.test(x)) return 'untraded';
+  if (x === 'traded') return 'traded';
+  if (/^(?:opening|died first|were the first to die)$/.test(x)) return 'first';
+  return null;
+};
+/** The whole set of each kind the match holds: Map kind => sorted rounds; a kind two sources give apart is left out. */
+function wholeSets(ctx) {
+  const found = new Map();
+  const bad = new Set();
+  const put = (k, ns) => {
+    const v = [...new Set(ns)].sort((a, b) => a - b);
+    if (found.has(k) && found.get(k).join() !== v.join()) bad.add(k);
+    found.set(k, v);
+  };
+  for (const c of (ctx && Array.isArray(ctx.countedTexts) ? ctx.countedTexts : [])) {
+    const x = foldRounds(straight(c)).toLowerCase();
+    const f = FIRST_LINE.exec(x);
+    if (f) {
+      const ns = runRounds(f[2]);
+      if (ns.length === Number(f[1])) put('first', ns);
+    }
+    for (const m of x.matchAll(new RegExp(COUNT_HEAD.source, 'gi'))) {
+      if (!m[3] || !/^deaths?$/.test(m[5])) continue;
+      const said = countWord(m[3]);
+      const after = x.slice(m.index + m[0].length);
+      const lc = LIST_AFTER.exec(after);
+      if (!said || !lc) continue;
+      const between = after.slice(0, lc.index + lc[0].length - lc[1].length);
+      if (new RegExp(COUNT_HEAD.source, 'i').test(between) || LIST_SOME.test(between)) continue;
+      const ns = runRounds(lc[1]);
+      if (ns.length !== said) continue;
+      for (const k of countKinds(between)) if (['early', 'untraded', 'traded', 'first'].includes(k)) put(k, ns);
+    }
+  }
+  // Riot's rows, where they are the whole match and every death's trade is known.
+  const rows = ctx && ctx.rounds ? [...ctx.rounds.values()] : [];
+  const deaths = rows.filter((r) => r.died && !r.afk);
+  if (rows.length && fin(ctx.total) && rows.length === ctx.total && deaths.length && deaths.every((r) => r.traded === true || r.untraded)) {
+    put('untraded', deaths.filter((r) => r.untraded).map((r) => r.n));
+    put('traded', deaths.filter((r) => r.traded === true).map((r) => r.n));
+  }
+  for (const k of bad) found.delete(k);
+  return found;
+}
+function checkWholeList(sentence, ctx) {
+  const t = foldRounds(straight(sentence));
+  if (OPENS_IF.test(t) || !/\brounds?\s+[0-9]/i.test(t)) return null;
+  let sets = null;
+  // Each reader with where its kind, its "rounds" word and its run are.
+  const shapes = [
+    [WHOLE_LIST, (m) => [m[1] || m[2], m[3], m[4]]],
+    [WHOLE_ROUNDS, (m) => [m[1], m[2], m[3]]],
+    [WHOLE_EVERY, (m) => [m[1], m[2], m[3]]],
+    [WHOLE_REVERSED, (m) => [m[3] || m[4], m[1], m[2]]],
+  ];
+  for (const [re, parts] of shapes) {
+    for (const m of t.matchAll(new RegExp(re.source, 'gi'))) {
+      const [kindWord, word, run] = parts(m);
+      const kind = wholeKind(kindWord);
+      if (!kind || !run) continue;
+      const before = t.slice(Math.max(0, m.index - 24), m.index);
+      if (WHOLE_PART_BEFORE.test(before) || WHOLE_NOT_BEFORE.test(before)) continue;
+      // A negation earlier in the sentence ("Not all of your", "It is not true that").
+      if (/\b(?:not|never|nor|isn't|aren't|wasn't|weren't|didn't|don't|doesn't)\b/i.test(t.slice(0, m.index + 12))) continue;
+      const end = m.index + m[0].length;
+      const rest = t.slice(end);
+      const tail = rest.slice(0, 24);
+      if (LIST_SOME.test(m[0]) || LIST_SOME.test(rest) || /^\s*,?\s*(?:and|or|plus)\s+(?:(?:the\s+)?rounds?\s+)?\d/i.test(tail) || /^\s*more\b/i.test(tail) || /^\s+onwards?\b/i.test(tail) || WHOLE_PART_AFTER.test(tail)) continue;
+      if (!WHOLE_CLEAN_TAIL.test(rest)) continue;
+      const listed = runRounds(run);
+      if (listed.length < 2) continue;
+      if (!sets) sets = wholeSets(ctx);
+      const fact = sets.get(kind);
+      if (!fact || fact.length <= listed.length) continue;
+      if (!listed.every((n) => fact.includes(n))) continue;
+      const runAt = m.index + m[0].lastIndexOf(run) - (word ? word.length : 0);
+      const runEnd = m.index + m[0].lastIndexOf(run) + run.length;
+      let words = listWords(fact);
+      if (runAt === 0 || /[.!?]\s*$/.test(t.slice(0, runAt))) words = words[0].toUpperCase() + words.slice(1);
+      return { rewrite: `${t.slice(0, runAt)}${words}${t.slice(runEnd)}` };
+    }
+  }
+  return null;
+}
+
 const READERS = [
   ['kills', checkKills],
   ['share', checkKillerShare],
@@ -1985,6 +2112,8 @@ const READERS = [
   ['kd', checkKillsDeaths],
   // The blind audit of round 8, stream C: a count and the rounds it lists.
   ['countlist', checkCountList],
+  // The stream C review's open gap: a list with no count told as the whole set of its kind.
+  ['wholelist', checkWholeList],
   // Round 8: alone or out of reach said of a death with a teammate close, and "nobody could trade you" said of the fact.
   ['alone', checkAlone],
   // The blind audit of 8.7.9, after every reader before.
@@ -2121,5 +2250,7 @@ module.exports = {
   checkCountList, COUNT_HEAD, LIST_AFTER, LIST_SOME, COUNT_DEATH_BEFORE, COUNT_NEW_CLAUSE, runRounds,
   // Its review: who stands at the place, the scoreline's subject, the list's own words.
   PLACE_VERB, YOU_OBJECT, PLACE_EARLIER, PLACE_LATER, DEATH_PLACE_HEAD, DEATH_GAP_BREAK, KD_OTHER, KD_SCOPE, LIST_BEFORE, LIST_NOT_BEFORE, countKinds, foldRounds,
+  // The stream C review's open gap: a list with no count, told as the whole set.
+  checkWholeList, wholeSets, WHOLE_LIST, WHOLE_ROUNDS, WHOLE_EVERY, WHOLE_REVERSED, WHOLE_CLEAN_TAIL, WHOLE_NOT_BEFORE, WHOLE_PART_BEFORE, WHOLE_PART_AFTER, FIRST_LINE,
   PLANT_DURING, ENEMY_ROLE_OBJ, ENEMY_ROLE_SUBJ, FIRST_SAID, LEFT_HEAD, LEFT_N, LEFT_DOWN, LATER, PLANT_EVENT, KILL_EVENT, DEATH_THEN, KILL_OWNER_BEFORE, earlyDeathsOf, ledgerBins, ledgerLine, tradeLedger, LEDGER_HEAD, LEDGER_RULE, lastAliveOf,
 };

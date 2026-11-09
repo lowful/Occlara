@@ -3375,5 +3375,63 @@ console.log('\nthe plant\'s time from Riot\'s record (the blind audit of round 7
   ok(!sova.rounds[3] && sova.dropped.some((d) => d.n === 3 && d.said === 'team-utility'), 'their Sova\'s "flash or drone" is never cut into a flash Sova lacks: the line goes as before');
 }
 
+// ── The two open gaps of stream C, in the review ──────────────────────────
+{
+  console.log('\nthe open gaps of stream C, in the review:');
+  const R8 = (n, o) => ({ n, side: 'attacking', result: 'lost', died: true, verified: true, traded: false, kills: 0, sec: 12, killer: 'Cypher', weapon: 'Classic', ...o });
+  const body = (rounds) => ({
+    rounds,
+    swing: [], mistakes: [], strengths: [],
+    patterns: [{ key: 'early', text: '5 of your 5 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 3, 4, 5 and 6.' }],
+    context: { agent: 'Raze', map: 'Pearl', rankBand: 'asc_plus', enemyAgents: ['Cypher', 'Sage', 'Fade', 'Clove', 'Sova'] },
+    final: { team: 1, enemy: 5, result: 'Defeat', verified: true, scoreline: { kills: 4, deaths: 5, assists: 2, acs: 241 } } });
+  const looks = [R8(1, { cause: 'dry-peek' }), { n: 2, side: 'attacking', result: 'won', died: false, verified: true, kills: 3 },
+    R8(3, { cause: 'lost-duel' }), R8(4, { cause: 'unclear' }), R8(5), R8(6)];
+  const pin = matchReview.normalise(body(looks));
+  // (b) The unclear look is kept as a look for the count, and only that.
+  ok(pin.rounds.find((r) => r.n === 4).unclearLook === true && pin.rounds.find((r) => r.n === 4).cause === null
+    && pin.rounds.filter((r) => r.unclearLook).length === 1 && !('unclearLook' in pin.rounds.find((r) => r.n === 5)),
+  'normalise keeps an unclear look as unclearLook, its cause still null, and adds nothing to any other round');
+  const lf = matchReview.lookFacts(pin);
+  ok([...lf.rounds.values()].filter((r) => r.look).length === 3 && lf.counted.died === 5, 'lookFacts: three looks with the unclear one, and the scoreline\'s 5 deaths');
+  const one = matchReview.parse('SUMMARY: You lost 1 to 5. The coach looked at one of your deaths and called it a dry peek.\nR1: Take the duel from cover.', pin);
+  ok(one.summary === 'You lost 1 to 5.' && one.dropped.some((d) => d.said === 'summary looks'), `CAUGHT: "the coach looked at one of your deaths" where it looked at 3 (${JSON.stringify(one)})`);
+  const line = matchReview.parse('SUMMARY: You lost 1 to 5.\nR3: The coach looked at 4 of your 5 deaths, and this one was lost on the shot.', pin);
+  ok(!line.rounds[3] && line.dropped.some((d) => d.n === 3 && d.said === 'looks'), 'CAUGHT: a round line saying 4 looks goes whole');
+  // The review of lookGates: a round line's one death is its own, and a part the gate does not know judges nothing.
+  const own = matchReview.parse('SUMMARY: You lost 1 to 5. The coach looked at two deaths before the plant.\nR1: You peeked dry into Cypher. The coach looked at one death in this round.\nR3: The coach looked at one death.', pin);
+  ok(own.rounds[1] === 'You peeked dry into Cypher. The coach looked at one death in this round.' && own.rounds[3] === 'The coach looked at one death.'
+    && own.summary === 'You lost 1 to 5. The coach looked at two deaths before the plant.' && !own.dropped.some((d) => /looks/.test(d.said)),
+  `KEPT: a round line's one death, and a part before the plant (${JSON.stringify(own)})`);
+  for (const s of ['The coach looked at one death in R3.', 'The coach looked at one death here.', 'I looked at one death this round.',
+    'The coach looked at two of the deaths you lost on attack.', 'The coach looked at two deaths after the spike went down.', 'The coach looked at two deaths you took on attack.']) {
+    const r = matchReview.parse(`SUMMARY: You lost 1 to 5. ${s}`, pin);
+    // "R3" in a summary is written "round 3" by the parse before the gates; the sentence is kept.
+    ok(r.summary === `You lost 1 to 5. ${s.replace(/\bR(\d)/, 'round $1')}` && !r.dropped.some((d) => /looks/.test(d.said)), `KEPT by lookGates, a part: "${s}"`, JSON.stringify(r.dropped));
+  }
+  const stillOne = matchReview.parse('SUMMARY: You lost 1 to 5.\nR5: The coach looked at one of your deaths, and it was this one.', pin);
+  ok(!stillOne.rounds[5], 'CAUGHT still: "one of your deaths" in a round line is the match-wide count');
+  for (const s of ['The coach looked at 3 of your 5 deaths.', 'The coach looked at 2 of your deaths and called one avoidable.', 'The coach looked at one of your deaths that ended in a lost duel.',
+    'The coach’s look covered all 3 deaths.', 'The coach did not look at one of your deaths.']) {
+    ok(require('../server/services/fact-gates').gateLookCount(s, lf) === null, `KEPT: "${s}" (3 looks with the unclear one, 2 without, a part, a negation)`);
+  }
+  // An older client, or a review with no look at all, judges nothing.
+  const none = matchReview.normalise(body(looks.map((r) => ({ ...r, cause: undefined }))));
+  ok(matchReview.parse('SUMMARY: You lost 1 to 5. The coach looked at one of your deaths.', none).summary === 'You lost 1 to 5. The coach looked at one of your deaths.',
+    'KEPT: a review with no look judges no count');
+  // (a) A list with no count, told as the whole set (record-claims.js checkWholeList, through recordGates).
+  const w = matchReview.parse('SUMMARY: You lost 1 to 5. Your early deaths came in rounds 1, 3, 4 and 5, each one leaving your team short.', pin);
+  ok(w.summary === 'You lost 1 to 5. Your early deaths came in rounds 1, 3, 4, 5 and 6, each one leaving your team short.', `CAUGHT: the uncounted early list is written as the counted line's whole set (${w.summary})`);
+  const wr = matchReview.parse('SUMMARY: You lost 1 to 5.\nR4: Your early deaths were rounds 1, 3 and 4, so slow the first contact.', pin);
+  ok(wr.rounds[4] === 'Your early deaths were rounds 1, 3, 4, 5 and 6, so slow the first contact.', `CAUGHT: in a round line too (${wr.rounds[4]})`);
+  const rcx = require('../server/services/record-claims').contextOfReview(pin);
+  ok(['Two of your early deaths came in rounds 1 and 3.', 'Your early deaths came in rounds 1 and 3 on defence.'].every((x) => require('../server/services/record-claims').checkWholeList(x, rcx) === null),
+    'KEPT by the whole list reader: two of them, and a part of them');
+  for (const s of ['Your early deaths came in rounds 1, 3, 4, 5 and 6.', 'Your early deaths to Cypher came in rounds 1 and 3.',
+    'Your early deaths came in rounds 1, 3 and 4, among others.']) {
+    ok(matchReview.parse(`SUMMARY: You lost 1 to 5. ${s}`, pin).summary === `You lost 1 to 5. ${s}`, `KEPT: "${s}"`);
+  }
+}
+
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);
 process.exit(fails ? 1 : 0);

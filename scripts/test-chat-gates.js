@@ -3574,6 +3574,71 @@ console.log('\nround 8, the game facts gates:');
     && [...rc.countKinds('went untraded')].join() === 'untraded' && [...rc.countKinds('came in the first 20 seconds')].join() === 'early' && !rc.countKinds('came in').size
     && new RegExp(rc.COUNT_HEAD.source, 'i').exec('All 5 of your deaths')[1] === '5' && !new RegExp(rc.COUNT_HEAD.source, 'i').exec('All of your deaths'),
   'LIST_NOT_BEFORE, LIST_AFTER, LIST_BEFORE, foldRounds, countKinds and the "all N of your" COUNT_HEAD both ways');
+
+  // The open gap: a list with no count, told as the whole set (record-claims.js checkWholeList).
+  const wc = rc.contextOfChat(pfl);
+  ok(JSON.stringify([...rc.wholeSets(wc)]) === JSON.stringify([['early', [1, 3, 4, 5, 6]]]), 'wholeSets: the counted early line is the whole set', JSON.stringify([...rc.wholeSets(wc)]));
+  for (const [s, want] of [['Your early deaths came in rounds 1, 3, 4 and 5.', 'Your early deaths came in rounds 1, 3, 4, 5 and 6.'],
+    ['Your early deaths were rounds 1, 3 and 4, and each one left your team short.', 'Your early deaths were rounds 1, 3, 4, 5 and 6, and each one left your team short.'],
+    ['The rounds where you died early were rounds 1, 3 and 4.', 'The rounds where you died early were rounds 1, 3, 4, 5 and 6.'],
+    ['Your deaths before any plant came in rounds three to five.', 'Your deaths before any plant came in rounds 1, 3, 4, 5 and 6.'],
+    ['All of your early deaths came in R1, R3 and R4.', 'All of your early deaths came in rounds 1, 3, 4, 5 and 6.']]) {
+    const r = one(s, pfl);
+    ok(!r.drop && r.s === want, `CAUGHT: "${s}" is written as the whole set`, JSON.stringify(r));
+  }
+  for (const s of ['Your early deaths came in rounds 1, 3, 4, 5 and 6.', 'Your early deaths came in rounds 3 to 6 and round 1.', 'Two of your early deaths came in rounds 1 and 3.',
+    'Your early deaths came in rounds 1, 3 and 4, among others.', 'Your early deaths came in rounds 1, 3, 4 and 2 more.', 'Your early deaths, including rounds 1 and 3, came from dry peeks.',
+    'Your early deaths came in rounds 1 and 3 on defence.', 'Your early deaths to Cypher came in rounds 1 and 3.', 'Your early deaths hurt, and in rounds 1 and 3 you were alone.',
+    'Your early deaths came in rounds 1, 3 and 7.', 'The worst of your early deaths came in rounds 1 and 3.', 'Your untraded deaths came in rounds 1 and 3.',
+    'If your early deaths came in rounds 1 and 3, slow down.', 'Your early deaths came in round 1.']) {
+    ok(rc.checkWholeList(s, wc) === null, `KEPT: "${s}"`, JSON.stringify(rc.checkWholeList(s, wc)));
+  }
+  // The review of the whole list reader: the rephrasings of the audited claim are caught, a
+  // negated list, a list with more rounds after it, a hedge or a scope after it are never rewritten.
+  for (const [s, want] of [['Your early deaths occurred in rounds 1, 3, 4 and 5.', 'Your early deaths occurred in rounds 1, 3, 4, 5 and 6.'],
+    ['Each of your early deaths came in rounds 1, 3, 4 and 5.', 'Each of your early deaths came in rounds 1, 3, 4, 5 and 6.'],
+    ['Every early death came in rounds 1, 3, 4 and 5.', 'Every early death came in rounds 1, 3, 4, 5 and 6.'],
+    ['Rounds 1, 3, 4 and 5 were your early deaths.', 'Rounds 1, 3, 4, 5 and 6 were your early deaths.'],
+    ['Your early deaths: rounds 1, 3, 4 and 5.', 'Your early deaths: rounds 1, 3, 4, 5 and 6.'],
+    ['Your early deaths showed up in rounds 1, 3, 4 and 5.', 'Your early deaths showed up in rounds 1, 3, 4, 5 and 6.']]) {
+    const r = one(s, pfl);
+    ok(!r.drop && r.s === want, `CAUGHT, a rephrasing: "${s}" is written as the whole set`, JSON.stringify(r));
+  }
+  for (const s of ['Not all of your early deaths came in rounds 1 and 3.', 'Even your early deaths came in rounds 1 and 3.',
+    'Your early deaths came in rounds 1 and 3, then again in rounds 4 and 5.', 'Your early deaths came in rounds 1 and 3 and 2 other rounds.',
+    'Your early deaths came in rounds 1, 3 and two later rounds.', 'Your early deaths came in rounds 1 and 3 and again in rounds 4 and 5.',
+    'Your early deaths came in rounds 1 and 3, as well as 4 and 5.', 'Your early deaths came in rounds 1 and 3; rounds 4 and 5 followed the same pattern.',
+    'Your early deaths came in rounds 1 and 3 first, then 4 and 5.', 'Your early deaths came in rounds 1 and 3, for instance.',
+    'Your early deaths came in rounds 1 and 3, to name two.', 'Your early deaths came in rounds 1 and 3 and so on.', 'Your early deaths came in rounds 1 and 3 etc.',
+    'Your early deaths came in rounds 1 and 3 too.', 'Your early deaths came in rounds 1 and 3, mostly.', 'Your early deaths came in rounds 1 and 3 especially.',
+    'Your early deaths came in rounds 1 and 3 among five.', 'Your early deaths came in rounds 1 and 3 this half.', 'Your early deaths came in rounds 1 and 3 before the switch.',
+    'Your early deaths came in rounds 1 and 3, both lost.', 'Your early deaths came in rounds 1 and 3 for the same reason.',
+    'Your early deaths came in rounds 1 and 3 after the same dry peek.', 'Your early deaths came in rounds 1 and 3 again and again.']) {
+    ok(rc.checkWholeList(s, wc) === null, `KEPT by the whole list reader: "${s}"`, JSON.stringify(rc.checkWholeList(s, wc)));
+  }
+  ok(rc.WHOLE_CLEAN_TAIL.test('.') && rc.WHOLE_CLEAN_TAIL.test(', and each one left your team short.') && rc.WHOLE_CLEAN_TAIL.test(', so slow down.')
+    && !rc.WHOLE_CLEAN_TAIL.test(' this half.') && !rc.WHOLE_CLEAN_TAIL.test(', for instance.') && !rc.WHOLE_CLEAN_TAIL.test(' and 2 other rounds.')
+    && rc.WHOLE_NOT_BEFORE.test('Even ') && rc.WHOLE_NOT_BEFORE.test('Not ') && !rc.WHOLE_NOT_BEFORE.test('So ')
+    && new RegExp(rc.WHOLE_EVERY.source, 'i').test('every early death came in rounds 1 and 3') && !new RegExp(rc.WHOLE_EVERY.source, 'i').test('every death came in rounds 1 and 3')
+    && new RegExp(rc.WHOLE_REVERSED.source, 'i').test('rounds 1 and 3 were your early deaths') && !new RegExp(rc.WHOLE_REVERSED.source, 'i').test('rounds 1 and 3 were your best rounds'),
+  'WHOLE_CLEAN_TAIL, WHOLE_NOT_BEFORE, WHOLE_EVERY and WHOLE_REVERSED both ways');
+  // Riot's rows as the whole set, where they are the whole match and every trade is known.
+  const tr = (n, traded) => card({ n, riot: { sec: 40, killer: 'Omen', weapon: 'Vandal', traded, kills: 0 } });
+  const whole = factsFor(valMatch({ id: 'valorant-1790000000000-bind8w', map: 'Bind', agent: 'Sova', mode: 'Swiftplay', score: '1-3', rounds: 4,
+    cards: [tr(1, false), tr(2, true), tr(3, false), tr(4, false)] }), [{ role: 'user', content: 'Why did nobody trade me?' }], STAND_IN);
+  const wctx = rc.contextOfChat(whole);
+  ok(JSON.stringify(rc.wholeSets(wctx).get('untraded')) === '[1,3,4]' && JSON.stringify(rc.checkWholeList('Your untraded deaths came in rounds 1 and 3.', wctx)) === JSON.stringify({ rewrite: 'Your untraded deaths came in rounds 1, 3 and 4.' })
+    && rc.checkWholeList('Your untraded deaths came in rounds 1, 3 and 4.', wctx) === null,
+  'CAUGHT: the untraded deaths from Riot\'s rows as the whole set, kept when whole', JSON.stringify([...rc.wholeSets(wctx)]));
+  const part = factsFor(valMatch({ id: 'valorant-1790000000000-bind8x', map: 'Bind', agent: 'Sova', mode: 'Swiftplay', score: '1-3', rounds: 4,
+    cards: [tr(1, false), tr(2, true), tr(3, false), card({ n: 4, riot: { sec: 40, killer: 'Omen', weapon: 'Vandal', kills: 0 } })] }), [{ role: 'user', content: 'Why did nobody trade me?' }], STAND_IN);
+  ok(!rc.wholeSets(rc.contextOfChat(part)).has('untraded') && rc.checkWholeList('Your untraded deaths came in rounds 1 and 3.', rc.contextOfChat(part)) === null,
+    'KEPT: a death whose trade Riot does not give leaves the set unknown');
+  ok(new RegExp(rc.WHOLE_LIST.source, 'i').test('your early deaths came in rounds 1, 3 and 4') && new RegExp(rc.WHOLE_LIST.source, 'i').test('the deaths nobody traded were rounds 2 and 5')
+    && !new RegExp(rc.WHOLE_LIST.source, 'i').test('your early deaths to Omen came in rounds 1 and 3') && new RegExp(rc.WHOLE_ROUNDS.source, 'i').test('the rounds where you died first were 1 and 3')
+    && rc.WHOLE_PART_BEFORE.test('Two of ') && !rc.WHOLE_PART_BEFORE.test('So ') && rc.WHOLE_PART_AFTER.test(' on defence') && !rc.WHOLE_PART_AFTER.test(', and each')
+    && rc.FIRST_LINE.test('you were the first player to die in 4 of 6 rounds, rounds 1, 3, 4 and 6.'),
+  'WHOLE_LIST, WHOLE_ROUNDS, WHOLE_PART_BEFORE, WHOLE_PART_AFTER and FIRST_LINE both ways');
 }
 
 // ── The coach bench (Nov 2026): no match, no record ─────────────────────────
@@ -3622,6 +3687,125 @@ console.log('\nround 8, the game facts gates:');
     && /The save rule above answers a save question only, never a buy question\./.test(cp.VALORANT_RULES)
     && /^- When the question names an ability, answer first how to use that ability in that moment/m.test(cp.VALORANT_RULES),
   'THE BUY QUESTION NAMES ITS ROUND FIRST, and an ability question is answered with the ability first');
+}
+
+// ── The coach bench, retrieval: the player's own account with no match ──────
+{
+  console.log('\nthe coach bench, the notes for the round the player describes:');
+  const knowledge = require('../server/services/knowledge');
+  const topicOf = new Map(knowledge.all().map((n) => [n.text, n.source && n.source.topic]));
+  const ask = (band, content) => {
+    const ctx = chatContext.build(null, { rows: [] }, null, content, { game: 'valorant', language: 'en', advanced: true, switchedFrom: null, now: Date.now() });
+    ctx.rankBand = band;
+    const input = cp.normalise(ctx);
+    const messages = [{ role: 'user', content }];
+    return { input, messages, sit: cp.askedSituation(input, messages) };
+  };
+  const SNIPER = 'I was on Jett on Sunset, defense, round three. I held a tight angle toward A main with an Outlaw next to our Omen. I kept micro moving on the angle. Was it fine to keep moving a little while I held that angle with the Outlaw?';
+  const s1 = ask('silver_gold', SNIPER);
+  ok(s1.sit && s1.sit.agent === 'Jett' && s1.sit.map === 'Sunset' && s1.sit.side === 'defense' && s1.sit.round === 3
+    && s1.sit.guns.join() === 'outlaw' && s1.sit.mates.join() === 'Omen' && s1.sit.topics.has('hold') && !s1.sit.inQuestion,
+  'THE ACCOUNT READ: own agent, map, side, round, gun, the teammate as a mate and the hold asked', JSON.stringify(s1.sit && { ...s1.sit, flags: [...s1.sit.flags], topics: [...s1.sit.topics] }));
+  // Each situation regex against a known positive and a known negative (CLAUDE.md, no regex untested).
+  const fl = (content) => [...ask('silver_gold', content).sit.flags].sort().join();
+  ok(fl('I was on Raze on Split, defense, pistol round. Where should I play?') === 'pistol'
+    && fl('I was on Chamber on Haven, defense, round 2 after we won pistol. What should I buy?') === 'antieco'
+    && fl('I was on Skye on Lotus, defense, second round after losing pistol. I am on an eco. What should I buy?') === 'eco,lostpistol'
+    && fl('I was on Sage on Split, defense. They were on an eco with pistols. Is pushing worth it?') === 'antieco'
+    && fl('I was on Raze on Split, defense, round three, four teammates buying. What should I buy when my team full buys?') === 'fullbuy'
+    && fl('I was on Jett on Sunset, attack. We were saving. What should I buy?') === 'eco',
+  'THE ROUND TYPE: pistol, a won pistol, a lost pistol with an eco, the enemy eco, a team full buy, a team save');
+  ok(ask('silver_gold', 'I was on Jett on Sunset, defense. The spike was not planted. How should I have played it?').sit.phase === 'active'
+    && ask('silver_gold', 'I was on Jett on Sunset, defense. In that retake should I have kept defusing?').sit.phase === 'postplant'
+    && ask('silver_gold', 'I was on Jett on Sunset. If my team is saving but I have a lot of credits, what should I buy?').sit.phase === 'buy'
+    && ask('silver_gold', 'I was on Omen on Fracture, defense. Should I have saved in that 1v4 instead of taking the retake?').sit.phase !== 'buy',
+  'THE PHASE: "not planted" is no post plant, a retake is, a buy question is, a saved gun is not');
+  ok(ask('silver_gold', 'I was on Jett on Sunset. I was low HP in a 1v1, how should I have played it?').sit.lowHp
+    && ask('plat_diamond', 'I was on Reyna on Abyss, attack. I was on 1 HP. What should I do?').sit.lowHp
+    && !ask('plat_diamond', 'I was on Reyna on Abyss, attack. I had full HP. What should I do?').sit.lowHp,
+  'LOW HP: "low HP" and "1 HP", never full HP');
+  const ab = ask('asc_plus', 'I was on Skye on Split, defense retake. I sent my bird at their Raze but popped it short. I flashed the Raze but she still killed my teammate, why did the blind not work?').sit;
+  ok(ab.abilities.join() === 'guiding light' && ab.abilitiesAsked.join() === 'guiding light' && ab.retake,
+    'THE ABILITY SAID: "bird" and "flashed" are Guiding Light, asked in the question sentence');
+  ok(ask('silver_gold', 'I was on Jett on Sunset, attack, a half buy round. I had about 7,950 credits. If my team is saving but I have a lot of credits, what should I buy?').sit.topics.has('rich')
+    && ask('plat_diamond', 'I was on Reyna on Abyss, retake. How should I play a retake when we are up numbers and I have flashes?').sit.topics.has('numbers')
+    && ask('silver_gold', 'I was on Jett on Sunset, defense. They went B two rounds in a row. How do I decide where to start on defense from what the enemy did in earlier rounds?').sit.pattern
+    && ask('asc_plus', 'I was on Skye on Split. I was walking around the corner carefully and still lost the fight, what was wrong with my peek?').sit.topics.has('peek')
+    && ask('silver_gold', 'I was on Jett on Sunset, attack, after we planted B. After the plant, where should I go and who should I play with?').sit.topics.has('partner'),
+  'THE TOPICS: a rich player, the numbers, the enemy pattern, the peek, who to play with');
+  ok(ask('silver_gold', 'I overextended alone into one with a Sheriff. I was on Chamber on Haven and had an Outlaw. Should I go?').sit.guns.join() === 'outlaw',
+    'AN ENEMY\'S GUN IS NOT THE PLAYER\'S: "into one with a Sheriff" is theirs, "had an Outlaw" is yours');
+  // The review of the bench reader: whose gun, side, pistol, eco, buy, retake and agent each account names.
+  const sitOf = (content, band = 'silver_gold') => ask(band, content).sit;
+  const g1 = sitOf('I was on Sova on Bind. A Jett killed me with an Operator from long every time I peeked. How do I deal with that?');
+  const g2 = sitOf('I died to a Jett with an Operator on Ascent mid again. How do I get past mid?');
+  const g3 = sitOf('I was on Chamber on Haven. I held B long with my Operator. Was that right?');
+  const g4 = sitOf('I was on Jett on Sunset with an Outlaw and got killed by a Vandal. Should I have peeked?');
+  ok(g1.guns.length === 0 && (!g2 || g2.guns.length === 0) && g3.guns.join() === 'operator' && g4.guns.join() === 'outlaw',
+    'THE KILLER\'S GUN IS NOT THE PLAYER\'S: "killed me with an Operator", "a Jett with an Operator", "by a Vandal"; "my Operator" and "with an Outlaw" still are',
+    JSON.stringify([g1.guns, g2 && g2.guns, g3.guns, g4.guns]));
+  ok(sitOf('I was on Jett on Bind, we attacked A short and their defense stacked A. Should we have gone B?', 'plat_diamond').side === 'attack'
+    && sitOf('Their defense kept stacking A when we attacked. What should we change?').side === 'attack'
+    && sitOf('I was on Cypher on Split. Their attack kept hitting B. Where should I play?').side === 'defense'
+    && sitOf('I was on Sage on Split, attack. We were stuck. What now?').side === 'attack'
+    && sitOf('I was on Sage on Split. We defended B twice and lost. What now?').side === 'defense',
+  'THE SIDE: "attacked" is attack, the enemy\'s "their defense" is the player\'s attack and "their attack" the defense');
+  const fls = (content) => [...sitOf(content).flags].sort().join();
+  ok(fls('The enemy won pistol. What should I buy in round two?') === 'lostpistol'
+    && fls('They won the pistol, so round two we were on an eco. What should I buy?') === 'eco,lostpistol'
+    && fls('I was on Sova on Haven, round three. We lost pistol on C and won the eco on A, so they are on an eco or bonus now. Where should I have set up in round three after we won round two?') === 'antieco'
+    && fls('I was on Sova on Haven, round three. We lost pistol and lost round two as well. What should I buy?') === 'lostpistol',
+  'WHO WON THE PISTOL: the enemy winning it is the player\'s lost pistol, "won the eco" is a past round, round three after a won round two is no lost pistol save',
+    JSON.stringify([fls('The enemy won pistol. What should I buy in round two?'), fls('They won the pistol, so round two we were on an eco. What should I buy?')]));
+  const r1 = sitOf('I was on Phoenix, we planted B and they were defusing while I was still alive. What should I have done?');
+  const r2 = sitOf('I was on Brimstone on Bind, post plant, waiting for a kill while they were defusing. What should I do?');
+  ok(!r1.retake && r1.side === 'attack' && !r2.retake && r2.side === 'attack'
+    && sitOf('I was on Jett on Sunset, defense, a 2v1 retake on a planted site. I half defused, then stopped. Should I have kept defusing?').retake
+    && sitOf('I was on Sage on Bind. I tapped the spike and defused too late. What should I do?').retake,
+  'THE ENEMY\'S DEFUSE IS NO RETAKE: "they were defusing" is an attacker\'s post plant, the player\'s own defuse still is');
+  ok(!sitOf('I was on Killjoy, defense on Haven. A Raze satchel forced me off my angle and I died. How should I hold that?').flags.has('forcebuy')
+    && !sitOf('We were attacking and a Raze satchel forced me off the angle. How do I peek better?').flags.has('forcebuy')
+    && sitOf('I was on Jett on Sunset, attack. We forced in round two and lost. Should we have saved?').flags.has('forcebuy')
+    && sitOf('I was on Jett on Sunset, attack, a force buy round. What should I buy?').flags.has('forcebuy'),
+  'FORCE IS THE BUY, NOT THE VERB: "forced me off my angle" is no force buy, "we forced" and "a force buy" are');
+  const e1 = sitOf('Their team was saving, so I peeked aggressively with my Vandal and got killed by a Sheriff. Was that wrong?', 'plat_diamond');
+  const e2 = sitOf('They full buy every round and we keep losing. I was on Sage on Lotus, defense.');
+  ok(!e1.flags.has('eco') && e1.flags.has('antieco') && !e2.flags.has('fullbuy')
+    && sitOf('I was on Sage on Lotus, defense. We full bought and lost. What now?').flags.has('fullbuy'),
+  'THE ENEMY\'S SAVE AND FULL BUY ARE NOT THE PLAYER\'S: "their team was saving" is anti eco, "they full buy" no full buy');
+  ok(sitOf('I pushed as Omen smoked the door on Ascent and died instantly. What did I do wrong?') === null
+    && sitOf('As Chamber, what should I buy in round 2 after we win pistol on defense?').agent === 'Chamber'
+    && sitOf('I died a lot as Sova on Bind, attack. What should I change?').agent === 'Sova',
+  'A BARE "AS" IS THE PLAYER\'S AGENT ONLY OUTSIDE A CLAUSE: "as Omen smoked the door" is a teammate');
+  // With a match, or with no account of a round at all, nothing is read and the notes are as before.
+  ok(cp.askedSituation(inputFor(ABYSS, SNIPER), [{ role: 'user', content: SNIPER }]) === null
+    && ask('silver_gold', "What's the best agent on Abyss right now?").sit === null
+    && cp.askedSituation({ ...s1.input, language: 'de' }, s1.messages) === null,
+  'NOTHING READ with a match, with no account of a round, or outside English');
+  // The notes the bench's gaps were written for now reach their questions.
+  const served = (band, content) => { const x = ask(band, content); return cp.pickNotes(x.input, x.messages).map((t) => topicOf.get(t)); };
+  for (const [band, content, topic] of [
+    ['silver_gold', SNIPER, 'a sniper holds still'],
+    ['iron_bronze', 'I was on Raze on Split, defense, round three, four teammates buying. I kept 950 credits and bought only a Bucky. What should I buy and how should I start the round when my team full buys?', 'buy when the team full buys'],
+    ['silver_gold', 'I was on Killjoy on Breeze, attack, pistol round. I kept the Classic, skipped light shield and spent everything on utility. Is buying all my Killjoy utility with a shieldless Classic a good pistol round buy on Breeze?', 'shield before utility on the pistol round'],
+    ['asc_plus', 'I was on Chamber on Haven, defense, round 2 after we won pistol. I bought an Outlaw. As Chamber, what should I buy in round 2 after we win pistol on defense?', 'Chamber after a pistol win'],
+    ['silver_gold', 'I was on Omen on Fracture, defense, eco round on B with a Bucky and Sheriff. Where should I go on B when I lose track of arcade and tower in an eco?', 'play the eco for kills'],
+    ['silver_gold', 'I was on Jett on Sunset, defense, start of round three. They went B two rounds in a row and lost both. The enemies hit B twice and lost, should we have changed our setup for round three?', 'the hit they will not run again'],
+    ['plat_diamond', 'I was on Sage on Split, attack. We had been fighting and using utility at A for over 20 seconds. We just killed the A players after a long fight there, should we keep hitting A?', 'the stack after a long fight'],
+    ['silver_gold', 'I was on Jett on Sunset, defense, a 2v1 retake on a planted site. I half defused, then stopped to fight with time nearly gone. In that retake should I have kept defusing or turned to fight the last enemy?', 'stick it or step off'],
+    ['asc_plus', 'I was on Skye on Split, defense retake after a plant. I sent my bird at their Raze but popped it short. I flashed the Raze but she still killed my teammate, why did the blind not work?', 'the bird travels before it pops'],
+    ['asc_plus', 'I was on Phoenix on Breeze, defense. I flashed and peeked standing up into a blinded enemy who sprayed at head height. Why do I keep losing fights right after I flash or at very close range?', 'under the blind spray'],
+    ['plat_diamond', 'I was on Sage on Split, attack, taking A. My team walked out of main while I held my slow orbs. When should Sage throw her slow orbs during an A take on Split?', 'slows in phases'],
+    ['plat_diamond', 'I was on Reyna on Abyss, attack, spike planted on A, we were up 3v2. I was on 1 HP and kept taking fights. What should I do when we are up numbers post plant and I am 1 HP?', 'low health after the plant'],
+  ]) {
+    const got = served(band, content);
+    ok(got.includes(topic), `SERVED: "${topic}" for "${content.slice(-60)}"`, JSON.stringify(got));
+  }
+  // The round type reaches retrieve() as flags it reads, and only those (knowledge.js ASKED_FLAGS).
+  const sx = knowledge.situationOf({ phase: 'buy', asked: ['antieco', 'eco', 'nonsense'] });
+  ok(sx.flags.has('antieco') && sx.flags.has('eco') && !sx.flags.has('nonsense') && !sx.record.size
+    && knowledge.situationOf({}).flags.size === 0,
+  'ASKED FLAGS: the closed list only, never the record\'s, and none sent is as before');
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

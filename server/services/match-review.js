@@ -222,6 +222,11 @@ function normalise(body) {
     // The coach's look at the frame before the death (death-forensics.js).
     cause: r && typeof r.cause === 'string' && forensics.CAUSES[r.cause] && r.cause !== 'unclear' ? r.cause : null,
     seen: r && r.seen ? clip(r.seen, 240) : null,
+    // A look that could not say (cause 'unclear', which every client sends
+    // as it sends any cause) is still a look: the look count gate counts it
+    // (lookGates, fact-gates.js gateLookCount), and nothing else reads it.
+    // Left out otherwise, so every other round is normalised as before.
+    ...(r && r.died && r.cause === 'unclear' ? { unclearLook: true } : {}),
     // The numbers standing through the round, from Riot's kill feed (round
     // 3, valorant-review.js standingsOf), read by the state gate in parse()
     // and never by the prompt. Left out when the client sent none.
@@ -2155,6 +2160,9 @@ function parse(text, input, opts = {}) {
   // A drone or a dart the player's team does not have (the blind audit of
   // round 8, stream C): cut out of its list, else the sentence goes.
   utilityGates(out, input);
+  // How many deaths the coach looked at, said wrong (the blind audit of round
+  // 8, stream C, Ask Coach's gate over the review): the sentence goes.
+  lookGates(out, input);
   // WHAT RIOT'S RECORD MAKES CERTAIN (record-claims.js, the blind audit of
   // 8.7.8): a kill, a killer's share, the order of events, the side, the
   // result, the team's record after the plant blamed on a player who died
@@ -2926,6 +2934,59 @@ function utilityGates(out, input) {
   }
 }
 
+/*
+ * HOW MANY DEATHS THE COACH LOOKED AT, IN THE REVIEW (the blind audit of
+ * round 8, stream C: "the coach looked at one of your deaths" where it looked
+ * at all three). Ask Coach's gate (fact-gates.js gateLookCount) over the
+ * review: the looks are the deaths with a cause, and since this pass the ones
+ * whose look could not say (normalise unclearLook, from the cause 'unclear'
+ * every client sends), so a count with the unclear looks or without them
+ * stands. A round line goes whole, a summary or focus sentence alone.
+ * English only, every client; a review with no look judges nothing.
+ */
+function lookFacts(input) {
+  const rounds = new Map();
+  for (const r of input.rounds || []) {
+    if (!r || !r.n) continue;
+    const look = r.died && r.cause ? { cause: r.cause } : r.died && r.unclearLook ? { cause: 'unclear' } : null;
+    rounds.set(r.n, { n: r.n, died: !!r.died, look });
+  }
+  const sl = input.final && input.final.scoreline;
+  return { language: 'en', game: 'valorant', rounds, counted: sl && Number.isFinite(sl.deaths) ? { died: sl.deaths } : {} };
+}
+const LOOK_SCOPE_REVIEW = /\b(?:this|that|the same|each|every) round\b|\bhere\b|\bthere\b|\bin R\d{1,2}\b|\bbefore\b|\bafter\b|\bonce the spike\b|\bdeaths?\s+(?:that\s+)?you\s+(?:took|lost|had|suffered|gave\s+up)\b|\bdeaths?\s+(?:that\s+)?(?:you\s+)?lost\b/i;
+const LOOK_ONE_DEATH = /\b(?:one|a\s+single|1)\s+death\b/i;
+const LOOK_OF_ALL = /\bof\s+(?:your|the|all|those)\b|\bin\s+(?:this|the|the whole)\s+match\b|\bacross\b|\bin total\b/i;
+function lookGates(out, input) {
+  if (promptName(input.context && input.context.language) !== 'English') return;
+  if (factGatesShared === undefined) factGatesShared = shared('./fact-gates');
+  const g = factGatesShared;
+  if (!g || typeof g.gateLookCount !== 'function') return;
+  const facts = lookFacts(input);
+  if (![...facts.rounds.values()].some((r) => r.look)) return;
+  // A count said of a part of the deaths, in words the gate's own subset
+  // readers do not know ("before the plant", "in R2", "deaths you took on
+  // attack", "this round"), judges nothing: it is no match-wide count.
+  const scoped = (s) => LOOK_SCOPE_REVIEW.test(s);
+  const wrong = (s) => { if (scoped(s)) return false; try { return !!g.gateLookCount(typeof g.straighten === 'function' ? g.straighten(s) : s, facts); } catch { return false; } };
+  // A round line is about its own death: "the coach looked at one death" there is that one.
+  const wrongInRound = (s) => !(LOOK_ONE_DEATH.test(s) && !LOOK_OF_ALL.test(s)) && wrong(s);
+  for (const n of Object.keys(out.rounds)) {
+    if (splitSentences(out.rounds[n]).some((s) => s.trim() && wrongInRound(s.trim()))) {
+      delete out.rounds[n];
+      out.dropped.push({ n: Number(n), said: 'looks', riot: null });
+    }
+  }
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const ss = splitSentences(out[field]).map((s) => s.trim()).filter(Boolean);
+    const kept = ss.filter((s) => !wrong(s));
+    if (kept.length === ss.length) continue;
+    out.dropped.push({ n: null, said: `${field} looks`, riot: null });
+    out[field] = kept.join(' ').trim() || null;
+  }
+}
+
 function claimGates(out, input) {
   const byN = new Map((input.rounds || []).map((r) => [r.n, r]));
   for (const n of Object.keys(out.rounds)) {
@@ -3078,6 +3139,6 @@ module.exports = { floorFails, floorNote, floorMerge, floorFill, floorLine, floo
   // Round 8: the trades and the distance, counted in code.
   ledgerOf, LEDGER_HEAD_REVIEW,
   // The blind audit of round 8, stream C.
-  utilityGates, teamOf, NO_CONTROLLER_LINE,
+  utilityGates, teamOf, NO_CONTROLLER_LINE, lookGates, lookFacts,
   // 8.8: the rounds the player sat out, and the team's two patterns past the cut.
   satOutRounds, satOutLine, satOutGate, SAT_OUT_SAID, SAT_OUT_RANGE, PAST_CUT };
