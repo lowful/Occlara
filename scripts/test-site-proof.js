@@ -84,8 +84,28 @@ ok(p.review.rounds.rows.some((r) => r.tags.length > 2), 'the rounds carry their 
 ok(p.home.last.grade.score === '71' && p.home.last.grade.letter === 'B' && p.home.recent.length === 4 && p.home.trend.grades.join() === '58,61,64,71',
   'Home: the last match a B of 71, four recent matches, the grade rising', JSON.stringify(p.home.trend));
 ok(p.home.recent.every((r) => r.result && r.grade && r.letter && !/\d{1,2}:\d{2}/.test(r.meta)), 'the recent rows carry no time');
+// Home as 8.9 draws it: the last match card's parts, no empty one and one separator each.
+const last = p.home.last;
+ok(last.result === 'Victory' && last.score === '13 : 11' && last.meta === 'Jett · Abyss · Standard',
+  "Home's last match: the result, the score and the agent, map and queue, one separator each", JSON.stringify([last.result, last.score, last.meta]));
+ok(last.grade.label === 'Match grade' && last.grade.sub === 'Out of 100, from what the record shows', "Home's grade: its label and its line", JSON.stringify(last.grade));
+ok(last.milestone.join() === 'Best in 4' && last.change === '+7', "Home's last match: its mark and its change since the match before", JSON.stringify([last.milestone, last.change]));
+ok(last.kd && last.kd.label === 'K/D' && last.kd.ratio === (31 / 21).toFixed(2) &&last.kd.split === '31 / 21', "Home's K/D of the last match", JSON.stringify(last.kd));
+ok(p.home.player.idShown === false && p.home.player.connect === 'Connect your Riot ID', 'Home shows no Riot ID, the Connect link in its place', JSON.stringify(p.home.player));
+ok(p.home.top && p.home.top.title === 'Died where nobody could trade' && /^In \d of your last \d recorded matches\.$/.test(p.home.top.detail)
+  && p.home.top.trend && p.home.top.fix.length > 20, "Home's top mistake, how often, its trend and its fix", JSON.stringify(p.home.top));
+ok(p.home.mistakes.length >= 3 && p.home.mistakes.every((m) => m.title && /^\d+x$/.test(m.count)), "Home's repeated mistakes, each counted");
+ok(p.home.trend.label === p.matches.chart.label && /^Grade over your last \d$/.test(p.home.trend.label), "the trend's label, as the Matches chart says it", p.home.trend.label);
 ok(p.matches.rows.length === 4 && p.matches.rows.every((r) => r.topMistake === 'Died where nobody could trade'), 'Matches: four rows, each with its top mistake');
+ok(p.matches.rows.every((r) => r.title === 'Jett on Abyss' && !/\d+\s*:\s*\d+/.test(r.meta)), 'Matches: each row the agent on the map, and no wins to losses');
+ok(p.matches.chart && p.matches.chart.now === '71' && p.matches.chart.average === 'Average 64', 'Matches: the chart of the grade', JSON.stringify(p.matches.chart));
 ok(p.patterns.lists.length >= 2 && p.patterns.lists[0].items[0].title === 'Died where nobody could trade', 'Patterns: the lists across the matches');
+ok(p.patterns.lists[0].items[0].hero && p.patterns.lists[0].items[0].fix && p.patterns.lists[0].items.every((i) => i.chips.length >= 2),
+  'Patterns: the top mistake a card with its fix, every entry with its chips');
+ok(p.patterns.grades.join() === '58,61,64,71' && p.patterns.chart && p.patterns.chart.bands.join() === 'S 90,A 80,B 70,C 60'
+  && p.patterns.chart.average === 'avg 64' && p.patterns.chart.key.includes('Latest match'), 'Patterns: the chart, its bands, its average and its key', JSON.stringify(p.patterns.chart));
+ok(p.patterns.categories.length === 4 && p.patterns.categories.every((c) => c.average && c.label && c.last && c.versus), 'Patterns: the four category averages');
+ok(v && v.label === 'Match review' && v.reason === v.stat.label, "the Verdict's label is the page's heading, its reason the standout's line", JSON.stringify([v.label, v.reason]));
 const mo = p.moments;
 ok(mo && mo.matches.length === 4 && mo.compilation.rows.length >= 3 && /^\d+ deaths, \d+ highlights, 1 clip across 4 matches$/.test(mo.counts),
   'Moments: four matches, the compilation and the counts line', mo && mo.counts);
@@ -95,7 +115,16 @@ ok(mo && mo.matches.some((m) => m.moments.some((x) => x.kind === 'Highlight')) &
 ok(mo && mo.matches.some((m) => m.moments.some((x) => x.title === 'Caught alone' && x.line)), "Moments: a death titled by the coach's look");
 ok(mo && mo.matches.every((m) => !('when' in m)), 'the Moments matches carry no date');
 ok(p.sealed && p.sealed.title === 'Recording' && p.sealed.facts.length === 1, 'the Recording screen, its title and the locked review');
+ok(p.sealed.shown.join() === 'Map,Agent,Score,Round' && /Nothing is coached while you play/.test(p.sealed.facts[0].text),
+  'the Recording screen shows the four facts and nothing that coaches', JSON.stringify(p.sealed));
 ok(p.shell.pages.join() === 'Home,Matches,Patterns,Moments,Stats,Ask Coach' && p.shell.start === 'Start', 'the shell: its pages and Start');
+ok(p.shell.foot.join() === 'Profile,Invite,Settings,Report a problem,Discord' && /^You have used your \d free games$/.test(p.shell.games),
+  "the account menu's rows and the games line, read off the menu's own view", JSON.stringify([p.shell.foot, p.shell.games]));
+const inside = (pt) => pt && pt.x > 0 && pt.x < 1 && pt.y > 0 && pt.y < 1;
+ok(p.places && p.shell.pages.every((n) => inside(p.places.tabs[n]) && p.places.tabs[n].y < 64 / 800),
+  'where each tab sits on the pictures: in the top bar', JSON.stringify(p.places && p.places.tabs));
+ok(p.places && p.places.moments.length === mo.compilation.rows.length && p.places.moments.every((r, i) => r.title === mo.compilation.rows[i].title
+  && inside(r.row) && inside(r.action) && r.action.x > r.row.x && r.row.y > 64 / 800), 'where each compilation row and its Play all sit on the picture of Moments');
 ok(p.invite && p.invite.progress && p.invite.how.length === 2, 'Invite: the progress line and how it works');
 
 const mark = JSON.parse(read(dirs[0], 'mark.json').toString('utf8'));

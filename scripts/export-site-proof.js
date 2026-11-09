@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * THE SITE'S PROOF, FROM THE REAL APP (8.7). The website's demos are made
+ * THE SITE'S PROOF, FROM THE REAL APP (8.7, the 8.9 pages since 8.9.2). The website's demos are made
  * from pictures of the app itself and the strings its pages print, never
  * invented: this boots the one window on the sample library
  * (scripts/fixtures/proof-reviews.js, the same four reviews check:mainwindow
@@ -188,51 +188,132 @@ const READ_HELPERS = `
   const shown = (el) => !!el && !el.hidden && getComputedStyle(el).display !== 'none';
   const txt = (sel, root) => T(Q(sel, root));
   const list = (sel, root) => QA(sel, root).map(T).filter(Boolean);
+  // The middle of an element, in the CSS pixels of its own document.
+  const centre = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
   const noDate = (s) => s.split(/\\s+\\u00b7\\s+/).slice(1).join(' \\u00b7 ');
 `;
+/*
+ * HOME, PROGRESS V3 (8.9): the Start strip; the last match as an art led
+ * card (the result chip and its score, the map chip, the agent and the
+ * queue, the grade with its change since the match before, the K/D, the
+ * grade line and its average, View match and Open review); the fix for the
+ * next match; the repeated mistakes as a counted list; the recent matches.
+ * The old keys stay, filled from what the new card says in their place: the
+ * meta is the agent, the map and the queue with one separator each, the
+ * grade's label and line are the two halves of its own title ("Match grade,
+ * out of 100, ..."), and the milestone is the newest row's marks ("Best in
+ * 4"). The categories are not on Home any more and stay empty. The player's
+ * Riot ID chip is never read: only whether it shows, and the Connect link's
+ * words when it is the link that shows.
+ */
 const READ_HOME = `(() => { ${READ_HELPERS}
   const last = Q('#last');
+  const res = Q('.chip.result', last);
+  const g = Q('.last-grade', last);
+  const gTitle = g ? String(g.title || '').trim() : '';
+  const cut = gTitle.indexOf(', ');
+  const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+  const agent = txt('.who-name', last);
+  const map = txt('.last-head .chip:not(.result):not(.quiet)', last);
+  // The who line is "Your last agent \\u00b7 Standard": the queue alone.
+  const queue = txt('.who-sub', last).split(/\\s*\\u00b7\\s*/).filter((s) => s && s !== 'Your last agent');
+  const kd = Q('.last-kd', last);
+  const newest = Q('#recent-list .r-row');
+  const topN = Q('#top-list .top-n');
   return {
     fix: txt('#focus-text'),
-    // Progress v3: the last match card. The result is its chip's word, the
-    // score the chip's number, the meta the agent, map and queue as the old
-    // line said them, and the milestone and categories it no longer draws.
+    fixLabel: txt('#focus .label'),
+    start: { word: txt('#start-strip .ss-word'), line: txt('#start-strip .ss-line'), button: txt('#h-start') },
+    player: { idShown: shown(Q('#h-player')), connect: shown(Q('#h-player-connect')) ? txt('#h-player-connect') : '' },
     last: {
-      result: T(Q('.chip.result', last) && Q('.chip.result', last).firstChild), score: txt('.chip .score', last),
-      meta: [txt('.who-name', last), txt('.last-head .chip:not(.result):not(.quiet)', last), txt('.who-sub', last).replace(/^Your last agent\s*\u00b7?\s*/, '')].filter(Boolean).join('  \u00b7  '),
-      milestone: [],
-      grade: { score: txt('.gv-score', last), letter: txt('.gv-letter', last), label: '', sub: '' },
+      label: txt('.last-head .label', last).split(',')[0],
+      result: res ? T(res.firstChild) : '', score: txt('.chip.result .score', last),
+      agent, map, queue: queue.join(' \\u00b7 '),
+      meta: [agent, map, ...queue].filter(Boolean).join(' \\u00b7 '),
+      milestone: newest ? list('.r-mark', newest) : [],
+      change: txt('.last-grade .delta', last),
+      changeLabel: Q('.last-grade .delta', last) ? String(Q('.last-grade .delta', last).title || '') : '',
+      grade: { score: txt('.gv-score', last), letter: txt('.gv-letter', last),
+        label: cut > 0 ? gTitle.slice(0, cut) : gTitle, sub: cut > 0 ? cap(gTitle.slice(cut + 2)) : '' },
+      kd: kd ? { label: txt('.kd-label', kd), ratio: txt('.kd-ratio', kd), split: txt('.kd-split', kd) } : null,
       categories: [],
+      average: txt('.line-avg', last),
       buttons: list('.last-foot button', last),
     },
-    top: shown(Q('#top')) ? { title: txt('.top-title'), trend: '', detail: '', fix: '' } : null,
-    trend: Q('#last .grade-line') ? { label: 'Grade over the last matches', average: txt('.line-avg'), grades: list('#last .gl-num') } : null,
+    // The top of the counted list; its trend and fix are the Patterns
+    // page's own for the same mistake, filled in once that page is read.
+    top: shown(Q('#top')) ? { title: txt('#top-list .top-title'), count: txt('#top-list .top-n'),
+      detail: topN && topN.title ? String(topN.title).trim() + '.' : '', trend: '', fix: '' } : null,
+    mistakesHeading: txt('#top .card-head .label'),
+    mistakes: QA('#top-list .top-row').map((r) => ({ title: txt('.top-title', r), count: txt('.top-n', r) })),
+    // The label is the Matches page's chart's ("Grade over your last 4"),
+    // filled in once that page is read; Home's line says it only to a reader.
+    trend: Q('#last .grade-line') ? { label: '', average: txt('#last .line-avg'), grades: list('#last .gl-num') } : null,
+    recentHeading: txt('#recent .card-head .label'),
     recent: QA('#recent-list .r-row').map((r) => ({ title: T(Q('.r-title', r).firstChild), result: txt('.r-res', r), marks: list('.r-mark', r),
       meta: noDate(txt('.r-meta', r)), grade: txt('.r-score', r), letter: txt('.gv-letter', r) })),
   };
 })()`;
+/*
+ * THE SHELL, PROGRESS V3 (8.9): the top bar's pill tabs and Start. The
+ * account menu (8.9.1) is a view of its own over the page, drawing the
+ * shell's rows: its rows and its games line are read from that view while it
+ * is open (READ_MENU), never the account row itself.
+ */
 const READ_SHELL = `(() => { ${READ_HELPERS}
-  return { pages: list('#nav .nav-item'), foot: list('.side .foot button'), start: txt('#toggle .t-label'), games: txt('#rail-games') };
+  return { pages: list('#nav .nav-item'), start: txt('#toggle .t-label'), brand: txt('.bar .brand .name'),
+    menu: (Q('#menu-btn') && Q('#menu-btn').getAttribute('aria-label')) || '' };
+})()`;
+const READ_MENU = `(() => { ${READ_HELPERS}
+  const m = Q('#menu');
+  if (!m || m.hidden) return null;
+  return { foot: QA('.foot > button', m).filter((b) => !b.hidden).map(T).filter(Boolean), games: txt('#rail-games', m) };
 })()`;
 const READ_SEALED = `(() => { ${READ_HELPERS}
   // Progress v3: in a Valorant match the screen is the live status, here
   // before the match is under way (the stand-in reader has no round), so its
   // facts are what it says while it waits and the locked review beside it.
+  // The four facts are the switches under "Shown while recording" (map,
+  // agent, score, round); the time it started is never read.
   return { title: txt('.live-word'), sub: txt('.live-wait p'),
-    facts: [{ label: 'Your review', text: txt('.live-review-sub') }] };
+    facts: [{ label: txt('.live-review-title'), text: txt('.live-review-sub') }],
+    mode: txt('#live-mode'), shownLabel: txt('.live-choose .live-note'), shown: list('#live-chips button'),
+    tape: { label: txt('.live-tape-head .live-label'), note: txt('.live-tape-head .live-note') },
+    quiet: { title: txt('#sealed-title'), sub: txt('#sealed-sub'),
+      facts: QA('#sealed-facts li').map((li) => ({ label: txt('b', li), text: txt('span', li) })) } };
 })()`;
+/*
+ * MATCHES, PROGRESS V3 (8.9): every row is "Jett on Abyss" with its result,
+ * its marks, the queue and whether Riot's record checked it, its top mistake,
+ * its grade and its change since the match before; beside the rows, the
+ * chart card of the grade over the last matches.
+ */
 const READ_MATCHES = `(() => { ${READ_HELPERS}
-  return { heading: txt('#every h3, #every h2, #every .block-title'),
+  return { heading: txt('#every .l-head h3'),
     rows: QA('#list .m-item').map((m) => ({ title: txt('.m-title', m), result: txt('.m-res', m), marks: list('.m-mark', m),
       meta: noDate(txt('.m-meta', m)), topMistake: txt('.m-top-mistake', m).replace(/^Top mistake:\\s*/, ''),
-      grade: txt('.m-score', m), letter: txt('.m-letter', m) })) };
+      grade: txt('.m-score', m), letter: txt('.m-letter', m), change: txt('.m-delta', m) })),
+    chart: shown(Q('#m-chart')) ? { label: txt('.m-chart-label'), now: txt('#m-chart-big'), since: txt('#m-chart-since'), average: txt('#m-chart-avg') } : null };
 })()`;
+/*
+ * PATTERNS, PROGRESS V3 (8.9): the chart of the grades with its letter bands
+ * ("B 70"), its average line and its key; the four category averages, each
+ * against the latest match; then the ranked lists, the top mistake a card
+ * whose fix is its action line, every entry with its chips (how many of the
+ * recorded matches, how many times, the trend word). The dates under the
+ * bars are left out: only "Latest" is read.
+ */
 const READ_PATTERNS = `(() => { ${READ_HELPERS}
-  const item = (li) => ({ title: txt('.gv-item-title', li), count: txt('.gv-count', li), detail: txt('.gv-item-detail', li),
-    fix: txt('.gv-item-fix', li).replace(/^Fix\\s*/, ''), rounds: list('.gv-rchip', li) });
-  return { sub: txt('#p-sub'), average: shown(Q('#p-avg')) ? txt('#p-avg-num') : '',
-    grades: list('#p-trend .p-bar span'),
-    categories: QA('#p-cats .p-cat').map((c) => ({ average: txt('b', c), label: txt('span', c), last: txt('small', c) })),
+  const item = (li) => ({ title: txt('.gv-item-title', li), hero: li.classList.contains('gv-hero'), count: txt('.gv-count', li),
+    chips: list('.p-chips .gv-chip', li), detail: txt('.gv-item-detail', li),
+    fix: (txt('.gv-item-fix', li) || txt('.gv-action', li)).replace(/^(?:\\u2192\\s*)?Fix\\s*/, ''), rounds: list('.gv-rchip', li) });
+  return { heading: txt('#patterns .p-head h3'), sub: txt('#p-sub'), average: shown(Q('#p-avg')) ? txt('#p-avg-num') : '',
+    averageLabel: shown(Q('#p-avg')) ? txt('#p-avg .p-avg-label') : '',
+    grades: QA('#p-trend .p-bar').map((b) => txt(':scope > span', b)),
+    chart: shown(Q('#p-trend')) ? { caption: txt('#p-trend .p-trend-cap'), bands: list('#p-trend .p-guide span'), average: txt('#p-trend .p-avgline span'),
+      latest: list('#p-trend .p-bar small').filter((s) => s === 'Latest'), key: list('#p-trend .p-key-item > span') } : null,
+    categoriesCaption: txt('#p-cats .p-cats-cap'),
+    categories: QA('#p-cats .p-cat').map((c) => ({ average: txt('b', c), label: txt('span', c), last: txt('small', c), versus: txt('em', c) })),
     lists: QA('#p-lists .gv-block').map((b) => ({ heading: txt('h3', b), items: QA('.gv-item', b).map(item) })) };
 })()`;
 const READ_MOMENTS = `(() => { ${READ_HELPERS}
@@ -253,13 +334,18 @@ const READ_REVIEW = `(() => { ${READ_HELPERS}
   const round = (r) => ({ n: txt('.v-rn', r), result: txt('.v-chip', r), side: txt('.v-side', r), tags: list('.v-tag', r),
     look: Q('.v-look-tag', r) ? { cause: txt('.v-cause', r), what: txt('.v-look-what', r), better: txt('.v-look-better', r).replace(/^Better\\s*/, '') } : null,
     read: txt('.v-why', r), folded: r.classList.contains('fold') && !r.classList.contains('open') });
+  // THE VERDICT SINCE 8.8 has no VERDICT word and no reason line: the page's
+  // own heading ("Match review") is its label, and the standout's line, which
+  // stands where the reason was, its reason.
   return {
-    verdict: { icon: shown(Q('#v-icon')) && !!Q('#v-icon .vd-icon-img'), letter: txt('#v-grade .vd-letter'), score: txt('#v-grade .vd-score'), out: txt('#v-grade .vd-out'),
+    verdict: { label: txt('header .h-brand h2'), reason: txt('#v-stat .vd-stat-label'),
+      icon: shown(Q('#v-icon')) && !!Q('#v-icon .vd-icon-img'), letter: txt('#v-grade .vd-letter'), score: txt('#v-grade .vd-score'), out: txt('#v-grade .vd-out'),
       provisional: !!Q('#v-grade .vd-prov'), stat: { value: txt('#v-stat .vd-stat-value'), label: txt('#v-stat .vd-stat-label') },
       result: txt('#v-result'), scoreline: txt('#v-score'), meta: txt('#v-meta'),
       stats: QA('#v-stats .v-stat').map((s) => ({ value: txt('.v-stat-value', s), label: txt('.v-stat-label', s), versus: txt('.v-stat-vs', s) })),
       verified: shown(Q('#v-verified')) ? txt('#v-verified') : '' },
-    fix: { heading: txt('#v-focus-wrap .label, #v-focus-wrap h3, #v-focus-wrap .v-focus-label'), text: txt('#v-focus'), was: shown(Q('#v-focus-was')) ? txt('#v-focus-was') : '' },
+    fix: { heading: txt('#v-focus-wrap > .v-focus-label'), text: txt('#v-focus'), was: shown(Q('#v-focus-was')) ? txt('#v-focus-was') : '',
+      wasHeading: shown(Q('#v-focus-was-wrap')) ? txt('#v-focus-was-wrap .v-focus-label') : '' },
     progress: QA('#v-prog .gv-prog').map((p) => ({ text: T(p), tone: [...p.classList].find((c) => ['good', 'bad', 'warn', 'even'].includes(c)) || 'even' })),
     read: { heading: txt('#v-summary-wrap h3, #v-summary-wrap .label'), lines: list('#v-summary li') },
     grade: { categories: QA('#grade-host .gv-cat').map((c) => ({ name: txt('.gv-cat-name', c), score: txt('.gv-cat-score', c), evidence: list('.gv-chip', c) })) },
@@ -330,6 +416,17 @@ setTimeout(async () => {
       commit: process.env.OCCLARA_PROOF_COMMIT || '', dirty: process.env.OCCLARA_PROOF_DIRTY === '1',
       version: require(path.join(REPO, 'package.json')).version, window: WIN };
 
+    /*
+     * WHERE THINGS SIT ON THE PICTURES, for the site's pointer: the middle of
+     * each tab in the top bar and of each compilation row and its Play all,
+     * as fractions of the window (the pictures are the window at twice the
+     * size), read off the laid out pages and never measured by hand.
+     */
+    const places = {};
+    const frac = (n) => Math.round(n * 10000) / 10000;
+    const inWindow = (p, onPage) => (p ? { x: frac((p.x + (onPage ? mainWindow.SIDEBAR_W : 0)) / WIN.width),
+      y: frac((p.y + (onPage ? mainWindow.TOP_H : 0)) / WIN.height) } : null);
+
     // 1. The shell and Home, the page the window opens on.
     const home = await until(() => surfaces.find('/home/'), 6000);
     if (!home) return finish(false, 'Home never loaded');
@@ -340,14 +437,34 @@ setTimeout(async () => {
     await until(() => hjs("document.querySelectorAll('.home .card.card-in').length >= 3 && !document.documentElement.classList.contains('page-armed')"), 4000);
     await until(() => sjs("(() => { const g = document.getElementById('rail-games'); return g && !g.hidden && g.textContent; })()"), 3000);
     out.shell = await sjs(READ_SHELL);
+    const tabs = await sjs(`(() => { ${READ_HELPERS} return QA('#nav .nav-item').map((b) => ({ page: T(b), at: centre(b) })); })()`);
+    places.tabs = Object.fromEntries(tabs.map((t) => [t.page, inWindow(t.at, false)]));
+    // The K/D counts up to its two places as the card arrives (Motion.countUp):
+    // read once it has landed, the same text a beat apart.
+    const ratioNow = "(() => { const n = document.querySelector('#last .kd-ratio'); return n ? n.textContent : ''; })()";
+    await until(async () => { const a = await hjs(ratioNow); await wait(300); return a === await hjs(ratioNow); }, 4000);
     out.home = await hjs(READ_HOME);
     lines.push(`home: fix "${out.home.fix.slice(0, 40)}" grade ${out.home.last.grade.score} recent ${out.home.recent.length}`);
     if (!out.home.fix || out.home.last.grade.score !== String(seeded.built.grade.score) || out.home.recent.length !== seeded.SEEDED) {
       return finish(false, `Home does not show the sample library: ${JSON.stringify(out.home.last)}`);
     }
-    await shot('home', 'Home: the fix for next match, the last match as one ruled line with its grade, the trend and the recent matches');
+    if (out.home.player.idShown) return finish(false, 'Home shows a Riot ID chip, and the sample library has none');
+    await shot('home', 'Home: the top bar, the Start strip, the last match with its grade, change, K/D and grade line, the fix for next match, the repeated mistakes and the recent matches');
 
-    // 2. Matches, from the sidebar.
+    // 1b. The account menu, opened from the avatar as a player opens it: its
+    // rows and the games line are read off the menu's own view, then it shuts.
+    await sjs("document.getElementById('menu-btn').click(); true");
+    const menuView = await until(() => { const m = mainWindow.menuState(); return m.open && m.view ? m.view : null; }, 4000);
+    if (!menuView) return finish(false, 'the account menu never opened');
+    const menu = await until(() => menuView.webContents.executeJavaScript(READ_MENU).then((x) => (x && x.foot.length && x.games ? x : null)), 4000);
+    if (!menu) return finish(false, 'the account menu drew no rows');
+    out.shell.foot = menu.foot;
+    out.shell.games = menu.games;
+    await sjs("document.getElementById('menu-btn').click(); true");
+    if (!await until(() => !mainWindow.menuState().open, 3000)) return finish(false, 'the account menu never shut');
+    lines.push(`menu: ${menu.foot.join(', ')} | ${menu.games}`);
+
+    // 2. Matches, from its tab in the top bar.
     await sjs("document.querySelector('#nav .nav-item[data-page=\"matches\"]').click(); true");
     if (!await until(settled('matches'), 6000)) return finish(false, 'Matches never came in');
     const mjs = pjs('matches');
@@ -356,14 +473,26 @@ setTimeout(async () => {
     out.matches = await mjs(READ_MATCHES);
     lines.push(`matches: ${out.matches.rows.length} rows`);
     if (out.matches.rows.length !== seeded.SEEDED) return finish(false, `Matches lists ${out.matches.rows.length} rows`);
-    await shot('matches', 'Matches: every saved match as a ruled row with its result, top mistake and grade');
+    await shot('matches', 'Matches: every saved match as a row with its result, top mistake, grade and change, beside the chart of the grade over the last matches');
 
     // 3. Patterns, for the JSON alone.
     const pajs = await show('patterns');
     await until(() => pajs("document.querySelectorAll('#p-lists .gv-item').length > 0"), 6000);
+    await until(() => pajs("document.querySelectorAll('#p-trend .p-bar').length > 0"), 4000);
+    await wait(800);   // the bars grown, the averages counted up
     out.patterns = await pajs(READ_PATTERNS);
     lines.push(`patterns: ${out.patterns.lists.map((l) => `${l.heading} ${l.items.length}`).join(', ')}`);
     if (!out.patterns.lists.length) return finish(false, 'Patterns lists nothing');
+    // Home's old keys, from the pages that say them now: the top mistake's
+    // trend word and fix as Patterns says them, the trend's label as the
+    // Matches chart says it.
+    const ptop = out.patterns.lists[0].items[0];
+    if (out.home.top && ptop && ptop.title === out.home.top.title) {
+      out.home.top.trend = (ptop.chips.find((c) => /^(?:steady|more often lately|less often lately)$/.test(c)) || '');
+      out.home.top.fix = ptop.fix;
+      out.home.top.chips = ptop.chips;
+    }
+    if (out.home.trend && out.matches.chart) out.home.trend.label = out.matches.chart.label;
 
     // 4. Moments.
     const mojs = await show('moments');
@@ -372,6 +501,14 @@ setTimeout(async () => {
     }
     await wait(800);   // the rows risen
     out.moments = await mojs(READ_MOMENTS);
+    // Where the compilation's rows and their Play all sit on the picture, as
+    // the page lays them out at the top of the page, moved by where the page
+    // sits in the window (under the top bar).
+    const crows = await mojs(`(() => {
+      ${READ_HELPERS}
+      return QA('#mo-comp-rows .mo-crow').map((r) => ({ title: txt('.mo-ctitle', r), row: centre(Q('.mo-ctitle', r)), action: centre(Q('button.btn', r) || Q('.mo-cnone', r)) }));
+    })()`);
+    places.moments = crows.map((c) => ({ title: c.title, row: inWindow(c.row, true), action: inWindow(c.action, true) }));
     lines.push(`moments: ${out.moments.counts} | ${out.moments.compilation.rows.length} compilation rows`);
     if (out.moments.matches.length !== seeded.SEEDED || !out.moments.compilation.rows.length) return finish(false, `Moments: ${JSON.stringify(out.moments.counts)}`);
     await shot('moments', 'Moments: the compilation by repeated mistake, the filter capsule, and every death and highlight under its match');
@@ -433,10 +570,11 @@ setTimeout(async () => {
     const anyShown = [...mainWindow.pageViews().values()].some((x) => x.getVisible());
     if (!sealedUp || anyShown) return finish(false, 'sealed, a page still shows or the Recording screen is down');
     out.sealed = await sjs(READ_SEALED);
-    await shot('sealed', 'The Recording screen: the crescent, one line and three facts, every page locked, as the window is mid match');
+    await shot('sealed', 'The Recording screen: the live status waiting for the match to begin, what it shows while recording, and the review locked beside it, every tab locked, as the window is mid match');
     mainWindow.setSealed(false);
     await wait(400);
 
+    out.places = places;
     if (errs.length) return finish(false, 'renderer errors: ' + errs.join(' | '));
     const text = JSON.stringify(out);
     if (DASHES.test(text)) return finish(false, 'a dash reached the proof');
