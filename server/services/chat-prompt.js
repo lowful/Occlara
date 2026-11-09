@@ -415,7 +415,8 @@ function valorantMatchOf(raw, language) {
   const ls = raw.lists && typeof raw.lists === 'object' ? raw.lists : {};
   m.lists = {};
   for (const k of ['mistakes', 'strengths', 'missed', 'facts']) m.lists[k] = list(ls[k], 8).map((e) => entryOf(e, language)).filter(Boolean);
-  m.patterns = list(raw.patterns, 10).map((p) => (p && gateText(p.text, { language }, 220) ? { key: clip(p.key, 20), text: gateText(p.text, { language }, 220) } : null)).filter(Boolean);
+  // No economy pattern (the team's `buys` line, a review saved before the economy went out of scope, Nov 2026).
+  m.patterns = list(raw.patterns, 10).map((p) => (p && p.key !== 'buys' && gateText(p.text, { language }, 220) ?{ key: clip(p.key, 20), text: gateText(p.text, { language }, 220) } : null)).filter(Boolean);
   m.cards = list(raw.cards, 40).map((c) => cardOf(c, m)).filter(Boolean).sort((a, b) => a.n - b.n);
   if (!m.rounds) m.rounds = m.cards.length || null;
   // ONE PLACE FOR A DEATH (8.7.10, match-review.js spotAgrees): a counted
@@ -1406,13 +1407,93 @@ function matchHasBuy(input) {
  */
 const ECON_QUESTION = /\b(?:should|shall|do|did|does|would|could|can|when|how much|what|whether|is|was|are|were|worth)\b[^?.!]{0,50}?\b(?:buy|buying|bought|save|saving|saved|force|forcing|forced|spend|spending|spent|full[ -]buy|half[ -]buy)\b(?!\s+(?:(?:my|the|our|your|his|her|their|a|an)\s+)?(?:ult|ults|ultimate|ultimates|smoke|smokes|flash|flashes|dash|ability|abilities|utility|util|tailwind|teammate|teammates|time|space|life|round for)\b)|\bloss bonus\b|\bcredits?\b|\becon(?:omy|omic)\b|\bwhat (?:to|should (?:i|we)) buy\b/i;
 const ECONOMY_OUT = "I don't coach the economy, so buys, saves, credits and the loss bonus are outside what I answer. Ask me how you played the round, where you stood, your utility or your fights, and I'll go through that with you.";
-/** 'economy' for a Valorant question about the economy, in English; null otherwise. */
+/*
+ * THE SCOPE IN EVERY COACHING LANGUAGE (Nov 2026, languages.js PROMPT_NAMES).
+ * A question in another language is read from a word list of its own: money
+ * words (the economy, credits, the loss bonus, buying, a force or full buy)
+ * always, a save verb only where the sentence names no ult or ability ("Ult
+ * sparen" is no save). A round named by its kind (an eco round) is no economy
+ * question, as in English. The English ECON_QUESTION reads every language too,
+ * since players type the game's own jargon ("force buy"). Simple lists, each
+ * asserted in test:chatgates with a positive and a negative.
+ */
+const wordsRe = (body) => new RegExp(`(?<!\\p{L})(?:${body})(?!\\p{L})`, 'iu');
+const ECON_WORDS = {
+  de: { money: wordsRe('wirtschaft|economy|credits?|loss-?bonus|verlustbonus|niederlagenbonus|kaufen|kaufe|kauft|force-?buy|full-?buy|half-?buy|forcen'),
+    save: wordsRe('sparen|spare|spart|saven|gesavt'), keep: wordsRe('ult|ulti|ults|ultimate|fähigkeit\\p{L}*|utility|util') },
+  es: { money: wordsRe('econom[ií]a|cr[eé]ditos?|bonus por derrota|comprar|compro|compramos|force ?buy|full ?buy|forzar'),
+    save: wordsRe('ahorrar|ahorro|ahorramos|savear|salvar el arma'), keep: wordsRe('ulti|ultimate|definitiva|habilidad\\p{L}*|utilidad') },
+  'pt-BR': { money: wordsRe('economia|cr[eé]ditos?|b[oô]nus de derrota|comprar|compro|compramos|force ?buy|full ?buy|for[cç]ar'),
+    save: wordsRe('economizar|economizo|savar|dar save|salvar a arma'), keep: wordsRe('ult|ulti|ultimate|habilidade\\p{L}*') },
+  fr: { money: wordsRe('[ée]conomie|cr[ée]dits?|bonus de d[ée]faite|acheter|ach[eè]te|force ?buy|full ?buy|forcer'),
+    save: wordsRe('[ée]conomiser|save|saver|garder (?:mon|son|l\')arme'), keep: wordsRe('ult|ulti|ultime|capacit[ée]\\p{L}*|utilitaire\\p{L}*') },
+  tr: { money: wordsRe('ekonomi\\p{L}*|kredi\\p{L}*|kay[ıi]p bonus\\p{L}*|sat[ıi]n al\\p{L}*|force ?buy|full ?buy'),
+    save: wordsRe('biriktir\\p{L}*|save\\p{L}*'), keep: wordsRe('ult\\p{L}*|ulti\\p{L}*|yetenek\\p{L}*') },
+  ru: { money: wordsRe('экономик\\p{L}*|кредит\\p{L}*|бонус за поражени\\p{L}*|закуп\\p{L}*|купить|покупать|форс-?бай|фулл-?бай|force ?buy|full ?buy'),
+    save: wordsRe('сейв\\p{L}*|сэйв\\p{L}*|копить|экономить|сэкономить'), keep: wordsRe('ульт\\p{L}*|ультимейт\\p{L}*|способност\\p{L}*|абилк\\p{L}*') },
+  pl: { money: wordsRe('ekonomi\\p{L}*|kredyt\\p{L}*|bonus za przegran\\p{L}*|kupi[cć]|kupowa[cć]|kupuj\\p{L}*|force ?buy|full ?buy'),
+    save: wordsRe('oszczędz\\p{L}*|zaoszczędz\\p{L}*|sejw\\p{L}*'), keep: wordsRe('ult\\p{L}*|umiejętno\\p{L}*') },
+  // No spaces between words: the stems are read anywhere in the sentence.
+  ja: { money: /経済|エコノミー|クレジット|ロスボーナス|敗北ボーナス|購入|買う|買い|買っ|買わ|フルバイ|フォースバイ|ハーフバイ/u,
+    save: /節約|セーブ|貯め|温存/u, keep: /ウルト|アルティメット|スキル|アビリティ/u },
+  ko: { money: /경제|크레딧|패배 보너스|구매|사야|살까|풀바이|풀 바이|포스바이|포스 바이|하프바이/u,
+    save: /세이브|아껴|아끼|저축|절약/u, keep: /궁극기|궁(?!금)|스킬|유틸/u },
+};
+/** The scope line, in the player's language (English for a code it has none for). */
+const ECONOMY_OUT_LANG = {
+  de: 'Die Wirtschaft coache ich nicht, also liegen Käufe, Saves, Credits und der Loss-Bonus außerhalb dessen, was ich beantworte. Frag mich, wie du die Runde gespielt hast, wo du standest, nach deinen Fähigkeiten oder deinen Duellen, dann gehe ich das mit dir durch.',
+  es: 'No entreno la economía, así que las compras, los ahorros, los créditos y el bonus por derrota quedan fuera de lo que respondo. Pregúntame cómo jugaste la ronda, dónde estabas, tus habilidades o tus duelos, y lo repasamos juntos.',
+  'pt-BR': 'Eu não treino a economia, então compras, saves, créditos e o bônus de derrota ficam fora do que eu respondo. Me pergunte como você jogou o round, onde você estava, suas habilidades ou seus duelos, e eu vejo isso com você.',
+  fr: 'Je ne coache pas l\'économie, donc les achats, les saves, les crédits et le bonus de défaite sortent de ce à quoi je réponds. Demande-moi comment tu as joué la manche, où tu te tenais, tes compétences ou tes duels, et on le revoit ensemble.',
+  tr: 'Ekonomi konusunda koçluk yapmıyorum, bu yüzden alımlar, save\'ler, krediler ve kayıp bonusu cevapladığım konuların dışında. Bana raundu nasıl oynadığını, nerede durduğunu, yeteneklerini ya da düellolarını sor, birlikte üzerinden geçelim.',
+  ru: 'Я не тренирую экономику, поэтому закупы, сейвы, кредиты и бонус за поражение вне того, на что я отвечаю. Спроси меня, как ты сыграл раунд, где ты стоял, о твоих способностях или дуэлях, и мы разберём это вместе.',
+  pl: 'Nie trenuję ekonomii, więc zakupy, oszczędzanie, kredyty i bonus za przegraną są poza tym, na co odpowiadam. Zapytaj mnie, jak zagrałeś rundę, gdzie stałeś, o swoje umiejętności albo pojedynki, a przejdziemy przez to razem.',
+  ja: 'エコノミーについてはコーチしていないので、購入、セーブ、クレジット、敗北ボーナスはお答えする範囲の外です。ラウンドの立ち回り、立ち位置、スキルの使い方や撃ち合いについて聞いてくれれば、一緒に振り返ります。',
+  ko: '경제는 코칭하지 않아서 구매, 세이브, 크레딧, 패배 보너스는 제가 답하는 범위 밖이에요. 라운드를 어떻게 플레이했는지, 어디에 서 있었는지, 스킬이나 교전에 대해 물어보면 함께 살펴볼게요.',
+};
+function economyOut(language) {
+  return ECONOMY_OUT_LANG[language] || ECONOMY_OUT;
+}
+/** Whether one question sentence in a language other than English asks about the economy. */
+function econAsked(words, s) {
+  return words.money.test(s) || (words.save.test(s) && !words.keep.test(s));
+}
+
+/** 'economy' for a Valorant question about the economy, in any coaching language; null otherwise. */
 function outOfScope(input, messages) {
-  if (!input || typeof input !== 'object' || input.game === 'lol' || (input.language && input.language !== 'en')) return null;
+  if (!input || typeof input !== 'object' || input.game === 'lol') return null;
+  const language = input.language || 'en';
   const last = [...(Array.isArray(messages) ? messages : [])].reverse().find((x) => x && x.role !== 'assistant');
   const text = gates.straighten(String((last && last.content) || ''));
-  const asks = text.split(/(?<=[.!?])\s+/).filter((s) => /\?\s*$/.test(s));
-  return (asks.length ? asks : [text]).some((s) => ECON_QUESTION.test(s)) ? 'economy' : null;
+  if (language === 'en') {
+    const asks = text.split(/(?<=[.!?])\s+/).filter((s) => /\?\s*$/.test(s));
+    return (asks.length ? asks : [text]).some((s) => ECON_QUESTION.test(s)) ? 'economy' : null;
+  }
+  const words = ECON_WORDS[language];
+  const parts = text.split(/(?<=[.!?。？！])\s*/).filter((s) => s.trim());
+  const asks = parts.filter((s) => /[?？]\s*$/.test(s));
+  return (asks.length ? asks : [text]).some((s) => ECON_QUESTION.test(s) || (words && econAsked(words, s))) ? 'economy' : null;
+}
+
+/*
+ * THE ECONOMY GATE FOR A REPLY THAT IS NOT ASK COACH V2'S (Nov 2026): frame
+ * chat and Ask Coach v1 (coach.js) run fact-gates.js gateEconomyScope over
+ * each sentence and drop what it drops. English Valorant only, as the gate.
+ * { text, dropped }.
+ */
+function economyDrop(text, opts) {
+  const o = opts || {};
+  const facts = { language: o.language || 'en', game: o.game === 'lol' ? 'lol' : 'valorant' };
+  const ss = String(text || '').match(/(?:[^.!?]|(?<=\d)\.(?=\d))+(?:[.!?]+["')\]]*|$)/g) || [];
+  let dropped = 0;
+  const kept = ss.filter((s) => {
+    if (!s.trim()) return false;
+    let d = null;
+    try { d = gates.gateEconomyScope(gates.straighten(s.trim()), facts); } catch { d = null; }
+    if (d) dropped += 1;
+    return !d;
+  });
+  return { text: dropped ? kept.map((s) => s.trim()).join(' ').trim() : String(text || ''), dropped };
 }
 
 /** Whether a Valorant question comes with no match at all (a general question, or the coach bench's cold moments). */
@@ -1626,6 +1707,8 @@ function lookLines(c) {
  */
 const RECORD_USE = {
   held: "Where a round line gives the team economy or the abilities used, Riot's record holds them for that round and no other, so say them only there and as the line gives them.",
+  // Since the economy went out of scope (Nov 2026), the line recordUseLine says: the casts only.
+  heldCasts: "Where a round line gives the abilities used, Riot's record holds them for that round and no other, so say them only there and as the line gives them.",
   mate: 'Where a line says where the player died and whether a teammate was close, that is the evidence for a trade or a spacing point: with no teammate close the lesson is where they stood, and with one close and nobody trading it is when they took the fight.',
   buy: 'The team economy changes what a death teaches: a death on an eco is no mistake the way one on a full buy is, so teach the full buy deaths first, and a pistol round is a full fight for the round and the economy after it. Never say a death cost the team little or nothing.',
   casts: "A point about the player's abilities needs a round that lists the abilities used, and a round saying no ability used is the evidence for one.",
@@ -1662,9 +1745,10 @@ const OLD_UNTRADED_TITLE = 'Died where nobody could trade';
 function recordUseLine(m) {
   const rs = ((m && m.cards) || []).map((c) => c && c.riot).filter(Boolean);
   const has = (k) => rs.some((r) => r[k]);
+  // No economy line since the economy went out of scope (Nov 2026): the team's
+  // buy stays a round's label, and nothing teaches reading a death by it.
   const parts = [
-    has('buy') || has('casts') ? RECORD_USE.held : null,
-    has('buy') ? RECORD_USE.buy : null,
+    has('casts') ? RECORD_USE.heldCasts : null,
     has('casts') ? RECORD_USE.casts : null,
     has('afk') ? RECORD_USE.afk : null,
   ].filter(Boolean);
@@ -3634,6 +3718,8 @@ module.exports = {
   noMatch, NO_RECORD_HEDGE, NO_RECORD_SAVE,
   // The coach bench 9 (Nov 2026), each asserted in test:chatgates.
   outOfScope, ECON_QUESTION, ECONOMY_OUT, ECONOMY_RULE, MAP_HABIT_RULE, noteInScope, pistolKnown,
+  // The economy out of scope everywhere the coach speaks (Nov 2026), asserted in test:chatgates.
+  ECON_WORDS, ECONOMY_OUT_LANG, economyOut, economyDrop,
   RANK_BANDS,
   // The blind audit of round 6 (Nov 2026), stream B: the enemy asked about, the aim facts and notes.
   enemyAskedOf, aimFactsOf, aimNote, isAimBasic, AIM_BASIC, AIM_RANGE, SHOT_MOVING, enemyCases,

@@ -1227,10 +1227,8 @@ consistently, and any topic under 88% is fixed at its cause or dropped. What cha
   `BUY_TIME_BEFORE`, `AFFORD_TO`, `ROUND_KIND_LABEL`), the record's own team buy of the round named, and
   a sentence saying the record does not hold a buy (`ECON_REFUSAL`, what follows its "but" still read)
   stay. Replayed over the bench's 657 answer sentences: 33 dropped, every one money advice or a money
-  claim, 25 of them in the questions now out of scope. **Not done**: the review (`match-review.js`)
-  still writes about the team's economy and its notes still serve economy notes; frame chat, v1 and
-  answers outside English have no scope check. `bench:chat`'s `abyss-econ-r4` and `pearl-econ-r4` are
-  now answered by the scope line, so their keys' must lists fail by design.
+  claim, 25 of them in the questions now out of scope. The review, frame
+  chat, v1 and answers outside English followed (below, "The economy out of scope everywhere").
 - **The one shot beside a second gun** (`game-claims.js checkOneShot`, `GUN_BEFORE_CLAIM`): with two
   guns named the claim's own is the one right before it ("a Spectre ... the Marshal's one-shot body
   hit at any range" had judged nothing). The loss pay claim needed no gate of its own: it is economy.
@@ -1268,3 +1266,38 @@ Estimated offline, not measured: with the right note served and the false claims
 weaker or wrong map control and positioning answers have their cause closed, which would put positioning
 at 16 of 17 and map control at 9 of 9 if the model follows; a live rerun of the bench measures it.
 Tests: `test:gameclaims` section 9 and `test:chatgates`, "the coach bench 9".
+
+### The economy out of scope everywhere the coach speaks (Nov 2026)
+
+The bench 9 rule (above) reached every other place the coach talks:
+
+- **Every coaching language** (`chat-prompt.js outOfScope`, `ECON_WORDS`): a question in a language
+  of `languages.js` other than English is read from a word list of its own, money words always (the
+  economy, credits, the loss bonus, a buy verb, force or full buy) and a save verb only where the
+  sentence names no ult or ability ("Soll ich meine Ult sparen?" is in scope); its question sentences
+  only (a "?" or a full width one), else the whole message, as in English. A round named by its kind
+  ("eine Eco-Runde") is no economy question. The English `ECON_QUESTION` reads every language too,
+  since players type the jargon ("Should I force buy here?" with Portuguese set). Japanese and Korean
+  stems are read anywhere (no spaces); Korean's ult word is `궁(?!금)`, since 궁금 is "curious". The
+  scope line is said in the player's language (`economyOut`, `ECONOMY_OUT_LANG`, English for a code
+  it has none for), in v2 too. Each language has its positives and negatives in `test:chatgates`.
+  The economy gate over a reply stays English, as every v2 gate.
+- **Ask Coach v1 and frame chat** (`coach.js economyScopeLine`, `economyGateReply`): an economy
+  question is answered `{ reply: <scope line>, outOfScope: 'economy' }` after the lock and the spam
+  guard and before the daily cap, no model call, counted as `outOfScope` in `/api/admin/chat`; a
+  reply loses each economy sentence (`chat-prompt.js economyDrop`, gate `economy-scope` sentence by
+  sentence), English Valorant only, v1's counted as `dropped.economy`. v1's prompt no longer offers
+  "what to buy" or "keep economy discipline", has the economy rule, and its fallback line asks about
+  utility, not the economy.
+- **v2's round record line** (`chat-prompt.js recordUseLine`): `RECORD_USE.buy` ("the team economy
+  changes what a death teaches ... teach the full buy deaths first"), left by bench 9, is no longer
+  said, and the held line names the casts only (`RECORD_USE.heldCasts`); a card's buy stays its label.
+- **The review**: `docs/claude/match-to-review.md`, "The economy is out of scope in the review".
+- **The bench keys**: `abyss-econ-r4` (`scripts/fixtures/chat-questions.json`) and `pearl-econ-r4`
+  (the player's `userData/bench/chat/questions.json`) expect the scope line ("coach the economy")
+  in place of "the record does not hold what was bought", so `bench:chat` scores the decline as a pass.
+
+Tests: `test:chatgates` ("the economy out of scope everywhere the coach speaks"; the old "Valorant in
+English only" check now expects an English economy question with German set to be out of scope, and
+the two round record checks expect no economy line),
+`test:reviewroute` (v1 and frame chat through the route).

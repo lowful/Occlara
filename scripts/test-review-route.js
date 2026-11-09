@@ -377,6 +377,45 @@ const reviewBody = { rounds: ROUNDS, context: { agent: 'Jett', map: 'Abyss' } };
       'a text call that timed out is cancelled upstream a second later, rather than generating on');
   }
 
+  // ── The economy out of scope in frame chat and Ask Coach v1 (Nov 2026) ───
+  // As Ask Coach v2 has it since the coach bench 9: an economy question is
+  // answered with the scope line and no model call, in the player's language,
+  // and an economy sentence of a reply goes (chat-prompt.js economyDrop).
+  {
+    const cp = require(path.join(__dirname, '..', 'server', 'services', 'chat-prompt.js'));
+    // The spam guard's gap and burst are not what this asks: a guard without them, the real one put back after.
+    coach.__test.setChatGuard(require(path.join(__dirname, '..', 'server', 'services', 'chat-guard.js')).createChatGuard({ limits: { GAP_MS: 0, BURST_MAX: 1000 } }));
+    ai.sent.length = 0;
+    ai.next = reply('This should never be asked.');
+    let r = await call(coach, 'POST', '/chat', { headers: H, body: { messages: [{ role: 'user', content: 'Should I have saved my gun in round 4?' }], context: {} } });
+    ok(r.status === 200 && r.body.reply === cp.ECONOMY_OUT && r.body.outOfScope === 'economy' && ai.sent.length === 0,
+      `v1: an economy question is answered with the scope line, no model asked (${ai.sent.length} ${JSON.stringify(r.body).slice(0, 80)})`);
+    r = await call(coach, 'POST', '/chat', { headers: H, body: { messages: [{ role: 'user', content: 'Soll ich in Runde 3 kaufen oder sparen?' }], context: { language: 'de' } } });
+    ok(r.status === 200 && r.body.reply === cp.economyOut('de') && ai.sent.length === 0, 'v1: in German, the German scope line');
+    r = await call(coach, 'POST', '/chat', { headers: H, body: { messages: [{ role: 'user', content: 'Should I buy boots first on Ahri?' }], context: { game: 'lol' } } });
+    ok(r.status === 200 && r.body.reply !== cp.ECONOMY_OUT && ai.sent.length === 1, 'v1: League is not judged by it');
+    // A v1 reply's economy sentence goes, and its prompt no longer teaches buying.
+    ai.sent.length = 0;
+    let prompt = '';
+    ai.next = (b) => { prompt = JSON.stringify(b); return { status: 200, content: 'You died alone at B Main, so stay near a teammate before you peek. With the loss bonus this low you should have saved your rifle. Hold from cover next time and wait for the trade.' }; };
+    r = await call(coach, 'POST', '/chat', { headers: H, body: { messages: [{ role: 'user', content: 'Why did I keep dying at B Main?' }], context: {} } });
+    ok(r.status === 200 && !/loss bonus/.test(r.body.reply) && /stay near a teammate/.test(r.body.reply) && /Hold from cover/.test(r.body.reply),
+      `v1: the economy sentence of a reply goes, the rest stays (${r.body.reply})`);
+    ok(prompt && !/what to buy|economy discipline/.test(prompt) && /economy is not something you coach/i.test(prompt), 'v1: the prompt no longer teaches buying, and says the economy is out');
+    // Frame chat.
+    const frame = 'f'.repeat(200);
+    ai.sent.length = 0;
+    ai.next = reply('This should never be asked.');
+    r = await call(coach, 'POST', '/frame-chat', { headers: H, body: { question: 'Should I have bought a rifle this round?', images: [frame] } });
+    ok(r.status === 200 && r.body.reply === cp.ECONOMY_OUT && r.body.outOfScope === 'economy' && ai.sent.length === 0,
+      `frame chat: an economy question is answered with the scope line, no model asked (${ai.sent.length} ${JSON.stringify(r.body).slice(0, 80)})`);
+    ai.next = reply('You peeked the corner alone with no flash. The team could not afford a full loadout, so you should have saved. Wait for your teammate next time.');
+    r = await call(coach, 'POST', '/frame-chat', { headers: H, body: { question: 'Why did I die here?', images: ['g'.repeat(200)] } });
+    ok(r.status === 200 && !/afford|saved/.test(r.body.reply) && /peeked the corner/.test(r.body.reply) && /Wait for your teammate/.test(r.body.reply),
+      `frame chat: the economy sentence of a reply goes, the rest stays (${r.body.reply})`);
+    coach.__test.setChatGuard(null);
+  }
+
   // ── an empty wallet is 402, not a failure ────────────────────────────────
   ai.next = () => ({ status: 402, text: 'Insufficient credits' });
   {

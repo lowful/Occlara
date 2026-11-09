@@ -2265,17 +2265,26 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
       final: { team: 7, enemy: 13, verified: true, scoreline: { kills: 10, deaths: 16, assists: 2, acs: 180, headshotPct: 9 } } },
   ];
   if (before) {
+    // Since the economy went out of scope (Nov 2026) every prompt carries
+    // ECONOMY_REVIEW_RULE, taken out here, and a prompt or a study list that
+    // then served a note or case teaching the economy differs by design: it
+    // must now serve none (econIn).
+    const econIn = (text) => String(text).split('\n').some((l) => l.startsWith('- ') && matchReview.teachesEconomy(l.slice(2)));
+    const econStudy = (list) => list.some((n) => matchReview.teachesEconomy(n.text));
     let same = true;
     for (const b of oldBodies) {
       for (const marks of [{}, { byCause: true }, { byCause: true, byEnemy: true }]) {
         const now = { ...matchReview.normalise(b), ...marks };
         const then = { ...before.normalise(b), ...marks };
-        if (seeded(() => matchReview.buildPrompt(now)) !== seeded(() => before.buildPrompt(then))) same = false;
-        if (JSON.stringify(matchReview.study(now, 3, { lines: ['Hold the spike from cover near a teammate after the plant.'] }))
-          !== JSON.stringify(before.study(then, 3))) same = false;
+        const pNow = seeded(() => matchReview.buildPrompt(now));
+        const pThen = seeded(() => before.buildPrompt(then));
+        if (econIn(pThen) ? econIn(pNow) : pNow.replace(matchReview.ECONOMY_REVIEW_RULE, '') !== pThen) same = false;
+        const sNow = matchReview.study(now, 3, { lines: ['Hold the spike from cover near a teammate after the plant.'] });
+        const sThen = before.study(then, 3);
+        if (econStudy(sThen) ? econStudy(sNow) : JSON.stringify(sNow) !== JSON.stringify(sThen)) same = false;
       }
     }
-    ok(same, 'a client before round 3 (no swing) is reviewed as at e77ca68: the same prompt and the same study list, byte for byte');
+    ok(same, 'a client before round 3 (no swing) is reviewed as at e77ca68: the same prompt (but the economy rule) and the same study list, byte for byte, where neither taught the economy');
   } else console.log('skip  e77ca68 is not readable here, the byte for byte check against it did not run');
 
   // 2. The swing, from Riot's record of the audit's own Split match.
@@ -2545,20 +2554,28 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     before = m.exports;
   } catch { before = null; }
   if (before) {
+    // The economy rule taken out, and a prompt or study list that then taught
+    // the economy now teaching none (Nov 2026, as for e77ca68 above).
+    const econIn = (text) => String(text).split('\n').some((l) => l.startsWith('- ') && matchReview.teachesEconomy(l.slice(2)));
+    const econStudy = (list) => list.some((n) => matchReview.teachesEconomy(n.text));
     let same = true;
     let sameParse = true;
+    let byDesign = 0;
     for (const x of after) {
       for (const b of [without(bodyOf(x), 'counts'), without(without(bodyOf(x), 'counts'), 'swing')]) {
         for (const marks of [{}, { byCause: true, byEnemy: true }]) {
           const now = { ...matchReview.normalise(b), ...marks };
           const then = { ...before.normalise(b), ...marks };
-          if (seeded(() => matchReview.buildPrompt(now)) !== seeded(() => before.buildPrompt(then))) same = false;
-          if (JSON.stringify(matchReview.study(now, 3, { lines: ['Hold the spike from cover.'] }))
-            !== JSON.stringify(before.study(then, 3, { lines: ['Hold the spike from cover.'] }))) same = false;
+          const pNow = seeded(() => matchReview.buildPrompt(now));
+          const pThen = seeded(() => before.buildPrompt(then));
+          if (econIn(pThen)) { byDesign += 1; if (econIn(pNow)) same = false; } else if (pNow.replace(matchReview.ECONOMY_REVIEW_RULE, '') !== pThen) same = false;
+          const sNow = matchReview.study(now, 3, { lines: ['Hold the spike from cover.'] });
+          const sThen = before.study(then, 3, { lines: ['Hold the spike from cover.'] });
+          if (econStudy(sThen) ? econStudy(sNow) : JSON.stringify(sNow) !== JSON.stringify(sThen)) same = false;
         }
       }
     }
-    ok(same, 'a client before round 4 (no counts) is reviewed as at 4a5aa0e: the same prompt and the same study list, byte for byte, 48 bodies');
+    ok(same, `a client before round 4 (no counts) is reviewed as at 4a5aa0e: the same prompt (but the economy rule) and the same study list, byte for byte, 48 bodies, ${byDesign} of them taught the economy then and none now`);
     // Its parse too, but where a round 4 gate for every client finds a leak:
     // of the 48 real replies, the after set's product clause alone.
     const moved = [];
@@ -2916,8 +2933,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const fullNotes = knowledge.all().filter((n) => n.situations && n.situations.includes('fullbuy')).map((n) => n.text);
   const lines = (text) => knowledgeOf(text).split('\n').filter((l) => l.startsWith('- ')).map((l) => l.slice(2));
   const at = lines(p).findIndex((t) => fullNotes.includes(t));
-  ok(at >= 0 && at < matchReview.NOTES_FLOOR && !lines(p0).some((t) => fullNotes.includes(t)) && econNotes.length > 0,
-    `full loadouts lost bring a full loadout note into the coaching knowledge, inside the floor the cases never cut (at ${at})`);
+  // Changed when the economy went out of scope (Nov 2026): full loadouts lost
+  // brought a full loadout note inside the floor; now no economy note at all.
+  ok(at < 0 && !lines(p).some((t) => econNotes.includes(t)) && econNotes.length > 0,
+    `full loadouts lost bring no full loadout note into the coaching knowledge since the economy went out of scope (at ${at})`);
   const cs = matchReview.caseSituation(input, []);
   ok(cs.economies.has('eco') && cs.causes.has('isolated') && !matchReview.caseSituation(plain, []).economies.has('eco'), 'and the eco and the lone deaths into the cases\' situation');
   const silver = matchReview.normalise(body(rounds, { context: { rankBand: 'silver_gold' } }));
@@ -2928,8 +2947,9 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     'an attacking eco lost alone makes the attacking eco case eligible, which it is not without the record');
 
   // The prompt's lines, only for what the rounds carry.
-  ok(p.includes(matchReview.RECORD_USE.mate) && p.includes(matchReview.RECORD_USE.buy) && !p.includes(matchReview.RECORD_USE.casts) && !p.includes(matchReview.RECORD_USE.afk),
-    'the prompt says how to use the distance and the economy, and nothing of casts or AFK it does not have');
+  // The economy line went when the economy went out of scope (Nov 2026): the rule says not to coach it.
+  ok(p.includes(matchReview.RECORD_USE.mate) && !('buy' in matchReview.RECORD_USE) && p.includes(matchReview.ECONOMY_REVIEW_RULE) && !p.includes(matchReview.RECORD_USE.casts) && !p.includes(matchReview.RECORD_USE.afk),
+    'the prompt says how to use the distance, not to coach the economy, and nothing of casts or AFK it does not have');
   ok(!/spacing point|economy changes what a death teaches/.test(p0) && p0.includes(matchReview.NO_ECONOMY), 'a match without the record is prompted as before');
   const casts = matchReview.normalise(body([R(2, { casts: [{ name: 'Tailwind', n: 0 }, { name: 'Updraft', n: 1 }] }), R(3, { afk: true })]));
   const pc = matchReview.buildPrompt(casts);
@@ -3093,7 +3113,8 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     && matchReview.costLineOf(fb('silver_gold')) === '',
   'CAUGHT: "the last round of the match" of round 5 in 6: the review\'s cost line says where the round sat and to state only its reasons, from Platinum only');
   ok(!matchReview.BUY_BLAME.test(costLine) && !costLine.includes(';'), 'the cost line says no "buy" and no semicolon');
-  ok(!/costs little/.test(matchReview.RECORD_USE.buy) && /Never say a death cost the team little or nothing\./.test(matchReview.RECORD_USE.buy), 'the economy use line no longer says a pistol or eco death costs little');
+  // The economy use line is gone since the economy went out of scope (Nov 2026), and nothing says a death cost little.
+  ok(!('buy' in matchReview.RECORD_USE) && !/costs? little/.test(Object.values(matchReview.RECORD_USE).join(' ') + matchReview.ECONOMY_REVIEW_RULE), 'no economy use line, and nothing says a pistol or eco death costs little');
 }
 
 console.log('\nthe plant\'s time from Riot\'s record (the blind audit of round 7, Split round 10 at Plat)');
@@ -3431,6 +3452,106 @@ console.log('\nthe plant\'s time from Riot\'s record (the blind audit of round 7
     'Your early deaths came in rounds 1, 3 and 4, among others.']) {
     ok(matchReview.parse(`SUMMARY: You lost 1 to 5. ${s}`, pin).summary === `You lost 1 to 5. ${s}`, `KEPT: "${s}"`);
   }
+}
+
+// ── The economy is out of scope in the review (Nov 2026, the owner's rule) ──
+// After the coach bench 9 the coach does not coach the economy: the review
+// gives no economy advice and makes no economy claim (gate economy, the chat's
+// economy-scope gate over the review), serves no note or case that teaches
+// it, has no buy discipline pattern, and its prompt says so. A round's kind
+// as the record names it ("an eco", "a full loadout") stays as a label.
+{
+  console.log('\nthe economy out of scope in the review:');
+  const knowledge = require('../server/services/knowledge');
+  const casesMod = require('../server/services/cases');
+  const gameClaims = require('../server/services/game-claims');
+  const seededRun = (fn) => {
+    const random = Math.random;
+    let x = 11;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const R = (n, extra) => ({ n, side: 'defending', result: 'lost', died: true, verified: true, sec: 25, timing: 'early', killer: 'Viper', weapon: 'Vandal',
+    kills: 0, traded: false, alive: { mates: 4, enemies: 5 }, deathSpot: 'B Main', ...(extra || {}) });
+  const rounds = [
+    R(1, { result: 'won', died: false, sec: null, timing: null, killer: null, traded: null, alive: null, deathSpot: null, buy: 'pistol' }),
+    R(2, { buy: 'eco', mate: 'far', place: 'B Main' }),
+    R(3, { buy: 'eco', mate: 'far', place: 'B Main' }),
+    R(4, { buy: 'full', mate: 'far', place: 'B Main', timing: 'mid', sec: 50 }),
+    R(5, { buy: 'full', mate: 'close', place: 'A Main', deathSpot: 'A Main', timing: 'mid', sec: 50 }),
+    R(6, { buy: 'force', mate: 'far', place: 'B Main' }),
+    R(7, { buy: 'force', mate: 'far', place: 'B Main' }),
+  ];
+  const body = (rs, extra) => ({ variant: 'C', context: { agent: 'Sage', map: 'Sunset', language: 'en', advancedTips: true, ...((extra && extra.context) || {}) },
+    final: { team: 1, enemy: 6, result: 'Defeat', verified: true }, rounds: rs, patterns: (extra && extra.patterns) || [], mistakes: [], strengths: [] });
+  const input = matchReview.normalise(body(rounds));
+  const econ = (t) => !!gameClaims.economyClaim(t);
+
+  // The gate: an economy sentence goes from the summary and the focus, a round line whole.
+  const reply = 'SUMMARY: You lost 1 to 6. Round 2 was an eco, and you died at B Main with nobody near. '
+    + 'Your team should have saved in round 3 to afford a full loadout in round 4.\n'
+    + 'R3: With the loss bonus this low, keep your rifle and play for the next round.\n'
+    + 'R4: Nobody was near when you died, so hold B Main from further back next time.\n'
+    + 'R6: That loss hurt the economy, so you could not afford the Operator next round.\n'
+    + 'FOCUS: Hold B Main from further back with a teammate in view. Never force with the team low on credits.';
+  const out = matchReview.parse(reply, input);
+  ok(out.summary === 'You lost 1 to 6. Round 2 was an eco, and you died at B Main with nobody near.',
+    `CAUGHT: the summary loses its save advice and keeps the eco named as the round (${out.summary})`);
+  ok(!out.rounds[3] && !out.rounds[6] && !!out.rounds[4], `CAUGHT: the loss bonus and the economy round lines go whole, round 4 stays (${Object.keys(out.rounds)})`);
+  ok(out.focus === 'Hold B Main from further back with a teammate in view.', `CAUGHT: the focus loses its credits sentence (${out.focus})`);
+  ok(out.dropped.some((d) => d.n === 3 && d.said === 'economy') && out.dropped.some((d) => d.n === null && d.said === 'summary economy')
+    && out.dropped.some((d) => d.n === null && d.said === 'focus economy') && matchReview.dropKind({ said: 'summary economy' }) === 'economy',
+  'each dropped as economy, by place and kind only');
+  ok(/economy/.test(matchReview.floorNote({ dropped: [{ n: 3, said: 'economy' }] }, [])), 'the retry is told why the economy line could not be shown');
+  // English only, as every gate over the review's words is; the prompt's rule covers every language.
+  const de = matchReview.parse('SUMMARY: Du hast 1 zu 6 verloren.\nR3: With the loss bonus this low, keep your rifle.\nFOCUS: Halte B Main.', matchReview.normalise(body(rounds, { context: { language: 'de' } })));
+  ok(!!de.rounds[3], 'a review in another language is not judged by the English gate');
+
+  // No note and no case that teaches the economy is served, in the study list or the prompt.
+  const knowledgeOf = (text) => { const i = text.indexOf('COACHING KNOWLEDGE'); const j = text.indexOf('\n\n', i); return i < 0 ? '' : text.slice(i, j < 0 ? undefined : j); };
+  const linesOf = (text) => knowledgeOf(text).split('\n').filter((l) => l.startsWith('- ')).map((l) => l.slice(2));
+  // Over five agents, two bands and twenty turns of the notes' order (retrieve() draws at random).
+  const studiedAll = [];
+  const servedAll = [];
+  for (const agent of ['Sage', 'Jett', 'Omen', 'Sova', 'Killjoy']) {
+    for (const rankBand of [undefined, 'silver_gold']) {
+      const x = matchReview.normalise(body(rounds, { context: { agent, ...(rankBand ? { rankBand } : {}) } }));
+      studiedAll.push(...matchReview.study(x, 4).map((n) => n.text));
+      for (let seed = 1; seed <= 20; seed++) {
+        const random = Math.random;
+        let s = seed;
+        Math.random = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+        try { servedAll.push(...linesOf(matchReview.buildPrompt(x))); } finally { Math.random = random; }
+      }
+    }
+  }
+  ok(studiedAll.length >= 30 && !studiedAll.some(econ), `the study list has no economy note (${[...new Set(studiedAll.filter(econ))].join(' | ').slice(0, 300)})`);
+  ok(servedAll.length >= 300 && !servedAll.some(econ), `the prompt's coaching knowledge has no economy note (${[...new Set(servedAll.filter(econ))].join(' | ').slice(0, 300)})`);
+  const p = seededRun(() => matchReview.buildPrompt(input));
+  const econCases = casesMod.all().filter((c) => econ([c.signal, c.decision, c.why, c.mistakeToAvoid].join(' ')));
+  ok(econCases.length > 0 && !econCases.some((c) => p.includes(c.decision)), `no economy case reaches the prompt (${econCases.length} in the corpus)`);
+  ok(!matchReview.reviewCasePool().some((c) => econ([c.signal, c.decision, c.why, c.mistakeToAvoid].join(' '))) && matchReview.reviewCasePool().length > 0,
+    'the review picks its cases from a pool with no economy case');
+  // retrieve() is not told the economy: the same match with its buys and without serves the same notes.
+  const strip = (r) => { const { buy, ...rest } = r; return rest; };
+  const noBuys = seededRun(() => matchReview.buildPrompt(matchReview.normalise(body(rounds.map(strip)))));
+  ok(knowledgeOf(noBuys) === knowledgeOf(p), 'the buys bring no note of their own to the coaching knowledge');
+  ok(![...matchReview.signalTopics(matchReview.recordSignalsOf(input))].some((t) => [].concat(...Object.values(matchReview.ECONOMY_TOPICS)).includes(t)),
+    'the economy signals send the player to no economy note to study');
+
+  // The prompt's rule, for every review, and the round's kind kept as a label.
+  ok(p.includes(matchReview.ECONOMY_REVIEW_RULE) && /the team played it on an eco/.test(p), 'the prompt carries the economy rule, and the round line keeps its kind');
+  ok(!/economy changes what a death teaches/.test(p) && !('buy' in matchReview.RECORD_USE), 'the economy use line is gone');
+  const plainP = matchReview.buildPrompt(matchReview.normalise(body(rounds.map((r) => { const { buy, mate, place, ...rest } = r; return rest; }))));
+  ok(plainP.includes(matchReview.ECONOMY_REVIEW_RULE), 'a review with no buys has the rule too');
+  const DASHES9 = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']');
+  ok(!DASHES9.test(matchReview.ECONOMY_REVIEW_RULE) && !matchReview.ECONOMY_REVIEW_RULE.includes(';'), 'the rule has no dash and no semicolon');
+
+  // No buy discipline pattern: the client writes none, the server drops an old client's.
+  const merged = [2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ n, verified: true, side: 'attacking', result: n % 3 ? 'lost' : 'won', died: false, buy: n < 5 ? 'full' : 'eco' }));
+  ok(review.buyDiscipline(merged) && !review.patterns(merged).some((p) => p.key === 'buys'), 'the client computes no buys pattern, where the arithmetic has one');
+  const old = matchReview.normalise(body(rounds, { patterns: [{ key: 'buys', text: 'Your team lost 4 of 5 rounds on a full loadout.' }, { key: 'sides', text: 'Neither side was clearly stronger.' }] }));
+  ok(!old.patterns.some((x) => x.key === 'buys') && old.patterns.some((x) => x.key === 'sides'), 'the server drops a buys pattern an older client sends');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);

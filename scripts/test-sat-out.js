@@ -287,8 +287,9 @@ const after = watched({ [AFK]: { afk: true } });
   const pats = ['spot', 'firstdeath', 'early', 'killer', 'ult', 'streak', 'postplant', 'retake', 'firstkill', 'sides', 'buys']
     .map((key) => ({ key, text: `A ${key} line.` }));
   const kept = matchReview.normalise({ rounds: [], patterns: pats }).patterns.map((p) => p.key);
-  ok(kept.length === 10 && kept.includes('buys') && kept.includes('sides') && kept.slice(0, 8).join() === pats.slice(0, 8).map((p) => p.key).join(),
-    `nine or more patterns keep the first eight and the team's two (${kept.join(', ')})`);
+  // Changed when the economy went out of scope (Nov 2026): an older client's buys line is dropped, so the team's one is the sides.
+  ok(kept.length === 9 && !kept.includes('buys') && kept.includes('sides') && kept.slice(0, 8).join() === pats.slice(0, 8).map((p) => p.key).join(),
+    `nine or more patterns keep the first eight and the sides, never the buys (${kept.join(', ')})`);
   ok(matchReview.normalise({ rounds: [], patterns: pats.slice(0, 5) }).patterns.length === 5, 'a short list is kept whole, as before');
   const many = Array.from({ length: 14 }, (_, i) => ({ key: `k${i}`, text: `Line ${i}.` }));
   ok(matchReview.normalise({ rounds: [], patterns: many }).patterns.length === 8, 'and a list of other keys is still cut at eight');

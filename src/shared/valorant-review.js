@@ -474,9 +474,11 @@ function patterns(rounds) {
     out.push({ key: 'firstkill', text: `You got the first kill of the round ${openers.length} times, ${listRounds(openers)}.` });
   }
 
-  // RIOT ONLY (8.8): the team's buy discipline, buyDiscipline's line.
-  const buys = buyDiscipline(rounds);
-  if (buys) out.push({ key: 'buys', text: buys.text });
+  // NO BUY DISCIPLINE LINE since the economy went out of the coach's scope
+  // (Nov 2026, the owner's rule after the coach bench 9): it was the one
+  // pattern that was the economy, and it sent the review and Ask Coach to
+  // coach it. buyDiscipline below still counts it, and nothing shows it; a
+  // saved review's own `buys` line is shown nowhere (ECONOMY_PATTERNS).
 
   return out;
 }
@@ -493,6 +495,8 @@ function patterns(rounds) {
  * where the card's chip says "Full buy".
  */
 const BUYS_MIN = 6;
+/** The pattern keys that are the economy: never shown, never sent to a coach (the economy is out of scope, Nov 2026). */
+const ECONOMY_PATTERNS = new Set(['buys']);
 function buyDiscipline(rounds) {
   const v = (rounds || []).filter((r) => r && r.verified && (r.result === 'won' || r.result === 'lost')
     && ['eco', 'force', 'half', 'full'].includes(r.buy));
@@ -1087,11 +1091,22 @@ function riotOnlyNote(grade, riotOnly) {
 function served(review) {
   if (!review || review.kind !== 'valorant') return review;
   if (review.source === 'riot') {
-    return withView(withCompsLine(weaponsInTodaysWords({ ...review, insights: insights.asFacts(review.insights),
-      grade: grader.riotWords(review.grade) })));
+    return withView(withCompsLine(weaponsInTodaysWords(withoutEconomy({ ...review, insights: insights.asFacts(review.insights),
+      grade: grader.riotWords(review.grade) }))));
   }
   const out = review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review;
-  return withView(withCompsLine(weaponsInTodaysWords(aboutNotesInTodaysWords(out))));
+  return withView(withCompsLine(weaponsInTodaysWords(aboutNotesInTodaysWords(withoutEconomy(out)))));
+}
+
+/*
+ * A SAVED REVIEW'S ECONOMY PATTERN IS SHOWN NOWHERE (Nov 2026, the economy
+ * out of scope): a review saved before it keeps its `buys` line on disk, and
+ * the page, the share card and Ask Coach read the served review, so it goes
+ * here. A review without one is returned as it is.
+ */
+function withoutEconomy(review) {
+  if (!review || !Array.isArray(review.patterns) || !review.patterns.some((p) => p && ECONOMY_PATTERNS.has(p.key))) return review;
+  return { ...review, patterns: review.patterns.filter((p) => !(p && ECONOMY_PATTERNS.has(p.key))) };
 }
 
 /*
@@ -1633,4 +1648,4 @@ module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, 
   queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, teamAgentsOf, lookJudgement,
   factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS,
   BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX, countsOf,
-  buyDiscipline, castsNamed, recordOnCard, BUY_WORDS, BUYS_MIN, deathPlace };
+  buyDiscipline, castsNamed, recordOnCard, BUY_WORDS, BUYS_MIN, deathPlace, ECONOMY_PATTERNS };

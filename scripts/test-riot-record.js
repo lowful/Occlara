@@ -301,12 +301,14 @@ ok(JSON.stringify(card(1).riot.casts) === '[{"key":"C","name":"Cloudburst","n":1
 
 // The buy discipline.
 {
-  const line = (served.patterns || []).find((p) => p.key === 'buys');
+  // NO PATTERN since the economy went out of the coach's scope (Nov 2026): the
+  // arithmetic below is kept, and the served review shows no buys line.
+  ok(!(served.patterns || []).some((p) => p.key === 'buys'), 'the served review has no buy discipline pattern since the economy went out of scope');
+  const line = review.buyDiscipline(merged.map((r) => ({ ...r, verified: true, result: r.result })));
   // Decided buy rounds, pistols left out: eco 2 and 9 (lost, won), force 3 and 8 (won, won), half 4 and 7 (lost, lost),
   // full 5, 6, 11, 12, 14. The team's buy is the team's, so the rounds the player sat out (7, 8) count here.
   ok(line && line.text === 'Your team lost 4 of 5 rounds on a full loadout, lost 2 of 2 rounds on a half loadout, won 1 of 2 eco rounds and won 2 of 2 forced rounds.',
-    `the buy discipline line, its numbers counted from the rounds (${line && line.text})`);
-  ok(line && !/\bbuy/i.test(line.text), 'worded without "buy", which the review\'s and Ask Coach\'s gates drop');
+    `the buy discipline arithmetic, its numbers counted from the rounds (${line && line.text})`);
   const d = review.buyDiscipline(merged.map((r) => ({ ...r, verified: true, result: r.result })));
   ok(d && d.full === 5 && d.fullLost === 4 && d.eco === 2 && d.ecoWon === 1 && d.force === 2 && d.forceWon === 2 && d.half === 2,
     `and as numbers (${JSON.stringify(d && { ...d, text: undefined })})`);
@@ -368,13 +370,14 @@ ok(JSON.stringify(card(1).riot.casts) === '[{"key":"C","name":"Cloudburst","n":1
   const prompt = matchReview.buildPrompt(input);
   ok(/R2 [^\n]*a teammate stood close when they died; the team played it on an eco/.test(prompt), 'the round line says the distance and the buy');
   ok(/R1 [^\n]*abilities used: Cloudburst once, Tailwind twice/.test(prompt), 'and the casts');
-  ok(prompt.includes('The team\'s economy and the player\'s abilities used are known only where a round states them')
-    && !prompt.includes('Damage, utility usage and economy are not in the ledger'), 'the grounding rule says where they are known');
+  // Since the economy went out of scope (Nov 2026) only the casts are known, and the economy rule follows.
+  ok(prompt.includes(matchReview.SOME_ECONOMY) && prompt.includes('The player\'s abilities used are known only where a round states them')
+    && prompt.includes(matchReview.ECONOMY_REVIEW_RULE) && !prompt.includes('Damage, utility usage and economy are not in the ledger'),
+  'the grounding rule says where the casts are known, and not to coach the economy');
   const before = matchReview.buildPrompt(matchReview.normalise({ ...oldBody, variant: 'C' }));
   ok(before.includes('Damage, utility usage and economy are not in the ledger, so never state them.')
     && !/stood close|played it on|abilities used/.test(before), 'a match without them is prompted as before');
-  const line = (body.patterns || []).find((p) => p.key === 'buys');
-  ok(line && !matchReview.BUY_BLAME.test(line.text), 'the buy discipline pattern passes the review\'s buy gate');
+  ok(!(body.patterns || []).some((p) => p.key === 'buys'), 'no buy discipline pattern is sent to the review since the economy went out of scope');
 }
 
 // ── What Ask Coach is sent ──────────────────────────────────────────────────
@@ -383,12 +386,17 @@ ok(JSON.stringify(card(1).riot.casts) === '[{"key":"C","name":"Cloudburst","n":1
   const m = ctx.match;
   const c2 = m.cards.find((c) => c.n === 2);
   ok(c2.riot.place === 'B Main' && c2.riot.buy === 'eco' && c2.riot.mate === 'close', 'Ask Coach\'s card carries the place, the buy and the distance');
-  ok(m.patterns.some((p) => p.key === 'buys'), 'and the buy discipline pattern');
+  ok(!m.patterns.some((p) => p.key === 'buys'), 'and no buy discipline pattern, since the economy went out of scope');
   const norm = chatPrompt.normalise(ctx);
   const nm = norm && norm.match;
   const nc = nm && nm.cards.find((c) => c.n === 2);
   ok(nc && nc.riot.place === 'B Main' && nc.riot.buy === 'eco' && nc.riot.mate === 'close', `the chat server keeps them (${nc && JSON.stringify({ place: nc.riot.place, buy: nc.riot.buy })})`);
-  ok(nm && nm.patterns.some((p) => p.key === 'buys'), 'and the buy line survives the review sentence gate');
+  // A review saved before it still holds its buys line: neither the client's context nor the chat server passes it on, nor the page.
+  const buysLine = { key: 'buys', text: 'Your team lost 4 of 5 rounds on a full loadout.' };
+  const saved = chatContext.build({ ...served, patterns: [...(served.patterns || []), buysLine] }, {}, null, 'how was my economy', {});
+  const savedNorm = chatPrompt.normalise({ ...ctx, match: { ...m, patterns: [...m.patterns, buysLine] } });
+  ok(nm && !saved.match.patterns.some((p) => p.key === 'buys') && !savedNorm.match.patterns.some((p) => p.key === 'buys'), 'a saved review\'s buy line reaches no coach');
+  ok(!review.served({ ...served, patterns: [buysLine, { key: 'sides', text: 'Neither side was clearly stronger.' }] }).patterns.some((p) => p.key === 'buys'), 'and the page shows none (served)');
   const n1 = nm && nm.cards.find((c) => c.n === 1);
   ok(n1 && JSON.stringify(n1.riot.casts) === '[{"name":"Cloudburst","n":1},{"name":"Updraft","n":0},{"name":"Tailwind","n":2}]', 'and the casts by kit name');
   const forged = chatPrompt.normalise({ ...ctx,

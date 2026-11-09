@@ -267,6 +267,21 @@ ok(outlaw && /kills through Light Armor but not Heavy Armor/.test(outlaw.text), 
   ok(!hit(G.checkMapHabit, 'C is the site you should rotate to first.'), 'advice to the player kept');
   ok(!hit(G.checkMapHabit, 'They hit B twice, so expect A next.'), "this enemy's own habit kept");
   ok(!hit(G.checkMapHabit, 'B is the site they have not tried yet.'), 'the site not tried yet kept');
+
+  // economyClaim over the review's own sentences (Nov 2026, match-review.js economyGates).
+  for (const s of ['With the loss bonus this low, keep your rifle and play for the next round.',
+    'That loss hurt the economy, so you could not afford the Operator next round.',
+    'Never force with the team low on credits.',
+    'Your team should have saved in round 3 to afford a full loadout in round 4.',
+    'A pistol round is a full fight for the round and the economy after it.']) {
+    ok(!!G.economyClaim(s), `review: economy caught, "${s.slice(0, 50)}"`);
+  }
+  for (const s of ['Round 2 was an eco, and you died at B Main with nobody near.',
+    'On a full loadout, wait for the trade before you swing.',
+    'Your smoke buys the team time to rotate.',
+    'You cannot afford to be seen first on that angle.']) {
+    ok(!G.economyClaim(s), `review: no economy claim, kept "${s.slice(0, 50)}"`);
+  }
 }
 
 // ── 7. No backspace byte ──────────────────────────────────────────────────

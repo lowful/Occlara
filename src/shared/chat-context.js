@@ -528,7 +528,8 @@ function valorantMatch(review) {
       missed: (ins.missed || []).map(entryOf).filter(Boolean),
       facts: (ins.facts || []).map(entryOf).filter(Boolean),
     },
-    patterns: (Array.isArray(review.patterns) ? review.patterns : []).map((p) => ({ key: p.key, text: p.text })),
+    // No economy pattern: a review saved before the economy went out of scope (Nov 2026) keeps its `buys` line.
+    patterns: (Array.isArray(review.patterns) ? review.patterns : []).filter((p) => p && p.key !== 'buys').map((p) => ({ key: p.key, text: p.text })),
     cards: cards.map((c) => cardOf(c, review, pistols)),
     coach: { summary: review.summary || null, focus: review.focus || null },
     verification: review.verification || null,

@@ -257,11 +257,12 @@ async function routes() {
     ok(otherMatch.status === 200 && ai.calls === calls + 1, 'the same words about another match are a new question, asked of the model');
     tick(3000);
     ai.fail = true;
-    const failed = await chat(H, 'What should I buy?');
+    // Not 'What should I buy?' since the economy went out of scope (Nov 2026): that is answered with the scope line, no model.
+    const failed = await chat(H, 'What should I practise?');
     ai.fail = false;
     tick(3000);
     const c2 = ai.calls;
-    const retry = await chat(H, 'What should I buy?');
+    const retry = await chat(H, 'What should I practise?');
     ok(failed.status >= 500 && retry.status === 200 && ai.calls > c2,
       `a retry after an error reaches the model and is answered (${failed.status} then ${retry.status})`);
     tick(CHAT_LIMITS.BURST_WINDOW_MS);   // five asked this minute already

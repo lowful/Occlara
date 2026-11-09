@@ -247,7 +247,10 @@ function normalise(body) {
   // client writes and the sides one of the last, so in a match with nine or
   // more the eight cut them and the line reached the page but never the
   // review or Ask Coach. Either past the eighth is kept, ten at most.
-  const sentPatterns = Array.isArray(b.patterns) ? b.patterns : [];
+  // NO BUYS PATTERN (the economy is out of scope, Nov 2026): a client before
+  // it still writes the team's buy discipline line, and it goes here, so the
+  // review's model is never handed the economy as a counted finding.
+  const sentPatterns = (Array.isArray(b.patterns) ? b.patterns : []).filter((p) => !(p && ECONOMY_PATTERNS.has(p.key)));
   const patterns = sentPatterns.slice(0, 8).concat(sentPatterns.slice(8, 16).filter((p) => p && PAST_CUT.has(p.key))).slice(0, 10).map((p) => ({
     key: clip(p && p.key, 20),
     text: clip(p && p.text, 180),
@@ -379,6 +382,8 @@ function countsSent(c) {
 
 /** The pattern keys kept past the eighth (normalise). */
 const PAST_CUT = new Set(['buys', 'sides']);
+/** The pattern keys that are the economy, dropped from what a client sends (normalise). */
+const ECONOMY_PATTERNS = new Set(['buys']);
 
 const DASH = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
 
@@ -474,12 +479,34 @@ function recordSignalsOf(input) {
  * retrieve() through its `fullbuy` flag.
  */
 const ECONOMY_TOPICS = { eco: ['save round plan', 'pickup and live'], forcebuy: ['the force loop'] };
+
+/*
+ * THE ECONOMY IS OUT OF SCOPE IN THE REVIEW TOO (Nov 2026, the owner's rule
+ * after the coach bench 9, as chat-prompt.js noteInScope has it for Ask
+ * Coach): loss pay, buys and saves could not be told right consistently, so
+ * no note or case that teaches the economy (game-claims.js economyClaim) is
+ * listed to study, served to the review's model or picked as a worked case,
+ * and the economy signals send the player to no topic (signalTopics).
+ */
+const econNote = new Map();
+function teachesEconomy(text) {
+  const t = String(text || '');
+  if (!econNote.has(t)) econNote.set(t, !!gameClaims.economyClaim(t));
+  return econNote.get(t);
+}
+let casePool = null;
+/** The worked cases the review may pick from: every case but the economy's. */
+function reviewCasePool() {
+  if (!casePool) casePool = cases.all().filter((c) => c && !teachesEconomy([c.signal, c.decision, c.why, c.mistakeToAvoid].filter(Boolean).join(' ')));
+  return casePool;
+}
 function signalTopics(sig) {
   const out = new Set();
   if (!sig) return out;
   if (sig.repeatPlace) for (const t of PATTERN_TOPICS.spot) out.add(t);
   for (const c of sig.causes) for (const t of CAUSE_TOPICS[c] || []) out.add(t);
-  for (const e of sig.economy) for (const t of ECONOMY_TOPICS[e] || []) out.add(t);
+  // No economy topic since the economy went out of scope (Nov 2026): the
+  // eco and forced round signals send the player to nothing to study.
   return out;
 }
 
@@ -1103,6 +1130,8 @@ function study(input, limit = 3, opts = {}) {
     const src = note.source;
     if (!src || typeof src.topic !== 'string' || !src.topic) continue;
     if (note.weapons) continue;
+    // Never a note that teaches the economy (teachesEconomy).
+    if (teachesEconomy(note.text)) continue;
     const versus = knowledge.enemyFit(note, enemies, guns);
     if (versus === null) continue;
     if (advice.length && contradicted(note, src.topic, advice)) continue;
@@ -1381,7 +1410,8 @@ function promptRounds(input, withKnowledge, opts) {
     const enemies = enemiesOf(input);
     const guns = enemyWeaponsOf(input);
     const seen = new Set();
-    const add = (t) => { if (t && !seen.has(t)) { seen.add(t); notes.push(t); } };
+    // No note that teaches the economy (teachesEconomy).
+    const add = (t) => { if (t && !seen.has(t) && !teachesEconomy(t)) { seen.add(t); notes.push(t); } };
     for (const n of study(input, 4)) add(n.text);
     // The causes of the deaths the coach looked at (8.5.0 clients and later,
     // the same gate as study()): notes tagged for a cause are served by it.
@@ -1396,14 +1426,14 @@ function promptRounds(input, withKnowledge, opts) {
     // Aim evidence brings the lost duel notes as a look's lost duel does
     // (round 3): with no look, an aim problem had no aim note at all.
     if (r3 && aimEvidence(input) && aimEvidence(input).low && !causes.includes('lost-duel')) causes.push('lost-duel');
-    // Riot's round record (8.8, recordSignalsOf): the economy flags the
-    // team's buys show, a lone death's or a quiet death's cause, and the
-    // callouts of the lone deaths for the map's notes naming them. None, and
-    // the context is as before.
+    // Riot's round record (8.8, recordSignalsOf): a lone death's or a quiet
+    // death's cause, and the callouts of the lone deaths for the map's notes
+    // naming them. None, and the context is as before. The economy flags the
+    // team's buys show are no longer passed on since the economy went out of
+    // scope (Nov 2026): they asked retrieve() for the economy's own notes.
     const sig = recordSignalsOf(input);
     if (sig) for (const c of sig.causes) if (!causes.includes(c)) causes.push(c);
     for (const t of knowledge.retrieve({ agent: context.agent, map: context.map, causes,
-      ...(sig && sig.economy.length ? { economy: sig.economy } : {}),
       ...(sig && sig.places.length ? { places: sig.places } : {}),
       ...(context.rankBand ? { rankBand: context.rankBand } : {}),
       ...(enemies.length ? { enemyAgents: enemies } : {}),
@@ -1411,17 +1441,12 @@ function promptRounds(input, withKnowledge, opts) {
       ...leverSituation(input) }, 6,
       { advanced: context.advancedTips })) add(t);
     notes = notes.slice(0, 8);
-    // The note answering the team's economy (8.8, knowledge.js recordSlot)
-    // moves inside the floor the cases' budget never cuts (withinBudget,
-    // NOTES_FLOOR): last of the list, it was the first note to go.
-    if (sig && sig.economy.length) {
-      const econ = new Set(sig.economy);
-      const at = notes.findIndex((t) => { const n = knowledge.all().find((x) => x.text === t); return !!(n && n.situations && n.situations.some((f) => econ.has(f))); });
-      if (at >= NOTES_FLOOR) notes.splice(NOTES_FLOOR - 1, 0, notes.splice(at, 1)[0]);
-    }
-    // Worked cases (8.8, cases.js), only where this match's situation matches one.
+    // (The note answering the team's economy, 8.8's recordSlot, no longer
+    // moves inside the floor: no economy note is served since Nov 2026.)
+    // Worked cases (8.8, cases.js), only where this match's situation matches
+    // one, never a case that teaches the economy (reviewCasePool).
     // opts.cases false is the prompt without them, today's, for the tests and the benches.
-    worked = opts && opts.cases === false ? [] : cases.pick(caseSituation(input, enemies), cases.MAX_CASES);
+    worked = opts && opts.cases === false ? [] : cases.pick(caseSituation(input, enemies), cases.MAX_CASES, reviewCasePool());
   }
   // Never where it comes from: the review speaks these notes in its own
   // voice and names no coach, player, team or video behind them.
@@ -1728,16 +1753,27 @@ function languageRule(code) {
  * byte for byte.
  */
 const NO_ECONOMY = 'Damage, utility usage and economy are not in the ledger, so never state them. ';
-const SOME_ECONOMY = 'Damage is not in the ledger, so never state it. The team\'s economy and the player\'s abilities used '
+/*
+ * THE ECONOMY IS OUT OF SCOPE (Nov 2026, the owner's rule after the coach
+ * bench 9, chat-prompt.js ECONOMY_RULE for Ask Coach): every review is told
+ * so, right after the rule above, and gate economy (economyGates) drops what
+ * still says it. A round's kind the ledger names stays a label. Since then the
+ * team's buy no longer makes the grounding rule say the economy is known:
+ * only the casts do (SOME_ECONOMY).
+ */
+const ECONOMY_REVIEW_RULE = 'The economy is not something you coach: never say what anyone should buy, save or force, never talk about credits, '
+  + 'the loss bonus or what the team can afford, and never explain a death or a play by the economy. A round the ledger names as a pistol round, '
+  + 'an eco or a loadout only says where the round sits. ';
+const SOME_ECONOMY = 'Damage and the economy are not in the ledger beyond a round\'s kind, so never state them. The player\'s abilities used '
   + 'are known only where a round states them, so state them only there, exactly as given. ';
 function buildPrompt(input, opts) {
   if (input.variant === 'A') return promptA(input);
   const text = promptRounds(input, input.variant === 'C', opts);
   const rs = input.rounds || [];
-  const record = rs.some((r) => r && (r.buy || r.casts));
+  const record = rs.some((r) => r && r.casts);
   const use = recordUse(rs);
-  if (typeof text !== 'string' || (!record && !use)) return text;
-  return text.replace(NO_ECONOMY, (record ? SOME_ECONOMY : NO_ECONOMY) + use);
+  if (typeof text !== 'string') return text;
+  return text.replace(NO_ECONOMY, (record ? SOME_ECONOMY : NO_ECONOMY) + use + ECONOMY_REVIEW_RULE);
 }
 
 /*
@@ -1752,7 +1788,8 @@ function buildPrompt(input, opts) {
  */
 const RECORD_USE = {
   mate: 'Where a round says whether a teammate stood close when the player died, that is the evidence for a trade or a spacing point: with no teammate close the lesson is where the player stood, and with one close and nobody trading it is when they took the fight. ',
-  buy: 'The team\'s economy changes what a death teaches: a death on an eco is no mistake the way one on a full loadout is, so never count a death on an eco against the player as one on a full loadout, and a pistol round is a full fight for the round and the economy after it. Never say a death cost the team little or nothing. ',
+  // No `buy` line since the economy went out of scope (Nov 2026): it taught
+  // the model to read a death by the economy. ECONOMY_REVIEW_RULE instead.
   casts: 'Make a point about the player\'s abilities only for a round that lists the abilities used, and a round saying no ability used is the evidence for one. ',
   afk: 'Never criticise a round Riot marks the player as sitting out. ',
 };
@@ -1760,7 +1797,6 @@ function recordUse(rounds) {
   const rs = (rounds || []).filter((r) => r && r.verified);
   return [
     rs.some((r) => r.mate) ? RECORD_USE.mate : '',
-    rs.some((r) => r.buy) ? RECORD_USE.buy : '',
     rs.some((r) => r.casts) ? RECORD_USE.casts : '',
     rs.some((r) => r.afk) ? RECORD_USE.afk : '',
   ].join('');
@@ -2163,6 +2199,9 @@ function parse(text, input, opts = {}) {
   // How many deaths the coach looked at, said wrong (the blind audit of round
   // 8, stream C, Ask Coach's gate over the review): the sentence goes.
   lookGates(out, input);
+  // The economy, out of scope (Nov 2026, Ask Coach's economy-scope gate over
+  // the review): a round line goes whole, a summary or focus sentence alone.
+  economyGates(out, input);
   // WHAT RIOT'S RECORD MAKES CERTAIN (record-claims.js, the blind audit of
   // 8.7.8): a kill, a killer's share, the order of events, the side, the
   // result, the team's record after the plant blamed on a player who died
@@ -2277,6 +2316,7 @@ const FLOOR_SAYS = {
   name: 'a line used a word that is part of a player\'s name in this match, so write each line again in different words',
   record: 'a line said something Riot\'s record of the match contradicts, so say only what the round facts give',
   lean: 'a sentence leaned on one that could not be shown, so make each sentence stand on its own',
+  economy: 'a line talked about the economy, which this coach does not cover, so leave buys, saves, credits and the loss bonus out and coach the play',
   focus: 'the FOCUS did not say what to do, so open it on what the player should do and in which situation',
   rounds: 'no ROUND line could be shown, so write one line for each round listed, R<number>: and the lesson',
   other: 'a line broke one of the rules above, so follow them exactly',
@@ -2298,6 +2338,7 @@ function floorNote(out, fails) {
   if (kinds.has('name')) says.push(FLOOR_SAYS.name);
   if (['record', 'trade', 'killer', 'count'].some((k) => kinds.has(k))) says.push(FLOOR_SAYS.record);
   if (['orphan', 'garble', 'seam'].some((k) => kinds.has(k))) says.push(FLOOR_SAYS.lean);
+  if (kinds.has('economy')) says.push(FLOOR_SAYS.economy);
   if (fails.includes('focus')) says.push(FLOOR_SAYS.focus);
   if (fails.includes('rounds')) says.push(FLOOR_SAYS.rounds);
   if (!says.length) says.push(FLOOR_SAYS.other);
@@ -2987,6 +3028,44 @@ function lookGates(out, input) {
   }
 }
 
+/*
+ * THE ECONOMY IS OUT OF SCOPE, IN THE REVIEW'S WORDS (Nov 2026, the owner's
+ * rule after the coach bench 9). Ask Coach's gate (fact-gates.js
+ * gateEconomyScope, game-claims.js economyClaim) over the review: a sentence
+ * with economy advice or an economy claim ("your team should have saved in
+ * round 3 to afford a full loadout", "with the loss bonus this low") goes, a
+ * round line whole and a summary or focus sentence alone; a round's kind named
+ * as the situation ("round 2 was an eco") and money words that are no money
+ * stay, as they do in Ask Coach. English only, every client, as the other
+ * gates over the review's words. BUY_BLAME, before it, still takes any "buy".
+ */
+function economyGates(out, input) {
+  if (promptName(input.context && input.context.language) !== 'English') return;
+  if (factGatesShared === undefined) factGatesShared = shared('./fact-gates');
+  const g = factGatesShared;
+  const facts = { language: 'en', game: 'valorant' };
+  const wrong = (s) => {
+    try {
+      if (g && typeof g.gateEconomyScope === 'function') return !!g.gateEconomyScope(typeof g.straighten === 'function' ? g.straighten(s) : s, facts);
+      return !!gameClaims.economyClaim(s);
+    } catch { return false; }
+  };
+  for (const n of Object.keys(out.rounds)) {
+    if (splitSentences(out.rounds[n]).some((s) => s.trim() && wrong(s.trim()))) {
+      delete out.rounds[n];
+      out.dropped.push({ n: Number(n), said: 'economy', riot: null });
+    }
+  }
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const ss = splitSentences(out[field]).map((s) => s.trim()).filter(Boolean);
+    const kept = ss.filter((s) => !wrong(s));
+    if (kept.length === ss.length) continue;
+    out.dropped.push({ n: null, said: `${field} economy`, riot: null });
+    out[field] = kept.join(' ').trim() || null;
+  }
+}
+
 function claimGates(out, input) {
   const byN = new Map((input.rounds || []).map((r) => [r.n, r]));
   for (const n of Object.keys(out.rounds)) {
@@ -3141,4 +3220,6 @@ module.exports = { floorFails, floorNote, floorMerge, floorFill, floorLine, floo
   // The blind audit of round 8, stream C.
   utilityGates, teamOf, NO_CONTROLLER_LINE, lookGates, lookFacts,
   // 8.8: the rounds the player sat out, and the team's two patterns past the cut.
-  satOutRounds, satOutLine, satOutGate, SAT_OUT_SAID, SAT_OUT_RANGE, PAST_CUT };
+  satOutRounds, satOutLine, satOutGate, SAT_OUT_SAID, SAT_OUT_RANGE, PAST_CUT,
+  // The economy out of scope (Nov 2026), asserted in test:valorantreview.
+  economyGates, ECONOMY_REVIEW_RULE, ECONOMY_PATTERNS, teachesEconomy, reviewCasePool };

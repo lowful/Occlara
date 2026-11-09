@@ -246,9 +246,11 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       context: { game: 'lol', agent: null, sessionTips: [], matchMemory: [], stats: null, noSessionYet: false, recentMatches: [],
         recentSessions: [], matchReview: 'League review text', proPlaybook: 'off' },
     };
+    // Re-pinned when the economy went out of scope (Nov 2026): the Valorant v1 prompt lost "what to buy"
+    // and "keep economy discipline" and gained the economy rule (4940 and 3607 characters before). League's is unchanged.
     const TODAY = [
-      [SEEDED, 4940, '298727a70b655501f89917ca9264b0c67beaa44bbc66d3022f9eaf1effc3291e'],
-      [PLAIN, 3607, '64ca5976c1930f43da157e98a30f3ef18e9c03ca8c05b9defbda0629a89563fe'],
+      [SEEDED, 5104, '9608ada98df297ea2c25139d8fda26a226ae2ad26ce46888b388823dd6f31ac2'],
+      [PLAIN, 3771, '184d91159f1a406617cf72c33e29ec0e17d71bc19c6a85c7b5a8c66f7102a69c'],
       [LEAGUE, 2622, '4e6f85a3aff6bbdc5eb95636d2a3a44184f9d13fa28db4f1142f934a0eb12560'],
     ];
     const MATCH_ID = '8b9f0c2e-1d3a-4c5b-9e7f-0a1b2c3d4e5f';

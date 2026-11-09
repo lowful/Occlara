@@ -530,3 +530,45 @@ dropped is the Plat focus; the floor computes round 5 for Plat and Iron (Iron's 
 plant phase gate); the Ascendant seam is split; no SWING line is put in twice. Tests:
 `test:valorantreview` ("ROUND 8: THE THIN REVIEW"), `test:reviewroute` ("THE REVIEW FLOOR, on the
 Fracture 5 to 1 match", the four bands through the route).
+
+### The economy is out of scope in the review (Nov 2026)
+
+The owner's rule after the coach bench 9 (`docs/claude/ask-coach.md`, "The coach bench 9"): the coach
+does not coach the economy (loss pay, buys, saves, ecos, forces, credits, who buys what, spend
+advice). Ask Coach v2 had it first; the review has it now:
+
+- **The prompt says so** (`match-review.js ECONOMY_REVIEW_RULE`, put in by `buildPrompt` right after
+  the grounding rule on what the ledger holds, for every review and every grounding variant): never
+  what anyone should buy, save or force, no credits, loss bonus or what the team can afford, no death
+  or play explained by the economy. A round the ledger names as a pistol round, an eco or a loadout
+  ("the team played it on an eco", Riot's buy as `RECORD_BUY` words) stays as a label of where the
+  round sits. `RECORD_USE.buy` ("the team's economy changes what a death teaches") is gone, and a
+  team buy no longer turns the grounding rule into "the economy is known where a round states it"
+  (`SOME_ECONOMY` now says that of the casts only).
+- **Gate economy** (`economyGates`, after `lookGates`): Ask Coach's `fact-gates.js
+  gateEconomyScope` (`game-claims.js economyClaim`) over the review, a round line whole and a summary
+  or focus sentence alone, logged as `economy` / `summary economy` / `focus economy`
+  (`dropKind` economy, and `FLOOR_SAYS.economy` tells the floor's retry why). English only, as every
+  gate over the review's words; `BUY_BLAME` before it still takes any "buy".
+- **No note or case that teaches the economy** (`teachesEconomy`, `reviewCasePool`): `study()`
+  lists none, `promptRounds` serves none (the retrieval is no longer told `sig.economy`, the economy
+  note no longer moves inside `NOTES_FLOOR`, and `add` skips one), and the worked cases are picked
+  from the corpus without the economy's (`cases.pick`'s pool). `signalTopics` sends the eco and
+  forced round signals to no topic (`ECONOMY_TOPICS` is kept, unread). Of the 96 prompts the byte for
+  byte check against 4a5aa0e replays (48 bodies, two marks each), 72 served an economy note or case
+  then and none now; every other prompt is the old one plus the rule, byte for byte.
+- **No buys pattern** (`valorant-review.js patterns`, `ECONOMY_PATTERNS`): the client no longer
+  writes "Your team lost 4 of 5 rounds on a full loadout ..." (`buyDiscipline` still counts it, and
+  nothing shows it); `served()` (`withoutEconomy`) drops a saved review's own line from the page and
+  the share card, `chat-context.js` and `chat-prompt.js normalise` from Ask Coach, and
+  `match-review.js normalise` (`ECONOMY_PATTERNS`) from an older client's review body. The grade and
+  the counted mistakes, strengths and misses never had an economy entry (`grade.js`, `insights.js`),
+  so no grade moved. The card's chips ("Eco round", "Full buy") stay: labels from the record.
+
+Not changed: the cost line's "the team on a full loadout" (`costReasonLine`, the record's label), the
+death look's buy fact (`death-forensics.js recordLines`, context for the look), and the live read
+prompt in `coach.js`, which still reads the economy as context ("ECONOMY IS CONTEXT, NEVER A TIP"):
+nothing it writes reaches the player since 8.0, and changing it needs `verify:ai`.
+Tests: `test:valorantreview` ("the economy out of scope in the review", and the two byte for byte
+checks), `test:riotrecord` (the buys pattern and the grounding rule), `test:gameclaims` (the review's
+sentences).

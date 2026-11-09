@@ -2076,9 +2076,11 @@ const riotOnly = (file, row, edit) => {
   // The match's part says how to use them, only for what the cards carry.
   const part = cp.renderMatch(input, cp.factsOf(input, msgs));
   const partPlain = cp.renderMatch(plain, cp.factsOf(plain, msgs));
-  ok(/THE ROUND RECORD\n/.test(part) && /evidence for a trade or a spacing point/.test(part) && /economy changes what a death teaches/.test(part)
+  // Changed when the economy went out of scope (Nov 2026): no line teaches reading a death by the economy.
+  ok(/THE ROUND RECORD\n/.test(part) && /evidence for a trade or a spacing point/.test(part) && !/economy changes what a death teaches/.test(part)
+    && !/team economy/.test(part.split('\n').find((l, i, a) => a[i - 1] === 'THE ROUND RECORD') || '')
     && /needs a round that lists the abilities used/.test(part) && /Never criticise a round Riot marks the player as sitting out/.test(part),
-  'the match\'s part tells how to use the distance, the economy, the casts and the AFK round');
+  'the match\'s part tells how to use the distance, the casts and the AFK round, and nothing of the economy');
   ok(!/THE ROUND RECORD/.test(partPlain), 'a match without them has no such line');
   const mateOnly = cp.renderMatch(cp.normalise(ctxOf([card(2, { mate: 'far' })])), cp.factsOf(cp.normalise(ctxOf([card(2, { mate: 'far' })])), msgs));
   ok(/evidence for a trade or a spacing point/.test(mateOnly) && !/economy changes|holds them for that round|abilities used/.test(mateOnly), 'a distance alone brings its own sentence and no other');
@@ -2659,7 +2661,8 @@ const riotOnly = (file, row, edit) => {
   ]) ok(re.test(pos) && !re.test(neg), `${name} matches "${pos}" and not "${neg}"`);
 
   // 4. THE ECONOMY SENTENCE never says a death cost little (Sunset 4 to 13, Killjoy).
-  ok(!/costs little/.test(pe) && /Never say a death cost the team little or nothing\./.test(pe), 'the round record line no longer says a pistol or eco death costs little');
+  // Changed when the economy went out of scope (Nov 2026): the economy sentence is gone, and the economy rule is in.
+  ok(!/costs little/.test(pe) && !/economy changes what a death teaches/.test(pe) && pe.includes(cp.ECONOMY_RULE), 'the round record line no longer says a pistol or eco death costs little: it has no economy line at all');
 }
 
 // ── Round 8 (the blind audit of round 7): counts over several rounds, alone said of a teammate close ──
@@ -3852,8 +3855,10 @@ console.log('\nround 8, the game facts gates:');
     'Where should I have set up in round three after we won round two?', 'Should I save my ult for the retake?', 'When should I use a fast rotation setup on Haven as Chamber?', 'Why did I lose round 5?']) {
     ok(cp.outOfScope(NONE9, ask9(q)) === null, `IN SCOPE: "${q.slice(-60)}"`);
   }
-  ok(cp.outOfScope({ ...NONE9, game: 'lol' }, ask9('Should I buy boots first?')) === null && cp.outOfScope({ ...NONE9, language: 'de' }, ask9('Should I buy?')) === null,
-    'outOfScope: Valorant in English only');
+  // Changed when the scope reached every language (Nov 2026): an English economy question asked
+  // with another coaching language set is out of scope too; League never is.
+  ok(cp.outOfScope({ ...NONE9, game: 'lol' }, ask9('Should I buy boots first?')) === null && cp.outOfScope({ ...NONE9, language: 'de' }, ask9('Should I buy?')) === 'economy',
+    'outOfScope: Valorant only, and English economy words in any coaching language');
   ok(cp.ECON_QUESTION.test('should I buy up') && !cp.ECON_QUESTION.test('should I save my ult') && !DASHES.test(cp.ECONOMY_OUT + cp.ECONOMY_RULE + cp.MAP_HABIT_RULE),
     'ECON_QUESTION both ways, and the new lines carry no dash');
   ok(cp.VALORANT_RULES.includes(cp.ECONOMY_RULE) && cp.VALORANT_RULES.includes(cp.MAP_HABIT_RULE) && !/^- A buy question/m.test(cp.VALORANT_RULES) && !/^- A save question/m.test(cp.VALORANT_RULES),
@@ -3908,6 +3913,56 @@ console.log('\nround 8, the game facts gates:');
   }
   const failedHit = knowledge9.all().find((n) => n.source && n.source.topic === 'the hit they will not run again');
   ok(/expect them at a different site next round, not at the one that held/.test(failedHit.text), 'FD8OFhwHF5M-3: the failed hit note names the site to lean to without "the other site"');
+}
+
+// ── The economy out of scope everywhere the coach speaks (Nov 2026) ──────────
+// Every coaching language in languages.js gets the scope check, from a word
+// list of its own (ECON_WORDS), each with a known positive and a known
+// negative; the scope line is said in the player's language (economyOut);
+// economyDrop is the gate frame chat and Ask Coach v1 run over a reply.
+{
+  console.log('\nthe economy out of scope everywhere the coach speaks:');
+  const { PROMPT_NAMES } = require('../server/services/languages');
+  const base = cp.normalise({ v: 2, game: 'valorant', language: 'en', match: null, player: {}, ask: {} });
+  const asked = (language, content) => cp.outOfScope({ ...base, language }, [{ role: 'user', content }]);
+  const CASES = {
+    de: { out: ['Soll ich in Runde 3 kaufen oder sparen?', 'Wie funktioniert der Verlustbonus?', 'Wie viele Credits brauche ich für eine Vandal?'],
+      in: ['Wo hätte ich in Runde 4 stehen sollen?', 'Soll ich meine Ult für den Retake sparen?', 'Wir hatten eine Eco-Runde. Wo hätte ich stehen sollen?'] },
+    es: { out: ['¿Debería comprar en la ronda 3?', '¿Cómo funciona la economía en Valorant?', '¿Tengo que ahorrar si perdimos la pistola?'],
+      in: ['¿Dónde debería haberme puesto en la ronda 4?', '¿Debería guardar mi definitiva para el retake?'] },
+    'pt-BR': { out: ['Devo comprar no round 3?', 'Quantos créditos eu preciso para uma Vandal?', 'Era melhor economizar nesse round?'],
+      in: ['Onde eu deveria ter ficado no round 4?', 'Devo segurar minha ult para o retake?'] },
+    fr: { out: ['Est-ce que je dois acheter au round 3 ?', "Comment marche l'économie dans Valorant ?", 'Fallait-il économiser ce round ?'],
+      in: ['Où est-ce que je devais me placer au round 4 ?', 'Je dois garder mon ulti pour le retake ?'] },
+    tr: { out: ['3. raundda satın almalı mıyım?', 'Ekonomi nasıl çalışıyor?', 'Kaç kredi biriktirmem gerekiyor?'],
+      in: ['4. raundda nerede durmalıydım?', 'Ultimi retake için saklamalı mıyım?'] },
+    ru: { out: ['Стоит ли мне купить винтовку в третьем раунде?', 'Как работает экономика в Valorant?', 'Нужно было сейвить в этом раунде?'],
+      in: ['Где мне надо было стоять в четвёртом раунде?', 'Стоит ли копить ульту на ретейк?'] },
+    pl: { out: ['Czy powinienem kupić coś w rundzie 3?', 'Jak działa ekonomia w Valorant?', 'Czy trzeba było oszczędzać w tej rundzie?'],
+      in: ['Gdzie powinienem stać w rundzie 4?', 'Czy oszczędzać ulta na retake?'] },
+    ja: { out: ['ラウンド3で買うべきですか？', 'エコノミーの仕組みを教えてください', 'このラウンドは節約するべきでしたか？'],
+      in: ['ラウンド4ではどこに立つべきでしたか？', 'ウルトはリテイクのために温存するべき？', 'エコーの使い方は？'] },
+    ko: { out: ['3라운드에 총을 사야 하나요?', '경제는 어떻게 돌아가나요?', '이번 라운드는 세이브해야 했나요?'],
+      in: ['4라운드에서 어디에 서 있어야 했나요?', '궁극기를 리테이크까지 아껴야 하나요?', '왜 졌는지 궁금해요'] },
+  };
+  for (const code of Object.keys(PROMPT_NAMES).filter((c) => c !== 'en')) {
+    const c = CASES[code];
+    ok(!!c && !!cp.ECON_WORDS[code], `${code}: a word list and its cases`);
+    if (!c) continue;
+    for (const q of c.out) ok(asked(code, q) === 'economy', `${code} OUT OF SCOPE: "${q}"`);
+    for (const q of c.in) ok(asked(code, q) === null, `${code} IN SCOPE: "${q}"`);
+    const line = cp.economyOut(code);
+    ok(typeof line === 'string' && line.length > 40 && line !== cp.ECONOMY_OUT && !DASHES.test(line), `${code}: the scope line is said in the player's language, with no dash`);
+  }
+  ok(cp.economyOut('en') === cp.ECONOMY_OUT && cp.economyOut('xx') === cp.ECONOMY_OUT && cp.economyOut(undefined) === cp.ECONOMY_OUT, 'English, and English for a code it does not know');
+  // The English words still apply in another coaching language: players type the game's own jargon.
+  ok(asked('pt-BR', 'Should I force buy here?') === 'economy' && asked('ja', 'What should I buy on a force?') === 'economy', 'English jargon in another language is out of scope');
+  // economyDrop: the gate frame chat and Ask Coach v1 run over a reply, English only.
+  const dropped = cp.economyDrop('You died to a crossfire at B Main. With the loss bonus this low, you should have saved your rifle. Next time hold from cover.', { language: 'en', game: 'valorant' });
+  ok(dropped.dropped === 1 && dropped.text === 'You died to a crossfire at B Main. Next time hold from cover.', `economyDrop takes the economy sentence and keeps the rest (${dropped.text})`);
+  ok(cp.economyDrop('On an eco, play for close fights together. Your smoke buys the team time to rotate.', { language: 'en', game: 'valorant' }).dropped === 0, 'economyDrop keeps a round named as an eco and time bought');
+  ok(cp.economyDrop('Du hättest sparen sollen.', { language: 'de', game: 'valorant' }).dropped === 0 && cp.economyDrop('Buy boots first.', { language: 'en', game: 'lol' }).dropped === 0,
+    'economyDrop judges English Valorant only');
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

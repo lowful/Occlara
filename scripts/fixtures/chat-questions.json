@@ -143,9 +143,9 @@
       "id": "abyss-econ-r4", "kind": "economy", "match": "abyss", "open": "picked", "language": "en", "advanced": false,
       "ask": "Should I have saved my gun in round 4?",
       "expect": { "match": "abyss", "moved": false },
-      "facts": "R4 defence, lost. Died 13 s in to Viper with a Vandal, 4 against 5, not traded. Riot's record as the review keeps it holds no buys or credits.",
+      "facts": "R4 defence, lost. Died 13 s in to Viper with a Vandal, 4 against 5, not traded. Riot's record as the review keeps it holds no buys or credits. The economy is out of the coach's scope since the coach bench 9 (Nov 2026), so the right answer is the scope line (chat-prompt.js ECONOMY_OUT), with no model call.",
       "must": [
-        { "what": "says the record does not hold what was bought", "list": "noRecord" }
+        { "what": "declines with the economy scope line", "any": ["coach the economy"] }
       ],
       "mustNot": [
         { "what": "states the player's credits", "list": "creditClaim", "tag": "economy" }

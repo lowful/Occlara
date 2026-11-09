@@ -4444,6 +4444,30 @@ function lastAsked(body) {
   return '';
 }
 
+/*
+ * THE ECONOMY IS OUT OF SCOPE IN FRAME CHAT AND ASK COACH V1 TOO (Nov 2026,
+ * the owner's rule after the coach bench 9, as chatV2 has it): a Valorant
+ * question about buys, saves, credits or the loss bonus, in any coaching
+ * language (chat-prompt.js outOfScope), is answered with the scope line in
+ * the player's language and no model call, before the daily cap; and an
+ * English Valorant reply loses any economy sentence (economyDrop). A deploy
+ * without chat-prompt.js answers as before.
+ */
+function economyScopeLine(game, language, question) {
+  const cp = service('chatPrompt');
+  if (!cp || typeof cp.outOfScope !== 'function' || typeof cp.ECONOMY_OUT !== 'string') return null;
+  const lang = typeof language === 'string' && language ? language.slice(0, 8) : 'en';
+  const out = cp.outOfScope({ game: game === 'lol' ? 'lol' : 'valorant', language: lang }, [{ role: 'user', content: String(question || '') }]);
+  if (out !== 'economy') return null;
+  chatCounts().outOfScope = (chatCounts().outOfScope || 0) + 1;
+  return typeof cp.economyOut === 'function' ? cp.economyOut(lang) : cp.ECONOMY_OUT;
+}
+function economyGateReply(reply, game, language) {
+  const cp = service('chatPrompt');
+  if (!cp || typeof cp.economyDrop !== 'function') return { text: reply, dropped: 0 };
+  try { return cp.economyDrop(reply, { game: game === 'lol' ? 'lol' : 'valorant', language: language || 'en' }); } catch { return { text: reply, dropped: 0 }; }
+}
+
 /** A question's line in its licence's list: its cost is what bookCost books for it. */
 function chatEntry(key, now) {
   const entry = { at: now, cost: 0 };
@@ -4663,10 +4687,11 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
    * 2026, chat-prompt.js outOfScope): a question about buys, saves, credits or
    * the loss bonus is answered with ECONOMY_OUT, no model call and no cap spent.
    */
+  // Since Nov 2026 in every coaching language, the line said in the player's (economyOut).
   const outOf = typeof chatPrompt.outOfScope === 'function' ? chatPrompt.outOfScope(input, messages) : null;
   if (outOf === 'economy' && typeof chatPrompt.ECONOMY_OUT === 'string') {
     counts.outOfScope = (counts.outOfScope || 0) + 1;
-    res.json({ reply: chatPrompt.ECONOMY_OUT, v: 2, honest: false, outOfScope: outOf, retried: false, dropped: {}, logged: {}, sentences: 0,
+    res.json({ reply: typeof chatPrompt.economyOut === 'function' ? chatPrompt.economyOut(language) : chatPrompt.ECONOMY_OUT, v: 2, honest: false, outOfScope: outOf, retried: false, dropped: {}, logged: {}, sentences: 0,
       ...(body.benchModel ? { model: benchModel(req) || AI.chatModel } : {}), ...(body.variant ? { variant } : {}) });
     return true;
   }
@@ -4850,6 +4875,9 @@ router.post('/frame-chat', async (req, res) => {
     const turn = chatTurn(req, res, 'frame', question,
       crypto.createHash('sha256').update(images[images.length - 1]).digest('hex'));
     if (!turn) return;
+    // The economy is out of scope (economyScopeLine): the line, no model, no cap spent.
+    const outLine = economyScopeLine('valorant', body.language, question);
+    if (outLine) return res.json({ reply: outLine, outOfScope: 'economy' });
     if (chatGate(req, res, licenseKey)) return;
     chatCounts().asked.frame++;
 
@@ -4902,6 +4930,12 @@ Answer as their coach, talking about this exact moment.
       console.log(`[coach] frame-chat dropped ${unnamed.dropped} sentence(s) that named a player`);
       reply = unnamed.text || '';
     }
+    // NO ECONOMY SENTENCE (economyGateReply): frame chat answers in English.
+    const econ = economyGateReply(reply, 'valorant', 'en');
+    if (econ.dropped) {
+      console.log(`[coach] frame-chat dropped ${econ.dropped} sentence(s) about the economy`);
+      reply = econ.text || '';
+    }
     if (!reply) return res.json({ error: 'The coach had no answer for that frame. Try asking differently.' });
     const answer = { reply: reply.slice(0, 1200) };
     turn.keep(answer);
@@ -4950,6 +4984,12 @@ router.post('/chat', async (req, res) => {
       }))
       .filter((m) => m.content);
     if (!messages.length) return res.status(400).json({ error: 'No messages' });
+    // The economy is out of scope (economyScopeLine): the line, no model, no cap spent.
+    {
+      const c0 = body.context || {};
+      const outLine = economyScopeLine(c0.game, c0.language, asked);
+      if (outLine) return res.json({ reply: outLine, outOfScope: 'economy' });
+    }
     // Inside the daily cap like every Ask Coach question (S4, chatGate).
     if (chatGate(req, res, licenseKey)) return;
 
@@ -5049,12 +5089,13 @@ Conversation so far:
 ${messages.map((m) => m.role + ': ' + m.content).join('\n')}
 
 Reply as Coach to the player's last message. Rules:
-- ANSWER THE QUESTION THEY ACTUALLY ASKED, FIRST. This is the most important rule. If they ask a real ${gameName} question, the current meta, which ${picks} are strong, how to use an ability, ${valorant ? 'what to buy, how a map should be played' : 'how a map or objective should be played'}, then give them the actual answer in the first sentence or two. Name real ${picks}, real numbers, real specifics. Only after answering do you connect it to their game.
+- ANSWER THE QUESTION THEY ACTUALLY ASKED, FIRST. This is the most important rule. If they ask a real ${gameName} question, the current meta, which ${picks} are strong, how to use an ability, ${valorant ? 'how a map should be played' : 'how a map or objective should be played'}, then give them the actual answer in the first sentence or two. Name real ${picks}, real numbers, real specifics. Only after answering do you connect it to their game.
 - NEVER deflect a genuine question into a lesson. Answering "what are the best ${picks} in this meta" with "the meta does not matter for you, your positioning is the problem" is a failure, even when the positioning point is true. It reads as dodging, and the player came for an answer. Give them both: the answer they asked for, then the thing that actually moves their rank.${valorant ? ' "Right now Jett, Raze and Omen are the strongest picks. That said, none of them fix the thing costing you games, which is ..." is the shape to aim for.' : ''}
 - If a question genuinely has no factual answer you can stand behind, say so plainly in one sentence rather than substituting a lesson for it.
 - Only discuss ${gameName} and the player's gaming performance. If asked about something truly unrelated, steer back to their gameplay in one friendly sentence.
 ${valorant ? `- COACH LIKE THE BEST, in the second half of your reply: diagnose the ROOT CAUSE behind what they are asking (deaths usually trace to positioning, timing, or fighting without a trade partner before they trace to aim). Name the ONE highest-impact fix, then give a concrete drill or in-game habit to build it, for example 10 minutes of deathmatch focusing only on counter-strafe headshots, a minimap glance every 5 seconds, or reviewing one lost round per match and asking what info they had before the fight.
-- Ground advice in proven Radiant and pro fundamentals: fight with a trade partner in view, clear angles in slices, use util before contact, take an off-angle once then move, keep economy discipline, reposition after kills.` : `- COACH LIKE THE BEST, in the second half of your reply: diagnose the ROOT CAUSE behind what they are asking, name the ONE highest-impact fix, then give a concrete habit or drill to build it. Ground it in the fundamentals of ${gameName} that high level players rely on, and never borrow advice from another game.`}
+- Ground advice in proven Radiant and pro fundamentals: fight with a trade partner in view, clear angles in slices, use util before contact, take an off-angle once then move, reposition after kills.
+- The economy is not something you coach: never say what anyone should buy, save or force, never talk about credits, the loss bonus or what the team can afford, and never explain a play by the economy.` : `- COACH LIKE THE BEST, in the second half of your reply: diagnose the ROOT CAUSE behind what they are asking, name the ONE highest-impact fix, then give a concrete habit or drill to build it. Ground it in the fundamentals of ${gameName} that high level players rely on, and never borrow advice from another game.`}
 - Combine their career stats with the match flow and this session's tips. The best answer ties a stat to a concrete example, and covers both aim and game sense, not just headshot rate.
 - Be honest, do not praise a mistake as if it were good, and do not invent a mistake that is not there.${valorant ? ' Knife out while rotating through safe space is CORRECT (fastest movement), knife out where contact is possible is the mistake. Match abilities to their real purpose (Updraft and dashes are mobility, not tools to clear angles).' : ''}
 - Be concrete: name the exact habit or mistake and the fix, not generalities.
@@ -5099,10 +5140,19 @@ ${valorant ? `- COACH LIKE THE BEST, in the second half of your reply: diagnose 
         const heur = sentencesOf(reply).filter((s) => s.trim() && namesSomeoneHere(s.trim(), { names: null, language: 'en' })).length;
         if (heur) c.logged['v1-name-log'] = (c.logged['v1-name-log'] || 0) + heur;
       }
+      // NO ECONOMY SENTENCE (economyGateReply), English Valorant only, as v2's gate.
+      if (reply && ctx.game !== 'lol') {
+        const econ = economyGateReply(reply, 'valorant', lang);
+        if (econ.dropped) {
+          reply = econ.text || '';
+          c.dropped.economy = (c.dropped.economy || 0) + econ.dropped;
+          console.log(`[chat] v1 dropped what talked about the economy (${econ.dropped})`);
+        }
+      }
     }
     const usable = chatReplyOk(reply);
     if (!usable) {
-      reply = 'Let\'s keep it on your gameplay. Ask me about a specific round, your aim, positioning, or economy and I\'ll break it down.';
+      reply = 'Let\'s keep it on your gameplay. Ask me about a specific round, your aim, positioning, or utility and I\'ll break it down.';
     }
     const answer = { reply: reply.slice(0, 1500) };
     if (usable) turn.keep(answer);
