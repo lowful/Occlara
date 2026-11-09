@@ -1,5 +1,29 @@
 [
   {
+    "version": "8.9.3",
+    "date": "2026-11-09",
+    "title": "The coach sticks to what it gets right",
+    "summary": "The coach no longer gives economy advice, and it drops claims it cannot back up.",
+    "items": [
+      {
+        "kind": "improved",
+        "text": "The coach no longer covers the economy. Reviews and Ask Coach stop giving buy, save and money advice, and an economy question gets a plain answer that it is not covered."
+      },
+      {
+        "kind": "fixed",
+        "text": "Ask Coach drops claims it cannot back up: a won pistol round nobody mentioned, habits stated about a whole map, and a Marshal body shot that only kills an unarmoured player."
+      },
+      {
+        "kind": "improved",
+        "text": "Better advice on map control and on reading where the enemy will go next."
+      },
+      {
+        "kind": "improved",
+        "text": "The Recording screen says no tips or advice until the match ends, since it now shows your map, agent, score and round."
+      }
+    ]
+  },
+  {
     "version": "8.9.2",
     "date": "2026-11-09",
     "title": "More motion, and chart numbers that stay off the line",
