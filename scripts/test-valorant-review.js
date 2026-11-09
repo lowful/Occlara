@@ -2573,7 +2573,13 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     // "so you can make the attackers spend time finding you".
     // And since round 8 the capability said as Riot's fact (record-claims.js checkAlone): Fracture at
     // Ascendant, "a fair postplant fight that nobody could trade" of round 5, nobody trading it, now "nobody traded".
-    sameParse = moved.length === 3 && moved.includes('review-sunset-4-13-asc_plus') && moved.includes('review-corrode-3-13-silver_gold') && moved.includes('review-fracture-5-1-asc_plus');
+    // And since the blind audit of round 8, stream C (record-claims.js checkCountList): Corrode at
+    // Plat, "9 of your 11 deaths went unanswered, leaving nobody to kill your killer in rounds 2, 7, 8
+    // and 9", nine deaths told as four rounds, goes from the summary. And since its review (the list
+    // before the count, LIST_BEFORE): Sunset at Iron, "In rounds 1, 3, 5 and 6, 12 of your 13 deaths
+    // went unanswered", twelve deaths told as four rounds, goes too.
+    sameParse = moved.length === 5 && moved.includes('review-sunset-4-13-asc_plus') && moved.includes('review-corrode-3-13-silver_gold') && moved.includes('review-fracture-5-1-asc_plus')
+      && moved.includes('review-corrode-3-13-plat_diamond') && moved.includes('review-sunset-4-13-iron_bronze');
     ok(sameParse, `and its 48 real replies parse as at 4a5aa0e but the one "so your next review can check" and the one clock turned around (${moved.join(', ')})`);
   } else console.log('skip  4a5aa0e is not readable here, the byte for byte check against it did not run');
 
@@ -2809,8 +2815,13 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   // The one round state line is the clock turned around (8.7.10, clockWrong):
   // Corrode round 1 after the plant on attack, "make the attackers spend time".
   const clockLine = 'review-corrode-3-13-silver_gold R1 round state';
-  const kinds = Object.keys(gone).filter((k) => k !== clockLine).map((k) => k.split(' ').slice(2).join(' '));
-  ok(quoted >= 10 && named === quoted && gone[clockLine] && kinds.every((k) => k === 'fundamentals' || k === 'product clause') && kinds.filter((k) => k === 'product clause').length === 1,
+  // And the count with too few rounds listed (the blind audit of round 8, stream C, checkCountList):
+  // Corrode Plat's "9 of your 11 deaths went unanswered, leaving nobody to kill your killer in rounds 2, 7, 8 and 9".
+  // And Sunset Iron's "In rounds 1, 3, 5 and 6, 12 of your 13 deaths went unanswered", the list before the count.
+  const listLines = ['review-corrode-3-13-plat_diamond S summary record countlist', 'review-sunset-4-13-iron_bronze S summary record countlist'];
+  const kinds = Object.keys(gone).filter((k) => k !== clockLine && !listLines.includes(k)).map((k) => k.split(' ').slice(2).join(' '));
+  // Those summaries' count sentences are the ones listLines take, so they are named nowhere.
+  ok(quoted >= 10 && named + 2 === quoted && gone[clockLine] && listLines.every((k) => gone[k]) && kinds.every((k) => k === 'fundamentals' || k === 'product clause') && kinds.filter((k) => k === 'product clause').length === 1,
     `the 24 re-audit reviews: the card's count named for its deaths in all ${quoted} summaries that quote it (${named}), one product clause, the clock turned around in Corrode round 1, and only fundamentals lines besides (${Object.keys(gone).join(', ')})`);
   const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'match-review.js'), 'utf8')
     + fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', 'valorant-review.js'), 'utf8');
@@ -3269,6 +3280,99 @@ console.log('\nthe plant\'s time from Riot\'s record (the blind audit of round 7
   ok(conn.summary === 'You won 5 to 1 by opening fights.' || /^You won 5 to 1 by opening fights\. (?:The round you lost came after the plant\.)?$/.test(conn.summary || ''),
     `a "So" after a cut sentence is struck or goes with it, never served leaning (${conn.summary})`);
   ok(conn.rounds[5] === 'Hold the spike from cover after the plant.', `and a round line opening "So," reads as its clause (${conn.rounds[5]})`);
+}
+
+// ── The blind audit of round 8, stream C: the review's two of the six ─────
+{
+  console.log('\nthe blind audit of round 8, stream C:');
+  const R8 = (n, side, o) => ({ n, side, result: 'lost', died: true, verified: true, traded: false, kills: 0, ...o });
+  const pbody = (extra) => ({
+    rounds: [R8(1, 'attacking', { sec: 26, killer: 'Clove', weapon: 'Classic', place: 'B site', mate: 'close' }),
+      { n: 2, side: 'attacking', result: 'won', died: false, verified: true, kills: 3, firstKill: true },
+      R8(3, 'attacking', { sec: 13, killer: 'Cypher', weapon: 'Phantom', traded: true, place: 'B Screen', mate: 'far', planted: true }),
+      R8(4, 'attacking', { sec: 8, killer: 'Sage', weapon: 'Vandal', place: 'B Link', mate: 'far' }),
+      R8(5, 'defending', { sec: 9, killer: 'Cypher', weapon: 'Classic', traded: true, firstDeath: true, place: 'Mid Doors', mate: 'far' }),
+      R8(6, 'defending', { sec: 17, killer: 'Fade', weapon: 'Spectre', kills: 1, place: 'Mid', mate: 'far', planted: true })],
+    swing: ['5 of your 5 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 3, 4, 5 and 6.', 'Your team had no controller: Jett, Phoenix, Raze, Reyna, Yoru.'], mistakes: [], strengths: [],
+    patterns: [{ key: 'early', text: '5 of your 5 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 3, 4, 5 and 6.' }],
+    counts: { deaths: 5, known: 5, untraded: 3, alone: 0, tradeable: 5, untradedMate: 3 },
+    context: { agent: 'Raze', map: 'Pearl', rankBand: 'asc_plus', enemyAgents: ['Cypher', 'Sage', 'Fade', 'Clove', 'Sova'] },
+    final: { team: 1, enemy: 5, result: 'Defeat', verified: true, scoreline: { kills: 4, deaths: 5, assists: 2, acs: 241 } }, ...extra });
+  const pin = matchReview.normalise(pbody());
+  ok(JSON.stringify(pin.context.teamAgents) === JSON.stringify(['Jett', 'Phoenix', 'Raze', 'Reyna', 'Yoru']),
+    `teamOf: the player's five read off the client's own "no controller" swing line (${JSON.stringify(pin.context.teamAgents)})`);
+  const sent = matchReview.normalise(pbody({ swing: [], context: { agent: 'Raze', map: 'Pearl', teamAgents: ['Sova', 'Phoenix', 'Raze', 'Reyna', 'Yoru'] } }));
+  const none = matchReview.normalise(pbody({ swing: [] }));
+  ok(JSON.stringify(sent.context.teamAgents) === JSON.stringify(['Sova', 'Phoenix', 'Raze', 'Reyna', 'Yoru']) && none.context.teamAgents === undefined
+    && matchReview.NO_CONTROLLER_LINE.test('Your team had no controller: Jett, Phoenix, Raze, Reyna, Yoru.') && !matchReview.NO_CONTROLLER_LINE.test('Their team had a controller.'),
+  'teamOf: a client\'s own teamAgents first, none with neither; NO_CONTROLLER_LINE both ways');
+  const tb = review.requestBody({ rounds: [], context: { agent: 'Raze', map: 'Pearl' }, endedBy: 'score', tips: [], notes: [],
+    riot: { agent: 'Raze', map: 'Pearl', score: '1-5', result: 'Defeat', comps: { us: ['Jett', 'Phoenix', 'Raze', 'Reyna', 'Yoru'].map((agent) => ({ agent, role: roleOf(agent) })),
+      them: ['Cypher', 'Sage', 'Fade', 'Clove', 'Sova'].map((agent) => ({ agent, role: roleOf(agent) })) } } });
+  ok(JSON.stringify(tb.context.teamAgents) === JSON.stringify(['Jett', 'Phoenix', 'Raze', 'Reyna', 'Yoru']), `and the client sends its five (valorant-review.js requestBody, ${JSON.stringify(tb.context.teamAgents)})`);
+  // 3. "a teammate's flash or drone" to a team with no drone (match-review.js utilityGates).
+  const AUDIT3 = "After the opening teammate falls, enter on a teammate's flash or drone so you can still take the site without exposing yourself alone.";
+  const FOCUS3 = "After an early teammate death, take the next piece of space on a teammate's flash or drone, gaining a safer entry at the cost of a slower site take.";
+  const u = matchReview.parse(`SUMMARY: You lost 1 to 5.\nR3: ${AUDIT3}\nFOCUS: ${FOCUS3}`, pin);
+  ok(u.rounds[3] === AUDIT3.replace(' or drone', '') && u.focus === FOCUS3.replace(' or drone', ''),
+    `CAUGHT: the Pearl Plat round 3 and focus "a teammate's flash or drone" are served "a teammate's flash" (${JSON.stringify([u.rounds[3], u.focus])})`);
+  const k = matchReview.parse(`SUMMARY: You lost 1 to 5.\nR3: ${AUDIT3}\nFOCUS: ${FOCUS3}`, sent);
+  ok(k.rounds[3] === AUDIT3 && k.focus === FOCUS3, 'KEPT: the same lines for a team with a Sova, as written');
+  const alone = matchReview.parse("SUMMARY: You lost 1 to 5.\nR3: After the opening teammate falls, enter on a teammate's drone so you can take the site.", pin);
+  ok(!alone.rounds[3] && alone.dropped.some((d) => d.n === 3 && d.said === 'team-utility'), 'and a drone asked for alone takes its round line with it');
+  // 6. A count and the rounds it lists (record-claims.js checkCountList, through recordGates).
+  const AUDIT6 = 'You lost 1 to 5, with 5 of your 5 deaths coming in the first 30 seconds, before any plant, in rounds 1, 3, 4 and 5, leaving your team short early.';
+  const c = matchReview.parse(`SUMMARY: ${AUDIT6}`, pin);
+  ok(c.summary === AUDIT6.replace('rounds 1, 3, 4 and 5', 'rounds 1, 3, 4, 5 and 6'),
+    `CAUGHT: the Pearl Ascendant summary lists the counted line's rounds 1, 3, 4, 5 and 6 (${c.summary})`);
+  const full = AUDIT6.replace('rounds 1, 3, 4 and 5', 'rounds 1, 3, 4, 5 and 6');
+  ok(matchReview.parse(`SUMMARY: ${full}`, pin).summary === full, 'KEPT: the summary with the full list, as written');
+  // 5. Kills against deaths in the review too (record-claims.js checkKillsDeaths).
+  ok(matchReview.parse('SUMMARY: You lost 1 to 5 and died more than you killed.', pin).summary === 'You lost 1 to 5 and died more than you killed.'
+    && matchReview.parse('SUMMARY: You lost 1 to 5. You killed more than you died.', pin).summary === 'You lost 1 to 5.',
+  'the review keeps "died more than you killed" at 4 and 5, and drops "killed more than you died"');
+}
+
+// ── The review of stream C, in the review ──────────────────────────────────
+{
+  console.log('\nthe review of stream C, in the review:');
+  const R8 = (n, side, o) => ({ n, side, result: 'lost', died: true, verified: true, traded: false, kills: 0, ...o });
+  const body = (extra) => ({
+    rounds: [R8(1, 'attacking', { sec: 26, killer: 'Clove', weapon: 'Classic', place: 'B site', mate: 'close' }),
+      { n: 2, side: 'attacking', result: 'won', died: false, verified: true, kills: 3, firstKill: true },
+      R8(3, 'attacking', { sec: 13, killer: 'Cypher', weapon: 'Phantom', traded: true, place: 'B Screen', mate: 'far', planted: true }),
+      R8(4, 'attacking', { sec: 8, killer: 'Sage', weapon: 'Vandal', place: 'B Link', mate: 'far' }),
+      R8(5, 'defending', { sec: 9, killer: 'Cypher', weapon: 'Classic', traded: true, firstDeath: true, place: 'Mid Doors', mate: 'far' }),
+      R8(6, 'defending', { sec: 17, killer: 'Fade', weapon: 'Spectre', kills: 1, place: 'Mid', mate: 'far', planted: true })],
+    swing: ['5 of your 5 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 3, 4, 5 and 6.', 'Your team had no controller: Jett, Phoenix, Raze, Reyna, Yoru.'], mistakes: [], strengths: [],
+    patterns: [{ key: 'early', text: '5 of your 5 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 3, 4, 5 and 6.' }],
+    counts: { deaths: 5, known: 5, untraded: 3, alone: 0, tradeable: 5, untradedMate: 3 },
+    context: { agent: 'Raze', map: 'Pearl', rankBand: 'asc_plus', enemyAgents: ['Cypher', 'Sage', 'Fade', 'Clove', 'Sova'] },
+    final: { team: 1, enemy: 5, result: 'Defeat', verified: true, scoreline: { kills: 4, deaths: 5, assists: 2, acs: 241 } }, ...extra });
+  const pin = matchReview.normalise(body());
+  // 9. "Every one of your 5 deaths" counts five.
+  const every = matchReview.parse('SUMMARY: You lost 1 to 5.\nR3: Every one of your 5 deaths came early, in rounds 1, 3, 4, 5 and 6.', pin);
+  ok(every.rounds[3] === 'Every one of your 5 deaths came early, in rounds 1, 3, 4, 5 and 6.' && !every.dropped.some((d) => /countlist/.test(d.said)),
+    `KEPT: "Every one of your 5 deaths ... rounds 1, 3, 4, 5 and 6" (${JSON.stringify([every.rounds, every.dropped])})`);
+  // 10. "All 5 of your deaths" as a summary sentence.
+  const all = matchReview.parse('SUMMARY: All 5 of your deaths came in the first 30 seconds, in rounds 1, 3, 4 and 5.', pin);
+  ok(all.summary === 'All 5 of your deaths came in the first 30 seconds, in rounds 1, 3, 4, 5 and 6.', `CAUGHT: "All 5 of your deaths ... rounds 1, 3, 4 and 5" is written with the counted line's rounds (${all.summary})`);
+  // 11. The place as the verb's object.
+  const peek = matchReview.parse('SUMMARY: You lost 1 to 5.\nR5: You peeked Mid Plaza and Cypher killed you with a Classic.', pin);
+  ok(peek.rounds[5] === 'You peeked Mid Doors and Cypher killed you with a Classic.', `CAUGHT: "You peeked Mid Plaza" of round 5 is Riot's Mid Doors (${peek.rounds[5]})`);
+  const from = matchReview.parse('SUMMARY: You lost 1 to 5.\nR5: Cypher killed you while holding Mid Plaza.', pin);
+  ok(from.rounds[5] === 'Cypher killed you while holding Mid Plaza.', `KEPT: "Cypher killed you while holding Mid Plaza" is the killer's place (${from.rounds[5]})`);
+  // 13. Kills against deaths, in more words.
+  ok(matchReview.parse('SUMMARY: You lost 1 to 5. Your deaths outnumbered your kills.', pin).summary === 'You lost 1 to 5. Your deaths outnumbered your kills.'
+    && matchReview.parse('SUMMARY: You lost 1 to 5. Your kills outnumbered your deaths.', pin).summary === 'You lost 1 to 5.',
+  'the review keeps "your deaths outnumbered your kills" at 4 and 5 and drops "your kills outnumbered your deaths"');
+  // 14 and 3. The team's list cut in more word orders; an enemy's list left whole and the line gone.
+  const art = matchReview.parse("SUMMARY: You lost 1 to 5.\nR3: Enter on a teammate's flash or a drone so you can take the site.", pin);
+  ok(art.rounds[3] === "Enter on a teammate's flash so you can take the site.", `CAUGHT: "a teammate's flash or a drone" in round 3 is "a teammate's flash" (${art.rounds[3]})`);
+  const verb = matchReview.parse('SUMMARY: You lost 1 to 5.\nR3: Wait for a teammate to drone or flash the site first.', pin);
+  ok(verb.rounds[3] === 'Wait for a teammate to flash the site first.', `CAUGHT: "a teammate to drone or flash" is "a teammate to flash" (${verb.rounds[3]})`);
+  const sova = matchReview.parse("SUMMARY: You lost 1 to 5.\nR3: Their Sova will use a flash or drone to clear you, so wait for a teammate's flash.", pin);
+  ok(!sova.rounds[3] && sova.dropped.some((d) => d.n === 3 && d.said === 'team-utility'), 'their Sova\'s "flash or drone" is never cut into a flash Sova lacks: the line goes as before');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);

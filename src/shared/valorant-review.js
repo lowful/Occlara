@@ -1379,6 +1379,11 @@ function enemyAgentsOf(riot) {
   const c = compsOf(riot && riot.comps);
   return c && c.them.length ? c.them.map((x) => x.agent) : null;
 }
+/** The player's own team's agents from Riot's comp, all five, or null (the server's utility gate, match-review.js teamOf). */
+function teamAgentsOf(riot) {
+  const c = compsOf(riot && riot.comps);
+  return c && c.us.length === 5 ? c.us.map((x) => x.agent) : null;
+}
 
 /**
  * What the server's review route is sent. The engine and the review bench both
@@ -1513,6 +1518,9 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring })
       // for the notes and cases that answer them (server knowledge.js
       // enemyFit). Left out when the link brought no comp.
       ...(enemyAgentsOf(riot) ? { enemyAgents: enemyAgentsOf(riot) } : {}),
+      // The player's own five (the blind audit of round 8, stream C), so the
+      // server never lets the review ask for a drone nobody on the team has.
+      ...(teamAgentsOf(riot) ? { teamAgents: teamAgentsOf(riot) } : {}),
     },
     // Riot's final score and result outrank the last score the screen read.
     final: riot && riot.score ? {
@@ -1622,7 +1630,7 @@ function against(tracker, role, history) {
 }
 
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
-  queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, lookJudgement,
+  queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, teamAgentsOf, lookJudgement,
   factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS,
   BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX, countsOf,
   buyDiscipline, castsNamed, recordOnCard, BUY_WORDS, BUYS_MIN, deathPlace };

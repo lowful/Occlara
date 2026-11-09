@@ -170,6 +170,26 @@ function spotAgrees(line, rounds) {
   });
 }
 
+/*
+ * THE PLAYER'S OWN TEAM (the blind audit of round 8, stream C): the five of
+ * context.teamAgents, each one the game data knows, else the five a swing
+ * line or a pattern of the client's own lists after "Your team had no
+ * controller:", else none. Only for the utility gate (utilityGates).
+ */
+const NO_CONTROLLER_LINE = /\byour team had no controller:\s*([^.]+)\./i;
+function teamOf(ctx, b) {
+  const sent = knowledge.enemiesOf(ctx && ctx.teamAgents);
+  if (sent.length === 5) return sent;
+  const texts = [].concat(Array.isArray(b && b.swing) ? b.swing : [], (Array.isArray(b && b.patterns) ? b.patterns : []).map((p) => (p && typeof p === 'object' ? p.text : p)));
+  for (const t of texts) {
+    const m = NO_CONTROLLER_LINE.exec(String(t || ''));
+    if (!m) continue;
+    const five = knowledge.enemiesOf(m[1].split(/\s*,\s*|\s+and\s+/));
+    if (five.length === 5) return five;
+  }
+  return [];
+}
+
 /** The request body, bounded and typed, whatever a client sent. */
 function normalise(body) {
   const b = body || {};
@@ -254,6 +274,12 @@ function normalise(body) {
       // only and each one the game data knows, or left out, so a client that
       // sends none is read as before, byte for byte.
       ...(knowledge.enemiesOf(ctx.enemyAgents).length ? { enemyAgents: knowledge.enemiesOf(ctx.enemyAgents) } : {}),
+      // The player's own team (the blind audit of round 8, stream C, for the
+      // utility gate, utilityGates): Riot's comp of five as a client of this
+      // round sends it, else the five a client's own swing line names ("Your
+      // team had no controller: Jett, Phoenix, Raze, Reyna, Yoru."), else
+      // left out. Never in the prompt.
+      ...(teamOf(ctx, b).length === 5 ? { teamAgents: teamOf(ctx, b) } : {}),
     },
     final: {
       team: Number.isInteger(final.team) ? final.team : null,
@@ -2126,6 +2152,9 @@ function parse(text, input, opts = {}) {
   // contradicts goes whole, a summary or focus sentence goes alone, never the
   // review. For every client: each drops only what is false or leaked.
   claimGates(out, input);
+  // A drone or a dart the player's team does not have (the blind audit of
+  // round 8, stream C): cut out of its list, else the sentence goes.
+  utilityGates(out, input);
   // WHAT RIOT'S RECORD MAKES CERTAIN (record-claims.js, the blind audit of
   // 8.7.8): a kill, a killer's share, the order of events, the side, the
   // result, the team's record after the plant blamed on a player who died
@@ -2852,6 +2881,51 @@ function claimOf(text, input, r) {
   return null;
 }
 
+/*
+ * UTILITY THE TEAM DOES NOT HAVE (the blind audit of round 8, stream C: the
+ * Pearl 1 to 5 Plat review, round 3 and the focus, "enter on a teammate's
+ * flash or drone" to Jett, Phoenix, Raze, Reyna and Yoru). Ask Coach's gate
+ * (fact-gates.js gateTeamUtility, teamUtilityFix) over the review, where the
+ * player's team is known (normalise teamAgents): the drone taken out of its
+ * list and the line kept, else a round line goes whole and a summary or focus
+ * sentence alone. English only, every client.
+ */
+let factGatesShared;
+function utilityGates(out, input) {
+  if (promptName(input.context && input.context.language) !== 'English') return;
+  const team = input.context && input.context.teamAgents;
+  if (!Array.isArray(team) || team.length !== 5) return;
+  if (factGatesShared === undefined) factGatesShared = shared('./fact-gates');
+  const g = factGatesShared;
+  if (!g || typeof g.teamUtilityFix !== 'function') return;
+  const facts = { language: 'en', game: 'valorant', sides: { mates: new Set(team), enemies: new Set((input.context && input.context.enemyAgents) || []) } };
+  const fix = (text) => {
+    const ss = splitSentences(text).map((s) => s.trim()).filter(Boolean);
+    let gone = 0;
+    const kept = ss.map((s) => {
+      let f = null;
+      try { f = g.teamUtilityFix(s, facts); } catch { f = null; }
+      if (f && f.rewrite) return f.rewrite;
+      if (f && f.drop) { gone += 1; return null; }
+      return s;
+    });
+    return { text: kept.filter(Boolean).join(' ').trim() || null, gone, changed: kept.some((s, i) => s !== ss[i]) };
+  };
+  for (const n of Object.keys(out.rounds)) {
+    const r = fix(out.rounds[n]);
+    if (r.gone) {
+      delete out.rounds[n];
+      out.dropped.push({ n: Number(n), said: 'team-utility', riot: null });
+    } else if (r.changed) out.rounds[n] = r.text;
+  }
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const r = fix(out[field]);
+    if (r.gone) out.dropped.push({ n: null, said: `${field} team-utility`, riot: null });
+    if (r.changed) out[field] = r.text;
+  }
+}
+
 function claimGates(out, input) {
   const byN = new Map((input.rounds || []).map((r) => [r.n, r]));
   for (const n of Object.keys(out.rounds)) {
@@ -3003,5 +3077,7 @@ module.exports = { floorFails, floorNote, floorMerge, floorFill, floorLine, floo
   costOf, costLineOf, costTopics, COST_TOPICS, COST_BONUS, repeats, costReasonLine, COST_RULE, placesKept,
   // Round 8: the trades and the distance, counted in code.
   ledgerOf, LEDGER_HEAD_REVIEW,
+  // The blind audit of round 8, stream C.
+  utilityGates, teamOf, NO_CONTROLLER_LINE,
   // 8.8: the rounds the player sat out, and the team's two patterns past the cut.
   satOutRounds, satOutLine, satOutGate, SAT_OUT_SAID, SAT_OUT_RANGE, PAST_CUT };

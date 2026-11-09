@@ -226,6 +226,66 @@ function recordOf(rr, m) {
   return out;
 }
 
+/*
+ * ONLY RIOT'S PLACE IN THE LOOK'S WORDS (the blind audit of round 8, stream
+ * C), as the review's placesKept since round 7. Corrode 3 to 13 round 10's
+ * look said "You moved into the open at Mid Stairs", Riot has the death at
+ * Mid Bottom, and the Iron biggest mistake answer put the death at Mid
+ * Stairs. Where Riot places the death, a look whose WHAT names another place
+ * of the map (an area holding Riot's callout agrees, knowledge.js samePlace)
+ * says Riot's callout in its place where it names that one other place, so
+ * the gun and the damage it saw still reach the answer ("You drew your Ghost
+ * and fought Cypher at close range in Mid Doors", Pearl round 5, Riot's Mid
+ * Doors for the screen's Mid Plaza), and is sent without its WHAT where it
+ * names more: its label and its better play stay. A lower case "a site" is
+ * the article, never the A side (8.8 review), so it names no place.
+ *
+ * Only a place the player is put at is swapped (the stream C review): "you"
+ * as the clause's subject before it, no enemy as a subject between, and a
+ * position word or verb right before it ("at", "in", "peeked"), never "from"
+ * or "to". "Phoenix held Mid Stairs", "rotating from A Main" and "fought Sova
+ * from B Main" are sent as written. A WHAT that names Riot's own place is
+ * sent as written too, whatever else it names ("You peeked from Mid Plaza
+ * into Mid Doors").
+ */
+const LOOK_AT_PLACE = /(?:^|\s)(?:at|in|on|inside|into|onto|near|holding|through|up|peeked|pushed|swung|entered|took|contested|crossed|reached)\s+(?:the\s+)?$/i;
+const LOOK_FROM_PLACE = /(?:^|\s)(?:from|to|toward|towards|past|via)\s+(?:the\s+)?$/i;
+const LOOK_YOU_OBJECT = /\b(?:killed|caught|shot|got|beat|took|picked\s+off|found|spotted|saw|hit|traded|punished|flanked|tagged|damaged|for|with|to|at|against|than|who|whom)\s+$/i;
+const LOOK_SUBJECT = new RegExp(`(?<![A-Za-z0-9])(?:${AGENTS.map((a) => a.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|') || 'NO_AGENT'}|he|she|they|enemy|enemies|an?_enemy|the\\s+enemy)(?![A-Za-z0-9])`, 'gi');
+const LOOK_OBJECT_OF = /\b(?:fought|killed|shot|beat|traded|hit|damaged|tagged|against|at|with|on|to|by|saw|spotted|challenged|dueled|duelled|outgunned|peeked|fired\s+at)\s+$/i;
+function lookPlaceYours(masked, at) {
+  const clause = masked.slice(0, at).split(/[.;:!?]/).pop();
+  if (LOOK_FROM_PLACE.test(clause) || !LOOK_AT_PLACE.test(clause)) return false;
+  const yous = [...clause.matchAll(/\byou\b/gi)].filter((y) => !LOOK_YOU_OBJECT.test(clause.slice(0, y.index)));
+  if (!yous.length) return false;
+  const from = yous[yous.length - 1].index + 3;
+  const gap = clause.slice(from);
+  for (const s of gap.matchAll(LOOK_SUBJECT)) {
+    // "fought their Sova", "shot the enemy": the object, not a subject.
+    if (!LOOK_OBJECT_OF.test(gap.slice(0, s.index).replace(/(?:(?:their|the|an?_?|enemy)\s+)+$/i, ''))) return false;
+  }
+  return true;
+}
+function lookPlaceFix(text, place, map) {
+  if (!text || !place || !map) return text;
+  const k = knowledgeMod();
+  if (!k || typeof k.placesNamed !== 'function' || typeof k.samePlace !== 'function') return text;
+  const masked = String(text).replace(/\b([abc])(\s)/g, '$1_');
+  const named = k.placesNamed(map, masked);
+  if (named.some((p) => k.samePlace(map, p, place))) return text;
+  if (!named.length) return text;
+  if (named.length > 1) return null;
+  const shown = String(place).replace(/^([abc]) site$/i, (_s, l) => `${l.toUpperCase()} Site`);
+  const re = new RegExp(`(?<![A-Za-z0-9])${named[0].replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}(?![A-Za-z0-9])`, 'gi');
+  let swapped = false;
+  const out = masked.replace(re, (word, at) => {
+    if (!lookPlaceYours(masked, at)) return word;
+    swapped = true;
+    return shown;
+  });
+  return swapped ? out.replace(/\b([abc])_/g, '$1 ') : text;
+}
+
 function cardOf(c, m) {
   if (!c || typeof c !== 'object') return null;
   const n = int(c.n, 1, 40);
@@ -283,7 +343,7 @@ function cardOf(c, m) {
       cause,
       fight: FIGHTS.has(lk.fight) ? lk.fight : null,
       change: CHANGES.has(lk.change) ? lk.change : null,
-      what: cause === 'unclear' ? null : what,
+      what: cause === 'unclear' ? null : lookPlaceFix(what, riot && riot.place, m.map),
       better: cause === 'unclear' ? null : better,
       source: lk.source === 'screen' ? 'screen' : 'riot',
     };
@@ -873,6 +933,8 @@ function factsOf(input, messages, opts) {
     addNum('kills', sl.kills); addNum('deaths', sl.deaths); addNum('assists', sl.assists);
     // The deaths as "you died 21 times" says them (fact-gates.js gateCount).
     if (fin(sl.deaths)) f.counted.died = sl.deaths;
+    // Kills against deaths, for record-claims.js checkKillsDeaths (the blind audit of round 8, stream C).
+    if (fin(sl.kills) && fin(sl.deaths)) f.scoreline = { kills: sl.kills, deaths: sl.deaths };
     addNum('acs', sl.acs); addNum('adr', sl.adr); addNum('percent', sl.hs);
     if (fin(sl.kills) && fin(sl.deaths) && sl.deaths > 0) addNum('kd', Math.round((sl.kills / sl.deaths) * 100) / 100);
     for (const a of m.against) {
@@ -2822,9 +2884,19 @@ const FALLBACK_KEPT = 3;
 function gateReply(paras, facts, nameOpts) {
   const rows = [];
   (Array.isArray(paras) ? paras : []).forEach((p, i) => {
-    for (const s of gates.sentencesOf(p)) {
+    for (const s0 of gates.sentencesOf(p)) {
+      // A drone or a dart the team lacks, listed beside utility it has, is
+      // taken out of the list and the sentence kept (fact-gates.js
+      // teamUtilityFix, the blind audit of round 8, stream C).
+      let s = s0;
+      let fixed = false;
+      if (typeof gates.teamUtilityFix === 'function') {
+        let fix = null;
+        try { fix = gates.teamUtilityFix(gates.straighten(s0), facts); } catch { fix = null; }
+        if (fix && fix.rewrite) { s = fix.rewrite; fixed = true; }
+      }
       const res = gates.check(s, facts, nameOpts);
-      rows.push({ p: i, s, drop: res.drop, logged: res.logged });
+      rows.push({ p: i, s, drop: res.drop, logged: fixed && !res.drop ? [...res.logged, 'utility-rewrite'] : res.logged, ...(fixed && !res.drop ? { rewritten: 'utility-rewrite' } : {}) });
     }
   });
   // The death in one sentence, the standing it left in the next ("Tejo killed
@@ -2834,6 +2906,17 @@ function gateReply(paras, facts, nameOpts) {
     if (rows[i].drop || rows[i - 1].drop) continue;
     const across = gates.gateLeftAcross(rows[i - 1].s, rows[i].s, facts);
     if (across) { rows[i].drop = across; rows[i].logged = []; }
+  }
+  // "Both were fair fights the look called lost on the shot" after a sentence
+  // telling rounds 3 and 5, round 3 with no look: held to the rounds the kept
+  // sentence before it named, in its paragraph (fact-gates.js
+  // gateLabelAcross, the blind audit of round 8, stream C).
+  if (typeof gates.gateLabelAcross === 'function') {
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i].drop || rows[i - 1].drop || rows[i].p !== rows[i - 1].p) continue;
+      const label = gates.gateLabelAcross(rows[i - 1].s, rows[i].s, facts);
+      if (label) { rows[i].drop = label; rows[i].logged = []; }
+    }
   }
   // leansOn reads English words, so only an English reply leans by them: a
   // Spanish "He visto" (I have seen) or a Turkish "Her raundda" (in every
@@ -3181,4 +3264,6 @@ module.exports = {
   gunLineOf, AIM_TEAM_NOTE, TRADE_SENT, FOCUS_REASON, FOCUS_SHARE, weakTwoOf, weakTwoLine, weakLeadOf, WEAK_LEAD_REASON, WEAK_WEIGHTS,
   // Round 8, the thin review stage: the asked agent's he or she is no lean.
   leansHere, OPENS_HE, OPENS_SHE, __test: { leansHere },
+  // The blind audit of round 8, stream C, and its review.
+  lookPlaceFix, lookPlaceYours, LOOK_AT_PLACE, LOOK_FROM_PLACE, LOOK_YOU_OBJECT, LOOK_SUBJECT, LOOK_OBJECT_OF,
 };

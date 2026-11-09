@@ -55,7 +55,8 @@
  * English words: the callers pass English text only. Every regex here was
  * written with a file editing tool and is asserted in test:chatgates on a
  * sentence of the audit (caught) and a true variant (kept). No require from
- * src/ (check:server), and nothing but the game data and coherence.js.
+ * src/ (check:server), and nothing but the game data, coherence.js and,
+ * lazily, knowledge.js's samePlace (checkDeathPlace).
  */
 
 let DATA = {};
@@ -203,6 +204,10 @@ function contextOfChat(facts) {
     costRank: Array.isArray(f.costRank) && f.costRank.length ? f.costRank : null,
     // The rounds the match went to, from its final score (checkOrdinal, wholeMatch).
     total: Array.isArray(f.finalScore) && f.finalScore.every(fin) ? f.finalScore[0] + f.finalScore[1] : null,
+    // The player's kills and deaths in the match (checkKillsDeaths, the blind audit of round 8, stream C).
+    scoreline: f.scoreline && fin(f.scoreline.kills) && fin(f.scoreline.deaths) ? { kills: f.scoreline.kills, deaths: f.scoreline.deaths } : null,
+    // The counted lines as the prompt gave them, lower case (checkCountList).
+    countedTexts: f.counted && Array.isArray(f.counted.texts) ? f.counted.texts : [],
   };
 }
 
@@ -245,6 +250,12 @@ function contextOfReview(input) {
     costRank: null,
     // The rounds the match went to, from its final score (checkOrdinal, wholeMatch).
     total: inp.final && fin(inp.final.team) && fin(inp.final.enemy) ? inp.final.team + inp.final.enemy : null,
+    // The player's kills and deaths in the match (checkKillsDeaths, the blind audit of round 8, stream C).
+    scoreline: inp.final && inp.final.scoreline && fin(inp.final.scoreline.kills) && fin(inp.final.scoreline.deaths)
+      ? { kills: inp.final.scoreline.kills, deaths: inp.final.scoreline.deaths } : null,
+    // The counted lines the review was given, lower case (checkCountList).
+    countedTexts: (inp.patterns || []).map((p) => p && p.text).concat(inp.swing || [], (inp.mistakes || []).map((m) => m && m.detail))
+      .filter((x) => typeof x === 'string' && x).map((x) => straight(x).toLowerCase()),
   };
 }
 
@@ -1681,6 +1692,286 @@ function checkKillPlace(sentence, ctx, st) {
   return `your reply put the player's kill in round ${ns[0]} at ${m[3]}, where Riot's record has the enemy falling at ${[...new Set(r.killPlaces)].join(', ')}${deathThere ? `, and ${r.place} is where the player died` : ''}; keep the kill's place and the death's apart`;
 }
 
+/*
+ * THE DEATH'S PLACE IS RIOT'S (the blind audit of round 8, stream C: Corrode
+ * 3 to 13 Iron, biggest mistake). "Round 10 shows it plainly: you moved into
+ * the open at Mid Stairs at 27 s in, first death of the round, Phoenix killed
+ * you with a Vandal", where Riot's record has the death at Mid Bottom: the
+ * screen's spot and the look's words named Mid Stairs, and checkRecord judged
+ * only a place on another site's side. A sentence about the player's death in
+ * a round Riot places it in, that puts the player at one callout of the map
+ * ("you moved into the open at X", "you died at X", "killed you in X") which
+ * is not Riot's callout, nor an area holding it ("Mid" holds "Mid Bottom",
+ * knowledge.js samePlace), nor a place of the player's kills in the round, is
+ * kept with Riot's callout in its place ({ rewrite }). Judged only where the
+ * player is the clause's subject before the place with no agent, pronoun,
+ * teammate or kill between, the sentence names that one place for the player,
+ * and Riot's place is a callout, never a bare site word (the client folds a
+ * widened guess into one, valorant-verify.js placeName); a bare site word said
+ * judges nothing either. A plan, an "if" or a "should" judges nothing.
+ */
+let KNOWLEDGE;
+const knowledgeOf = () => {
+  if (KNOWLEDGE === undefined) { try { KNOWLEDGE = require('./knowledge'); } catch { KNOWLEDGE = null; } }
+  return KNOWLEDGE;
+};
+const PLACE_PREP = /(?:^|\s)(?:at|in|on|inside|into|onto|holding|near|by)\s+(?:the\s+)?$/i;
+// A place as the player's verb's own object: "you peeked Mid Stairs", "you pushed Mid Stairs alone" (the stream C review).
+const PLACE_VERB = /(?:^|\s)(?:peeked|pushed|swung|walked\s+up|walked\s+through|ran\s+up|ran\s+through|entered|took|contested|rushed|crossed)\s+(?:the\s+)?$/i;
+const YOU_HEAD = /\byou\b(?!\s+(?:and|or)\b)/gi;
+// "killed you", "caught you", "for you": the player as the object, never the clause's subject (the stream C review).
+const YOU_OBJECT = /\b(?:killed|caught|shot|got|beat|took|picked\s+off|found|spotted|saw|hit|traded|punished|flanked|tagged|damaged|outgunned|outaimed|outdueled|left|let|forced|made|kept|cost|gave|for|with|to|at|against|behind|near|beside|than|who|whom)\s+$/i;
+const PLACE_GAP_BREAK = new RegExp(`(?<![A-Za-z0-9])(?:${AGENT_ALT})(?![A-Za-z0-9])|\\b(?:he|she|they|them|him|her|his|their|enemy|enemies|teammates?|ally|allies|team|kills?|killed|killing|shot|traded|from|through|past|toward|towards|to|then|after|before)\\b`, 'i');
+// Where the player was before the death, not where it came: "you started the round at X", "you spent 20 seconds in X".
+const PLACE_EARLIER = /\b(?:started|starting|start|spent|spend|began|begin|opened|spawned|waited|set\s+up|came\s+from|left|rotated|rotating)\b/i;
+// A later movement after the place: "at X and pushed down to Y", "in X before you died".
+const PLACE_LATER = /^[^.;!?]{0,60}?\b(?:then|until|later|afterwards|before\s+(?:you\s+)?(?:died|dying|were\s+killed|got\s+killed|fell|went\s+down)|and\s+(?:then\s+)?(?:pushed|moved|walked|rotated|ran|went|swung|peeked|stepped|crossed|fell\s+back|dropped|headed))\b/i;
+// The death's own verb right before the place, the words between it and the
+// place as group 2, and a "who" or "that" before it (the Phoenix who killed
+// you) as group 1. "Your round 10 death came at X" is one too.
+const DEATH_PLACE_HEAD = /(\b(?:who|that|which|whom)\s+)?\b(?:you\s+died|your\s+(?:round\s+\d{1,2}\s+|first\s+|last\s+|only\s+)?death(?:\s+(?:came|was|happened))?|(?:killed|caught|picked\s+off|took)\s+you(?:\s+out)?|you\s+(?:were|got)\s+(?:killed|caught|picked\s+off|taken\s+out)|you\s+fell|you\s+went\s+down)\b((?:\s+[^\s.;,]+){0,4}?)\s+(?:at|in|on|near|inside|holding)\s+(?:the\s+)?$/i;
+// "killed you while holding X", "caught you while he was in X": the place is the killer's.
+const DEATH_GAP_BREAK = /\b(?:while|as|when|who|which|that|whom|was|were|is|are|sat|sitting|standing|waiting|playing|lurking|hiding|held|camping|watching)\b/i;
+const DEATH_SAID = /\b(?:you\s+died|your\s+(?:round\s+\d{1,2}\s+|first\s+|last\s+|only\s+)?death|died|killed\s+you|(?:caught|picked\s+off|took|shot|got|beat)\s+you|first\s+death|you\s+(?:were|got)\s+(?:killed|caught|picked\s+off|taken\s+out)|you\s+fell|you\s+went\s+down)\b/i;
+const placeShown = (p) => String(p).replace(/^([abc]) site$/i, (_s, l) => `${l.toUpperCase()} Site`);
+function checkDeathPlace(sentence, ctx, st) {
+  const t = straight(sentence);
+  if (!ctx || !ctx.rounds.size || !ctx.map || OPENS_IF.test(t) || HYPO.test(t) || !DEATH_SAID.test(t)) return null;
+  const n = roundOfSentence(t, ctx, st);
+  const r = n != null ? ctx.rounds.get(n) : null;
+  if (!r || !r.died || !r.place || /^[abc] site$/i.test(r.place)) return null;
+  const pl = placesOf(ctx.map);
+  if (!pl.alt) return null;
+  const k = knowledgeOf();
+  const same = (a, b) => {
+    const x = String(a).toLowerCase();
+    const y = String(b).toLowerCase();
+    if (x === y || (pl.canonOf.get(x) || x) === (pl.canonOf.get(y) || y)) return true;
+    return !!(k && typeof k.samePlace === 'function' && k.samePlace(ctx.map, x, y));
+  };
+  // Every place the player is put at, by the clause's own "you" before it.
+  const said = [];
+  const re = new RegExp(`(?<![A-Za-z0-9])(${pl.alt})(?![A-Za-z0-9])`, 'gi');
+  let m;
+  let riotNamed = false;
+  while ((m = re.exec(t)) !== null) {
+    if (articleNotSite(m[1])) continue;
+    // Riot's own place said anywhere: the death is told there, and any other
+    // place is where the player was before it ("you started at X and pushed
+    // down to Mid Bottom, where Phoenix killed you").
+    if (!/^[abc] site$/i.test(m[1]) && same(m[1], r.place)) { riotNamed = true; continue; }
+    const from = clauseStart(t, m.index);
+    const head = t.slice(from, m.index);
+    const prep = PLACE_PREP.test(head);
+    const verb = !prep && PLACE_VERB.test(head);
+    if (!prep && !verb) continue;
+    // The death's verb right before the place, with nothing of the killer's between.
+    const dh = prep ? DEATH_PLACE_HEAD.exec(t.slice(Math.max(from, m.index - 80), m.index)) : null;
+    const deathHead = !!dh && !dh[1] && !PLACE_GAP_BREAK.test(dh[2] || '') && !DEATH_GAP_BREAK.test(dh[2] || '');
+    if (!deathHead) {
+      // Else the clause's own "you" as its subject, before it.
+      const yous = [...head.matchAll(YOU_HEAD)].filter((y) => !YOU_OBJECT.test(head.slice(0, y.index)));
+      if (!yous.length) continue;
+      const y = yous[yous.length - 1];
+      const gap = head.slice(y.index + y[0].length).replace(prep ? PLACE_PREP : PLACE_VERB, ' ');
+      if (gap.trim().split(/\s+/).filter(Boolean).length > 7 || PLACE_GAP_BREAK.test(gap) || PLACE_EARLIER.test(gap)) continue;
+      if (PLACE_LATER.test(t.slice(m.index + m[0].length))) continue;
+    }
+    said.push({ at: m.index, text: m[1] });
+  }
+  if (riotNamed) return null;
+  const distinct = [...new Set(said.map((x) => pl.canonOf.get(x.text.toLowerCase()) || x.text.toLowerCase()))];
+  if (distinct.length !== 1) return null;
+  const p = said[0].text;
+  if (/^[abc] site$/i.test(p)) return null;
+  if (same(p, r.place) || (r.killPlaces || []).some((q) => same(p, q))) return null;
+  let out = t;
+  for (const x of [...said].sort((a, b) => b.at - a.at)) out = out.slice(0, x.at) + placeShown(r.place) + out.slice(x.at + x.text.length);
+  return { rewrite: out };
+}
+
+/*
+ * KILLS AGAINST DEATHS, AS THE SCOREBOARD HAS THEM (the blind audit of round
+ * 8, stream C: Split 13 to 7 Ascendant, improve at rank). "You took fights you
+ * could not win cleanly, so you died more than you killed" of a match the
+ * player went 17 and 16. A comparison of the player's kills and deaths in the
+ * match ("died more than you killed", "more deaths than kills", "a negative
+ * K/D", "a K/D under 1", and the other way round) the scoreline makes false
+ * goes; where it is a clause after a comma ("..., so you died more than you
+ * killed"), the clause is cut and the sentence kept ({ rewrite }). Never
+ * under a negation, an "if" or a plan ("stop dying more than you kill"), nor
+ * of a round named in the sentence (a round's kills are another count).
+ */
+const DEATHS_MORE = /\b(?:you\s+)?(?:died|die|dying|dies)\s+more\s+(?:often\s+|times\s+)?than\s+(?:you\s+(?:killed|kill|got\s+kills|traded|were\s+killing)|killing)\b|\bmore\s+deaths\s+than\s+(?:you\s+(?:got|had)\s+)?kills\b|\bfewer\s+kills\s+than\s+deaths\b|\b(?:killed|kill)\s+(?:less|fewer)(?:\s+often)?\s+than\s+you\s+(?:died|die)\b|\b(?:a\s+)?negative\s+(?:K\/D|KD|kill\s*[-/]?\s*death(?:\s+ratio)?)\b|\b(?:K\/D|KD)(?:\s+ratio)?\s+(?:was\s+|of\s+|is\s+|sat\s+|stayed\s+)?(?:below|under|less\s+than)\s+(?:1(?:\.0+)?|one|even)\b|\b(?:your\s+)?deaths\s+outnumbered\s+(?:your\s+)?kills\b|\b(?:went|finished|ended)\s+(?:the\s+(?:match|game)\s+)?(?:negative|in\s+the\s+negatives?)\b/i;
+const KILLS_MORE = /\b(?:you\s+)?(?:killed|kill|killing)\s+more\s+(?:often\s+|times\s+)?than\s+(?:you\s+(?:died|die|were\s+dying)|dying)\b|\bmore\s+kills\s+than\s+(?:you\s+had\s+)?deaths\b|\bfewer\s+deaths\s+than\s+kills\b|\b(?:died|die)\s+(?:less|fewer)(?:\s+often)?\s+than\s+you\s+(?:killed|kill)\b|\b(?:a\s+)?positive\s+(?:K\/D|KD|kill\s*[-/]?\s*death(?:\s+ratio)?)\b|\b(?:K\/D|KD)(?:\s+ratio)?\s+(?:was\s+|of\s+|is\s+|sat\s+|stayed\s+)?(?:above|over|more\s+than)\s+(?:1(?:\.0+)?|one|even)\b|\b(?:your\s+)?kills\s+outnumbered\s+(?:your\s+)?deaths\b|\b(?:went|finished|ended)\s+(?:the\s+(?:match|game)\s+)?(?:positive|in\s+the\s+positives?)\b/i;
+const KD_NEG = /\b(?:not|never|didn't|did\s+not|don't|do\s+not|no|stop|avoid|without|if|unless|when|whenever)\s+(?:\w+\s+){0,2}$/i;
+// Another subject than the player: an agent, a teammate, the team, them (the stream C review).
+const KD_OTHER = new RegExp(`(?<![A-Za-z0-9])(?:${AGENT_ALT})(?![A-Za-z0-9])|\\b(?:he|she|they|their|them|his|her|teammates?|team|enemy|enemies|opponents?|everyone|everybody)\\b`, 'i');
+const GUN_ALT = (Array.isArray(DATA.weapons) ? DATA.weapons : Object.keys(DATA.weapons || {})).map(esc).join('|') || 'NO_GUN';
+// A part of the match, not the whole: a half, a side, a gun, another match (the stream C review).
+const KD_SCOPE = new RegExp(`\\b(?:first|second|other|1st|2nd)\\s+half\\b|\\b(?:on|in|during)\\s+(?:attack|defen[cs]e|offen[cs]e)\\b|\\b(?:attack|defen[cs]e|attacking|defending)\\s+(?:side|half|rounds?)\\b|\\b(?:with|on|using)\\s+(?:the\\s+|your\\s+|an?\\s+)?(?:${GUN_ALT})\\b|\\b(?:last|previous|earlier|other)\\s+(?:match|game)(?:es)?\\b|\\b(?:pistol|eco|bonus)\\s+rounds?\\b`, 'i');
+const KD_CUT = /,\s*(?:so|and|which\s+(?:is\s+)?(?:why|how)|meaning|leaving|as)\s+[^,]*$/i;
+function checkKillsDeaths(sentence, ctx) {
+  const sl = ctx && ctx.scoreline;
+  if (!sl || !fin(sl.kills) || !fin(sl.deaths)) return null;
+  const t = straight(sentence);
+  if (OPENS_IF.test(t) || roundsIn(t).length || KD_SCOPE.test(t)) return null;
+  for (const [re, wrong, said] of [[DEATHS_MORE, sl.deaths <= sl.kills, 'more deaths than kills'], [KILLS_MORE, sl.kills <= sl.deaths, 'more kills than deaths']]) {
+    const m = re.exec(t);
+    if (!m || !wrong || KD_NEG.test(t.slice(Math.max(0, m.index - 40), m.index))) continue;
+    // The player as the comparison's subject: "you died more", "your deaths
+    // outnumbered", "you had more deaths than kills", never "their Reyna had".
+    if (!/^you(?:r)?\b/i.test(m[0])) {
+      const before = t.slice(clauseStart(t, m.index), m.index);
+      const yous = [...before.matchAll(/\byou(?:r)?\b/gi)];
+      if (!yous.length || KD_OTHER.test(before.slice(yous[yous.length - 1].index))) continue;
+    }
+    const reason = `your reply said the player had ${said} in the match, where the scoreboard has ${sl.kills} kills and ${sl.deaths} deaths; compare them only as the scoreline gives them`;
+    // The comparison as a clause after a comma: cut, the sentence before it kept.
+    const tail = KD_CUT.exec(t.slice(0, m.index + m[0].length));
+    if (tail && t.slice(m.index + m[0].length).replace(/[.!?\s]+$/, '') === '') {
+      const kept = t.slice(0, tail.index).replace(/[\s,;:]+$/, '');
+      if (kept.split(/\s+/).length >= 4) return { rewrite: `${kept}.` };
+    }
+    return reason;
+  }
+  return null;
+}
+
+/*
+ * A COUNT AND THE ROUNDS IT LISTS (the blind audit of round 8, stream C: the
+ * Pearl 1 to 5 Ascendant review). "5 of your 5 deaths coming in the first 30
+ * seconds, before any plant, in rounds 1, 3, 4 and 5", where the counted line
+ * says rounds 1, 3, 4, 5 and 6. A count ("N of your M deaths", "N times",
+ * "twice") with the rounds it happened in listed after it ("in rounds 1, 3,
+ * 4 and 5", "rounds 3 to 6") must list as many rounds as it counts and, where
+ * a counted line of the match gives that count with its rounds, those rounds:
+ * the list is written as the counted line has it ({ rewrite }), and a count
+ * whose list cannot agree with any counted line goes. "And 2 more",
+ * "including", "such as", "for example" list some of them and judge nothing.
+ */
+const COUNT_WORDS = { once: 1, twice: 2, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+// "All 5 of your deaths" as groups 6 and 7 (the stream C review).
+const COUNT_HEAD = /\b(?:all\s+(\d{1,2}|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+of\s+(?:your|the|those)\s+([a-z]+)|(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+of\s+(?:your|the|those|his|her|their|its)\s+(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|sixteen|twenty)\s+([a-z]+)|(\d{1,2}|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+times|(once|twice))\b/gi;
+// The list straight after a comma, a colon, a bracket or "in", "during" or
+// "on", never "before round 5", "after round 10" or "by round 4" (the stream C review).
+const LIST_AFTER = /^[^.;:]{0,90}?(?:,\s*(?:(?:in|during|on)\s+)?|\s+(?:in|during|on)\s+|\s*\(\s*(?:in\s+)?|:\s*(?:in\s+)?)(?:the\s+)?rounds?\s+([0-9]{1,2}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s+(?:to|through)\s+)[0-9]{1,2}(?![0-9]|\s*(?:s|secs?|seconds?)\b))*)/i;
+// "In rounds 1, 3, 4 and 5, all 5 of your deaths came early": the list before the count.
+const LIST_BEFORE = /(\b(?:in|during|on|across)\s+(?:the\s+)?rounds?\s+)([0-9]{1,2}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s+(?:to|through)\s+)[0-9]{1,2}(?![0-9]|\s*(?:s|secs?|seconds?)\b))*)\s*,\s*$/i;
+// "starting in round 1", "from round 7 on": where a run begins, not the rounds counted.
+const LIST_NOT_BEFORE = /\b(?:starting|beginning|from|since|by|until|till|before|after|through|up\s+to)\s+(?:(?:in|on|with)\s+)?(?:the\s+)?rounds?\s+$/i;
+// What was counted, by kind, so a list is only ever written from a counted line about the same thing.
+const COUNT_KINDS = [
+  ['untraded', /\b(?:untraded|unanswered|unavenged|not\s+traded|no\s+trade|without\s+a\s+trade|nobody\s+traded)\b/i],
+  ['traded', /\b(?:were|was|got)\s+traded\b|\btraded\s+back\b/i],
+  ['early', /\b(?:first\s+\d{1,3}\s+(?:s|secs?|seconds?)|early|before\s+(?:any|the)\s+plant)\b/i],
+  ['alone', /\b(?:alone|isolated|nobody\s+(?:close|near)|no\s+teammate\s+(?:close|near))\b/i],
+  ['first', /\b(?:first\s+(?:to\s+die|death|blood)|died\s+first|opening\s+death)\b/i],
+  ['postplant', /\b(?:after\s+the\s+plant|post[ -]?plant)\b/i],
+  ['lost', /\blost\b/i],
+  ['won', /\bwon\b/i],
+];
+const countKinds = (s) => new Set(COUNT_KINDS.filter(([, re]) => re.test(String(s || ''))).map(([k]) => k));
+const ROUND_NUMS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20 };
+const ROUND_WORD_ALT = Object.keys(ROUND_NUMS).sort((a, b) => b.length - a.length).join('|');
+const ROUND_WORD_RUN = new RegExp(`\\b(rounds?\\s+)((?:${ROUND_WORD_ALT})(?:(?:\\s*,\\s*(?:and\\s+)?|\\s+and\\s+|\\s+(?:to|through)\\s+)(?:${ROUND_WORD_ALT}))*)\\b`, 'gi');
+const R_RUN = /\bR(\d{1,2})((?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)R\d{1,2})+)\b/g;
+/** A run of rounds as digits: "rounds one, three and four" and "R1, R3 and R4" are "rounds 1, 3 and 4". */
+function foldRounds(text) {
+  return String(text || '')
+    .replace(R_RUN, (all) => `rounds ${all.replace(/\bR(\d{1,2})\b/g, '$1')}`)
+    .replace(ROUND_WORD_RUN, (_all, head, run) => `${head}${run.replace(new RegExp(`\\b(?:${ROUND_WORD_ALT})\\b`, 'gi'), (w) => String(ROUND_NUMS[w.toLowerCase()]))}`);
+}
+const LIST_SOME = /\b(?:and\s+\d+\s+more|and\s+(?:two|three|four|five|six)\s+more|including|such\s+as|for\s+example|e\.g\.|like|among\s+them|among\s+others|most\s+clearly|notably)\b/i;
+const COUNT_DEATH_BEFORE = /\b(?:died|die|killed\s+you|got\s+you|caught\s+you|first\s+to\s+die|first\s+death)\b[^.;]*$/i;
+// A list in a clause of its own: "14 of your 16 deaths went unanswered, and in rounds 1, 3 and 4 no teammate was close" (Split Silver aim).
+const COUNT_NEW_CLAUSE = /\b(?:and|but|while|whereas)\s+(?:you|your|they|their|he|she|his|her|a\s+teammate|nobody)\b|,\s*(?:and|but|while)\b|\b(?:and|but)\s+(?:(?:in|at|on|during)\s+)?(?:the\s+)?rounds?\s+$/i;
+const countWord = (w) => (/^\d+$/.test(String(w)) ? Number(w) : COUNT_WORDS[String(w || '').toLowerCase()] ?? null);
+function runRounds(run) {
+  const out = [];
+  const toks = String(run).split(/(\s*,\s*(?:and\s+)?|\s+and\s+|\s+(?:to|through)\s+)/i);
+  for (let i = 0; i < toks.length; i += 2) {
+    const v = Number(toks[i]);
+    const sep = i > 0 ? toks[i - 1] : '';
+    if (/to|through/i.test(sep) && out.length) {
+      const from = out[out.length - 1];
+      for (let k = from + 1; k <= v && k - from <= 30; k++) out.push(k);
+    } else out.push(v);
+  }
+  return out;
+}
+const listWords = (ns) => (ns.length === 1 ? `round ${ns[0]}` : `rounds ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`);
+function checkCountList(sentence, ctx) {
+  const texts = ctx && Array.isArray(ctx.countedTexts) ? ctx.countedTexts : null;
+  const t = foldRounds(straight(sentence));
+  if (OPENS_IF.test(t)) return null;
+  let out = t;
+  let changed = false;
+  for (const m of t.matchAll(COUNT_HEAD)) {
+    // "Every one of your 5 deaths" counts 5, not 1 (the stream C review).
+    const every = m[3] && /^one$/i.test(m[3]) && /\b(?:every|each|any)\s+$/i.test(t.slice(0, m.index));
+    const said = countWord(every ? m[4] : (m[1] || m[3] || m[6] || m[7]));
+    if (!said) continue;
+    const noun = m[1] ? m[2] : m[5];
+    const total = m[1] ? said : (m[3] ? countWord(m[4]) : null);
+    // A death or a round happens once a round; a kill or a trade may not.
+    if ((m[1] || m[3]) && !/^(?:deaths?|rounds?)$/i.test(noun)) continue;
+    if (!m[1] && !m[3] && !COUNT_DEATH_BEFORE.test(t.slice(Math.max(0, m.index - 50), m.index))) continue;
+    const after = t.slice(m.index + m[0].length);
+    let runAt;
+    let run;
+    let between;
+    const l = LIST_AFTER.exec(after);
+    if (l) {
+      // Another count before the list owns it.
+      between = after.slice(0, l.index + l[0].length - l[1].length);
+      if (new RegExp(COUNT_HEAD.source, 'i').test(between) || new RegExp(AGENT_RE.source).test(between) || COUNT_NEW_CLAUSE.test(between) || LIST_NOT_BEFORE.test(between)) continue;
+      const tail = after.slice(l.index + l[0].length, l.index + l[0].length + 24);
+      // "rounds 1, 5, 7 and 3 more": the run took the "and 3" of the tail. "From round 7 on".
+      if (LIST_SOME.test(between) || LIST_SOME.test(tail) || /^\s*(?:and|or)\s+\d/i.test(tail) || /^\s*more\b/i.test(tail) || /^\s+(?:on|onwards?)\b/i.test(tail)) continue;
+      runAt = m.index + m[0].length + l.index + l[0].length - l[1].length;
+      run = l[1];
+    } else {
+      const lb = (m[1] || m[3]) ? LIST_BEFORE.exec(t.slice(0, m.index)) : null;
+      if (!lb) continue;
+      runAt = lb.index + lb[1].length;
+      run = lb[2];
+      between = after.replace(/[.!?]\s*$/, '');
+    }
+    const listed = runRounds(run);
+    // One round named is where a count happened ("in the round 3 retake"), never its list.
+    if (listed.length < 2) continue;
+    // The counted line with this count, as many rounds listed, and the same thing counted.
+    const pair = total != null ? `${said} of ${(m[0].match(/\bof\s+(your|the|those|his|her|their|its)\b/i) || [])[1] || 'your'} ${total} ${String(noun).toLowerCase()}`.toLowerCase() : null;
+    const kinds = countKinds(between);
+    let fact = null;
+    for (const c of texts || []) {
+      const x = String(c).toLowerCase();
+      const at = pair ? x.indexOf(pair) : -1;
+      if (at < 0) continue;
+      const lc = LIST_AFTER.exec(x.slice(at + pair.length));
+      if (!lc) continue;
+      const ns = runRounds(lc[1]);
+      if (ns.length !== said) continue;
+      const theirs = countKinds(x.slice(at + pair.length, at + pair.length + lc.index + lc[0].length - lc[1].length));
+      if (![...kinds].some((k) => theirs.has(k))) continue;
+      if (fact && fact.join() !== ns.join()) { fact = null; break; }
+      fact = ns;
+    }
+    if (fact && fact.join() !== listed.join()) {
+      // "rounds" written before the run stays; only the numbers are the counted line's.
+      const head = out.slice(0, runAt).replace(/\brounds?\s+$/i, '');
+      out = `${head}${listWords(fact)}${out.slice(runAt + run.length)}`;
+      changed = true;
+      break;
+    }
+    if (!fact && listed.length !== said) {
+      return `your reply counted ${said} and listed ${listed.length} round${listed.length === 1 ? '' : 's'} (${listed.join(', ')}); a count and the rounds it lists must agree, as the counted lines give them`;
+    }
+  }
+  return changed ? { rewrite: out } : null;
+}
+
 const READERS = [
   ['kills', checkKills],
   ['share', checkKillerShare],
@@ -1688,6 +1979,12 @@ const READERS = [
   ['blame', checkTeamBlame],
   ['drill', checkDrill],
   ['record', checkRecord],
+  // The blind audit of round 8, stream C: the death put at another callout than Riot's, kept in Riot's.
+  ['place', checkDeathPlace],
+  // The blind audit of round 8, stream C: kills against deaths the scoreline makes false.
+  ['kd', checkKillsDeaths],
+  // The blind audit of round 8, stream C: a count and the rounds it lists.
+  ['countlist', checkCountList],
   // Round 8: alone or out of reach said of a death with a teammate close, and "nobody could trade you" said of the fact.
   ['alone', checkAlone],
   // The blind audit of 8.7.9, after every reader before.
@@ -1818,5 +2115,11 @@ module.exports = {
   checkClearest, CLEAREST, COST_MOST, COST_TALK, feedTimes,
   // Round 8, the timeline and the state.
   checkPlantPhase, checkEnemyRole, checkFirst, checkLeftWords, checkLater, checkKillPlace, claimRounds,
+  // The blind audit of round 8, stream C.
+  checkDeathPlace, PLACE_PREP, PLACE_GAP_BREAK, DEATH_SAID, YOU_HEAD,
+  checkKillsDeaths, DEATHS_MORE, KILLS_MORE, KD_NEG, KD_CUT,
+  checkCountList, COUNT_HEAD, LIST_AFTER, LIST_SOME, COUNT_DEATH_BEFORE, COUNT_NEW_CLAUSE, runRounds,
+  // Its review: who stands at the place, the scoreline's subject, the list's own words.
+  PLACE_VERB, YOU_OBJECT, PLACE_EARLIER, PLACE_LATER, DEATH_PLACE_HEAD, DEATH_GAP_BREAK, KD_OTHER, KD_SCOPE, LIST_BEFORE, LIST_NOT_BEFORE, countKinds, foldRounds,
   PLANT_DURING, ENEMY_ROLE_OBJ, ENEMY_ROLE_SUBJ, FIRST_SAID, LEFT_HEAD, LEFT_N, LEFT_DOWN, LATER, PLANT_EVENT, KILL_EVENT, DEATH_THEN, KILL_OWNER_BEFORE, earlyDeathsOf, ledgerBins, ledgerLine, tradeLedger, LEDGER_HEAD, LEDGER_RULE, lastAliveOf,
 };

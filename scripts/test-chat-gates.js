@@ -2982,7 +2982,7 @@ console.log('\nround 8, the game facts gates:');
   ok(!g8('Keep your crosshair back from the corner, out in the open space a peeker moves into.', fl) && !g8('If your crosshair sat deep in the wall, a peeker lands off it.', fl), 'kept: the imperative and the hypothetical');
   const fl2 = { ...fl, rounds: new Map([[12, { n: 12, died: true, look: { what: 'Your crosshair was low on the gap when Fade appeared.' } }]]) };
   ok(!g8('Your crosshair was low when Fade swung into the gap.', fl2), 'kept: a look that says where the crosshair was');
-  ok(gates.GATES.map(([n]) => n).slice(-4).join() === 'oneshot,move-fire,bullets,unseen', 'the round 8 gates run after every gate before');
+  ok(gates.GATES.map(([n]) => n).slice(-5, -1).join() === 'oneshot,move-fire,bullets,unseen' && gates.GATES[gates.GATES.length - 1][0] === 'looks', 'the round 8 gates run after every gate before, and the stream C looks gate after them');
   // Deathmatch: the disclaimer loophole (gateMode) and the frame across sentences (gateReply).
   ok(g8('Practise in Deathmatch, where there are no teammates: before each peek, ask yourself whether a teammate could trade you.') === 'mode', 'CAUGHT: a disclaimer, then the team rule');
   ok(!g8('Play Deathmatch, since it needs no teammates: pick one angle and hold it.') && !g8('Deathmatch has no teammates, so do not practise trades there.')
@@ -3254,6 +3254,324 @@ console.log('\nround 8, the game facts gates:');
   ok(drop('In round 6 nobody traded, so take a position a teammate can trade rather than holding alone.'), 'CAUGHT: "rather than holding alone", a place held, beside "nobody traded"');
   ok(rc.SWING_ALONE.test('instead of taking the peek alone') && !rc.SWING_ALONE.test('rather than holding alone')
     && rc.HELD_ALONE.test('rather than holding alone') && !rc.HELD_ALONE.test('instead of taking the peek alone'), 'SWING_ALONE and HELD_ALONE both ways');
+}
+
+// ── The blind audit of round 8, stream C: six wrong claims, each a class ──
+{
+  console.log('\nthe blind audit of round 8, stream C:');
+  const rc = require('../server/services/record-claims');
+  const served = (paras, f) => cp.gateReply(paras, { ...f, language: 'en' }, {});
+  const shown = (rows) => rows.filter((r) => !r.drop).map((r) => r.s);
+  const card = (o) => ({ side: 'attacking', result: 'lost', died: true, verified: true, watched: true, pistol: false, ...o });
+  const valMatch = (o) => cp.normalise({ v: 2, game: 'valorant', language: 'en', advanced: false,
+    match: { result: 'Defeat', verified: true, at: AT, ...o }, player: {}, ask: {} });
+
+  // 1. A place is Riot's callout of the death (record-claims.js checkDeathPlace, chat-prompt.js lookPlaceFix).
+  const corrode = valMatch({ id: 'valorant-1790000000000-corr8c', map: 'Corrode', agent: 'Iso', mode: 'Competitive', score: '3-13', rounds: 16,
+    cards: [card({ n: 10, riot: { sec: 27, killer: 'Phoenix', weapon: 'Vandal', traded: false, firstDeath: true, kills: 0, place: 'Mid Bottom', mate: 'far' },
+      look: { cause: 'dry-peek', what: 'You moved into the open at Mid Stairs without firing, and Phoenix killed you with a Vandal.', better: 'Hold beside cover.', source: 'riot' } })] });
+  const cf = factsFor(corrode, [{ role: 'user', content: 'What was my biggest mistake this match?' }], STAND_IN);
+  const AUDIT1 = 'Round 10 shows it plainly: you moved into the open at Mid Stairs at 27 s in, first death of the round, Phoenix killed you with a Vandal, and nobody was close.';
+  const r1 = served([AUDIT1], cf);
+  ok(!r1[0].drop && r1[0].s === AUDIT1.replace('Mid Stairs', 'Mid Bottom') && r1[0].rewritten === 'record-rewrite',
+    'CAUGHT: the Corrode Iron round 10 death at "Mid Stairs" is served at Riot\'s Mid Bottom (checkDeathPlace)', JSON.stringify(r1.map((r) => [r.s, r.drop])));
+  const GOOD1 = AUDIT1.replace('Mid Stairs', 'Mid Bottom');
+  const g1 = served([GOOD1], cf);
+  ok(!g1[0].drop && g1[0].s === GOOD1 && !g1[0].rewritten, 'KEPT: the same sentence at Mid Bottom, as written');
+  const cctx = rc.contextOfChat(cf);
+  ok(rc.checkDeathPlace('In round 10 Phoenix held Mid Stairs and killed you.', cctx, {}) === null
+    && rc.checkDeathPlace('In round 10 you pushed from Mid Stairs and died.', cctx, {}) === null
+    && rc.checkDeathPlace('In round 10 you should hold Mid Stairs, since Phoenix killed you there.', cctx, {}) === null
+    && rc.checkDeathPlace('In round 10 you died in Mid.', cctx, {}) === null
+    && JSON.stringify(rc.checkDeathPlace('In round 10 Phoenix killed you at Mid Stairs.', cctx, {})) === JSON.stringify({ rewrite: 'In round 10 Phoenix killed you at Mid Bottom.' }),
+  'checkDeathPlace: the enemy\'s place, where the player came from, a plan and an area holding the callout judge nothing; "killed you at Mid Stairs" is Riot\'s place');
+  ok(rc.PLACE_PREP.test('you moved into the open at ') && !rc.PLACE_PREP.test('you pushed from ')
+    && rc.PLACE_GAP_BREAK.test(' Phoenix held ') && rc.PLACE_GAP_BREAK.test(' got a kill ') && !rc.PLACE_GAP_BREAK.test(' moved into the open ')
+    && rc.DEATH_SAID.test('Phoenix killed you with a Vandal') && rc.DEATH_SAID.test('first death of the round') && !rc.DEATH_SAID.test('you killed Phoenix'),
+  'PLACE_PREP, PLACE_GAP_BREAK and DEATH_SAID both ways');
+  const c10 = corrode.match.cards.find((c) => c.n === 10);
+  ok(c10.look.what === 'You moved into the open at Mid Bottom without firing, and Phoenix killed you with a Vandal.' && c10.look.cause === 'dry-peek',
+    `the look's WHAT is sent at Riot's place, its label kept (lookPlaceFix: ${c10.look.what})`);
+  ok(cp.lookPlaceFix('You held B Link toward B Main.', 'B Screen', 'Pearl') === null && cp.lookPlaceFix('You held a site angle in Mid.', 'Mid Doors', 'Pearl') === 'You held a site angle in Mid.'
+    && cp.lookPlaceFix('On B Site, you fired at Clove.', 'B site', 'Pearl') === 'On B Site, you fired at Clove.',
+  'lookPlaceFix: two other places send no WHAT, an area and "a site" (the article) agree, Riot\'s own place is kept');
+
+  // 2. A look's finding only of a round it looked at (fact-gates.js gateLabelAcross, LOOK_SEEN).
+  const pearl = valMatch({ id: 'valorant-1790000000000-pearl8c', map: 'Pearl', agent: 'Raze', mode: 'Swiftplay', score: '1-5', rounds: 6,
+    scoreline: { kills: 4, deaths: 5, assists: 2 },
+    comps: { us: [{ agent: 'Jett' }, { agent: 'Phoenix' }, { agent: 'Raze' }, { agent: 'Reyna' }, { agent: 'Yoru' }], them: [{ agent: 'Cypher' }, { agent: 'Sage' }, { agent: 'Fade' }, { agent: 'Clove' }, { agent: 'Sova' }] },
+    cards: [
+      card({ n: 1, pistol: true, riot: { sec: 26, killer: 'Clove', weapon: 'Classic', traded: false, kills: 0 }, look: { cause: 'lost-duel', what: 'You fired at Clove from beside cover and lost the duel.', better: 'Aim before firing.', source: 'riot' } }),
+      card({ n: 3, riot: { sec: 13, killer: 'Cypher', weapon: 'Phantom', traded: true, kills: 0 } }),
+      card({ n: 5, side: 'defending', pistol: true, riot: { sec: 9, killer: 'Cypher', weapon: 'Classic', traded: true, kills: 0 }, look: { cause: 'lost-duel', what: 'You fought Cypher at close range and dealt 105 damage before his Classic killed you.', better: 'Keep your Ghost ready.', source: 'riot' } }),
+    ] });
+  const PQ = [{ role: 'user', content: 'Their Cypher killed me the most. How do I play against Cypher?' }];
+  const pf = factsFor(pearl, PQ, STAND_IN);
+  const LEAD2 = 'In round 3 Cypher killed you 13 s in and a teammate traded you, and in round 5 Cypher killed you 9 s in.';
+  const AUDIT2 = 'Both were fair fights the look called lost on the shot, so the shot matters too.';
+  const r2 = served([`${LEAD2} ${AUDIT2}`], pf);
+  ok(!r2[0].drop && r2[1].drop && r2[1].drop.gate === 'label', 'CAUGHT: the Pearl Iron "Both were fair fights the look called lost on the shot" of rounds 3 and 5, round 3 with no look', JSON.stringify(r2.map((r) => r.drop)));
+  const r2k = served([`In round 1 you died 26 s in, and in round 5 you died 9 s in. ${AUDIT2}`], pf);
+  ok(r2k.every((r) => !r.drop), 'KEPT: the same of rounds 1 and 5, both looked at and both lost duels', JSON.stringify(r2k.map((r) => r.drop)));
+  ok(drops('The coach looked at round 3 and saw you peek without utility.', pf, 'label') && keeps('The coach looked at round 5 and saw a close fight.', pf)
+    && keeps('The coach did not look at round 3.', pf),
+  'LOOK_SEEN: "the coach looked at round 3" of a round with no look drops; of round 5 and under a negation it stays');
+  ok(gates.ROUNDS_ANAPHOR.test('Both were fair fights') && gates.ROUNDS_ANAPHOR.test('Each time you swung first') && !gates.ROUNDS_ANAPHOR.test('Bothering with utility helps')
+    && gates.LOOK_SEEN.test('the look called it lost') && gates.LOOK_SEEN.test("the coach's look saw") && !gates.LOOK_SEEN.test('look at the coach'),
+  'ROUNDS_ANAPHOR and LOOK_SEEN both ways');
+
+  // 3. Utility the team lacks, taken out of its list (fact-gates.js teamUtilityFix).
+  const AUDIT3 = "After the opening teammate falls, enter on a teammate's flash or drone so you can still take the site without exposing yourself alone.";
+  const r3 = served([AUDIT3], pf);
+  ok(!r3[0].drop && r3[0].s === AUDIT3.replace(' or drone', '') && r3[0].rewritten === 'utility-rewrite',
+    'CAUGHT: "a teammate\'s flash or drone" to Jett, Phoenix, Raze, Reyna and Yoru is served "a teammate\'s flash"', JSON.stringify(r3.map((r) => [r.s, r.drop])));
+  ok(!served(["Enter on a teammate's flash so you can take the site."], pf)[0].rewritten && drops("Enter on a teammate's drone.", pf, 'team-utility')
+    && gates.teamUtilityFix("Enter on a teammate's flash, drone or smoke.", pf).rewrite === "Enter on a teammate's flash or smoke.",
+  'KEPT: the flash alone as written; a drone alone still drops; a list keeps what the team has');
+  ok(gates.UTIL_ITEM.test('drone') && gates.UTIL_ITEM.test('flash') && !gates.UTIL_ITEM.test('teammate'), 'UTIL_ITEM both ways');
+
+  // 4. How many deaths the coach looked at (fact-gates.js gateLookCount).
+  const fracture = valMatch({ id: 'valorant-1790000000000-frac8c', map: 'Fracture', agent: 'Jett', mode: 'Swiftplay', score: '5-1', result: 'Victory', rounds: 6,
+    scoreline: { kills: 12, deaths: 3, assists: 2 },
+    cards: [
+      card({ n: 2, result: 'won', riot: { sec: 40, killer: 'Astra', weapon: 'Sheriff', traded: true, kills: 1 }, look: { cause: 'repeek', what: 'You stayed on the same angle.', better: 'Fall back.', source: 'riot' } }),
+      card({ n: 5, riot: { sec: 50, killer: 'Jett', weapon: 'Sheriff', traded: false, kills: 1 }, look: { cause: 'lost-duel', what: 'You held an angle from cover and lost the duel.', better: 'Keep aiming.', source: 'riot' } }),
+      card({ n: 6, side: 'defending', result: 'won', riot: { sec: 30, killer: 'Chamber', weapon: 'Sheriff', traded: false, kills: 0 }, look: { cause: 'lost-duel', what: 'You fought Chamber and died.', better: 'Take the fight later.', source: 'riot' } }),
+    ] });
+  const ff = factsFor(fracture, [{ role: 'user', content: 'How do I get better aim at my rank?' }], STAND_IN);
+  const AUDIT4 = 'The coach looked at one of your deaths and did not call it a fair fight lost on the shot, so the aim gap here is in the fights you won.';
+  ok(drops(AUDIT4, ff, 'looks'), 'CAUGHT: the Fracture Ascendant "The coach looked at one of your deaths" where it looked at all 3', why(AUDIT4, ff));
+  ok(keeps('The coach looked at all 3 of your deaths, and two were fair fights lost on the shot.', ff) && keeps('1 of the 3 deaths the coach looked at was avoidable.', ff)
+    && drops('1 of the 2 deaths the coach looked at was avoidable.', ff) && gates.gateLookCount('1 of the 2 deaths the coach looked at was avoidable.', ff).gate === 'looks' && keeps('The coach did not look at one of your deaths.', ff),
+  'KEPT: all 3 looked at, the grade\'s "1 of the 3 deaths the coach looked at"; a wrong total drops, a negation stays');
+  ok(gates.LOOKED_AT.test('The coach looked at one of your deaths') && gates.LOOKED_AT.test('I only reviewed 2 of your 3 deaths') && !gates.LOOKED_AT.test('The coach looked at the angle you held')
+    && gates.LOOKED_TOTAL.test('1 of the 3 deaths the coach looked at') && !gates.LOOKED_TOTAL.test('1 of the 3 deaths went untraded'),
+  'LOOKED_AT and LOOKED_TOTAL both ways');
+
+  // 5. Kills against deaths, as the scoreline has them (record-claims.js checkKillsDeaths).
+  const split = valMatch({ id: 'valorant-1790000000000-split8c', map: 'Split', agent: 'Jett', mode: 'Competitive', score: '13-7', result: 'Victory', rounds: 20,
+    scoreline: { kills: 17, deaths: 16, assists: 8 }, cards: [card({ n: 7, riot: { sec: 35, killer: 'Reyna', weapon: 'Vandal', traded: false, kills: 0 } })] });
+  const sf = factsFor(split, [{ role: 'user', content: 'How do I improve at my rank? What is holding me back from climbing?' }], STAND_IN);
+  const AUDIT5 = 'Those two are what held this Split match back, and the decision behind the first one is the lever: you took fights you could not win cleanly, so you died more than you killed.';
+  const r5 = served([AUDIT5], sf);
+  ok(!r5[0].drop && r5[0].s === 'Those two are what held this Split match back, and the decision behind the first one is the lever: you took fights you could not win cleanly.',
+    'CAUGHT: the Split Ascendant "so you died more than you killed" at 17 kills and 16 deaths is cut off its sentence', JSON.stringify(r5.map((r) => [r.s, r.drop])));
+  ok(served(['You died more than you killed this match.'], sf)[0].drop && !served(['You went 17 and 16, more kills than deaths.'], sf)[0].drop
+    && !served(['You died more than you killed this match.'], factsFor(pearl, PQ, STAND_IN))[0].drop && !served(['Stop dying more than you kill.'], sf)[0].drop,
+  'KEPT: the true comparison and the Pearl 4 and 5 "died more than you killed"; the whole false sentence drops; a plan judges nothing');
+  ok(rc.DEATHS_MORE.test('you died more than you killed') && rc.DEATHS_MORE.test('a negative K/D') && rc.DEATHS_MORE.test('your K/D was under 1')
+    && !rc.DEATHS_MORE.test('you died more often in the first 30 seconds') && rc.KILLS_MORE.test('more kills than deaths') && !rc.KILLS_MORE.test('more kills than last match'),
+  'DEATHS_MORE and KILLS_MORE both ways');
+
+  // 6. A count and the rounds it lists (record-claims.js checkCountList).
+  const listCtx = { rounds: new Map(), countedTexts: ['5 of your 5 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 3, 4, 5 and 6.', 'you lost 4 rounds in a row, rounds 3 to 6.'] };
+  const AUDIT6 = 'You lost 1 to 5, with 5 of your 5 deaths coming in the first 30 seconds, before any plant, in rounds 1, 3, 4 and 5, leaving your team short early.';
+  ok(JSON.stringify(rc.checkCountList(AUDIT6, listCtx)) === JSON.stringify({ rewrite: AUDIT6.replace('rounds 1, 3, 4 and 5', 'rounds 1, 3, 4, 5 and 6') }),
+    'CAUGHT: the Pearl Ascendant "5 of your 5 deaths ... in rounds 1, 3, 4 and 5" is written with the counted line\'s rounds 1, 3, 4, 5 and 6');
+  ok(rc.checkCountList(AUDIT6.replace('rounds 1, 3, 4 and 5', 'rounds 1, 3, 4, 5 and 6'), listCtx) === null && rc.checkCountList('You lost 4 rounds in a row, rounds 3 to 6.', listCtx) === null
+    && rc.checkCountList('Omen killed you 6 times, rounds 1, 5, 7 and 3 more.', listCtx) === null && rc.checkCountList('You traded a teammate 3 times, in rounds 4 and 9.', listCtx) === null
+    && rc.checkCountList('One thing beside the shot: 14 of your 16 deaths went unanswered, and in rounds 1, 3, 4 and 6 no teammate was close.', listCtx) === null,
+  'KEPT: the full list, a range, "and 3 more", trades (twice in a round), and a list in a clause of its own (Split Silver aim)');
+  ok(typeof rc.checkCountList('Omen killed you 6 times, rounds 1, 5 and 7.', listCtx) === 'string', 'CAUGHT: "killed you 6 times, rounds 1, 5 and 7", no counted line to write it from');
+  ok(JSON.stringify(rc.runRounds('3 to 6')) === '[3,4,5,6]' && JSON.stringify(rc.runRounds('1, 3, 4, 5 and 6')) === '[1,3,4,5,6]'
+    && rc.LIST_SOME.test('and 3 more') && !rc.LIST_SOME.test('in rounds 1 and 4') && rc.COUNT_NEW_CLAUSE.test(', and in rounds ') && !rc.COUNT_NEW_CLAUSE.test(' coming early, before any plant, in rounds '),
+  'runRounds, LIST_SOME and COUNT_NEW_CLAUSE both ways');
+  const pfl = factsFor(valMatch({ id: 'valorant-1790000000000-pearl8d', map: 'Pearl', agent: 'Raze', mode: 'Swiftplay', score: '1-5', rounds: 6,
+    patterns: [{ key: 'early', text: '5 of your 5 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 3, 4, 5 and 6.' }],
+    cards: [1, 3, 4, 5, 6].map((n) => card({ n, riot: { sec: 9, killer: 'Cypher', weapon: 'Classic', traded: false, kills: 0 } })) }), PQ, STAND_IN);
+  const r6 = served([AUDIT6.replace('You lost 1 to 5, with', 'With')], pfl);
+  ok(!r6[0].drop && /in rounds 1, 3, 4, 5 and 6,/.test(r6[0].s), 'and in Ask Coach, through gateReply, on the pattern the facts carry', JSON.stringify(r6.map((r) => [r.s, r.drop])));
+}
+
+// ── The review of stream C: each finding, its true sentence kept, its wrong one caught ──
+{
+  console.log('\nthe review of stream C:');
+  const rc = require('../server/services/record-claims');
+  const served = (paras, f) => cp.gateReply(paras, { ...f, language: 'en' }, {});
+  const one = (s, f) => served([s], f)[0];
+  const asIs = (s, f) => { const r = one(s, f); return !r.drop && r.s === s && !r.rewritten; };
+  const card = (o) => ({ side: 'attacking', result: 'lost', died: true, verified: true, watched: true, pistol: false, ...o });
+  const valMatch = (o) => cp.normalise({ v: 2, game: 'valorant', language: 'en', advanced: false,
+    match: { result: 'Defeat', verified: true, at: AT, ...o }, player: {}, ask: {} });
+  const TEAM = { us: [{ agent: 'Jett' }, { agent: 'Phoenix' }, { agent: 'Raze' }, { agent: 'Reyna' }, { agent: 'Yoru' }], them: [{ agent: 'Cypher' }, { agent: 'Sage' }, { agent: 'Fade' }, { agent: 'Clove' }, { agent: 'Sova' }] };
+  const corrode = valMatch({ id: 'valorant-1790000000000-corr8r', map: 'Corrode', agent: 'Iso', mode: 'Competitive', score: '3-13', rounds: 16,
+    cards: [card({ n: 10, riot: { sec: 27, killer: 'Phoenix', weapon: 'Vandal', traded: false, firstDeath: true, kills: 0, place: 'Mid Bottom', mate: 'far' } })] });
+  const cf = factsFor(corrode, [{ role: 'user', content: 'What was my biggest mistake this match?' }], STAND_IN);
+  const cctx = rc.contextOfChat(cf);
+
+  // 1. checkDeathPlace: the killer's place and an earlier place are not the death's.
+  for (const s of ['In round 10 Phoenix killed you while holding Mid Stairs.', 'In round 10 the Phoenix who killed you was in Mid Stairs.',
+    'In round 10 Phoenix caught you while he was in Mid Stairs.', 'In round 10 you were killed by a Phoenix sitting in Mid Stairs.',
+    'In round 10 you started the round at Mid Stairs and pushed down to Mid Bottom, where Phoenix killed you.']) {
+    ok(asIs(s, cf), `KEPT as written: "${s}" (the killer's place or an earlier one, not the death's)`, JSON.stringify(one(s, cf)));
+  }
+  ok(rc.checkDeathPlace('In round 10 you spent 20 seconds in Mid Stairs before you died.', cctx, {}) === null,
+    'KEPT: "you spent 20 seconds in Mid Stairs before you died" is where the player was before the death');
+  ok(JSON.stringify(rc.checkDeathPlace('In round 10 Phoenix killed you at Mid Stairs.', cctx, {})) === JSON.stringify({ rewrite: 'In round 10 Phoenix killed you at Mid Bottom.' }),
+    'CAUGHT still: "Phoenix killed you at Mid Stairs" is Riot\'s Mid Bottom');
+  ok(rc.YOU_OBJECT.test('the Phoenix who killed ') && rc.YOU_OBJECT.test('Phoenix caught ') && !rc.YOU_OBJECT.test('Round 10: ')
+    && rc.PLACE_EARLIER.test(' started the round ') && rc.PLACE_EARLIER.test(' spent 20 seconds ') && !rc.PLACE_EARLIER.test(' moved into the open ')
+    && rc.PLACE_LATER.test(' and pushed down to Mid Bottom') && rc.PLACE_LATER.test(' before you died.') && !rc.PLACE_LATER.test(' at 27 s in, first death of the round')
+    && rc.DEATH_GAP_BREAK.test(' while') && rc.DEATH_GAP_BREAK.test(' was') && !rc.DEATH_GAP_BREAK.test(' 27 s in')
+    && rc.DEATH_PLACE_HEAD.exec('the Phoenix who killed you was in ')[1] === 'who ' && rc.DEATH_PLACE_HEAD.test('Phoenix killed you at ') && rc.DEATH_PLACE_HEAD.test('Your round 10 death came at ')
+    && !rc.DEATH_PLACE_HEAD.exec('Phoenix killed you at ')[1],
+  'YOU_OBJECT, PLACE_EARLIER, PLACE_LATER, DEATH_GAP_BREAK and DEATH_PLACE_HEAD both ways');
+  // 11. The place as the verb's object, and "your round 10 death came at".
+  for (const [s, want] of [['Round 10: you peeked Mid Stairs and Phoenix killed you with a Vandal.', 'Round 10: you peeked Mid Bottom and Phoenix killed you with a Vandal.'],
+    ['In round 10 you pushed Mid Stairs alone and died.', 'In round 10 you pushed Mid Bottom alone and died.'],
+    ['Round 10 was the clearest: you walked up Mid Stairs and died to Phoenix.', 'Round 10 was the clearest: you walked up Mid Bottom and died to Phoenix.'],
+    ['Your round 10 death came at Mid Stairs.', 'Your round 10 death came at Mid Bottom.']]) {
+    const r = one(s, cf);
+    ok(!r.drop && r.s === want && r.rewritten === 'record-rewrite', `CAUGHT: "${s}" is served at Riot's Mid Bottom`, JSON.stringify(r));
+  }
+  ok(asIs('Round 10: you peeked Mid Bottom and Phoenix killed you with a Vandal.', cf) && asIs('In round 10 you pushed from Mid Stairs and died.', cf),
+    'KEPT: the peek at Riot\'s own place, and "pushed from" (where the player came from)');
+  ok(rc.PLACE_VERB.test('you peeked ') && rc.PLACE_VERB.test('you walked up ') && !rc.PLACE_VERB.test('you pushed from ') && !rc.PLACE_VERB.test('you pushed down to '),
+    'PLACE_VERB both ways');
+
+  // 2. lookPlaceFix: only the player's own place is swapped, and a WHAT naming Riot's place is kept.
+  ok(cp.lookPlaceFix('Phoenix held Mid Stairs and shot you as you crossed into the open.', 'Mid Bottom', 'Corrode') === 'Phoenix held Mid Stairs and shot you as you crossed into the open.'
+    && cp.lookPlaceFix('You were caught rotating from A Main to B.', 'B Site', 'Pearl') === 'You were caught rotating from A Main to B.'
+    && cp.lookPlaceFix('You fought Sova from B Main and lost the duel.', 'B Site', 'Pearl') === 'You fought Sova from B Main and lost the duel.',
+  'KEPT as written: the enemy\'s place, "rotating from A Main" and "from B Main" are not where the player died');
+  ok(cp.lookPlaceFix('You peeked from Mid Plaza into Mid Doors and died.', 'Mid Doors', 'Pearl') === 'You peeked from Mid Plaza into Mid Doors and died.',
+    'KEPT: a WHAT naming Riot\'s own place beside another is sent as written, not withheld');
+  ok(cp.lookPlaceFix('You moved into the open at Mid Stairs without firing, and Phoenix killed you with a Vandal.', 'Mid Bottom', 'Corrode') === 'You moved into the open at Mid Bottom without firing, and Phoenix killed you with a Vandal.'
+    && cp.lookPlaceFix('You drew your Ghost and fought Cypher at close range in Mid Plaza.', 'Mid Doors', 'Pearl') === 'You drew your Ghost and fought Cypher at close range in Mid Doors.',
+  'CAUGHT still: the player\'s own place is Riot\'s, an enemy as the object between (fought Cypher) no bar');
+  ok(cp.LOOK_FROM_PLACE.test('rotating from ') && !cp.LOOK_FROM_PLACE.test('the open at ') && cp.LOOK_AT_PLACE.test('the open at ') && !cp.LOOK_AT_PLACE.test('Phoenix held ')
+    && cp.LOOK_YOU_OBJECT.test('Phoenix killed ') && !cp.LOOK_YOU_OBJECT.test('') && cp.LOOK_OBJECT_OF.test(' and fought ') && !cp.LOOK_OBJECT_OF.test(' and ')
+    && new RegExp(cp.LOOK_SUBJECT.source, 'i').test('Phoenix held') && !new RegExp(cp.LOOK_SUBJECT.source, 'i').test('the open'),
+  'LOOK_FROM_PLACE, LOOK_AT_PLACE, LOOK_YOU_OBJECT, LOOK_OBJECT_OF and LOOK_SUBJECT both ways');
+
+  // 3 and 14. teamUtilityFix: an enemy's list stays and drops; the team's list is cut in more word orders.
+  const pearl = valMatch({ id: 'valorant-1790000000000-pearl8r', map: 'Pearl', agent: 'Raze', mode: 'Swiftplay', score: '1-5', rounds: 6, comps: TEAM,
+    scoreline: { kills: 4, deaths: 5, assists: 2 },
+    cards: [
+      card({ n: 1, pistol: true, riot: { sec: 26, killer: 'Clove', weapon: 'Classic', traded: false, kills: 0 }, look: { cause: 'lost-duel', what: 'You fired at Clove from beside cover and lost the duel.', better: 'Aim before firing.', source: 'riot' } }),
+      card({ n: 3, riot: { sec: 13, killer: 'Cypher', weapon: 'Phantom', traded: true, kills: 0 } }),
+      card({ n: 5, side: 'defending', riot: { sec: 9, killer: 'Cypher', weapon: 'Classic', traded: true, kills: 0 }, look: { cause: 'lost-duel', what: 'You fought Cypher at close range.', better: 'Keep your Ghost ready.', source: 'riot' } }),
+      card({ n: 6, side: 'defending', riot: { sec: 17, killer: 'Sova', weapon: 'Spectre', traded: false, kills: 0 }, look: { cause: 'dry-peek', what: 'You peeked with no utility.', better: 'Wait for a flash.', source: 'riot' } }),
+    ] });
+  const pf = factsFor(pearl, [{ role: 'user', content: 'Their Cypher killed me the most. How do I play against Cypher?' }], STAND_IN);
+  const sova = "Their Sova will use a flash or drone to clear you, so wait for a teammate's flash.";
+  ok(gates.teamUtilityFix(sova, pf).drop && one(sova, pf).drop && !one(sova, pf).rewritten, 'KEPT dropping: their Sova\'s "flash or drone" is not cut into a flash Sova lacks', JSON.stringify(gates.teamUtilityFix(sova, pf)));
+  for (const [s, want] of [["Enter on a teammate's flash or a drone.", "Enter on a teammate's flash."],
+    ['Wait for a flash or a drone from a teammate before you swing.', 'Wait for a flash from a teammate before you swing.'],
+    ['Ask a teammate for a drone or a flash before you swing.', 'Ask a teammate for a flash before you swing.'],
+    ['Wait for a teammate to drone or flash the site first.', 'Wait for a teammate to flash the site first.'],
+    ["Enter on a teammate's flash/drone.", "Enter on a teammate's flash."],
+    ["Enter on a teammate's flash or recon dart.", "Enter on a teammate's flash."]]) {
+    const r = one(s, pf);
+    ok(!r.drop && r.s === want && r.rewritten === 'utility-rewrite', `CAUGHT: "${s}" is served "${want}"`, JSON.stringify(r));
+  }
+  ok(asIs('Wait for a flash from a teammate before you swing.', pf), 'KEPT: the flash alone, as written');
+  ok(gates.UTIL_TEAM_ASK.test("enter on a teammate's ") && gates.UTIL_TEAM_ASK.test('Ask a teammate for ') && !gates.UTIL_TEAM_ASK.test('Their Sova will use a ')
+    && gates.UTIL_TEAM_AFTER.test(' from a teammate before') && !gates.UTIL_TEAM_AFTER.test(' to clear you') && gates.UTIL_ENEMY_OWNER.test('Their Sova will use a ') && !gates.UTIL_ENEMY_OWNER.test("on a teammate's ")
+    && gates.UTIL_ART.test('a drone') && !gates.UTIL_ART.test('drone') && gates.UTIL_ITEM.test('recon dart')
+    && new RegExp(gates.UTIL_LIST.source, 'i').test('flash or a drone') && new RegExp(gates.UTIL_LIST.source, 'i').test('flash/drone') && !new RegExp(gates.UTIL_LIST.source, 'i').test('flash or a smoke')
+    && new RegExp(gates.UTILITY_ASKED.source, 'i').test('ask a teammate for a drone') && new RegExp(gates.UTILITY_ASKED.source, 'i').test('a teammate to drone') && !new RegExp(gates.UTILITY_ASKED.source, 'i').test('a teammate to flash'),
+  'UTIL_TEAM_ASK, UTIL_TEAM_AFTER, UTIL_ENEMY_OWNER, UTIL_ART, UTIL_ITEM, UTIL_LIST and UTILITY_ASKED both ways');
+
+  // 7 and 15. gateLookCount: a part of the deaths stays, the passive and noun forms are counted.
+  for (const s of ['The coach looked at two of your deaths that ended in lost duels, rounds 1 and 5, and both were fair fights lost on the shot.',
+    'The coach examined both deaths on defence closely.', 'The coach looked at one of your deaths to Sova, round 6, and saw a dry peek.']) {
+    ok(keeps(s, pf), `KEPT: "${s.slice(0, 60)}" is a part of the three looked at`, why(s, pf));
+  }
+  ok(drops('The coach looked at two of your deaths.', pf, 'looks'), 'CAUGHT still: "the coach looked at two of your deaths" where it looked at three');
+  ok(gates.LOOK_SUBSET.test(' that ended in lost duels') && gates.LOOK_SUBSET.test(' on defence closely') && !gates.LOOK_SUBSET.test(' and both were fair')
+    && gates.LOOK_SUBSET_AGENT.test(' to Sova, round 6') && !gates.LOOK_SUBSET_AGENT.test(' to learn from'),
+  'LOOK_SUBSET and LOOK_SUBSET_AGENT both ways');
+  const fracture = valMatch({ id: 'valorant-1790000000000-frac8r', map: 'Fracture', agent: 'Jett', mode: 'Swiftplay', score: '5-1', result: 'Victory', rounds: 6,
+    scoreline: { kills: 12, deaths: 3, assists: 2 },
+    cards: [2, 5, 6].map((n) => card({ n, riot: { sec: 30, killer: 'Chamber', weapon: 'Sheriff', traded: false, kills: 0 }, look: { cause: 'lost-duel', what: 'You fought Chamber and died.', better: 'Take the fight later.', source: 'riot' } })) });
+  const ff = factsFor(fracture, [{ role: 'user', content: 'How do I get better aim at my rank?' }], STAND_IN);
+  for (const s of ['Only one of your deaths was looked at by the coach.', 'The coach had a look at one of your deaths.', "The coach's look covered one of your deaths.", 'One death got a look from the coach.']) {
+    ok((gates.gateLookCount(s, ff) || {}).gate === 'looks' && drops(s, ff), `CAUGHT: "${s}" where the coach looked at all 3`, why(s, ff));
+  }
+  ok(keeps('All 3 of your deaths were looked at by the coach.', ff) && keeps('The coach had a look at all 3 of your deaths.', ff),
+    'KEPT: the passive and noun forms with the true count');
+  ok(gates.LOOKED_BY.test('one of your deaths was looked at by the coach') && gates.LOOKED_BY.test('One death got a look from the coach') && !gates.LOOKED_BY.test('one of your deaths was a lost duel')
+    && gates.LOOKED_AT.test('The coach had a look at one of your deaths') && gates.LOOKED_AT.test("The coach's look covered one of your deaths"),
+  'LOOKED_BY and the new LOOKED_AT forms both ways');
+
+  // 8 and 12. LOOK_SEEN: the record's fact said by "the coach found" is no look; the look said of "both" is.
+  ok(keeps('The coach found that Cypher killed you twice, in rounds 3 and 5.', pf), 'KEPT: "the coach found that Cypher killed you twice" is Riot\'s record, not a look', why('The coach found that Cypher killed you twice, in rounds 3 and 5.', pf));
+  ok(drops('The coach found you peeked round 3 without utility.', pf, 'label') && drops('The coach reviewed round 3 and saw you peek without utility.', pf, 'label'),
+    'CAUGHT: "the coach found you peeked" and "the coach reviewed round 3" of a round with no look');
+  const LEAD = 'In round 3 Cypher killed you 13 s in and a teammate traded you, and in round 5 Cypher killed you 9 s in.';
+  for (const s of ['The look called both of them lost duels.', 'The coach called both lost duels.', "The coach's look found you lost both duels on the shot."]) {
+    const rows = served([`${LEAD} ${s}`], pf);
+    ok(!rows[0].drop && rows[1].drop && rows[1].drop.gate === 'label', `CAUGHT: "${s}" of rounds 3 and 5, round 3 with no look`, JSON.stringify(rows.map((r) => r.drop)));
+  }
+  const kept12 = served(['In round 1 you died 26 s in, and in round 5 you died 9 s in. The look called both of them lost duels.'], pf);
+  ok(kept12.every((r) => !r.drop), 'KEPT: the same of rounds 1 and 5, both lost duels the look called', JSON.stringify(kept12.map((r) => r.drop)));
+  ok(gates.LOOK_ANAPHOR.test('The look called both of them lost duels') && gates.LOOK_ANAPHOR.test("The coach's look found you lost both duels") && !gates.LOOK_ANAPHOR.test('The look called it a lost duel')
+    && gates.LOOK_SEEN.test('The coach reviewed round 3') && !gates.LOOK_SEEN.test('The coach found that Cypher') && gates.LOOK_SEEN_SOFT.test('The coach found that Cypher')
+    && gates.LOOK_WORDS.test('you peeked without utility') && !gates.LOOK_WORDS.test('Cypher killed you twice'),
+  'LOOK_ANAPHOR, LOOK_SEEN, LOOK_SEEN_SOFT and LOOK_WORDS both ways');
+
+  // 4 and 13. checkKillsDeaths: the player as subject of the whole match, and more phrasings.
+  const splitOf = (kills, deaths) => factsFor(valMatch({ id: 'valorant-1790000000000-split8r', map: 'Split', agent: 'Jett', mode: 'Competitive', score: '13-7', result: 'Victory', rounds: 20,
+    scoreline: { kills, deaths, assists: 8 }, cards: [card({ n: 7, riot: { sec: 35, killer: 'Reyna', weapon: 'Vandal', traded: false, kills: 0 } })] }),
+  [{ role: 'user', content: 'How do I improve at my rank? What is holding me back from climbing?' }], STAND_IN);
+  const s1716 = splitOf(17, 16);
+  const s1617 = splitOf(16, 17);
+  for (const s of ['Their Reyna had more deaths than kills, so their entries were weak.', 'Your Sova finished with more deaths than kills, so the info was thin.',
+    'On attack you died more than you killed, since the entries were dry.', 'In the first half you had more deaths than kills, then the second half turned it around.',
+    'Last match you died more than you killed, but this one you went 17 and 16.', 'Your team had a negative K/D on defence.']) {
+    ok(asIs(s, s1716), `KEPT at 17 and 16: "${s}" (another subject or a part of the match)`, JSON.stringify(one(s, s1716)));
+  }
+  for (const s of ['On defence you had more kills than deaths, so the problem is attack.', 'With the Operator you killed more than you died.']) {
+    ok(asIs(s, s1617), `KEPT at 16 and 17: "${s}"`, JSON.stringify(one(s, s1617)));
+  }
+  for (const s of ['Your deaths outnumbered your kills.', 'You were dying more than you were killing.', 'You went negative this match.', 'You ended the match in the negatives.', 'You gave up more deaths than you got kills.']) {
+    ok(one(s, s1716).drop, `CAUGHT at 17 and 16: "${s}"`);
+    ok(asIs(s, s1617), `KEPT at 16 and 17: "${s}"`, JSON.stringify(one(s, s1617)));
+  }
+  ok(one('You had more deaths than kills.', s1716).drop && one('Your kills outnumbered your deaths.', s1617).drop && asIs('Your kills outnumbered your deaths.', s1716),
+    'CAUGHT still: "you had more deaths than kills" at 17 and 16; the mirror both ways');
+  ok(rc.KD_OTHER.test('Their Reyna had ') && rc.KD_OTHER.test('Your team had ') && !rc.KD_OTHER.test('you had ')
+    && rc.KD_SCOPE.test('On attack you died') && rc.KD_SCOPE.test('With the Operator you') && rc.KD_SCOPE.test('Last match you') && rc.KD_SCOPE.test('In the first half') && !rc.KD_SCOPE.test('This match you died more than you killed')
+    && rc.DEATHS_MORE.test('your deaths outnumbered your kills') && rc.DEATHS_MORE.test('dying more than you were killing') && rc.DEATHS_MORE.test('went negative') && rc.DEATHS_MORE.test('ended the match in the negatives') && rc.DEATHS_MORE.test('more deaths than you got kills')
+    && rc.KILLS_MORE.test('your kills outnumbered your deaths') && rc.KILLS_MORE.test('killing more than you were dying') && rc.KILLS_MORE.test('went positive') && !rc.KILLS_MORE.test('went negative'),
+  'KD_OTHER, KD_SCOPE and the new DEATHS_MORE and KILLS_MORE branches both ways');
+
+  // 5, 6, 9 and 10. checkCountList: where a run starts is no list, the thing counted must agree, and more list forms.
+  const reyna = factsFor(valMatch({ id: 'valorant-1790000000000-split8y', map: 'Split', agent: 'Jett', mode: 'Competitive', score: '3-13', rounds: 16,
+    cards: [1, 2, 3, 4, 5, 6, 7].map((n) => card({ n, riot: { sec: 20, killer: 'Reyna', weapon: 'Vandal', traded: false, kills: 0 } })) }), [{ role: 'user', content: 'How do I play against Reyna?' }], STAND_IN);
+  ok(asIs('Reyna killed you 7 times, starting in round 1.', reyna), 'KEPT: "Reyna killed you 7 times, starting in round 1"', JSON.stringify(one('Reyna killed you 7 times, starting in round 1.', reyna)));
+  const lc = { rounds: new Map(), countedTexts: [] };
+  ok(['Cypher killed you 3 times from round 7 on.', 'You died twice after round 10, both times on B.', 'You died 4 times before round 5, all of them early.',
+    'You died twice in the round 3 retake and the round 7 retake.', 'You died 3 times by round 4.'].every((s) => rc.checkCountList(s, lc) === null),
+  'KEPT: "from round 7 on", "after round 10", "before round 5", "in the round 3 retake", "by round 4"');
+  ok(typeof rc.checkCountList('You died 3 times, in rounds 4 and 9.', lc) === 'string', 'CAUGHT still: "died 3 times, in rounds 4 and 9"');
+  ok(rc.checkCountList('3 of your 5 deaths came in the first 20 seconds, in rounds 1, 3 and 4.', { rounds: new Map(), countedTexts: ['3 of your 5 deaths went untraded, in rounds 2, 5 and 6.'] }) === null,
+    'KEPT: early deaths are not written with the rounds of the untraded line of the same pair');
+  ok(JSON.stringify(rc.checkCountList('3 of your 5 deaths went unanswered, in rounds 1, 3 and 4.', { rounds: new Map(), countedTexts: ['3 of your 5 deaths went untraded, in rounds 2, 5 and 6.'] }))
+    === JSON.stringify({ rewrite: '3 of your 5 deaths went unanswered, in rounds 2, 5 and 6.' }), 'CAUGHT: the untraded deaths written with the untraded line\'s rounds');
+  const pfl = factsFor(valMatch({ id: 'valorant-1790000000000-pearl8r', map: 'Pearl', agent: 'Raze', mode: 'Swiftplay', score: '1-5', rounds: 6,
+    patterns: [{ key: 'early', text: '5 of your 5 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 3, 4, 5 and 6.' }],
+    cards: [1, 3, 4, 5, 6].map((n) => card({ n, riot: { sec: 9, killer: 'Cypher', weapon: 'Classic', traded: false, kills: 0 } })) }), [{ role: 'user', content: 'Why did I die so early?' }], STAND_IN);
+  for (const [s, want] of [['All 5 of your deaths came in the first 30 seconds, in rounds 1, 3, 4 and 5.', 'All 5 of your deaths came in the first 30 seconds, in rounds 1, 3, 4, 5 and 6.'],
+    ['5 of your 5 deaths came early (rounds 1, 3, 4 and 5).', '5 of your 5 deaths came early (rounds 1, 3, 4, 5 and 6).'],
+    ['5 of your 5 deaths came early: rounds 1, 3, 4 and 5.', '5 of your 5 deaths came early: rounds 1, 3, 4, 5 and 6.'],
+    ['5 of your 5 deaths came early, in R1, R3, R4 and R5.', '5 of your 5 deaths came early, in rounds 1, 3, 4, 5 and 6.'],
+    ['5 of your 5 deaths came early, in rounds one, three, four and five.', '5 of your 5 deaths came early, in rounds 1, 3, 4, 5 and 6.'],
+    ['In rounds 1, 3, 4 and 5, all 5 of your deaths came in the first 30 seconds.', 'In rounds 1, 3, 4, 5 and 6, all 5 of your deaths came in the first 30 seconds.']]) {
+    const r = one(s, pfl);
+    ok(!r.drop && r.s === want, `CAUGHT: "${s}" is written with the counted line's rounds`, JSON.stringify(r));
+  }
+  ok(asIs('All 5 of your deaths came in the first 30 seconds, in rounds 1, 3, 4, 5 and 6.', pfl)
+    && rc.checkCountList('Every one of your 5 deaths came early, in rounds 1, 3, 4, 5 and 6.', rc.contextOfChat(pfl)) === null,
+  'KEPT: "all 5" with the full list, and "every one of your 5 deaths" counts five');
+  ok(rc.LIST_NOT_BEFORE.test(', starting in round ') && rc.LIST_NOT_BEFORE.test(' from round ') && !rc.LIST_NOT_BEFORE.test(', in rounds ')
+    && rc.LIST_AFTER.test(' came early (rounds 1, 3 and 4)') && rc.LIST_AFTER.test(' came early: rounds 1, 3 and 4') && !rc.LIST_AFTER.test(' before round 5') && !rc.LIST_AFTER.test(' after round 10')
+    && rc.LIST_BEFORE.test('In rounds 1, 3, 4 and 5, ') && !rc.LIST_BEFORE.test('In the first 30 seconds, ')
+    && rc.foldRounds('in R1, R3 and R4') === 'in rounds 1, 3 and 4' && rc.foldRounds('in rounds one, three and twelve') === 'in rounds 1, 3 and 12' && rc.foldRounds('one teammate in R5') === 'one teammate in R5'
+    && [...rc.countKinds('went untraded')].join() === 'untraded' && [...rc.countKinds('came in the first 20 seconds')].join() === 'early' && !rc.countKinds('came in').size
+    && new RegExp(rc.COUNT_HEAD.source, 'i').exec('All 5 of your deaths')[1] === '5' && !new RegExp(rc.COUNT_HEAD.source, 'i').exec('All of your deaths'),
+  'LIST_NOT_BEFORE, LIST_AFTER, LIST_BEFORE, foldRounds, countKinds and the "all N of your" COUNT_HEAD both ways');
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

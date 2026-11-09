@@ -987,3 +987,85 @@ From the Pearl Silver Cypher answer and the Fracture Ascendant aim answer of rou
   than drops, and only this. Nothing is touched where nothing was cut before it.
 
 Tests: `test:chatgates` ("ROUND 8: THE THIN REVIEW STAGE"), each regex on a positive and a negative.
+
+### The blind audit of round 8, stream C: six wrong claims as classes (Nov 2026)
+
+Six wrong claims a blind audit of 84 answers of the live 8.8.0 server found, each fixed as a class
+in code, on both surfaces where the class reaches both. Tests: `test:chatgates` ("the blind audit
+of round 8, stream C") and `test:valorantreview` (the same title), each on the audit's sentence and
+a true one.
+
+- **The death's place is Riot's** (`record-claims.js checkDeathPlace`, reader `place`, both
+  surfaces): a sentence about the player's death that puts the player at another callout than
+  Riot's (not an area holding it, not a kill place of the round) is kept with Riot's callout in
+  its place (`{ rewrite }`, logged `record-rewrite`). Corrode Iron round 10, "at Mid Stairs" for
+  Riot's Mid Bottom. Only where "you" is the clause's subject before the place with no agent,
+  pronoun, teammate or kill between, one place said, and Riot's place a callout, never a bare
+  site word. The input too (`chat-prompt.js lookPlaceFix`, a prompt change): a look's WHAT
+  naming one other place says Riot's, naming more is not sent, as the review's `placesKept`.
+- **A look's finding only of a round it looked at** (`fact-gates.js gateLabelAcross`,
+  `LOOK_SEEN`, gate `label`): "Both were fair fights the look called lost on the shot" after a
+  sentence telling rounds 3 and 5 is held to both, and round 3 had no look (Pearl Iron, Cypher);
+  "the coach looked at round 3" of a round with no look drops. "lost on the shot" is a lost
+  duel label word now.
+- **Utility the team lacks** (`fact-gates.js teamUtilityFix`): "a teammate's flash or drone" to
+  a team with no drone is "a teammate's flash", in Ask Coach (`utility-rewrite`) and in the review
+  (`match-review.js utilityGates`, the Pearl Plat round 3 and focus). The review learns the team
+  from `context.teamAgents` (sent by `valorant-review.js requestBody` from this release) or, for
+  a client before it, the five of its own "Your team had no controller:" line (`teamOf`).
+- **How many deaths the coach looked at** (`fact-gates.js gateLookCount`, gate `looks`, last):
+  "The coach looked at one of your deaths" where it looked at all 3 (Fracture Asc and Plat aim),
+  and the looked at total of "1 of the 2 deaths the coach looked at", held to the deaths with a
+  look, unclear looks counted or not.
+- **Kills against deaths** (`record-claims.js checkKillsDeaths`, reader `kd`, both surfaces):
+  "so you died more than you killed" at 17 and 16 (Split Asc improve) is cut off its sentence
+  where it is a clause after a comma, else the sentence goes. Never under a negation or a plan.
+- **A count and the rounds it lists** (`record-claims.js checkCountList`, reader `countlist`,
+  both surfaces): "5 of your 5 deaths ... in rounds 1, 3, 4 and 5" is written with the counted
+  line's rounds 1, 3, 4, 5 and 6 (Pearl Asc review), and a count whose list cannot agree with a
+  counted line goes ("9 of your 11 deaths went unanswered, leaving nobody to kill your killer in
+  rounds 2, 7, 8 and 9", the re-audit's Corrode Plat summary, is gone too). Deaths and rounds
+  only (a kill or a trade may come twice in a round), never a list with "and 3 more" or
+  "including", a range read as its rounds, a list in a clause of its own left alone.
+
+Replayed offline over all 84 round 8 outputs: the six targets fixed, plus the same classes in
+Fracture Plat aim (looked at one) and the Corrode Iron review's round 10 ("flash or drone" to
+Clove, Iso, Skye, Veto, Waylay), and nothing else changes.
+
+#### Its review (Nov 2026)
+
+A review of the stream C diff reproduced 15 wrong keeps and drops; each is fixed and tested in
+`test:chatgates` ("the review of stream C") and `test:valorantreview` ("the review of stream C,
+in the review"):
+
+- `checkDeathPlace` judges a place only right after the death's own verb with nothing of the
+  killer's between ("killed you while holding X", "the Phoenix who killed you was in X" are the
+  killer's), or after a subject "you" (never "killed you") with no earlier position ("started
+  the round at", "spent 20 seconds in") and no later movement after it. A sentence that names
+  Riot's place anywhere judges nothing. New heads: a place as the verb's object ("you peeked X",
+  "pushed X", "walked up X") and "your round 10 death came at X".
+- `lookPlaceFix` swaps only the player's own place ("you" as subject, no enemy subject between,
+  never after "from" or "to"), and a WHAT naming Riot's place is sent as written, never withheld.
+- `teamUtilityFix` cuts a list only where it is asked of the player's team (a teammate's, your,
+  ask for, wait for, from a teammate) and no enemy or "their" owns it; else the sentence drops
+  as before. Lists with articles ("flash or a drone"), "/" and "recon dart" are read, and
+  `UTILITY_ASKED` knows "ask a teammate for a drone" and "a teammate to drone".
+- `checkKillsDeaths` needs the player as subject and skips a half, a side, a gun, another
+  match, pistol or eco rounds; more phrasings ("deaths outnumbered your kills", "went
+  negative", "dying more than you were killing") both ways.
+- `checkCountList`: the list must follow a comma, a colon, a bracket or "in", "during", "on"
+  (never "starting in", "from", "after", "before", "by" round N, nor "round 7 on"); one round
+  listed judges nothing; a counted line rewrites a list only where it counts the same kind of
+  thing (`countKinds`: untraded, early, alone and so on); "every one of your 5" counts five;
+  "all 5 of your deaths", R1, R3 lists, number words (`foldRounds`) and a list before the count
+  (`LIST_BEFORE`) are read. The last newly drops the re-audit's Sunset Iron summary sentence "In
+  rounds 1, 3, 5 and 6, 12 of your 13 deaths went unanswered", twelve deaths told as four rounds.
+- `gateLookCount` skips a part of the deaths ("that ended in lost duels", "on defence", "to
+  Sova", a word before "deaths") and reads the passive and noun forms ("was looked at by the
+  coach", "got a look from the coach", "had a look at", "the coach's look covered"). Not run on
+  reviews: the review input drops unclear looks, so a true count could drop there.
+- `LOOK_SEEN`: a bare "the coach" says what a look found only by its look verbs (saw, called,
+  looked at, reviewed round N), or by found, says or reads with a look's own words in the clause
+  (`LOOK_WORDS`), so "the coach found that Cypher killed you twice" is the record's fact.
+  `gateLabelAcross` also holds a look or coach that says it of "both" or "them" as its object
+  (`LOOK_ANAPHOR`).

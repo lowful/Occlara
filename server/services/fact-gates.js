@@ -164,7 +164,8 @@ const CAUSE_WORDS = {
   'rotating': ['caught rotating', 'rotating'],
   'overextend': ['overextended', 'overextend', 'overextension'],
   'exposed': ['exposed on the spike', 'exposed'],
-  'lost-duel': ['lost the duel', 'lost duel', 'lost-duel'],
+  // "the look called lost on the shot" (the blind audit of round 8, stream C, Pearl Iron).
+  'lost-duel': ['lost the duel', 'lost duel', 'lost-duel', 'lost on the shot'],
   'unclear': ['unclear'],
 };
 
@@ -698,17 +699,46 @@ function labelsIn(s) {
   return [...out];
 }
 
+/*
+ * WHAT A LOOK FOUND, OF A ROUND NOBODY LOOKED AT (the blind audit of round 8,
+ * stream C, Pearl 1 to 5 Iron, the Cypher answer): "the coach saw", "the look
+ * found", "the coach looked at round 3" of a round with no look is a claim
+ * about a look that never was. Judged in the round's own clause (scopeOf),
+ * never under a negation ("the coach did not look at round 3").
+ */
+// "The coach found that Cypher killed you twice" is the record's fact, not a
+// look's: a bare "the coach" says what a look found only by its look verbs
+// (saw, called, looked at, reviewed round 3), or by "found", "says" or
+// "reads" with a look's own words in its clause (LOOK_WORDS, the stream C review).
+const LOOK_SEEN = /\b(?:(?:the\s+(?:coach's\s+)?looks?|its\s+look)\s+(?:(?:also|only|then)\s+)?(?:saw|sees|found|finds|showed|shows|caught|called|calls|said|says|read|reads|labell?ed|looked\s+(?:at|into))|the\s+coach\s+(?:(?:also|only|then)\s+)?(?:saw|sees|caught|called|calls|labell?ed|looked\s+(?:at|into)|(?:reviewed|examined|checked|studied)\s+(?:round|it\b|that\s+(?:death|round)|the\s+(?:death|round))))\b/i;
+const LOOK_SEEN_SOFT = /\bthe\s+coach\s+(?:(?:also|only|then)\s+)?(?:found|finds|showed|shows|said|says|read|reads)\b/i;
+const LOOK_WORDS = /\b(?:crosshair|position(?:ed)?|peek(?:s|ed|ing)?|angle|cover|utility|duels?|fights?|swing|swung|exposed|repeek(?:ed)?|overextend(?:ed)?|dry|frame|screen)\b/i;
+function lookSeenAt(s) {
+  const t = String(s || '');
+  const strict = LOOK_SEEN.exec(t);
+  if (strict) return strict;
+  const soft = LOOK_SEEN_SOFT.exec(t);
+  if (!soft) return null;
+  const rest = t.slice(soft.index + soft[0].length).split(/[.;]/)[0];
+  return LOOK_WORDS.test(rest) || labelsIn(rest).length ? soft : null;
+}
 function gateLabel(s, facts, rs) {
   const f = facts || {};
   if (f.language !== 'en' || !(f.rounds instanceof Map)) return null;
   const labels = labelsIn(s);
   const fair = FAIR.test(String(s || '')) && !NOT_FAIR.test(String(s || '')) && !isHypothetical(s);
-  if (!labels.length && !fair) return null;
+  const seen = lookSeenAt(s);
+  const lookSaid = !!seen && !negatedAt(String(s || ''), seen.index + seen[0].length) && !isHypothetical(s);
+  if (!labels.length && !fair && !lookSaid) return null;
   const named = roundsNamed(s, f);
   const rounds = named.length ? named : (rs && rs.implied ? rs.rounds : (f.asked && f.oneRound ? [f.asked] : []));
   for (const n of rounds) {
     const r = f.rounds.get(n);
     if (!r) continue;
+    if (lookSaid && !r.look && (named.length < 2 || lookSeenAt(scopeOf(String(s || ''), n)))) {
+      return drop('label', `your reply said what the coach's look found in round ${n}, which the coach did not look at; say what a look found only of a round it looked at`);
+    }
+    if (!labels.length && !fair) continue;
     const cause = r.look && r.look.cause ? r.look.cause : null;
     for (const key of labels) {
       if (key !== cause) {
@@ -722,6 +752,30 @@ function gateLabel(s, facts, rs) {
     }
   }
   return null;
+}
+
+/*
+ * A LABEL SAID OF THE ROUNDS BEFORE IT (the blind audit of round 8, stream C,
+ * Pearl 1 to 5 Iron): "In round 3 you died at B Screen ..., and in round 5 at
+ * Mid Doors ... Both were fair fights the look called lost on the shot."
+ * Round 3 had no look. A sentence naming no round that opens on a word for
+ * the rounds just told (both, each, all of them, they, those, these, neither)
+ * is held, by gateLabel, to the two or more rounds the kept sentence before
+ * it named, in its paragraph (chat-prompt.js gateReply). So is one whose
+ * look or coach says it of them as its object ("The look called both of them
+ * lost duels", "The coach's look found you lost both duels", the stream C
+ * review, LOOK_ANAPHOR).
+ */
+const ROUNDS_ANAPHOR = /^\s*(?:both(?:\s+of\s+them|\s+times|\s+deaths|\s+fights|\s+rounds)?|each(?:\s+time|\s+one|\s+of\s+them)?|all\s+(?:of\s+them|two|three|four|five)|they|those|these|neither|in\s+(?:both|each|all)(?:\s+of\s+them)?|the\s+two)\b/i;
+const LOOK_ANAPHOR = /\b(?:the\s+(?:coach's\s+)?looks?|the\s+coach|its\s+look)\s+(?:(?:also|only|then)\s+)?(?:saw|sees|found|finds|called|calls|labell?ed|read|reads|said|says|showed|shows|reviewed|examined|checked|looked\s+at)\s+(?:[a-z']+\s+){0,3}?(?:both|each|all\s+of\s+them|all\s+(?:two|three|four|five)|neither|them|those|these|the\s+two)\b/i;
+function gateLabelAcross(prev, sentence, facts) {
+  const f = facts || {};
+  if (f.language !== 'en' || !(f.rounds instanceof Map)) return null;
+  const s = straighten(sentence);
+  if (!(ROUNDS_ANAPHOR.test(s) || LOOK_ANAPHOR.test(s)) || roundsNamed(s, f).length) return null;
+  const rounds = roundsNamed(straighten(prev), f);
+  if (rounds.length < 2) return null;
+  return gateLabel(s, f, { round: true, rounds, implied: true });
 }
 
 /*
@@ -2516,8 +2570,10 @@ const UTILITY_OWNERS = (() => {
   if (out.recon) for (const a of out.recon) (out.dart = out.dart || new Set()).add(a);
   return out;
 })();
-const UTILITY_ASKED = /\b(?:a\s+teammate's|your\s+teammate's|your\s+team's|their\s+own|a\s+team\s?mate's|an?\s+ally's|your|the\s+team's|with\s+a|on\s+a|behind\s+a|after\s+a)\s+(?:[a-z]+,?\s+(?:or\s+|and\s+)?){0,3}?(drones?|darts?|recon(?:\s+bolt)?|prowlers?)\b/gi;
-const UTIL_LIST = /\b(?:flash|smoke|stun|molly|wall|drones?|darts?|recon(?:\s+bolt)?|prowlers?)(?:\s*,\s*|\s+(?:or|and)\s+)(?:(?:flash|smoke|stun|molly|wall|drones?|darts?|recon(?:\s+bolt)?|prowlers?)(?:\s*,\s*|\s+(?:or|and)\s+))*(drones?|darts?|recon(?:\s+bolt)?|prowlers?)\b/gi;
+// "Ask a teammate for a drone", "wait for a teammate to drone the site" too (the stream C review).
+const UTILITY_ASKED = /\b(?:a\s+teammate's|your\s+teammate's|your\s+team's|their\s+own|a\s+team\s?mate's|an?\s+ally's|your|the\s+team's|with\s+a|on\s+a|behind\s+a|after\s+a|ask\s+(?:a|your|the)\s+teammates?\s+for|(?:a|your)\s+teammates?\s+to)\s+(?:[a-z]+,?\s+(?:or\s+|and\s+)?){0,3}?(drones?|darts?|recon(?:\s+(?:bolt|dart))?|prowlers?)\b/gi;
+// "a flash or a drone" and "flash/drone" are lists too (the stream C review).
+const UTIL_LIST = /\b(?:flash|smoke|stun|molly|wall|drones?|darts?|recon(?:\s+(?:bolt|dart))?|prowlers?)(?:\s*,\s*|\s+(?:or|and)\s+|\s*\/\s*)(?:(?:a|an|their|your)\s+)?(?:(?:flash|smoke|stun|molly|wall|drones?|darts?|recon(?:\s+(?:bolt|dart))?|prowlers?)(?:\s*,\s*|\s+(?:or|and)\s+|\s*\/\s*)(?:(?:a|an|their|your)\s+)?)*(drones?|darts?|recon(?:\s+(?:bolt|dart))?|prowlers?)\b/gi;
 const UTILITY_OURS = /\b(?:teammates?(?:'s)?|team\s?mates?(?:'s)?|ally(?:'s)?|allies|your\s+team(?:'s)?|your\s+(?:[a-z]+\s+){0,2}?(?:drones?|darts?|recon|prowlers?))\b/i;
 function gateTeamUtility(s, facts) {
   const f = facts || {};
@@ -2525,7 +2581,7 @@ function gateTeamUtility(s, facts) {
   if ((f.language || 'en') !== 'en' || f.game === 'lol' || !mates || mates.size < 5) return null;
   const t = String(s || '');
   const said = new Set();
-  for (const m of t.matchAll(new RegExp(UTILITY_ASKED.source, 'gi'))) said.add(lower(m[1]).replace(/s$/, '').replace(/\s+bolt$/, ''));
+  for (const m of t.matchAll(new RegExp(UTILITY_ASKED.source, 'gi'))) said.add(lower(m[1]).replace(/s$/, '').replace(/\s+(?:bolt|dart)$/, ''));
   for (const m of t.matchAll(new RegExp(UTIL_LIST.source, 'gi'))) for (const w of m[0].match(/drones?|darts?|recon|prowlers?/gi) || []) said.add(lower(w).replace(/s$/, ''));
   // "After a dart reveals you", "they push in on a drone": the enemy's, where
   // their known comp has one and nothing ties it to the player's side (verify round 6).
@@ -2540,6 +2596,67 @@ function gateTeamUtility(s, facts) {
     }
   }
   return null;
+}
+
+/*
+ * THE MISSING UTILITY TAKEN OUT OF ITS LIST (the blind audit of round 8,
+ * stream C: Pearl 1 to 5 Plat review, "enter on a teammate's flash or drone"
+ * to Jett, Phoenix, Raze, Reyna and Yoru, who have flashes and no drone).
+ * Where gateTeamUtility would drop a sentence and every utility it names
+ * that the team lacks stands in a list with one it has, that one is taken out
+ * of the list ("a teammate's flash or drone" is "a teammate's flash") and the
+ * sentence kept: { rewrite }. A sentence still asking for what nobody has,
+ * once the lists are cut, is { drop }. Null where the gate has nothing.
+ */
+const UTIL_ITEM = /^(?:flash|smoke|stun|molly|wall|drones?|darts?|recon(?:\s+(?:bolt|dart))?|prowlers?)$/i;
+const UTIL_SEP = /(\s*,\s*(?:(?:or|and)\s+)?|\s+(?:or|and)\s+|\s*\/\s*)/i;
+// An item's own article or owner in a list: "a flash or a drone", "your flash or their drone" (the stream C review).
+const UTIL_ART = /^(?:a|an|their|your)\s+/i;
+// The list is utility asked of the player's team: "a teammate's", "your", "ask ... for", "play off", "wait for".
+const UTIL_TEAM_ASK = /\b(?:teammates?(?:'s)?|team\s?mates?(?:'s)?|an?\s+ally(?:'s)?|allies|your(?:\s+team(?:'s)?)?|ask(?:\s+\S+){0,3}\s+for|play(?:ing)?\s+off|wait(?:ing)?\s+for)\b/i;
+const UTIL_TEAM_AFTER = /^\s*(?:from|by)\s+(?:a\s+|an\s+|your\s+|the\s+)?(?:teammates?|team|ally|allies)\b/i;
+const UTIL_ENEMY_OWNER = /\b(?:their|the\s+enemy(?:'s)?|enemy|enemies|opponents?(?:'s)?|they|them)\b/i;
+function teamUtilityFix(s, facts) {
+  const first = gateTeamUtility(s, facts);
+  if (!first) return null;
+  const f = facts || {};
+  const mates = f.sides.mates;
+  const enemies = f.sides.enemies instanceof Set ? [...f.sides.enemies] : [];
+  const has = (w) => {
+    const key = lower(w).replace(UTIL_ART, '').replace(/\s+(?:bolt|dart)$/, '').replace(/s$/, '');
+    const owners = UTILITY_OWNERS[key];
+    // A utility the game data gives nobody (a flash, a smoke) is no claim here.
+    return !owners || !owners.size || [...mates].some((a) => owners.has(a));
+  };
+  const text = String(s || '');
+  const ITEM = 'flash|smoke|stun|molly|wall|drones?|darts?|recon(?:\\s+(?:bolt|dart))?|prowlers?';
+  const re = new RegExp(`\\b(?:(?:a|an|your)\\s+)?(?:${ITEM})(?:${UTIL_SEP.source}(?:(?:a|an|their|your)\\s+)?(?:${ITEM}))+\\b`, 'gi');
+  let changed = false;
+  const out = text.replace(re, (list, ...rest) => {
+    const at = rest[rest.length - 2];
+    // Only the team's utility is cut: a list owned by an enemy agent or
+    // "their" is left as it is, and the sentence goes (the stream C review).
+    const before = text.slice(0, at);
+    const clause = before.split(/[.;:!?]|,\s+(?:so|and|but|then|while)\s+/).pop();
+    const near = clause.slice(-30);
+    const enemyNear = UTIL_ENEMY_OWNER.test(near) || enemies.some((a) => new RegExp(`(?<![A-Za-z0-9])${a.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}(?![A-Za-z0-9])`, 'i').test(near));
+    const teamAsk = UTIL_TEAM_ASK.test(clause) || UTIL_TEAM_AFTER.test(text.slice(at + list.length));
+    if (!teamAsk || enemyNear) return list;
+    const parts = list.split(new RegExp(UTIL_SEP.source, 'i')).filter((x, i) => i % 2 === 0).map((x) => x.trim()).filter((x) => UTIL_ITEM.test(x.replace(UTIL_ART, '')));
+    const kept = parts.filter(has);
+    if (kept.length === parts.length || !kept.length) return list;
+    changed = true;
+    const conj = /\sand\s/i.test(list) && !/\sor\s/i.test(list) ? 'and' : 'or';
+    // The list's own first article stays, before the first kept item; the items' own go.
+    const lead = (UTIL_ART.exec(parts[0]) || [''])[0];
+    const items = kept.map((x) => x.replace(UTIL_ART, ''));
+    const art = /^[aeiou]/i.test(items[0]) ? 'an' : 'a';
+    const head = /^an?\s+$/i.test(lead) ? `${/^A/.test(lead) ? art[0].toUpperCase() + art.slice(1) : art} ` : lead;
+    return head + (items.length === 1 ? items[0] : `${items.slice(0, -1).join(', ')} ${conj} ${items[items.length - 1]}`);
+  });
+  if (!changed) return { drop: first };
+  const again = gateTeamUtility(out, facts);
+  return again ? { drop: again } : { rewrite: out };
 }
 
 /*
@@ -2626,6 +2743,72 @@ function gateUnseen(s, facts, rs) {
   return why ? drop('unseen', why) : null;
 }
 
+/*
+ * HOW MANY DEATHS THE COACH LOOKED AT (the blind audit of round 8, stream C:
+ * Fracture 5 to 1 Ascendant, aim). "The coach looked at one of your deaths"
+ * where it looked at all three. A number of deaths said to be looked at
+ * ("the coach looked at one of your deaths", "I looked at two deaths", "the
+ * coach only reviewed 2 of your 3 deaths"), or the looked at total of a
+ * count ("1 of the 3 deaths the coach looked at"), is the match's own count
+ * of deaths with a look, with its unclear looks or without them, or the
+ * sentence goes. A deaths total said beside it ("2 of your 3 deaths") is
+ * held to the deaths too.
+ */
+const LOOK_NUM = '(\\d{1,2}|one|a\\s+single|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|all\\s+(?:\\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)|both)';
+// "The coach had a look at one of your deaths", "the coach's look covered one" (the stream C review). Group 3 is a word before "deaths".
+const LOOKED_AT = new RegExp(`\\b(?:the\\s+coach(?:'s\\s+looks?)?|I|we)\\s+(?:only\\s+|also\\s+)?(?:looked\\s+(?:closely\\s+)?(?:at|into)|reviewed|examined|studied|went\\s+through|checked|covered|(?:had|took)\\s+a\\s+(?:close\\s+)?look\\s+at)\\s+(?:only\\s+|just\\s+|exactly\\s+)?${LOOK_NUM}\\s+(?:(?:of\\s+)?(?:your|the|those|its)\\s+)?(?:(\\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)\\s+)?(\\w+\\s+)?deaths?\\b`, 'i');
+const LOOKED_TOTAL = new RegExp(`\\b${LOOK_NUM}\\s+of\\s+the\\s+(\\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)\\s+deaths?\\s+(?:that\\s+)?(?:the\\s+coach|I|we)\\s+(?:looked\\s+at|reviewed|examined)\\b`, 'i');
+// The passive and the noun: "one of your deaths was looked at by the coach", "one death got a look from the coach".
+const LOOKED_BY = new RegExp(`\\b${LOOK_NUM}\\s+(?:of\\s+(?:your|the)\\s+(?:(\\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)\\s+)?)?deaths?\\s+(?:(?:was|were|got|had\\s+been|has\\s+been|have\\s+been)\\s+(?:looked\\s+at|reviewed|examined|checked|studied)\\s+by|(?:got|had|received|drew)\\s+(?:a\\s+)?(?:look|review)\\s+(?:from|by))\\s+the\\s+coach\\b`, 'i');
+// "Two of your deaths that ended in lost duels", "both deaths on defence", "one of your deaths to Sova": a part of the deaths, not all.
+const LOOK_SUBSET = /^\s*(?:that|which|where|when|whose|against|during|in\s+(?:rounds?|the\s+(?:first|second)\s+half|[abc]\b)|on\s+(?:attack|defen[cs]e|offen[cs]e|[abc]\b|the\s+\w+\s+side|\w+\s+site|the\s+(?:pistol|eco))|from\s+(?:the|an?)\b|with\s+(?:the|an?)\b)\b/i;
+const LOOK_SUBSET_AGENT = /^\s*(?:to|by|against)\s+(?:(?:their|the|an?)\s+)?[A-Z]/;
+const LOOK_WORD_OK = /^(?:other|total|own|recorded)$/i;
+const lookNum = (w) => {
+  const x = lower(w).replace(/\s+/g, ' ').replace(/^all /, '');
+  if (/^\d+$/.test(x)) return Number(x);
+  if (x === 'a single') return 1;
+  if (x === 'both') return 2;
+  return NUMBER_WORDS[x] !== undefined ? NUMBER_WORDS[x] : null;
+};
+function gateLookCount(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol' || !(f.rounds instanceof Map) || !f.rounds.size) return null;
+  const t = String(s || '');
+  const rows = [...f.rounds.values()].filter((r) => r && r.died);
+  const looked = rows.filter((r) => r.look);
+  const counts = new Set([looked.length, looked.filter((r) => r.look.cause !== 'unclear').length]);
+  const deaths = new Set([rows.length].concat(fin(f.counted && f.counted.died) ? [f.counted.died] : []));
+  const a = LOOKED_AT.exec(t);
+  const tailOf = (x) => t.slice(x.index + x[0].length);
+  const subset = (x, word) => (!!word && !LOOK_WORD_OK.test(word.trim())) || LOOK_SUBSET.test(tailOf(x)) || LOOK_SUBSET_AGENT.test(tailOf(x));
+  if (a && !negatedAt(t, a.index) && !isHypothetical(t.slice(0, a.index)) && !subset(a, a[3])) {
+    const said = lookNum(a[1]);
+    const total = a[2] ? lookNum(a[2]) : null;
+    if (said !== null && !counts.has(said)) {
+      return drop('looks', `your reply said the coach looked at ${said} of the player's deaths, where it looked at ${looked.length}; say how many deaths the coach looked at as the facts give it`);
+    }
+    if (total !== null && !deaths.has(total)) return drop('looks', `your reply gave the player ${total} deaths, where the match has ${rows.length}`);
+  }
+  const b = LOOKED_TOTAL.exec(t);
+  if (b && !negatedAt(t, b.index)) {
+    const total = lookNum(b[2]);
+    if (total !== null && !counts.has(total)) {
+      return drop('looks', `your reply said the coach looked at ${total} of the player's deaths, where it looked at ${looked.length}; say how many deaths the coach looked at as the facts give it`);
+    }
+  }
+  const c = LOOKED_BY.exec(t);
+  if (c && !negatedAt(t, c.index) && !isHypothetical(t.slice(0, c.index))) {
+    const said = lookNum(c[1]);
+    const total = c[2] ? lookNum(c[2]) : null;
+    if (said !== null && !counts.has(said)) {
+      return drop('looks', `your reply said the coach looked at ${said} of the player's deaths, where it looked at ${looked.length}; say how many deaths the coach looked at as the facts give it`);
+    }
+    if (total !== null && !deaths.has(total)) return drop('looks', `your reply gave the player ${total} deaths, where the match has ${rows.length}`);
+  }
+  return null;
+}
+
 // ── All of them ────────────────────────────────────────────────────────────
 
 /*
@@ -2672,6 +2855,8 @@ const GATES = [
   ['move-fire', gateMoveFire],
   ['bullets', gateBullets],
   ['unseen', gateUnseen],
+  // The blind audit of round 8, stream C, after every gate before.
+  ['looks', gateLookCount],
 ];
 
 /**
@@ -2729,5 +2914,9 @@ module.exports = {
   gatePriority, gateCounted, gateOwnAgent, gateLethal, gateTeamUtility, gateStaleBuy,
   // Round 8 (Nov 2026), each asserted in test:chatgates and test:gameclaims.
   gateOneShot, gateMoveFire, gateUnseen, gateBullets,
+  // The blind audit of round 8, stream C, each asserted in test:chatgates.
+  gateLabelAcross, ROUNDS_ANAPHOR, LOOK_SEEN, gateLookCount, LOOKED_AT, LOOKED_TOTAL, teamUtilityFix, UTIL_ITEM, UTIL_SEP,
+  // Its review.
+  LOOK_SEEN_SOFT, LOOK_WORDS, lookSeenAt, LOOK_ANAPHOR, LOOKED_BY, LOOK_SUBSET, LOOK_SUBSET_AGENT, UTIL_ART, UTIL_TEAM_ASK, UTIL_TEAM_AFTER, UTIL_ENEMY_OWNER,
   BIGGEST_SAID, COUNTED_HOW_MANY, HEALTH_AT, ONE_HIT_KILLS, UTILITY_OWNERS, UTILITY_ASKED, UTIL_LIST, BUY_HEDGE_SAID, UTILITY_OURS, BUY_HELD_SAID, KIT_KILLS_YOU, KIT_KILLED_YOU,
 };
