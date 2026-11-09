@@ -333,6 +333,10 @@ app.use((_, res) => res.status(404).json({ error: 'Not found' }));
 // own 4xx; only the server's own failures are a 500. See http-errors.js.
 app.use(errorHandler);
 
+function giftSecretOk() {
+  try { return !!require('./services/gifts').secretOf(process.env); } catch { return false; }
+}
+
 app.listen(PORT, () => {
   console.log(`[server] Occlara API running on port ${PORT}`);
   console.log(`[server] Stripe mode: ${process.env.STRIPE_SECRET_KEY?.startsWith('sk_live') ? 'LIVE' : 'TEST'}`);
@@ -341,6 +345,12 @@ app.listen(PORT, () => {
     ? `OpenAI-compatible (${process.env.AI_VISION_MODEL || 'default model'})`
     : process.env.GEMINI_API_KEY ? 'Gemini' : '(none configured)'}`);
   console.log(`[server] Stats: ${process.env.HENRIKDEV_API_KEY ? 'HenrikDev' : '(none)'}`);
+  // GIFTS (8.8): without GIFT_CODE_SECRET (32 characters or more) every paid
+  // gift answers 500 until Stripe gives up, about 3 days later, so its absence
+  // is said loudly at boot. Only whether it is usable, never the secret.
+  console[giftSecretOk() ? 'log' : 'error'](`[server] Gift codes: ${giftSecretOk()
+    ? 'ready'
+    : 'GIFT_CODE_SECRET IS NOT SET OR SHORTER THAN 32 CHARACTERS, every paid gift will fail. Needs a human.'}`);
   // THE PRIMER'S LIVE VERSION CHECK (8.5.0, game-primer.js): at boot and
   // every six hours on Railway, never in a check, a test or CI
   // (liveCheckWanted). /api/admin/primer says what it found.

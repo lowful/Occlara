@@ -1083,7 +1083,7 @@ async function mintGift(session) {
     return refuseGift(label, gift.why);
   }
   const secret = gifts.secretOf();
-  if (!secret) throw new Error(`${label}: GIFT_CODE_SECRET is not set on the server, so the gift cannot be made yet`);
+  if (!secret) throw new Error(`${label}: GIFT_CODE_SECRET is not set on the server or is shorter than 32 characters, so the gift cannot be made yet. Needs a human.`);
   const r = await gifts.mint(supabase, session, gift, secret);
   if (r.minted) console.log(`[webhook] ${label}: a ${gift.tier} gift of ${gift.months} month(s) made`);
   else console.log(`[webhook] ${label}: made before (${r.status || 'unknown'}), nothing new`);

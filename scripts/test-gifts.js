@@ -578,9 +578,17 @@ async function bought(n, over = {}) {
 
   // ── gifts.sql's own text ───────────────────────────────────────────────────
   {
-    const file = process.env.OCCLARA_GIFTS_SQL;
+    // OCCLARA_SITE_DIR finds it too, as test:gamespurchase finds the games SQL
+    // (the site keeps it as drizzle/migrations/0008_gift_plans.sql).
+    const isGiftsSql = (f) => /gifts?(_plans)?\.sql$|gifts?-plans\.sql$/.test(f);
+    ok(isGiftsSql('0008_gift_plans.sql') && isGiftsSql('gifts.sql') && !isGiftsSql('0006_game_purchases.sql'),
+      'the gifts migration name pattern matches its known names and not the games one');
+    const siteDirs = [process.env.OCCLARA_SITE_DIR].filter(Boolean)
+      .flatMap((d) => [path.join(d, 'supabase', 'migrations'), path.join(d, 'drizzle', 'migrations')]);
+    const file = process.env.OCCLARA_GIFTS_SQL || siteDirs.filter((d) => fs.existsSync(d))
+      .flatMap((d) => fs.readdirSync(d).filter(isGiftsSql).sort().map((f) => path.join(d, f)))[0];
     if (!file || !fs.existsSync(file)) {
-      console.log('skip  gifts.sql text (set OCCLARA_GIFTS_SQL to its path)');
+      console.log('skip  gifts.sql text (set OCCLARA_GIFTS_SQL to its path, or OCCLARA_SITE_DIR to the site repo)');
     } else {
       const sql = fs.readFileSync(file, 'utf8');
       const fns = ['gift_end_running', 'gift_settle', 'ensure_entitlement', 'gift_mint', 'gift_of_ref', 'gift_peek', 'gift_list', 'redeem_gift', 'void_gift'];

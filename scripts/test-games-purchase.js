@@ -396,8 +396,11 @@ function proSubscriber(user = U1) {
   // ── The games SQL holds what the fake models ─────────────────────────────
   {
     const fs = require('fs');
-    const isGamesSql = (f) => /games_purchase[s]?\.sql$|games-purchase\.sql$/.test(f);
-    ok(isGamesSql('0006_games_purchase.sql') && isGamesSql('games-purchase.sql') && !isGamesSql('0004_accounts_tiers_referral.sql'),
+    // The site's file is 0006_game_purchases.sql (game, not games): the old
+    // pattern missed it, so OCCLARA_SITE_DIR skipped the SQL checks in silence.
+    const isGamesSql = (f) => /games?_purchases?\.sql$|games?-purchases?\.sql$/.test(f);
+    ok(isGamesSql('0006_games_purchase.sql') && isGamesSql('games-purchase.sql') && isGamesSql('0006_game_purchases.sql')
+      && !isGamesSql('0004_accounts_tiers_referral.sql') && !isGamesSql('0008_gift_plans.sql'),
       'the games migration name pattern matches its known names and not the accounts one');
     const dirs = [process.env.OCCLARA_SITE_DIR, path.join(__dirname, '..', '..', 'ghostcoach-9a45ac05'), path.join(__dirname, '..', '..', 'occlara-site')]
       .filter(Boolean).flatMap((d) => [path.join(d, 'supabase', 'migrations'), path.join(d, 'drizzle', 'migrations')]);
