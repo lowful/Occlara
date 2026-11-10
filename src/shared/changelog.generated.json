@@ -1,5 +1,17 @@
 [
   {
+    "version": "8.10.2",
+    "date": "2026-11-10",
+    "title": "Advice that fits the map",
+    "summary": "On Bind, Fracture and Lotus the coach never draws on advice about mid, so answers stay whole.",
+    "items": [
+      {
+        "kind": "fixed",
+        "text": "On Bind, Fracture and Lotus, which have no mid, the coach no longer uses advice about taking or watching mid, in reviews or in Ask Coach."
+      }
+    ]
+  },
+  {
     "version": "8.10.1",
     "date": "2026-11-10",
     "title": "Ask Coach keeps more of what is true",
