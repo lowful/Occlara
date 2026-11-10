@@ -67,8 +67,11 @@ const PART_BODY = /\b(?:body|chest|torso|bodyshots?)\b/i;
 const PART_HEAD = /\b(?:head|heads|headshots?)\b/i;
 // The armour named, as the facts' own words name it: the claim held for it.
 const ARMOUR_QUALIFIED = /\b(?:no|without|light|half|low|broken|cracked|damaged|weakened|chipped|full)\s+(?:armou?r|shields?|health|hp)\b|\bunarmou?red\b|\bon (?:an )?eco\b|\bpistol round\b|\bLight Armor\b|\balready (?:hit|tagged|damaged|weak)\b|\b(?:tagged|chipped|damaged|weakened)\s+(?:enemy|enemies|player|players|target|opponent)s?\b|\bheavy (?:armou?r|shields?)\b[^.;]{0,30}\b(?:two|2|second)\b/i;
-const ANY_RANGE = /\b(?:at|from) (?:any|every|all) ranges?\b|\banywhere on the map\b|\bfrom anywhere\b|\bat any distance\b/i;
-const LONG_RANGE = /\b(?:at|from) (?:long|far) range\b|\bacross the (?:map|site)\b|\bpast \d{2} ?m\b/i;
+const ANY_RANGE = /\b(?:at|from) (?:any|every|all) (?:ranges?|distances?)\b|\banywhere on the map\b|\bfrom anywhere\b|\b(?:no matter|regardless of) (?:the )?(?:range|distance)\b/i;
+// Long range said without a number (the coach bench 11): "kills at range", "from a
+// distance", "on a long line where ... kills you" (the clause before the claim counts).
+const LONG_RANGE = /\b(?:at|from) (?:long |far )?range\b|\b(?:at|from) (?:a |long )?distance\b|\blong[- ]range\b|\bon (?:a|the|any|that|this) long (?:line|angle|sightline|lane)s?\b|\bacross the (?:map|site)\b|\bpast \d{2} ?m\b/i;
+const NEAR_RANGE = /\bup close\b|\bclose[- ]range\b|\bclose quarters\b|\bpoint[- ]blank\b|\b(?:at|in) close\b/i;
 const NEGATED = /\b(?:not|never|no longer|cannot|can't|won't|doesn't|does not|isn't|fails? to)\b[^.;]{0,20}$/i;
 // Between a gun and the claim it owns: "Marshal's one-shot", "Marshal one-shots", "Marshal can one-shot".
 const GUN_BEFORE_CLAIM = /^(?:'s)?\s+(?:[A-Za-z]+\s+){0,2}$/;
@@ -125,12 +128,18 @@ function checkOneShot(sentence, primer) {
     const cut = rest.search(/[,;]|\bbut\b/i);
     scope = t.slice(k.index, k.index + k[0].length + (cut < 0 ? rest.length : cut));
     if (RANGE_STATED.test(scope)) return null;
+    // The claim's own clause back to the last comma or semicolon: "on a long
+    // line where a Sheriff or a Marshal head hit kills you" (the coach bench 11).
+    const head = t.slice(0, k.index);
+    const from = Math.max(head.lastIndexOf(','), head.lastIndexOf(';'), head.lastIndexOf('.')) + 1;
+    scope = t.slice(from, k.index) + scope;
   }
   const any = ANY_RANGE.test(scope);
+  const long = !any && LONG_RANGE.test(scope) && !NEAR_RANGE.test(scope);
   for (const gun of guns) {
     const w = W[gun.toLowerCase()];
     if (!w || w.pellets || !Array.isArray(w.ranges) || !w.ranges.length) continue;
-    const bands = any ? w.ranges : LONG_RANGE.test(scope) ? [w.ranges[w.ranges.length - 1]] : [w.ranges[0]];
+    const bands = any ? w.ranges : long ? [w.ranges[w.ranges.length - 1]] : [w.ranges[0]];
     const heavyHits = (b) => {
       const e = Array.isArray(primer) ? primer.find((x) => x && x.subjectKind === 'gun' && x.subject === gun && x.attribute === 'hits'
         && x.part === part && x.armor === 'Heavy Armor' && x.band && x.band.from === b.from && x.band.to === b.to && Number.isFinite(x.value)) : null;
@@ -519,7 +528,187 @@ function checkSpikePremise(sentence, planted) {
   return 'your reply said the spike was down in the player\'s round, which they never said; never add a premise of your own, and answer the round as they told it';
 }
 
+// ── The enemy's next site, predicted (the coach bench 11) ──────────────────
+
+/*
+ * NO NEXT SITE CALLED FROM A PATTERN (Nov 2026, the coach bench 11, the owner's
+ * 88% rule). Told a team had lost B twice, the coach said "move toward B" in
+ * two of three runs and "lean A" in the third, the same notes served; the
+ * moments that ask where the enemy goes next came out right 4 times in 6. A
+ * site the enemy is said to hit next ("expect them at A", "they will go
+ * somewhere else", "the next call comes elsewhere", "the site they have not
+ * touched is the one to expect", "expect it again"), and the player told to
+ * lean, shift or move toward a site on the strength of earlier rounds ("the
+ * change was to move toward B"), go. What to look for and how to get the
+ * information stays: a sentence that waits on a sound, a sighting, a call or
+ * a piece of utility ("if you hear them on B, rotate toward B"), a negation
+ * ("do not guess which site they hit next") and a live read inside a round on
+ * attack ("expect the defence to stack the site you have been loud on") stay.
+ */
+// A site letter is marked first, case sensitive (SITE_MARK), so "where they expect a peeker" names no site.
+const SITE_MARK = /(?<![\w'§])([ABC])(?![\w'])/g;
+const NEXT_SITE_REF = String.raw`(?:§[ABC](?:\s+site)?\b(?!\s+(?:main|long|short|link|lobby|heaven|hell|elbow|tower|halls?|garage|window|ramp|rafters|door|doors|default|exit|entrance|stairs|bath|hookah|showers?|hall|back|front)\b)|the\s+other\s+site|a\s+different\s+site|another\s+site|the\s+(?:site|one)\s+they\s+(?:have(?:n't|\s+not)|did(?:n't|\s+not)|never)\s+(?:yet\s+)?(?:touched|tried|tested|hit|gone|been)|somewhere\s+else|elsewhere|something\s+(?:different|else))`;
+const NEXT_SITE_SUBJ = String.raw`(?:they|the\s+attackers|the\s+enem(?:y|ies)|that\s+team|the\s+other\s+team|a\s+team\s+that\s+[^.;,]{0,40}?)`;
+const NEXT_SITE = [
+  // "expect them at a different site", "expect the next hit on A", "expect the site they have not tried"
+  new RegExp(String.raw`\b(?:expect|anticipate|predict)(?:ing)?\s+(?:(?:them|the\s+attackers|the\s+enem(?:y|ies)|that\s+team|the\s+(?:next\s+)?(?:hit|push|execute|attack|call)|it|their\s+(?:next\s+)?(?:hit|push|execute|call))\s+(?:to\s+(?:hit|go|come|run|push|try|be)\s+)?(?:(?:at|on|to|toward|towards|into|through|from)\s+)?)?${NEXT_SITE_REF}`, 'i'),
+  // "expect it again", "expect the same rush again"
+  /\bexpect(?:ing)?\s+(?:it|them|the\s+same\s+(?:hit|rush|push|execute|site))\s+(?:to\s+come\s+)?again\b/i,
+  // "the site they have not touched is the one to expect", "B was the read"
+  new RegExp(String.raw`${NEXT_SITE_REF}\s+(?:is|was|would\s+be)\s+(?:the\s+(?:one|site|place)\s+to\s+(?:expect|lean\s+(?:toward|towards|to)|set\s+up\s+for|stack)|the\s+read|where\s+(?:the\s+(?:next\s+)?hit|they)\s+(?:comes?|goes?|will))\b`, 'i'),
+  // "they will go somewhere else", "that team usually calls something different next round"
+  new RegExp(String.raw`\b${NEXT_SITE_SUBJ}\s*(?:'ll|\s+will|\s+would|\s+are\s+going\s+to|\s+is\s+going\s+to|\s+are\s+likely\s+to|\s+is\s+likely\s+to|\s+(?:almost\s+always|usually|often|probably|likely|tends?\s+to))\s+(?:(?:probably|likely|usually)\s+)?(?:hit|hits|go|goes|come|comes|run|runs|push|pushes|execute|try|tries|switch|switches|head|heads|call|calls|move|moves)\s+(?:(?:to|at|on|into|toward|towards|for|through)\s+)?${NEXT_SITE_REF}`, 'i'),
+  new RegExp(String.raw`\b${NEXT_SITE_SUBJ}\s+(?:calls?|goes|hits|comes|runs|switches)\s+(?:(?:to|at|on)\s+)?${NEXT_SITE_REF}\s+(?:next|the\s+next|this)\s+round\b`, 'i'),
+  // "the next call comes somewhere else", "the next hit will be at A"
+  new RegExp(String.raw`\bthe\s+next\s+(?:call|hit|push|execute|attack)\s+(?:\w+\s+){0,3}?(?:comes?|goes|lands?|is|will\s+(?:be|come|go|land))\s+(?:\w+\s+){0,2}?(?:(?:at|on|to|from|in)\s+)?(?:${NEXT_SITE_REF}|back\s+to\s+what\s+worked)`, 'i'),
+];
+// The player leaning toward a site, as the answer to the enemy's earlier rounds.
+const LEAN_SITE = new RegExp(String.raw`\b(?:lean(?:s|ed|ing)?|shift(?:s|ed|ing)?|mov(?:e|es|ed|ing)|stack(?:s|ed|ing)?|start(?:s|ed|ing)?|set(?:ting)?\s+up|play(?:s|ed|ing)?|rotat(?:e|es|ed|ing)|weight)\s+(?:\w+\s+){0,3}?(?:toward|towards|closer\s+to|over\s+to)\s+${NEXT_SITE_REF}`, 'i');
+const LEAN_PATTERN = /\b(?:next\s+round|round\s+(?:two|three|four|five|six|\d{1,2})|the\s+round\s+after|after\s+(?:two|three|they|the\s+attackers|a\s+(?:failed|lost|won))|twice|in\s+a\s+row|the\s+change|changed?|setup|their\s+pattern|what\s+they\s+(?:did|showed|have\s+shown)|lost\s+(?:both|twice|there)|failed)\b/i;
+// A move that waits on what the player hears, sees or is told is information, not a guess.
+const NEXT_SITE_LIVE = /\b(?:if|when|once|until|unless|as\s+soon\s+as|the\s+moment)\b[^.;]{0,60}\b(?:hear|hears|heard|see|sees|saw|seen|spot|spots|spotted|info|information|contact|call|calls|called|sound|sounds|steps|footsteps|drone|dart|alarm|trip|tripwire|camera|shows?|showed|lurk|lurking|utility|points?)\b/i;
+const NEXT_SITE_NEG = /\b(?:do\s+not|don't|never|cannot|can't|no\s+way\s+to|without|instead\s+of|rather\s+than|not)\s+(?:\w+\s+){0,2}?(?:guess|guessing|assume|assuming|know|predict|predicting|bet|betting|expect|expecting|tell|lean|leaning|stack|stacking|move|moving|shift|shifting)\b/i;
+function checkNextSite(sentence) {
+  const t = String(sentence || '').replace(SITE_MARK, '§$1');
+  const hit = NEXT_SITE.map((re) => re.exec(t)).find(Boolean)
+    || (LEAN_PATTERN.test(t) ? LEAN_SITE.exec(t) : null);
+  if (!hit) return null;
+  const head = t.slice(0, hit.index);
+  if (NEXT_SITE_LIVE.test(t) || NEXT_SITE_NEG.test(head.slice(-40))) return null;
+  return 'your reply told the player which site the enemy will hit next, or to lean toward a site because of earlier rounds, which is a guess; say what to look for, how to get the information early, and where to start so the first rotation reaches either site';
+}
+
+// ── A thrown or shot ability told as guided (the coach bench 11) ──────────
+
+/*
+ * NO GUIDED RECON BOLT (Nov 2026, the coach bench 11, KVOVQ6jiQw8-5): "fire
+ * one Outlaw shot at the player guiding it" of a Sova Recon Bolt, which is
+ * shot and flies on its own. What can be steered or controlled is the game
+ * data's own (STEERED: "steer towards your crosshair", "take control",
+ * "control it", "curve"): Guiding Light, Trailblazer, Prowler, Owl Drone,
+ * Spycam, Thrash, Stealth Drone, High Tide, Blaze, Suspension, Curveball,
+ * Cloudburst. A guide, steer or pilot verb in a sentence that names an
+ * ability outside that set, or the player's words for the bolt (a recon dart,
+ * a recon arrow), goes; so does one whose "it" is the only ability the
+ * question named, when that is no steered one (askedFixed). A steered
+ * ability named in the same sentence, and a negation, stay.
+ */
+const STEERED = new Set(Object.values(DATA.agents || {}).flatMap((a) => (a && a.kit) || [])
+  .filter((k) => k && k.name && /\bsteer|\btake control\b|\bcontrol it\b|\bcurve (?:left|right)\b/i.test(String(k.description || '').replace(/<[^>]+>/g, '')))
+  .map((k) => String(k.name).toLowerCase()));
+const FIXED_NAMES = Object.values(DATA.agents || {}).flatMap((a) => (a && a.kit) || [])
+  .filter((k) => k && k.name && ['C', 'Q', 'E', 'X'].includes(k.key) && !STEERED.has(String(k.name).toLowerCase())).map((k) => String(k.name));
+const STEERED_RE = new RegExp(`\\b(?:${[...STEERED].map(esc).join('|') || 'NO_ABILITY'})\\b|\\b(?:bird|birds|dog|prowlers?|owl|camera|cam)\\b|(?<!\\brecon\\s)\\bdrones?\\b`, 'i');
+const FIXED_RE = new RegExp(`\\b(?:${FIXED_NAMES.map(esc).join('|') || 'NO_ABILITY'})\\b|\\brecon\\s+(?:dart|arrow|bolt)s?\\b|\\b(?:the|a|their|his|her|that)\\s+(?:dart|arrow|bolt)\\b`, 'i');
+const GUIDE = /\b(?:guid(?:e|es|ed|ing)(?!\s+light)|steer(?:s|ed|ing)?|pilot(?:s|ed|ing)?|controll(?:ed|ing)|remote[- ]control(?:led|ling)?)\b/i;
+const GUIDE_IT = /\b(?:guid(?:e|es|ed|ing)(?!\s+light)|steer(?:s|ed|ing)?|pilot(?:s|ed|ing)?|controll(?:ed|ing))\s+(?:it|the\s+(?:dart|arrow|bolt))\b/i;
+const GUIDE_NEG = /\b(?:not|never|cannot|can't|no one|nobody|nothing)\b[^.;]{0,20}$/i;
+/** A fixed ability named in the question and no steered one: the "it" of an answer is that one. */
+function askedFixed(text) {
+  const t = String(text || '');
+  return FIXED_RE.test(t) && !STEERED_RE.test(t);
+}
+function checkGuided(sentence, fixedAsked) {
+  const t = String(sentence || '');
+  const g = GUIDE.exec(t);
+  if (!g || GUIDE_NEG.test(t.slice(Math.max(0, g.index - 30), g.index)) || STEERED_RE.test(t)) return null;
+  const named = FIXED_RE.exec(t);
+  if (!named && !(fixedAsked && GUIDE_IT.test(t))) return null;
+  return `your reply said ${named ? `the ${named[0].replace(/^(?:the|a|their|his|her|that)\s+/i, '')}` : 'that ability'} is guided or steered, which the game data does not give it: it flies on its own once it is shot or thrown; say what the player can do about it, shoot it early or stay out of its line`;
+}
+
+// ── Utility told for the other side's job (the coach bench 11) ────────────
+
+/*
+ * THE SIDE'S OWN JOB (Nov 2026, the coach bench 11, _BagmBAjtsc-5): a defender
+ * told to keep a Nanoswarm "for the post plant, where it can sit on the spike
+ * and force a defuser off it", where on defence the defuser is his own team.
+ * Told to the side the player said (facts.said.side): a defender stopping or
+ * forcing off a defuse, an attacker stopping or denying a plant. The enemy as
+ * the subject ("their Killjoy will swarm your defuse") and a negation stay.
+ */
+const DENY_DEFUSE = /\b(?:forc(?:e|es|ed|ing)|push(?:es|ed|ing)?|den(?:y|ies|ied|ying)|stop(?:s|ped|ping)?|punish(?:es|ed|ing)?|delay(?:s|ed|ing)?|interrupt(?:s|ed|ing)?|break(?:s|ing)?|deter(?:s|red|ring)?)\s+(?:a\s+|the\s+|any\s+|their\s+)?(?:defuser|defusers|defuse|defusal)\b|\b(?:a|the|their)\s+defusers?\s+off\b|\b(?:set|sets|setting)\s+(?:it\s+|one\s+)?off\s+when\s+the\s+defuse\s+starts\b/i;
+const DENY_PLANT = /\b(?:stop(?:s|ped|ping)?|den(?:y|ies|ied|ying)|delay(?:s|ed|ing)?|interrupt(?:s|ed|ing)?|punish(?:es|ed|ing)?|break(?:s|ing)?)\s+(?:a\s+|the\s+|any\s+|their\s+)?(?:plant|planter|planters)\b/i;
+const ENEMY_DOES = /\b(?:they|they'll|their|the\s+enemy|the\s+enemies|enemies|the\s+attackers|the\s+defenders|an?\s+attacker|an?\s+defender|the\s+other\s+team)\b[^.;]{0,40}$/i;
+function checkSideUse(sentence, side) {
+  if (side !== 'defense' && side !== 'attack') return null;
+  const t = String(sentence || '');
+  const m = (side === 'defense' ? DENY_DEFUSE : DENY_PLANT).exec(t);
+  if (!m) return null;
+  const head = t.slice(Math.max(0, m.index - 50), m.index);
+  if (ENEMY_DOES.test(head) || NEGATED.test(head.slice(-30))) return null;
+  return side === 'defense'
+    ? 'your reply told a defender to stop or force off a defuse, which on defence is his own team\'s; on defence the utility kept for after the plant clears an attacker off a post plant spot for the retake'
+    : 'your reply told an attacker to stop or deny a plant, which on attack is his own team\'s; on attack the utility kept for the post plant stops the defuse';
+}
+
+// ── Praise for what the player says they did not do (the coach bench 11) ──
+
+/*
+ * THE ACTION NOBODY TOOK (Nov 2026, the coach bench 11, FD8OFhwHF5M-2): "I
+ * stood there with my knife out instead of reloading", answered "reloading
+ * while the Omen covered you was the right call". The player's own account
+ * names what they did not do ("instead of reloading", "did not reload",
+ * "never reloaded", "forgot to reload", "without reloading"); a sentence that
+ * praises that action as done ("reloading ... was the right call", "you were
+ * right to reload") goes. Advice to do it ("reload while he covers you") stays.
+ */
+const NOT_DONE = /\b(?:instead\s+of|rather\s+than|without)\s+([a-z]{3,}ing)\b|\b(?:did\s+not|didn't|never|forgot\s+to|failed\s+to|did\s+not\s+even)\s+([a-z]{3,})\b/gi;
+const PRAISED = /\b([a-z]{3,}ing)\b[^.;]{0,60}?\b(?:was|were)\s+(?:(?:also|still|exactly|absolutely)\s+)?(?:the\s+right\s+(?:call|move|play|thing|choice|idea)|right|fine|correct|good|smart|a\s+good\s+(?:call|habit|choice|idea))\b|\byou\s+(?:were|was)\s+right\s+to\s+([a-z]{3,})\b|\byou\s+did\s+(?:the\s+right\s+thing|well)\s+(?:by\s+)?([a-z]{3,}ing)\b/i;
+const NOT_VERB = new Set(['have', 'know', 'see', 'get', 'want', 'think', 'say', 'mean', 'need', 'make', 'go', 'do', 'be', 'even', 'really', 'just', 'any', 'anything', 'something', 'thing', 'nothing', 'everything', 'during', 'morning', 'evening', 'being', 'having', 'doing']);
+function verbStem(w) {
+  let s = String(w || '').toLowerCase().replace(/(?:ing|ed)$/, '');
+  if (/([b-df-hj-np-tv-z])\1$/.test(s)) s = s.slice(0, -1);
+  return s.replace(/e$/, '');
+}
+/** The actions the player's account says they did not take, as stems. */
+function notDoneOf(text) {
+  const out = new Set();
+  for (const m of String(text || '').matchAll(NOT_DONE)) {
+    const w = (m[1] || m[2] || '').toLowerCase();
+    if (!w || NOT_VERB.has(w)) continue;
+    const st = verbStem(w);
+    if (st.length >= 3) out.add(st);
+  }
+  return [...out];
+}
+function checkActionPremise(sentence, notDone) {
+  if (!Array.isArray(notDone) || !notDone.length) return null;
+  const t = String(sentence || '');
+  const m = PRAISED.exec(t);
+  if (!m) return null;
+  const w = m[1] || m[2] || m[3];
+  const st = verbStem(w);
+  if (!notDone.includes(st) || NEGATED.test(t.slice(Math.max(0, m.index - 30), m.index))) return null;
+  return `your reply praised the player for ${w.toLowerCase()}, which they said they did not do; answer the round as they told it, and say what to do instead`;
+}
+
+/*
+ * THE SHORT BLIND SAID TO HAVE WORKED (Nov 2026, the coach bench 11,
+ * BfumSarDJKw-3, the second bench running): "I popped it short, in front of
+ * her, so the blind was short", answered "The blind did work". With the
+ * right note served the answer still turned the account round. Where the
+ * player says the flash popped short or the blind was short (shortBlindSaid),
+ * a sentence saying their blind worked or was full goes; the general rule ("a
+ * bird that pops on them gives the full blind") stays.
+ */
+const SHORT_BLIND_SAID = /\b(?:popped|pop|popping|went\s+off|exploded|burst)\s+(?:it\s+|the\s+\w+\s+)?(?:too\s+)?(?:short|early)\b|\b(?:the\s+)?(?:blind|flash)\s+was\s+(?:too\s+|very\s+)?short\b|\bshort\s+(?:blind|flash)\b/i;
+const BLIND_WORKED = /\b(?:the|your)\s+(?:blind|flash|bird|flashbang)\s+(?:did|had)\s+work(?:ed)?\b|\b(?:the|your)\s+(?:blind|flash)\s+(?:was|landed\s+as)\s+(?:a\s+)?(?:full|complete|good|clean|long)\b|\byou\s+(?:did\s+)?blind(?:ed)?\s+(?:her|him|them|the\s+\w+)\s+fully\b|\b(?:she|he|they)\s+(?:was|were)\s+fully\s+blind(?:ed)?\b/i;
+function shortBlindSaid(text) { return SHORT_BLIND_SAID.test(String(text || '')); }
+function checkBlindPremise(sentence, shortSaid) {
+  if (!shortSaid) return null;
+  const t = String(sentence || '');
+  const m = BLIND_WORKED.exec(t);
+  if (!m || NEGATED.test(t.slice(Math.max(0, m.index - 30), m.index))) return null;
+  return 'your reply said the player\'s blind worked or was full, where they said it popped short and the blind was short; answer the round as they told it';
+}
+
 module.exports = {
+  checkBlindPremise, shortBlindSaid, SHORT_BLIND_SAID, BLIND_WORKED,
+  checkActionPremise, notDoneOf, NOT_DONE, PRAISED,
+  checkSideUse, DENY_DEFUSE, DENY_PLANT,
+  checkGuided, askedFixed, STEERED, FIXED_RE, STEERED_RE, GUIDE,
+  checkNextSite, NEXT_SITE, LEAN_SITE, LEAN_PATTERN, NEXT_SITE_LIVE, NEXT_SITE_NEG,
   checkClockBeforePlant, CLOCK_PRESSES, CLOCK_AFTER_PLANT, CLOCK_BEFORE_PLANT, checkSpikePremise, SPIKE_WAS_DOWN, ONE_SHOT_GUN, MOVE_ACCURATE,
   economyClaim, ECON_CLAIM, ECON_OUT_SAID, BUY_FOR, BUY_SUBJECT, BUY_TIME_BEFORE, AFFORD_TO, ROUND_KIND_LABEL, checkPistolPremise, pistolSaid, WON_PISTOL, LOST_PISTOL, PISTOL_HYPO, SAID_WON, SAID_LOST,
   checkMapHabit, MAP_HABIT, GUN_BEFORE_CLAIM, notePistolConflict, NOTE_WON_PISTOL, NOTE_LOST_PISTOL,

@@ -1309,6 +1309,70 @@ planted false where the account names no plant, retake or defuse; null with a ma
 `test:chatgates`, "the coach bench 10" (every new regex both ways, the three notes served), and
 `test:gameclaims`, "the coach bench 10". Not benched live.
 
+### The coach bench 11: the Vandal fact, banded head hits at range, the next site, darts, side-wrong utility (Nov 2026)
+
+Bench 11 (the 72 moments on 8.9.4, judged blind) put map control at 6 of 9 (77.8%, 100%, 66.7% over
+benches 9 to 11: 22 of 27), and `bench:chat` gave `fracture-duel` the honest line again. Each cause and fix:
+
+- **The Vandal answer** (`fracture-duel`): not the bench 10 banding. The first reply was one true
+  sentence, "too short", and each retry's second sentence was its working: "so 3 hits are not enough"
+  was read as "3 hits kill" (number gate), and "so 3 shots deal 120, short of the 150 total damage
+  needed" as two numbers tied to nothing. Now a count said too few (`HITS_SHORT_AFTER`, "are not
+  enough", "do not kill"; `HITS_SHORT_BEFORE`, "more than") stands where the primer's count is above it;
+  "N shots deal X" (`HITS_DEAL_AFTER`, `HITS_DEAL_BEFORE`) stands where X is N times the gun's hit
+  damage; health and armour named (125, 150) stand as the primer's gear health; and the question's
+  armour (`facts.askedArmor`) is the target of a hit whose sentence names none. A wrong count, sum or
+  armour still goes.
+- **Banded head hits at range in other words** (WCgnalZDT_A-6, KVOVQ6jiQw8-2 and -3): the source was the
+  hand written anti eco note itself ("a Sheriff or a Marshal head hit kills at range"), now "a Marshal
+  head hit kills at any range and a Sheriff head hit still kills through Light Armor at range".
+  `checkOneShot` reads "at range", "from a distance", "long range" and "on a long line" (`LONG_RANGE`,
+  the claim's clause back to its comma counted), "from any distance" and "no matter the range"
+  (`ANY_RANGE`), and an up close word (`NEAR_RANGE`) keeps the first band. The Marshal and Operator stay,
+  a Phantom head "at range" goes (two past 20 m through Heavy Armor).
+- **Map control, the next site** (gate `next-site`, `game-claims.js checkNextSite`, `NEXT_SITE_RULE`):
+  dropped, see below. **The general map control advice** is served: notes "nobody takes mid" and
+  "passive after one look" (`playbook.md`, "The coach bench 11"), reached by the situation topics
+  `nomid` and `passive`.
+- **A guided Recon Bolt** (KVOVQ6jiQw8-5, gate `guided`, `checkGuided`): what can be steered is the game
+  data's own (`STEERED`, "steer", "take control", "control it", "curve"); a guide, steer or pilot verb
+  beside any other ability, or the player's "recon dart", goes, and "the player guiding it" where the
+  question named only such an ability (`facts.askedFixed`; "recon drone" is the bolt, a bare drone is
+  steered). The note "the dart at your angle" (swing early or step out of its reach) is served through
+  the question topic and situation topic `recon`.
+- **Side-wrong utility** (_BagmBAjtsc-5, gate `side-use`, `checkSideUse`): with no match, a defender told
+  to stop or force off a defuse and an attacker told to stop a plant go (`facts.said.side`). The cause was
+  the hand written Killjoy note "Nanoswarm holds the defuse", now `side: 'attack'`, with a defender's own
+  ("keep one Nanoswarm for a retake of the other site").
+- **Praise for what was not done** (FD8OFhwHF5M-2, gate `action-premise`, drops as `premise`): the
+  account's "instead of reloading", "did not reload", "never", "forgot to", "without" (`notDoneOf`,
+  `facts.notDone`) make "reloading ... was the right call" and "you were right to reload" go; advice to
+  reload and a present tense rule stay. **The short blind said to have worked** (BfumSarDJKw-3, the
+  same gate): the right note was served and the answer still said "The blind did work"; where the
+  player says the flash popped short (`SHORT_BLIND_SAID`, `facts.shortBlind`) a sentence saying the
+  blind worked or was full goes.
+- **split-r5-premise** was the key, not the product: run 3 said "killed you ... 12 s in, with everyone
+  still alive before the fight. That left your team a player down", the first death in other words.
+  The `firstDeath` list (`scripts/fixtures/chat-questions.json`) takes "with everyone still alive",
+  "while everyone was still alive", "while it was 5 against 5" and "5 against 5 into 4 against 5".
+
+**The map control decision.** Predicting where the enemy hits next from a pattern came out right 4 of 6
+times on the two moments that ask it (FD8OFhwHF5M-3 flipped B, A, B over three runs on the same notes,
+Klgi_mbrwP8-2 held), under the 88% bar, and the cause is the model turning "the other site" round, which
+notes did not fix twice: it is dropped. The coach says what to look for, how to get the information early
+and where to start so the rotation reaches either site; a move that waits on a sound, a sighting, a call
+or utility ("if you hear them on B, rotate"), a negation and a live read inside a round on attack ("expect
+the defence to stack the site you have been loud on") stay. Replayed over the four benches' 2,703 answer
+sentences the gate drops 12, every one a next site prediction on the three pattern moments; `guided`
+drops 2, `side-use` 1, the action and blind premises 2, each the target; the number gate drops none.
+Estimated on the 27 answers, not measured: the two wrong FD8OFhwHF5M-3 answers lose their call and
+read as partial, Tx_okqpD79g-3 and _BagmBAjtsc-6 of bench 11 get the note they lacked, so map control
+is 25 of 27 (92.6%) from the gate alone and 27 of 27 if the model follows the notes; the cost is that
+the answers which called A right (bench 10's FD8OFhwHF5M-3, Klgi_mbrwP8-2) fall from same to partial.
+Tests: `test:chatgates`, "the coach bench 11" (every new regex both ways, the notes served), and
+`test:gameclaims` (every playbook note agrees with the game data, which caught the anti eco note).
+Not benched live.
+
 ### The economy out of scope everywhere the coach speaks (Nov 2026)
 
 The bench 9 rule (above) reached every other place the coach talks:

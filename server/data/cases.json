@@ -6099,8 +6099,8 @@
       "economy": null
     },
     "signal": "The attackers have hit the same site in the last two rounds and lost both times into your setup.",
-    "decision": "Expect the other site this round. Lean one player or the first rotation toward it, and leave the site that held with what it needs to delay.",
-    "why": "A team that lost the same hit twice rarely runs it a third time, while a defence that keeps the same setup meets the next hit short handed.",
+    "decision": "Change the setup without guessing the next site: take one early look at the site they have not hit, start the first rotation where it reaches either site, and leave the site that held with what it needs to delay.",
+    "why": "A team that lost the same hit twice rarely runs it a third time, while a defence that keeps the same setup, or stacks on a guess, meets the next hit short handed.",
     "mistakeToAvoid": "Keeping the setup that won the last two rounds because it won them, and reading the enemy history as noise.",
     "ranks": [
       "silver_gold",

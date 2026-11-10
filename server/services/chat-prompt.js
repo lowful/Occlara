@@ -869,6 +869,16 @@ function factsOf(input, messages, opts) {
     // The guns the question names: the subject of a hit or a damage number a
     // sentence of the answer gives without its gun (fact-gates.js gateNumbers).
     askedGuns: [...new Set(gates.gunsIn(asked).map((g) => g.name))],
+    // The armour the question names, the target of a hits claim whose own
+    // sentence names none ("so 3 hits are not enough", the coach bench 11).
+    askedArmor: ((gates.ARMOR_NAMED || []).find(([re]) => re.test(String(asked || ''))) || [])[1] || null,
+    // A shot or thrown ability the question names, and no steered one: the
+    // "it" of "the player guiding it" (game-claims.js checkGuided, the coach bench 11).
+    askedFixed: valorant && typeof gameClaims.askedFixed === 'function' ? gameClaims.askedFixed(asked) : false,
+    // What the player says they did not do ("instead of reloading"): never praised as done (checkActionPremise).
+    notDone: typeof gameClaims.notDoneOf === 'function' && (inp.language || 'en') === 'en' ? gameClaims.notDoneOf(asked) : [],
+    // The player's flash popped short ("so the blind was short"): never said to have worked (checkBlindPremise).
+    shortBlind: typeof gameClaims.shortBlindSaid === 'function' ? gameClaims.shortBlindSaid(asked) : false,
     source: m ? m.source : null,
     verified: !!(m && m.verified),
     // No match at all: no record to cite (fact-gates.js gateNoRecord, the coach bench).
@@ -1256,6 +1266,12 @@ function matchName(m) {
  * (fact-gates.js gateMapHabit, gatePistolPremise).
  */
 const ECONOMY_RULE = '- The economy is not something you coach: never say what anyone should buy, save or force, never talk about credits, the loss bonus or what a team can afford, and never explain a play or a read by the economy. A round named by its kind as the player told it (an eco, a bonus, the pistol round) only says where the round sits.';
+/*
+ * THE NEXT SITE IS NOT CALLED (the coach bench 11, Nov 2026): told the attackers lost B twice, the
+ * coach said move toward B in two runs of three and lean A in the third, on the same notes; under the
+ * owner's 88% rule the call is dropped (fact-gates.js gateNextSite) and the coach says how to find out.
+ */
+const NEXT_SITE_RULE = '- Never tell the player which site the enemy will hit next, or to lean, shift or stack toward a site because of what the enemy did in earlier rounds: a read of the next hit is a guess. Say what to look for, how to get the information early, a jump spot, a drone, a dart or a sound, and where to start so the first rotation reaches either site.';
 const MAP_HABIT_RULE = '- Never state where teams in general go on a map, or which site they reach first or last, as a fact: read the enemy only from what the player says they saw them do. Never add a premise the player did not give, such as a pistol round won or lost, or the spike down.';
 /*
  * THE PLAY RULE (the coach bench 10, Nov 2026): "No, pushing straight into
@@ -1305,6 +1321,7 @@ HOW TO ANSWER
 - If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (stopping before the shot, crosshair height, information before a peek, one angle at a time). Platinum to Diamond, the decision before the fight (predictability, playing the team's plan, when to take space). Ascendant and up, no basics, the specific timing or utility change and what it risks. An answer for a higher rank is never the one a lower rank would get for the same facts in longer words.
 - Name the match the first time you refer to it: the map, the agent and the result.
 ${MAP_HABIT_RULE}
+${NEXT_SITE_RULE}
 ${PLAY_RULE}
 - Write times as seconds into the round, "8 s in", never as a clock such as 0:08, which reads as the time left. Say a gap in seconds, "1.5 s after the plant" or "6 s later", only from the event the facts give it from, never from another event told just before it.
 - Speak to the player as you. Short paragraphs of plain text: no lists, no headings, no markdown. About 250 words, up to 400 when you walk through a round. Commas and periods, never dashes.
@@ -2358,6 +2375,8 @@ const QUESTION_TOPICS = [
     note: /\bcalls?\b|\bcomms?\b|\bannounce|\bsilence|\btell your team|\bwhen your team will not follow/i },
   // No 'economy' topic since the coach bench 9: the economy is out of scope (outOfScope, noteInScope).
   { key: 'ult', ask: /\bults?\b|\bultimates?\b/i, note: /\bultimates?\b|\bults?\b|\borbs?\b/i },
+  // Playing against an enemy dart or drone (the coach bench 11, KVOVQ6jiQw8-5).
+  { key: 'recon', ask: /\bagainst\s+(?:an?\s+|the\s+|their\s+)?(?:enemy\s+)?(?:recon\s+)?(?:dart|drone|bolt|arrow)s?\b/i, note: /\brecon dart or drone\b/i },
   // Reading the enemy from the rounds before (the coach bench 9, map control): "They went B two rounds
   // in a row ... should we have changed our setup", "How do I use what the enemies did in earlier rounds".
   { key: 'read', ask: /\b(?:patterns?|habits?|earlier rounds|previous rounds|rounds before|what (?:the enemies|the enemy|they) (?:did|do|have done)|read (?:the enemy|them|their)|adapt|adjust(?:ed)? (?:our|my) setup|change(?:d)? (?:our|my) setup|(?:two|three) rounds in a row|twice in a row|(?:went|hit|go|going) [ABC] (?:twice|again|two rounds)|where should (?:i|we) (?:have )?set ?up)\b/i,
@@ -2458,6 +2477,19 @@ const SIT_TOPICS = [
     note: /\bteammate takes a fight deep\b/i },
   { key: 'ownsmoke', question: /\bpush(?:ed|ing)?\s+(?:straight\s+|right\s+)?(?:in(?:to)?|through)\s+(?:my|our)\s+(?:own\s+)?(?:[a-z]+(?:'s)?\s+)?smokes?\b/i,
     note: /\byour own controller's smoke\b/i },
+  // The coach bench 11 (Nov 2026), map control: nobody on the team in mid
+  // (_BagmBAjtsc-6, served only retake notes), and a passive hold with no
+  // information (Tx_okqpD79g-3, a generic answer).
+  { key: 'nomid', ask: /\b(?:nobody|no one|no-one|none of us)\b[^.?!]{0,30}?\b(?:hold(?:s|ing)?|held|takes?|took|taking|watch(?:es|ed|ing)?|play(?:s|ed|ing)?|was in|is in|on)\s+mid\b|\bno (?:info(?:rmation)?|one|presence) (?:in|on|from) mid\b|\bmid (?:was |is )?(?:empty|unheld|open|free)\b/i,
+    note: /\bwhen nobody on your team takes mid\b/i },
+  { key: 'passive', ask: /\bpassive(?:ly)?\b[^.?!]{0,30}?\bangle\b|\bjust hold\b|\b(?:gathered|had|got|with) no info(?:rmation)?\b/i,
+    note: /\bone look for information\b|\bone deliberate information action\b/i },
+  // An enemy dart or drone coming at the player's angle (KVOVQ6jiQw8-5, "the player guiding it").
+  { key: 'recon', ask: /\b(?:their|an enemy|the enemy'?s?|enemy)\s+(?:recon\s+)?(?:dart|bolt|arrow|drone|owl)\b|\brecon\s+(?:dart|bolt|arrow|drone)\b[^.?!]{0,40}\b(?:came|coming|comes|flew|flying|toward|towards|at)\b/i,
+    note: /\bwhen an enemy recon dart or drone comes at your angle\b/i },
+  // And asked about in the question sentence itself, above the agent's own notes.
+  { key: 'reconasked', question: /\bagainst\s+(?:an?\s+|the\s+|their\s+)?(?:enemy\s+)?(?:recon\s+)?(?:dart|drone|bolt|arrow)s?\b|\b(?:dart|drone|bolt)s?\s+(?:coming|came|comes|flying)\s+(?:at|toward|towards)\s+(?:me|my)\b/i,
+    note: /\bwhen an enemy recon dart or drone comes at your angle\b/i },
 ];
 const FULL_BUY = /\bfull ?b(?:uy(?:s|ing)?|ought)\b|\b(?:four|4) teammates buying\b/i;
 // The buy, not the verb: "forced me off my angle" is no force buy.
@@ -3736,7 +3768,7 @@ module.exports = {
   LEVER_BANDS, IMPROVING_RULE, IMPROVING_RULE_877, rulesFor, matchHasBuy, BUY_HEDGE, BUY_HEDGE_RECORD, SAVE_HEDGE, SAVE_HEDGE_RECORD,
   noMatch, NO_RECORD_HEDGE, NO_RECORD_SAVE,
   // The coach bench 9 (Nov 2026), each asserted in test:chatgates.
-  outOfScope, ECON_QUESTION, ECONOMY_OUT, ECONOMY_RULE, MAP_HABIT_RULE, PLAY_RULE, noteInScope, pistolKnown,
+  outOfScope, ECON_QUESTION, ECONOMY_OUT, ECONOMY_RULE, MAP_HABIT_RULE, NEXT_SITE_RULE, PLAY_RULE, noteInScope, pistolKnown,
   // The economy out of scope everywhere the coach speaks (Nov 2026), asserted in test:chatgates.
   ECON_WORDS, ECONOMY_OUT_LANG, economyOut, economyDrop,
   RANK_BANDS,

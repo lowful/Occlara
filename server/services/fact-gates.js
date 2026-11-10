@@ -152,6 +152,7 @@ const CAUSE_TITLES = {
   'rotating': ['Caught rotating'],
   'overextend': ['Overextended'],
   'exposed': ['Exposed on the spike'],
+  'no-escape': ['Risky spot, no escape', 'Risky spots, no escape'],
   'lost-duel': ['Lost the duel', 'Lost duels'],
   'unclear': ['Unclear', 'Frame unclear'],
 };
@@ -164,6 +165,7 @@ const CAUSE_WORDS = {
   'rotating': ['caught rotating', 'rotating'],
   'overextend': ['overextended', 'overextend', 'overextension'],
   'exposed': ['exposed on the spike', 'exposed'],
+  'no-escape': ['risky spot', 'no escape', 'no-escape'],
   // "the look called lost on the shot" (the blind audit of round 8, stream C, Pearl Iron).
   'lost-duel': ['lost the duel', 'lost duel', 'lost-duel', 'lost on the shot'],
   'unclear': ['unclear'],
@@ -1711,7 +1713,7 @@ function bandNamed(t) {
  * shots kill through Heavy Armor" does not, and neither does the bare "two
  * body shots kill", which is false against Light and Heavy.
  */
-function hitsOk(prov, value, subjects, ctx) {
+function hitsOk(prov, value, subjects, ctx, cmp = (v, said) => v === said) {
   const guns = subjects.filter((s) => s.kind === 'gun').map((s) => lower(s.name));
   if (!guns.length) return false;
   // The part named right after the number first: "two head hits but needs
@@ -1741,10 +1743,10 @@ function hitsOk(prov, value, subjects, ctx) {
       if (!forPart.length) continue;
       if (armor) {
         const row = forPart.find((e) => (e.armor || 'none') === armor);
-        if (row && row.value === value) return true;
+        if (row && cmp(row.value, value)) return true;
       } else {
         const vals = ['none', 'Light Armor', 'Heavy Armor'].map((a) => (forPart.find((e) => (e.armor || 'none') === a) || {}).value);
-        if (vals.every((v) => v === value)) return true;
+        if (vals.every((v) => v !== undefined && cmp(v, value))) return true;
       }
     }
   }
@@ -1844,7 +1846,13 @@ const OWN_COUNT_BEFORE = /\byou(?:'d)?\s+(?:[\w']+\s+){0,4}$/i;
 const CLUTCH_AGAINST_BEFORE = /\b(?:last (?:one|player|man|teammate|person) (?:standing|alive|left)|last alive)\s+(?:against|versus|vs\.?)\s*$/i;
 const OF_YOUR_NOUN = /^\s+(?:out\s+)?of\s+(?:the|your|their|those|these)\s+(?:own\s+)?(deaths|kills|assists|rounds|matches|games)\b/i;
 const OF_TOTAL_BEFORE = /\bof\s+(?:the|your|their|those|these)\s+(\d+)\s+(deaths|kills|assists|rounds|matches|games)\s*,\s*$/i;
-const SMALL_ADVICE_AFTER = /^\s*(?:more\s+|extra\s+|quick\s+|short\s+|single\s+)?(?:shots?|bullets?|taps?|bursts?|peeks?|looks?|fights?|duels?|angles?|steps?|corners?|lanes?|spots?|habits?|things?|pieces?)\b/i;
+// A hit count said to be too few: "3 hits are not enough", "two body shots do not kill", "more than 3 hits" (gateNumbers).
+const HITS_SHORT_AFTER = /^\s*(?:(?:head|body|leg)\s+)?(?:hits?|shots?|bullets?|taps?)\s+(?:(?:are|is|were|was|would\s+be|will\s+be)(?:n't|\s+not)\s+enough\b|(?:do|does|did|would|will)(?:n't|\s+not)\s+(?:kill|finish|get\s+(?:the|a)\s+kill)\b|(?:leave|leaves|left)\s+(?:them|him|her|the\s+enemy|someone|a\s+player)\s+(?:alive|standing)\b|(?:fall|falls)\s+short\b)/i;
+const HITS_SHORT_BEFORE = /\b(?:more\s+than|over)\s+$/i;
+// A count of hits and the damage they deal: "3 shots deal 120", "two body hits do 80" (gateNumbers).
+const HITS_DEAL_AFTER = /^\s*(?:(head|body|leg)\s+)?(?:hits?|shots?|bullets?|taps?)\s+(?:deal|deals|do|does|did|make|total|add\s+up\s+to|come\s+to)\s+(?:only\s+|just\s+)?(\d+)\b/i;
+const HITS_DEAL_BEFORE = /\b(\d+)\s+(?:(head|body|leg)\s+)?(?:hits?|shots?|bullets?|taps?)\s+(?:deal|deals|do|does|did|make|total|add\s+up\s+to|come\s+to)\s+(?:only\s+|just\s+)?$/i;
+const SMALL_ADVICE_AFTER =/^\s*(?:more\s+|extra\s+|quick\s+|short\s+|single\s+)?(?:shots?|bullets?|taps?|bursts?|peeks?|looks?|fights?|duels?|angles?|steps?|corners?|lanes?|spots?|habits?|things?|pieces?)\b/i;
 // "If you have an escape, take one more shot": advice after a condition.
 const LEAD_CONDITION = /^(?:if|when|once|whenever|as soon as|after|before|until)\b[^,]{1,80},\s*(.+)$/i;
 const leadInstruction = (raw) => {
@@ -1977,7 +1985,7 @@ function gateNumbers(s, facts, rs) {
       return fail(m[1]);
     }
     let attr = attributeOf(t, at, len);
-    const ctx = { ...around(t, at, len), sentence: t, armor: f.armor || null };
+    const ctx = { ...around(t, at, len), sentence: t, armor: f.armor || f.askedArmor || null };
     let subjects = subjectsNear(t, ctx.clause);
     if (attr === 'damage?') attr = subjects.some((x) => x.kind === 'gun') || /\b(?:head|body|legs?)\b/i.test(ctx.clause) ? 'damage' : null;
     // THE GUN THE PLAYER ASKED ABOUT IS THE SUBJECT OF A HIT WITH NONE NAMED
@@ -1995,6 +2003,31 @@ function gateNumbers(s, facts, rs) {
       const guns = new Set(subjects.filter((x) => x.kind === 'gun').map((x) => lower(x.name)));
       const per = (f.primer || []).filter((e) => e.subjectKind === 'gun' && guns.has(lower(e.subject)) && ['head', 'body', 'legs'].includes(e.attribute) && fin(e.value));
       if (per.some((e) => [2, 3, 4, 5, 6, 7, 8].some((k) => near(e.value * k, value, 1e-6)))) continue;
+    }
+    // "So 3 shots deal 120": a count of hits and the damage they add up to,
+    // the working of a hits to kill answer, no kill claim (the coach bench
+    // 11). Both numbers stand where the gun's own hit damage for the part
+    // named (else the body) times the count is the sum; any other pair goes on
+    // to the checks below.
+    {
+      const a = HITS_DEAL_AFTER.exec(after);
+      const b = a ? null : HITS_DEAL_BEFORE.exec(before);
+      if (a || b) {
+        const n = a ? value : Number(b[1]);
+        const sum = a ? Number(a[2]) : value;
+        const p = partOf((a ? a[1] : b[2]) || '') || 'body';
+        const guns = new Set(subjects.filter((x) => x.kind === 'gun').map((x) => lower(x.name)));
+        const per = (f.primer || []).filter((e) => e.subjectKind === 'gun' && guns.has(lower(e.subject)) && e.attribute === p && fin(e.value));
+        if (per.some((e) => near(e.value * n, sum, 1e-6))) continue;
+      }
+    }
+    // "Short of the 150 total damage needed": full health and the armour the
+    // sentence or the question names, the primer's own 125 or 150 (the same run).
+    if (/\b(?:total|needed|need|health|hp|to kill)\b/i.test(ctx.clause)) {
+      let armor = null;
+      for (const [re, an] of ARMOR_NAMED) if (re.test(t)) { armor = an; break; }
+      armor = armor || ctx.armor;
+      if (armor && (f.primer || []).some((e) => e.subjectKind === 'gear' && e.subject === armor && e.attribute === 'health' && near(e.value, value, 1e-6))) continue;
     }
     if (attr === 'percent?') attr = null;
     if (attr === 'times' && /\b(?:hit|hits|shot|shoot|tap|taps|bullet)\b/i.test(ctx.clause)) attr = 'hits';
@@ -2038,6 +2071,15 @@ function gateNumbers(s, facts, rs) {
         if (counted.some((r) => r.kills === value)) continue;
         return fail(`${m[1]} kills in round ${counted[0].n}, where Riot's record has ${counted[0].kills}`);
       }
+    }
+    // TOO FEW HITS IS A CLAIM TOO (the coach bench 11): "Each body hit deals 40
+    // damage, so 3 hits are not enough" was held as "3 hits kill" and dropped,
+    // and a true Vandal answer went to the honest line. A count said not to
+    // kill, or one the gun needs more than, stands where the primer's count
+    // for the gun, part, band and armour is above it.
+    if (attr === 'hits' && (HITS_SHORT_AFTER.test(after) || HITS_SHORT_BEFORE.test(before))) {
+      if (hitsOk((f && f.primer) || [], value, subjects, ctx, (v, said) => v > said)) continue;
+      return fail(`${m[1]} hits as too few for the ${(subjects.find((x) => x.kind === 'gun') || subjects[0] || { name: 'gun' }).name}`);
     }
     const game = ['damage', 'hits', 'rate', 'magazine', 'pellets', 'degrees'].includes(attr);
     const ok = game
@@ -2938,6 +2980,58 @@ function gateSpikePremise(s, facts) {
   return why ? drop('premise', why) : null;
 }
 
+// ── The coach bench 11 (Nov 2026) ─────────────────────────────────────────
+
+/*
+ * NO NEXT SITE PREDICTED (the coach bench 11, the owner's 88% rule): "the
+ * change was to move toward B" after two lost B hits, and "expect them at the
+ * site they have not touched", a call that flipped run to run on the same
+ * notes (game-claims.js checkNextSite). What to look for and how to get the
+ * information stays.
+ */
+function gateNextSite(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const why = claims.checkNextSite(s);
+  return why ? drop('next-site', why) : null;
+}
+
+/*
+ * NO GUIDED RECON BOLT (the coach bench 11): "shoot the player guiding it" of
+ * a Recon Bolt, which flies on its own (game-claims.js checkGuided).
+ */
+function gateGuided(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const why = claims.checkGuided(s, f.askedFixed === true);
+  return why ? drop('guided', why) : null;
+}
+
+/*
+ * THE SIDE'S OWN JOB (the coach bench 11): a defender told to force a defuser
+ * off the spike, an attacker told to stop a plant, with no match, by the side
+ * the player said (facts.said; game-claims.js checkSideUse).
+ */
+function gateSideUse(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol' || !f.said) return null;
+  const why = claims.checkSideUse(s, f.said.side);
+  return why ? drop('side-use', why) : null;
+}
+
+/*
+ * THE ACTION NOBODY TOOK (the coach bench 11): "reloading while the Omen
+ * covered you was the right call" to a player who said he stood "with my
+ * knife out instead of reloading" (facts.notDone; game-claims.js checkActionPremise).
+ */
+function gateActionPremise(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  // And a blind the player said popped short, told as one that worked (BfumSarDJKw-3).
+  const why = claims.checkActionPremise(s, f.notDone) || claims.checkBlindPremise(s, f.shortBlind === true);
+  return why ? drop('premise', why) : null;
+}
+
 // ── All of them ────────────────────────────────────────────────────────────
 
 /*
@@ -2995,6 +3089,11 @@ const GATES = [
   // The coach bench 10 (Nov 2026), after every gate before.
   ['clock', gateClock],
   ['spike-premise', gateSpikePremise],
+  // The coach bench 11 (Nov 2026), after every gate before.
+  ['next-site', gateNextSite],
+  ['guided', gateGuided],
+  ['side-use', gateSideUse],
+  ['action-premise', gateActionPremise],
 ];
 
 /**

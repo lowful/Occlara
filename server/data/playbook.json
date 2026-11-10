@@ -9651,7 +9651,7 @@
     "why": "Kill count hides whether the kills won anything."
   },
   {
-    "text": "After a rush wins against you, expect the same rush again and prepare your damage utility for it, and after you shut a hit down completely, expect the next round to go elsewhere and lean your setup that way.",
+    "text": "After a rush wins against you, have your damage utility ready for that entrance in case it comes again, and after you shut a hit down completely, keep the setup flexible and take an early look at the other entrances, because a team changes what failed, but where it goes instead is only known once someone sees it.",
     "side": "defense",
     "ranks": [
       "plat_diamond",
@@ -9664,7 +9664,7 @@
       "topic": "what follows a rush"
     },
     "when": "The round after a lost rush, your utility was ready on that entrance.",
-    "why": "Teams repeat what worked and abandon what failed."
+    "why": "Teams repeat what worked and abandon what failed, and the next hit is found with information, not guessed."
   },
   {
     "text": "Take a solo push or lane timing only while your team has pulled the enemy's attention somewhere else, because alone with no pressure anywhere you are simply being held.",
@@ -11790,7 +11790,7 @@
     "why": "An eco is lost at range, and the only thing it can win is close fights taken together, which also break the enemy economy."
   },
   {
-    "text": "In solo queue a team rarely runs the same failed hit a third time, so after the attackers lose at the same site twice, expect them at a different site next round, not at the one that held: move one player or the first rotation toward the site they have not hit, and leave the site that held to the player who held it, while a hit that worked will come again, because a team that lost twice changes its call and a team that won keeps it.",
+    "text": "In solo queue a team rarely runs the same failed hit a third time, but where it goes instead is a guess, so after the attackers lose at the same site twice, do not keep the same setup and do not stack on a guess: take one early look at the site they have not hit, a jump spot, a drone or a dart, start the first rotation where it reaches either site, and leave the site that held to the player who held it, because a team that lost twice changes its call and the first information tells you to what.",
     "side": "defense",
     "ranks": [
       "silver_gold",
@@ -11803,8 +11803,8 @@
       "kind": "vod-review",
       "topic": "the hit they will not run again"
     },
-    "when": "Defence keeps the same setup after the attackers lost the same site twice, and the next hit lands on the other site.",
-    "why": "Teams without a fixed plan answer a failed hit by going somewhere else, so the setup should follow the read rather than the last result."
+    "when": "Defence keeps the same setup after the attackers lost the same site twice, and the next hit lands where nobody looked.",
+    "why": "Teams without a fixed plan answer a failed hit by changing it, so the setup should follow early information rather than the last result or a guess."
   },
   {
     "text": "After a long fight at one site that spent your utility there without breaking it, and with a pick on the other side of the map, expect the defence to stack the site you have been loud on: rotate together and hit the other site with the utility you kept, rather than pushing on into the players arriving, because a long fight tells every defender where you are and the rotation they make toward it empties the other site.",
@@ -12031,7 +12031,7 @@
     "why": "Rotation setups pay only without a read, and a teleport away from the fight subtracts the Chamber from it."
   },
   {
-    "text": "On defence set up from what this enemy has shown first and from your teammates second: after the attackers have hit two sites, or been stopped at one, expect the site they have not tried yet, and when a teammate holds its main aggressively alone, play beside them so their first fight can be traded, then rotate from there if the hit shows elsewhere, because a lone teammate dying untraded hands the attackers the space and a gun.",
+    "text": "On defence set up from what this enemy has shown first and from your teammates second: after the attackers have hit two sites, or been stopped at one, take an early look at the site they have not tried yet rather than guessing, and when a teammate holds its main aggressively alone, play beside them so their first fight can be traded, then rotate from there if the hit shows elsewhere, because a lone teammate dying untraded hands the attackers the space and a gun.",
     "side": "defense",
     "ranks": [
       "silver_gold",
@@ -12045,7 +12045,7 @@
       "topic": "set up from the enemy pattern"
     },
     "when": "A defender sets up far from a teammate holding a main alone, at a site the attackers already lost at.",
-    "why": "Enemy patterns predict the next hit better than a fixed setup, and a teammate alone in a main needs a second player to make the fight worth taking."
+    "why": "Enemy patterns say where to look first, which a fixed setup never does, and a teammate alone in a main needs a second player to make the fight worth taking."
   },
   {
     "text": "After the plant, when a teammate takes a fight deep on site, play from an angle where you can trade them, killing the enemy who kills them, rather than leaving them to fight alone, and keep your utility on the spike for the defuse, because a teammate traded keeps your numbers up while one left alone is a free kill, and the utility on the spike still stops the defuse when it starts.",
@@ -12075,5 +12075,55 @@
     },
     "when": "A player pushes straight through their own controller's smoke the moment it lands and dies to the enemy at its far side, or is told never to push it.",
     "why": "A smoke pushed at once meets an enemy still spraying into it, while a short wait and a cover spot at its edge turn the same push into a surprise."
+  },
+  {
+    "text": "On defence, when nobody on your team takes mid, that job is yours: start where you can jiggle peek mid or the entrance it feeds for early information, place your utility after that look, and play beside your most aggressive teammate, the one most likely to die first, so his fight can be traded, rather than setting up for a retake before the attackers have even committed, because an empty mid gives them free space and a lurk on timing, and stopping a push is worth more than planning to retake it.",
+    "side": "defense",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "nobody takes mid"
+    },
+    "when": "Nobody on the defence holds mid or has information there, an aggressive teammate pushes it alone and dies, and the player sets up to win the site back instead.",
+    "why": "Mid with nobody in it hands the attackers space and timing, and the first information of the round is worth more than a plan to win the site back made before the hit."
+  },
+  {
+    "text": "A passive angle on defence can be fine, but not as your first position: open the round with one look for information down the main the hit comes through, a jump spot, a jiggle or a drone, then fall back to your angle, hold it tight or with a jiggle rather than hugging the wall, and when no teammate fights for the other main, put a smoke on it early, because a round started with no information wastes its first seconds and one look tells you whether that main is empty.",
+    "side": "defense",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "passive after one look"
+    },
+    "when": "A defender holds a passive close angle from the start of the round with no information anywhere, and the hit arrives unseen.",
+    "why": "A passive hold waits for the attackers to choose the fight, and one early look decides whether to hold, rotate or lurk."
+  },
+  {
+    "text": "When an enemy recon dart or drone comes at your angle, act before it reveals you: either swing early, take your shot and leave the spot, or step behind cover until the reveal has passed and kill the players who walk in behind it, because waiting on the angle to be tagged gives the attackers your exact spot and the first shot, and a dart is shot or thrown and flies on its own, so there is nobody steering it to punish.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "vod-review",
+      "topic": "the dart at your angle"
+    },
+    "when": "A defender holds an angle while an enemy recon dart or drone flies at it, waits to be tagged, and the attackers take the site off the reveal.",
+    "why": "A reveal turns a held angle into a known one, so the holder either uses the moment before it or gets out of its reach."
   }
 ]

@@ -544,6 +544,7 @@ HOW TO ANSWER
 - If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (stopping before the shot, crosshair height, information before a peek, one angle at a time). Platinum to Diamond, the decision before the fight (predictability, playing the team's plan, when to take space). Ascendant and up, no basics, the specific timing or utility change and what it risks. An answer for a higher rank is never the one a lower rank would get for the same facts in longer words.
 - Name the match the first time you refer to it: the map, the agent and the result.
 - Never state where teams in general go on a map, or which site they reach first or last, as a fact: read the enemy only from what the player says they saw them do. Never add a premise the player did not give, such as a pistol round won or lost, or the spike down.
+- Never tell the player which site the enemy will hit next, or to lean, shift or stack toward a site because of what the enemy did in earlier rounds: a read of the next hit is a guess. Say what to look for, how to get the information early, a jump spot, a drone, a dart or a sound, and where to start so the first rotation reaches either site.
 - Asked whether a play was good, say when it works and when it does not: never call a play always wrong, or tell the player never to make it, where a coaching note gives the conditions it works in. Before the plant the clock runs against the attackers, never the defenders.
 - Write times as seconds into the round, "8 s in", never as a clock such as 0:08, which reads as the time left. Say a gap in seconds, "1.5 s after the plant" or "6 s later", only from the event the facts give it from, never from another event told just before it.
 - Speak to the player as you. Short paragraphs of plain text: no lists, no headings, no markdown. About 250 words, up to 400 when you walk through a round. Commas and periods, never dashes.
@@ -1486,7 +1487,8 @@ const riotOnly = (file, row, edit) => {
   cp.QUESTION_TOPICS.forEach((t) => {
     const ask = { aim: 'How do I get better aim at my rank?', practice: 'What should I practice before my next game?', climb: 'How do I climb out of Silver?',
       mental: 'How do I stop tilting after a loss?', comms: 'How should I use comms in solo queue?', ult: 'When should I use my ultimate?',
-      read: 'They went B two rounds in a row, should we have changed our setup?' }[t.key];
+      read: 'They went B two rounds in a row, should we have changed our setup?',
+      recon: 'How should I play against a recon drone coming at my angle?' }[t.key];
     regexes.push([`QUESTION_TOPICS.${t.key}.ask`, t.ask, ask, 'Why did I die in round 5 on Split?']);
   });
   for (const [name, re, pos, neg] of regexes) {
@@ -2994,8 +2996,8 @@ console.log('\nround 8, the game facts gates:');
   {
     const names = gates.GATES.map(([n]) => n);
     const at = names.indexOf('oneshot');
-    // The coach bench 9's three gates come after them, then the coach bench 10's two (asserted in their own sections).
-    ok(names.slice(at, at + 5).join() === 'oneshot,move-fire,bullets,unseen,looks' && names.slice(at + 5).join() === 'economy-scope,premise,map-habit,clock,spike-premise',
+    // The coach bench 9's three gates come after them, then the coach bench 10's two and the bench 11's one (asserted in their own sections).
+    ok(names.slice(at, at + 5).join() === 'oneshot,move-fire,bullets,unseen,looks' && names.slice(at + 5).join() === 'economy-scope,premise,map-habit,clock,spike-premise,next-site,guided,side-use,action-premise',
       'the round 8 gates run after every gate before, and the stream C looks gate after them');
   }
   // Deathmatch: the disclaimer loophole (gateMode) and the frame across sentences (gateReply).
@@ -3897,9 +3899,11 @@ console.log('\nround 8, the game facts gates:');
   ok(econNotes.length >= 4 && econNotes.every((t) => !gameClaims9.economyClaim(t)), 'no economy note reaches Ask Coach', JSON.stringify(econNotes));
   // The map habit.
   const haven = 'You read the earlier rounds right, but on Haven, C is the site a five-stack with no lurks reaches last, so when Garage goes quiet that is the hit.';
-  ok(gates.check(haven, fx9).drop?.gate === 'map-habit' && !gates.check('They hit B and lost, so expect A next round.', fx9).drop, 'KVOVQ6jiQw8-6: the invented Haven habit goes, this enemy\'s own habit stays');
-  // Changed by the coach bench 10: its two gates (clock, spike-premise) come after these three.
-  ok(gates.GATES.slice(-5, -2).map(([n]) => n).join() === 'economy-scope,premise,map-habit', 'the three bench 9 gates run after every gate before');
+  // Changed by the coach bench 11: this enemy's next site said as a prediction is no map habit, and goes at the next-site gate.
+  ok(gates.check(haven, fx9).drop?.gate === 'map-habit' && gates.check('They hit B and lost, so expect A next round.', fx9).drop?.gate === 'next-site'
+    && !gates.check('They hit B and lost it.', fx9).drop, 'KVOVQ6jiQw8-6: the invented Haven habit goes, this enemy\'s own habit stays, and a next site predicted from it goes as next-site');
+  // Changed by the coach bench 10 and 11: their gates (clock, spike-premise, next-site) come after these three.
+  ok(gates.GATES.slice(-9, -6).map(([n]) => n).join() === 'economy-scope,premise,map-habit', 'the three bench 9 gates run after every gate before');
   // Map control and positioning: the notes the four weaker moments were missing now reach them.
   const knowledge9 = require('../server/services/knowledge');
   const topic9 = new Map(knowledge9.all().map((n) => [n.text, n.source && n.source.topic]));
@@ -3914,7 +3918,9 @@ console.log('\nround 8, the game facts gates:');
     ok(got.includes(topic), `BENCH 9 SERVED: "${topic}"`, JSON.stringify(got));
   }
   const failedHit = knowledge9.all().find((n) => n.source && n.source.topic === 'the hit they will not run again');
-  ok(/expect them at a different site next round, not at the one that held/.test(failedHit.text), 'FD8OFhwHF5M-3: the failed hit note names the site to lean to without "the other site"');
+  // Changed by the coach bench 11: the note no longer calls the next site at all (gateNextSite).
+  ok(/take one early look at the site they have not hit/.test(failedHit.text) && !require('../server/services/game-claims').checkNextSite(failedHit.text),
+    'FD8OFhwHF5M-3: the failed hit note sends the player to look at the site they have not hit, and calls no next site');
 }
 
 // ── The coach bench 10 (Nov 2026): refrag after the plant, own smoke timing, banded head hits,
@@ -4062,6 +4068,144 @@ console.log('\nround 8, the game facts gates:');
   ok(cp.economyDrop('On an eco, play for close fights together. Your smoke buys the team time to rotate.', { language: 'en', game: 'valorant' }).dropped === 0, 'economyDrop keeps a round named as an eco and time bought');
   ok(cp.economyDrop('Du hättest sparen sollen.', { language: 'de', game: 'valorant' }).dropped === 0 && cp.economyDrop('Buy boots first.', { language: 'en', game: 'lol' }).dropped === 0,
     'economyDrop judges English Valorant only');
+}
+
+// ── The coach bench 11 (Nov 2026): the Vandal fact stands again, banded head hits at range,
+// the next site not called, guided darts, side-wrong utility, praise for what was not done ──
+{
+  console.log('\nthe coach bench 11:');
+  const claims = require('../server/services/game-claims');
+  const knowledge11 = require('../server/services/knowledge');
+  const topic11 = new Map(knowledge11.all().map((n) => [n.text, n.source && n.source.topic]));
+  const asked11 = (band, content) => {
+    const ctx = chatContext.build(null, { rows: [] }, null, content, { game: 'valorant', language: 'en', advanced: true, switchedFrom: null, now: 0 });
+    ctx.rankBand = band;
+    const input = cp.normalise(ctx);
+    const messages = [{ role: 'user', content }];
+    return { input, messages, f: cp.factsOf(input, messages) };
+  };
+  const gateOf = (s, f) => { const d = gates.check(s, f).drop; return d ? d.gate : null; };
+
+  // 1. fracture-duel: the true Vandal answer and its working stand, by bench:chat's own sentences.
+  const vq = [{ role: 'user', content: 'How many body shots does a Vandal need to kill someone with heavy armor?' }];
+  const fv = cp.factsOf({ game: 'valorant', agent: 'Jett' }, vq);
+  ok(fv.askedArmor === 'Heavy Armor', 'ASKED ARMOR: the Heavy Armor of the question', String(fv.askedArmor));
+  for (const s of ['A Vandal needs 4 body hits to kill someone with Heavy Armor from full health, at any range.',
+    'A Vandal needs 4 body hits at any range to kill someone with Heavy Armor from full health.',
+    'A Vandal needs 4 body shots to kill a player at full health with Heavy Armor, at any range.',
+    'Each body hit deals 40 damage, so 3 hits are not enough.',
+    'Each body shot deals 40 damage, so 3 shots deal 120, short of the 150 total damage needed; the fourth kills.',
+    'Three body hits do not kill through Heavy Armor.',
+    'A Vandal needs more than 3 body hits against Heavy Armor.']) {
+    ok(gateOf(s, fv) === null, `VANDAL STANDS: "${s}"`, String(gateOf(s, fv)));
+  }
+  for (const s of ['A Vandal needs 3 body hits to kill someone with Heavy Armor.', 'A Vandal needs 3 body hits at any range against Heavy Armor.',
+    '4 hits are not enough.', 'A Vandal needs more than 4 body hits against Heavy Armor.', 'So 3 shots deal 130.',
+    'So 3 shots deal 120, short of the 140 total damage needed.', 'A Sheriff head hit kills at any range.']) {
+    ok(gateOf(s, fv) !== null, `VANDAL FALSE GOES: "${s}"`);
+  }
+  // The bench:chat answers themselves, through parseReply with no match: shown, not the honest line.
+  const vin = cp.normalise({ game: 'valorant', agent: 'Jett' });
+  const vr = cp.parseReply('A Vandal needs 4 body hits at any range to kill someone with Heavy Armor from full health. Each body hit deals 40 damage, so 3 hits are not enough.', vin, { messages: vq });
+  ok(vr.kept === 2 && !vr.retry, 'fracture-duel: the retry of bench:chat keeps both sentences', JSON.stringify(vr.dropped));
+
+  // 2. Banded head one-shots said at range in other words (WCgnalZDT_A-6, KVOVQ6jiQw8-2 and -3).
+  for (const s of ['But a Sheriff or a Marshal head hit kills at range, so never give either a still head on a long line.',
+    'Their close-range guns and most pistols only beat you up close, so hold the long angle and refuse the close fight, but never sit still on a long line where a Sheriff or a Marshal head hit kills you.',
+    'A Sheriff head hit kills at long range.', 'A Sheriff head hit kills from any distance.', 'A Sheriff head hit kills anywhere on the map.',
+    'A Sheriff head hit kills no matter the range.', 'A Sheriff head hit kills at a distance.', 'A Phantom head hit kills at range.']) {
+    ok(!!claims.checkOneShot(s), `ONE SHOT AT RANGE GOES: "${s}"`);
+  }
+  for (const s of ['A Sheriff head hit kills up close.', 'A Marshal head hit kills at range.', 'A Marshal head hit kills from any distance.',
+    'An Operator body hit kills at any range.', 'An Operator body hit kills anywhere on the map.', 'A Vandal head hit kills at range.',
+    'A Sheriff head hit does not kill at range.', 'Hold the long angle; a Sheriff head hit kills you up close.', 'A Guardian head hit kills at range.']) {
+    ok(!claims.checkOneShot(s), `ONE SHOT STANDS: "${s}"`);
+  }
+
+  // 3. Map control: the next site is not called (gate next-site), what to look for stays.
+  for (const s of ['Yes, you should have changed it, and the change was to move toward B, not away from it.',
+    'Two failed hits at the same site usually means that team calls something different next round, so the site they have not touched is the one to expect.',
+    'Two failed hits at B in a row almost always means the next call comes somewhere else, so round three was the round to shift weight toward A.',
+    'In solo queue a team rarely runs the same failed hit a third time, so expect the hit at the site they have not tried, which is A.',
+    'After a round on A, the next call is usually back to what worked, so B was the read.',
+    'On the round after two B hits, start leaning toward A or hold the mid angle.',
+    'If they lost at a site, expect them somewhere else next round.', 'If they won there, expect it again.',
+    'They will probably go A next round.', "They'll go somewhere else next round."]) {
+    ok(!!claims.checkNextSite(s), `NEXT SITE GOES: "${s}"`);
+  }
+  for (const s of ['On defence, pick a position at the start of the round from which you can help your teammate if they get hit at either site.',
+    'Then set your elbow only if the information points at A, and if it points at B or mid, start closer to that side.',
+    'After a long fight at one site, expect the defence to stack the site you have been loud on: rotate together and hit the other site.',
+    'Do not guess which site they will hit next; get information early.', 'Never assume they will go B because they lost A twice.',
+    'If you hear them on B, rotate toward B with your team.', 'They went B two rounds in a row and lost both.', 'Expect A main to be smoked early.',
+    'With your kit, flash the choke, then swing as it pops so a blinded enemy sprays where they expect a peeker.',
+    'Get early information on the site they have not hit, a jump spot or a drone, and start where the first rotation reaches either site.']) {
+    ok(!claims.checkNextSite(s), `NEXT SITE STANDS: "${s}"`);
+  }
+  ok(cp.VALORANT_RULES.includes(cp.NEXT_SITE_RULE) && /Never tell the player which site the enemy will hit next/.test(cp.NEXT_SITE_RULE) && !DASHES.test(cp.NEXT_SITE_RULE),
+    'THE NEXT SITE RULE is in the static rules');
+  // No note served calls the next site any more.
+  for (const t of ['the hit they will not run again', 'what follows a rush', 'set up from the enemy pattern']) {
+    const n = knowledge11.all().find((x) => x.source && x.source.topic === t);
+    ok(!!n && !claims.checkNextSite(n.text), `NOTE CALLS NO NEXT SITE: "${t}"`);
+  }
+  const hand = knowledge11.all().find((x) => /^Patterns repeat until punished/.test(x.text));
+  ok(!!hand && !claims.checkNextSite(hand.text) && /found with an early look, not guessed/.test(hand.text), 'the hand written patterns note calls no next site');
+  // The general map control notes reach their moments (pickNotes as the server builds them).
+  for (const [band, content, topic] of [
+    ['silver_gold', 'I was on Killjoy on Breeze, defense, mid match. Nobody on my team held mid and there was no information there; I placed my turret where it saw nothing and set the alarm for back site to prepare a retake, while an aggressive teammate pushed mid alone and died. On Breeze defense, should I set up for a retake when nobody on my team is holding mid?', 'nobody takes mid'],
+    ['silver_gold', 'I was on Omen on Fracture, defense, full buy round on B. I started the round passively holding a close angle on the B site and gathered no info for about 27 seconds. Is it fine to just hold a passive angle on B at the start of the round?', 'passive after one look'],
+    ['asc_plus', 'I was on Chamber on Haven, defense, A short. I held an angle with an Outlaw and my teleport while their recon dart came toward me; I waited to get tagged. How should I play against a recon drone coming at my angle as Chamber?', 'the dart at your angle'],
+  ]) {
+    const x = asked11(band, content);
+    const got = cp.pickNotes(x.input, x.messages).map((t) => topic11.get(t));
+    ok(got.includes(topic), `BENCH 11 SERVED: "${topic}"`, JSON.stringify(got));
+  }
+  const fd = asked11('silver_gold', 'I was on Jett on Sunset, defense, a 2v2 then 2v1 retake on a planted site. Later I half defused. In that retake should I have kept defusing or turned to fight the last enemy?');
+  ok(!cp.pickNotes(fd.input, fd.messages).map((t) => topic11.get(t)).includes('nobody takes mid'), 'a retake question with mid unsaid is not served the mid note');
+
+  // 4a. A Recon Bolt is not guided (gate guided).
+  const fk = asked11('asc_plus', 'I was on Chamber on Haven, defense, A short. I held an angle with an Outlaw while their recon dart came toward me. How should I play against a recon drone coming at my angle as Chamber?').f;
+  ok(fk.askedFixed === true, 'ASKED FIXED: a recon dart and a recon drone are the bolt');
+  ok(gateOf('Either fire one Outlaw shot at the player guiding it, or press Rendezvous and leave.', fk) === 'guided'
+    && gateOf('Shoot the player guiding the Recon Bolt.', fk) === 'guided' && gateOf('Steer the Shock Bolt around the corner.', fk) === 'guided',
+  'KVOVQ6jiQw8-5: the player guiding it, a guided Recon Bolt and a steered Shock Bolt go');
+  ok(!gateOf('Shoot the dart early or hide until it passes.', fk) && !gateOf('A recon dart is not guided, it flies on its own.', fk)
+    && !gateOf('Steer the bird past the corner before you pop it.', fk) && !gateOf('The Sova is steering his Owl Drone into site, shoot it.', fk)
+    && !gateOf('Hold the angle while your teammate guides the push.', fk),
+  'the dart shot early, a negation, a steered bird, a piloted Owl Drone and a teammate guiding a push stay');
+  ok(!claims.askedFixed('their owl drone came in') && !claims.askedFixed('a drone and a recon dart') && claims.STEERED.has('guiding light') && !claims.STEERED.has('recon bolt'),
+    'the steered set is the game data\'s: Guiding Light in it, Recon Bolt not');
+
+  // 4b. Side-wrong utility (gate side-use): a defender forcing a defuser off.
+  const fdef = asked11('silver_gold', 'I was on Killjoy on Breeze, defense, pistol round, anchoring B. I threw both Nanoswarms at the start. How should I set up B on a defense pistol round with Killjoy?').f;
+  const fatk = asked11('silver_gold', 'I was on Killjoy on Breeze, attack, post plant on B. How should I use my Nanoswarms after the plant?').f;
+  ok(gateOf('Nanoswarm is worth more held than spent: keep one for the post plant, where it can sit on the spike and force a defuser off it.', fdef) === 'side-use'
+    && gateOf('Throw a molly to stop the plant.', fatk) === 'side-use', '_BagmBAjtsc-5: a defender forcing a defuser off, an attacker stopping a plant, go');
+  ok(!gateOf('On attack, set off one Nanoswarm when the defuse starts.', fatk) && !gateOf('Their Killjoy will swarm the spike to stop your defuse.', fdef)
+    && !gateOf('Throw a molly to stop the plant.', fdef) && !gateOf('Keep one Nanoswarm for the retake.', fdef),
+  'the attacker\'s swarm on the defuse, the enemy\'s, the defender stopping a plant and the retake swarm stay');
+  const kjDef = knowledge11.all().find((n) => /^Nanoswarm holds the defuse/.test(n.text));
+  ok(!!kjDef && kjDef.side === 'attack' && knowledge11.all().some((n) => n.side === 'defense' && /keep one Nanoswarm for a retake of the other site/.test(n.text)),
+    'the hand written defuse swarm note is an attacker\'s, and the defender has his own');
+
+  // 4c. Praise for what the player said they did not do (gate premise).
+  const fr = asked11('silver_gold', 'I was on Jett on Sunset, defense, round three. After I got a kill I stood there with my knife out instead of reloading while the Omen covered me. Was it fine to keep moving a little while I held that angle with the Outlaw?').f;
+  ok(JSON.stringify(fr.notDone) === '["reload"]', 'NOT DONE: reloading, from "instead of reloading"', JSON.stringify(fr.notDone));
+  ok(gateOf('The knife-out part after the kill was fine, and reloading while the Omen covered you was the right call.', fr) === 'premise'
+    && gateOf('You were right to reload there.', fr) === 'premise', 'FD8OFhwHF5M-2: reloading praised as done goes');
+  ok(!gateOf('Reload while the Omen covers you, since the Outlaw only holds 2 rounds.', fr) && !gateOf('Reloading while a teammate covers you is the right call next time.', fr)
+    && !gateOf('Holding still on the angle was the right call.', fr), 'advice to reload, a rule, and praise for another action stay');
+
+  // 4d. The short blind told as one that worked (gate premise).
+  const fb = asked11('asc_plus', 'I was on Skye on Split, defense retake after a plant. I sent my bird at their Raze but popped it short, in front of her, so the blind was short. I flashed the Raze but she still killed my teammate, why did the blind not work?').f;
+  ok(fb.shortBlind === true && gateOf('The blind did work, but a flash only takes an enemy\'s eyes for a moment.', fb) === 'premise'
+    && gateOf('Your flash was a full blind, she just sprayed.', fb) === 'premise', 'BfumSarDJKw-3: the short blind said to have worked goes');
+  ok(!gateOf('Popping the bird on her gives her the full blind, but it does not move her off the spot.', fb) && !gateOf('A bird popped short gives only a short blind.', fb)
+    && !gateOf('The blind did not work because you popped it short.', fb), 'the general rule, the note\'s own line and the true account stay');
+  ok(!claims.shortBlindSaid('I flashed the Raze and she killed my teammate'), 'a flash with no short pop said is no short blind');
+
+  ok(gates.GATES.slice(-4).map(([n]) => n).join() === 'next-site,guided,side-use,action-premise', 'the bench 11 gates run after every gate before');
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

@@ -627,3 +627,24 @@ Bench 10 left post-plant at 7 of 8. The code side is in `ask-coach.md`, "The coa
 
 Fact checked against 13.09: no game numbers (the one to one and a half seconds is a coach's timing, not a
 game number, and the gates pass it), no kit claims beyond Guiding Light by name. Not benched live.
+
+### The coach bench 11 (Nov 2026)
+
+Bench 11 left map control at 6 of 9. The code side is in `ask-coach.md`, "The coach bench 11". The data:
+
+- **No note calls the next site.** "the hit they will not run again", "what follows a rush", "set up from
+  the enemy pattern", case k202 and the hand written "Patterns repeat until punished" now send the
+  player to look early at the site they have not hit and start where the first rotation reaches either
+  site, never to expect a site (the next-site gate holds every one of them).
+- **"nobody takes mid"** (defence, Silver up, core): when nobody takes mid that job is yours, jiggle peek it
+  early, place utility after the look, play beside the most aggressive teammate, rather than a retake set
+  up before the hit (_BagmBAjtsc-6). **"passive after one look"** (defence, Silver up, core): a passive
+  angle only after one look down the main the hit comes through, then fall back, smoke the other main if
+  nobody fights for it (Tx_okqpD79g-3). **"the dart at your angle"** (Silver up, core): swing early and
+  leave, or step out of the reveal and kill the players behind it; nobody steers a dart (KVOVQ6jiQw8-5).
+- **Two hand written notes corrected.** The anti eco note's "a Sheriff or a Marshal head hit kills at
+  range" was the bench's leaking Sheriff line (`test:gameclaims` caught it once `checkOneShot` read "at
+  range"); "Nanoswarm holds the defuse" is an attacker's note now, with a defender's own beside it.
+
+Fact checked against 13.09: the Sheriff head kills through Light Armor from 30 to 50 m and takes two through
+Heavy Armor, the Marshal kills at any range; no other game numbers. Not benched live.

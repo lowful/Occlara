@@ -26,7 +26,7 @@
     "jettKit": ["Updraft", "Tailwind", "Cloudburst", "Blade Storm"],
     "razeKit": ["Blast Pack", "Paint Shells", "Boom Bot", "Showstopper"],
     "otherDuelistKits": ["Fast Lane", "High Gear", "Relay Bolt", "Leer", "Devour", "Dismiss", "Curveball", "Hot Hands", "Run It Back", "Gatecrash"],
-    "firstDeath": ["first death", "died first", "first to die", "first one to die", "first player down", "first player to die", "first one down"],
+    "firstDeath": ["first death", "died first", "first to die", "first one to die", "first player down", "first player to die", "first one down", "with everyone still alive", "while everyone was still alive", "while it was 5 against 5", "5 against 5 into 4 against 5"],
     "fourKills": ["4 kills", "four kills", "4 enemies", "four enemies", "four of them", "4 of them"],
     "won5": {
       "re": "\\b(?:you|your team|you guys|the team)\\b[^.?!]{0,25}\\b(?:won|win)\\b|\\bround 5\\b[^.?!]{0,40}\\b(?:won|win|victory)\\b|\\b(?:didn't|did not|never)\\s+lose\\b",
