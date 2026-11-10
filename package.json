@@ -156,7 +156,9 @@
     "verify:ai": "node scripts/bench-read.js live --gate",
     "check:nogame": "node scripts/check-no-game.js",
     "test:nogame": "node scripts/test-no-game.js",
-    "make:drilldemo": "node scripts/make-drill-demo.js"
+    "make:drilldemo": "node scripts/make-drill-demo.js",
+    "check:publicmirror": "node scripts/check-public-mirror.js",
+    "publish:public": "node scripts/publish-public.js --push"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

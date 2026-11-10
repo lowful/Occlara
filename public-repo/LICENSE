@@ -1,0 +1,19 @@
+Copyright (c) 2025-2026 Occlara. All rights reserved.
+
+This repository contains the source code of the Occlara desktop application. It is
+published so that anyone can read and inspect it to verify what the application does.
+
+You may view and read this source code, and build it locally solely to verify that it
+matches the published application.
+
+You may not, without prior written permission from Occlara:
+  - copy, reproduce or reuse this source code, in whole or in part, in any other
+    product, project or service;
+  - modify it, or distribute or publish it or any modified version of it;
+  - sell, sublicense or offer it, or any product built from it, to anyone;
+  - use it, its structure or its text to build a competing product or service.
+
+No licence or other right to the Occlara name, logo, server, coaching service or any
+other intellectual property is granted by publishing this code.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
