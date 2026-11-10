@@ -347,7 +347,7 @@ function plans(tier) {
     monthly: p.monthlyCents ? money(p.monthlyCents) : '$0',
     monthlyPer: p.monthlyCents ? 'a month' : '',
     yearly: p.yearlyCents ? money(p.yearlyCents) : '$0',
-    yearlyPer: p.yearlyCents ? 'a year' : '',
+    yearlyPer: p.yearlyCents ? (p.monthlyCents * 12 > p.yearlyCents ? `a year, save ${money(p.monthlyCents * 12 - p.yearlyCents)}` : 'a year') : '',
     games: p.monthly ? `${p.games} games a month` : `${p.games} games for life`,
     action: p.id === mine ? '' : `See ${p.label}`,
   }));

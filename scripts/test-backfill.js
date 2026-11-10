@@ -129,8 +129,13 @@ function harness(opts = {}) {
 }
 
 /** A recorded review that never linked, saved the way index.js saves one. */
-function watched(store, startedAt, over = {}) {
-  const snap = { ...played, startedAt, endedAt: startedAt + 24 * 100000 + 60000,
+// siteTo: the deaths the screen placed at A Site moved to that callout. A whole
+// site is no spot since Nov 2026 (insights.js WHOLE_SITE), so a recorded row
+// that needs a top mistake of its own has its deaths at a callout.
+function watched(store, startedAt, over = {}, siteTo = null) {
+  const rounds = !siteTo ? played.rounds
+    : played.rounds.map((r) => (String(r.deathSpot || '').toLowerCase() === 'a site' ? { ...r, deathSpot: siteTo } : r));
+  const snap = { ...played, rounds, startedAt, endedAt: startedAt + 24 * 100000 + 60000,
     context: { ...played.context, map: 'Abyss', agent: 'Jett', agentConfirmed: true, teamScore: 13, enemyScore: 11 } };
   const built = valorantReview.build({ rounds: snap.rounds, context: snap.context, endedBy: 'score', ai: {},
     role: 'Duelist', history: [] });
@@ -196,7 +201,7 @@ function watched(store, startedAt, over = {}) {
       old.insights = insights.valorant(verify.reconcile([], RIOT).rounds, { role: 'Duelist' });
       old.id = newId('valorant', old.at);
       store.save({ id: old.id, game: 'valorant', at: old.at, review: old });
-      const rec = watched(store, T0 + 3 * HOUR);
+      const rec = watched(store, T0 + 3 * HOUR, {}, 'A Main');
       const onDisk = (id) => JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')).find((r) => r.id === id);
       ok(onDisk(old.id).topMistake === old.insights.mistakes[0].title && onDisk(rec.id).topMistake,
         `the index holds the old row's top mistake as it was saved (${onDisk(old.id).topMistake})`);

@@ -101,14 +101,32 @@ console.log('\nthe chain of a death:');
   ok(quiet === null, 'a death with a teammate close and no trade, and nothing else, is no chain: the record cannot show whose mistake it was');
   ok(dc.chainOf(death(4, { afk: true }), [death(4, { afk: true })]) === null, 'a round the player sat out has no chain');
   ok(dc.chainOf(death(4, { verified: false }), [death(4, { verified: false })]) === null, 'a death Riot never verified has no chain');
-  // No ability: every cast at zero, and a dry peek takes it as its evidence.
+  // No ability (Nov 2026, the coaching audit): every cast at zero, trusted only
+  // where the match has a cast in another round, never first, never on defence
+  // before the plant in the first 40 s, and a dry peek takes it as its evidence.
   const casts = { C: 0, Q: 0, E: 0, X: 0 };
-  const util = dc.chainOf(death(8, { casts, mateNear: null, riotSpot: 'A Short' }), [death(8, { casts, mateNear: null, riotSpot: 'A Short' })]);
-  ok(util && util.first.kind === 'no-utility' && util.first.text === "Riot's record has no ability cast by you that round.", 'every cast at zero is no ability used');
-  ok(dc.chainOf(death(8, { casts: { ...casts, Q: 1 }, mateNear: null }), [death(8, { casts: { ...casts, Q: 1 }, mateNear: null })]) === null, 'one cast is not none');
-  const dry = dc.chainOf(death(8, { casts, mateNear: null, forensics: { cause: 'dry-peek', what: 'You swung wide.', source: 'riot' } }),
-    [death(8, { casts, mateNear: null, forensics: { cause: 'dry-peek', what: 'You swung wide.', source: 'riot' } })]);
+  const castOnce = lived(2, { casts: { ...casts, Q: 1 } });
+  const withMatch = (r) => [castOnce, r];
+  const atkFar = (o) => death(8, { side: 'attacking', casts, riotSpot: 'A Short', ...o });
+  const util = dc.chainOf(atkFar({}), withMatch(atkFar({})));
+  ok(util && util.first.kind === 'untradeable' && util.worse.some((w) => w.kind === 'no-utility' && w.text === "Riot's record has no ability cast by you that round."),
+    `every cast at zero, with a cast in another round, is no ability used, beside a first mistake (${util && util.worse.map((w) => w.kind)})`);
+  ok(dc.chainOf(atkFar({ mateNear: null }), withMatch(atkFar({ mateNear: null }))) === null, 'no ability used is never a first mistake: alone it is no chain');
+  ok(!dc.FIRST_ORDER.includes('no-utility') && dc.KINDS['no-utility'].cause === false, 'and it is not in the first order');
+  const noCastAnywhere = dc.chainOf(atkFar({}), [lived(2, { casts }), atkFar({})]);
+  ok(noCastAnywhere && !noCastAnywhere.worse.some((w) => w.kind === 'no-utility'), 'a match with no cast above zero in any round is a record that does not count them: not trusted');
+  ok(dc.chainOf(atkFar({ casts: { ...casts, Q: 1 } }), withMatch(atkFar({ casts: { ...casts, Q: 1 } }))).worse.every((w) => w.kind !== 'no-utility'), 'one cast is not none');
+  // On defence before the plant, a death at 40 s or sooner never counts it; at 41 s it may.
+  const defOver = (sec) => death(8, { casts, deathSec: sec, riotSpot: 'A Short', forensics: { cause: 'overextend', what: 'You pushed.', source: 'riot' } });
+  ok(dc.chainOf(defOver(40), withMatch(defOver(40))).worse.every((w) => w.kind !== 'no-utility'), 'on defence before the plant, a death at 40 s does not count no ability used');
+  ok(dc.chainOf(defOver(41), withMatch(defOver(41))).worse.some((w) => w.kind === 'no-utility'), 'and a death at 41 s does');
+  ok(dc.chainOf(defOver(null), withMatch(defOver(null))).worse.every((w) => w.kind !== 'no-utility'), 'and a death at an unknown second does not');
+  const defAfter = death(8, { casts, deathSec: 30, afterPlant: true, planted: true, riotSpot: 'A Short', forensics: { cause: 'overextend', what: 'You pushed.', source: 'riot' } });
+  ok(dc.chainOf(defAfter, withMatch(defAfter)).worse.some((w) => w.kind === 'no-utility'), 'after the plant on defence it counts at any second');
+  const dryRow = (o) => atkFar({ mateNear: null, forensics: { cause: 'dry-peek', what: 'You swung wide.', source: 'riot' }, ...o });
+  const dry = dc.chainOf(dryRow({}), withMatch(dryRow({})));
   ok(dry.first.kind === 'dry-peek' && !dry.worse.some((w) => w.kind === 'no-utility') && /no ability cast by you/.test(dry.first.text), 'a dry peek with no cast carries the record as its own evidence');
+  ok(!/no ability cast by you/.test(dc.chainOf(dryRow({}), [dryRow({})]).first.text), 'and not where the match has no cast to trust the zero by');
   // Early on attack: only on attack, with the whole team up, before the plant.
   const atk = (o) => death(2, { side: 'attacking', early: true, deathSec: 18, aliveAtDeath: { mates: 5, enemies: 5 }, mateNear: 'close', riotSpot: 'A Short', firstDeath: true, ...o });
   const early = dc.chainOf(atk({}), [atk({})]);
@@ -293,6 +311,28 @@ console.log('\nAsk Coach:');
   for (const c of noChain.match.cards) delete c.chain;
   const p0 = chatPrompt.buildPrompt(chatPrompt.normalise(noChain), msgs);
   ok(!/EARLIER IN THIS MATCH|chain of mistakes|Earlier in this match:/.test(p0), 'a client before chains is told none of it');
+}
+
+// ── 8. One chain a round, each kind once, on the server (match-memory.js) ──
+// Two chains sent for one round made "in 3 rounds, rounds 4, 4 and 7", and a
+// kind sent twice was two things that made it worse.
+console.log('\none chain a round:');
+{
+  const r = (n) => ({ n, side: 'attacking', result: 'lost', died: true, verified: true, traded: false, mate: 'far', alive: { mates: 4, enemies: 3 }, firstDeath: true, place: 'A Short' });
+  const rows = mm.rowsOfReview([r(4), r(7)]);
+  const c4 = mm.chainWords({ n: 4, first: 'untradeable', worse: ['gave-advantage', 'gave-advantage', 'first-death'] }, rows);
+  ok(c4 && c4.worse.map((w) => w.kind).join() === 'gave-advantage,first-death', `a kind sent twice is said once (${c4 && c4.worse.map((w) => w.kind)})`);
+  const c4b = mm.chainWords({ n: 4, first: 'untradeable', worse: ['gave-advantage'] }, rows);
+  const c7 = mm.chainWords({ n: 7, first: 'untradeable', worse: ['gave-advantage'] }, rows);
+  const chains = [c4, c4b, c7];
+  const main = mm.mainWords({ kind: 'untradeable', rounds: [4, 4, 7] }, chains);
+  ok(main === 'Your biggest repeat: dying where no teammate was close enough to trade, in 2 rounds, rounds 4 and 7.', `two chains for round 4 are one round (${main})`);
+  ok(mm.mainWords({ kind: 'untradeable', rounds: [4, 7] }, chains) === main, 'and the rounds sent once say the same');
+  ok(mm.mainWords({ kind: 'untradeable', rounds: [4, 7], beside: { kind: 'gave-advantage', count: 3 } }, chains) === main,
+    'a beside count that counts round 4 twice is not said');
+  ok(/, and in 2 of those rounds also dying with your team up in numbers in a round it then lost\.$/.test(mm.mainWords({ kind: 'untradeable', rounds: [4, 7], beside: { kind: 'gave-advantage', count: 2 } }, chains) || ''),
+    'and the true one, a round once, is');
+  ok(mm.mainWords({ kind: 'first-death', rounds: [4, 7] }, [c4b, c4, c7]) === null, 'the first chain sent for a round is the one counted, as its round line takes it');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' death chain checks passed'}`);

@@ -102,7 +102,7 @@ const isRecorded = (s) => !!(s && s.review && s.review.source !== 'riot');
  * streak stops at a match that could not count its key, as the focus needs
  * both reviews verified.
  */
-const RIOT_KEYS = new Set(['first-death', 'lost-advantage', 'untraded']);
+const RIOT_KEYS = new Set(['first-death', 'lost-advantage', 'untraded', 'low-headshots']);
 const riotReached = (review) => !!(review && (review.verified === true
   || (Array.isArray(review.rounds) && review.rounds.some((r) => r && r.verified === true))));
 const couldCount = (review, key) => !RIOT_KEYS.has(key) || riotReached(review);

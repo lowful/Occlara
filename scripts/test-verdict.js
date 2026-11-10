@@ -86,7 +86,9 @@ ok(PERSON_KEY.test('riotId') && PERSON_KEY.test('summonerName') && PERSON_KEY.te
 'the person detector names a Riot ID, a summoner, me and an account, and passes over the Verdict\'s own fields');
 ok(!!av && av.letter === 'B' && av.score === 71 && av.provisional === false,
   'the Abyss match, linked as the app links it, is a B 71, not provisional', av && `${av.letter} ${av.score}`);
-ok(!!av && av.reason === '20 of your 21 deaths went untraded.', 'its one reason is its first mistake, counted: 20 of your 21 deaths went untraded.', av && av.reason);
+// Ranked with the count capped (Nov 2026, insights.js RANK_CAP), the advantage
+// given back in 6 rounds (weight 3) leads the 20 deaths nobody traded (weight 2).
+ok(!!av && av.reason === 'Died untraded with the team up in numbers in 6 lost rounds.', 'its one reason is its first mistake, counted: the advantage given back in 6 rounds, ranked over the 20 untraded deaths', av && av.reason);
 ok(!!av && av.right === `Abyss${DOT}13-11${DOT}Win` && av.title === 'Abyss' && av.game === 'valorant',
   'it says the map, the score and the result, Win for a Victory', av && av.right);
 ok(!!av && av.sub === `Jett${DOT}Unrated`, "its agent is Riot's and its mode Riot's queue: Jett, Unrated", av && av.sub);
@@ -110,6 +112,8 @@ ok(!!av && av.icon === 'valorant/agents/Jett.png', "its icon is Jett's, the bund
   ok(!!ownOf && ownOf.of === 21, 'the untraded entry carries its own denominator, 21', ownOf && `${ownOf.of}`);
   const noTrade = copy(abyss);
   for (const e of noTrade.insights.mistakes) delete e.of;
+  // The untraded line first, so its denominator is what the reason reads.
+  noTrade.insights.mistakes.sort((a, b) => (b.key === 'untraded') - (a.key === 'untraded'));
   for (const r of noTrade.rounds) if (r.riot) r.riot.traded = null;
   ok(verdict.reason(noTrade) === '20 of your deaths went untraded.',
     'with no trade known on any card the line keeps its count and says no denominator', verdict.reason(noTrade));
@@ -207,7 +211,7 @@ for (const [text, want] of TEMPLATES) ok(verdict.firstClause(text) === want, `fi
 
   const judged = copy(abyss);
   judged.insights.mistakes.unshift({ key: 'cause:repeek', title: 'Repeeks', detail: 'The coach looked at the moment.', rounds: [2, 5, 9], count: 3, judged: true, weight: 9 });
-  ok(verdict.reason(judged) === '20 of your 21 deaths went untraded.', "an entry the coach's look judged is passed over, however it ranks", verdict.reason(judged));
+  ok(verdict.reason(judged) === av.reason, "an entry the coach's look judged is passed over, however it ranks", verdict.reason(judged));
 
   const allJudged = copy(abyss);
   allJudged.insights = { mistakes: [{ key: 'cause:dry-peek', title: 'Dry peeks', rounds: [1, 2], count: 2, judged: true }], strengths: [], missed: [] };
@@ -265,7 +269,7 @@ for (const [text, want] of TEMPLATES) ok(verdict.firstClause(text) === want, `fi
   planted.insights.mistakes.unshift({ key: 'same-killer', title: 'Somebody#EUW kept winning', rounds: [1, 2, 3], count: 3 });
   const pv = verdict.of(planted);
   ok(leaks(pv).length === 0, "a review carrying a Riot ID in its account, its agent and a title gives a Verdict with no '#' in it", leaks(pv).join(', '));
-  ok(pv.sub === 'Unrated' && pv.reason === '20 of your 21 deaths went untraded.', 'the string with the Riot ID is left out and the next counted line is the reason', `${pv.sub} | ${pv.reason}`);
+  ok(pv.sub === 'Unrated' && pv.reason === av.reason, 'the string with the Riot ID is left out and the next counted line is the reason', `${pv.sub} | ${pv.reason}`);
   ok(leaks(av).length === 0, "the Abyss match's Verdict carries no name and no '#'");
 }
 

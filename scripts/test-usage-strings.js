@@ -38,10 +38,10 @@ eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 2 }, U)), '1 of 2 fr
 eq(say(usage.gamesLeft({ tier: 'free', left: 0, free_total: 2 }, U)), 'You have used your 2 free games', 'none left');
 eq(say(usage.gamesLeft({ tier: 'free', left: 4, free_total: 4 }, U)), '4 of 4 free games left', 'invited: 4 free games');
 eq(say(usage.gamesLeft({ tier: 'free', left: 3, free_total: 4 }, U)), '3 of 4 free games left', 'invited, one used');
-eq(say(usage.gamesLeft({ tier: 'free', left: 5, free_total: 2, bonus_pool: 4 }, U)), '1 of 2 free games left, plus 4 earned games',
+eq(say(usage.gamesLeft({ tier: 'free', left: 5, free_total: 2, bonus_pool: 4 }, U)), '1 of 2 free games left, plus 4 bonus games',
   'earned games beside the free ones, never "5 of 2"');
-eq(say(usage.gamesLeft({ tier: 'free', left: 4, free_total: 2, bonus_pool: 4 }, U)), '4 earned games left', 'the free ones spent, earned ones left');
-eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 2, bonus_pool: 1 }, U)), '1 earned game left', 'one earned game, singular');
+eq(say(usage.gamesLeft({ tier: 'free', left: 4, free_total: 2, bonus_pool: 4 }, U)), '4 bonus games left', 'the free ones spent, earned ones left');
+eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 2, bonus_pool: 1 }, U)), '1 bonus game left', 'one earned game, singular');
 eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 1 }, U)), '1 of 1 free game left', 'a total of one, singular');
 eq(say(usage.gamesLeft({ tier: 'free', left: 0, free_total: 0 }, U)), 'You have no free games left', 'a refunded account (free_total 0)');
 eq(usage.gamesLeft({ tier: 'free', left: 1 }, U), '1 of 4 free games left', 'no free_total: the default 4');
@@ -52,8 +52,8 @@ eq(say(usage.gamesLeft({ tier: 'pro', left: 25, period_end: NOV30 }, U)), '25 of
 eq(say(usage.gamesLeft({ tier: 'pro', left: 1, cap_monthly: 25, period_end: NOV30 }, U)), '1 of 25 games left this month, renews Nov 30', 'Pro, one left');
 eq(say(usage.gamesLeft({ tier: 'pro', left: 0, cap_monthly: 25, period_end: NOV30 }, U)), "You have used this month's 25 games, renews Nov 30", 'Pro, none left');
 eq(say(usage.gamesLeft({ tier: 'pro', left: 22, cap_monthly: 25, bonus_pool: 4, period_end: NOV30 }, U)),
-  '18 of 25 games left this month, plus 4 earned games, renews Nov 30', 'Pro with earned games');
-eq(say(usage.gamesLeft({ tier: 'pro', left: 4, cap_monthly: 25, bonus_pool: 4, period_end: NOV30 }, U)), '4 earned games left, renews Nov 30',
+  '18 of 25 games left this month, plus 4 bonus games, renews Nov 30', 'Pro with bonus games');
+eq(say(usage.gamesLeft({ tier: 'pro', left: 4, cap_monthly: 25, bonus_pool: 4, period_end: NOV30 }, U)), '4 bonus games left, renews Nov 30',
   'Pro, the month spent, earned ones left');
 eq(say(usage.gamesLeft({ tier: 'max', left: 70, cap_monthly: 70, period_end: '2026-12-01T12:00:00Z' }, U)), '70 of 70 games left this month, renews Dec 1', 'Max');
 eq(say(usage.gamesLeft({ tier: 'max', left: 0, cap_monthly: 70, period_end: NOV30 }, U)), "You have used this month's 70 games, renews Nov 30", 'Max, none left');

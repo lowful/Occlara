@@ -56,14 +56,24 @@ const drills = Array.isArray(lib.drills) ? lib.drills : [];
 ok(drills.length >= 40, `at least 40 drills (${drills.length})`);
 const ids = new Set();
 const KEYS = ['id', 'title', 'cause', 'where', 'minutes', 'bands', 'steps', 'goal', 'why', 'check'];
+// Optional: `also`, the further causes a drill serves (Nov 2026, low-headshots on the aim drills).
+const OPTIONAL = ['also'];
+// A FULL UNRATED MATCH (Nov 2026): a drill for a moment too rare for 8 rounds
+// (the last one alive) is played over a whole match, and says so in a step.
+const FULL_MATCH = /\bfull unrated match\b/;
+ok(FULL_MATCH.test('Play a full unrated match, since the last one alive is too rare for 8 rounds.') && !FULL_MATCH.test('Play the first 8 rounds of an unrated match.'), 'the full match words both ways');
 for (const d of drills) {
   const at = `drill ${d && d.id}`;
-  ok(d && Object.keys(d).length === KEYS.length && KEYS.every((k) => k in d), `${at}: exactly the ten fields`, Object.keys(d || {}).join());
+  const extra = Object.keys(d || {}).filter((k) => !KEYS.includes(k));
+  ok(d && KEYS.every((k) => k in d) && extra.every((k) => OPTIONAL.includes(k)), `${at}: the ten fields, and also at most`, Object.keys(d || {}).join());
+  ok(!('also' in d) || (Array.isArray(d.also) && d.also.length >= 1 && d.also.every((c) => typeof c === 'string' && c !== d.cause) && new Set(d.also).size === d.also.length),
+    `${at}: also is a list of further causes, none its own cause, none twice`, JSON.stringify(d.also));
   ok(typeof d.id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(d.id) && !ids.has(d.id), `${at}: a unique lower case id`);
   ids.add(d.id);
   ok(typeof d.title === 'string' && d.title.length >= 8 && d.title.length <= 60, `${at}: a short title`);
   ok(WHERE.has(d.where), `${at}: where is range, deathmatch, custom or unrated`, d.where);
-  ok(Number.isInteger(d.minutes) && d.minutes >= 5 && d.minutes <= 20, `${at}: 5 to 20 minutes`, String(d.minutes));
+  const fullMatch = d.where === 'unrated' && (d.steps || []).some((s) => FULL_MATCH.test(s));
+  ok(Number.isInteger(d.minutes) && d.minutes >= 5 && d.minutes <= (fullMatch ? 45 : 20), `${at}: 5 to 20 minutes, a full unrated match up to 45`, String(d.minutes));
   ok(Array.isArray(d.bands) && d.bands.every((b) => BANDS.includes(b)) && new Set(d.bands).size === d.bands.length && d.bands.length < 4,
     `${at}: bands are the four keys, none twice, and all four is written as none`, JSON.stringify(d.bands));
   ok(Array.isArray(d.steps) && d.steps.length >= 3 && d.steps.length <= 6 && d.steps.every((s) => typeof s === 'string' && s.length >= 10 && s.length <= 200),
@@ -90,15 +100,28 @@ ok(sections.every((s) => s.length > 500), 'insights.js still has its Mistakes an
 for (const s of sections) {
   for (const m of s.matchAll(/\bkey:\s*'([a-z0-9-]+)'/g)) named.add(m[1]);
 }
-ok(named.has('untraded') && named.has('first-death') && named.has('no-escape') && named.has('ult-held'), 'the parsed list holds known keys', [...named].join());
+ok(named.has('untraded') && named.has('first-death') && named.has('no-escape') && named.has('ult-held') && named.has('low-headshots'),
+  'the parsed list holds known keys', [...named].join());
+// A drill serves its cause and every cause in its `also`.
+const causesOf = (d) => [d.cause, ...(Array.isArray(d.also) ? d.also : [])];
 const byCause = new Map();
-for (const d of drills) byCause.set(d.cause, (byCause.get(d.cause) || 0) + 1);
+for (const d of drills) for (const c of causesOf(d)) byCause.set(c, (byCause.get(c) || 0) + 1);
 for (const d of drills) ok(named.has(d.cause) || d.cause === 'general', `drill ${d.id}: its cause "${d.cause}" is one the app can name, or general`);
+for (const d of drills) for (const c of d.also || []) ok(named.has(c), `drill ${d.id}: its further cause "${c}" is one the app can name`);
 for (const c of named) ok((byCause.get(c) || 0) >= 3, `the cause "${c}" has at least 3 drills (${byCause.get(c) || 0})`);
-ok((byCause.get('general') || 0) >= 8, `at least 8 general drills (${byCause.get('general') || 0})`);
+ok(drills.filter((d) => d.cause === 'general').length >= 8, `at least 8 general drills (${drills.filter((d) => d.cause === 'general').length})`);
 for (const c of [...named, 'general']) {
-  const ds = drills.filter((d) => d.cause === c);
+  const ds = drills.filter((d) => causesOf(d).includes(c));
   ok(ds.length < 3 || new Set(ds.map((d) => d.where)).size >= 2, `the drills for "${c}" use more than one place to practise`);
+}
+// Shots landing below the head reaches the aim drills, the Practice page's way (practice.js normaliseLibrary, drillsFor).
+{
+  const practice = require(path.join(ROOT, 'src', 'shared', 'practice.js'));
+  const norm = practice.normaliseLibrary(lib);
+  const hs = practice.drillsFor(norm, 'low-headshots', 'silver_gold', []).map((d) => d.id);
+  ok(['lost-duel-counter-strafe', 'lost-duel-first-bullet', 'lost-duel-head-height-walk', 'lost-duel-shooting-error', 'general-stop-to-shoot'].every((id) => hs.includes(id)),
+    `the Practice page offers the aim drills for low-headshots (${hs.join(', ')})`);
+  ok(practice.drillsFor(norm, 'lost-duel', null, []).length === 4, 'and lost-duel keeps its own four');
 }
 
 // ── 3. The words ────────────────────────────────────────────────────────────
@@ -113,7 +136,7 @@ for (const [name, a] of Object.entries(data.agents || {})) {
 for (const m of Object.values(data.maps || {})) addWords(m);
 for (const w of Object.keys(data.weapons || {})) addWords(w);
 for (const list of Object.values(data.mapCallouts || {})) for (const c of (Array.isArray(list) ? list : [])) addWords(typeof c === 'string' ? c : c && c.name);
-addWords('Range Deathmatch Settings Crosshair Movement Error Shooting Video Stats Allow Cheats Ghost Infinite Abilities Ammo Pause Match Timer End Game Phase'
+addWords('Range Deathmatch Settings Crosshair Movement Error Shooting Video Stats Allow Cheats Ghost Infinite Abilities Ammo Pause Match Timer End Game Phase Escape Change Agent'
   + ' Speed Medium Easy Hard Streak Eliminate Bots Strafe Bot Armor F2 F3 A B C Iron Bronze Silver Gold Platinum Diamond Ascendant Immortal Radiant');
 const sentences = (s) => String(s).split(/(?<=[.!?:])\s+/).filter(Boolean);
 for (const d of drills) {
@@ -139,6 +162,24 @@ for (const d of drills) {
     ok(!/\b(?:teammates?|your team|trade|call)\b/i.test((d.steps || []).join(' ')), `drill ${d.id}: its steps need no teammate`);
   }
 }
+// The coaching audit (Nov 2026): what a drill asks must be doable as written.
+const byId = new Map(drills.map((d) => [d.id, d]));
+const GHOST_KEY = /\bset a key for Ghost in the Cheats tab\b/;
+ok(GHOST_KEY.test('Start a custom game with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.'), 'the Ghost key words match a known positive');
+for (const d of drills.filter((x) => /\bGhost\b/.test((x.steps || []).join(' ')))) {
+  ok((d.steps || []).some((s) => GHOST_KEY.test(s)), `drill ${d.id}: Ghost is used, so a step sets its key in the Cheats tab first`);
+}
+const kit = byId.get('same-killer-learn-the-kit');
+ok(kit && kit.steps.some((s) => /Escape, then Change Agent/.test(s)) && !kit.steps.some((s) => /\bF2\b/.test(s)), 'the Range agent switch is Escape, then Change Agent, not F2');
+ok(drills.every((d) => !/\b\d+ m\b/.test([...(d.steps || []), d.goal].join(' '))), 'no accuracy target distance in metres, which could not be checked');
+for (const id of ['isolated-who-swings', 'untraded-call-before-swing']) {
+  const d = byId.get(id);
+  ok(d && d.steps.filter((s) => /\bdo not (?:swing|take that fight)\b/.test(s)).every((s) => /^On attack, /.test(s))
+    && d.steps.some((s) => /\bdo not (?:swing|take that fight)\b/.test(s)), `drill ${id}: a step that says not to fight says it of attack`);
+}
+const hold = byId.get('one-v-one-hold-or-hunt');
+ok(hold && /every time you are the last one alive, across 1 full unrated match/i.test(hold.goal) && hold.steps.some((s) => FULL_MATCH.test(s)), 'hold or hunt is played over a full unrated match');
+
 // The planted negatives: each check above must catch its own bad drill.
 ok(FORBIDDEN.test('Buy a Spectre') && FORBIDDEN.test('play the save round') && FORBIDDEN.test('count your credits') && !FORBIDDEN.test('Play one Deathmatch.'), 'the economy words both ways');
 ok(MEASURED.test('Fewer deaths nobody traded.') && MEASURED.test('A higher headshot rate.') && !MEASURED.test('You feel better.'), 'the measured words both ways');

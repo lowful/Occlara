@@ -270,6 +270,13 @@ console.log('\nthe process list:');
     ok(e.sawGame === false && e.lastLobbyAt === T0 + 6000 && e.inLobby === true,
       'two LOBBY replies: no game seen, the last LOBBY at its capture time', JSON.stringify({ saw: e.sawGame, at: e.lastLobbyAt }));
     console.log = () => {};
+    try {
+      e.applyRead({ data: { lobby: false, parsed: false, context: {} }, shot: null, at: T0 + 7000 });
+      e.applyRead({ data: { lobby: false, parsed: true, context: {} }, shot: null, at: T0 + 8000 });
+    } finally { console.log = realLog; }
+    ok(e.sawGame === false && e.inLobby === true,
+      'a reply in prose or an empty STATE (8.10.3): no game seen, still the lobby, the watch stays armed', JSON.stringify({ saw: e.sawGame, lobby: e.inLobby }));
+    console.log = () => {};
     try { e.applyRead({ data: { lobby: false, parsed: true, context: { phase: 'buy', clock: '0:40', teamScore: 0, enemyScore: 0 } }, shot: null, at: T0 + 9000 }); }
     finally { console.log = realLog; }
     ok(e.sawGame === true, 'a reply that is not LOBBY (the server\'s inMatchState is one of these): a game seen');

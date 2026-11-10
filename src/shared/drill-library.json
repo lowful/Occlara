@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Solo drills for the Practice page, one habit each, keyed by the cause or repeated mistake a review names (death-causes.js CAUSES, insights.js keys without their cause: prefix) or general. Researched 10 Nov 2026 (docs/claude/playbook.md, 'The drill library and the research of 10 Nov'). Checked by npm run test:drilllibrary. Every mode feature named here exists in the game as of patch 13.09: the Range F3 settings (Speed, Streak, Bots Strafe, Bot Armor, Infinite Ammo), the accuracy target and its distances, custom games with Allow Cheats (Ghost, Pause Match Timer, Infinite Abilities, Infinite Ammo, End Game Phase), Deathmatch with no abilities, the crosshair's Movement Error lines and the Shooting Error graph.",
+  "note": "Solo drills for the Practice page, one habit each, keyed by the cause or repeated mistake a review names (death-causes.js CAUSES, insights.js keys without their cause: prefix) or general, and optionally by more of them in also (low-headshots on the aim drills). Researched 10 Nov 2026 (docs/claude/playbook.md, 'The drill library and the research of 10 Nov'). Checked by npm run test:drilllibrary. Every mode feature named here exists in the game as of patch 13.09: the Range F3 settings (Speed, Streak, Bots Strafe, Bot Armor, Infinite Ammo), the accuracy target, the Range's Change Agent in its Escape menu, custom games with Allow Cheats (Ghost on a key set in the Cheats tab, Pause Match Timer, Infinite Abilities, Infinite Ammo, End Game Phase), Deathmatch with no abilities, the crosshair's Movement Error lines and the Shooting Error graph.",
   "drills": [
     {
       "id": "dry-peek-ability-first",
@@ -11,12 +11,12 @@
       "bands": [],
       "steps": [
         "Start a custom game on the map you play most with Allow Cheats on, then turn on Infinite Abilities and Pause Match Timer.",
-        "Walk the attacking route into one site and stop before every corner a defender usually holds.",
-        "Before each corner, use the ability your agent has for it: a flash, a recon, a smoke, a wall or a molly.",
-        "Swing only once it has landed, and say out loud which angle it took away.",
+        "Walk the attacking route into one site and pick the 2 corners there that kill you most.",
+        "Before each of those, use the ability your agent has for it from cover: a flash, a recon, a smoke, a wall or a molly.",
+        "Swing only once it has landed, and clear every other corner with a jiggle, out and straight back.",
         "Repeat on the second site."
       ],
-      "goal": "Clear 6 held corners on each site with an ability thrown from cover before you swing.",
+      "goal": "The 2 corners that kill you most on each site, each with one ability thrown from cover, the rest cleared with a jiggle.",
       "why": "A dry peek is an even fight you chose with nothing on your side, and one ability first tilts it your way.",
       "check": "Fewer deaths the look calls dry peeks, and fewer deaths with no ability used before them."
     },
@@ -62,7 +62,7 @@
       "minutes": 15,
       "bands": [],
       "steps": [
-        "Start a custom game on your most played map with Allow Cheats and Ghost on.",
+        "Start a custom game on your most played map with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.",
         "Stand in 5 spots you often play, on attack and on defence.",
         "For each, find where a second player could stand to see the enemy who would fight you there.",
         "Walk from that spot to yours and make sure it is only a step or two of swing, not a run across open ground.",
@@ -82,10 +82,10 @@
       "steps": [
         "Play the first 8 rounds of an unrated match.",
         "Before every fight, find on the minimap the teammate who could swing your killer.",
-        "If nobody could, do not take that fight: wait, fall back or move toward a teammate first.",
+        "On attack, if nobody could, do not take that fight: wait, fall back or move toward a teammate first.",
         "Say the teammate's position out loud each time so the habit is spoken, not assumed."
       ],
-      "goal": "In 8 rounds, no death with no teammate close enough to see your killer.",
+      "goal": "In 8 rounds, no fight on attack taken before you found the teammate who could swing your killer.",
       "why": "A death your team can answer costs a trade, a death alone costs the round a player.",
       "check": "Fewer deaths nobody traded with your teammates far, and fewer caught alone."
     },
@@ -166,7 +166,7 @@
       "minutes": 15,
       "bands": [],
       "steps": [
-        "Start a custom game with Allow Cheats and Ghost on.",
+        "Start a custom game with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.",
         "On one site, stand at each entrance the attackers use.",
         "Find the two defender spots that watch that entrance from different lines.",
         "From the entrance, find the one corner that splits them, where only one of the two can see you.",
@@ -240,9 +240,9 @@
         "Play one Deathmatch.",
         "Whenever you run between fights, keep your crosshair at head height on the next corner, never on the floor.",
         "Move your aim only sideways while you run.",
-        "Count every fight you started by moving your crosshair up or down to the head."
+        "Count every fight you started by moving your crosshair up or down to the head, and write the count down."
       ],
-      "goal": "Fewer than 5 fights in the Deathmatch that needed your crosshair moved up or down.",
+      "goal": "Count the fights in 1 Deathmatch that needed your crosshair moved up or down, and beat that count next time.",
       "why": "A rotation is where you meet enemies on the move, and the crosshair already at head height wins that meeting.",
       "check": "Fewer deaths caught rotating, and a higher headshot rate."
     },
@@ -421,6 +421,7 @@
       "id": "lost-duel-counter-strafe",
       "title": "Counter strafe on strafing bots",
       "cause": "lost-duel",
+      "also": ["low-headshots"],
       "where": "range",
       "minutes": 10,
       "bands": ["iron_bronze", "silver_gold", "plat_diamond"],
@@ -428,9 +429,10 @@
         "In Settings, Crosshair, turn on Movement Error for the inner lines so you can see when you are accurate.",
         "In the Range, press F3 and set Bots to Strafe.",
         "Strafe left or right, tap the opposite key to stop, and fire one shot only once the lines have closed.",
-        "Do it in both directions, then switch to two shot bursts."
+        "Do it in both directions, then switch to two shot bursts.",
+        "Count your first shots on the head out of 10, and write the count down."
       ],
-      "goal": "8 of 10 first shots on the head of a strafing bot.",
+      "goal": "Beat your last count of first shots on the head out of 10 by one.",
       "why": "A fair fight is lost when the first bullet leaves while you are still moving, and the stop before it is a skill you can drill.",
       "check": "Fewer deaths the look calls lost duels, and a higher headshot rate."
     },
@@ -438,16 +440,17 @@
       "id": "lost-duel-first-bullet",
       "title": "First bullet Deathmatch",
       "cause": "lost-duel",
+      "also": ["low-headshots"],
       "where": "deathmatch",
       "minutes": 10,
       "bands": [],
       "steps": [
-        "Before you start, note your headshot rate from your last ranked match.",
         "Play one Deathmatch with a rifle and aim every first bullet at the head.",
-        "After the first bullet, either tap again or step out of sight, never hold the trigger down.",
-        "At the end, open the match details and read your headshot rate."
+        "After the first two bullets, either tap again or step out of sight, never hold the trigger down.",
+        "Over your first 20 kills, count the fights you won with your first two bullets.",
+        "Write the count down at the end."
       ],
-      "goal": "A Deathmatch headshot rate at least 5 points above your last ranked headshot rate.",
+      "goal": "Count the fights you won with your first two bullets in your first 20 kills, and beat that count next time.",
       "why": "Most duels are decided by the first bullet, and Deathmatch gives you dozens of them in one sitting.",
       "check": "A higher headshot rate, and fewer lost duels."
     },
@@ -455,6 +458,7 @@
       "id": "lost-duel-head-height-walk",
       "title": "Head height on every corner",
       "cause": "lost-duel",
+      "also": ["low-headshots"],
       "where": "custom",
       "minutes": 10,
       "bands": ["iron_bronze", "silver_gold"],
@@ -472,6 +476,7 @@
       "id": "lost-duel-shooting-error",
       "title": "Read your shooting error",
       "cause": "lost-duel",
+      "also": ["low-headshots"],
       "where": "range",
       "minutes": 10,
       "bands": ["silver_gold", "plat_diamond", "asc_plus"],
@@ -527,7 +532,7 @@
       "minutes": 15,
       "bands": [],
       "steps": [
-        "Start a custom game on defence with Allow Cheats and Ghost on.",
+        "Start a custom game on defence with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.",
         "For each site, find a starting spot that sees the main entrance from cover.",
         "Check from the attacker side that only one entrance can see that spot.",
         "Hold it at the start of each round instead of pushing out for an early kill."
@@ -614,7 +619,7 @@
       "minutes": 15,
       "bands": [],
       "steps": [
-        "Start a custom game with Allow Cheats and Ghost on.",
+        "Start a custom game with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.",
         "Pick 2 entrances your team takes on attack.",
         "Stand where your entry would stand, then find a spot a few steps back that sees past the door they go through.",
         "Check that it is not on the same line as the entry, where one spray hits you both.",
@@ -635,7 +640,7 @@
         "Play the first 8 rounds of an unrated match with your voice on.",
         "Before you swing an angle, say which one, for example swinging main.",
         "Wait half a beat so a teammate can follow.",
-        "If nobody is near enough to follow, do not swing."
+        "On attack, if nobody is near enough to follow, do not swing."
       ],
       "goal": "Call before 10 swings across the 8 rounds.",
       "why": "A teammate can only trade a fight they know is coming.",
@@ -654,7 +659,7 @@
         "Take no duel in that time unless the enemy walks into you.",
         "After 30 seconds, play the round as normal."
       ],
-      "goal": "No death in the first 30 seconds across the 8 rounds.",
+      "goal": "No duel you walked into in the first 30 seconds, across the 8 rounds.",
       "why": "Early deaths come from fights the round did not need yet, and one job keeps you out of them.",
       "check": "Fewer deaths in the first 30 seconds."
     },
@@ -666,7 +671,7 @@
       "minutes": 15,
       "bands": [],
       "steps": [
-        "Start a custom game as an attacker with Allow Cheats and Ghost on.",
+        "Start a custom game as an attacker with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.",
         "For each lane of the map, find a spot that holds the lane from cover without stepping into a common defender angle.",
         "Check each spot from the defender side to see what can shoot it.",
         "Keep the 3 safest."
@@ -688,7 +693,7 @@
         "Fall back to your angle right after it, whatever it showed.",
         "Call what you saw."
       ],
-      "goal": "No death in the first 30 seconds on defence in the 8 rounds.",
+      "goal": "No full swing in the first 30 seconds on defence, only one look and back, across the 8 rounds.",
       "why": "On defence before the plant the attackers must come to you, so an early full swing risks the edge you already have.",
       "check": "Fewer deaths in the first 30 seconds on defence."
     },
@@ -701,7 +706,7 @@
       "bands": [],
       "steps": [
         "Open your last review and find the place it says you died at most.",
-        "Start a custom game on that map with Allow Cheats and Ghost on.",
+        "Start a custom game on that map with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.",
         "Go to that place and find 2 other spots that watch the same entrance.",
         "Check each from the attacker side for what can see it, and how you would leave it."
       ],
@@ -752,7 +757,7 @@
       "bands": [],
       "steps": [
         "Open your last review and find the agent it says kept winning against you.",
-        "In the Range, press F2 and switch to that agent.",
+        "In the Range, press Escape, then Change Agent, and pick that agent.",
         "Use each of the four abilities a few times and learn how far it reaches and how it sounds.",
         "Note which of them can stop you or reveal you, and what you would do against each."
       ],
@@ -768,7 +773,7 @@
       "minutes": 15,
       "bands": [],
       "steps": [
-        "Start a custom game on the map with Allow Cheats and Ghost on.",
+        "Start a custom game on the map with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.",
         "Find the 3 longest sightlines on the site you died near most.",
         "For each, find how to cross it: a smoke, a wall, a different route or a jump spot out of sight.",
         "Walk each crossing twice."
@@ -850,16 +855,16 @@
       "title": "Hold or hunt",
       "cause": "one-v-one",
       "where": "unrated",
-      "minutes": 20,
+      "minutes": 40,
       "bands": [],
       "steps": [
-        "Play the first 8 rounds of an unrated match.",
-        "When a round comes down to you and one enemy, stop for a second behind cover.",
+        "Play a full unrated match, since the last one alive is too rare for 8 rounds.",
+        "Every time you are the last one alive, stop for a second behind cover.",
         "Check the clock and whether the spike is down.",
         "Say hold or hunt out loud: hold when the clock or the spike works for you, hunt only when it works against you.",
         "Then commit to that choice."
       ],
-      "goal": "Say hold or hunt in 100% of the one against ones you play in 8 rounds.",
+      "goal": "Say hold or hunt every time you are the last one alive, across 1 full unrated match.",
       "why": "Most lost one against ones are lost by the side the clock favours chasing a fight it did not need.",
       "check": "Fewer one against one rounds lost."
     },
@@ -888,7 +893,7 @@
       "minutes": 15,
       "bands": ["silver_gold", "plat_diamond", "asc_plus"],
       "steps": [
-        "Start a custom game with Allow Cheats and Ghost on.",
+        "Start a custom game with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.",
         "On each site, find 2 spots near the spike where only one entrance can see you.",
         "From each, practise checking the angles one at a time with cover between them.",
         "Repeat for the attacker side after a plant."
@@ -959,10 +964,10 @@
       "steps": [
         "In the Range, press F3 and set Speed Medium and Streak Eliminate 50.",
         "Run the timed bot test once with your main rifle.",
-        "Switch Bots to Strafe and take 20 single shots at the head with a stop before each.",
-        "At the accuracy target set to 20 m, fire 10 single taps at the head."
+        "Switch Bots to Strafe and take 20 single shots at the head with a stop before each, counting the head hits.",
+        "At the accuracy target, from your own longest comfortable range, fire 10 single taps at the head."
       ],
-      "goal": "Finish the timed bot test, then 15 of 20 head hits on strafing bots.",
+      "goal": "Finish the timed bot test, write down your head hits out of 20 on strafing bots, and beat that by one next time.",
       "why": "Your first rounds are played on cold aim unless you warm it up before you queue.",
       "check": "A higher headshot rate, and fewer lost duels."
     },
@@ -1025,7 +1030,7 @@
       "minutes": 15,
       "bands": ["iron_bronze", "silver_gold"],
       "steps": [
-        "Start a custom game with Allow Cheats and Ghost on, on the map you lose most.",
+        "Start a custom game on the map you lose most with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.",
         "Walk one site and name each callout you see on the minimap.",
         "Stand where defenders usually hold and look back at each entrance.",
         "Then walk in from each entrance and find the common angles."
@@ -1038,6 +1043,7 @@
       "id": "general-stop-to-shoot",
       "title": "Stop, then shoot",
       "cause": "general",
+      "also": ["low-headshots"],
       "where": "deathmatch",
       "minutes": 10,
       "bands": ["iron_bronze", "silver_gold"],
@@ -1059,12 +1065,12 @@
       "minutes": 10,
       "bands": ["silver_gold", "plat_diamond"],
       "steps": [
-        "Go to the accuracy target outside the Range and set it to 20 m.",
+        "Go to the accuracy target outside the Range and stand at your own longest comfortable range.",
         "Fire bursts of five bullets at the dummy's head with your main rifle, pulling down against the climb.",
         "Check where the bullet marks land after each burst.",
-        "Then do the same at 10 m."
+        "Then do the same a few steps closer."
       ],
-      "goal": "7 of 10 five bullet bursts inside the dummy's upper body at 20 m.",
+      "goal": "7 of 10 five bullet bursts inside the dummy's upper body at your own longest comfortable range.",
       "why": "A fight that does not end on the first bullet is won by the next few, and the pull down is learned on a still target.",
       "check": "A higher headshot rate and fewer lost duels."
     },

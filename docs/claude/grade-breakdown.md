@@ -105,6 +105,49 @@ Decisions.
   graded again; a review graded anew (Riot's record laid over it, at the
   match's end or by the late link's upgrade in place) is graded by this rule.
 
+- **The coaching audit (Nov 2026, a coach reading as a Silver player and an
+  Immortal coach)**, `insights.js`, keys unchanged:
+  - **The rank caps the count** (`RANK_CAP` 4, `rankOf`): mistakes sort by
+    weight x min(count, 4), and `patterns.js summarise` by share x weight x
+    min(total / matches, 4). By the raw count "Deaths nobody traded" (weight 2,
+    8 to 12 deaths) led nearly every match; now 4 untraded first deaths
+    (weight 3) or an advantage given back in 4 rounds lead it. The count shown
+    is the real one. On the Abyss fixture the Verdict's reason is now the
+    advantage given back in 6 rounds (`test:verdict`).
+  - **`low-headshots`, "Shots landing below the head"**: Riot's head, body and
+    leg hits of the player (`riot-rounds.js parse` `me`, the review's
+    `riotMe`, handed in by `valorant-review.js build` with the band,
+    `index.js buildValorantReview rankBand: rankBandNow()`), flagged at the
+    band's usual rate less 5 points or under (`HS_USUAL`, `HS_BELOW`, a copy of
+    `server/services/match-review.js`'s, held equal by `test:grade`), with no
+    band at Silver and Gold's line (12), only over 30 hits. Count 1, weight 5.
+    Only the live Riot link path has `riotMe` hits: the late link and a review
+    graded from Riot's record alone get none (and a fact has no title for it).
+    Not sent to the server's review request (`requestBody` has no hits).
+  - **Fixes by side**: "Gave back the advantage" (and the one round miss) by
+    the side and plant of its rounds (`ADVANTAGE_FIX`: attack before the
+    plant, a retake, hold for defence before the plant or attack after it,
+    mixed otherwise or side unknown); caught alone by the side most of those
+    deaths were on (`CAUSE_FIX_SIDE`, else the side neutral line); caught
+    rotating names the attackers only when every death was on defence; first
+    to die mostly on defence gets the defence line for any role; deaths nobody
+    traded, close or far; the same killer with the Operator, Outlaw or
+    Marshal twice or more names the gun; one against one lost has a fix.
+  - **A whole site is no spot** (`WHOLE_SITE`, `/^[abc] site$/i`, as
+    `death-chain.js isSite`): "Dying at A Site" is never counted, though those
+    deaths stay in the placed count. A saved one is still read by the library.
+  - **The target** (`mistake.target`, `targetLine`): "This match: first to die
+    and not traded in 5 rounds. Next match, this goes away at 3 or fewer.",
+    the number the card's own floor less one (`floorOf` on the same test that
+    shows the card, a share floor at this match's denominators); for
+    `low-headshots` "goes away at 13 percent or more". The review page shows
+    the top card's under its fix (`review.js paintTarget`, `.v-target`); a
+    review saved before has none.
+  - **Practise this follows the focus**: the review keeps the server's
+    `focusKey` when it is a key (`valorant-review.js build`,
+    `/^[a-z0-9:-]{1,40}$/`), and `review.js` opens Practice on that mistake
+    when the list holds it, else on the first card.
+
 `src/shared/insights.js` makes the three lists from the same facts, each entry
 with a floor, a stable `key` (the library counts by it, so renaming one orphans
 every saved review that used it) and, for mistakes, a one line `fix`. A

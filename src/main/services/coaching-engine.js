@@ -870,11 +870,20 @@ class CoachingEngine extends EventEmitter {
       this.lastLobbyAt = now;
       return;
     }
+    const c = data.context || {};
+    // ONLY A REPLY THE SERVER COULD COUNT IS A GAME (8.10.3), the same rule as
+    // coach.js inMatchState: parsed, and a phase, a round or both scores. A
+    // reply in prose ("this is not Valorant") or an empty STATE used to set
+    // sawGame and switch the no game watch off for the whole session, and
+    // took the engine out of the lobby so the window sealed at 0 : 0. Such a
+    // reply now leaves a lobby a lobby.
+    const countable = data.parsed !== false && (!!c.phase || c.roundNumber != null
+      || (c.teamScore != null && c.enemyScore != null));
+    if (!countable && this.inLobby) return;
     this.inLobby = false;
     // Every reply the server could reserve a game on is one of these
     // (coach.js inMatchState), so a session with none reserved nothing.
-    this.sawGame = true;
-    const c = data.context || {};
+    if (countable) this.sawGame = true;
     this.updateMatchContext(c, now);
     // The ultimate THIS frame read, the player's own only: once dead, the icon
     // is the spectated teammate's.

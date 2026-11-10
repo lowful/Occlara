@@ -67,11 +67,12 @@ const url = (id, name) => `occlara-clip://review/${id}/${name}`;
     'the first kill in rounds running is one highlight on its first round', JSON.stringify(streak));
   ok(!h.some((x) => x.what === 'clutch'), 'no clutch Riot did not record as won');
   ok(m0.moments.every((x, i) => i === 0 || x.round >= m0.moments[i - 1].round), 'a match\'s moments are in round order');
-  // The repeated mistakes: this review counts untraded, early, lost-advantage,
-  // same-spot and same-killer, each with its rounds; across three copies every
-  // one is a pattern, so every death in one of those rounds is marked.
+  // The repeated mistakes: this review counts untraded, early, lost-advantage
+  // and same-killer, each with its rounds (its deaths at A Site are a whole
+  // site, no spot since Nov 2026); across three copies every one is a
+  // pattern, so every death in one of those rounds is marked.
   const keys = built.insights.mistakes.map((e) => e.key);
-  ok(keys.includes('untraded') && keys.includes('same-spot'), 'the fixture counts the mistakes the marks rest on', keys.join());
+  ok(keys.includes('untraded') && keys.includes('same-killer') && !keys.includes('same-spot'), 'the fixture counts the mistakes the marks rest on', keys.join());
   const untraded = built.insights.mistakes.find((e) => e.key === 'untraded');
   const marked = d.filter((x) => x.repeats.some((r) => r.key === 'untraded')).map((x) => x.round);
   ok(marked.join() === untraded.rounds.join(), 'a death is marked with each counted mistake whose rounds hold it', `${marked.join()} vs ${untraded.rounds.join()}`);

@@ -85,7 +85,9 @@ function normDrill(d) {
   const id = typeof d.id === 'string' && /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(d.id.trim()) ? d.id.trim() : null;
   const title = clean(d.title || d.name, 90);
   const steps = listOf(d.steps).map((s) => clean(s, 240)).filter(Boolean).slice(0, 6);
-  const causes = [...new Set(listOf(d.causes || d.cause || d.keys || d.mistakes).map(causeKey).filter(Boolean))];
+  // Its cause, and the further mistakes it serves (`also`, Nov 2026: the aim
+  // drills serve low-headshots too).
+  const causes = [...new Set([...listOf(d.causes || d.cause || d.keys || d.mistakes), ...listOf(d.also)].map(causeKey).filter(Boolean))];
   if (!id || !title || !steps.length || !causes.length) return null;
   const goal = clean(d.goal || d.target, 240) || null;
   const check = clean(d.check || d.howYouKnow || d.how || d.verify || d.nextReview, 240) || null;

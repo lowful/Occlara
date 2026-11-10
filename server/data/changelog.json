@@ -1,5 +1,53 @@
 [
   {
+    "version": "8.10.3",
+    "date": "2026-11-10",
+    "title": "Fixes that fit the round",
+    "summary": "Each fix now fits your side and your level, aim gets counted, and every top mistake has a target for next match.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Shots landing below the head is a new repeated mistake, counted from your hits in Riot's record against what is usual at your rank, with aim drills on the Practice page."
+      },
+      {
+        "kind": "new",
+        "text": "Under the top mistake's fix, a target for the next match: how many rounds it happened in, and at how few it goes away."
+      },
+      {
+        "kind": "improved",
+        "text": "Fixes now fit the side you died on: a retake is told to go onto the spike together, a defender holding alone is told to take one look and fall back, and a defence death is never treated as an entry."
+      },
+      {
+        "kind": "improved",
+        "text": "One mistake with many rounds no longer pushes every other one off the top, so the card you see first changes with what really cost you the match."
+      },
+      {
+        "kind": "improved",
+        "text": "Reviews below Platinum keep to 4 round lines, and each line says what the enemy could do, not only what happened."
+      },
+      {
+        "kind": "improved",
+        "text": "Practise this opens the drills for the mistake the review's focus is about, and drill goals are counts you can beat rather than results the enemy decides."
+      },
+      {
+        "kind": "fixed",
+        "text": "A whole site like B Site no longer counts as a spot you keep dying at, and No ability used is no longer blamed on a defender holding utility early in the round."
+      },
+      {
+        "kind": "fixed",
+        "text": "Pressing Start with the game closed is now always cancelled after 5 minutes, even if one read of the screen came back unclear."
+      },
+      {
+        "kind": "fixed",
+        "text": "The live status switches on the Recording screen and in Settings now always show the same thing."
+      },
+      {
+        "kind": "fixed",
+        "text": "Bought and invite games are now called bonus games, and yearly plans show what they save."
+      }
+    ]
+  },
+  {
     "version": "8.10.2",
     "date": "2026-11-10",
     "title": "Advice that fits the map",

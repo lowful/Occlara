@@ -58,7 +58,7 @@ const lower = (s) => String(s == null ? '' : s).toLowerCase();
 const KINDS = {
   'untradeable':    { one: 'Nobody close to trade', cause: true, gerund: 'dying where no teammate was close enough to trade' },
   'early-attack':   { one: 'Early death on attack', cause: true, gerund: 'dying in the first 30 seconds on attack with the whole team still up' },
-  'no-utility':     { one: 'No ability used', cause: true, gerund: 'taking fights with no ability used that round' },
+  'no-utility':     { one: 'No ability used', cause: false, gerund: 'taking fights with no ability used that round' },
   'repeat-spot':    { one: 'Same spot again', cause: true, gerund: 'dying at a spot you had already died at twice' },
   'first-death':    { one: 'First down, not traded', cause: false, gerund: 'being the first one down with nobody trading it' },
   'gave-advantage': { one: 'Advantage given back', cause: false, gerund: 'dying with your team up in numbers in a round it then lost' },
@@ -86,12 +86,16 @@ const CHAIN_KEYS = [...LOOK_KINDS, ...Object.keys(KINDS)];
  * team, a spot with no way out), then the fight as the coach's look saw it
  * on the frames (a dry peek, a crossfire, a repeek), which is more particular
  * than anything the record can say, then the record's own: nobody close to
- * trade, dead early on attack, no ability used, the same spot a third time.
- * What the death cost (first down, an advantage given back) and what the
- * match had already shown of the killer come after, never first.
+ * trade, dead early on attack, the same spot a third time. What the death
+ * cost (first down, an advantage given back) and what the match had already
+ * shown of the killer come after, never first.
+ *
+ * NO ABILITY USED IS NEVER FIRST (Nov 2026, the coaching audit): a cast count
+ * of zero says what the player did not do, never why the fight was lost, so it
+ * only makes a death worse beside a mistake of its own (noUtilityCounts).
  */
 const FIRST_ORDER = ['isolated', 'overextend', 'rotating', 'no-escape', 'dry-peek', 'crossfire', 'exposed', 'repeek',
-  'untradeable', 'early-attack', 'no-utility'];
+  'untradeable', 'early-attack'];
 /*
  * NEVER FIRST ON DEFENCE BEFORE THE PLANT (the owner's lead, Nov 2026): nobody
  * close to trade is no first mistake there, since holding a spot alone is
@@ -177,6 +181,23 @@ function earlierAt(rows, n, key, value) {
   return rows.filter((x) => x.n < n && judged(x) && x[key] && lower(x[key]) === lower(value)).map((x) => x.n);
 }
 
+/*
+ * NO ABILITY USED, ONLY WHERE THE ZERO MEANS SOMETHING (Nov 2026, the coaching
+ * audit). Never on defence before the plant for a death in the first
+ * NO_UTILITY_EARLY_SEC seconds (or at an unknown second): a defender keeps the
+ * kit for the attack that is coming, and holding with it unused is the job
+ * there. And an all zero cast count is trusted only where the same match has
+ * a cast above zero for the player in another round: a match whose record
+ * carries no cast at all is a record that does not count them, never a player
+ * who used nothing all game.
+ */
+const NO_UTILITY_EARLY_SEC = 40;
+function noUtilityCounts(x, rows) {
+  if (!Array.isArray(x.casts) || !x.casts.length || !x.casts.every((v) => v === 0)) return false;
+  if (x.side === 'defending' && !x.afterPlant && !(fin(x.sec) && x.sec > NO_UTILITY_EARLY_SEC)) return false;
+  return (Array.isArray(rows) ? rows : []).some((y) => y && y.n !== x.n && Array.isArray(y.casts) && y.casts.some((v) => v > 0));
+}
+
 /** The record's no-escape, for a death with no look to say it (death-causes.js answeredKill). */
 function escapeOf(x) {
   if (!x.feed) return null;
@@ -228,8 +249,9 @@ function found(x, rows) {
   if (x.traded === false && x.mate === 'close' && !lastAlive) {
     out.set('untraded-close', { short: 'a teammate close, and nobody traded it', text: 'A teammate was close when you died, and nobody traded it.', from: 'record' });
   }
-  // Every cast Riot holds for the player that round at zero: no ability at all.
-  if (x.casts && x.casts.every((v) => v === 0)) {
+  // Every cast Riot holds for the player that round at zero: no ability at
+  // all, where the zero is to be trusted and counted (noUtilityCounts).
+  if (noUtilityCounts(x, rows)) {
     if (look === 'dry-peek' && out.has('dry-peek')) {
       const d = out.get('dry-peek');
       out.set('dry-peek', { ...d, text: `${d.text} Riot's record has no ability cast by you that round.` });
@@ -443,4 +465,4 @@ function memoryOf(rows, opts = {}) {
   return out;
 }
 
-module.exports = { firstAllowed, chainOf, chainsOf, memoryOf, rowOf, rowsOf, situationOf, earlierOf, KINDS, LOOK_KINDS, LOOK_GERUND, CHAIN_KEYS, FIRST_ORDER, WORSE_ORDER, WORSE_MAX };
+module.exports = { firstAllowed, chainOf, chainsOf, memoryOf, rowOf, rowsOf, situationOf, earlierOf, noUtilityCounts, KINDS, LOOK_KINDS, LOOK_GERUND, CHAIN_KEYS, FIRST_ORDER, WORSE_ORDER, WORSE_MAX, NO_UTILITY_EARLY_SEC };

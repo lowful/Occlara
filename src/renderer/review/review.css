@@ -303,6 +303,11 @@ header {
 }
 .v-verified[hidden] { display: none; }
 
+/* The target under the top mistake's fix (Nov 2026, review.js paintTarget):
+   this match's count and the count at which the card goes away, one quiet
+   line under the line to act on. */
+.v-target { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-dim); max-width: 100ch; }
+
 /* This match against the ones before it: one quiet line straight under the
    Verdict's rule (grade-view.css .gv-progs), pulled up to it. */
 .v-prog { margin-top: calc(var(--space-10) * -1 + var(--space-4)); }

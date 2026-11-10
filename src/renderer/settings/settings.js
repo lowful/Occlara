@@ -798,6 +798,11 @@ readClips();
 // Keep the license block consistent: on every pushed state, on window focus, and
 // on a slow poll (so an expiry/renewal shows without reopening Settings).
 window.occlara.onState((s) => renderLicense(s));
+// The Recording screen's switches, changed there or here (8.10.3).
+window.occlara.onState((s) => {
+  if (!s || !s.live || typeof s.live !== 'object') return;
+  for (const [seg, key] of LIVE_SEGS) if (typeof s.live[key] === 'boolean') markSeg(seg, s.live[key] ? 'on' : 'off');
+});
 window.addEventListener('focus', refreshLicense);
 setInterval(refreshLicense, 15000);
 

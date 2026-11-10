@@ -708,7 +708,7 @@ ok(conceded({ dragonsAgainst: 1, baronsAgainst: 2 }) === 'The enemy took 1 drago
   ok(rep && rep.title === 'Repeeks' && rep.count === 3 && rep.rounds.join() === '2,5,6' && rep.judged
     && rep.detail === 'The coach looked at the moment before 3 deaths and saw the same thing: fought again from the same angle after the first exchange, rounds 2, 5 and 6.',
   `three looks at one lesson are one repeated mistake, "Repeeks, rounds 2, 5 and 6" (${rep && rep.detail})`);
-  ok(rep && rep.fix === 'After the first exchange or a kill, get out of their sight and take the next fight from somewhere else.',
+  ok(rep && rep.fix === 'After the first exchange or a kill, get out of their sight and take the next fight from somewhere else, because they are already aimed where they last saw you.',
     `with the widened fix (${rep && rep.fix})`);
   const body = review.requestBody({ rounds: six, context: { agent: 'Jett', map: 'Fracture', teamScore: 5, enemyScore: 1 }, endedBy: 'score' });
   ok(body.mistakes[0] && body.mistakes[0].key === 'cause:repeek' && body.mistakes[0].rounds.join() === '2,5,6' && body.mistakes[0].title === 'Repeeks',
@@ -762,6 +762,140 @@ ok(conceded({ dragonsAgainst: 1, baronsAgainst: 2 }) === 'The enemy took 1 drago
   const falling = patterns.summarise([match('b', false), match('b', false), match('b', true), match('b', true), match(null, true), match(null, true)]);
   ok(falling.mistakes.find((m) => m.key === 'cause:repeek').trend === 'falling', 'and within b it can fall, the newer two without it, the older two with');
   ok(patterns.TREND_MATCHES === 4, 'four matches before a trend, for any key');
+}
+
+// ── The coaching audit (Nov 2026): the rank, the aim, the fixes by side, the target ──
+{
+  const DASH = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
+  const V = (n, o) => ({ n, verified: true, side: 'attacking', result: 'won', died: false, kills: 1, firstKill: false, firstDeath: false, trades: 0, ...o });
+  const dead = (n, o) => V(n, { died: true, result: 'lost', traded: false, aliveAtDeath: { mates: 3, enemies: 3 }, mateNear: 'far', ...o });
+
+  // 1. The rank: weight times the count, the count capped at RANK_CAP.
+  const rows = Array.from({ length: 24 }, (_, i) => {
+    const n = i + 1;
+    if (n <= 4) return dead(n, { firstDeath: true, aliveAtDeath: { mates: 5, enemies: 5 } });
+    if (n <= 12) return dead(n);
+    return V(n);
+  });
+  const ranked = insights.valorant(rows, {});
+  const keys = ranked.mistakes.map((m) => m.key);
+  const unt = ranked.mistakes.find((m) => m.key === 'untraded');
+  ok(insights.RANK_CAP === 4 && keys[0] === 'first-death' && keys.indexOf('untraded') > 0 && unt.count === 12 && unt.rounds.length === 12,
+    `four first deaths (3 x 4) rank over twelve untraded deaths (2 x 4 capped, 24 by the raw count), whose count shown stays 12 (${keys.join(', ')})`);
+  ok(insights.rankOf({ weight: 2, count: 12 }) === 8 && insights.rankOf({ weight: 3, count: 2 }) === 6, 'rankOf caps the count, never the weight');
+  // The library ranks by the same cap.
+  const sv = (i) => ({ id: `valorant-${i}-rank`, at: 1000 - i, game: 'valorant', review: { kind: 'valorant', game: { map: 'Bind' }, rounds: [], insights: { mistakes: [
+    { key: 'untraded', title: 'Deaths nobody traded', detail: 'x', rounds: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], count: 12, weight: 2 },
+    { key: 'first-death', title: 'First to die', detail: 'x', rounds: [1, 2, 3, 4], count: 4, weight: 3 }], strengths: [], missed: [] } } });
+  const lib = patterns.summarise([sv(1), sv(2)]);
+  ok(lib.mistakes[0].key === 'first-death' && lib.mistakes.find((m) => m.key === 'untraded').total === 24,
+    `the patterns rank by the same cap, and keep the whole count (${lib.mistakes.map((m) => `${m.key}:${m.total}`).join(', ')})`);
+
+  // 6. The target: this match's count, and the count at which the card goes away.
+  const fd = ranked.mistakes.find((m) => m.key === 'first-death');
+  ok(fd.target === 'This match: first to die and not traded in 4 rounds. Next match, this goes away at 3 or fewer.', `the first death target (${fd.target})`);
+  ok(unt.target === 'This match: 12 of your 12 deaths went untraded. Next match, this goes away at 7 or fewer.', `the untraded target, its floor a share (${unt.target})`);
+  const three = rows.map((r) => (r.n === 4 ? { ...r, firstDeath: false } : r));
+  ok(!insights.valorant(three, {}).mistakes.some((m) => m.key === 'first-death'), 'and at 3 first deaths in 24 rounds the card does go away');
+  const atSeven = rows.map((r) => (r.n === 4 ? { ...r, firstDeath: false } : r)).map((r) => (r.n >= 5 && r.n <= 9 ? { ...r, traded: true } : r));
+  ok(!insights.valorant(atSeven, {}).mistakes.some((m) => m.key === 'untraded'), 'and at 7 untraded of 12 the untraded card goes away');
+
+  // 2. Shots landing below the head: Riot's hits against the band's line, 30 hits at least.
+  const quiet = [V(1), V(2), V(3)];
+  const hs = (hits, band) => insights.valorant(quiet, { hits, band }).mistakes.find((m) => m.key === 'low-headshots') || null;
+  const low = hs({ headshots: 7, bodyshots: 50, legshots: 7 }, 'silver_gold');
+  ok(low && low.title === 'Shots landing below the head' && low.detail === '7 of your 64 hits were to the head, 11 percent.' && low.count === 1 && low.rounds.length === 0,
+    `7 of 64 at Silver and Gold is flagged (${low && low.detail})`);
+  ok(low && low.fix === 'Move with your crosshair at head height on the edge of the next corner you will clear, so the first bullet lands without a drag up.', 'with the crosshair fix');
+  ok(low && low.target === 'This match: 11 percent of your hits went to the head. Next match, this goes away at 13 percent or more.', `and its target (${low && low.target})`);
+  ok(!!hs({ headshots: 7, bodyshots: 50, legshots: 7 }, null), 'no band: the Silver and Gold line');
+  ok(!hs({ headshots: 7, bodyshots: 50, legshots: 7 }, 'iron_bronze') && !!hs({ headshots: 7, bodyshots: 50, legshots: 7 }, 'plat_diamond'),
+    'the band moves the line: 11 percent is usual enough at Iron and Bronze (line 9), low at Platinum and Diamond (line 15)');
+  ok(!!hs({ headshots: 12, bodyshots: 80, legshots: 8 }, 'silver_gold') && !hs({ headshots: 13, bodyshots: 80, legshots: 7 }, 'silver_gold'),
+    'at the line it is flagged, a point above it is not');
+  ok(!hs({ headshots: 1, bodyshots: 26, legshots: 2 }, 'silver_gold') && !!hs({ headshots: 1, bodyshots: 27, legshots: 2 }, 'silver_gold'),
+    'under 30 hits nothing is read as aim, at 30 it is');
+  ok(!hs(null, 'silver_gold') && !hs({ headshots: 7, bodyshots: 50 }, 'silver_gold'), 'without all three counts nothing');
+  const mr = require('../server/services/match-review');
+  ok(JSON.stringify(insights.HS_USUAL) === JSON.stringify(mr.HS_USUAL) && insights.HS_BELOW === mr.HS_BELOW,
+    "the client's band numbers are the server's (match-review.js HS_USUAL, HS_BELOW), copied since src never requires server");
+  const built = review.build({ rounds: quiet, context: { map: 'Bind', agent: 'Sova', gameMode: 'standard' }, endedBy: 'stop',
+    riotMe: { agent: 'Sova', kills: 10, deaths: 12, assists: 3, headshots: 7, bodyshots: 50, legshots: 7 }, rankBand: 'silver_gold' });
+  ok(built.insights.mistakes.some((m) => m.key === 'low-headshots'), "the review's build hands Riot's line and the band to the mistakes");
+  ok(!review.build({ rounds: quiet, context: { map: 'Bind', agent: 'Sova', gameMode: 'standard' }, endedBy: 'stop' }).insights.mistakes.some((m) => m.key === 'low-headshots'),
+    'and with no Riot line, none');
+
+  // 3. Gave back the advantage: the fix by side and plant, the one round miss too.
+  const up = (n, o) => dead(n, { aliveAtDeath: { mates: 4, enemies: 2 }, ...o });
+  const adv = (a, b) => insights.valorant([a, b, V(9)], {}).mistakes.find((m) => m.key === 'lost-advantage').fix;
+  const A = insights.ADVANTAGE_FIX;
+  ok(adv(up(1), up(2)) === A['attack-pre'], 'attack before the plant: take the site and plant');
+  ok(adv(up(1, { side: 'defending', planted: true, afterPlant: true }), up(2, { side: 'defending', planted: true, afterPlant: true })) === A.retake
+    && /on a retake, go onto the spike together/.test(A.retake), 'a retake: onto the spike together');
+  ok(adv(up(1, { side: 'defending' }), up(2, { side: 'attacking', planted: true, afterPlant: true })) === A.hold && /make them come to you/.test(A.hold),
+    'defence before the plant and attack after it: hold');
+  ok(adv(up(1), up(2, { side: 'defending', planted: true, afterPlant: true })) === A.mixed && /let the spike decide/.test(A.mixed), 'both kinds: the mixed line');
+  ok(adv(up(1, { side: null }), up(2, { side: null })) === A.mixed, 'no side known: the mixed line, which names no side as fact');
+  const one = insights.valorant([up(1, { side: 'defending', planted: true, afterPlant: true }), V(2), V(3)], {}).missed.find((m) => m.key === 'lost-advantage');
+  ok(one && one.fix === A.retake, 'the one round miss gets the matching fix');
+
+  // 4. The fixes rewritten, by side where the record has it.
+  const look = (cause) => ({ cause, what: 'x', better: 'y', source: 'riot' });
+  const causeFix = (cause, a, b) => insights.valorant([dead(1, { forensics: look(cause), ...a }), dead(2, { forensics: look(cause), ...b }), V(3)], {})
+    .mistakes.find((m) => m.key === `cause:${cause}`).fix;
+  ok(/^On attack, move a step behind and to the side of a teammate/.test(causeFix('isolated', {}, {})), 'caught alone on attack: spacing behind a teammate');
+  ok(/^On defence, when you hold a spot alone/.test(causeFix('isolated', { side: 'defending' }, { side: 'defending' })), 'caught alone on defence: one look, then fall back');
+  ok(causeFix('isolated', {}, { side: 'defending' }) === insights.CAUSE_FIX.isolated, 'one of each: the line for either side');
+  ok(/the route the attackers cannot reach first/.test(causeFix('rotating', { side: 'defending' }, { side: 'defending' }))
+    && /the route the enemy cannot reach first/.test(causeFix('rotating', {}, { side: 'defending' })), 'caught rotating names the attackers only when every death was on defence');
+  ok(/, because they are already aimed where they last saw you\.$/.test(causeFix('repeek', {}, {})), 'a repeek says why');
+  ok(/^Before you wide swing an angle you expect to be held/.test(causeFix('dry-peek', {}, {})) && /^After a kill, step back into cover/.test(causeFix('overextend', {}, {}))
+    && /^Plant behind cover that the main entrances cannot see/.test(causeFix('exposed', {}, {})), 'dry peek, overextended and exposed in their new words');
+  // First to die, mostly on defence, for any role.
+  const firsts = (side, role) => insights.valorant(Array.from({ length: 12 }, (_, i) => (i < 4
+    ? dead(i + 1, { side, firstDeath: true, aliveAtDeath: { mates: 5, enemies: 5 } }) : V(i + 1))), { role }).mistakes.find((m) => m.key === 'first-death').fix;
+  ok(/^On defence, hold your first angle/.test(firsts('defending', 'Duelist')) && /^On defence, hold your first angle/.test(firsts('defending', 'Sentinel')),
+    'first to die mostly on defence: the defence line, for any role');
+  ok(/^Take first contact only when/.test(firsts('attacking', 'Duelist')) && /^Let a teammate or your utility/.test(firsts('attacking', 'Sentinel')), 'on attack the role lines stay');
+  // The same killer, with a long gun.
+  const byJett = (w1, w2) => insights.valorant([dead(1, { killerAgent: 'Jett', weapon: w1 }), dead(2, { killerAgent: 'Jett', weapon: w2 }),
+    dead(3, { killerAgent: 'Jett', weapon: 'Vandal' }), V(4)], {}).mistakes.find((m) => m.key === 'same-killer');
+  ok(byJett('Operator', 'Operator').fix === 'Their Jett killed you with the Operator: cross that line only behind a smoke or a flash, or take another route.',
+    `two Operator deaths: the long line fix (${byJett('Operator', 'Operator').fix})`);
+  ok(/^Note where their Jett killed you/.test(byJett('Operator', 'Vandal').fix), 'one long gun is not a long line');
+  ok(byJett('Operator', 'Vandal').target === 'This match: Jett killed you 3 times. Next match, this goes away at 2 or fewer.', 'its target');
+  // Untraded: close and far.
+  const untradedFix = (mate) => insights.valorant([dead(1, { mateNear: mate }), dead(2, { mateNear: mate }), dead(3, { mateNear: mate }), V(4)], {})
+    .mistakes.find((m) => m.key === 'untraded').fix;
+  ok(/^When a teammate is near, fight where they can see whoever shoots you/.test(untradedFix('close'))
+    && /^Before you take a fight, glance at the minimap/.test(untradedFix('far')), 'untraded, teammate close and teammate far');
+
+  // 5. The same spot: never a whole site, and the new fix.
+  ok(insights.WHOLE_SITE.test('A Site') && insights.WHOLE_SITE.test('b site') && insights.WHOLE_SITE.test('C Site')
+    && !insights.WHOLE_SITE.test('A Main') && !insights.WHOLE_SITE.test('A Site Hookah'), 'the whole site words both ways');
+  const spot = (place) => insights.valorant([1, 2, 3].map((n) => dead(n, { riotSpot: place, killerAgent: ['Sova', 'Omen', 'Jett'][n - 1] })).concat([V(4)]), {})
+    .mistakes.find((m) => m.key === 'same-spot') || null;
+  ok(spot('A Site') === null, 'three deaths at A Site are no same spot');
+  ok(spot('A Main') && spot('A Main').fix === 'After a death at A Main, change one thing the next time you play it, the spot, the timing, or an ability before you show yourself, '
+    + 'because the enemy who killed you there is already aimed at it.', 'three at A Main are, with the change one thing fix');
+
+  // The misses' fixes.
+  const clutch = insights.valorant([V(1, { died: true, result: 'lost', clutch: { vs: 1, won: false } }), V(2), V(3)], {}).missed.find((m) => m.key === 'one-v-one');
+  ok(clutch && /^When the round comes down to you and one enemy, check the spike and the clock first/.test(clutch.fix), 'a one against one lost has its fix');
+  const posts = [1, 2, 3, 4].map((n) => V(n, { planted: true, result: n === 1 ? 'won' : 'lost' }));
+  const pp = insights.valorant(posts, {}).missed.find((m) => m.key === 'postplant-lost');
+  ok(pp && /^After the plant, watch the spike from cover on a different line from your teammates/.test(pp.fix), 'post plants that slipped, the new fix');
+
+  // Every new line: no dash, no semicolon.
+  const lines = [...Object.values(insights.CAUSE_FIX), ...Object.values(insights.ADVANTAGE_FIX), low.fix, low.target, fd.target, unt.target, clutch.fix, pp.fix,
+    causeFix('isolated', {}, {}), causeFix('isolated', { side: 'defending' }, { side: 'defending' }), firsts('defending', 'Duelist'), byJett('Operator', 'Operator').fix,
+    untradedFix('close'), untradedFix('far'), spot('A Main').fix];
+  ok(lines.every((s) => typeof s === 'string' && !DASH.test(s) && !s.includes(';')), 'no dash and no semicolon in any of them');
+
+  // The focus key the server names reaches the review, a key only.
+  const withFocus = (k) => review.build({ rounds: quiet, context: { map: 'Bind', agent: 'Sova' }, endedBy: 'stop', ai: { focusKey: k } }).focusKey;
+  ok(withFocus('cause:repeek') === 'cause:repeek' && withFocus('low-headshots') === 'low-headshots' && withFocus('Not a key!') === undefined && withFocus(7) === undefined,
+    'the review keeps a focus key, and nothing that is not one');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' grade and library checks passed'}`);

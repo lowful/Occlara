@@ -30,6 +30,7 @@
 
 const { CAUSES, isAvoidable, causeTitle } = require('./death-causes');
 const { satOut } = require('./sat-out');
+const { validBand } = require('./rank-band');
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
 const times = (n) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
@@ -61,25 +62,157 @@ const WEIGHT = {
   'same-spot': 1.5,
   'same-killer': 1,
   'ult-held': 1,
+  // Counted once a match (its count is 1), so its weight is its whole rank:
+  // about what a cause the coach saw in two or three deaths ranks at.
+  'low-headshots': 5,
 };
 const CAUSE_WEIGHT = 2;
+
+/*
+ * THE RANK OF A REPEATED MISTAKE (Nov 2026, the coaching audit): its weight
+ * times its count, the count capped at RANK_CAP. Ranked by the raw count,
+ * "Deaths nobody traded", 8 to 12 deaths at weight 2, led nearly every match
+ * over a first death given away in 4 rounds at weight 3. Past four a count
+ * says the habit is there, not that it costs more than another habit that is
+ * there too. The count shown is the real one, only the order uses the cap.
+ * patterns.js ranks the library's repeats by the same cap.
+ */
+const RANK_CAP = 4;
+const rankOf = (e) => (Number(e && e.weight) || 0) * Math.min(Number(e && e.count) || 0, RANK_CAP);
+
+/*
+ * SHOTS LANDING BELOW THE HEAD (Nov 2026, the coaching audit): Riot's head,
+ * body and leg hits of the player over the match (riot-rounds.js parse, `me`,
+ * the review's riotMe), against the rate usual at the player's rank band. A
+ * copy of the server's line (server/services/match-review.js HS_USUAL and
+ * HS_BELOW, aimEvidence), since src/ never requires server/: flagged at the
+ * band's usual rate less HS_BELOW points or under, and with no band at
+ * Silver and Gold's (the server's own default there is the lowest band's,
+ * the audit asked for the middle one here). Only over HS_HITS_MIN hits, so a
+ * short or quiet match is never read as aim.
+ */
+const HS_USUAL = { iron_bronze: 14, silver_gold: 17, plat_diamond: 20, asc_plus: 23 };
+const HS_BELOW = 5;
+const HS_HITS_MIN = 30;
+const HS_DEFAULT_BAND = 'silver_gold';
+/** { head, total } from Riot's line (headshots, bodyshots, legshots) or { head, body, legs }; null without all three. */
+function hitsOf(h) {
+  if (!h || typeof h !== 'object') return null;
+  const whole = (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null);
+  const head = whole(h.headshots != null ? h.headshots : h.head);
+  const body = whole(h.bodyshots != null ? h.bodyshots : h.body);
+  const legs = whole(h.legshots != null ? h.legshots : h.legs);
+  if (head === null || body === null || legs === null) return null;
+  return { head, total: head + body + legs };
+}
+/** The headshot line for a band: the rate at or under which the match is flagged. */
+const hsLine = (band) => HS_USUAL[validBand(band) || HS_DEFAULT_BAND] - HS_BELOW;
+
+/** The least count at which `clears` holds: a card's own floor. */
+function floorOf(clears) {
+  for (let n = 0; n <= 999; n++) if (clears(n)) return n;
+  return 1000;
+}
+/*
+ * THE TARGET FOR THE NEXT MATCH (Nov 2026, the coaching audit), in code: the
+ * count this match had and the count at which the card would no longer show,
+ * its own floor less one, so "fix it" has a number the next review checks.
+ * A floor that is a share of the rounds or deaths is this match's share.
+ */
+const targetLine = (now, floor) => `This match: ${now}. Next match, this goes away at ${Math.max(0, floor - 1)} or fewer.`;
+
+/*
+ * WHOLE SITES ARE NO SPOT (Nov 2026, as death-chain.js isSite): "A Site" names
+ * half of a map, so dying there three times is no place the enemy learned.
+ */
+const WHOLE_SITE = /^[abc] site$/i;
+
+/** The side most of these rows were played on, more than half of them, or null. */
+function sideMost(rows) {
+  const att = rows.filter((r) => r.side === 'attacking').length;
+  const def = rows.filter((r) => r.side === 'defending').length;
+  return att * 2 > rows.length ? 'attacking' : def * 2 > rows.length ? 'defending' : null;
+}
+/** The side every one of these rows was played on, or null. */
+function sideAll(rows) {
+  return rows.length && rows.every((r) => r.side === rows[0].side) && (rows[0].side === 'attacking' || rows[0].side === 'defending')
+    ? rows[0].side : null;
+}
 
 /**
  * The habit that fixes each death cause, in one line. Repeek's (8.5.0) is the
  * widened cause's: staying on the angle after the first exchange is one too
  * (death-causes.js), and the old line, "never peek the same spot twice", said
- * nothing to a player who never left it.
+ * nothing to a player who never left it. Rewritten from the coaching audit
+ * (Nov 2026); a cause whose habit depends on the side has its lines in
+ * CAUSE_FIX_SIDE, and this one stands where the side is mixed or not known.
  */
 const CAUSE_FIX = {
-  'dry-peek': 'Use a flash, a drone or a teammate before you swing an angle.',
+  'dry-peek': 'Before you wide swing an angle you expect to be held, get information first, a quick jiggle to draw the shot, a sound, '
+    + 'or an ability from you or a teammate, and with none of those, take another angle or wait for your team.',
   'isolated': 'Play within trading distance of a teammate: close enough that they can swing the moment you die.',
-  'repeek': 'After the first exchange or a kill, get out of their sight and take the next fight from somewhere else.',
+  'repeek': 'After the first exchange or a kill, get out of their sight and take the next fight from somewhere else, '
+    + 'because they are already aimed where they last saw you.',
   'crossfire': 'Clear one angle at a time. Smoke or flash off the second one before you step out.',
-  'rotating': 'Rotate early or rotate through cover, and have your crosshair up while you move.',
-  'overextend': 'Take the space your team can hold with you. Stop chasing kills past them.',
-  'exposed': 'Plant or defuse from cover, with a smoke or a teammate covering you.',
+  'rotating': 'Rotate on a clear call, by the route the enemy cannot reach first, and walk the last corner before the site with your crosshair at head height.',
+  'overextend': 'After a kill, step back into cover and check the minimap before your next step forward, and push on only with a teammate beside you.',
+  'exposed': 'Plant behind cover that the main entrances cannot see, and start a defuse only once the angles on the spike are smoked, '
+    + 'blocked or watched by a teammate.',
   'no-escape': 'Take the first fight from a spot you can step back from after the kill, because the next enemy can come right behind the first.',
 };
+/*
+ * BY THE SIDE OF THE DEATHS. Caught alone on attack is spacing behind a
+ * teammate, on defence a lone hold that stayed for the second attacker, so
+ * the line follows the side most of those deaths were on. Caught rotating
+ * names the attackers only when every one of those deaths was on defence.
+ */
+const CAUSE_FIX_SIDE = {
+  'isolated': {
+    pick: sideMost,
+    attacking: 'On attack, move a step behind and to the side of a teammate, close enough to kill whoever kills you within a second or two, not on the same line.',
+    defending: 'On defence, when you hold a spot alone, take one look for information, then fall back toward your team before the second attacker arrives.',
+  },
+  'rotating': {
+    pick: sideAll,
+    defending: 'Rotate on a clear call, by the route the attackers cannot reach first, and walk the last corner before the site with your crosshair at head height.',
+  },
+};
+/** A cause's fix for these deaths: its side's line where it has one, else its own. */
+function causeFix(cause, rows) {
+  const bySide = CAUSE_FIX_SIDE[cause];
+  const side = bySide ? bySide.pick(rows || []) : null;
+  return (side && bySide[side]) || CAUSE_FIX[cause] || null;
+}
+
+/*
+ * GAVE BACK THE ADVANTAGE, THE FIX BY SIDE (Nov 2026, the coaching audit). Up
+ * in numbers the play is the spike's: on attack before the plant take the
+ * site and plant, waiting loses to the clock (8.7.2); on a retake go onto it
+ * together; on defence before the plant, or on attack once it is down, the
+ * other team has to come, so hold. Rounds of more than one kind, or a side
+ * not known, get the line that says all of it.
+ */
+const ADVANTAGE_FIX = {
+  'attack-pre': 'When your team is up in numbers, take the site together behind one piece of utility and plant, then hold from cover.',
+  'retake': 'When your team is up in numbers on a retake, go onto the spike together on one piece of utility, and defuse only with a teammate '
+    + 'watching the angle the shots would come from.',
+  'hold': 'When your team is up in numbers, take fights only where a teammate can see the same enemy, hold the space you have and make them come to you.',
+  'mixed': 'When your team is up in numbers, take fights only where a teammate can see the same enemy, and let the spike decide: plant together '
+    + 'on attack, hold until they plant on defence, then go onto it together.',
+};
+const plantedBefore = (r) => !!(r.planted && r.afterPlant !== false);
+function advantageKind(r) {
+  if (r.side === 'attacking') return plantedBefore(r) ? 'hold' : 'attack-pre';
+  if (r.side === 'defending') return plantedBefore(r) ? 'retake' : 'hold';
+  return 'mixed';
+}
+function advantageFix(rows) {
+  const kinds = new Set(rows.map(advantageKind));
+  return ADVANTAGE_FIX[kinds.size === 1 ? [...kinds][0] : 'mixed'];
+}
+
+// The Operator, the Outlaw and the Marshal: a killer with one holds a long line.
+const SNIPERS = new Set(['operator', 'outlaw', 'marshal']);
 
 /**
  * A round the player was alive in when the spike went down, so a post plant or
@@ -119,7 +252,12 @@ const ACS_ABOVE = 1.1;
  * @param rounds  reconciled rounds (valorant-verify) or ledger rows, each
  *                optionally carrying `forensics: { cause, what, better }`
  * @param opts    { role, scoreline: { kills, deaths, acs }, against: the
- *                review's rows against the player's own average (ACS among them) }
+ *                review's rows against the player's own average (ACS among them),
+ *                hits: Riot's line of the player ({ headshots, bodyshots,
+ *                legshots }, the review's riotMe), band: the rank band or null }
+ *
+ * Each mistake carries `target` (Nov 2026): the sentence that says this
+ * match's count and the count at which the card goes away (targetLine).
  */
 function valorant(rounds, opts = {}) {
   const rows = Array.isArray(rounds) ? rounds : [];
@@ -144,17 +282,25 @@ function valorant(rounds, opts = {}) {
   // A first death a teammate traded leaves the round four against four, not
   // four against five (8.7.2): only the untraded ones count, and a Duelist,
   // whose job is first contact, is told how to take it, never to stop.
-  const firsts = mVerified.filter((r) => r.firstDeath && r.traded !== true).map((r) => r.n);
+  const firstRows = mVerified.filter((r) => r.firstDeath && r.traded !== true);
+  const firsts = firstRows.map((r) => r.n);
   const fdFloor = role === 'Duelist' ? 0.25 : 0.15;
-  if (firsts.length >= 3 && firsts.length >= mVerified.length * fdFloor) {
+  const fdClears = (n) => n >= 3 && n >= mVerified.length * fdFloor;
+  if (fdClears(firsts.length)) {
+    // Mostly on defence, for any role (Nov 2026, the coaching audit): there
+    // the attackers have to come, so the first duel is no Duelist's job either.
+    const defenceMost = firstRows.filter((r) => r.side === 'defending').length * 2 > firstRows.length;
     push(out.mistakes, {
       key: 'first-death', title: 'First to die',
       detail: `You were the first player down and nobody traded it in ${plural(firsts.length, 'round')}, ${roundList(firsts)}, `
         + 'so your team played those rounds a player down.',
       rounds: firsts, weight: WEIGHT['first-death'], untradedOnly: true,
-      fix: role === 'Duelist'
-        ? 'Take first contact only when a teammate is close enough to swing the moment you fire, and only after the flash or the smoke has landed.'
-        : 'Let a teammate or your utility make first contact. Take the second fight, the one you can trade.',
+      fix: defenceMost
+        ? 'On defence, hold your first angle from a spot a teammate also covers or you can step back from, and take one look for information instead of the round\'s first duel.'
+        : role === 'Duelist'
+          ? 'Take first contact only when a teammate is close enough to swing the moment you fire, and only after the flash or the smoke has landed.'
+          : 'Let a teammate or your utility make first contact. Take the second fight, the one you can trade.',
+      target: targetLine(`first to die and not traded in ${plural(firsts.length, 'round')}`, floorOf(fdClears)),
     });
   }
 
@@ -164,17 +310,15 @@ function valorant(rounds, opts = {}) {
   const thrown = mVerified.filter((r) => r.died && r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies
     && r.result === 'lost' && r.traded !== true);
   if (thrown.length >= 2) {
-    // On attack before the plant, waiting loses the round to the clock: the
+    // The fix by the side and the plant of those rounds (advantageFix): on
+    // attack before the plant, waiting loses the round to the clock, so the
     // fix there is to take the site together and plant, never to hold.
-    const beforePlant = (r) => !(r.planted && r.afterPlant !== false);
-    const attackPre = thrown.every((r) => r.side === 'attacking' && beforePlant(r));
     push(out.mistakes, {
       key: 'lost-advantage', title: 'Gave back the advantage',
       detail: `In ${roundList(thrown.map((r) => r.n))} your team was up in numbers when you died, and the round was lost.`,
       rounds: thrown.map((r) => r.n), weight: WEIGHT['lost-advantage'], untradedOnly: true,
-      fix: attackPre
-        ? 'When your team is up in numbers, take the site together behind one piece of utility and plant, then hold from cover.'
-        : 'When your team is up in numbers, stop taking duels. Group, hold the space you have and make them come to you.',
+      fix: advantageFix(thrown),
+      target: targetLine(`gave back the advantage in ${plural(thrown.length, 'round')}`, 2),
     });
   }
 
@@ -204,7 +348,8 @@ function valorant(rounds, opts = {}) {
    * its fix and two fields, close (a count) and closeRounds. Only when no
    * death had a teammate close is it the old title, word for word.
    */
-  if (untraded.length >= 3 && untraded.length * 10 >= knownTrade.length * 6) {
+  const untradedClears = (n) => n >= 3 && n * 10 >= knownTrade.length * 6;
+  if (untradedClears(untraded.length)) {
     const close = untraded.filter((r) => r.mateNear === 'close');
     const closeRounds = close.map((r) => r.n);
     const of = plural(knownTrade.length, 'death');
@@ -216,8 +361,9 @@ function valorant(rounds, opts = {}) {
       rounds: untraded.map((r) => r.n), weight: WEIGHT.untraded, untradedOnly: true, of: knownTrade.length,
       close: close.length, closeRounds,
       fix: close.length * 2 >= untraded.length
-        ? 'When a teammate is near, hold a different angle from theirs or swing right after them, so they can see your killer.'
-        : 'Before you swing, check someone can see the same angle. If nobody can, wait or reposition.',
+        ? 'When a teammate is near, fight where they can see whoever shoots you, a step to their side, never in front of them or on their line.'
+        : 'Before you take a fight, glance at the minimap for your nearest teammate, and if nobody is within a few steps, move toward them first.',
+      target: targetLine(`${untraded.length} of your ${of} went untraded`, floorOf(untradedClears)),
     });
   }
 
@@ -225,12 +371,14 @@ function valorant(rounds, opts = {}) {
   // needs to be most of their deaths before it reads as a habit.
   const early = mDeaths.filter((r) => r.early);
   const earlyShare = role === 'Duelist' ? 0.7 : 0.4;
-  if (early.length >= 3 && early.length >= mDeaths.length * earlyShare) {
+  const earlyClears = (n) => n >= 3 && n >= mDeaths.length * earlyShare;
+  if (earlyClears(early.length)) {
     push(out.mistakes, {
       key: 'early', title: 'Dying in the first 30 seconds',
       detail: `${early.length} of your ${plural(mDeaths.length, 'death')} came in the first 30 seconds, before any plant.`,
       rounds: early.map((r) => r.n), weight: WEIGHT.early,
-      fix: 'Slow the first 30 seconds down: clear one angle at a time and let information come to you.',
+      fix: 'In the first 30 seconds, take only fights the enemy walks into: hold a covered spot or use one ability for information until your team has contact.',
+      target: targetLine(`${early.length} of your ${plural(mDeaths.length, 'death')} came in the first 30 seconds`, floorOf(earlyClears)),
     });
   }
 
@@ -239,10 +387,12 @@ function valorant(rounds, opts = {}) {
   // the same rule, written here because that file requires this one).
   const placeOf = (r) => (r.verified && typeof r.riotSpot === 'string' && r.riotSpot ? r.riotSpot
     : typeof r.deathSpot === 'string' && r.deathSpot ? r.deathSpot : null);
+  // A whole site is never the spot (WHOLE_SITE): it is counted among the
+  // deaths the coach could place, never as a place of its own.
   const spots = new Map();
   for (const r of mDeaths) {
     const place = placeOf(r);
-    if (!place) continue;
+    if (!place || WHOLE_SITE.test(place.trim())) continue;
     const k = place.toLowerCase();
     const e = spots.get(k) || { name: place, rounds: [] };
     e.rounds.push(r.n);
@@ -250,13 +400,16 @@ function valorant(rounds, opts = {}) {
   }
   const placed = mDeaths.filter((r) => placeOf(r)).length;
   const top = [...spots.values()].sort((a, b) => b.rounds.length - a.rounds.length)[0];
-  if (top && top.rounds.length >= 3 && top.rounds.length * 10 >= placed * 3) {
+  const spotClears = (n) => n >= 3 && n * 10 >= placed * 3;
+  if (top && spotClears(top.rounds.length)) {
     push(out.mistakes, {
       key: 'same-spot', title: `Dying at ${top.name}`,
       detail: `${top.rounds.length} of the deaths the coach could place were at ${top.name}, ${roundList(top.rounds)}. `
         + 'They know you play there.',
       rounds: top.rounds, weight: WEIGHT['same-spot'], place: top.name,
-      fix: `Change your position at ${top.name} each round, or play one step off where they expect you.`,
+      fix: `After a death at ${top.name}, change one thing the next time you play it, the spot, the timing, or an ability before you show yourself, `
+        + 'because the enemy who killed you there is already aimed at it.',
+      target: targetLine(`${plural(top.rounds.length, 'death')} at ${top.name}`, floorOf(spotClears)),
     });
   }
 
@@ -264,21 +417,40 @@ function valorant(rounds, opts = {}) {
   const byKiller = new Map();
   for (const r of mDeaths) if (r.killerAgent) byKiller.set(r.killerAgent, [...(byKiller.get(r.killerAgent) || []), r.n]);
   const topKiller = [...byKiller.entries()].sort((a, b) => b[1].length - a[1].length)[0];
-  if (topKiller && topKiller[1].length >= 3 && topKiller[1].length * 4 >= mDeaths.length) {
+  const killerClears = (n) => n >= 3 && n * 4 >= mDeaths.length;
+  if (topKiller && killerClears(topKiller[1].length)) {
+    const agent = topKiller[0];
+    // WITH A LONG GUN (Nov 2026, the coaching audit): an enemy who won twice
+    // or more with the Operator, the Outlaw or the Marshal holds a line, and
+    // the fix is how to cross it. Riot's weapon of each of those deaths; the
+    // one used most is named.
+    const guns = new Map();
+    for (const r of mDeaths) {
+      if (r.killerAgent !== agent || typeof r.weapon !== 'string' || !SNIPERS.has(r.weapon.trim().toLowerCase())) continue;
+      const w = r.weapon.trim();
+      guns.set(w, (guns.get(w) || 0) + 1);
+    }
+    const sniped = [...guns.values()].reduce((a, b) => a + b, 0);
+    const gun = [...guns.entries()].sort((a, b) => b[1] - a[1])[0];
     push(out.mistakes, {
-      key: 'same-killer', title: `${topKiller[0]} kept winning`,
-      detail: `${topKiller[0]} killed you ${times(topKiller[1].length)}, ${roundList(topKiller[1])}.`,
-      rounds: topKiller[1], weight: WEIGHT['same-killer'], agent: topKiller[0],
-      fix: `Track where their ${topKiller[0]} plays, then fight them with a teammate or with utility, never alone.`,
+      key: 'same-killer', title: `${agent} kept winning`,
+      detail: `${agent} killed you ${times(topKiller[1].length)}, ${roundList(topKiller[1])}.`,
+      rounds: topKiller[1], weight: WEIGHT['same-killer'], agent,
+      fix: sniped >= 2 && gun
+        ? `Their ${agent} killed you with the ${gun[0]}: cross that line only behind a smoke or a flash, or take another route.`
+        : `Note where their ${agent} killed you, and meet them there next time with a teammate swinging beside you or an ability first.`,
+      target: targetLine(`${agent} killed you ${times(topKiller[1].length)}`, floorOf(killerClears)),
     });
   }
 
   // The coach's look at the deaths: a cause from the closed list, twice or more.
   const byCause = new Map();
+  const causeRows = new Map();
   for (const r of mDeaths) {
     const c = r.forensics && r.forensics.cause;
     if (!c || !isAvoidable(c)) continue;
     byCause.set(c, [...(byCause.get(c) || []), r.n]);
+    causeRows.set(c, [...(causeRows.get(c) || []), r]);
   }
   for (const [cause, ns] of byCause) {
     if (ns.length < 2) continue;
@@ -286,11 +458,30 @@ function valorant(rounds, opts = {}) {
       key: `cause:${cause}`, title: causeTitle(cause, ns.length),
       detail: `The coach looked at the moment before ${plural(ns.length, 'death')} and saw the same thing: `
         + `${CAUSES[cause].detail}, ${roundList(ns)}.`,
-      rounds: ns, weight: CAUSE_WEIGHT, judged: true, fix: CAUSE_FIX[cause] || null,
+      rounds: ns, weight: CAUSE_WEIGHT, judged: true, fix: causeFix(cause, causeRows.get(cause)),
+      target: targetLine(`the coach's look saw this in ${plural(ns.length, 'death')}`, 2),
     });
   }
 
-  out.mistakes.sort((a, b) => b.weight * b.count - a.weight * a.count);
+  // Shots landing below the head, from Riot's hits over the match (HS_USUAL).
+  const hits = hitsOf(opts.hits);
+  if (hits && hits.total >= HS_HITS_MIN) {
+    const pct = Math.round((hits.head * 100) / hits.total);
+    const line = hsLine(opts.band);
+    if (pct <= line) {
+      push(out.mistakes, {
+        key: 'low-headshots', title: 'Shots landing below the head',
+        detail: `${hits.head} of your ${hits.total} hits were to the head, ${pct} percent.`,
+        rounds: [], count: 1, weight: WEIGHT['low-headshots'], pct, line,
+        fix: 'Move with your crosshair at head height on the edge of the next corner you will clear, so the first bullet lands without a drag up.',
+        target: `This match: ${pct} percent of your hits went to the head. Next match, this goes away at ${line + 1} percent or more.`,
+      });
+    }
+  }
+
+  // Ranked by weight and count, the count capped (RANK_CAP). Stable, so a tie
+  // keeps the order above.
+  out.mistakes.sort((a, b) => rankOf(b) - rankOf(a));
 
   // ── Strengths ─────────────────────────────────────────────────────────────
   // FLOORS FOR THE MATCH THAT WAS PLAYED. They were counts sized for 24 rounds,
@@ -405,7 +596,8 @@ function valorant(rounds, opts = {}) {
     push(out.missed, {
       key: 'lost-advantage', title: 'An advantage given back',
       detail: `Round ${r.n}: ${r.aliveAtDeath.mates} against ${r.aliveAtDeath.enemies} when you died, and the round was lost.`,
-      rounds: [r.n], untradedOnly: true,
+      // The fix for its side and plant, as the repeated one's (advantageFix).
+      rounds: [r.n], untradedOnly: true, fix: advantageFix([r]),
     });
   }
   const clutchLost = mVerified.filter((r) => r.clutch && r.clutch.won === false && r.clutch.vs === 1);
@@ -414,13 +606,15 @@ function valorant(rounds, opts = {}) {
       key: 'one-v-one', title: 'One against one, lost',
       detail: `${roundList(clutchLost.map((r) => r.n))}: the round came down to you and one of them.`,
       rounds: clutchLost.map((r) => r.n),
+      fix: 'When the round comes down to you and one enemy, check the spike and the clock first: with time on your side hold a covered angle '
+        + 'and make them come, without it find them by sound before you peek.',
     });
   }
   if (post.length >= 3 && postWon.length * 10 < post.length * 4) {
     push(out.missed, {
       key: 'postplant-lost', title: 'Post plants that slipped',
       detail: `Won only ${postWon.length} of ${post.length} attack rounds with the spike down.`,
-      fix: 'After the plant, hold angles on the spike from cover instead of looking for fights.',
+      fix: 'After the plant, watch the spike from cover on a different line from your teammates, and peek only when you hear the defuse start.',
       rounds: post.filter((r) => r.result === 'lost').map((r) => r.n),
     });
   }
@@ -730,4 +924,5 @@ function chainCounts(chains) {
 }
 
 module.exports = { chainCounts, CHAIN_COST, valorant, lol, roundList, repeatTitle, specificOf, WEIGHT, aliveAtPlant, shareFloor,
-  factsView, asFacts, countable, inTodaysWords, tradesDetail, CLUTCH_RE, ONLY_RE, TRADES_RE };
+  factsView, asFacts, countable, inTodaysWords, tradesDetail, CLUTCH_RE, ONLY_RE, TRADES_RE,
+  RANK_CAP, rankOf, HS_USUAL, HS_BELOW, HS_HITS_MIN, hsLine, WHOLE_SITE, CAUSE_FIX, ADVANTAGE_FIX };

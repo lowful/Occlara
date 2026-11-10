@@ -1037,8 +1037,12 @@ function build(input) {
   const totalRounds = score ? score.split('-').reduce((a, b) => a + (Number(b) || 0), 0) : null;
   const vs = against(tracker, input.role || null, input.history || []);
   // The scoreboard and the player's own average reach the strengths, so a
-  // match won on its scoreline says so (insights.js, 'scoreline').
-  const counted = insights.valorant(rounds, { role: input.role || null, scoreline, against: vs });
+  // match won on its scoreline says so (insights.js, 'scoreline'). Riot's
+  // head, body and leg hits and the rank band reach the mistakes (Nov 2026,
+  // insights.js 'low-headshots'); without Riot's hits nothing changes, and
+  // without a band the line is Silver and Gold's.
+  const counted = insights.valorant(rounds, { role: input.role || null, scoreline, against: vs,
+    hits: riotMe, band: input.rankBand || null });
 
   // Riot's agent wins over the screen's, the same as every other fact it has.
   const game = {
@@ -1094,6 +1098,9 @@ function build(input) {
     }), riotOnly),
     summary: ai.summary || null,
     focus: ai.focus || null,
+    // The key of the counted mistake the focus is about (Nov 2026), when the
+    // server names one: the review's Practise this opens on it. A key only.
+    ...(typeof ai.focusKey === 'string' && /^[a-z0-9:-]{1,40}$/.test(ai.focusKey) ? { focusKey: ai.focusKey } : {}),
     // A study note is kept as its text alone. A server from before 8.2 sent
     // the name of whoever a note was imported from with it, and the app never
     // says where its knowledge comes from.

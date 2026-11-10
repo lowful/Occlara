@@ -110,17 +110,17 @@ function figures(state) {
 function gamesLeft(state, opts) {
   const f = figures(state);
   if (!f) return '';
-  const extra = f.earned ? `, plus ${plural(f.earned, 'earned game')}` : '';
+  const extra = f.earned ? `, plus ${plural(f.earned, 'bonus game')}` : '';
   if (f.tier === 'free') {
     if (!f.left && state.free_shared === true) return 'You have no free games left, free games are one per player';
     if (!f.left) return f.total ? `You have used your ${plural(f.total, 'free game')}` : 'You have no free games left';
-    if (!f.own) return `${plural(f.earned, 'earned game')} left`;
+    if (!f.own) return `${plural(f.earned, 'bonus game')} left`;
     return `${f.own} of ${plural(f.total, 'free game')} left${extra}`;
   }
   const day = dayOf(state.period_end, opts);
   const renews = day ? `, renews ${day}` : '';
   if (!f.left) return `You have used this month's ${plural(f.total, 'game')}${renews}`;
-  if (!f.own) return `${plural(f.earned, 'earned game')} left${renews}`;
+  if (!f.own) return `${plural(f.earned, 'bonus game')} left${renews}`;
   return `${f.own} of ${plural(f.total, 'game')} left this month${extra}${renews}`;
 }
 

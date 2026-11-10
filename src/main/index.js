@@ -313,6 +313,10 @@ function sendPendingReport() {
   sendReport(kept);
 }
 
+function liveSwitches() {
+  const all = store.store || {};
+  return { liveMap: all.liveMap !== false, liveAgent: all.liveAgent !== false, liveScore: all.liveScore !== false, liveRound: all.liveRound !== false };
+}
 function buildState() {
   return {
     isCoaching: state.isCoaching,
@@ -343,6 +347,9 @@ function buildState() {
     // and whether a recording is being made: Settings paints from it. About
     // the capture only, never the match.
     recording:       recorder.view(),
+    // The Recording screen's four switches (8.10.3): Settings and the shell
+    // repaint from here, so a change in one shows in the other at once.
+    live:            liveSwitches(),
   };
 }
 
@@ -401,7 +408,10 @@ let liveTape = [];
 let liveLast = null;
 function liveView() {
   if (!state.isCoaching || !(engine instanceof CoachingEngine)) { liveTape = []; liveLast = null; return null; }
-  if (!matchInProgress()) { liveTape = []; liveLast = null; return { state: 'waiting' }; }
+  // A match the end watch closed may resume (coaching-engine.js resumeMatch):
+  // its tape is kept until a new match reads a lower score, so a false end
+  // does not redraw every played round as unknown (8.10.3).
+  if (!matchInProgress()) return { state: 'waiting' };
   const c = engine.matchContext || {};
   const team = Number.isInteger(c.teamScore) && c.teamScore >= 0 ? c.teamScore : 0;
   const enemy = Number.isInteger(c.enemyScore) && c.enemyScore >= 0 ? c.enemyScore : 0;
@@ -413,7 +423,10 @@ function liveView() {
   else if (de === 1 && dt === 0) liveTape.push('L');
   else if (dt > 0 || de > 0) for (let i = 0; i < dt + de; i++) liveTape.push('?');
   liveLast = { team, enemy };
-  const on = (k) => store.get(k) !== false;
+  // One read of the store a tick, not four: conf reads and parses the whole
+  // file on every get, in the process that hosts the capturer (8.10.3).
+  const all = store.store || {};
+  const on = (k) => all[k] !== false;
   const out = { state: 'live', startedAt: state.sessionStartedAt || null,
     mode: c.gameMode === 'swiftplay' || c.gameMode === 'standard' ? c.gameMode : null };
   if (on('liveMap') && typeof c.map === 'string' && c.map) out.map = c.map;
@@ -955,10 +968,15 @@ function buildValorantReview(snap, tracker, extra) {
       summary: ai.summary || null,
       rounds: ai.rounds || {},
       focus: ai.focus || null,
+      // The counted mistake the focus is about, when the server names it (Nov 2026).
+      focusKey: typeof ai.focusKey === 'string' ? ai.focusKey : null,
       study: Array.isArray(ai.study) ? ai.study : [],
     },
     tracker,
     role,
+    // The rank band (rankBandNow), for the headshot line of the mistakes
+    // (insights.js 'low-headshots'); none is Silver and Gold's line.
+    rankBand: rankBandNow(),
     history: (extra && extra.history) || store.get('valorantHistory') || [],
     verification: extra && extra.verification,
     riotMe: extra && extra.riotMe,

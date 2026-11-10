@@ -74,7 +74,11 @@ ok(p.review.read.heading === "The coach's read" && p.review.read.lines.length ==
 ok(p.review.fix.text === p.home.fix && p.review.fix.text.length > 20, 'the fix line, the same on Home and the review', p.review.fix.text);
 ok(p.review.progress.length >= 3 && p.review.progress.every((l) => l.text && l.tone), 'the progress lines', JSON.stringify(p.review.progress));
 const mistakes = p.review.lists.find((l) => l.heading === 'Your repeated mistakes');
-ok(mistakes && mistakes.items[0].title === 'Died where nobody could trade' && mistakes.items[0].hero && mistakes.items[0].detail,
+// The top mistake, ranked with the count capped (Nov 2026, insights.js
+// RANK_CAP): the advantage given back in 6 rounds (weight 3) leads the 20
+// deaths nobody traded (weight 2), here, on Home, in Matches and in Patterns.
+const TOP = 'Gave back the advantage';
+ok(mistakes && mistakes.items[0].title === TOP && mistakes.items[0].hero && mistakes.items[0].detail,
   'the repeated mistakes, the top one first as the hero', JSON.stringify(mistakes && mistakes.items.map((i) => i.title)));
 ok(mistakes && mistakes.items.every((i) => !/^(?:→\s*)?Fix\b/.test(i.fix)), 'a fix carries its sentence, not its label');
 ok(mistakes && mistakes.items.slice(1).every((i) => i.fix), 'every mistake after the first carries a fix');
@@ -92,14 +96,14 @@ ok(last.grade.label === 'Match grade' && last.grade.sub === 'Out of 100, from wh
 ok(last.milestone.join() === 'Best in 4' && last.change === '+7', "Home's last match: its mark and its change since the match before", JSON.stringify([last.milestone, last.change]));
 ok(last.kd && last.kd.label === 'K/D' && last.kd.ratio === (31 / 21).toFixed(2) &&last.kd.split === '31 / 21', "Home's K/D of the last match", JSON.stringify(last.kd));
 ok(p.home.player.idShown === false && p.home.player.connect === 'Connect your Riot ID', 'Home shows no Riot ID, the Connect link in its place', JSON.stringify(p.home.player));
-ok(p.home.top && p.home.top.title === 'Died where nobody could trade' && /^In \d of your last \d recorded matches\.$/.test(p.home.top.detail)
+ok(p.home.top && p.home.top.title === TOP && /^In \d of your last \d recorded matches\.$/.test(p.home.top.detail)
   && p.home.top.trend && p.home.top.fix.length > 20, "Home's top mistake, how often, its trend and its fix", JSON.stringify(p.home.top));
 ok(p.home.mistakes.length >= 3 && p.home.mistakes.every((m) => m.title && /^\d+x$/.test(m.count)), "Home's repeated mistakes, each counted");
 ok(p.home.trend.label === p.matches.chart.label && /^Grade over your last \d$/.test(p.home.trend.label), "the trend's label, as the Matches chart says it", p.home.trend.label);
-ok(p.matches.rows.length === 4 && p.matches.rows.every((r) => r.topMistake === 'Died where nobody could trade'), 'Matches: four rows, each with its top mistake');
+ok(p.matches.rows.length === 4 && p.matches.rows.every((r) => r.topMistake === TOP), 'Matches: four rows, each with its top mistake');
 ok(p.matches.rows.every((r) => r.title === 'Jett on Abyss' && !/\d+\s*:\s*\d+/.test(r.meta)), 'Matches: each row the agent on the map, and no wins to losses');
 ok(p.matches.chart && p.matches.chart.now === '71' && p.matches.chart.average === 'Average 64', 'Matches: the chart of the grade', JSON.stringify(p.matches.chart));
-ok(p.patterns.lists.length >= 2 && p.patterns.lists[0].items[0].title === 'Died where nobody could trade', 'Patterns: the lists across the matches');
+ok(p.patterns.lists.length >= 2 && p.patterns.lists[0].items[0].title === TOP, 'Patterns: the lists across the matches');
 ok(p.patterns.lists[0].items[0].hero && p.patterns.lists[0].items[0].fix && p.patterns.lists[0].items.every((i) => i.chips.length >= 2),
   'Patterns: the top mistake a card with its fix, every entry with its chips');
 ok(p.patterns.grades.join() === '58,61,64,71' && p.patterns.chart && p.patterns.chart.bands.join() === 'S 90,A 80,B 70,C 60'

@@ -237,10 +237,13 @@ function paintValorant(r, verdict) {
   $('v-focus-wrap').hidden = !r.focus;
   $('v-focus').textContent = r.focus || '';
   // PRACTISE THIS (the Practice page): the review's top mistake, its drills
-  // on the Practice page, opened on it. Valorant's alone.
+  // on the Practice page, opened on it. Valorant's alone. The mistake the
+  // focus is about when the server named it (`focusKey`, Nov 2026) and the
+  // list holds it, else the first card.
   {
-    const top = r.kind === 'valorant' && r.insights && Array.isArray(r.insights.mistakes)
-      ? r.insights.mistakes.find((m) => m && typeof m.key === 'string' && m.key) : null;
+    const listed = r.kind === 'valorant' && r.insights && Array.isArray(r.insights.mistakes)
+      ? r.insights.mistakes.filter((m) => m && typeof m.key === 'string' && m.key) : [];
+    const top = (typeof r.focusKey === 'string' && r.focusKey && listed.find((m) => m.key === r.focusKey)) || listed[0] || null;
     let practise = $('v-focus-wrap').querySelector('.v-practise');
     if (!practise) {
       practise = el('button', 'btn btn-link sm v-practise', 'Practise this');
@@ -1356,7 +1359,23 @@ function paintCommon(r, at, verdict) {
         ? 'Most of what this section counts comes from Riot\'s record of the match. It fills in once the match links.'
         : undefined,
     }));
+    paintTarget(r, iHost);
   }
+}
+
+/*
+ * THE TARGET UNDER THE TOP MISTAKE'S FIX (Nov 2026, insights.js targetLine):
+ * this match's count and the count at which the card goes away, computed in
+ * code when the review was built, one small line under the hero card's fix.
+ * A review saved before has none and shows none. The page is sealed mid match.
+ */
+function paintTarget(r, host) {
+  const top = r.kind === 'valorant' && r.insights && Array.isArray(r.insights.mistakes) ? r.insights.mistakes[0] : null;
+  const card = host.querySelector('.gv-hero');
+  if (!top || !card || typeof top.target !== 'string' || !top.target) return;
+  const line = el('p', 'v-target', top.target);
+  const fix = card.querySelector('.gv-action');
+  if (fix) fix.after(line); else card.append(line);
 }
 
 /** Show every block, so no League review inherits the hidden flags of the one before it. */

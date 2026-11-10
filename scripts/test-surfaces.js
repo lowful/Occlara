@@ -6146,7 +6146,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(same(rows(), [['Free', '$0', '', '4 games for life', 'See Free'], ['ProYour plan', '$24.99', 'a month', '25 games a month', null], ['Max', '$69.99', 'a month', '70 games a month', 'See Max']]),
       'the plans, monthly, Pro marked as theirs and no button on it', JSON.stringify(rows()));
     q.$('pr-yearly').click();
-    ok(q.$('pr-yearly').getAttribute('aria-pressed') === 'true' && same(rows().map((r) => [r[1], r[2]]), [['$0', ''], ['$249.99', 'a year'], ['$699.99', 'a year']]),
+    ok(q.$('pr-yearly').getAttribute('aria-pressed') === 'true' && same(rows().map((r) => [r[1], r[2]]), [['$0', ''], ['$249.99', 'a year, save $49.89'], ['$699.99', 'a year, save $139.89']]),
       'Yearly shows the yearly prices');
     q.document.querySelectorAll('.pr-plan-row button')[1].click();
     await settle();

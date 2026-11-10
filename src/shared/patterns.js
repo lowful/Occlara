@@ -44,7 +44,7 @@
  * Pure: the library hands it the saved reviews, newest first.
  */
 
-const { repeatTitle, specificOf, countable } = require('./insights');
+const { repeatTitle, specificOf, countable, RANK_CAP } = require('./insights');
 const { variantOf } = require('./death-causes');
 const { cardSatOut } = require('./sat-out');
 
@@ -204,8 +204,11 @@ function summarise(saved) {
   }));
   if (!out.enough) return out;
 
-  out.mistakes = tally(recorded, 'mistakes')
-    .sort((a, b) => b.share * b.weight * (b.total / b.matches) - a.share * a.weight * (a.total / a.matches));
+  // How often it showed up, its weight, and how many times a match, capped at
+  // insights.js RANK_CAP (Nov 2026): by the raw count, deaths nobody traded
+  // led the library as it led every review.
+  const rank = (t) => t.share * t.weight * Math.min(t.total / t.matches, RANK_CAP);
+  out.mistakes = tally(recorded, 'mistakes').sort((a, b) => rank(b) - rank(a));
   out.strengths = tally(recorded, 'strengths').sort((a, b) => b.share - a.share || b.total - a.total);
   out.missed = tally(recorded, 'missed').sort((a, b) => b.share - a.share || b.total - a.total);
   return out;

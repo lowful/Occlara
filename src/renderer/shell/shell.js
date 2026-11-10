@@ -688,6 +688,13 @@ function applyState(s) {
   const gameChanged = typeof s.gameId === 'string' && s.gameId !== gameId;
   if (typeof s.gameId === 'string') gameId = s.gameId;
   const wasCoaching = isCoaching;
+  // The Recording screen's switches as main keeps them (8.10.3), so a change
+  // made in Settings is what Choose shows.
+  if (s.live && typeof s.live === 'object' && cfg) {
+    const live = {};
+    for (const k of ['liveMap', 'liveAgent', 'liveScore', 'liveRound']) if (typeof s.live[k] === 'boolean') live[k] = s.live[k];
+    cfg = { ...cfg, ...live };
+  }
   isCoaching = !!s.isCoaching;
   isPaused = !!s.isPaused;
   if ('notice' in s) notice = s.notice || null;

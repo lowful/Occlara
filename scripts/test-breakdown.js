@@ -365,10 +365,17 @@ const abyss = one.rows.map[0];
   // place or agent in each match and alone in the list, so the row's repeated
   // mistake can only be one of them. saved() makes each newer than the last,
   // so the last one made is the newest, whose title a repeat used to wear.
-  const spot = watched.insights.mistakes.find((m) => m.key === 'same-spot');
+  // A WHOLE SITE IS NO SPOT since Nov 2026 (insights.js WHOLE_SITE): the real
+  // match's deaths at A Site list no same spot now. A review saved before
+  // does, and the library still reads it, so the repeats below start from the
+  // entry as it was saved.
   const killer = watched.insights.mistakes.find((m) => m.key === 'same-killer');
-  ok(spot && spot.place === 'A Site' && /A Site/.test(spot.fix) && killer && killer.agent === 'Skye' && /Skye/.test(killer.fix),
-    'the real match has a death spot and a killer, each naming its place or agent in the fix');
+  ok(!watched.insights.mistakes.some((m) => m.key === 'same-spot') && killer && killer.agent === 'Skye' && /Skye/.test(killer.fix),
+    'the real match lists no death spot at a whole site, and its killer entry names its agent in the fix');
+  const spotRounds = watched.rounds.filter((c) => c.died).slice(0, 3).map((c) => c.n);
+  const spot = { key: 'same-spot', title: 'Dying at A Site', place: 'A Site',
+    detail: `3 of the deaths the coach could place were at A Site, rounds ${spotRounds.join(', ')}. They know you play there.`,
+    rounds: spotRounds, count: 3, weight: 1.5, fix: 'Change your position at A Site each round, or play one step off where they expect you.' };
   const moved = (entry, from, to) => JSON.parse(JSON.stringify(entry).split(from).join(to));
   const only = (mistakes) => {
     const s = saved(watched);

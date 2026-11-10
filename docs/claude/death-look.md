@@ -551,8 +551,13 @@ closed label, and a model only phrases it.
   keys): `untradeable` (Riot's `traded` false and `mate` far, a teammate
   alive, not when the look already said isolated), `early-attack` (attack,
   Riot's early, before any plant, all five up, untraded: on defence the
-  attackers choose when to come), `no-utility` (every cast Riot holds at
-  zero; a dry peek takes it as its own evidence), and never first:
+  attackers choose when to come), and never first: `no-utility` (every cast
+  Riot holds at zero; a dry peek takes it as its own evidence; since the Nov
+  2026 coaching audit never first, never counted on defence before the plant
+  for a death in the first 40 s or at an unknown second, and trusted only
+  where the same match has a cast above zero for the player in another round,
+  `noUtilityCounts`; the server's `match-memory.js` still accepts it as first
+  from a client that sends it),
   `repeat-spot` (a third death at one callout, never a whole site: context,
   in what made it worse or earlier), `first-death`
   (untraded), `gave-advantage` (up in numbers, untraded, round lost),
@@ -562,8 +567,8 @@ closed label, and a model only phrases it.
 - **The order** (`FIRST_ORDER`): where the player stood (isolated,
   overextend, rotating, no escape), then the fight as the look saw it on the
   frames (dry peek, crossfire, exposed, repeek), then the record's own
-  (nobody close, early on attack, no ability). What a death cost, the same
-  spot again and what the killer had done before are never first.
+  (nobody close, early on attack). What a death cost, no ability used, the
+  same spot again and what the killer had done before are never first.
 - **Nobody close to trade is never first on defence before the plant** (the
   owner's lead after the first pass, `firstAllowed`, and the server's
   `chainWords` the same): holding a spot alone is often the job there, and the

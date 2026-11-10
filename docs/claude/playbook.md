@@ -661,10 +661,21 @@ rounds of one match, which keeps it inside 20 minutes); `bands` empty means ever
 steps; a goal with a number; one sentence of why; and a `check` naming what the next review counts (deaths
 nobody traded, first 30 seconds, headshot rate, the look's causes, ultimate ready, post plants won and so on).
 Every mode feature named was checked against the game as of 13.09: the Range's F3 settings (Speed, Streak,
-Bots Strafe, Bot Armor, Infinite Ammo), the accuracy target and its distances, F2 to switch agent, the
+Bots Strafe, Bot Armor, Infinite Ammo), the accuracy target, Escape then Change Agent to switch agent, the
 crosshair's Movement Error lines and the Shooting Error graph, custom games' cheats (Ghost, Pause Match Timer,
 Infinite Abilities, Infinite Ammo, End Game Phase), Deathmatch with no abilities. The Range's old plant and
 defuse practice modes were removed in 9.02, so no drill uses them.
+
+**The coaching audit (Nov 2026).** An optional eleventh field, `also`, lists further causes a drill serves
+(`practice.js normDrill` reads `cause` and `also` together): the four lost-duel drills and `general-stop-to-shoot`
+serve `low-headshots` ("Shots landing below the head", insights.js), so it reaches Practice with 5 drills. Fixed
+as written: the Range's agent switch is Escape, then Change Agent (not F2); every drill that uses Ghost first sets
+its key in the custom game's Cheats tab; no accuracy target distance in metres (it could not be checked), "your
+own longest comfortable range" instead; steps that say not to fight say "On attack," (on defence holding alone is
+often the job); goals count and beat the count (the counter strafe, the first bullet, the warm up, crosshair up)
+or are process goals (no duel walked into in the first 30 seconds, no fight on attack before finding the
+teammate who could swing); `one-v-one-hold-or-hunt` is played over a full unrated match, 40 minutes, the one
+kind of drill the test lets run past 20 (a step saying "full unrated match", up to 45).
 
 **`npm run test:drilllibrary`** (`scripts/test-drill-library.js`) holds the file to that shape, to unique
 ids, and to coverage: it reads every cause the app can name from `death-causes.js` and from the Mistakes and

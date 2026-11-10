@@ -152,8 +152,8 @@ console.log('\n[profile] the plans');
 const pl = sayAll(profile.plans('pro'));
 eq(pl.map((x) => [x.label, x.monthly, x.monthlyPer, x.yearly, x.yearlyPer, x.games, x.mine, x.action]), [
   ['Free', '$0', '', '$0', '', '4 games for life', false, 'See Free'],
-  ['Pro', '$24.99', 'a month', '$249.99', 'a year', '25 games a month', true, ''],
-  ['Max', '$69.99', 'a month', '$699.99', 'a year', '70 games a month', false, 'See Max'],
+  ['Pro', '$24.99', 'a month', '$249.99', 'a year, save $49.89', '25 games a month', true, ''],
+  ['Max', '$69.99', 'a month', '$699.99', 'a year, save $139.89', '70 games a month', false, 'See Max'],
 ], 'Free, Pro and Max at the site\'s prices, the current one marked, the others with a way to the site');
 eq([profile.PLANS[0].games, profile.PLANS[1].games, profile.PLANS[2].games], [usage.FREE_GAMES, usage.TIERS.pro.cap, usage.TIERS.max.cap], 'the games are usage.js\'s, one source');
 ok(profile.plans(null).every((x) => !x.mine && x.action), 'signed out: no plan is marked');
