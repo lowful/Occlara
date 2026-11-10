@@ -24,6 +24,9 @@ const PAGES = [
   { id: 'home', label: 'Home', surface: 'home', query: {}, preload: 'home-preload.js', nav: true },
   { id: 'matches', label: 'Matches', surface: 'matches', query: { section: 'list' }, preload: 'matches-preload.js', nav: true },
   { id: 'patterns', label: 'Patterns', surface: 'matches', query: { section: 'patterns' }, preload: 'matches-preload.js', nav: true },
+  // Practice (docs/claude/ui.md, "The Practice page"): a plan from the
+  // repeated mistakes Patterns lists, right after it, and its drills.
+  { id: 'practice', label: 'Practice', surface: 'practice', query: {}, preload: 'practice-preload.js', nav: true },
   // Moments (8.7) took the Breakdown tab's place: the player's deaths and
   // highlights, compiled. The breakdown's numbers fold into Patterns.
   { id: 'moments', label: 'Moments', surface: 'moments', query: {}, preload: 'moments-preload.js', nav: true },

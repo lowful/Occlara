@@ -612,11 +612,35 @@ async function paint() {
   paintLast(model.last, model);
   paintFix(model);
   $('last').parentNode.classList.toggle('single', $('focus').hidden);
+  paintPractice();
   paintMistakes(model);
   closeUp();
   paintRecent(model.recent || [], model);
   return true;
 }
+
+/*
+ * TODAY'S PRACTICE (the Practice page): one quiet line under the Fix card,
+ * main's words, "Today's practice: <drill>, 10 minutes", only with a plan
+ * and before the day's first drill is marked. Main answers null mid match,
+ * for League and with no plan, and the line goes.
+ */
+let practiceAsk = 0;
+async function paintPractice() {
+  const n = ++practiceAsk;
+  const host = $('h-practice');
+  let t = null;
+  try { t = typeof window.occlara.getPracticeToday === 'function' ? await window.occlara.getPracticeToday() : null; } catch { t = null; }
+  if (n !== practiceAsk) return;
+  const text = t && typeof t.text === 'string' ? t.text : '';
+  host.hidden = !text;
+  $('h-practice-open').textContent = text;
+  $('h-practice-open').setAttribute('aria-label', text ? `${text}. Open Practice` : 'Open Practice');
+}
+$('h-practice-open').addEventListener('click', () => window.occlara.go('practice'));
+if (typeof window.occlara.onPractice === 'function') window.occlara.onPractice(() => paintPractice());
+// A new day asks again: the page coming back to the front.
+if (typeof window.occlara.onPage === 'function') window.occlara.onPage((m) => { if (m && m.phase === 'arm') paintPractice(); });
 
 $('top-more').addEventListener('click', () => window.occlara.go('patterns'));
 $('fix-open').addEventListener('click', () => { if (lastId) window.occlara.openReview(lastId); });

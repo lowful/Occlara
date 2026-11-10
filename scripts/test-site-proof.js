@@ -117,7 +117,7 @@ ok(mo && mo.matches.every((m) => !('when' in m)), 'the Moments matches carry no 
 ok(p.sealed && p.sealed.title === 'Recording' && p.sealed.facts.length === 1, 'the Recording screen, its title and the locked review');
 ok(p.sealed.shown.join() === 'Map,Agent,Score,Round' && /Nothing is coached while you play/.test(p.sealed.facts[0].text),
   'the Recording screen shows the four facts and nothing that coaches', JSON.stringify(p.sealed));
-ok(p.shell.pages.join() === 'Home,Matches,Patterns,Moments,Stats,Ask Coach' && p.shell.start === 'Start', 'the shell: its pages and Start');
+ok(p.shell.pages.join() === 'Home,Matches,Patterns,Practice,Moments,Stats,Ask Coach' && p.shell.start === 'Start', 'the shell: its pages and Start');
 ok(p.shell.foot.join() === 'Profile,Invite,Settings,Report a problem,Discord' && /^You have used your \d free games$/.test(p.shell.games),
   "the account menu's rows and the games line, read off the menu's own view", JSON.stringify([p.shell.foot, p.shell.games]));
 const inside = (pt) => pt && pt.x > 0 && pt.x < 1 && pt.y > 0 && pt.y < 1;

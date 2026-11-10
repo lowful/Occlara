@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Occlara Practice</title>
+  <!-- Before the body: a page of the main window never paints its old window chrome. -->
+  <script src="../shared/embed.js"></script>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../shared/motion.css" />
+  <link rel="stylesheet" href="practice.css" />
+</head>
+<body>
+  <!-- THE PRACTICE PAGE (docs/claude/ui.md, "The Practice page"). A plan from
+       the player's own repeated mistakes, the ones Patterns lists: the two
+       most serious, each with how often it repeated and the drills for it at
+       the player's rank band, whether it is shrinking since the plan was made,
+       the days practised and the log. Every line is main's
+       (src/shared/practice.js planView); this page paints. Everything is kept
+       on this PC. Locked by the seal like every page. -->
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
+        <h2>Practice</h2>
+      </div>
+      <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+    </header>
+
+    <main class="body">
+      <!-- Asking main. -->
+      <p id="pc-wait" class="pc-wait" aria-live="polite">Reading your matches</p>
+
+      <div id="pc-page" class="pc-page" hidden>
+        <p id="pc-lede" class="pc-lede">A plan from your own repeated mistakes, with drills to work on between matches.</p>
+
+        <!-- League, no drill library, no matches yet, no repeated mistakes yet. -->
+        <section id="pc-empty" class="pc-sec pc-empty" hidden>
+          <h3 id="pc-empty-title" class="pc-empty-title"></h3>
+          <p id="pc-empty-hint" class="pc-hint"></p>
+        </section>
+
+        <!-- THE REVIEW'S LINK, when its mistake is not in the plan: its drills,
+             shown here and not stored. -->
+        <section id="pc-asked" class="pc-sec" hidden aria-labelledby="pc-asked-title">
+          <div class="pc-focus-head">
+            <span class="pc-label">From your review</span>
+            <h3 id="pc-asked-title" class="pc-focus-title"></h3>
+            <p id="pc-asked-line" class="pc-hint" hidden></p>
+          </div>
+          <div id="pc-asked-drills" class="pc-drills"></div>
+        </section>
+
+        <!-- YOUR PLAN: the two most serious repeated mistakes and their drills. -->
+        <section id="pc-plan" class="pc-sec" hidden aria-labelledby="pc-plan-title">
+          <div class="pc-head">
+            <h3 id="pc-plan-title" class="pc-title">Your plan</h3>
+            <p class="pc-hint"><span id="pc-band"></span> <button id="pc-riot" class="btn btn-link sm" type="button" hidden>Connect your Riot ID</button></p>
+          </div>
+          <div id="pc-focus" class="pc-focus-list"></div>
+        </section>
+
+        <!-- With no plan yet: drills that help every player, at their band. -->
+        <section id="pc-general" class="pc-sec" hidden aria-labelledby="pc-general-title">
+          <div class="pc-head">
+            <h3 id="pc-general-title" class="pc-title">Drills for every player</h3>
+            <p class="pc-hint"><span id="pc-general-band"></span> <button id="pc-general-riot" class="btn btn-link sm" type="button" hidden>Connect your Riot ID</button></p>
+          </div>
+          <div id="pc-general-drills" class="pc-drills"></div>
+        </section>
+
+        <!-- IS IT WORKING: each focus, the matches since the plan against the
+             ones before, as counts; the days practised, quietly. -->
+        <section id="pc-working" class="pc-sec" hidden aria-labelledby="pc-working-title">
+          <h3 id="pc-working-title" class="pc-title">Is it working?</h3>
+          <div id="pc-trend" class="pc-rows" role="list"></div>
+          <p id="pc-streak" class="pc-quiet"></p>
+        </section>
+
+        <!-- THE PRACTICE LOG: every drill marked, dated, each one deletable. -->
+        <section id="pc-log-sec" class="pc-sec" aria-labelledby="pc-log-title">
+          <div class="pc-head">
+            <h3 id="pc-log-title" class="pc-title">Practice log</h3>
+            <p id="pc-log-streak" class="pc-hint" hidden></p>
+          </div>
+          <div id="pc-log" class="pc-rows" role="list"></div>
+          <p id="pc-log-none" class="pc-quiet" hidden>Nothing marked yet. When you have done a drill, mark it as practised and it is listed here with its date.</p>
+        </section>
+
+        <p id="pc-privacy" class="pc-privacy"></p>
+      </div>
+    </main>
+  </div>
+
+  <script src="../shared/motion.js"></script>
+  <script src="practice.js"></script>
+</body>
+</html>

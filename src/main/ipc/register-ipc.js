@@ -25,10 +25,11 @@ const { resOf } = require('../services/recorder');
  *   community:  { openDiscord(url), refresh() } (community.js, built in index.js)
  *   changelog:  { notice(), seen(version) } (Home's update line, index.js)
  *   feedback:   { info(), prepare(file), drop(token), send(report) } (services/feedback-service.js, built in index.js)
+ *   practice:   { get(game), mark(id), remove(id), today(), open(key, title) } (services/practice-store.js, built in index.js)
  * }
  */
 function registerIpc(deps) {
-  const { controller, license, account, profile, community, changelog, feedback } = deps;
+  const { controller, license, account, profile, community, changelog, feedback, practice } = deps;
 
   // ── the account (8.7) ─────────────────────────────────────────────────────
   if (account) {
@@ -67,6 +68,15 @@ function registerIpc(deps) {
     safeHandle(C.FEEDBACK_PREPARE, async (_e, file) => feedback.prepare(file));
     safeHandle(C.FEEDBACK_DROP, async (_e, token) => feedback.drop(token));
     safeHandle(C.FEEDBACK_SEND, async (_e, report) => feedback.send(report));
+  }
+  // ── the Practice page (docs/claude/ui.md, "The Practice page") ───────────
+  // All local, and every one quiet mid match or sealed (practice-store.js busy()).
+  if (practice) {
+    safeHandle(C.PRACTICE_GET, async (_e, game, asked) => practice.get(typeof game === 'string' ? game : null, asked && typeof asked === 'object' ? asked : null));
+    safeHandle(C.PRACTICE_MARK, async (_e, id) => practice.mark(typeof id === 'string' ? id : null));
+    safeHandle(C.PRACTICE_REMOVE, async (_e, id) => practice.remove(typeof id === 'string' ? id : null));
+    safeHandle(C.PRACTICE_TODAY, async () => practice.today());
+    ipcMain.on(C.PRACTICE_OPEN, (_e, key, title) => guard('practiceOpen', () => practice.open(typeof key === 'string' ? key : null, typeof title === 'string' ? title : null)));
   }
   if (changelog) {
     safeHandle(C.CHANGELOG_NOTICE, async () => changelog.notice());

@@ -236,6 +236,25 @@ function paintValorant(r, verdict) {
   $('v-summary').hidden = !lines.length;
   $('v-focus-wrap').hidden = !r.focus;
   $('v-focus').textContent = r.focus || '';
+  // PRACTISE THIS (the Practice page): the review's top mistake, its drills
+  // on the Practice page, opened on it. Valorant's alone.
+  {
+    const top = r.kind === 'valorant' && r.insights && Array.isArray(r.insights.mistakes)
+      ? r.insights.mistakes.find((m) => m && typeof m.key === 'string' && m.key) : null;
+    let practise = $('v-focus-wrap').querySelector('.v-practise');
+    if (!practise) {
+      practise = el('button', 'btn btn-link sm v-practise', 'Practise this');
+      practise.type = 'button';
+      practise.addEventListener('click', () => {
+        if (practise.dataset.key) window.occlara.openPractice(practise.dataset.key, practise.dataset.title || null);
+      });
+      $('v-focus').after(practise);
+    }
+    const can = !!top && typeof window.occlara.openPractice === 'function';
+    practise.hidden = !can;
+    practise.dataset.key = can ? top.key : '';
+    practise.dataset.title = can && typeof top.title === 'string' ? top.title : '';
+  }
   // Last match's result on its top mistake comes with the progress, after.
   $('v-focus-was').hidden = true;
   $('v-focus-was').textContent = '';

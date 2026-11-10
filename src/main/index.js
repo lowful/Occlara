@@ -4626,6 +4626,28 @@ const feedbackIpc = createFeedback({
   signedIn: async () => { const v = await accountIpc.view(); return !!(v && v.via); },
   log: (...a) => console.log(...a),
 });
+/*
+ * PRACTICE (docs/claude/ui.md, "The Practice page", services/practice-store.js):
+ * a plan from the player's own repeated mistakes, read from the Patterns
+ * page's own read (getPatterns: reviewStore.recent and patterns.summarise),
+ * the rank band (rankBandNow) and the drill library, kept in the store's
+ * `practice` key. Everything local, and quiet mid match or sealed.
+ */
+const { createPractice } = require('./services/practice-store');
+const practiceIpc = createPractice({
+  store,
+  recent: (g) => reviewStore.recent(g, patternsOf.LOOK_BACK),
+  summarise: (saved) => patternsOf.summarise(saved),
+  band: () => rankBandNow(),
+  riotId: () => store.get('riotId') || '',
+  busy: () => matchInProgress() || windowSealed(),
+  game: () => gameRegistry.get(store.get('game')).id,
+  gameLabel: (id) => { const g = gameRegistry.get(id); return g ? g.label : null; },
+  open: (page) => openPage(page),
+  changed: () => registry.broadcast(C.PUSH_PRACTICE, null),
+  // The drill library, or a stand in for it in a dev run (check:mainwindow).
+  ...(process.env.OCCLARA_DRILLS ? { library: process.env.OCCLARA_DRILLS } : {}),
+});
 const changelogIpc = {
   /** At launch: what this launch says, if anything. */
   start() {
@@ -5121,7 +5143,7 @@ if (!app.requestSingleInstanceLock()) {
     // a clip and applying the cap left the clips past it.
     applyClipCap();
 
-    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc });
+    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc, practice: practiceIpc });
     changelogIpc.start();
     // occlara:// for the sign in's fallback link (8.7), on an installed build
     // only: a dev run would point Windows at electron.exe.

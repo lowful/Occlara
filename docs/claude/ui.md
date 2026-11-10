@@ -693,6 +693,87 @@ Everything about them: changelog.md. `check:mainwindow` writes
 `main-whatsnew.png`, `main-whatsnew-older.png` and
 `main-settings-community.png`, and `main-home.png` with the update line.
 
+### The Practice page
+
+The owner's ask: "something where the players can actually improve with". A
+tab right after Patterns (`shell-nav.js` `practice`, `src/renderer/practice/`,
+`practice-preload.js`), Valorant only: a PLAN from the player's own repeated
+mistakes, never generic tips. Everything is kept on this PC and nothing is
+sent anywhere; the page says so at its foot.
+
+- **The plan is the Patterns page's own list** (`src/shared/practice.js`, pure;
+  `src/main/services/practice-store.js` in main, wired in index.js as
+  `practiceIpc`). Main reads exactly what `getPatterns` reads
+  (`reviewStore.recent` over `patterns.LOOK_BACK`, `patterns.summarise`) and
+  takes its two most serious mistakes that the drill library has drills for,
+  each with "In 4 of your last 6 recorded matches", the patterns' fix, and up
+  to three drills for that cause at the player's rank band (`rankBandNow`,
+  rank-band.js): the band's own drills first, then every band's, never another
+  band's while one fits.
+- **The drill library** is `src/shared/drill-library.json` (its own agent's
+  file, `test:drilllibrary`): `{ version, drills: [{ id, title, cause, where,
+  minutes, bands, steps, goal, why, check }] }`, the cause a death-causes.js or
+  insights.js key without its `cause:` prefix, or `general`. `practice.js
+  normaliseLibrary` reads it in that shape or as a bare array, with `causes`,
+  `name`, `mode`, `duration` as other names; a drill with no id, title, cause or
+  step is dropped, a dash in it becomes a comma, and a drill about credits or
+  buys is dropped (the economy is out of scope). `where` is shown as Practice
+  Range, Deathmatch, Custom game or Unrated match. Read again only when the file
+  changes; `OCCLARA_DRILLS` names another file in a dev run.
+  `scripts/fixtures/drills-sample.json` is the tests' own small library.
+- **It does not churn.** The plan is stored in the store's `practice` key,
+  schema `practice.js SCHEMA` (1): `{ v, plans: { valorant: { madeAt, focus: [{
+  key, title, since, drills }] } }, log: [{ id, drill, title, minutes, cause, at
+  }] }`, read through `normaliseState`, so a missing, malformed or future value
+  is nothing saved and never a throw. A focus stays while its mistake is still
+  in the patterns' list, whatever its order; it is replaced only once its
+  mistake has left it, and a drill only once it is finished (`FINISH`, three
+  marks), by the next one for that cause. No repeated mistake with drills, no
+  plan.
+- **A drill card**: where, minutes, title, the why, 3 to 6 steps, the goal and
+  "How you will know" (the drill's check line, what the next review will show),
+  and Mark as practised: one dated entry, once a day a drill ("Practised
+  today"), "Done 2 of 3 times" under it.
+- **Is it working?** For each focus, the last five recorded matches since the
+  plan against the five before them, as counts: "Down from 5 of 5 to 2 of 5",
+  "Up from 1 of 5 to 3 of 3", "Same, 2 of 5 both times", "Same rate, 2 of 4
+  against 1 of 2", "In 2 of your 3 matches since the plan" with nothing before
+  it, and "Not enough matches yet" under three since the plan. A match that
+  could not count a Riot only key (`progress.js couldCount`, now exported) is in
+  neither window. Under it, quiet, the days practised in a row and the minutes
+  in all, once there are any.
+- **The log**: every mark, dated, each deletable (`PRACTICE_REMOVE`).
+- **Empty states**: League shows the panel naming the game; no drill library a
+  calm line and the log; no matches yet and no repeated mistakes yet each say
+  why and show the `general` drills at the band. Without a Riot ID the band line
+  says the drills fit every level, with Connect your Riot ID (Settings).
+- **Home's line**: "Today's practice: <drill>, 20 minutes" under the Fix card
+  (`#h-practice`, `PRACTICE_TODAY`), the first unfinished drill of the first
+  focus, only with a plan and before the day's first mark; it opens the page.
+- **The review's Practise this** (`.v-practise` under the fix, `review.js`
+  one block): `PRACTICE_OPEN` with the review's top mistake opens the page on
+  it, the focus marked "from your review" where it is in the plan, else its
+  drills shown on their own above the plan and not stored. Main answers it
+  once (`opened`), and the page hands it back on every ask of that visit.
+- **Never mid match** (screen-silence.md): the page is a tab like the others,
+  locked by `syncSeal`; `PRACTICE_GET` and `PRACTICE_TODAY` answer null and
+  `PRACTICE_MARK` and `PRACTICE_REMOVE` `{ ok: false, error: 'match' }` mid
+  match or sealed, and Practise this opens nothing (`check:seal`).
+  `PUSH_PRACTICE` tells the pages to ask again after a mark or a removal.
+- **The bar at 960**: seven tabs, Start and the window's buttons fit at the
+  window's least width (`shell.css`, below 1040 the tabs and the bar draw in;
+  `check:mainwindow` measures it on a page with Start in the bar).
+- Tests: `test:practice` (the library, the plan, no churn, the refresh after
+  three marks, the wording at each threshold, the store's tolerance, Home's line
+  once a day and never mid match, the page's dom hooks and its bridge),
+  `test:shellnav` and `test:surfaces` (the tab), `check:seal`,
+  `check:mainwindow` (the plan on the sample library, a mark and its removal
+  moving the log and Home's line, the review's Practise this, the bar at 960;
+  `OCCLARA_SHOTS=1` writes `main-practice.png`, `main-practice-working.png`,
+  `main-practice-marked.png`, `main-practice-960.png`,
+  `main-practice-1280.png`, `main-practice-opened.png`,
+  `main-home-practice.png` and `main-review-practise.png`).
+
 ### Report a problem
 
 `src/renderer/feedback/`, shell-nav `feedback` (`nav: false`), opened from

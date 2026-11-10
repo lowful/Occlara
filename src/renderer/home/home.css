@@ -143,6 +143,13 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .rows { display: flex; flex-direction: column; gap: var(--space-4); }
 .row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.22fr); gap: var(--space-4); }
 .row.single { grid-template-columns: minmax(0, 1fr); }
+/* TODAY'S PRACTICE: one quiet line under the Fix card (its column), a link
+   to the Practice page; under the last match when there is no fix. */
+.h-practice { grid-column: 2; margin: calc(var(--space-2) * -1) 0 0; font-size: 13px; line-height: 1.5; }
+.row.single > .h-practice { grid-column: 1; }
+.h-practice[hidden] { display: none; }
+.h-practice .btn-link { height: auto; padding: 0; font-size: 13px; color: var(--text-dim); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.h-practice .btn-link:hover { color: var(--text); text-decoration-color: var(--text-dim); }
 
 /* ── The last match ─────────────────────────────────────────────────────── */
 /* TEXT OVER ART HOLDS 4.5:1 (Progress v3): the dense scrim, and the dim ink

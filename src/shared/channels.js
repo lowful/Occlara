@@ -124,6 +124,16 @@ const CHANNELS = {
   // one game, newest first, with the clips kept of them and the compilation
   // by repeated mistake (src/shared/moments.js).
   MOMENTS_GET:     'reviews:moments',    // (game) -> { game, matches: [{ ..., moments }], compilation, counts, clipsNote }
+  // The Practice page (docs/claude/ui.md, "The Practice page"): a plan from
+  // the player's own repeated mistakes, its drills, the log and whether it is
+  // working (src/shared/practice.js, services/practice-store.js). All local,
+  // every one quiet mid match: null, or { ok: false, error: 'match' }.
+  PRACTICE_GET:    'practice:get',       // (game, asked?) -> { status, focus, asked, general, streak, log, today, ... } | null
+  PRACTICE_MARK:   'practice:mark',      // (drillId) -> { ok } | { ok: false, error: 'match' | 'drill' | 'today' }
+  PRACTICE_REMOVE: 'practice:remove',    // (entryId) -> { ok } | { ok: false, error }
+  PRACTICE_TODAY:  'practice:today',     // () -> Home's line { drill, cause, title, minutes, text } | null
+  PRACTICE_OPEN:   'practice:open',      // send (key, title) the page, opened on one mistake (the review's Practise this)
+  PUSH_PRACTICE:   'push:practice',      // main -> pages: the plan or the log moved; ask again
   // Grading the recent matches of the Riot ID in config from Riot's record
   // (src/main/services/backfill.js).
   BACKFILL_START:  'backfill:start',     // () -> the run's status
@@ -281,6 +291,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_TOAST,
   CHANNELS.PUSH_RECORDER,
   CHANNELS.PUSH_FRAMES,
+  CHANNELS.PUSH_PRACTICE,
 ];
 
 module.exports = CHANNELS;

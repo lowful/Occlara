@@ -30,6 +30,8 @@ const PAGE_ICO = {
   home: '<path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/>',
   matches: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
   patterns: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  // Practice: a target, for the drills worked on between matches.
+  practice: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.8"/>',
   // Moments (8.7): a film frame, for the deaths and highlights compiled.
   moments: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 9h17M3.5 15h17M8 5v14M16 5v14"/>',
   stats: '<path d="M5 20V11M12 20V4M19 20v-6"/>',

@@ -44,8 +44,13 @@ ok(pageOf('moments') && pageOf('moments').surface === 'moments' && pageOf('momen
   'Moments is a page with its own surface and preload, in the nav list', JSON.stringify(pageOf('moments')));
 ok(!pageOf('breakdown') && !PAGES.some((p) => p.query && p.query.section === 'breakdown'), 'the Breakdown page is gone');
 ok(!pageOf('nope'), 'an unknown page is none');
-ok(PAGES.filter((p) => p.nav).map((p) => p.id).join() === 'home,matches,patterns,moments,stats,coach',
-  'the sidebar lists Home, Matches, Patterns, Moments, Stats and Ask Coach, in that order');
+ok(PAGES.filter((p) => p.nav).map((p) => p.id).join() === 'home,matches,patterns,practice,moments,stats,coach',
+  'the bar lists Home, Matches, Patterns, Practice, Moments, Stats and Ask Coach, in that order');
+// PRACTICE (ui.md, "The Practice page"): its own surface and preload, a tab
+// right after Patterns, whose repeated mistakes its plan is made from.
+ok(pageOf('practice') && pageOf('practice').surface === 'practice' && pageOf('practice').preload === 'practice-preload.js' && pageOf('practice').nav === true
+  && direction('patterns', 'practice') === 'forward' && direction('practice', 'moments') === 'forward' && direction('practice', 'patterns') === 'back',
+  'Practice is a page with its own surface and preload, between Patterns and Moments');
 // THE INVITE PAGE (8.7): its own surface and preload, out of the nav list (its
 // button is in the sidebar's foot, directly above Settings), and just before
 // Settings, so the window moves forward into it from every page above it.

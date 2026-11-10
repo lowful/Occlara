@@ -6359,7 +6359,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
 
     // The nav: Moments in the sidebar where Breakdown was, locked by the seal.
     const nav = require('../src/shared/shell-nav');
-    ok(nav.PAGES.filter((p) => p.nav).map((p) => p.id).join() === 'home,matches,patterns,moments,stats,coach', 'the sidebar lists Moments in Breakdown\'s place');
+    ok(nav.PAGES.filter((p) => p.nav).map((p) => p.id).join() === 'home,matches,patterns,practice,moments,stats,coach', 'the sidebar lists Moments in Breakdown\'s place, after Practice');
     const s = await openShell({ game: 'valorant' });
     const item = s.document.querySelector('#nav .nav-item[data-page="moments"]');
     ok(item && item.textContent.trim() === 'Moments' && item.querySelector('svg path'), 'the shell draws Moments with an icon of its own');

@@ -241,6 +241,13 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   .bar { gap: var(--space-3); }
   .nav .nav-item { padding: 0 11px; }
 }
+/* Seven tabs (Practice) beside the game switch, Start and the window's
+   buttons at the window's least width (960): the tabs and the bar draw in. */
+@media (max-width: 1040px) {
+  .bar { gap: var(--space-2); padding-left: var(--space-5); }
+  .nav { gap: 2px; }
+  .nav .nav-item { padding: 0 9px; }
+}
 
 /* ── The Recording screen: what the window shows during a match ────────── */
 /* The pages go at once when the seal comes on (main-window.js); this screen

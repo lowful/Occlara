@@ -321,6 +321,10 @@ header {
 /* The fix (Progress v3): a tile of its own inside the Verdict's card, the
    one place a box sits in a box, because it is the thing to take away. */
 .v-focus { padding: var(--space-5) var(--space-6); border-radius: var(--r-tile); background: var(--s2); box-shadow: var(--rim); }
+/* Practise this (the Practice page), under the fix, on its left edge. */
+.v-focus .v-practise { display: inline-flex; height: auto; margin-top: var(--space-2); padding: 0; color: var(--text-dim); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.v-focus .v-practise:hover { color: var(--text); }
+.v-focus .v-practise[hidden] { display: none; }
 .v-focus[hidden] { display: none; }
 .v-focus-label { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-2); }
 .v-focus-text {

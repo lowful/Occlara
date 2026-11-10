@@ -296,6 +296,23 @@ setTimeout(async () => {
       const momentsShown = shownViews();
       lines.push(`${game} match: Moments asked for mid match: shown=${momentsMid.shown} pages shown=${momentsShown.join(',') || 'none'} button locked=${!!momentsLocked}`);
       if (momentsMid.shown !== null || momentsShown.length || !momentsLocked) return report(false, `mid ${game} match, the Moments page or its button is not sealed`);
+      // AND THE PRACTICE PAGE (ui.md, "The Practice page"): asked for mid
+      // match no page shows and its tab is locked, and its channels, called
+      // as the page and Home would, answer nothing and store nothing.
+      send(C.SHELL_NAV, 'practice');
+      await wait(400);
+      const practiceMid = await invoke(C.SHELL_GET);
+      const practiceLocked = await until(() => sjs("(() => { const b = document.querySelector('#nav .nav-item[data-page=\"practice\"]'); return !!b && b.disabled; })()"), 3000);
+      const practiceShown = shownViews();
+      const practicePage = await invoke(C.PRACTICE_GET, 'valorant');
+      const practiceToday = await invoke(C.PRACTICE_TODAY);
+      const practiceMark = await invoke(C.PRACTICE_MARK, 'general-range-warm-up');
+      lines.push(`${game} match: Practice asked for mid match: shown=${practiceMid.shown} pages shown=${practiceShown.join(',') || 'none'} tab locked=${!!practiceLocked}`
+        + ` | page=${JSON.stringify(practicePage)} today=${JSON.stringify(practiceToday)} mark=${JSON.stringify(practiceMark)}`);
+      if (practiceMid.shown !== null || practiceShown.length || !practiceLocked) return report(false, `mid ${game} match, the Practice page or its tab is not sealed`);
+      if (practicePage !== null || practiceToday !== null || !practiceMark || practiceMark.ok !== false || practiceMark.error !== 'match') {
+        return report(false, `mid ${game} match, the Practice page's channels answered: ${JSON.stringify({ practicePage, practiceToday, practiceMark })}`);
+      }
       // AND THE PROFILE PAGE (8.8), whose buy button opens a checkout: asked
       // for mid match no page shows and its button is locked, and its three
       // channels, called as the page would, answer nothing and open nothing.

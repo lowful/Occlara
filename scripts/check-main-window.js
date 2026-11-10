@@ -158,7 +158,7 @@ setTimeout(async () => {
     const nav = await sjs("[...document.querySelectorAll('#nav .nav-item')].map((b) => b.textContent.trim()).join(',')");
     const start = await sjs("document.querySelector('#toggle .t-label').textContent");
     lines.push(`sidebar: ${nav} | Start reads "${start}"`);
-    if (nav !== 'Home,Matches,Patterns,Moments,Stats,Ask Coach') return report(false, `the sidebar lists ${nav}`);
+    if (nav !== 'Home,Matches,Patterns,Practice,Moments,Stats,Ask Coach') return report(false, `the sidebar lists ${nav}`);
     if (start !== 'Start') return report(false, `the record button reads ${start}`);
 
     // 2. Home, the page the window opens on.
@@ -217,7 +217,7 @@ setTimeout(async () => {
     })()`);
     const bar = await barNow();
     lines.push(`top bar on Home: ${JSON.stringify(bar)} errs=${errs.join(" | ")}`);
-    if (bar.h !== mainWindow.TOP_H || bar.tabs !== 6 || bar.rec || bar.pause || bar.drawer || !bar.inDrawer) {
+    if (bar.h !== mainWindow.TOP_H || bar.tabs !== 7 || bar.rec || bar.pause || bar.drawer || !bar.inDrawer) {
       return report(false, `the top bar on Home is not the tabs without a Start of its own: ${JSON.stringify(bar)}`);
     }
     if (bar.kids !== 'profile,invite,settings,feedback,discord') return report(false, `the drawer does not hold every page the sidebar's foot did: ${bar.kids}`);
@@ -974,6 +974,115 @@ setTimeout(async () => {
     lines.push(`moments row opened its review at ${landed}`);
     if (landed !== 'round-2') return report(false, 'the review opened from a Moments row did not jump to its round');
     await shot('moments-review', mainWindow, win);
+
+    // THE PRACTICE PAGE (ui.md, "The Practice page"): the plan from the
+    // seeded library's repeated mistakes, two of them with their drills as
+    // cards, whether it is working, the log; Home's line under the Fix card;
+    // and the bar still fitting its seven tabs at the window's least width.
+    mainWindow.show('practice');
+    if (!await until(settled('practice'), 4000)) return report(false, 'the Practice page never came in');
+    const pcjs = (s) => mainWindow.pageViews().get('practice').webContents.executeJavaScript(s);
+    const practicePage = await until(() => pcjs(`(() => {
+      if (document.getElementById('pc-page').hidden) return null;
+      const q = (s) => document.querySelectorAll(s).length;
+      const page = document.querySelector('.body');
+      return { plan: !document.getElementById('pc-plan').hidden, focus: q('.pc-focus'), cards: q('.pc-drill'), marks: q('.pc-drill .pc-mark'),
+        titles: [...document.querySelectorAll('.pc-focus-title')].map((n) => n.textContent),
+        counts: [...document.querySelectorAll('.pc-count')].map((n) => n.textContent),
+        trend: q('#pc-trend .pc-trow'), log: !document.getElementById('pc-log-none').hidden,
+        overflow: page.scrollWidth > page.clientWidth + 1 };
+    })()`), 6000);
+    lines.push(`practice page: ${JSON.stringify(practicePage)}`);
+    if (!practicePage || !practicePage.plan || practicePage.focus !== 2 || practicePage.cards < 4 || practicePage.marks !== practicePage.cards
+      || practicePage.trend !== 2 || !practicePage.log || practicePage.overflow || practicePage.counts.some((c) => !/^In \d+ of your last \d+ recorded matches$/.test(c))) {
+      return report(false, `the Practice page does not show the plan from the seeded library: ${JSON.stringify(practicePage)}`);
+    }
+    await shot('practice', mainWindow, win);
+    if (process.env.OCCLARA_SHOTS === '1') {
+      await pcjs("document.getElementById('pc-working').scrollIntoView({ block: 'start' }); true");
+      await shot('practice-working', mainWindow, win);
+      await pcjs("document.querySelector('.body').scrollTop = 0; true");
+    }
+    // Home's line, "Today's practice: ...", under the Fix card, opening the page.
+    mainWindow.show('home');
+    if (!await until(settled('home'), 4000)) return report(false, 'Home did not come back from Practice');
+    const practiceLine = await until(() => hjs("(() => { const p = document.getElementById('h-practice'); return p && !p.hidden ? document.getElementById('h-practice-open').textContent : null; })()"), 4000);
+    lines.push(`home's practice line: ${JSON.stringify(practiceLine)}`);
+    if (!practiceLine || !/^Today's practice: .+, \d+ minutes$/.test(practiceLine)) return report(false, `Home has no practice line: ${practiceLine}`);
+    await shot('home-practice', mainWindow, win);
+    // A drill marked practised: in the log, dated, the card says so, Home's
+    // line goes for the day; deleted, it is out of the log and the line is back.
+    mainWindow.show('practice');
+    if (!await until(settled('practice'), 4000)) return report(false, 'the Practice page did not come back');
+    await pcjs("document.querySelector('.pc-drill .pc-mark').click(); true");
+    const marked = await until(() => pcjs(`(() => {
+      const rows = document.querySelectorAll('#pc-log .pc-lrow');
+      const b = document.querySelector('.pc-drill .pc-mark');
+      return rows.length === 1 && b.disabled ? { row: rows[0].textContent, button: b.textContent, streak: document.getElementById('pc-streak').textContent } : null;
+    })()`), 4000);
+    lines.push(`a drill marked practised: ${JSON.stringify(marked)}`);
+    if (!marked || marked.button !== 'Practised today') return report(false, `marking a drill did not reach the log: ${JSON.stringify(marked)}`);
+    if (process.env.OCCLARA_SHOTS === '1') {
+      await pcjs("document.getElementById('pc-working').scrollIntoView({ block: 'start' }); true");
+      await shot('practice-marked', mainWindow, win);
+    }
+    const lineGone = await until(() => hjs("document.getElementById('h-practice').hidden"), 4000);
+    await pcjs("document.querySelector('#pc-log .pc-del').click(); true");
+    const unmarked = await until(() => pcjs("document.querySelectorAll('#pc-log .pc-lrow').length === 0 && !document.getElementById('pc-log-none').hidden"), 4000);
+    const lineBack = await until(() => hjs("!document.getElementById('h-practice').hidden"), 4000);
+    lines.push(`home's line once practised today: gone=${!!lineGone} | the entry deleted: ${!!unmarked} | the line back=${!!lineBack}`);
+    if (!lineGone || !unmarked || !lineBack) return report(false, 'marking or deleting a drill did not move the log and Home\'s line');
+    await pcjs("document.querySelector('.body').scrollTop = 0; true");
+    // THE BAR AT 960 (the window's least width) with Practice in it: the tabs
+    // end before the game switch and Start, nothing cut.
+    {
+      const [w0, h0] = win.getContentSize();
+      // On a page other than Home, where the bar carries Start too.
+      mainWindow.show('practice');
+      await until(settled('practice'), 4000);
+      win.setContentSize(960, h0);
+      await wait(600);
+      const bar = await sjs(`(() => {
+        const nav = document.getElementById('nav').getBoundingClientRect();
+        const end = document.querySelector('.bar-end').getBoundingClientRect();
+        const tabs = [...document.querySelectorAll('#nav .nav-item')];
+        const start = document.getElementById('toggle');
+        return { width: window.innerWidth, navRight: Math.round(nav.right), endLeft: Math.round(end.left), endRight: Math.round(end.right),
+          tabs: tabs.length, cut: tabs.some((t) => t.scrollWidth > t.clientWidth + 1), start: !!start && start.offsetParent !== null };
+      })()`);
+      lines.push(`the bar at 960 with Practice, Start in it: ${JSON.stringify(bar)}`);
+      await shot('practice-960', mainWindow, win);
+      if (process.env.OCCLARA_SHOTS === '1') {
+        win.setContentSize(1280, h0);
+        await wait(600);
+        await shot('practice-1280', mainWindow, win);
+      }
+      win.setContentSize(w0, h0);
+      await wait(400);
+      if (bar.tabs !== 7 || bar.cut || !bar.start || bar.navRight > bar.endLeft || bar.endRight > bar.width) {
+        return report(false, `at 960 the bar does not fit its seven tabs: ${JSON.stringify(bar)}`);
+      }
+    }
+    // The review's Practise this, under its fix: the Practice page, opened on
+    // the review's top mistake, marked in the plan where it is one of its two.
+    mainWindow.show('review');
+    if (!await until(settled('review'), 4000)) return report(false, 'the review did not come back for Practise this');
+    if (process.env.OCCLARA_SHOTS === '1') {
+      await rvjs("document.getElementById('v-focus-wrap').scrollIntoView({ block: 'center' }); true");
+      await shot('review-practise', mainWindow, win);
+    }
+    const practise = await until(() => rvjs("(() => { const b = document.querySelector('#v-focus-wrap .v-practise'); return b && !b.hidden ? b.dataset.key : null; })()"), 4000);
+    if (!practise) return report(false, "the review's fix has no Practise this");
+    await rvjs("document.querySelector('#v-focus-wrap .v-practise').click(); true");
+    if (!await until(settled('practice'), 4000)) return report(false, 'Practise this did not open the Practice page');
+    const openedOn = await until(() => pcjs(`(() => {
+      const f = document.querySelector('.pc-focus.opened');
+      const a = document.getElementById('pc-asked');
+      return f ? 'plan:' + f.dataset.key : !a.hidden ? 'asked:' + document.getElementById('pc-asked-title').textContent : null;
+    })()`), 4000);
+    lines.push(`review's Practise this (${practise}): the Practice page opened on ${openedOn}`);
+    if (!openedOn) return report(false, `Practise this opened the Practice page on nothing: ${practise}`);
+    await shot('practice-opened', mainWindow, win);
 
     if (process.env.OCCLARA_SHOTS === '1') {
       for (const page of ['patterns', 'stats', 'coach', 'settings']) {

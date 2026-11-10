@@ -1,0 +1,400 @@
+{
+  "version": 1,
+  "note": "A small stand in for src/shared/drill-library.json, in its own shape (one cause a drill, the cause as death-causes.js or insights.js names it without its cause: prefix, or general; bands as rank-band.js keys, empty for every band; where, minutes, steps, goal, why and check), so test:practice holds its rules on drills that never change under it.",
+  "drills": [
+    {
+      "id": "trade-pairs-dm",
+      "title": "Fight where a teammate can trade",
+      "cause": "untraded",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "Queue Team Deathmatch and pick one teammate to stay near for the whole game.",
+        "Before every fight, check that your teammate can see the same angle.",
+        "If they cannot, step back and wait for them instead of swinging.",
+        "After each death, say out loud whether you could have been traded."
+      ],
+      "goal": "Ten fights in a row taken with a teammate in view of your angle.",
+      "why": "A short why for fight where a teammate can trade.",
+      "check": "Your next review counts fewer deaths nobody traded."
+    },
+    {
+      "id": "trade-pairs-dm-isolated",
+      "title": "Fight where a teammate can trade",
+      "cause": "isolated",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "Queue Team Deathmatch and pick one teammate to stay near for the whole game.",
+        "Before every fight, check that your teammate can see the same angle.",
+        "If they cannot, step back and wait for them instead of swinging.",
+        "After each death, say out loud whether you could have been traded."
+      ],
+      "goal": "Ten fights in a row taken with a teammate in view of your angle.",
+      "why": "A short why for fight where a teammate can trade.",
+      "check": "Your next review counts fewer deaths nobody traded."
+    },
+    {
+      "id": "swing-second-custom",
+      "title": "Swing second, then trade",
+      "cause": "untraded",
+      "where": "custom",
+      "minutes": 10,
+      "bands": [
+        "iron_bronze",
+        "silver_gold",
+        "plat_diamond"
+      ],
+      "steps": [
+        "Start a custom game with a friend, or Team Deathmatch with a duo.",
+        "Let your partner take the first look at a corner while you hold half a step behind.",
+        "The moment they are shot at, swing the same angle and trade.",
+        "Swap roles every five fights."
+      ],
+      "goal": "Trade your partner within two seconds in 7 of 10 tries.",
+      "why": "A short why for swing second, then trade.",
+      "check": "Your next review shows more traded deaths and fewer first deaths left alone."
+    },
+    {
+      "id": "swing-second-custom-first-death",
+      "title": "Swing second, then trade",
+      "cause": "first-death",
+      "where": "custom",
+      "minutes": 10,
+      "bands": [
+        "iron_bronze",
+        "silver_gold",
+        "plat_diamond"
+      ],
+      "steps": [
+        "Start a custom game with a friend, or Team Deathmatch with a duo.",
+        "Let your partner take the first look at a corner while you hold half a step behind.",
+        "The moment they are shot at, swing the same angle and trade.",
+        "Swap roles every five fights."
+      ],
+      "goal": "Trade your partner within two seconds in 7 of 10 tries.",
+      "why": "A short why for swing second, then trade.",
+      "check": "Your next review shows more traded deaths and fewer first deaths left alone."
+    },
+    {
+      "id": "swing-second-custom-early",
+      "title": "Swing second, then trade",
+      "cause": "early",
+      "where": "custom",
+      "minutes": 10,
+      "bands": [
+        "iron_bronze",
+        "silver_gold",
+        "plat_diamond"
+      ],
+      "steps": [
+        "Start a custom game with a friend, or Team Deathmatch with a duo.",
+        "Let your partner take the first look at a corner while you hold half a step behind.",
+        "The moment they are shot at, swing the same angle and trade.",
+        "Swap roles every five fights."
+      ],
+      "goal": "Trade your partner within two seconds in 7 of 10 tries.",
+      "why": "A short why for swing second, then trade.",
+      "check": "Your next review shows more traded deaths and fewer first deaths left alone."
+    },
+    {
+      "id": "slow-first-30-range",
+      "title": "Clear one angle at a time",
+      "cause": "early",
+      "where": "range",
+      "minutes": 8,
+      "bands": [],
+      "steps": [
+        "In the Practice Range, set the bots on the left to strafe.",
+        "Walk the course and stop at each corner before you look past it.",
+        "Clear one angle, then the next, never two at once.",
+        "Count the angles you rushed and try to get the count to zero."
+      ],
+      "goal": "Three runs of the course with no angle rushed.",
+      "why": "A short why for clear one angle at a time.",
+      "check": "Your next review counts fewer deaths in the first 30 seconds of a round."
+    },
+    {
+      "id": "slow-first-30-range-first-death",
+      "title": "Clear one angle at a time",
+      "cause": "first-death",
+      "where": "range",
+      "minutes": 8,
+      "bands": [],
+      "steps": [
+        "In the Practice Range, set the bots on the left to strafe.",
+        "Walk the course and stop at each corner before you look past it.",
+        "Clear one angle, then the next, never two at once.",
+        "Count the angles you rushed and try to get the count to zero."
+      ],
+      "goal": "Three runs of the course with no angle rushed.",
+      "why": "A short why for clear one angle at a time.",
+      "check": "Your next review counts fewer deaths in the first 30 seconds of a round."
+    },
+    {
+      "id": "slow-first-30-range-dry-peek",
+      "title": "Clear one angle at a time",
+      "cause": "dry-peek",
+      "where": "range",
+      "minutes": 8,
+      "bands": [],
+      "steps": [
+        "In the Practice Range, set the bots on the left to strafe.",
+        "Walk the course and stop at each corner before you look past it.",
+        "Clear one angle, then the next, never two at once.",
+        "Count the angles you rushed and try to get the count to zero."
+      ],
+      "goal": "Three runs of the course with no angle rushed.",
+      "why": "A short why for clear one angle at a time.",
+      "check": "Your next review counts fewer deaths in the first 30 seconds of a round."
+    },
+    {
+      "id": "jiggle-info-range",
+      "title": "Jiggle for information, then peek",
+      "cause": "dry-peek",
+      "where": "range",
+      "minutes": 10,
+      "bands": [
+        "silver_gold",
+        "plat_diamond",
+        "asc_plus"
+      ],
+      "steps": [
+        "Set the Range bots to peek a doorway at random.",
+        "Jiggle peek the doorway first, a short look in and out.",
+        "Only take the full peek after the jiggle showed you where the bot is.",
+        "After a fight, move off the angle before you look again."
+      ],
+      "goal": "Twenty peeks, each one after a jiggle, none from the same spot twice.",
+      "why": "A short why for jiggle for information, then peek.",
+      "check": "Your next review counts fewer dry peeks and repeeks."
+    },
+    {
+      "id": "jiggle-info-range-repeek",
+      "title": "Jiggle for information, then peek",
+      "cause": "repeek",
+      "where": "range",
+      "minutes": 10,
+      "bands": [
+        "silver_gold",
+        "plat_diamond",
+        "asc_plus"
+      ],
+      "steps": [
+        "Set the Range bots to peek a doorway at random.",
+        "Jiggle peek the doorway first, a short look in and out.",
+        "Only take the full peek after the jiggle showed you where the bot is.",
+        "After a fight, move off the angle before you look again."
+      ],
+      "goal": "Twenty peeks, each one after a jiggle, none from the same spot twice.",
+      "why": "A short why for jiggle for information, then peek.",
+      "check": "Your next review counts fewer dry peeks and repeeks."
+    },
+    {
+      "id": "jiggle-info-range-first-death",
+      "title": "Jiggle for information, then peek",
+      "cause": "first-death",
+      "where": "range",
+      "minutes": 10,
+      "bands": [
+        "silver_gold",
+        "plat_diamond",
+        "asc_plus"
+      ],
+      "steps": [
+        "Set the Range bots to peek a doorway at random.",
+        "Jiggle peek the doorway first, a short look in and out.",
+        "Only take the full peek after the jiggle showed you where the bot is.",
+        "After a fight, move off the angle before you look again."
+      ],
+      "goal": "Twenty peeks, each one after a jiggle, none from the same spot twice.",
+      "why": "A short why for jiggle for information, then peek.",
+      "check": "Your next review counts fewer dry peeks and repeeks."
+    },
+    {
+      "id": "off-angle-custom",
+      "title": "Play one step off the usual spot",
+      "cause": "same-spot",
+      "where": "custom",
+      "minutes": 12,
+      "bands": [],
+      "steps": [
+        "Load your most played map in a custom game.",
+        "Walk to the spot you die at most and find two other spots that hold the same angle.",
+        "For each one, check you can step back behind cover after a kill.",
+        "Pick a different one of the three each round of your next match."
+      ],
+      "goal": "Three spots for each site you defend, each with a way out.",
+      "why": "A short why for play one step off the usual spot.",
+      "check": "Your next review shows your deaths spread across more places."
+    },
+    {
+      "id": "off-angle-custom-no-escape",
+      "title": "Play one step off the usual spot",
+      "cause": "no-escape",
+      "where": "custom",
+      "minutes": 12,
+      "bands": [],
+      "steps": [
+        "Load your most played map in a custom game.",
+        "Walk to the spot you die at most and find two other spots that hold the same angle.",
+        "For each one, check you can step back behind cover after a kill.",
+        "Pick a different one of the three each round of your next match."
+      ],
+      "goal": "Three spots for each site you defend, each with a way out.",
+      "why": "A short why for play one step off the usual spot.",
+      "check": "Your next review shows your deaths spread across more places."
+    },
+    {
+      "id": "off-angle-custom-crossfire",
+      "title": "Play one step off the usual spot",
+      "cause": "crossfire",
+      "where": "custom",
+      "minutes": 12,
+      "bands": [],
+      "steps": [
+        "Load your most played map in a custom game.",
+        "Walk to the spot you die at most and find two other spots that hold the same angle.",
+        "For each one, check you can step back behind cover after a kill.",
+        "Pick a different one of the three each round of your next match."
+      ],
+      "goal": "Three spots for each site you defend, each with a way out.",
+      "why": "A short why for play one step off the usual spot.",
+      "check": "Your next review shows your deaths spread across more places."
+    },
+    {
+      "id": "hold-the-lead-dm",
+      "title": "When you are up, group and hold",
+      "cause": "lost-advantage",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "In Team Deathmatch, after every kill your team gets, stop and hold your angle for three seconds.",
+        "Let the enemy come to you instead of chasing the next fight.",
+        "Only push once a teammate is beside you."
+      ],
+      "goal": "A whole game where you never chase straight after a kill.",
+      "why": "A short why for when you are up, group and hold.",
+      "check": "Your next review counts fewer rounds where you gave back the advantage."
+    },
+    {
+      "id": "hold-the-lead-dm-overextend",
+      "title": "When you are up, group and hold",
+      "cause": "overextend",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "In Team Deathmatch, after every kill your team gets, stop and hold your angle for three seconds.",
+        "Let the enemy come to you instead of chasing the next fight.",
+        "Only push once a teammate is beside you."
+      ],
+      "goal": "A whole game where you never chase straight after a kill.",
+      "why": "A short why for when you are up, group and hold.",
+      "check": "Your next review counts fewer rounds where you gave back the advantage."
+    },
+    {
+      "id": "hold-the-lead-dm-rotating",
+      "title": "When you are up, group and hold",
+      "cause": "rotating",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "In Team Deathmatch, after every kill your team gets, stop and hold your angle for three seconds.",
+        "Let the enemy come to you instead of chasing the next fight.",
+        "Only push once a teammate is beside you."
+      ],
+      "goal": "A whole game where you never chase straight after a kill.",
+      "why": "A short why for when you are up, group and hold.",
+      "check": "Your next review counts fewer rounds where you gave back the advantage."
+    },
+    {
+      "id": "crosshair-height-range",
+      "title": "Crosshair at head height",
+      "cause": "general",
+      "where": "range",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "In the Practice Range, walk the strafing bots course.",
+        "Keep your crosshair at head height on every corner before a bot appears.",
+        "Move only your feet to clear angles, not your aim up and down.",
+        "Finish with fifty shots at the bots on medium."
+      ],
+      "goal": "Most of your first shots land at head height without moving your aim up.",
+      "why": "A short why for crosshair at head height.",
+      "check": "Your next review shows more duels won from a sound position."
+    },
+    {
+      "id": "crosshair-height-range-lost-duel",
+      "title": "Crosshair at head height",
+      "cause": "lost-duel",
+      "where": "range",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "In the Practice Range, walk the strafing bots course.",
+        "Keep your crosshair at head height on every corner before a bot appears.",
+        "Move only your feet to clear angles, not your aim up and down.",
+        "Finish with fifty shots at the bots on medium."
+      ],
+      "goal": "Most of your first shots land at head height without moving your aim up.",
+      "why": "A short why for crosshair at head height.",
+      "check": "Your next review shows more duels won from a sound position."
+    },
+    {
+      "id": "deathmatch-warmup",
+      "title": "One Deathmatch, one focus",
+      "cause": "general",
+      "where": "deathmatch",
+      "minutes": 9,
+      "bands": [],
+      "steps": [
+        "Before your first match of the day, play one Deathmatch.",
+        "Pick one thing to work on for the whole game, such as stopping before you shoot.",
+        "Ignore your score and count how often you did that one thing."
+      ],
+      "goal": "One whole Deathmatch keeping to the one thing you picked.",
+      "why": "A short why for one deathmatch, one focus.",
+      "check": "Your first match after it starts calmer, and the review shows it."
+    },
+    {
+      "id": "utility-lineup-custom",
+      "title": "Learn one setup for your agent",
+      "cause": "general",
+      "where": "custom",
+      "minutes": 12,
+      "bands": [],
+      "steps": [
+        "Load a custom game on the map you play next.",
+        "Learn one setup with your agent's utility that covers a plant or a defuse.",
+        "Throw it five times from the same spot until it lands the same way.",
+        "Use it once in your next match."
+      ],
+      "goal": "One setup you can throw the same way five times in a row.",
+      "why": "A short why for learn one setup for your agent.",
+      "check": "Your next review counts fewer deaths in the open on the spike."
+    },
+    {
+      "id": "utility-lineup-custom-exposed",
+      "title": "Learn one setup for your agent",
+      "cause": "exposed",
+      "where": "custom",
+      "minutes": 12,
+      "bands": [],
+      "steps": [
+        "Load a custom game on the map you play next.",
+        "Learn one setup with your agent's utility that covers a plant or a defuse.",
+        "Throw it five times from the same spot until it lands the same way.",
+        "Use it once in your next match."
+      ],
+      "goal": "One setup you can throw the same way five times in a row.",
+      "why": "A short why for learn one setup for your agent.",
+      "check": "Your next review counts fewer deaths in the open on the spike."
+    }
+  ]
+}

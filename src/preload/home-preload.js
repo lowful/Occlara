@@ -137,4 +137,8 @@ contextBridge.exposeInMainWorld('occlara', {
   onNews:       (cb) => subscribe(C.PUSH_CHANGELOG, cb),
   newsSeen:     (version) => ipcRenderer.send(C.CHANGELOG_SEEN, String(version || '')),
   openWhatsNew: () => ipcRenderer.send(C.SHELL_NAV, 'whatsnew'),
+  // Today's practice (the Practice page): main's line { text, ... } or null,
+  // null with no plan, once practised today, for League and mid match.
+  getPracticeToday: () => ipcRenderer.invoke(C.PRACTICE_TODAY),
+  onPractice:   (cb) => subscribe(C.PUSH_PRACTICE, cb),
 });

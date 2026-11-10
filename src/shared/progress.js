@@ -326,4 +326,6 @@ function libraryProgress(saved) {
   return { marks, run: newest ? newest.run : null, latest: newest && newest.lines[0] ? newest.lines[0] : null };
 }
 
-module.exports = { matchProgress, libraryProgress, RUN_LETTERS, BEST_FLOOR, STREAK_MIN };
+// couldCount is read by practice.js too (the Practice page's "Is it working?"),
+// so a match that could not count a Riot only key is never counted as clean there.
+module.exports = { matchProgress, libraryProgress, couldCount, RUN_LETTERS, BEST_FLOOR, STREAK_MIN };
