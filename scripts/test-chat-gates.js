@@ -2997,7 +2997,7 @@ console.log('\nround 8, the game facts gates:');
     const names = gates.GATES.map(([n]) => n);
     const at = names.indexOf('oneshot');
     // The coach bench 9's three gates come after them, then the coach bench 10's two and the bench 11's one (asserted in their own sections).
-    ok(names.slice(at, at + 5).join() === 'oneshot,move-fire,bullets,unseen,looks' && names.slice(at + 5).join() === 'economy-scope,premise,map-habit,clock,spike-premise,next-site,guided,side-use,action-premise,spike-side,machinery',
+    ok(names.slice(at, at + 5).join() === 'oneshot,move-fire,bullets,unseen,looks' && names.slice(at + 5).join() === 'economy-scope,premise,map-habit,clock,spike-premise,next-site,guided,side-use,action-premise,spike-side,machinery,cause',
       'the round 8 gates run after every gate before, and the stream C looks gate after them');
   }
   // Deathmatch: the disclaimer loophole (gateMode) and the frame across sentences (gateReply).
@@ -3903,7 +3903,8 @@ console.log('\nround 8, the game facts gates:');
   ok(gates.check(haven, fx9).drop?.gate === 'map-habit' && gates.check('They hit B and lost, so expect A next round.', fx9).drop?.gate === 'next-site'
     && !gates.check('They hit B and lost it.', fx9).drop, 'KVOVQ6jiQw8-6: the invented Haven habit goes, this enemy\'s own habit stays, and a next site predicted from it goes as next-site');
   // Changed by the coach bench 10 and 11: their gates (clock, spike-premise, next-site) come after these three.
-  ok(gates.GATES.slice(-11, -8).map(([n]) => n).join() === 'economy-scope,premise,map-habit', 'the three bench 9 gates run after every gate before');
+  // And the coach bench 12's two and 13's one.
+  ok(gates.GATES.slice(-12, -9).map(([n]) => n).join() === 'economy-scope,premise,map-habit', 'the three bench 9 gates run after every gate before');
   // Map control and positioning: the notes the four weaker moments were missing now reach them.
   const knowledge9 = require('../server/services/knowledge');
   const topic9 = new Map(knowledge9.all().map((n) => [n.text, n.source && n.source.topic]));
@@ -4372,6 +4373,186 @@ console.log('\nround 8, the game facts gates:');
 
   const order = gates.GATES.map(([n]) => n);
   ok(order.indexOf('spike-side') > order.indexOf('action-premise') && order.indexOf('machinery') > order.indexOf('action-premise'), 'the bench 12 gates run after every gate before');
+}
+
+// ── The coach bench 13 (Nov 2026): true one line answers stand, echoes and kit
+// numbers stand, purpose clauses are no result claims, Bind has no mid ──
+// Every sentence below in quotes is the model's own, from the bench 13 raw
+// replies or the bench:chat run of 10 Nov; each true one that a gate dropped is
+// a must-stand here beside a false twin that must still go.
+{
+  console.log('\nthe coach bench 13:');
+  const claims = require('../server/services/game-claims');
+  const asked13 = (band, content) => {
+    const ctx = chatContext.build(null, { rows: [] }, null, content, { game: 'valorant', language: 'en', advanced: true, switchedFrom: null, now: 0 });
+    ctx.rankBand = band;
+    const input = cp.normalise(ctx);
+    const messages = [{ role: 'user', content }];
+    return { input, messages, f: cp.factsOf(input, messages) };
+  };
+  const gateOf = (s, f) => { const d = gates.check(s, f).drop; return d ? d.gate : null; };
+
+  // 0. Every new regex on a known positive and a known negative.
+  const cases = [
+    ['SHOTS_BEFORE_RELOAD', gates.SHOTS_BEFORE_RELOAD, ' shots before it reloads', ' shots to kill'],
+    ['FIRED_BEFORE', gates.FIRED_BEFORE, 'You fired ', 'It takes '],
+    ['BOTH_TEAMS_AT', gates.BOTH_TEAMS_AT, 'with both teams at ', 'with your team at '],
+    ['ONE_KILL_BEFORE', gates.ONE_KILL_BEFORE, 'and pop out for ', 'you got '],
+    ['ECHO_HIT_CLAIM', gates.ECHO_HIT_CLAIM, '2 body hits kill', 'you fired the 2 shots'],
+    ['OR_UNIT_AFTER', gates.OR_UNIT_AFTER, ' or 6 m', ' or more players'],
+    ['HITS_DEAL_BARE_AFTER', gates.HITS_DEAL_BARE_AFTER, ' deal 160', ' rounds'],
+    ['HITS_DEAL_BARE_BEFORE', gates.HITS_DEAL_BARE_BEFORE, 'so four deal ', 'so four of them '],
+    ['SUM_BEFORE', gates.SUM_BEFORE, 'damage, for ', 'damage, so '],
+    ['SUM_AFTER', gates.SUM_AFTER, ' total.', ' damage.'],
+    ['KILL_ENOUGH', gates.KILL_ENOUGH, 'deal 160, enough to kill', 'deal 120, not enough damage'],
+    ['ONCE_HIT', gates.ONCE_HIT, 'hit him once', 'stop only for the shot once his body is in your crosshair'],
+    ['MID_SAID', gates.MID_SAID, 'the lanes are the two sites and the middle lane', 'a duel you take mid-climb'],
+    ['PURPOSE_BEFORE', gates.PURPOSE_BEFORE, 'To ', 'You managed to '],
+    ['KILLED_YOU_TIMES', gates.KILLED_YOU_TIMES, 'Cypher killed you 3 times', 'you killed Cypher 3 times'],
+    ['FIRES_TIMES_RELOAD', gates.FIRES_TIMES_RELOAD, 'fires 2 times before a reload', 'fires 2 times a second'],
+    ['FLASH_FIRST_BLAMED', claims.FLASH_FIRST_BLAMED, 'You died because you flashed before you peeked onto A', 'You died because you peeked before your flash popped'],
+    ['LISTEN_DEFUSE', claims.LISTEN_DEFUSE, 'stop, and listen for the defuse', 'listen for the plant'],
+    ['STANDING_WITH_SPIKE', claims.STANDING_WITH_SPIKE, 'In a 1v2 on defence with the spike down', 'With the spike down, hold the site'],
+    ['PRAISE_TAIL', claims.PRAISE_TAIL, 'reloading then was the right call', 'reloading then is the right call'],
+    ['ONE_LINE_NUMBER_ASK', cp.ONE_LINE_NUMBER_ASK, 'How many body shots does a Vandal need to kill someone with heavy armor?', 'What went wrong in round 15?'],
+    ['ONE_LINE_LIST_ASK', cp.ONE_LINE_LIST_ASK, 'What comp did the enemy team run?', 'What should I do in a 1v2?'],
+  ];
+  for (const [name, re, pos, neg] of cases) {
+    const r = re && new RegExp(re.source, re.flags.replace('g', ''));
+    ok(!!r && r.test(pos) && !r.test(neg), `${name} matches "${pos}" and not "${neg}"`);
+  }
+
+  // 1. The Vandal's working, said bare or as a total (fracture-duel, 3 honest lines of 84).
+  const vd = asked13('silver_gold', 'How many body shots does a Vandal need to kill someone with heavy armor?');
+  for (const s of ['Each body shot deals 40 damage, so four deal 160, enough to kill through Heavy Armor.',
+    'Each body shot deals 40 damage, for 160 total.', 'A Vandal needs 4 body hits to kill someone with Heavy Armor from full health, at any range.']) {
+    ok(gateOf(s, vd.f) === null, `THE WORKING STANDS: "${s}"`, String(gateOf(s, vd.f)));
+  }
+  for (const s of ['Each body shot deals 40 damage, so four deal 150.', 'Each body shot deals 40 damage, for 150 total.',
+    'Each body shot deals 40 damage, so three deal 120, enough to kill through Heavy Armor.', 'Each body shot deals 40 damage, so three deal 160.']) {
+    ok(gateOf(s, vd.f) === 'number', `A WRONG SUM GOES: "${s}"`, String(gateOf(s, vd.f)));
+  }
+
+  // 2. A true one line answer to a direct factual question is shown, not asked again.
+  const one = cp.parseReply('A Vandal needs 4 body hits to kill someone with Heavy Armor from full health, at any range.', vd.input, { messages: vd.messages });
+  ok(one.retry === false && one.kept === 1 && /4 body hits/.test(one.reply), 'FRACTURE-DUEL: the one line Vandal answer is shown', JSON.stringify(one));
+  const comp = asked13('silver_gold', 'What comp did the enemy team run?');
+  const oneComp = cp.parseReply('The enemy team ran Clove as Controller, Phoenix and Reyna as Duelists, Sage as Sentinel, and Skye as Initiator.', comp.input, { messages: comp.messages });
+  ok(oneComp.retry === false, 'SPLIT-COMPS: the one line comp answer is shown', JSON.stringify(oneComp));
+  const vague = cp.parseReply('A Vandal needs a few body shots for that.', vd.input, { messages: vd.messages });
+  const notFact = asked13('silver_gold', 'I was on Jett on Ascent, attack, and died first. What went wrong in that round?');
+  const oneOther = cp.parseReply('You peeked alone.', notFact.input, { messages: notFact.messages });
+  const lost = cp.parseReply('Each body shot deals 40 damage, so four deal 150. A Vandal needs 4 body hits to kill someone with Heavy Armor.', vd.input, { messages: vd.messages });
+  const fewComp = cp.parseReply('The enemy team ran Reyna.', comp.input, { messages: comp.messages });
+  ok(vague.retry === true && oneOther.retry === true && lost.retry === true && fewComp.retry === true,
+    'and a one line reply with no number, to any other question, after a dropped first sentence, or naming one agent, is still asked again',
+    JSON.stringify([vague.retry, oneOther.retry, lost.retry, fewComp.retry]));
+
+  // 3. A purpose clause is no result claim (fracture-adv-on and -off, 7 of 11 retries).
+  const fr = riotOnly('riot-fracture-5-1.json', null, {
+    5: { kills: 2, firstKill: true, traded: false, plantMs: 32000, plantSite: 'A', weapon: 'Sheriff', aliveAtDeath: { mates: 4, enemies: 3 },
+      feed: [{ ms: 9000, by: 'me', on: 'enemy', ka: 'Jett', va: 'Deadlock', w: 'Bandit' }, { ms: 11000, by: 'me', on: 'enemy', ka: 'Jett', va: 'Chamber', w: 'Bandit' },
+        { ms: 27000, by: 'enemy', on: 'mate', ka: 'Phoenix', va: 'Chamber' }, { ms: 33000, by: 'enemy', on: 'me', ka: 'Jett', va: 'Jett', w: 'Sheriff' }] },
+    6: { firstDeath: true, traded: false, plantSite: 'B' },
+  });
+  const FR = { ...fr, rounds: fr.rounds.map((c) => (c.n !== 6 ? c : { ...c, forensics: { cause: 'lost-duel', source: 'riot',
+    what: 'You fought Chamber from B Tree with your Sheriff, fired three shots, and died without dealing damage.', better: 'Take the next shot from cover instead of staying exposed in the duel.' } })) };
+  const SD = asking(FR, 'How do I win more Sheriff duels like rounds 5 and 6?');
+  ok(SD.f.rounds.get(5).result === 'lost' && SD.f.rounds.get(5).pistol === true && SD.f.rounds.get(6).result === 'won',
+    'the Fracture swiftplay: round 5 a lost pistol round, round 6 won');
+  for (const s of ['To win more Sheriff duels like rounds 5 and 6, take the next shot from cover instead of staying exposed after your first shots.',
+    'To win more Sheriff duels like those in rounds 5 and 6, take your next shot from cover rather than staying exposed after the first shots.']) {
+    ok(keeps(s, SD.f), `A PURPOSE STANDS: "${s}"`, why(s, SD.f));
+  }
+  ok(drops('You won rounds 5 and 6 with the Sheriff.', SD.f, 'result') && drops('You managed to win round 5.', SD.f, 'result'),
+    'and rounds 5 and 6 said won, or managed to win, still go', why('You managed to win round 5.', SD.f));
+
+  // 4. The Fracture rounds' true lines: round 5 is its own pistol round, the look's shots, both teams at 5.
+  for (const s of ['In round 5, attacking in the pistol round, you opened with two Bandit kills.',
+    'In round 6, attacking with no spike down, their Chamber killed you at B Tree 3 s in, with both teams at 5.',
+    'In round 6, you fought Chamber from B Tree with a Sheriff, fired three shots and died without dealing damage.']) {
+    ok(keeps(s, SD.f), `THE FRACTURE LINE STANDS: "${s}"`, why(s, SD.f));
+  }
+  ok(drops('In round 6, attacking in the pistol round, you opened with two Bandit kills.', SD.f)
+    && drops('In round 6, their Chamber killed you at B Tree 3 s in, with both teams at 3.', SD.f, 'number')
+    && drops('In round 6, you fought Chamber from B Tree with a Sheriff, fired five shots and died without dealing damage.', SD.f, 'number'),
+  'and the false twins go: round 6 called the pistol round, both teams at 3, five shots fired',
+    [why('In round 6, attacking in the pistol round, you opened with two Bandit kills.', SD.f), why('In round 6, their Chamber killed you at B Tree 3 s in, with both teams at 3.', SD.f)].join(' '));
+
+  // 5. A counted killer said with the match's score beside it (abyss-swift-killer).
+  const cf = { language: 'en', rounds: new Map(), counted: { texts: ['cypher killed you 3 times, rounds 1, 6 and 8.'], counts: new Set([3]), pairs: new Set(), titles: [], roundSets: [] } };
+  ok(gates.gateCount('Cypher killed you 3 times in the Abyss match on Jett, which you lost 3 to 5.', cf) === null, 'ABYSS-SWIFT-KILLER: the counted Cypher line stands beside the score');
+  ok(gates.gateCount('Sage killed you 3 times in the Abyss match on Jett, which you lost 3 to 5.', cf) !== null
+    && gates.gateCount('Cypher killed you 4 times in the Abyss match on Jett, which you lost 3 to 5.', cf) !== null,
+  'and another killer or another count still goes');
+
+  // 6. The player's own numbers said back (KVOVQ6jiQw8-3, bNC4PU5AwEA-5, Klgi_mbrwP8-1).
+  const kv = asked13('silver_gold', 'I was on Chamber on Haven, defense, round 2, we were up 3v2 and I had an Outlaw at 47 HP. One of them was known bottom mid. We are up 3v2 in an anti eco round and I am low with an Outlaw, should I go take the fight?');
+  ok(JSON.stringify(kv.f.askedNumbers.filter((x) => x.attr === 'health')) === '[{"value":47,"attr":"health"}]', 'the question\'s 47 HP read as health', JSON.stringify(kv.f.askedNumbers));
+  for (const s of ['Up 3v2 in an anti eco with an Outlaw and 47 HP, the round is already yours to close out, and the only way you lose it is by giving the eco a free kill and a free gun.',
+    'The Outlaw kills through Light Armor with a body hit at any range, but a Sheriff head hit kills you at any range too, and at 47 HP even a body hit finishes you.']) {
+    ok(gateOf(s, kv.f) === null, `AN ECHO STANDS: "${s}"`, String(gateOf(s, kv.f)));
+  }
+  ok(gateOf('Up 3v2 with an Outlaw and 52 HP, the round is already yours to close out.', kv.f) === 'number', 'and a health the player never said still goes');
+  const bk = asked13('iron_bronze', 'I was on Raze on Split, defense, B site. I held a Bucky angle about 14 meters away. When should I send Raze\'s Boom Bot, and what range should I hold with a Bucky?');
+  ok(gateOf('At 14 m you were in the band where your gun barely works and theirs does.', bk.f) === null
+    && gateOf('Hold the pixel where they have to come through a doorway or a tight corner to reach you, so the fight happens at 5 or 6 m, and take one body per shell rather than chasing.', bk.f) === null,
+  'BNC4PU5AWEA-5: the player\'s 14 m and the 5 or 6 m hold stand');
+  ok(gateOf('At 18 m you were in the band where your gun barely works and theirs does.', bk.f) === 'number', 'and a range the player never said still goes');
+  const kl = asked13('silver_gold', 'I was on Jett on Sunset, defense, round 3. I held a tight angle toward A main with the Outlaw. Later, with our Omen covering me, I had my knife out instead of reloading the two Outlaw shots I had used. Should I keep moving a little while I hold an angle with a sniper, and when should I reload?');
+  for (const s of ['Going by your description, the Outlaw fires 2 shots before it reloads, and its shot is only accurate standing still.',
+    'With your Omen covering the angle, that is the moment to reload, not after you have fired the two shots and are waiting on an empty gun.',
+    'Two shots gone and a teammate watching your angle means reload now, so the gun is full before the next contact rather than during it.']) {
+    ok(gateOf(s, kl.f) === null, `THE OUTLAW'S TWO STAND: "${s}"`, String(gateOf(s, kl.f)));
+  }
+  ok(gateOf('The Outlaw fires 3 shots before it reloads.', kl.f) === 'number', 'the Outlaw with 3 shots before a reload goes');
+  const fd = asked13('silver_gold', 'I was on Jett on Sunset, defense, round three. I held a tight angle toward A main with an Outlaw next to our Omen. I kept micro moving on the angle, and after I got a kill I stood there with my knife out instead of reloading while the Omen covered me. Was it fine to keep moving a little while I held that angle with the Outlaw?');
+  ok(gateOf('A scoped shot is only accurate standing still, so micro moving is what makes the first shot miss, and with a gun that fires twice before a reload you do not get a cheap second chance.', fd.f) === null,
+    'FD8OFHWHF5M-2: the Outlaw firing twice before a reload stands');
+  ok(gateOf('With a gun that fires three times before a reload you get a second chance.', fd.f) !== null, 'and three times before a reload goes');
+
+  // 7. A count of the play and a kit rule (WCgnalZDT_A-4, FD8OFhwHF5M-4, Klgi_mbrwP8-2, BfumSarDJKw-6).
+  const wc = asked13('silver_gold', "I was on Skye on Lotus, defense, eco round on A. Our Omen dropped a smoke on A main and I pushed into it right away. Is pushing straight into my controller's smoke on A main a good eco play?");
+  ok(gateOf('The push can work when you wait about one to one and a half seconds after the smoke lands, so the attackers spraying into it stop or move, then go to a close piece of cover at its edge, a pillar or a box, and pop out for one kill.', wc.f) === null,
+    'WCGNALZDT_A-4: the wait and the one kill stand');
+  ok(gateOf('You got 3 kills from the smoke last round.', wc.f) !== null, 'and a count of kills nobody said still goes');
+  const jt = asked13('silver_gold', 'I was on Jett on Sunset, defense, round 3, I dashed into the peek and had nothing to escape with. When should I use Tailwind?');
+  for (const s of ['It only resets every two kills, so a dash spent getting into the peek leaves you nothing to escape with.',
+    'Spent getting to the peek, the dash leaves you no way out, and it only comes back every two kills, so on defence it is an escape first.']) {
+    ok(gateOf(s, jt.f) === null, `THE KIT'S EVERY TWO KILLS STANDS: "${s}"`, String(gateOf(s, jt.f)));
+  }
+  ok(gateOf('It only resets every three kills, so keep it for the exit.', jt.f) === 'number', 'and every three kills goes');
+  const bf = asked13('silver_gold', 'I was on Skye on Split, late round duel. I slow shift walked out on a left hand peek toward their Breach holding the angle. What was wrong with my peek?');
+  ok(gateOf('What to do instead: back off the wall first, so you are not touching it, then swing out wide at full running speed and stop only for the shot once his body is in your crosshair.', bf.f) === null,
+    'BFUMSARDJKW-6: "once his body is in your crosshair" is no count, and the fix stands');
+  ok(gateOf('You shot him twice and he still won the fight.', bf.f) === 'count', 'and a count of shots nobody said still goes');
+
+  // 8. New wrong facts that go.
+  const bd = asked13('platinum_diamond', 'I was on Brimstone on Bind, attack, no set plan. With no plan, my whole team piled into Hookah and got stuck; how should we split up on Bind?');
+  ok(bd.f.askedMap === 'Bind', 'the question\'s map is Bind');
+  for (const s of ['On Bind specifically, the lanes are the two sites and the middle lane, and the mistake was all five going into one lane with no one holding the middle or the other side.',
+    'Before the round, say one sentence out loud: "two A short, one middle, two B long."', 'On Fracture, push through mid with two players.']) {
+    ok(gateOf(s, bd.f) === 'map', `NO MID ON BIND OR FRACTURE: "${s}"`, String(gateOf(s, bd.f)));
+  }
+  for (const s of ['On Bind, split two A short, one Hookah, two B long.', 'Do not stand in the middle of the site.', 'A duel you take mid-climb is one you lose on position before the shot even matters.',
+    'On Split, hold mid with a teammate before the hit.']) {
+    ok(gateOf(s, bd.f) === null, `and a map with a mid, or no map's mid, stays: "${s}"`, String(gateOf(s, bd.f)));
+  }
+  const bn = asked13('iron_bronze', 'I was on Raze on Split, defense, late in a lost A take, 1v2. Their Sage was in a corner below and their Omen could come from tower, CT or main. I am in a 1v2 and they can hit me from two sides, what do I do?');
+  ok(gateOf('In a 1v2 on defence with the spike down, you have to go and take it, so the open spot was the problem: it let both of them swing you at once, and nobody could trade you.', bn.f) === 'premise'
+    && gateOf('The clock is on your side once you are alive and close to the spike, so take one piece of space, stop, and listen for the defuse or a step before you go further.', bn.f) === 'side-use',
+  'BNC4PU5AWEA-3: the spike down nobody said, and a defender listening for the defuse, go');
+  ok(gateOf('If the spike goes down in a 1v2, you have to go and take it.', bn.f) === null && gateOf('Stop and listen for the plant or a step before you go further.', bn.f) === null,
+    'and the spike down said as a condition, and listening for the plant, stay');
+  ok(gateOf('You had a teammate covering the angle, so reloading then was the right call.', fd.f) === 'premise',
+    'FD8OFHWHF5M-2: the reload praised past the -ing word before it goes');
+  ok(gateOf('You had a teammate covering the angle, so reloading then would have been the right call.', fd.f) === null
+    && gateOf('With a teammate covering the angle, reload at once.', fd.f) === null, 'and the reload as advice stays');
+  const qj = asked13('silver_gold', 'I was on Phoenix on Breeze, attack onto A. I threw my own flash and peeked onto a site with a lot of open angles, and the flash only covered one of them. I flashed before peeking onto A, why did I still die?');
+  ok(gateOf('You died because you flashed before you peeked onto A, which meant the flash did not cover all the angles you intended to clear.', qj.f) === 'cause',
+    'QJNLQKSUI3M-3: the right order given as the cause of the death goes');
+  ok(gateOf('You died because your flash covered one angle of four, and the other three could still see you.', qj.f) === null
+    && gateOf('You died even though you flashed before you peeked.', qj.f) === null, 'and the real cause, and the order said as no cause, stay');
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

@@ -1433,6 +1433,73 @@ playbook note and case sentence is unchanged with no side (the two that trip `sp
 are attacker texts). Tests: `test:chatgates`, "the coach bench 12" (every new regex both ways, the five
 true lines the replay found). Not benched live.
 
+### The coach bench 13: true one line answers stand, echoes and kit numbers stand, purpose clauses are no result claims, Bind has no mid (Nov 2026)
+
+Bench 13 (the 72 moments on 8.10.0, judged blind) held 98.6% with no topic under 88%, but the
+bench:chat run of 10 Nov showed the gates costing more than they save: 0 wrong facts in 84 raw and
+shown, yet 13.1% asked again (bar 10%) and 3.6% the honest line (bar 3%). Both benches now save the
+model's text before the gates (`raw`, and bench:chat's `rawRetry`), so every drop was replayed and
+judged against the record or the player's account. The causes and fixes:
+
+- **A true one line answer was asked again for being short** (fracture-duel x3, split-comps x2;
+  `chat-prompt.js oneLineAnswers`, `ONE_LINE_NUMBER_ASK`, `ONE_LINE_LIST_ASK`). "A Vandal needs 4 body
+  hits to kill someone with Heavy Armor" was retried as fewer than 2 kept, and the retry's working went
+  to the number gate, so all three were the honest line. A reply of one sentence that passed every gate
+  now stands where the question is a direct factual one (how many, how much, how long; what damage,
+  price or cost; what comp, which agents) and the sentence holds the answer (a number; at least three
+  agents). Any other one sentence reply, or one whose first sentence went, is asked again as before.
+- **The Vandal's working** (`fact-gates.js` `HITS_DEAL_BARE_*`, `lastHitWord`, `workingGuns`,
+  `SUM_BEFORE`/`SUM_AFTER`, `KILL_ENOUGH`): "Each body shot deals 40 damage, so four deal 160" (the hit
+  said once, the count bare and spelled) and "for 160 total" (no gun or hit in the clause: the
+  sentence's gun, else the asked gun) stand as the gun's hit damage times the count. Two false twins
+  now go that passed before: "for 150 total" (the armour's health said as the sum) and a true sum said
+  "enough to kill" below full health and the armour named ("three deal 120, enough to kill through Heavy
+  Armor").
+- **A purpose is no result** (fracture-adv-on and -off, 7 of the 11 retries; `PURPOSE_BEFORE` in
+  `claimsOf`): "To win more Sheriff duels like rounds 5 and 6, take the next shot from cover" read as
+  rounds 5 and 6 won, and round 5 was lost. The bare win or lose after an infinitive's "to", a modal or
+  "how do I" claims nothing; "managed to win", "went on to win" and the past won and lost are read.
+  The same replies' other drops were true sentences too: "In round 5, attacking in the pistol round"
+  named round 1 as well (`roundsNamed`: an unordered pistol round is the numbered round's own when that
+  round is a pistol one, round 5 on a swiftplay); "both teams at 5" (`BOTH_TEAMS_AT`, held to a
+  standing of N against N in the round); "you fired three shots without dealing damage" read as 3 hits
+  to kill the Sheriff (`FIRED_BEFORE`, `lookCounts`: shots fired are held to the look that counted them,
+  or the player's account).
+- **split-r15-hash and abyss-swift-killer**. "Round 15 ... which you lost 13 to 7" was a true drop: the
+  Split match was a 13 to 7 win. "Cypher killed you 3 times in the Abyss match on Jett, which you lost 3
+  to 5" was true (the counted line says it): with "you lost" in the sentence the count gate read a
+  repeat; a counted "<agent> killed you N times" said as counted is that count now (`KILLED_YOU_TIMES`).
+- **The player's own numbers are an echo** (`numbersSaid`, `facts.askedNumbers`, `echoed`): "at 47 HP"
+  and "at 14 m", written in the question, stand said back with the same unit, as a name the player typed
+  is an echo. With a match only health and a range stand this way, since the record holds the rest, and
+  a hit count said to kill (`ECHO_HIT_CLAIM`) is the primer's whoever said it. "The Outlaw fires 2 shots
+  before it reloads" and "a gun that fires twice before a reload" are the magazine (`SHOTS_BEFORE_RELOAD`,
+  `FIRES_TIMES_RELOAD`), "pop out for one kill" is the play's aim (`ONE_KILL_BEFORE`), "it only resets
+  every two kills" is the kit's own line (`kitEvery`: the ability the sentence names, else the player's
+  or an asked agent's kit), "at 5 or 6 m" in advice takes the second number's unit (`OR_UNIT_AFTER`), and
+  "stop only for the shot once his body is in your crosshair" is no count (`ONCE_HIT` stops before a
+  clause), which gave BfumSarDJKw-6 its fix back.
+- **New wrong facts that go**: a mid on a map with none (`MID_SAID`, `mapsIn`, `facts.askedMap`, in
+  `gateMapAndKit`, held to `mapGeometry.hasMid`: Bind, Fracture and Lotus have none; "the middle of the
+  site" and "mid-climb" stay); a 1v2 restated "with the spike down" where the player said no plant
+  (`game-claims.js STANDING_WITH_SPIKE` in `checkSpikePremise`); a defender told to "listen for the
+  defuse" (`LISTEN_DEFUSE` in `checkSideUse`); "You had a teammate covering the angle, so reloading then
+  was the right call" (`PRAISED` took the first -ing word, "covering"; every -ing word before the praise
+  is read now, `PRAISE_TAIL`); and "You died because you flashed before you peeked" (gate `cause`,
+  `checkFlashFirstBlamed`: the right order given as the cause of a death).
+
+Replayed with `parseReply` and `gateReply` over the 72 raw replies, the shown answers that came from an
+unsaved retry, and the run's 84 raw and 11 retry replies: 50 sentences newly kept, each checked true
+against the record or the player's question, and 9 newly dropped, each one of the wrong facts above
+(the two Bind mid sentences in the raw and the shown answer, the spike premise, the defuse, the reload
+praise in the raw and the shown answer, the backwards cause). Re-running the route's reply logic over the run's saved replies (the first reply, then the
+retry where there was one) gives 1 of 84 asked again (1.2%, the true split-r15-hash drop) and no
+honest line, against 13.1% and 3.6%. Every playbook note and case sentence is unchanged on a map with a
+mid; on Bind, Fracture and Lotus the 14 that send the player through mid now go as `map`, which is
+right there, and two true "one kill" lines stand on every map (a third, a save round's, now goes at the
+economy scope gate after the number gate). Tests: `test:chatgates`, "the coach
+bench 13" (every new regex both ways, each true sentence beside its false twin). Not benched live.
+
 ### The economy out of scope everywhere the coach speaks (Nov 2026)
 
 The bench 9 rule (above) reached every other place the coach talks:

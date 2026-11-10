@@ -282,6 +282,10 @@ function roundsNamed(s, facts) {
   const f = facts || {};
   if (f.rounds instanceof Map && f.rounds.size) {
     const all = [...f.rounds.keys()].sort((a, b) => a - b);
+    // The rounds the sentence names by number: "In round 5, attacking in the
+    // pistol round" is round 5's own pistol round on a swiftplay, where the
+    // pistol rounds are 1 and 5, and it named round 1 as well (the coach bench 13).
+    const numbered = [...out];
     if (/\bthe first round\b/i.test(text)) out.add(all[0]);
     if (/\bthe (?:last|final) round\b/i.test(text)) out.add(all[all.length - 1]);
     for (const p of text.matchAll(new RegExp(PISTOL_ROUND.source, 'gi'))) {
@@ -289,6 +293,7 @@ function roundsNamed(s, facts) {
       const side = p[3] ? (/^(?:att|off)/i.test(p[3]) ? 'attacking' : 'defending') : null;
       const second = /^(?:second|2nd|last)$/i.test(p[2] || '') || PISTOL_SECOND_AFTER.test(text.slice(p.index + p[0].length, p.index + p[0].length + 40));
       const pistols = all.filter((n) => f.rounds.get(n).pistol && (!side || f.rounds.get(n).side === side));
+      if (!p[2] && numbered.some((n) => pistols.includes(n))) continue;
       // A side names its own pistol round; without one, the second is the match's second.
       const pick = second && !side ? pistols[1] : pistols[0];
       if (pick) out.add(pick);
@@ -559,6 +564,18 @@ const RESULT_VERBS = [
   [/\byou(?:'d)?\s+(?:[a-z']+\s+){0,2}?(?:survived|stayed alive|lived through|made it out alive)\b/gi, 'survived', 'died'],
 ];
 const THEY_BEFORE = /\b(?:they|the enemy|the enemies|the other team|their team)\s+(?:[a-z']+\s+){0,1}$/i;
+/*
+ * A PURPOSE IS NO RESULT (the coach bench 13, fracture-adv-on and -off): "To
+ * win more Sheriff duels like rounds 5 and 6, take the next shot from cover",
+ * the question's own words said back as the aim of the advice, was read as
+ * rounds 5 and 6 won, and round 5 was lost: 7 of 11 retries of the run. The
+ * bare verb win or lose after an infinitive's "to" (the sentence's first word,
+ * after a comma, or after "how", "want", "need", "the way", "is"), a modal
+ * ("can", "will", "should") or "how do I" claims nothing that happened.
+ * "Managed to win", "went on to win" and "failed to win" are results, and the
+ * past "won" and "lost" are always read.
+ */
+const PURPOSE_BEFORE = /(?:(?:^|[,;:(]|\b(?:in\s+order|want|wants|wanted|need|needs|trying|try|tries|how|ways?|chance|plan|job|goal|aim|key|is|are|helps?(?:\s+you)?)\s)\s*to|\b(?:can|could|will|would|should|might|must|may)|\bhow\s+(?:do|can|could|should|would|did)\s+(?:i|you|we|they))\s+(?:(?:actually|really|still|also|then|start\s+to|begin\s+to)\s+)?$/i;
 
 /*
  * THE MATCH'S OWN RESULT IS NO ROUND'S (bench:chat, 15 Oct). The rules ask the
@@ -629,6 +646,8 @@ function claimsOf(s, facts) {
     for (const m of t.matchAll(new RegExp(re.source, re.flags))) {
       const before = t.slice(Math.max(0, m.index - 48), m.index);
       const result = claim === 'won' || claim === 'lost';
+      // "To win more Sheriff duels like rounds 5 and 6": the bare verb of a purpose, a modal or the question said back is no result.
+      if (result && /^(?:win|lose)$/i.test(m[0]) && PURPOSE_BEFORE.test(before)) continue;
       if (result && (OBJECT_BEFORE.test(before) || (CLEFT_BEFORE.test(before) && CLEFT_AFTER.test(t.slice(m.index + m[0].length))))) continue;
       const match = result ? ofTheMatch(t, m.index, m.index + m[0].length, facts) : false;
       if (match === null) continue;
@@ -1279,6 +1298,13 @@ function gateKiller(s, facts, rs) {
  * owner named in the sentence ("Sova's Recon Bolt"): "Press Q to Updraft" is
  * a Jett's.
  */
+/** The maps a text names, as the game prints them, in order. */
+function mapsIn(text) {
+  const t = String(text || '');
+  return MAPS.map((m) => ({ m, at: t.search(new RegExp(`\\b${esc(m)}\\b`)) })).filter((x) => x.at >= 0).sort((a, b) => a.at - b.at).map((x) => x.m);
+}
+// The map's mid: "the middle lane", "one holds the middle", "through mid", "mid control".
+const MID_SAID = /\b(?:the\s+)?middle\s+lane\b|\b(?:holds?|holding|watch(?:es|ing)?|takes?|taking|control(?:s|ling)?|through|into|toward|towards|via)\s+(?:the\s+)?(?:mid|middle)\b(?!-|\s+(?:round|range|air|fight|spray|game|match|point|of)\b)|\b(?:in|at|to|from|down|up)\s+mid\b(?!-|\s+(?:round|range|air|fight|spray|game|match|point)\b)|\bmid\s+(?:control|lane|doors?|link|top|bottom|courtyard|window|lurk|rotate|rotation)\b|\bone\s+middle\b/i;
 function gateMapAndKit(s, facts, rs) {
   const f = facts || {};
   if (f.game !== 'valorant') return null;
@@ -1287,6 +1313,19 @@ function gateMapAndKit(s, facts, rs) {
     let map = null;
     try { map = forensics().wrongMap(t, f.map); } catch { map = null; }
     if (map) return drop('map', `your reply named ${map}, which is no callout on ${f.map}`);
+  }
+  // A MID ON A MAP WITH NONE (the coach bench 13, ypyZNWaL-Rs-4): "On Bind
+  // specifically, the lanes are the two sites and the middle lane". The map
+  // is the one the sentence names, else the match's, else the question's, and
+  // the game's own geometry says which maps have a mid (Bind, Fracture and
+  // Lotus have none). "The middle of the site" and "mid round" stay.
+  if (f.language === 'en' || !f.language) {
+    const mid = MID_SAID.exec(t);
+    if (mid) {
+      const map = mapsIn(t)[0] || f.map || f.askedMap || null;
+      const g = map ? (DATA.mapGeometry || {})[lower(map)] : null;
+      if (g && g.hasMid === false) return drop('map', `your reply gave ${map} a mid, which ${map} does not have: it has no mid, only its sites and the lanes to them`);
+    }
   }
   if (f.agent) {
     const allowed = new Set([lower(f.agent), ...(f.askedAgents || []).map(lower)]);
@@ -1493,7 +1532,11 @@ function repeekTwice(t, f) {
 // "Worth keeping" is no repeat of the player's: what went right, to keep.
 const KEEPING_WORTH = /\b(?:worth|is|are)\s+keeping\b|\b(?:the part|the thing|the habit|what|something)\s+to\s+keep\b/gi;
 // "You traded a teammate 4 times", the cards' own sum (chat-prompt.js factsOf `tradedMates`).
-const TRADED_MATES_TIMES = /\byou\s+(?:also\s+)?traded\s+(?:a\s+)?teammates?\s+(\d+)\s+times\b/i;
+// "Cypher killed you 3 times", "their Reyna killed you 5 times" (gateCount).
+const KILLED_YOU_TIMES = new RegExp(`\\b(${AGENT_ALT}) killed you (\\d+) times\\b`, 'i');
+// "Fires twice before a reload", "fires 2 times before it reloads" (gateCount).
+const FIRES_TIMES_RELOAD = /\bfires?\s+(\d+)\s+times\s+before\s+(?:a|it|you|the|each|every|its|your)\s+(?:\w+\s+)?reloads?\b/i;
+const TRADED_MATES_TIMES =/\byou\s+(?:also\s+)?traded\s+(?:a\s+)?teammates?\s+(\d+)\s+times\b/i;
 function gateCount(s, facts) {
   const f = facts || {};
   if (f.language !== 'en') return null;
@@ -1516,6 +1559,20 @@ function gateCount(s, facts) {
   // label in words, as "again" is (repeekSaid): it was read as "2 times" no
   // count states (the round 3 audit).
   if (repeekTwice(t, f)) repeatText = repeatText.replace(/\b2 times\b/, 'again');
+  // "Cypher killed you 3 times" said as a counted line has it is that count
+  // (the coach bench 13, abyss-swift-killer): with "which you lost 3 to 5" in
+  // the sentence it read as the player doing something again and again.
+  repeatText = repeatText.replace(new RegExp(KILLED_YOU_TIMES.source, 'gi'), (all, who, n) => {
+    const said = lower(`${who} killed you ${n} times`);
+    return (counted.texts || []).some((x) => x && x.includes(said)) ? `${who} killed you` : all;
+  });
+  // "A gun that fires twice before a reload": the magazine of the gun the
+  // sentence or the question names, no repeat (the coach bench 13, FD8OFhwHF5M-2).
+  repeatText = repeatText.replace(new RegExp(FIRES_TIMES_RELOAD.source, 'gi'), (all, n) => {
+    const guns = new Set([...gunsIn(t).map((g) => lower(g.name)), ...(f.askedGuns || []).map(lower)]);
+    return (f.primer || []).some((e) => e.subjectKind === 'gun' && e.attribute === 'magazine' && guns.has(lower(e.subject)) && e.value === Number(n))
+      ? 'fires before a reload' : all;
+  });
   for (const re of [TIMES, IN_ROUNDS]) {
     for (const m of repeatText.matchAll(new RegExp(re.source, 'gi'))) {
       if (!countsOk.has(Number(m[1]))) return drop('count', `your reply said ${m[0]}, which no count in the facts states`);
@@ -1572,7 +1629,10 @@ const HEAD_SHOT = /\bhead ?shots?\b/gi;
 const BODY_SHOT = /\bbody ?shots?\b/gi;
 const LEG_SHOT = /\bleg ?shots?\b/gi;
 const TWICE = /\btwice\b/gi;
-const ONCE_HIT = /\b(hit|hits|shoot|shot|tap|taps|land|landed)(\s+(?:him|her|them|it|the enemy|someone))?\s+once\b/gi;
+// "Once" that opens a clause is no count: "stop only for the shot once his
+// body is in your crosshair" was "shot 1 times", and the fix of the answer
+// went (the coach bench 13, BfumSarDJKw-6).
+const ONCE_HIT = /\b(hit|hits|shoot|shot|tap|taps|land|landed)(\s+(?:him|her|them|it|the enemy|someone))?\s+once\b(?!\s+(?:his|her|their|the|your|you|they|he|she|it|we|my|our|an?|that|this|someone|everyone|everything|nobody|enough)\b)/gi;
 
 /**
  * Spelled numbers and hit words as digits ("two body shots" is "2 body
@@ -1855,6 +1915,81 @@ const HITS_SHORT_BEFORE = /\b(?:more\s+than|over)\s+$/i;
 // A count of hits and the damage they deal: "3 shots deal 120", "two body hits do 80" (gateNumbers).
 const HITS_DEAL_AFTER = /^\s*(?:(head|body|leg)\s+)?(?:hits?|shots?|bullets?|taps?)\s+(?:deal|deals|do|does|did|make|total|add\s+up\s+to|come\s+to)\s+(?:only\s+|just\s+)?(\d+)\b/i;
 const HITS_DEAL_BEFORE = /\b(\d+)\s+(?:(head|body|leg)\s+)?(?:hits?|shots?|bullets?|taps?)\s+(?:deal|deals|do|does|did|make|total|add\s+up\s+to|come\s+to)\s+(?:only\s+|just\s+)?$/i;
+// The same with the hit said earlier in the sentence and not again: "so four deal 160" (the coach bench 13).
+const HITS_DEAL_BARE_AFTER = /^\s*(?:of\s+them\s+|together\s+)?(?:deal|do|make|total|add\s+up\s+to|come\s+to)\s+(?:only\s+|just\s+)?(\d+)\b/i;
+const HITS_DEAL_BARE_BEFORE = /\b(\d+|two|three|four|five|six|seven|eight|nine|ten)\s+(?:of\s+them\s+|together\s+)?(?:deal|do|make|total|add\s+up\s+to|come\s+to)\s+(?:only\s+|just\s+)?$/i;
+const HIT_WORD = /\b(?:hits?|shots?|bullets?|taps?)\b/i;
+/** The last hit word of a text and its part ("each body shot" gives body), as [word, part], or null. */
+function lastHitWord(text) {
+  let last = null;
+  for (const m of String(text || '').matchAll(/\b(?:(head|body|leg)\s+)?(?:hits?|shots?|bullets?|taps?)\b/gi)) last = [m[0], m[1] || ''];
+  return last;
+}
+const KILL_ENOUGH = /\benough\s+to\s+kill\b|\b(?:which|that)\s+kills\b/i;
+/*
+ * THE COACH BENCH 13's NUMBER READERS (Nov 2026). Each was a true sentence the
+ * number gate dropped, replayed from the model's raw reply.
+ */
+// "Fires 2 shots before it reloads", "2 shots before a reload": the magazine.
+const SHOTS_BEFORE_RELOAD = /^\s*(?:shots?|bullets?|rounds?)\s+(?:before\s+(?:it|you|a|the|each|every|its|your)\s+(?:\w+\s+)?reloads?|(?:in|per)\s+(?:the|its|a|each)\s+(?:magazine|mag)|between\s+reloads)\b/i;
+// "You fired three shots", "fire three shots": the shots of the play.
+const FIRED_BEFORE = /\b(?:fired|fire|fires|firing|took|missed|missing|emptied)\s+(?:all\s+|the\s+|your\s+|those\s+|another\s+)?$/i;
+const BOTH_TEAMS_AT = /\bboth\s+teams\s+(?:still\s+)?(?:at|on|with)\s+$/i;
+const ONE_KILL_BEFORE = /\b(?:for|take|get|grab|find|look\s+for|go\s+for|play\s+for)\s+(?:just\s+|only\s+|the\s+)?$/i;
+// A hit count said to kill or to be needed is the primer's, the player's words or not.
+const ECHO_HIT_CLAIM = /\b(?:kills?|killing|die|dies|damage|deals?|armou?r|health|hp|enough|needs?|takes?|finish(?:es)?)\b/i;
+const OR_UNIT_AFTER = /^\s*or\s+\d+(?:\.\d+)?\s*(?:m|metres?|meters?|s|secs?|seconds?)\b/i;
+const NUMBER_SAID = new RegExp(`(?<![\\d.:/#])(\\d+(?:\\.\\d+)?)(?![\\d:]|\\.\\d)|\\b(${Object.keys(NUMBER_WORDS).join('|')})\\b`, 'gi');
+/** The numbers a text (the player's question) says, each with what it is about by its unit, or null. */
+function numbersSaid(text) {
+  const t = digitsOf(String(text || ''));
+  const out = [];
+  for (const m of t.matchAll(NUMBER_SAID)) {
+    const value = m[1] ? Number(m[1]) : NUMBER_WORDS[lower(m[2])];
+    const after = t.slice(m.index + m[0].length, m.index + m[0].length + 40);
+    let attr = null;
+    // The unit right after it, or after one word ("two Outlaw shots").
+    for (const cand of [after, after.replace(/^\s*[A-Za-z][\w/'-]*/, '')]) {
+      for (const [re, a] of AFTER_UNITS) if (re.test(cand)) { attr = a; break; }
+      if (attr) break;
+    }
+    if (fin(value)) out.push({ value, attr });
+  }
+  return out;
+}
+/** Whether the player's question said this number with this unit (facts.askedNumbers). */
+function echoed(f, value, attr) {
+  return ((f && f.askedNumbers) || []).some((x) => x && x.attr === attr && near(x.value, value, 1e-6));
+}
+/** Whether a look of the rounds (any round when none) counts this many of the noun ("fired three shots"). */
+function lookCounts(f, rounds, value, noun) {
+  if (!(f.rounds instanceof Map)) return false;
+  const words = Object.entries(NUMBER_WORDS).filter(([, v]) => v === value).map(([w]) => w);
+  const re = new RegExp(`\\b(?:${[String(value), ...words].join('|')})\\s+(?:[a-z]+\\s+)?${noun}\\b`, 'i');
+  for (const n of rounds.length ? rounds : [...f.rounds.keys()]) {
+    const r = f.rounds.get(n);
+    if (r && r.look && re.test(`${r.look.what || ''} ${r.look.better || ''}`)) return true;
+  }
+  return false;
+}
+/** Whether the kit says an ability comes back "every N kills": one the sentence names, else the player's or an asked agent's. */
+function kitEvery(f, t, value) {
+  const words = Object.entries(NUMBER_WORDS).filter(([, v]) => v === value).map(([w]) => w);
+  const re = new RegExp(`\\bevery\\s+(?:${[String(value), ...words].join('|')})\\s+kills\\b`, 'i');
+  const named = abilitiesIn(t);
+  const agents = named.length ? [...new Set(named.map((a) => a.agent))] : [f.agent, ...(f.askedAgents || [])].filter(Boolean);
+  for (const agent of agents) {
+    const a = (DATA.agents || {})[agent];
+    for (const k of (a && a.kit) || []) {
+      if (named.length && !named.some((x) => lower(x.name) === lower(k.name))) continue;
+      if (re.test(String(k.description || ''))) return true;
+    }
+  }
+  return false;
+}
+// "For 160 total", "for a 160 total", "160 in total": a sum said of the hits.
+const SUM_BEFORE = /\bfor\s+(?:a\s+)?$/i;
+const SUM_AFTER = /^\s*(?:total|in\s+total)\b/i;
 const SMALL_ADVICE_AFTER =/^\s*(?:more\s+|extra\s+|quick\s+|short\s+|single\s+)?(?:shots?|bullets?|taps?|bursts?|peeks?|looks?|fights?|duels?|angles?|steps?|corners?|lanes?|spots?|habits?|things?|pieces?)\b/i;
 // "If you have an escape, take one more shot": advice after a condition.
 const LEAD_CONDITION = /^(?:if|when|once|whenever|as soon as|after|before|until)\b[^,]{1,80},\s*(.+)$/i;
@@ -2003,12 +2138,27 @@ function gateNumbers(s, facts, rs) {
     if (askedGun && !subjects.some((x) => x.kind === 'gun') && /\b(?:hits?|shots?|damage|bullets?|taps?)\b/i.test(ctx.clause)) {
       subjects = [{ kind: 'gun', name: askedGun }, ...subjects.filter((x) => !(x.kind === 'gear' && /armou?r|shield/i.test(x.name)))];
     }
+    // The guns a hits to kill answer's working is about: the clause's, else the
+    // sentence's, else the gun asked about where the sentence speaks of hits.
+    // "Each body shot deals 40 damage, for 160 total" has no gun and no hit in
+    // the clause of its 160 (the coach bench 13, fracture-duel).
+    const workingGuns = () => {
+      let gs = subjects.filter((x) => x.kind === 'gun').map((x) => lower(x.name));
+      if (!gs.length) gs = gunsIn(t).map((g) => lower(g.name));
+      if (!gs.length && askedGun && HIT_WORD.test(t)) gs = [lower(askedGun)];
+      return new Set(gs);
+    };
+    // "For 160 total", "160 in total": the sum of the hits the sentence counts,
+    // never the health a kill needs, so it stands only as the gun's own hit
+    // damage times a count (the armour's 150 said as the sum went, the same bench).
+    const sumSaid = SUM_BEFORE.test(before) && SUM_AFTER.test(after);
     // "Brings the total to 160": a gun's own hit damage times a count of
     // hits, the sum a hits to kill answer shows its working with (the same run).
     if (!attr && /\btotal\b/i.test(ctx.clause)) {
-      const guns = new Set(subjects.filter((x) => x.kind === 'gun').map((x) => lower(x.name)));
+      const guns = workingGuns();
       const per = (f.primer || []).filter((e) => e.subjectKind === 'gun' && guns.has(lower(e.subject)) && ['head', 'body', 'legs'].includes(e.attribute) && fin(e.value));
       if (per.some((e) => [2, 3, 4, 5, 6, 7, 8].some((k) => near(e.value * k, value, 1e-6)))) continue;
+      if (sumSaid) return fail(`${value} as the sum of the hits, which is no count of the gun's own hit damage`);
     }
     // "So 3 shots deal 120": a count of hits and the damage they add up to,
     // the working of a hits to kill answer, no kill claim (the coach bench
@@ -2016,15 +2166,33 @@ function gateNumbers(s, facts, rs) {
     // named (else the body) times the count is the sum; any other pair goes on
     // to the checks below.
     {
-      const a = HITS_DEAL_AFTER.exec(after);
-      const b = a ? null : HITS_DEAL_BEFORE.exec(before);
+      // And "so four deal 160", the hit said once earlier in the sentence and
+      // not again (the coach bench 13): read bare only after a hit word, its part that one's.
+      const hitBefore = lastHitWord(t.slice(0, at));
+      const bare = hitBefore ? (HITS_DEAL_BARE_AFTER.exec(after) || null) : null;
+      const bareB = hitBefore && !bare ? HITS_DEAL_BARE_BEFORE.exec(before) : null;
+      const a = HITS_DEAL_AFTER.exec(after) || (bare ? [bare[0], hitBefore[1], bare[1]] : null);
+      const b = a ? null : (HITS_DEAL_BEFORE.exec(before) || (bareB ? [bareB[0], bareB[1], hitBefore[1]] : null));
       if (a || b) {
-        const n = a ? value : Number(b[1]);
+        const n = a ? value : (/^\d+$/.test(b[1]) ? Number(b[1]) : NUMBER_WORDS[lower(b[1])]);
         const sum = a ? Number(a[2]) : value;
         const p = partOf((a ? a[1] : b[2]) || '') || 'body';
-        const guns = new Set(subjects.filter((x) => x.kind === 'gun').map((x) => lower(x.name)));
+        const guns = workingGuns();
         const per = (f.primer || []).filter((e) => e.subjectKind === 'gun' && guns.has(lower(e.subject)) && e.attribute === p && fin(e.value));
-        if (per.some((e) => near(e.value * n, sum, 1e-6))) continue;
+        if (per.some((e) => near(e.value * n, sum, 1e-6))) {
+          // "So three deal 120, enough to kill through Heavy Armor": the sum is
+          // true and the kill is not. A sum said to kill is held to full health
+          // and the armour the sentence or the question names.
+          if (KILL_ENOUGH.test(t.slice(at))) {
+            let armor = null;
+            for (const [re, an] of ARMOR_NAMED) if (re.test(t)) { armor = an; break; }
+            armor = armor || ctx.armor;
+            const hp = armor ? (f.primer || []).find((e) => e.subjectKind === 'gear' && e.subject === armor && e.attribute === 'health' && fin(e.value)) : null;
+            const need = hp ? hp.value : 100;
+            if (sum < need) return fail(`${sum} damage as enough to kill${armor ? ` through ${armor}` : ''}, where it takes ${need}`);
+          }
+          continue;
+        }
       }
     }
     // "Short of the 150 total damage needed": full health and the armour the
@@ -2047,6 +2215,41 @@ function gateNumbers(s, facts, rs) {
     // and a gun's own hits are still the primer's to hold.
     if (instructive && value <= 3 && SMALL_ADVICE_AFTER.test(after) && !subjects.some((x) => x.kind === 'gun')
         && !/\b(?:kills?|killing|die|dies|damage|armou?r|health|hp)\b/i.test(ctx.clause)) continue;
+    // ── The coach bench 13 (Nov 2026), each asserted in test:chatgates ──
+    if (english) {
+      // "The Outlaw fires 2 shots before it reloads": the magazine, not a hit count.
+      // And "a gun that fires twice before a reload", of the gun asked about where the sentence names none.
+      if ((attr === 'hits' && SHOTS_BEFORE_RELOAD.test(after))
+          || (attr === 'times' && FIRES_TIMES_RELOAD.test(t.slice(Math.max(0, at - 8), at + len + 48)))) {
+        attr = 'magazine';
+        if (askedGun && !subjects.some((x) => x.kind === 'gun')) subjects = [{ kind: 'gun', name: askedGun }, ...subjects];
+      }
+      // "You fired three shots without dealing damage": the shots of the play,
+      // held to the look that counted them (or the player's own account), never
+      // to the hits a gun needs to kill.
+      if (attr === 'hits' && FIRED_BEFORE.test(before)) {
+        if (lookCounts(f, rs && rs.round ? rounds : [], value, 'shots?') || echoed(f, value, 'hits')) continue;
+        return fail(`${value} shots fired, which no look of the round counts`);
+      }
+      // "Both teams at 5": a standing of N against N, the named round's own (else any round's).
+      if (!attr && BOTH_TEAMS_AT.test(before) && f.rounds instanceof Map) {
+        const pool = rs && rs.round && rounds.length ? rounds : [...f.rounds.keys()];
+        if (pool.some((n) => { const r = f.rounds.get(n); return !!(r && (r.standings || []).some(([a, b]) => a === value && b === value)); })) continue;
+        return fail(`both teams at ${value}, which no standing of the round in Riot's record has`);
+      }
+      // "Pop out for one kill": the play's aim, no count of the record's.
+      if (attr === 'kills' && value === 1 && ONE_KILL_BEFORE.test(before) && /^\s+kill\b/i.test(after)) continue;
+      // "It only resets every two kills": the kit's own words for an ability
+      // the sentence names, else of the player's agent or one the question names.
+      if (attr === 'kills' && /\bevery\s+$/i.test(before) && kitEvery(f, t, value)) continue;
+      // A number the player wrote in the question, said back with its unit, is
+      // their account ("at 47 HP", "at 14 m"), as a name they typed is an echo.
+      // With a match only what the record does not hold (health, a range).
+      if (attr && echoed(f, value, attr) && (attr !== 'hits' || !ECHO_HIT_CLAIM.test(ctx.clause))
+          && (f.noMatch || attr === 'health' || attr === 'metres')) continue;
+      // "So the fight happens at 5 or 6 m": the first of a pair in advice takes the unit of the second.
+      if (!attr && instruction && OR_UNIT_AFTER.test(after)) continue;
+    }
     if (!attr) {
       if (instruction && value <= 10 && /^\s*(?:more\s+)?(?:\w+\s+)?(?:deathmatch(?:es)?|games?|matches|reps?|rounds?)\b/i.test(after)) continue;
       return fail(`${m[1]} with nothing the facts tie it to`);
@@ -3085,6 +3288,17 @@ function gateMachinery(s, facts) {
     : null;
 }
 
+/*
+ * THE RIGHT ORDER GIVEN AS THE CAUSE (the coach bench 13, QjNlQKSUi3M-3): "You
+ * died because you flashed before you peeked onto A" (game-claims.js checkFlashFirstBlamed).
+ */
+function gateFlashFirst(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const why = claims.checkFlashFirstBlamed(s);
+  return why ? drop('cause', why) : null;
+}
+
 // ── All of them ────────────────────────────────────────────────────────────
 
 /*
@@ -3150,6 +3364,8 @@ const GATES = [
   // The coach bench 12 (Nov 2026), after every gate before.
   ['spike-side', gateSpikeSide],
   ['machinery', gateMachinery],
+  // The coach bench 13 (Nov 2026), after every gate before.
+  ['cause', gateFlashFirst],
 ];
 
 /**
@@ -3177,6 +3393,9 @@ module.exports = {
   gateMapAndKit, gateStanding, gateWeapon, gateEconomy, gateCount, gateBuyBlame, gateTimeFormat,
   roundSentence, roundsNamed, isHypothetical, isInstruction, sentencesOf, paragraphsOf, digitsOf, resultClaims,
   labelsIn, phraseHit, shapeOf, nameSetFor, gunsIn, agentsIn, abilitiesIn, partOf, bandNamed, attributeOf, hitsOk, primerHas, matchHas,
+  // The coach bench 13 (Nov 2026), each asserted in test:chatgates.
+  numbersSaid, echoed, lookCounts, kitEvery, mapsIn, SHOTS_BEFORE_RELOAD, FIRED_BEFORE, BOTH_TEAMS_AT, ONE_KILL_BEFORE, ECHO_HIT_CLAIM, OR_UNIT_AFTER,
+  HITS_DEAL_BARE_AFTER, HITS_DEAL_BARE_BEFORE, SUM_BEFORE, SUM_AFTER, KILL_ENOUGH, ONCE_HIT, MID_SAID, PURPOSE_BEFORE, KILLED_YOU_TIMES, FIRES_TIMES_RELOAD,
   PHRASES, CAUSE_TITLES, CAUSE_WORDS, NOT_TRADED, WAS_TRADED, TRADE_AS_HARM, TRADED_YOU, MATE_TRADED_YOU, YOU_PLANTED, RIOT_ID, META, ATTRIBUTION,
   HYPOTHETICAL, IMPERATIVE, INSTRUCTION_WORDS, STANDING, CLOCK, ECONOMY, SPELLED, NUMBER_WORDS, LABELLING,
   KILLED_YOU, YOU_DIED_TO, YOU_KILLED, PAST_ABOUT_YOU, AFTER_UNITS, BEFORE_UNITS, ARMOR_NAMED,

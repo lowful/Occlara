@@ -554,10 +554,17 @@ function checkClockBeforePlant(sentence, state) {
  * A hypothetical and a negation stay.
  */
 const SPIKE_WAS_DOWN = /\b(?:the\s+)?spike\s+(?:was|had\s+been)\s+(?:already\s+)?(?:down|planted)\b|\b(?:they|the\s+attackers|the\s+enemy|the\s+enemies|your\s+team|you)\s+had\s+(?:already\s+)?planted\b/i;
+/*
+ * And the player's own standing said with the spike down (the coach bench 13,
+ * bNC4PU5AwEA-3): "In a 1v2 on defence with the spike down, you have to go and
+ * take it" of a 1v2 the player told with no plant. The standing makes it the
+ * player's round, not a rule.
+ */
+const STANDING_WITH_SPIKE = /\b\d\s?v\s?\d\b[^.;,]{0,40}?\bwith\s+the\s+spike\s+(?:already\s+)?(?:down|planted)\b/i;
 function checkSpikePremise(sentence, planted) {
   if (planted !== false) return null;
   const t = String(sentence || '');
-  const m = SPIKE_WAS_DOWN.exec(t);
+  const m = SPIKE_WAS_DOWN.exec(t) || STANDING_WITH_SPIKE.exec(t);
   if (!m) return null;
   if (PISTOL_HYPO.test(t.slice(0, m.index)) || NEGATED.test(t.slice(Math.max(0, m.index - 30), m.index))) return null;
   return 'your reply said the spike was down in the player\'s round, which they never said; never add a premise of your own, and answer the round as they told it';
@@ -688,9 +695,21 @@ function checkGuided(sentence, fixedAsked) {
 const DENY_DEFUSE = /\b(?:forc(?:e|es|ed|ing)|push(?:es|ed|ing)?|den(?:y|ies|ied|ying)|stop(?:s|ped|ping)?|punish(?:es|ed|ing)?|delay(?:s|ed|ing)?|interrupt(?:s|ed|ing)?|break(?:s|ing)?|deter(?:s|red|ring)?)\s+(?:a\s+|the\s+|any\s+|their\s+)?(?:defuser|defusers|defuse|defusal)\b|\b(?:a|the|their)\s+defusers?\s+off\b|\b(?:set|sets|setting)\s+(?:it\s+|one\s+)?off\s+when\s+the\s+defuse\s+starts\b/i;
 const DENY_PLANT = /\b(?:stop(?:s|ped|ping)?|den(?:y|ies|ied|ying)|delay(?:s|ed|ing)?|interrupt(?:s|ed|ing)?|punish(?:es|ed|ing)?|break(?:s|ing)?)\s+(?:a\s+|the\s+|any\s+|their\s+)?(?:plant|planter|planters)\b/i;
 const ENEMY_DOES = /\b(?:they|they'll|their|the\s+enemy|the\s+enemies|enemies|the\s+attackers|the\s+defenders|an?\s+attacker|an?\s+defender|the\s+other\s+team)\b[^.;]{0,40}$/i;
+/*
+ * A DEFENDER LISTENING FOR THE DEFUSE (the coach bench 13, bNC4PU5AwEA-3):
+ * "take one piece of space, stop, and listen for the defuse" to a defender in
+ * a 1v2. The defuse is the defender's own; what a defender listens for is the
+ * plant, a step or the spike. "Listen for the plant" and an attacker told to
+ * listen for the defuse stay.
+ */
+const LISTEN_DEFUSE = /\blisten\s+(?:out\s+)?(?:for|to)\s+(?:the\s+|a\s+|their\s+|any\s+)?(?:defuse|defusing|defuser|defusal)\b/i;
 function checkSideUse(sentence, side) {
   if (side !== 'defense' && side !== 'attack') return null;
   const t = String(sentence || '');
+  const heard = side === 'defense' ? LISTEN_DEFUSE.exec(t) : null;
+  if (heard && !NEGATED.test(t.slice(Math.max(0, heard.index - 30), heard.index))) {
+    return 'your reply told a defender to listen for the defuse, which on defence is his own team\'s to do; a defender listens for the plant, a step or a teammate\'s call';
+  }
   const m = (side === 'defense' ? DENY_DEFUSE : DENY_PLANT).exec(t);
   if (!m) return null;
   const head = t.slice(Math.max(0, m.index - 50), m.index);
@@ -751,9 +770,43 @@ function checkActionPremise(sentence, notDone) {
   if (!m) return null;
   const w = m[1] || m[2] || m[3];
   const st = verbStem(w);
-  if (!notDone.includes(st) || NEGATED.test(t.slice(Math.max(0, m.index - 30), m.index))) return null;
-  return `your reply praised the player for ${w.toLowerCase()}, which they said they did not do; answer the round as they told it, and say what to do instead`;
+  if (notDone.includes(st) && !NEGATED.test(t.slice(Math.max(0, m.index - 30), m.index))) {
+    return `your reply praised the player for ${w.toLowerCase()}, which they said they did not do; answer the round as they told it, and say what to do instead`;
+  }
+  // PRAISED takes the first -ing word, and "You had a teammate covering the
+  // angle, so reloading then was the right call" gave it "covering" (the coach
+  // bench 13, FD8OFhwHF5M-2, bench 11's praise back). Every -ing word between
+  // the first and the praise is read too, the one nearest the praise first.
+  if (m[1]) {
+    const tail = PRAISE_TAIL.exec(m[0]);
+    const span = tail ? m[0].slice(0, tail.index) : m[0];
+    const words = [...span.matchAll(/\b([a-z]{3,}ing)\b/gi)].reverse();
+    for (const x of words) {
+      const xs = verbStem(x[1]);
+      const at = m.index + x.index;
+      if (notDone.includes(xs) && !NEGATED.test(t.slice(Math.max(0, at - 30), at))) {
+        return `your reply praised the player for ${x[1].toLowerCase()}, which they said they did not do; answer the round as they told it, and say what to do instead`;
+      }
+    }
+  }
+  return null;
 }
+/*
+ * THE RIGHT ORDER GIVEN AS THE CAUSE OF THE DEATH (the coach bench 13,
+ * QjNlQKSUi3M-3): "I flashed before peeking onto A, why did I still die?",
+ * answered "You died because you flashed before you peeked onto A". A flash
+ * before the peek is the right order, so it is never why the player died; the
+ * cause is what the flash left uncovered. "You died because you peeked before
+ * your flash popped" and "you died even though you flashed first" stay.
+ */
+const FLASH_FIRST_BLAMED = /\b(?:died|lost\s+(?:the|that|this)\s+(?:fight|duel|peek|round)|got\s+killed|were\s+killed|lost\s+it)\s+(?:mostly\s+|only\s+|simply\s+|just\s+)?because\s+you\s+(?:flashed|threw\s+(?:a|the|your)\s+(?:own\s+)?flash|used\s+(?:a|the|your)\s+(?:own\s+)?flash|popped\s+(?:a|the|your)\s+(?:own\s+)?flash)\s+(?:first\s+)?(?:before|and\s+then|then)\s+(?:you\s+)?(?:peek(?:ed|ing)?|swung|swinging|entered|entering|pushed|pushing|went\s+in)\b/i;
+function checkFlashFirstBlamed(sentence) {
+  const t = String(sentence || '');
+  const m = FLASH_FIRST_BLAMED.exec(t);
+  if (!m || NEGATED.test(t.slice(Math.max(0, m.index - 30), m.index))) return null;
+  return 'your reply gave a flash before the peek as why the player died, which is the right order; say what the flash left uncovered and what to do about it';
+}
+const PRAISE_TAIL =/\b(?:was|were)\s+(?:(?:also|still|exactly|absolutely)\s+)?(?:the\s+right\s+(?:call|move|play|thing|choice|idea|instinct)|right|fine|correct|good|smart|a\s+good\s+(?:call|habit|choice|idea|instinct))\b\s*$/i;
 
 /*
  * THE SHORT BLIND SAID TO HAVE WORKED (Nov 2026, the coach bench 11,
@@ -853,6 +906,8 @@ module.exports = {
   checkSpikeSide, SPIKE_NOT_PLANTED, SPIKE_PLANTED, COME_TO_YOU, TIME_YOURS, KILLS_YOU_IS, FRONTED_PLACE, UNSTEERED, KNIFE_PRAISED, checkUnsteered,
   checkBlindPremise, shortBlindSaid, SHORT_BLIND_SAID, BLIND_WORKED,
   checkActionPremise, notDoneOf, NOT_DONE, PRAISED,
+  // The coach bench 13 (Nov 2026).
+  checkFlashFirstBlamed, FLASH_FIRST_BLAMED, LISTEN_DEFUSE, STANDING_WITH_SPIKE, PRAISE_TAIL,
   checkSideUse, DENY_DEFUSE, DENY_PLANT,
   checkGuided, askedFixed, STEERED, FIXED_RE, STEERED_RE, GUIDE,
   checkNextSite, NEXT_SITE, LEAN_SITE, LEAN_PATTERN, NEXT_SITE_LIVE, NEXT_SITE_NEG,

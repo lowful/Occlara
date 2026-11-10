@@ -890,6 +890,11 @@ function factsOf(input, messages, opts) {
     // The guns the question names: the subject of a hit or a damage number a
     // sentence of the answer gives without its gun (fact-gates.js gateNumbers).
     askedGuns: [...new Set(gates.gunsIn(asked).map((g) => g.name))],
+    // The numbers the question says, each with its unit: said back, they are
+    // the player's own account (fact-gates.js gateNumbers, the coach bench 13).
+    askedNumbers: typeof gates.numbersSaid === 'function' ? gates.numbersSaid(asked) : [],
+    // The map the question names, for a claim of the map with no match (fact-gates.js gateMapAndKit).
+    askedMap: typeof gates.mapsIn === 'function' ? (gates.mapsIn(asked)[0] || null) : null,
     // The armour the question names, the target of a hits claim whose own
     // sentence names none ("so 3 hits are not enough", the coach bench 11).
     askedArmor: ((gates.ARMOR_NAMED || []).find(([re]) => re.test(String(asked || ''))) || [])[1] || null,
@@ -3712,6 +3717,34 @@ const FILLER_REASON = 'your reply closed on a line that something can wait; end 
  * @param opts.messages  the conversation, for the echo of a name the player typed
  * @param opts.nameSet   the match's own names, has(text) (opts.names the same)
  */
+/*
+ * A TRUE ONE LINE ANSWER STANDS (the coach bench 13, Nov 2026). "How many
+ * body shots does a Vandal need to kill someone with heavy armor?" answered
+ * "A Vandal needs 4 body hits to kill someone with Heavy Armor from full
+ * health, at any range", and "What comp did the enemy team run?" answered in
+ * one sentence naming the five, were asked again for being too short: 5 of
+ * the run's 11 retries, and the retry's working then lost the answer to the
+ * honest line 3 times. The retry is there to rescue an answer that lost its
+ * first sentence, not to pad a true one. So a reply of one sentence that
+ * passed every gate stands, where the question is a direct factual one (how
+ * many, how much, how long, what damage, price or cost; what comp, which
+ * agents) and the sentence holds its answer: a number for the first, at least
+ * three agents for the second. Anything else of one sentence is asked again.
+ */
+const ONE_LINE_NUMBER_ASK = /^\s*(?:(?:and|so|ok|okay)\s*,?\s+)?(?:how\s+(?:many|much|long|far)\b|what(?:'s|\s+is|\s+was|\s+are|\s+were|\s+does)?\s+(?:the\s+|a\s+|an\s+)?(?:\w+\s+)?(?:damage|price|cost|fire\s+rate|range|magazine)\b)/i;
+const ONE_LINE_LIST_ASK = /^\s*(?:(?:and|so|ok|okay)\s*,?\s+)?(?:what\s+(?:(?:team\s+)?comp(?:osition)?|agents?|lineup|line-up)\b|which\s+agents?\b|who\s+(?:was|were)\s+(?:on\s+)?(?:the\s+)?(?:enemy|their|my|our)\s+team\b)/i;
+const NUMBER_IN = /\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|hundred)\b/i;
+function oneLineAnswers(sentence, messages, facts) {
+  if (((facts && facts.language) || 'en') !== 'en' || typeof sentence !== 'string') return false;
+  const lastAsk = [...(Array.isArray(messages) ? messages : [])].reverse().find((x) => x && x.role !== 'assistant');
+  const asked = String((lastAsk && lastAsk.content) || '');
+  const qs = asked.split(/(?<=[.!?])\s+/).filter((q) => /\?\s*$/.test(q));
+  const pool = qs.length ? qs : [asked];
+  if (pool.some((q) => ONE_LINE_NUMBER_ASK.test(q))) return NUMBER_IN.test(sentence);
+  if (pool.some((q) => ONE_LINE_LIST_ASK.test(q))) return gates.agentsIn(sentence).length >= 3;
+  return false;
+}
+
 function parseReply(raw, input, opts) {
   const o = opts || {};
   const inp = input && input.v === 2 ? input : normalise(input);
@@ -3758,6 +3791,8 @@ function parseReply(raw, input, opts) {
   out.clipAsks = chatClips.asksOf(marked, cleanReply).filter((a) => kept[a.para] && kept[a.para].length)
     .map((a) => ({ round: a.round, para: kept.slice(0, a.para).filter(Boolean).length, of: shown, kept: kept[a.para].map((s) => s.trim()) }));
   out.retry = out.firstDropped || out.kept < 2;
+  // A true one line answer to a direct factual question stands (the coach bench 13, ONE_LINE_ASK).
+  if (out.retry && out.kept === 1 && out.sentences === 1 && !out.firstDropped && oneLineAnswers(kept.filter(Boolean).flat()[0], o.messages, facts)) out.retry = false;
   /*
    * WHAT THE ANSWER IS BUILT ON (round 8). An aim answer whose kept sentences
    * are still more about trading than not (FOCUS_SHARE), and, from Platinum,
@@ -3824,6 +3859,8 @@ module.exports = {
   outOfScope, ECON_QUESTION, ECONOMY_OUT, ECONOMY_RULE, MAP_HABIT_RULE, NEXT_SITE_RULE, PLAY_RULE, noteInScope, pistolKnown,
   // The economy out of scope everywhere the coach speaks (Nov 2026), asserted in test:chatgates.
   ECON_WORDS, ECONOMY_OUT_LANG, economyOut, economyDrop,
+  // The coach bench 13 (Nov 2026), asserted in test:chatgates.
+  oneLineAnswers, ONE_LINE_NUMBER_ASK, ONE_LINE_LIST_ASK,
   RANK_BANDS,
   // The blind audit of round 6 (Nov 2026), stream B: the enemy asked about, the aim facts and notes.
   enemyAskedOf, aimFactsOf, aimNote, isAimBasic, AIM_BASIC, AIM_RANGE, SHOT_MOVING, enemyCases,
