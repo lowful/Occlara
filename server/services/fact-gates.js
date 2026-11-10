@@ -1303,8 +1303,10 @@ function mapsIn(text) {
   const t = String(text || '');
   return MAPS.map((m) => ({ m, at: t.search(new RegExp(`\\b${esc(m)}\\b`)) })).filter((x) => x.at >= 0).sort((a, b) => a.at - b.at).map((x) => x.m);
 }
-// The map's mid: "the middle lane", "one holds the middle", "through mid", "mid control".
-const MID_SAID = /\b(?:the\s+)?middle\s+lane\b|\b(?:holds?|holding|watch(?:es|ing)?|takes?|taking|control(?:s|ling)?|through|into|toward|towards|via)\s+(?:the\s+)?(?:mid|middle)\b(?!-|\s+(?:round|range|air|fight|spray|game|match|point|of)\b)|\b(?:in|at|to|from|down|up)\s+mid\b(?!-|\s+(?:round|range|air|fight|spray|game|match|point)\b)|\bmid\s+(?:control|lane|doors?|link|top|bottom|courtyard|window|lurk|rotate|rotation)\b|\bone\s+middle\b/i;
+// The map's mid: "the middle lane", "one holds the middle", "through mid", "mid control",
+// and since 8.10.3 "fight for mid", "leave mid thin", "playing mid", "site or mid",
+// "the mid player". "Mid round", "mid range", "mid fight" and "mid map" stay.
+const MID_SAID = /\b(?:the\s+)?middle\s+lane\b|\b(?:holds?|holding|watch(?:es|ing)?|takes?|taking|control(?:s|ling)?|through|into|toward|towards|via|leaves?|leaving|play(?:s|ing)?|contest(?:s|ing)?|push(?:es|ing)?|lurk(?:s|ing)?|clear(?:s|ing)?|or|and)\s+(?:the\s+)?(?:mid|middle)\b(?!-|\s+(?:round|range|air|fight|fights|spray|game|match|point|of|map)\b)|\b(?:in|at|to|from|down|up|for)\s+mid\b(?!-|\s+(?:round|range|air|fight|fights|spray|game|match|point|map)\b)|\bmid\s+(?:control|lane|doors?|link|top|bottom|courtyard|window|lurk|rotate|rotation|player|players|position|line|presence)\b|\bone\s+middle\b/i;
 function gateMapAndKit(s, facts, rs) {
   const f = facts || {};
   if (f.game !== 'valorant') return null;

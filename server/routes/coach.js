@@ -413,7 +413,35 @@ const AI = {
   // Sol costs about $0.03 a match on two frames a death, about $0.07 at five
   // recording stills (an estimate), against Luna's $0.003.
   forensicsModel: process.env.AI_FORENSICS_MODEL || 'openai/gpt-6-sol',
+  // THE MAX PLAN'S MODELS (8.10.3). A caller on the Max tier is written for by
+  // these; every other caller, and Max when one is unset, by the models above.
+  // Chosen by the benches of 10 Nov 2026 (the table in docs/claude/live-read.md,
+  // "The Max plan's models"). 'off' turns one back to the plan's shared model.
+  maxReviewModel:    maxModel('AI_MAX_REVIEW_MODEL', null),
+  maxForensicsModel: maxModel('AI_MAX_FORENSICS_MODEL', null),
+  maxChatModel:      maxModel('AI_MAX_CHAT_MODEL', null),
 };
+
+function maxModel(env, fallback) {
+  const v = String(process.env[env] || '').trim();
+  if (v.toLowerCase() === 'off') return null;
+  return v || fallback;
+}
+
+/**
+ * The model a job is written by for this request: an admin bench's own, else
+ * the Max plan's for a Max caller, else the shared one. job is 'review',
+ * 'forensics' or 'chat'.
+ */
+function modelFor(req, job) {
+  const bench = benchModel(req);
+  if (bench) return bench;
+  const shared = { review: AI.reviewModel, forensics: AI.forensicsModel, chat: AI.chatModel }[job];
+  const tier = req && req.caller && req.caller.tier;
+  if (tier !== 'max') return shared;
+  const max = { review: AI.maxReviewModel, forensics: AI.maxForensicsModel, chat: AI.maxChatModel }[job];
+  return max || shared;
+}
 
 // ─── Out-of-credits breaker ──────────────────────────────────────────────────
 // EXHAUSTED CREDITS DO NOT ALWAYS ARRIVE AS 402.
@@ -697,12 +725,18 @@ async function chatCall({ prompt, parts, imageB64, maxTokens, temperature, model
   // screen, so this is what we want anyway. Models that cannot disable it are
   // caught below by the response itself.
   const isThinking = /thinking/i.test(model);
+  // A MODEL THAT MUST REASON (8.10.3, the Max plan's candidates): the off
+  // switch is refused or ignored by these, which is why Sonnet 5.5 and Gemini
+  // 3.8 Flash were cut off at the budget on the 13 Oct benches. They are asked
+  // for the least reasoning they offer instead, with room for it on top of the
+  // answer's own budget.
+  const effort = REASONING_EFFORT[model] || null;
   // Reasoning happens BEFORE the answer and comes out of the same budget, so a
   // thinking model that reasons past the cap returns a truncated <think> block
   // and nothing else, which reads as an empty reply. Text work (grading, chat,
   // reviews) is not latency bound, so it gets real room; vision stays tighter
   // because a live tip has to land inside the frame timeout.
-  const headroom = isThinking ? (images.length ? 700 : 2200) : 0;
+  const headroom = effort ? (images.length ? 1500 : 2500) : isThinking ? (images.length ? 700 : 2200) : 0;
   const budget = (maxTokens || 100) + headroom;
   const signal = abortMs > 0 ? AbortSignal.timeout(abortMs) : undefined;
 
@@ -732,7 +766,7 @@ async function chatCall({ prompt, parts, imageB64, maxTokens, temperature, model
           temperature: temperature == null ? 0.7 : temperature,
           // OpenRouter's unified switch. Hybrid reasoners answer directly instead of
           // thinking first; providers that do not support it ignore the field.
-          reasoning:   thinkOn ? undefined : { enabled: false },
+          reasoning:   effort ? { effort } : thinkOn ? undefined : { enabled: false },
           ...usage,
           ...policy,
         }),
@@ -809,7 +843,7 @@ async function chatCall({ prompt, parts, imageB64, maxTokens, temperature, model
   // ignoring it as the others do. Found benchmarking the live read: Gemini 3.5
   // Flash Lite and GLM 5.3 Flash answered every request with a 400 and nothing
   // else. One retry that leaves the field out, at the same budget.
-  if (resp.status === 400 && !isThinking) {
+  if (resp.status === 400 && !isThinking && !effort) {
     const first = await resp.text();
     console.warn(`[coach] ${model} rejected the request (400), retrying without the reasoning switch: ${first.slice(0, 120)}`);
     resp = await send(budget, true);
@@ -1104,7 +1138,27 @@ const BENCH_MODELS = new Set([
   'qwen/qwen3.5-flash-02-23',             // 4 Nov 2026: the highest published OCRBench at its price, per read about equal
   'mistralai/mistral-small-3.2-24b-instruct', // 4 Nov 2026: plain instruct, nothing to switch off, highest DocVQA here
   'google/gemma-3-12b-it',                // 4 Nov 2026: the weakest, a non reasoning control for the harness
+  // Candidates of 10 Nov 2026 for the Max plan's review, look and Ask Coach,
+  // every id and price read from OpenRouter's /models that day. Most must
+  // reason, so each is asked at its lowest effort (REASONING_EFFORT, below).
+  'openai/gpt-6.1-sol',                   // Sol's successor, effort low, $2 / $10
+  'anthropic/claude-opus-5.5',            // effort low, $4 / $20
+  'google/gemini-4-argon',                // effort low, $2 / $10
+  'moonshotai/kimi-k3.1-pro',             // none switch, $2 / $10
 ]);
+
+/*
+ * THE MODELS THAT CANNOT SWITCH REASONING OFF (8.10.3), and the effort each is
+ * asked for instead of { enabled: false }. chatCall gives them room for it on
+ * top of the answer's budget. A model not listed gets the off switch as before.
+ */
+const REASONING_EFFORT = Object.freeze({
+  'openai/gpt-6.1-sol': 'low',
+  'anthropic/claude-opus-5.5': 'low',
+  'anthropic/claude-sonnet-5.5': 'low',
+  'google/gemini-4-argon': 'low',
+  'google/gemini-3.8-flash': 'low',
+});
 function benchModel(req) {
   const m = String((req.body && req.body.benchModel) || '').trim();
   return m && BENCH_MODELS.has(m) && isAdmin(req) ? m : null;
@@ -3694,7 +3748,7 @@ router.post('/death-forensics', async (req, res) => {
     const gate = await usageMeter().reviewGate(caller, { what: 'look' });
     if (!gate.ok) return res.status(gate.status).json(gate.body);
   }
-  const model = benchModel(req) || AI.forensicsModel;
+  const model = modelFor(req, 'forensics');
   const told = (req.body && req.body.variant) || clientAtLeast(req, V85) ? { variant: variant || 'a' } : {};
   if (!input.variant) input.variant = variant || 'a';
   input.version = String(req.headers['x-occlara-version'] || '').slice(0, 24) || null;
@@ -3827,7 +3881,7 @@ router.post('/match-review', async (req, res) => {
       // 503), never one written by a model that bench rejected.
       const text = await Promise.race([
         // 1600: variant C was cut off mid focus line at 1100 on the bench.
-        textInfer(prompt, 1600, { json: true, model: benchModel(req) || AI.reviewModel, fallback: false }),
+        textInfer(prompt, 1600, { json: true, model: modelFor(req, 'review'), fallback: false }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 45000)),
       ]);
       trackCall(licenseKey);
@@ -3861,7 +3915,7 @@ router.post('/match-review', async (req, res) => {
         if (left > 15000) {
           try {
             const again = await Promise.race([
-              textInfer(prompt + matchReview.floorNote(parsed, fails), 1600, { json: true, model: benchModel(req) || AI.reviewModel, fallback: false }),
+              textInfer(prompt + matchReview.floorNote(parsed, fails), 1600, { json: true, model: modelFor(req, 'review'), fallback: false }),
               new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), Math.min(30000, left - 5000))),
             ]);
             trackCall(licenseKey);
@@ -4303,17 +4357,22 @@ function chatVariant(req) {
   return chatPromoted() && clientAtLeast(req, V85) ? 'v2' : null;
 }
 
-/** The cap as Railway sets it, read on every question. */
-function chatCap() {
-  const usd = Number(process.env.CHAT_DAY_USD);
-  const questions = Number(process.env.CHAT_DAY_QUESTIONS);
-  return { usd: Number.isFinite(usd) && usd > 0 ? usd : 0.15, questions: Number.isInteger(questions) && questions > 0 ? questions : 40 };
+/**
+ * The cap as Railway sets it, read on every question. The Max plan has its own
+ * (8.10.3, CHAT_DAY_USD_MAX default $0.60, CHAT_DAY_QUESTIONS_MAX default 80),
+ * since its stronger model costs more a question and its players play more.
+ */
+function chatCap(tier) {
+  const max = tier === 'max';
+  const usd = Number(process.env[max ? 'CHAT_DAY_USD_MAX' : 'CHAT_DAY_USD']);
+  const questions = Number(process.env[max ? 'CHAT_DAY_QUESTIONS_MAX' : 'CHAT_DAY_QUESTIONS']);
+  return { usd: Number.isFinite(usd) && usd > 0 ? usd : (max ? 0.6 : 0.15), questions: Number.isInteger(questions) && questions > 0 ? questions : (max ? 80 : 40) };
 }
 const chatLedger = new Map();   // licence -> [{ at, cost }], oldest first, the last 24 hours
 
 /** Whether a licence may ask now: { ok } or { ok: false, resetsAt } (ms). */
-function chatRoom(key, now) {
-  const cap = chatCap();
+function chatRoom(key, now, tier) {
+  const cap = chatCap(tier);
   const list = (chatLedger.get(key) || []).filter((e) => now - e.at < CHAT_DAY_MS);
   if (list.length) chatLedger.set(key, list); else chatLedger.delete(key);
   // A millionth of a cent of slack, so dollars added up as floats compare as written.
@@ -4350,7 +4409,7 @@ function chatGate(req, res, licenseKey) {
   const scope = costScope.getStore() || {};
   if (scope.bench) return null;
   const now = Date.now();
-  const room = chatRoom(licenseKey, now);
+  const room = chatRoom(licenseKey, now, req.caller && req.caller.tier);
   if (!room.ok) {
     chatCounts().capped++;
     if (clientAtLeast(req, V85)) return res.status(429).json({ error: 'chat-daily', resetsAt: new Date(room.resetsAt).toISOString() });
@@ -4696,7 +4755,7 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
     return true;
   }
   if (!scope.bench) {
-    const room = chatRoom(licenseKey, Date.now());
+    const room = chatRoom(licenseKey, Date.now(), req.caller && req.caller.tier);
     if (!room.ok) {
       counts.capped++;
       res.status(429).json({ error: 'chat-daily', resetsAt: new Date(room.resetsAt).toISOString() });
@@ -4710,7 +4769,7 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
   if (rawWanted && costScope.getStore()) scope.usage = { prompt: 0, completion: 0, cached: 0, calls: 0 };
   const said = { first: null, retry: null };
 
-  const model = benchModel(req) || AI.chatModel;
+  const model = modelFor(req, 'chat');
   const deadline = t0 + CHAT_TIMES.budgetMs;
   const ask = (p, tokens, ms, ps) => textInfer(p, tokens,
     { json: true, model, fallback: false, temperature: CHAT_TEMPERATURE, timeoutMs: Math.max(1, Math.round(ms)), ...(ps ? { parts: ps } : {}) });
