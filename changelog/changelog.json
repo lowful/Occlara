@@ -1,5 +1,29 @@
 [
   {
+    "version": "8.9.6",
+    "date": "2026-11-10",
+    "title": "Reviews read defence deaths right",
+    "summary": "A death on defence is never called an entry, a risky spot with no way out has its own cause, and the coach checks more of what it says.",
+    "items": [
+      {
+        "kind": "fixed",
+        "text": "A death on defence is never called an entry. Reviews keep entry advice for attack."
+      },
+      {
+        "kind": "new",
+        "text": "A new death cause, Risky spot, no escape: you got a kill and the next enemy killed you a second later, too soon to leave. Its fix tells you to hold from a spot you can step back from."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach no longer guesses which site the enemy will hit next. It tells you what to look and listen for instead, and gives better advice on taking mid and playing too passive."
+      },
+      {
+        "kind": "fixed",
+        "text": "Ask Coach answers how many body shots a gun needs through armour again, and drops claims about guided darts, long range head shots, utility used for the wrong side, and praise for things you did not do."
+      }
+    ]
+  },
+  {
     "version": "8.9.5",
     "date": "2026-11-10",
     "title": "Lighter recording",
