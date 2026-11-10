@@ -2323,6 +2323,15 @@ const KIT_KILLED_YOU = new RegExp(`\\b(?:her|his|their)\\s+(?:[a-z]+\\s+){0,1}?$
 const LEAN_OFFSET = '(?:(?:a|an|one|two|three|four|five|a few)\\s+(?:secs?|seconds?)|\\d+(?:\\.\\d+)?\\s*(?:s|secs?|seconds?)|(?:a\\s+)?(?:moment|beat|split second|instant)|moments|seconds|right|just|immediately|shortly|soon|straight)';
 const LEANS_TIME = new RegExp(`\\b${LEAN_OFFSET}\\s+(?:later\\b|afterwards?\\b|after(?=\\s*(?:[,.;:!?]|$|that\\b|this\\b)))|\\b(?:at|in)\\s+the\\s+same\\s+(?:time|moment|second|instant)\\b`, 'i');
 const LEANS_SUBJECT = /^(?:(?:and|but|so|then|still|yet|also)\s*,?\s+)?(?:(?:he|she)\b|(?:his|her|its)\s+[a-z]|(?:that|this|it)(?:'s\b|\s+(?:was|is|were|are|wasn't|isn't|had|has|left|leaves|gave|gives|meant|means|made|makes|put|puts|cost|costs|let|lets|happened|came|comes|went|brought|turned|decided|matters|mattered|changed|showed|shows|explains|explained|would|will|should|could|can|did|does|didn't|doesn't|counts|counted|ended|opened|forced|helped|allowed|created|got|took|says|said|tells|told)\b))/i;
+/*
+ * ANY VERB AFTER IT (the coach bench 10, Nov 2026): "It chases the first enemy
+ * it sees and explodes on impact" stayed after the sentence naming the Boom
+ * Bot went, since "chases" was in no list, and read as the tower before it.
+ * An opening it, this or that with a present tense verb of its own (a lower
+ * case word ending in s, an adverb allowed before it) leans as the listed
+ * verbs do. "This angle", "That spot" and "Its" are no verb.
+ */
+const LEANS_IT_VERB = /^(?:(?:[Aa]nd|[Bb]ut|[Ss]o|[Tt]hen|[Ss]till|[Yy]et|[Aa]lso)\s*,?\s+)?(?:[Ii]t|[Tt]his|[Tt]hat)\s+(?:(?:also|only|then|still|just|always|never|usually|often|actually|even|really)\s+)?(?!(?:is|was|has|does)\b)[a-z]{2,}(?<!ss)s\b/;
 const IT_IS_THE_ROUND = /^(?:(?:and|but|so)\s*,?\s+)?it(?:'s|\s+(?:was|is))\s+(?:(?:a|an|the|your|their)\s+)?(?:[a-z]+\s+){0,2}(?:round|match|game|half)\b/i;
 const LEANS_TRADE = new RegExp(`\\b(?:traded|avenged)\\s+(?:(?:their|the enemy|an enemy|the)\\s+)?(?:${AGENT_ALT})(?![A-Za-z0-9])|\\banswered\\b(?!\\s+(?:you|your)\\b)`, 'i');
 const LEAN_ANCHOR = /\b\d+(?:\.\d+)?\s*(?:s|secs?|seconds?)\s+(?:in|into)\b|\b(?:killed|died|traded|shot|planted|defused|eliminated|fell|answered|avenged|took out|picked off)\b|\b(?:deaths?|kills?)\b/i;
@@ -2337,7 +2346,7 @@ function leansOn(sentence) {
     for (const m of head.matchAll(CLAUSE_START)) cut = m.index;
     if (!LEAN_ANCHOR.test(head.slice(0, cut))) return 'time';
   }
-  if (LEANS_SUBJECT.test(t) && !IT_IS_THE_ROUND.test(t)) return 'subject';
+  if ((LEANS_SUBJECT.test(t) || LEANS_IT_VERB.test(t)) && !IT_IS_THE_ROUND.test(t)) return 'subject';
   const trade = LEANS_TRADE.exec(t);
   if (trade && !LEAN_ANCHOR.test(t.slice(0, trade.index))) return 'subject';
   return null;
@@ -2901,6 +2910,34 @@ function gateMapHabit(s, facts) {
   return why ? drop('map-habit', why) : null;
 }
 
+// ── The coach bench 10 (Nov 2026) ─────────────────────────────────────────
+
+/*
+ * THE CLOCK BEFORE THE PLANT (the coach bench 10): "let the clock and the
+ * spike force the defence to show themselves" to an attacker before any
+ * plant. Held to the sentence's own words and, with no match, to the player's
+ * account (facts.said, chat-prompt.js factsOf; game-claims.js checkClockBeforePlant).
+ */
+function gateClock(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const why = claims.checkClockBeforePlant(s, f.said || null);
+  return why ? drop('clock', why) : null;
+}
+
+/*
+ * THE SPIKE DOWN NOBODY SAID (the coach bench 10): "late in a lost A take, so
+ * the spike was down" where the player's account has no plant (facts.said;
+ * game-claims.js checkSpikePremise). With a match the round state gate holds
+ * the record's own plant.
+ */
+function gateSpikePremise(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol' || !f.said) return null;
+  const why = claims.checkSpikePremise(s, f.said.planted);
+  return why ? drop('premise', why) : null;
+}
+
 // ── All of them ────────────────────────────────────────────────────────────
 
 /*
@@ -2955,6 +2992,9 @@ const GATES = [
   ['economy-scope', gateEconomyScope],
   ['premise', gatePistolPremise],
   ['map-habit', gateMapHabit],
+  // The coach bench 10 (Nov 2026), after every gate before.
+  ['clock', gateClock],
+  ['spike-premise', gateSpikePremise],
 ];
 
 /**
@@ -3018,5 +3058,7 @@ module.exports = {
   LOOK_SEEN_SOFT, LOOK_WORDS, lookSeenAt, LOOK_ANAPHOR, LOOKED_BY, LOOK_SUBSET, LOOK_SUBSET_AGENT, UTIL_ART, UTIL_TEAM_ASK, UTIL_TEAM_AFTER, UTIL_ENEMY_OWNER,
   // The coach bench 9 (Nov 2026), each asserted in test:chatgates.
   gateEconomyScope, gatePistolPremise, gateMapHabit, RECORD_KIND_WORDS,
+  // The coach bench 10 (Nov 2026), each asserted in test:chatgates.
+  gateClock, gateSpikePremise, LEANS_IT_VERB,
   BIGGEST_SAID, COUNTED_HOW_MANY, HEALTH_AT, ONE_HIT_KILLS, UTILITY_OWNERS, UTILITY_ASKED, UTIL_LIST, BUY_HEDGE_SAID, UTILITY_OURS, BUY_HELD_SAID, KIT_KILLS_YOU, KIT_KILLED_YOU,
 };

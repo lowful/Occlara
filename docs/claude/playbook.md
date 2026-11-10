@@ -36,7 +36,7 @@ automatically through `knowledge.all()`, and extra fields such as `source` pass
 through untouched. It began as 69 notes (42 imported from pro VOD reviews and
 27 of Occlara's own, computed from the damage table or written from round
 shapes), grew to 227 with the 2026 imports, to 308 with the 8.7.2 audit, to 469
-with the 8.8 coach consensus, to 602 with its second round, to 642 with its third, to 666 with the coach bench, to 667 with its retrieval pass and to 670 with the coach bench 9 (below); the live count is `knowledge.all().length` minus the hand written
+with the 8.8 coach consensus, to 602 with its second round, to 642 with its third, to 666 with the coach bench, to 667 with its retrieval pass, to 670 with the coach bench 9 and to 672 with the coach bench 10 (below); the live count is `knowledge.all().length` minus the hand written
 set, and the boot line `[knowledge] merged N` says it. **An imported note must
 carry `source.topic`**, which is what `study()` picks by, or the checker fails
 it.
@@ -608,3 +608,22 @@ Retrieval: the question topic `read` (`chat-prompt.js QUESTION_TOPICS`) and the 
 note words (`SIT_TOPICS`) reach the new notes; each of the four moments is served its note
 (`test:chatgates`, "BENCH 9 SERVED"). Fact checked against 13.09 (no numbers, no kit claims beyond
 Trademark and Rendezvous by name). Not benched live.
+
+### The coach bench 10 (Nov 2026)
+
+Bench 10 left post-plant at 7 of 8. The code side is in `ask-coach.md`, "The coach bench 10". The data:
+
+- **"refrag after the plant"** (attack, post plant, every band, core): when a teammate takes a fight deep
+  on site, play from an angle where you can trade them rather than leaving them alone, and keep the spike
+  utility for the defuse. Written in plain words ("trade them, killing the enemy who kills them"), since
+  the rules keep coaching words out. Served to _BagmBAjtsc-3 through the `refrag` situation topic.
+- **"pushing your own smoke"** (Silver up, core): it can work, on an eco too, after a wait of about one to
+  one and a half seconds and from a cover spot at its edge, a pillar or a box, for one kill. The bench 9
+  retrieval pass left it out as one source against several guides; the coach's conditions are what the
+  answer was missing, and the guides' point (the first player through is seen first) is the note's reason.
+  Served to WCgnalZDT_A-4 through the `ownsmoke` topic.
+- **"the bird travels before it pops"** lost "because it only blinds players looking at it", the reason
+  the BfumSarDJKw-3 answer gave for a full blind failing: a bird popped short gives a short blind.
+
+Fact checked against 13.09: no game numbers (the one to one and a half seconds is a coach's timing, not a
+game number, and the gates pass it), no kit claims beyond Guiding Light by name. Not benched live.

@@ -1187,6 +1187,11 @@ function factsOf(input, messages, opts) {
   if (opts && opts.armor) f.armor = opts.armor;
   // THE PISTOL ROUND AS THE PLAYER HAD IT (the coach bench 9, fact-gates.js gatePistolPremise).
   f.pistol = pistolKnown(inp, messages, f);
+  // THE SIDE AND THE PLANT AS THE PLAYER TOLD THEM, with no match (the coach
+  // bench 10, fact-gates.js gateClock and gateSpikePremise): planted is false
+  // where the account says nothing of a plant, a retake or a defuse.
+  const sit = !m && valorant ? askedSituation(inp, messages) : null;
+  f.said = sit ? { side: sit.side, planted: sit.phase === 'postplant' || sit.retake || (ASK_POSTPLANT.test(asked) && !NOT_PLANTED.test(asked)) } : null;
   if (input && typeof input === 'object') factsCache.set(input, { messages, facts: f });
   return f;
 }
@@ -1251,7 +1256,14 @@ function matchName(m) {
  * (fact-gates.js gateMapHabit, gatePistolPremise).
  */
 const ECONOMY_RULE = '- The economy is not something you coach: never say what anyone should buy, save or force, never talk about credits, the loss bonus or what a team can afford, and never explain a play or a read by the economy. A round named by its kind as the player told it (an eco, a bonus, the pistol round) only says where the round sits.';
-const MAP_HABIT_RULE = '- Never state where teams in general go on a map, or which site they reach first or last, as a fact: read the enemy only from what the player says they saw them do. Never add a premise the player did not give, such as a pistol round won or lost.';
+const MAP_HABIT_RULE = '- Never state where teams in general go on a map, or which site they reach first or last, as a fact: read the enemy only from what the player says they saw them do. Never add a premise the player did not give, such as a pistol round won or lost, or the spike down.';
+/*
+ * THE PLAY RULE (the coach bench 10, Nov 2026): "No, pushing straight into
+ * your own Omen's smoke on an eco is not a good play" where the coach says it
+ * works after a short wait from a cover spot, and "let the clock and the spike
+ * force the defence to show themselves" before any plant (fact-gates.js gateClock).
+ */
+const PLAY_RULE = '- Asked whether a play was good, say when it works and when it does not: never call a play always wrong, or tell the player never to make it, where a coaching note gives the conditions it works in. Before the plant the clock runs against the attackers, never the defenders.';
 const VALORANT_RULES = `You are Occlara's Valorant coach, talking with the player after a match to help them learn from it. You are never told about a match being played right now, and you never give advice for one.
 
 WHAT YOU ARE GIVEN, AND HOW FAR TO TRUST IT
@@ -1293,6 +1305,7 @@ HOW TO ANSWER
 - If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (stopping before the shot, crosshair height, information before a peek, one angle at a time). Platinum to Diamond, the decision before the fight (predictability, playing the team's plan, when to take space). Ascendant and up, no basics, the specific timing or utility change and what it risks. An answer for a higher rank is never the one a lower rank would get for the same facts in longer words.
 - Name the match the first time you refer to it: the map, the agent and the result.
 ${MAP_HABIT_RULE}
+${PLAY_RULE}
 - Write times as seconds into the round, "8 s in", never as a clock such as 0:08, which reads as the time left. Say a gap in seconds, "1.5 s after the plant" or "6 s later", only from the event the facts give it from, never from another event told just before it.
 - Speak to the player as you. Short paragraphs of plain text: no lists, no headings, no markdown. About 250 words, up to 400 when you walk through a round. Commas and periods, never dashes.
 - Write for a player who does not know coaching words: in a habit to build say a teammate killed your killer for a trade, and a teammate was near or far for the distance, never close enough to kill or trade, which mixes the two, and about what happened say no teammate was close or nobody traded you, each only where the round's line says it, never nobody was close enough to trade you, which says both, say the smoke, the flash or the drone by name, not utility, say take one piece of space and stop, not checkpoints, and never write impact, tempo, map control, situational awareness or utility potential.`;
@@ -2439,6 +2452,12 @@ const SIT_TOPICS = [
     note: /\bplay beside the teammate\b|\bnext to the fight that happens first\b/i },
   { key: 'peek', question: /\bmy peek\b|\bpeek(?:ing|ed)? (?:carefully|slowly)\b|\bwalking around the corner\b|\bshoulder\b|\bshift walk/i,
     note: /\bwide swing\b|\bshoulder\b|\bswing at full speed\b|\bpeeker'?s advantage\b/i },
+  // The coach bench 10 (Nov 2026): teammates fighting deep on site after the
+  // plant (_BagmBAjtsc-3), and the player's own controller's smoke pushed (WCgnalZDT_A-4).
+  { key: 'refrag', ask: /\b(?:teammates?|my team|our team)\b[^.?!]{0,40}?\b(?:fought|fighting|fights?|took (?:a |the )?fights?|taking (?:a |the )?fights?|swung|peeked)\b[^.?!]{0,30}?\b(?:deep|on site|on the site|in site)\b/i,
+    note: /\bteammate takes a fight deep\b/i },
+  { key: 'ownsmoke', question: /\bpush(?:ed|ing)?\s+(?:straight\s+|right\s+)?(?:in(?:to)?|through)\s+(?:my|our)\s+(?:own\s+)?(?:[a-z]+(?:'s)?\s+)?smokes?\b/i,
+    note: /\byour own controller's smoke\b/i },
 ];
 const FULL_BUY = /\bfull ?b(?:uy(?:s|ing)?|ought)\b|\b(?:four|4) teammates buying\b/i;
 // The buy, not the verb: "forced me off my angle" is no force buy.
@@ -3717,7 +3736,7 @@ module.exports = {
   LEVER_BANDS, IMPROVING_RULE, IMPROVING_RULE_877, rulesFor, matchHasBuy, BUY_HEDGE, BUY_HEDGE_RECORD, SAVE_HEDGE, SAVE_HEDGE_RECORD,
   noMatch, NO_RECORD_HEDGE, NO_RECORD_SAVE,
   // The coach bench 9 (Nov 2026), each asserted in test:chatgates.
-  outOfScope, ECON_QUESTION, ECONOMY_OUT, ECONOMY_RULE, MAP_HABIT_RULE, noteInScope, pistolKnown,
+  outOfScope, ECON_QUESTION, ECONOMY_OUT, ECONOMY_RULE, MAP_HABIT_RULE, PLAY_RULE, noteInScope, pistolKnown,
   // The economy out of scope everywhere the coach speaks (Nov 2026), asserted in test:chatgates.
   ECON_WORDS, ECONOMY_OUT_LANG, economyOut, economyDrop,
   RANK_BANDS,

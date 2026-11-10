@@ -72,6 +72,20 @@ const LONG_RANGE = /\b(?:at|from) (?:long|far) range\b|\bacross the (?:map|site)
 const NEGATED = /\b(?:not|never|no longer|cannot|can't|won't|doesn't|does not|isn't|fails? to)\b[^.;]{0,20}$/i;
 // Between a gun and the claim it owns: "Marshal's one-shot", "Marshal one-shots", "Marshal can one-shot".
 const GUN_BEFORE_CLAIM = /^(?:'s)?\s+(?:[A-Za-z]+\s+){0,2}$/;
+/*
+ * THE GUN INSIDE THE CLAIM (the coach bench 10, Nov 2026): "a Sheriff or a
+ * Marshal head hit kills you at any range" put the guns between the article
+ * and the hit, which ONE_SHOT never read, so a Sheriff head hit, which does
+ * not kill Heavy Armor past 30 m, went out at any range. Every gun the claim
+ * names is held to the table, each on its own.
+ */
+const GUN_ALT = GUN_NAMES.map(esc).join('|') || 'NO_GUN';
+const ONE_SHOT_GUN = new RegExp(`\\b(?:a|an|one|a single|any)\\s+(?:clean\\s+)?((?:${GUN_ALT})(?:'s)?(?:\\s+(?:or|and)\\s+(?:(?:a|an)\\s+)?(?:${GUN_ALT})(?:'s)?)*)\\s+(?:clean\\s+)?(?:(?:(?:body|chest|torso|head)\\s+)?(?:shot|hit|bullet|tap)|headshot|bodyshot)\\b[^.;]{0,30}?\\b(?:kills|is a kill|drops|finishes|ends)\\b`, 'i');
+// The claim's victim is the player: "kills you". An eco the enemy is on then says nothing of the player's armour.
+const KILLS_YOU = /\b(?:kills|drops|finishes|ends)\s+you\b/i;
+// The claim's own distance in metres ("only inside 10 metres"): a number the number gate holds.
+const RANGE_STATED = /\b(?:inside|within|out to|up to|under|below|past|beyond|over|from)\s+\d+\s*(?:m|metres|meters)\b/i;
+const ENEMY_ECO = /\b(?:they(?:'re|\s+are|\s+were)|the\s+enem(?:y|ies)\s+(?:is|are|was|were)|their\s+team\s+(?:is|was))\s+(?:(?:on|playing)\s+)?(?:an?\s+)?eco\b|\btheir\s+eco\b/gi;
 
 /**
  * A one hit kill the damage table does not give. primer: optional, the chat
@@ -80,36 +94,54 @@ const GUN_BEFORE_CLAIM = /^(?:'s)?\s+(?:[A-Za-z]+\s+){0,2}$/;
  */
 function checkOneShot(sentence, primer) {
   const t = String(sentence || '');
-  const k = ONE_SHOT.exec(t);
+  const g = ONE_SHOT_GUN.exec(t);
+  const k = g || ONE_SHOT.exec(t);
   if (!k) return null;
   if (NEGATED.test(t.slice(Math.max(0, k.index - 40), k.index))) return null;
-  if (ARMOUR_QUALIFIED.test(t)) return null;
+  // An eco the enemy is on is no armour of the player a "kills you" claim is about (the coach bench 10).
+  if (ARMOUR_QUALIFIED.test(KILLS_YOU.test(t.slice(k.index, k.index + k[0].length + 6)) ? t.replace(ENEMY_ECO, ' ') : t)) return null;
   let guns = [...new Set([...t.matchAll(GUN_RE)].map((m) => m[1]))];
-  // TWO GUNS, THE CLAIM'S OWN (the coach bench 9, Nov 2026): "a Spectre ...
-  // where the Marshal's one-shot body hit at any range" named two guns and
-  // judged nothing. The gun right before the claim, its possessive or with at
-  // most two words between, is the claim's subject.
-  if (guns.length > 1) {
+  if (g) {
+    // The guns the claim itself names, each its subject.
+    guns = [...new Set([...g[1].matchAll(GUN_RE)].map((m) => m[1]))];
+  } else if (guns.length > 1) {
+    // TWO GUNS, THE CLAIM'S OWN (the coach bench 9, Nov 2026): "a Spectre ...
+    // where the Marshal's one-shot body hit at any range" named two guns and
+    // judged nothing. The gun right before the claim, its possessive or with at
+    // most two words between, is the claim's subject.
     const before = [...t.matchAll(GUN_RE)].filter((m) => m.index + m[0].length <= k.index).pop();
     guns = before && GUN_BEFORE_CLAIM.test(t.slice(before.index + before[0].length, k.index)) ? [before[1]] : [];
   }
-  if (guns.length !== 1) return null;
-  const w = W[guns[0].toLowerCase()];
-  if (!w || w.pellets || !Array.isArray(w.ranges) || !w.ranges.length) return null;
+  if (!guns.length || (!g && guns.length !== 1)) return null;
   const near = t.slice(Math.max(0, k.index - 30), k.index + k[0].length + 30);
   const part = PART_BODY.test(near) ? 'body' : PART_HEAD.test(near) ? 'head' : null;
   if (!part) return null; // "the Outlaw one-shots you" names no part and judges nothing
-  const any = ANY_RANGE.test(t);
-  const bands = any ? w.ranges : LONG_RANGE.test(t) ? [w.ranges[w.ranges.length - 1]] : [w.ranges[0]];
-  const heavyHits = (b) => {
-    const e = Array.isArray(primer) ? primer.find((x) => x && x.subjectKind === 'gun' && x.subject === guns[0] && x.attribute === 'hits'
-      && x.part === part && x.armor === 'Heavy Armor' && x.band && x.band.from === b.from && x.band.to === b.to && Number.isFinite(x.value)) : null;
-    return e ? e.value : hitsToKill(b[part], HEAVY);
-  };
-  const short = bands.map((b) => ({ b, hits: heavyHits(b) })).filter((x) => x.hits > 1);
-  if (!short.length) return null;
-  const { b, hits } = short[0];
-  return `your reply said one ${part} hit of the ${guns[0]} kills${any ? ' at any range' : ''}, where its ${part} hit does ${Math.floor(b[part])} from ${b.from} to ${b.to} m and Heavy Armor from full health takes ${hits}; say the hits to kill with the armour the facts name`;
+  // A gun inside the claim is held to the range its own clause says: "a Bandit head
+  // hit kills through Heavy Armor only inside 10 metres, but ... a Marshal head hit
+  // at any range" gives the Bandit its own distance, which the number gate holds.
+  let scope = t;
+  if (g) {
+    const rest = t.slice(k.index + k[0].length);
+    const cut = rest.search(/[,;]|\bbut\b/i);
+    scope = t.slice(k.index, k.index + k[0].length + (cut < 0 ? rest.length : cut));
+    if (RANGE_STATED.test(scope)) return null;
+  }
+  const any = ANY_RANGE.test(scope);
+  for (const gun of guns) {
+    const w = W[gun.toLowerCase()];
+    if (!w || w.pellets || !Array.isArray(w.ranges) || !w.ranges.length) continue;
+    const bands = any ? w.ranges : LONG_RANGE.test(scope) ? [w.ranges[w.ranges.length - 1]] : [w.ranges[0]];
+    const heavyHits = (b) => {
+      const e = Array.isArray(primer) ? primer.find((x) => x && x.subjectKind === 'gun' && x.subject === gun && x.attribute === 'hits'
+        && x.part === part && x.armor === 'Heavy Armor' && x.band && x.band.from === b.from && x.band.to === b.to && Number.isFinite(x.value)) : null;
+      return e ? e.value : hitsToKill(b[part], HEAVY);
+    };
+    const short = bands.map((b) => ({ b, hits: heavyHits(b) })).filter((x) => x.hits > 1);
+    if (!short.length) continue;
+    const { b, hits } = short[0];
+    return `your reply said one ${part} hit of the ${gun} kills${any ? ' at any range' : ''}, where its ${part} hit does ${Math.floor(b[part])} from ${b.from} to ${b.to} m and Heavy Armor from full health takes ${hits}; say the hits to kill with the armour the facts name`;
+  }
+  return null;
 }
 
 // ── Firing while moving ───────────────────────────────────────────────────
@@ -131,8 +163,21 @@ const NAMED_ERROR = /\b(?:stop|stopped|instead|anyway|mistake|cost you|missed|we
 const MOVE_FIRE_PAST = /\b(?:you were|you kept|you kept on|were|was|kept|got caught|lost(?: \w+){0,3})\s+$/i;
 const MOVE_FIRE_COST = /\b(?:inaccurate|inaccuracy|throws? off|threw off|everywhere|wide|counter-?strafe|counter-?strafing|lost|losing|deaths?|died|spread|widens?)\b/i;
 
+/*
+ * A MOVING SHOT SAID TO BE ACCURATE (the coach bench 10, Nov 2026): "the rifle
+ * forgives a moving first bullet at close range" told no firing while moving,
+ * so MOVE_FIRE never read it, and it said what the primer's own line refutes:
+ * moving widens every gun, rifles too. A shot on the move said to be
+ * forgiven, accurate or fine goes; a negation before it and a shotgun named
+ * pass.
+ */
+const MOVE_ACCURATE = /\b(?:forgives?|forgiving|forgiven)\b[^.;]{0,25}?\b(?:moving|running|strafing|walking|jumping)\b(?:\s+[a-z]+){0,2}?\s+(?:shots?|bullets?|taps?|spray|fire)\b|\b(?:moving|running|strafing|walking|jumping)\s+(?:(?:first|single|opening)\s+)?(?:shots?|bullets?|taps?)\s+(?:is|are|stays?|remains?)\s+(?:still\s+)?(?:accurate|precise|fine|reliable|forgiven)\b|\baccurate\s+(?:while|when|on)\s+(?:moving|running|strafing|walking|jumping|the move)\b/i;
+const MOVE_ACCURATE_REASON = 'your reply said a shot fired on the move is accurate or forgiven, where moving widens every gun, rifles included; teach stopping before the shot';
+
 function checkMoveFire(sentence) {
   const t = String(sentence || '');
+  const a = MOVE_ACCURATE.exec(t);
+  if (a && !MOVE_FIRE_OK.test(t.slice(Math.max(0, a.index - 40), a.index)) && !SHOTGUN.test(t)) return MOVE_ACCURATE_REASON;
   const m = MOVE_FIRE.exec(t);
   if (!m) return null;
   if (MOVE_FIRE_OK.test(t.slice(Math.max(0, m.index - 40), m.index)) || BETWEEN.test(t) || SHOTGUN.test(t)) return null;
@@ -427,7 +472,55 @@ function checkMapHabit(sentence) {
   return 'your reply stated where teams in general go on this map as a fact, which no fact you hold says; read the enemy only from what the player saw them do';
 }
 
+// ── The clock and the spike the player did not describe (the coach bench 10) ──
+
+/*
+ * WHO THE CLOCK PRESSES BEFORE THE PLANT (Nov 2026, the coach bench 10): "let
+ * the clock and the spike force the defence to show themselves" to an
+ * attacker before any plant, where the clock runs against the attack until the
+ * spike is down. A sentence putting the clock on the defence goes where the
+ * sentence itself says before the plant, or where the player's account is an
+ * attack with no plant in it (state { side, planted }); "them" and "the enemy"
+ * are the defence only on attack. One set after the plant, a negation and a
+ * hypothetical stay.
+ */
+const CLOCK_PRESSES = /\b(?:the\s+)?(?:clock|timer|round\s+timer|round\s+clock|time)\b(?:\s+and\s+the\s+spike)?\s+(?:will\s+|to\s+|can\s+|should\s+|does\s+)?(?:force|forces|forcing|pressure|pressures|pressuring|make|makes|making|push|pushes|pushing|drag|drags|dragging)\s+(the\s+defen[cs]e|(?:the\s+)?defenders?|the\s+defending\s+team|them|the\s+enemy|the\s+enemies|enemies)\b|\b(the\s+defen[cs]e|the\s+defenders?)\s+(?:is|are|will\s+be)\s+(?:on|against|racing)\s+the\s+clock\b/i;
+const CLOCK_AFTER_PLANT = /\bafter\s+(?:the|your|their|a)\s+plant\b|\bafter\s+(?:you|they|your\s+team)\s+plant(?:ed)?\b|\bonce\s+(?:the\s+spike|it)\s+(?:is|was|goes|went)\s+(?:down|planted)\b|\bpost[ -]?plant\b|\bdefus\w*|\bthe\s+planted\s+spike\b|\bspike\s+(?:is|was)\s+(?:down|planted)\b|\bwith\s+the\s+spike\s+(?:down|planted)\b/i;
+const CLOCK_BEFORE_PLANT = /\bbefore\s+(?:any|a|the)\s+plant\b|\bbefore\s+(?:you|they|your\s+team|the\s+attackers|the\s+team)\s+plant\b|\bspike\s+(?:is|was)\s+not\s+(?:yet\s+)?(?:down|planted)\b|\bwithout\s+the\s+spike\s+(?:down|planted)\b|\bwith\s+the\s+spike\s+not\s+(?:yet\s+)?(?:down|planted)\b|\bno\s+plant\b|\bunplanted\b/i;
+const CLOCK_HYPO = /\b(?:if|once|when|whenever|unless|until)\b[^.;]{0,40}$/i;
+function checkClockBeforePlant(sentence, state) {
+  const t = String(sentence || '');
+  const m = CLOCK_PRESSES.exec(t);
+  if (!m) return null;
+  if (NEGATED.test(t.slice(Math.max(0, m.index - 40), m.index)) || CLOCK_HYPO.test(t.slice(0, m.index))) return null;
+  const before = CLOCK_BEFORE_PLANT.test(t);
+  if (!before && CLOCK_AFTER_PLANT.test(t)) return null;
+  const whom = String(m[1] || m[2] || '');
+  const named = /defen|defending/i.test(whom);
+  const attackNoPlant = !!(state && state.side === 'attack' && state.planted === false);
+  if (!(before && named) && !attackNoPlant) return null;
+  return 'your reply put the clock on the defence before the plant, where it runs against the attackers until the spike is down; say the move that takes the space or the site';
+}
+
+/*
+ * THE SPIKE DOWN NOBODY SAID (Nov 2026, the coach bench 10): "late in a lost A
+ * take, so the spike was down" of a round the player told with no plant. The
+ * spike said to have been down or planted, as a fact of the player's round,
+ * goes where their account says nothing of a plant (planted false, no match).
+ * A hypothetical and a negation stay.
+ */
+const SPIKE_WAS_DOWN = /\b(?:the\s+)?spike\s+(?:was|had\s+been)\s+(?:already\s+)?(?:down|planted)\b|\b(?:they|the\s+attackers|the\s+enemy|the\s+enemies|your\s+team|you)\s+had\s+(?:already\s+)?planted\b/i;
+function checkSpikePremise(sentence, planted) {
+  if (planted !== false) return null;
+  const t = String(sentence || '');
+  const m = SPIKE_WAS_DOWN.exec(t);
+  if (!m) return null;
+  if (PISTOL_HYPO.test(t.slice(0, m.index)) || NEGATED.test(t.slice(Math.max(0, m.index - 30), m.index))) return null;
+  return 'your reply said the spike was down in the player\'s round, which they never said; never add a premise of your own, and answer the round as they told it';
+}
+
 module.exports = {
+  checkClockBeforePlant, CLOCK_PRESSES, CLOCK_AFTER_PLANT, CLOCK_BEFORE_PLANT, checkSpikePremise, SPIKE_WAS_DOWN, ONE_SHOT_GUN, MOVE_ACCURATE,
   economyClaim, ECON_CLAIM, ECON_OUT_SAID, BUY_FOR, BUY_SUBJECT, BUY_TIME_BEFORE, AFFORD_TO, ROUND_KIND_LABEL, checkPistolPremise, pistolSaid, WON_PISTOL, LOST_PISTOL, PISTOL_HYPO, SAID_WON, SAID_LOST,
   checkMapHabit, MAP_HABIT, GUN_BEFORE_CLAIM, notePistolConflict, NOTE_WON_PISTOL, NOTE_LOST_PISTOL,
   checkOneShot, checkMoveFire, soloDrillFrame, teamDrill, pronounDrill, PRONOUN_DRILL, TEAM_HABIT, stripDisclaimer, checkUnobserved, checkBullets, hitsToKill,

@@ -1267,6 +1267,48 @@ weaker or wrong map control and positioning answers have their cause closed, whi
 at 16 of 17 and map control at 9 of 9 if the model follows; a live rerun of the bench measures it.
 Tests: `test:gameclaims` section 9 and `test:chatgates`, "the coach bench 9".
 
+### The coach bench 10: refrag after the plant, own smoke timing, and five small wrong facts (Nov 2026)
+
+Bench 10 (the 72 moments rerun on 8.9.3, judged blind) put every topic at or above the owner's 88% bar
+but post-plant, 7 of 8 (87.5%). Each weaker answer and each new wrong fact, its cause and its fix:
+
+- **_BagmBAjtsc-3** (post-plant, weaker): the swarms were right, but "if a teammate is fighting deep on
+  site, let them take that fight" sent the player away from the coach's point, refrag the teammates
+  fighting deep. No note said it, and the served "sentinel post plant" note ("worth more than a risky
+  peek") and "low health after the plant" ("never take an even fight") leaned the other way. A note was
+  added (`playbook.md`, "The coach bench 10") and the situation topic `refrag` (`SIT_TOPICS`: teammates
+  fought, fighting or took fights deep or on site) serves it.
+- **WCgnalZDT_A-4** (positioning, weaker twice): "never push your own smoke" against the coach's "it
+  works with a short wait and a pillar spot". A note gives the conditions, the situation topic `ownsmoke`
+  (the question asks about pushing into or through my or our own smoke) serves it, and `PLAY_RULE` in the
+  static rules says a play the notes give conditions for is never called always wrong.
+- **A Sheriff head hit at any range** (mhInXPZdTHs-5): `ONE_SHOT` never read a gun between the article and
+  the hit ("a Sheriff or a Marshal head hit kills you"), and the enemy's "they are on an eco" read as the
+  victim's armour. `game-claims.js ONE_SHOT_GUN` holds every gun the claim names to its bands (the
+  Sheriff's head takes two past 30 m through Heavy Armor), an enemy's eco (`ENEMY_ECO`) is no armour of a
+  "kills you" claim, and a claim with its own distance in metres (`RANGE_STATED`) is the number gate's.
+- **The clock before the plant** (x6HlAE0wHRA-1, gate `clock`, `game-claims.js checkClockBeforePlant`):
+  "let the clock and the spike force the defence to show themselves" goes where the sentence says before
+  the plant, or where the player's account is an attack with no plant (`facts.said`); after the plant, on
+  defence, negated or hypothetical it stays. `PLAY_RULE` says it too.
+- **A rifle forgiving a moving first bullet** (Klgi_mbrwP8-1): `MOVE_FIRE` reads firing while moving
+  told as the play, and this said a moving shot is forgiven. `MOVE_ACCURATE` in `checkMoveFire` drops a
+  shot on the move said to be forgiven, accurate or fine; a negation before it and a shotgun named pass.
+- **The spike down nobody said** (bNC4PU5AwEA-3, gate `spike-premise`, `checkSpikePremise`): "late in a
+  lost A take, so the spike was down" of an account with no plant goes, a hypothetical and a negation
+  stay; `MAP_HABIT_RULE`'s premise line now names the spike. **The orphaned it**: "It chases the first
+  enemy it sees" stayed after the sentence naming the Boom Bot went, since `leansOn`'s verb list for it,
+  this and that had no "chases". `fact-gates.js LEANS_IT_VERB` reads any present tense verb of its own
+  after them ("That changes everything" too), and never "This angle" or "That Jett".
+- **The bird blamed on where she looked** (BfumSarDJKw-3): the note was served, and its "because it only
+  blinds players looking at it" was the reason the answer gave for the full blind. The note now says a
+  bird popped short gives a short blind.
+
+`facts.said` (`chat-prompt.js factsOf`) is `{ side, planted }` from `askedSituation` with no match,
+planted false where the account names no plant, retake or defuse; null with a match. Tests:
+`test:chatgates`, "the coach bench 10" (every new regex both ways, the three notes served), and
+`test:gameclaims`, "the coach bench 10". Not benched live.
+
 ### The economy out of scope everywhere the coach speaks (Nov 2026)
 
 The bench 9 rule (above) reached every other place the coach talks:

@@ -284,6 +284,35 @@ ok(outlaw && /kills through Light Armor but not Heavy Armor/.test(outlaw.text), 
   }
 }
 
+// ── The coach bench 10 (Nov 2026) ─────────────────────────────────────────
+{
+  console.log('\nthe coach bench 10:');
+  const hit = (fn, ...a) => !!fn(...a);
+  // checkOneShot: the guns inside the claim, each held to its bands.
+  ok(hit(G.checkOneShot, 'They are on an eco, and a Sheriff or a Marshal head hit kills you at any range, so a body you show them is a free kill.'),
+    'bench 10 mhInXPZdTHs-5: a Sheriff or a Marshal head hit at any range, caught (the Sheriff past 30 m)');
+  ok(hit(G.checkOneShot, 'A Sheriff headshot kills you at any range.'), 'a Sheriff headshot at any range, caught');
+  ok(!hit(G.checkOneShot, 'A Marshal head hit kills you at any range.'), 'the Marshal head hit at any range, kept');
+  ok(!hit(G.checkOneShot, 'A Sheriff head hit kills you up close.'), 'the Sheriff head hit up close, kept');
+  ok(!hit(G.checkOneShot, 'On an eco, a Sheriff head hit kills them at any range.'), 'an eco the victim is on, kept');
+  ok(!hit(G.checkOneShot, 'A Bandit head hit kills through Heavy Armor only inside 10 metres, but a Marshal head hit kills at any range.'), 'a claim with its own distance, kept');
+  // checkMoveFire: a moving shot said to be accurate.
+  ok(hit(G.checkMoveFire, 'Small steps with a rifle are fine because the rifle forgives a moving first bullet at close range, but the Outlaw does not, and surprise is what wins on an off angle anyway.'),
+    'bench 10 Klgi_mbrwP8-1: the rifle forgives a moving first bullet, caught');
+  ok(hit(G.checkMoveFire, 'Moving shots are accurate with a Phantom up close.'), 'moving shots said accurate, caught');
+  ok(!hit(G.checkMoveFire, 'No gun forgives a moving first bullet.') && !hit(G.checkMoveFire, 'Your shots are inaccurate while moving.'), 'a negation and the cost said, kept');
+  // checkClockBeforePlant and checkSpikePremise.
+  ok(hit(G.checkClockBeforePlant, 'Let the clock and the spike force the defence to show themselves.', { side: 'attack', planted: false }),
+    'bench 10 x6HlAE0wHRA-1: the clock forcing the defence before the plant, caught');
+  ok(!hit(G.checkClockBeforePlant, 'Let the clock and the spike force the defence to show themselves.', { side: 'attack', planted: true })
+    && !hit(G.checkClockBeforePlant, 'Let the clock and the spike force the defence to show themselves.', null), 'a plant told, or nothing told and no before the plant said, kept');
+  ok(hit(G.checkSpikePremise, 'Late in a lost A take, so the spike was down and the attackers had to hold it.', false), 'bench 10 bNC4PU5AwEA-3: the spike down nobody said, caught');
+  ok(!hit(G.checkSpikePremise, 'Late in a lost A take, so the spike was down.', true) && !hit(G.checkSpikePremise, 'Late in a lost A take, so the spike was down.', null),
+    'a plant told, or a match (null), kept');
+  ok(G.SPIKE_WAS_DOWN.test('so the spike was down') && !G.SPIKE_WAS_DOWN.test('so the spike was not down'), 'SPIKE_WAS_DOWN both ways');
+  ok(G.MOVE_ACCURATE.test('forgives a moving first bullet') && !G.MOVE_ACCURATE.test('a moving first bullet goes wide'), 'MOVE_ACCURATE both ways');
+}
+
 // ── 7. No backspace byte ──────────────────────────────────────────────────
 for (const f of ['server/services/game-claims.js', 'scripts/test-game-claims.js']) {
   ok(!fs.readFileSync(path.join(__dirname, '..', f)).includes(8), `${f} carries no backspace byte`);

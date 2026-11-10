@@ -543,7 +543,8 @@ HOW TO ANSWER
 - Before advice about a round, read its side and whether the spike was down when the player died: on attack with no spike down the defenders never have to come to you, so waiting for them is no plan, and on defence with the spike down the defenders must retake.
 - If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (stopping before the shot, crosshair height, information before a peek, one angle at a time). Platinum to Diamond, the decision before the fight (predictability, playing the team's plan, when to take space). Ascendant and up, no basics, the specific timing or utility change and what it risks. An answer for a higher rank is never the one a lower rank would get for the same facts in longer words.
 - Name the match the first time you refer to it: the map, the agent and the result.
-- Never state where teams in general go on a map, or which site they reach first or last, as a fact: read the enemy only from what the player says they saw them do. Never add a premise the player did not give, such as a pistol round won or lost.
+- Never state where teams in general go on a map, or which site they reach first or last, as a fact: read the enemy only from what the player says they saw them do. Never add a premise the player did not give, such as a pistol round won or lost, or the spike down.
+- Asked whether a play was good, say when it works and when it does not: never call a play always wrong, or tell the player never to make it, where a coaching note gives the conditions it works in. Before the plant the clock runs against the attackers, never the defenders.
 - Write times as seconds into the round, "8 s in", never as a clock such as 0:08, which reads as the time left. Say a gap in seconds, "1.5 s after the plant" or "6 s later", only from the event the facts give it from, never from another event told just before it.
 - Speak to the player as you. Short paragraphs of plain text: no lists, no headings, no markdown. About 250 words, up to 400 when you walk through a round. Commas and periods, never dashes.
 - Write for a player who does not know coaching words: in a habit to build say a teammate killed your killer for a trade, and a teammate was near or far for the distance, never close enough to kill or trade, which mixes the two, and about what happened say no teammate was close or nobody traded you, each only where the round's line says it, never nobody was close enough to trade you, which says both, say the smoke, the flash or the drone by name, not utility, say take one piece of space and stop, not checkpoints, and never write impact, tempo, map control, situational awareness or utility potential.`;
@@ -2993,8 +2994,8 @@ console.log('\nround 8, the game facts gates:');
   {
     const names = gates.GATES.map(([n]) => n);
     const at = names.indexOf('oneshot');
-    // The coach bench 9's three gates come after them (asserted in their own section).
-    ok(names.slice(at, at + 5).join() === 'oneshot,move-fire,bullets,unseen,looks' && names.slice(at + 5).join() === 'economy-scope,premise,map-habit',
+    // The coach bench 9's three gates come after them, then the coach bench 10's two (asserted in their own sections).
+    ok(names.slice(at, at + 5).join() === 'oneshot,move-fire,bullets,unseen,looks' && names.slice(at + 5).join() === 'economy-scope,premise,map-habit,clock,spike-premise',
       'the round 8 gates run after every gate before, and the stream C looks gate after them');
   }
   // Deathmatch: the disclaimer loophole (gateMode) and the frame across sentences (gateReply).
@@ -3897,7 +3898,8 @@ console.log('\nround 8, the game facts gates:');
   // The map habit.
   const haven = 'You read the earlier rounds right, but on Haven, C is the site a five-stack with no lurks reaches last, so when Garage goes quiet that is the hit.';
   ok(gates.check(haven, fx9).drop?.gate === 'map-habit' && !gates.check('They hit B and lost, so expect A next round.', fx9).drop, 'KVOVQ6jiQw8-6: the invented Haven habit goes, this enemy\'s own habit stays');
-  ok(gates.GATES.slice(-3).map(([n]) => n).join() === 'economy-scope,premise,map-habit', 'the three bench 9 gates run after every gate before');
+  // Changed by the coach bench 10: its two gates (clock, spike-premise) come after these three.
+  ok(gates.GATES.slice(-5, -2).map(([n]) => n).join() === 'economy-scope,premise,map-habit', 'the three bench 9 gates run after every gate before');
   // Map control and positioning: the notes the four weaker moments were missing now reach them.
   const knowledge9 = require('../server/services/knowledge');
   const topic9 = new Map(knowledge9.all().map((n) => [n.text, n.source && n.source.topic]));
@@ -3913,6 +3915,103 @@ console.log('\nround 8, the game facts gates:');
   }
   const failedHit = knowledge9.all().find((n) => n.source && n.source.topic === 'the hit they will not run again');
   ok(/expect them at a different site next round, not at the one that held/.test(failedHit.text), 'FD8OFhwHF5M-3: the failed hit note names the site to lean to without "the other site"');
+}
+
+// ── The coach bench 10 (Nov 2026): refrag after the plant, own smoke timing, banded head hits,
+// the clock before the plant, rifle move fire, the spike nobody said and an orphaned it ──
+{
+  console.log('\nthe coach bench 10:');
+  const gameClaims10 = require('../server/services/game-claims');
+  const knowledge10 = require('../server/services/knowledge');
+  const topic10 = new Map(knowledge10.all().map((n) => [n.text, n.source && n.source.topic]));
+  const asked10 = (band, content) => {
+    const ctx = chatContext.build(null, { rows: [] }, null, content, { game: 'valorant', language: 'en', advanced: true, switchedFrom: null, now: 0 });
+    ctx.rankBand = band;
+    const input = cp.normalise(ctx);
+    const messages = [{ role: 'user', content }];
+    return { input, messages, f: cp.factsOf(input, messages) };
+  };
+  const POST = 'I was on Killjoy on Breeze, attack, we took A with more players. I planted myself, then fell back to main with both Nanoswarms on the spike and activated one before anyone touched it, while two teammates fought deep on site and got traded. Should I play my post plant from main on my Nanoswarms when my team is still fighting on site?';
+  const SMOKE = "I was on Skye on Lotus, defense, eco round on A. Our Omen dropped a smoke on A main and I pushed into it right away to look for an early pick on attackers walking to site. Is pushing straight into my controller's smoke on A main a good eco play?";
+  const BIRD = 'I was on Skye on Split, defense retake after a plant. I sent my bird at their Raze but popped it short, in front of her, so the blind was short. She still saw my teammate pushing off it and killed him. In a later round I drove the bird into the floor and got a full blind. I flashed the Raze but she still killed my teammate, why did the blind not work?';
+  const RAZE = 'I was on Raze on Split, defense, late in a lost A take, 1v2. Their Sage was in a corner below and their Omen could come from tower, CT or main. I stayed in an open spot where both could swing me at once and died. I am in a 1v2 and they can hit me from two sides, what do I do?';
+  const REYNA = 'I was on Reyna on Abyss, attack, early round after a Vandal buy. I waited behind a smoke and jumped out with a flash before any defender had pushed out or made any sound. Was my jump out of the smoke with the flash too early?';
+  const SAGE = 'I was on Sage on Split, defense, right after we won the bonus round. They were on an eco with pistols, we had rifles, and I pushed up with a Vandal and jumped into a risky spot toward B main where my feet were visible from a smoke. They are on eco and we have rifles, is pushing up for kills worth it?';
+  const JETT = 'I was on Jett on Sunset, defense, round 3 after they went B both of the first two rounds. I held a tight angle toward A main with the Outlaw and kept strafing and jiggling while waiting. Should I keep moving a little while I hold an angle with a sniper, and when should I reload?';
+
+  // 1. _BagmBAjtsc-3: the refrag note, served for teammates fighting deep after the plant.
+  const refrag = knowledge10.all().find((n) => n.source && n.source.topic === 'refrag after the plant');
+  ok(!!refrag && refrag.side === 'attack' && refrag.phase === 'postplant' && /teammate takes a fight deep on site/.test(refrag.text) && /utility on the spike for the defuse/.test(refrag.text) && !DASHES.test(refrag.text),
+    'the refrag note: after the plant, trade the teammate fighting deep, and keep the spike utility for the defuse');
+  const sitRef = cp.askedSituation(asked10('silver_gold', POST).input, [{ role: 'user', content: POST }]);
+  ok(sitRef.topics.has('refrag') && !cp.askedSituation(asked10('silver_gold', SMOKE).input, [{ role: 'user', content: SMOKE }]).topics.has('refrag'),
+    'THE REFRAG TOPIC: "two teammates fought deep on site" reads it, the smoke push does not');
+  // 2. WCgnalZDT_A-4: the own smoke note with its timing and its cover spot, and the play rule.
+  const smoke = knowledge10.all().find((n) => n.source && n.source.topic === 'pushing your own smoke');
+  ok(!!smoke && /one to one and a half seconds/.test(smoke.text) && /a pillar or a box/.test(smoke.text) && !gameClaims10.economyClaim(smoke.text) && !DASHES.test(smoke.text),
+    'the own smoke note: the wait, the cover spot at its edge, and no economy claim');
+  const OWN_Q = /\bpush(?:ed|ing)?\s+(?:straight\s+|right\s+)?(?:in(?:to)?|through)\s+(?:my|our)\s+(?:own\s+)?(?:[a-z]+(?:'s)?\s+)?smokes?\b/i;
+  ok(OWN_Q.test("Is pushing straight into my controller's smoke on A main a good eco play?") && !OWN_Q.test('Is pushing into their smoke on A main a good idea?'),
+    'THE OWN SMOKE QUESTION both ways: my controller\'s smoke, never theirs');
+  ok(cp.VALORANT_RULES.includes(cp.PLAY_RULE) && /never call a play always wrong/.test(cp.PLAY_RULE) && /clock runs against the attackers/.test(cp.PLAY_RULE) && !DASHES.test(cp.PLAY_RULE)
+    && /or the spike down\.$/.test(cp.MAP_HABIT_RULE), 'THE PLAY RULE is in the static rules, and the premise rule names the spike');
+  // Every served note, the bench 10 moments (pickNotes as the server builds it).
+  for (const [band, content, topic] of [['silver_gold', POST, 'refrag after the plant'], ['plat_diamond', SMOKE, 'pushing your own smoke'], ['asc_plus', BIRD, 'the bird travels before it pops']]) {
+    const x = asked10(band, content);
+    const got = cp.pickNotes(x.input, x.messages).map((t) => topic10.get(t));
+    ok(got.includes(topic), `BENCH 10 SERVED: "${topic}"`, JSON.stringify(got));
+  }
+  // 3e. BfumSarDJKw-3: the bird note says a short pop gives a short blind, no longer that it blinds only who looks at it.
+  const bird = knowledge10.all().find((n) => n.source && n.source.topic === 'the bird travels before it pops');
+  ok(/popped short gives the holder only a short blind/.test(bird.text) && !/only blinds players looking at it/.test(bird.text),
+    'BfumSarDJKw-3: the bird note teaches the short blind of a short pop, not where the enemy looked');
+
+  // 3a. mhInXPZdTHs-5: a head hit of a gun whose head one-shot is banded, said at any range.
+  const fSage = asked10('plat_diamond', SAGE).f;
+  const sheriff = 'They are on an eco, so their pistols only win up close, and a Sheriff or a Marshal head hit kills you at any range.';
+  ok(gates.check(sheriff, fSage).drop?.gate === 'oneshot', 'mhInXPZdTHs-5: "a Sheriff or a Marshal head hit kills you at any range" goes', JSON.stringify(gates.check(sheriff, fSage)));
+  ok(!gates.check('A Marshal head hit kills you at any range.', fSage).drop && !gates.check('A Sheriff head hit kills you up close.', fSage).drop
+    && !gates.check('It is not true that a Sheriff head hit kills you at any range.', fSage).drop
+    && !gates.check('On an eco, a Sheriff head hit kills them at any range.', fSage).drop,
+  'the Marshal\'s head at any range, the Sheriff\'s up close, a negation and an eco the victim is on stay');
+  ok(gameClaims10.ONE_SHOT_GUN.test('a Sheriff or a Marshal head hit kills you') && gameClaims10.ONE_SHOT_GUN.test('any Sheriff headshot kills')
+    && !gameClaims10.ONE_SHOT_GUN.test('a Sheriff and a head hit for anyone'), 'ONE_SHOT_GUN both ways');
+  // 3b. x6HlAE0wHRA-1: the clock on the defence before the plant.
+  const fReyna = asked10('silver_gold', REYNA).f;
+  ok(fReyna.said && fReyna.said.side === 'attack' && fReyna.said.planted === false, 'facts.said: an attack with no plant told', JSON.stringify(fReyna.said));
+  const clock = 'Hold the space outside it with your team, let the clock and the spike force the defence to show themselves, and take the fight when someone actually appears.';
+  ok(gates.check(clock, fReyna).drop?.gate === 'clock', 'x6HlAE0wHRA-1: the clock forcing the defence, on attack before the plant, goes', JSON.stringify(gates.check(clock, fReyna)));
+  ok(gameClaims10.checkClockBeforePlant('Before any plant the timer forces the defenders to come out.', null)
+    && !gameClaims10.checkClockBeforePlant('After the plant the clock forces the defenders to come to the spike.', { side: 'attack', planted: false })
+    && !gameClaims10.checkClockBeforePlant('The clock forces them to come to you.', { side: 'defense', planted: false })
+    && !gameClaims10.checkClockBeforePlant('The clock does not force the defence to do anything before the plant.', { side: 'attack', planted: false })
+    && !gameClaims10.checkClockBeforePlant('Let the clock force the defenders onto the spike once it is down.', { side: 'attack', planted: true }),
+  'the clock: said before the plant goes; after the plant, on defence, negated or with the spike down stays');
+  ok(gameClaims10.CLOCK_PRESSES.test('let the clock and the spike force the defence to show themselves') && !gameClaims10.CLOCK_PRESSES.test('the clock is against you on attack'),
+    'CLOCK_PRESSES both ways');
+  // 3c. Klgi_mbrwP8-1: a moving shot said to be forgiven on a rifle.
+  const fJett = asked10('silver_gold', JETT).f;
+  const rifle = 'Small steps with a rifle are fine because the rifle forgives a moving first bullet at close range, but the Outlaw does not, and surprise is what wins on an off angle anyway.';
+  ok(gates.check(rifle, fJett).drop?.gate === 'move-fire', 'Klgi_mbrwP8-1: "the rifle forgives a moving first bullet" goes', JSON.stringify(gates.check(rifle, fJett)));
+  ok(gameClaims10.checkMoveFire('A Vandal stays accurate while moving.') && !gameClaims10.checkMoveFire('No gun forgives a moving first bullet.')
+    && !gameClaims10.checkMoveFire('The rifle does not forgive a moving shot, so stop first.') && !gameClaims10.checkMoveFire('Your shots are inaccurate while moving.')
+    && !gameClaims10.checkMoveFire('A Judge forgives a moving shot up close.'),
+  'MOVE_ACCURATE both ways: accuracy on the move goes; a negation, the cost said and a shotgun stay');
+  // 3d. bNC4PU5AwEA-3: the spike down nobody said, and an it that leans on a dropped sentence.
+  const xr = asked10('iron_bronze', RAZE);
+  ok(xr.f.said && xr.f.said.planted === false, 'facts.said: a defence told with no plant');
+  const premise = 'You were on defence on Split, late in a lost A take, so the spike was down and the attackers had to hold it while you retook.';
+  ok(gates.check(premise, xr.f).drop?.gate === 'premise', 'bNC4PU5AwEA-3: "so the spike was down" with no plant told goes', JSON.stringify(gates.check(premise, xr.f)));
+  ok(!gates.check(premise, asked10('silver_gold', BIRD).f).drop?.gate && !gameClaims10.checkSpikePremise('If the spike was down, the defenders had to come.', false)
+    && !gameClaims10.checkSpikePremise('The spike was not down yet.', false), 'a plant told, a hypothetical and a negation stay');
+  const rows = cp.gateReply([`${premise} That changes everything: they cannot wait you out.`,
+    'Winning the pistol and then round 2 means the enemy is on their smallest loss pay. It chases the first enemy it sees and explodes on impact, so it either damages her or forces her to move.'], xr.f, {});
+  ok(rows.length === 4 && rows[0].drop?.gate === 'premise' && rows[1].drop?.gate === 'leans' && !!rows[2].drop && rows[3].drop?.gate === 'leans','the sentences leaning on the dropped ones go with them, "It chases" included',
+    JSON.stringify(rows.map((r) => [r.drop && r.drop.gate, r.s.slice(0, 30)])));
+  ok(gates.leansOn('It chases the first enemy it sees.') === 'subject' && gates.leansOn('That changes everything.') === 'subject'
+    && gates.leansOn('This angle is yours.') === null && gates.leansOn('That spot is the one.') === null && gates.leansOn('It is a pistol round.') === null
+    && gates.leansOn('Its ult charges fast.') === 'subject' && gates.leansOn('That Jett pushes alone.') === null,
+  'LEANS_IT_VERB both ways: it, this or that with a verb of its own leans; a noun after this or that and the round itself do not');
 }
 
 // ── The economy out of scope everywhere the coach speaks (Nov 2026) ──────────
