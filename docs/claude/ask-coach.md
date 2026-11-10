@@ -1373,6 +1373,66 @@ Tests: `test:chatgates`, "the coach bench 11" (every new regex both ways, the no
 `test:gameclaims` (every playbook note agrees with the game data, which caught the anti eco note).
 Not benched live.
 
+### The coach bench 12: the spike before and after the plant, steered drones, the machinery, dangling pointers (Nov 2026)
+
+Bench 12 (the 72 moments on 8.9.6, judged blind) was 98.6% (51 same, 20 partial, 1 weaker, no topic
+under 88%). Its wrong facts and holes, each cause and fix:
+
+- **The spike turned round** (Klgi_mbrwP8-4, Tx_okqpD79g-2; gate `spike-side`,
+  `game-claims.js checkSpikeSide`): "On defence with the spike planted, the attackers must come to you",
+  "nobody has to come to you yet" of a defender before the plant, and "the spike is down, so you have
+  time to reset" on a retake. Held to the sentence's own plant state (`SPIKE_NOT_PLANTED`, "no spike
+  down" and "until the spike is down" among it; `SPIKE_PLANTED`, a retake is after one) and side ("on
+  defence" or "on attack", then whom it says must come, then a retake, else `facts.said.side`): "X must
+  come to you" (`COME_TO_YOU`) stands only where you are the side approached, a defence before the plant
+  or an attack after it, "nobody has to" the other way, and time said to be yours (`TIME_YOURS`) goes
+  for a defender after the plant. The replay found five true lines of benches 9 to 11 the first cut
+  dropped ("on attack with no spike down ... nobody has to come to you", "the defenders have to come to
+  you ... on the retake entrances"); each is a test. The untagged note "After the plant, time is on your
+  side" is now `side: 'attack'`.
+- **A drone said to fly on its own** (KVOVQ6jiQw8-5, gate `guided`, `checkUnsteered`): "A dart or drone
+  flies on its own, so nobody is steering it" passed, since "nobody is steering" read as the negation
+  the gate keeps for a fixed ability. A clause naming a steered one (`STEERED_RE`, a bare drone among
+  them) and saying it flies on its own or nobody steers it (`UNSTEERED`) goes; a recon dart, a recon
+  drone and the Recon Bolt said to fly on their own stay, and "the dart flies on its own, but a drone is
+  piloted" stays.
+- **The one thing that kills you, the other way round** (WCgnalZDT_A-6, gate `oneshot`,
+  `KILLS_YOU_IS`): "The one thing that still kills you there is a Marshal or Sheriff head hit, so never
+  stand still on that long line" put "kills you" before the guns. "The one thing", "the only thing" or
+  "what" that kills you, then the guns and the part, each gun held to its band with the whole sentence
+  as the range; and a fronted place before the claim's comma ("On a long line, a Sheriff head hit kills
+  you", `FRONTED_PLACE`) is the claim's range too.
+- **The knife out in place of the reload** (FD8OFhwHF5M-2, gate `premise`, `KNIFE_PRAISED`): bench 11
+  took the reload's praise away and the answer praised the knife out instead. Where the account says the
+  reload was not done, the knife out told as right, fine or the right instinct goes (bench 10's "The kill
+  and the knife were fine" with it); `PRAISED` reads "the right instinct". A present tense rule stays.
+- **The machinery shown** (ypyZNWaL-Rs-6, gate `machinery`, `fact-gates.js MACHINERY`): "The coaching
+  note advises ..." goes, and so does a sentence naming the notes, the worked cases, the playbook, the
+  knowledge base or the prompt as a source. "Note that", "take a note of", "a mental note", "keep notes"
+  and the team's own playbook stay.
+- **The two holes were true sentences dropped by false positives**, not the play left out. The bench
+  keeps only the shown answer (`ask.js` never saved the `raw` the route sends an admin), so the raw
+  replies could not be replayed; candidates in the answers' own words were. x6HlAE0wHRA-4: the player
+  wrote "coming through CT", and `echoOf` took CT for a name the player typed, so every sentence about
+  the teammates through CT went as an echo, leaving "If the spike timer still leaves time, that is the
+  play". CT is in `ECHO_SKIP` now, and a game word in the plural ("both Nanoswarms") is no echo either.
+  WCgnalZDT_A-4: the served note's wait, said "1 to 1.5 seconds", read as a score of 1 to 1
+  (`gateNumbers`' pair took "1" off "1.5"); `SCORE_PAIR_AFTER` and `SCORE_PAIR_BEFORE` read a pair's
+  numbers whole, a decimal is never a score, and the pair goes on to the unit check as a time. A score
+  the facts lack ("It was 1 to 1 at the half") still goes. **The pointers go with what they point at**
+  (`fact-gates.js LEANS_POINTER` in `leansOn`): an opening "that way" or "this way" ("That way you get
+  the surprise", which stood alone), and a condition whose main clause is only "that is the play" (the
+  plan, the move, the point, the fix, why, how) lean as an opening "that is" does; "If you hear the plant
+  start, that is your moment" is the condition itself and stays, and so does "That way out". A lead whose
+  sentences all went, "The spike being down changes everything here." (`coherence.js POINT_SAYS`), goes
+  as an orphan.
+
+Replayed over the five benches' shown answers (`gateReply`, the bench's own facts), the changes drop 9
+sentences: the 7 targets, the Klgi_mbrwP8-4 lead and bench 10's knife praise; nothing else, and every
+playbook note and case sentence is unchanged with no side (the two that trip `spike-side` with a defender
+are attacker texts). Tests: `test:chatgates`, "the coach bench 12" (every new regex both ways, the five
+true lines the replay found). Not benched live.
+
 ### The economy out of scope everywhere the coach speaks (Nov 2026)
 
 The bench 9 rule (above) reached every other place the coach talks:

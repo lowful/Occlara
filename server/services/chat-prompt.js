@@ -726,6 +726,8 @@ function stated(id, mode, at) {
 const ECHO_SKIP = (() => {
   const out = new Set(['i', "i'm", "i've", "i'd", "i'll", 'ok', 'okay', 'gg', 'riot', 'valorant', 'occlara', 'ask', 'coach', 'home',
     'matches', 'stats', 'settings', 'review', 'deathmatch', 'range', 'mvp', 'acs', 'adr', 'kd', 'hs', 'rr', 'elo', 'op', 'ult',
+    // The spawns' callouts (the coach bench 12, x6HlAE0wHRA-4: "coming through CT" made every sentence on CT an echo).
+    'ct',
     'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december',
     'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'sept', 'oct', 'nov', 'dec',
     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'today', 'yesterday', 'tonight']);
@@ -784,6 +786,8 @@ function echoOf(messages) {
         const t = toks[i].replace(/'s$/, '');
         if (!/^\p{Lu}/u.test(t) || t.length < 2) continue;
         if (gameWord(t) || /^\d/.test(t) || /^R\d+$/.test(t)) continue;
+        // A game word in the plural ("both Nanoswarms", the coach bench 12) is the game's too.
+        if (/s$/i.test(t) && (gameWord(t.slice(0, -1)) || (/es$/i.test(t) && gameWord(t.slice(0, -2))))) continue;
         out.add(t);
       }
     }

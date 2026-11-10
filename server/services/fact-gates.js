@@ -1836,6 +1836,9 @@ const ROUND_RUN = /\brounds?\s+(?:\d+\s*(?:,\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or
 const MONTH_AFTER = /^\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b/i;
 const MONTH_BEFORE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+$/i;
 const NUMBER = /(?<![\d.:/#])(\d+(?:\.\d+)?)(?![\d:]|\.\d)/g;
+// Two numbers said as a pair, "13 to 11" or "1 to 1.5", each read whole (gateNumbers).
+const SCORE_PAIR_AFTER = /^\s*(?:to|-)\s*(\d{1,2}(?:\.\d+)?)(?!\d|\.\d)/;
+const SCORE_PAIR_BEFORE = /\b(\d{1,2}(?:\.\d+)?)\s*(?:to|-)\s*$/;
 // A time into the round ("18 s in", "18 seconds into the round"), a clause
 // saying the player died, another event beside it, and the player's own count.
 const ABS_TIME = /^\s*(?:s|secs?|seconds?)\s+(?:in|into)\b/i;
@@ -1962,13 +1965,16 @@ function gateNumbers(s, facts, rs) {
       if (has('kills', k) && has('deaths', d)) continue;
       return fail(`${k} kills and ${d} deaths, which is no scoreline of this match`);
     }
-    const pair = /^\s*(?:to|-)\s*(\d{1,2})\b/.exec(after);
-    const prev = /\b(\d{1,2})\s*(?:to|-)\s*$/.exec(before);
+    // A pair's numbers read whole, a decimal included (the coach bench 12): "wait 1 to 1.5
+    // seconds" was "1 to 1", no score of the match, and the sentence with the wait went.
+    const pair = SCORE_PAIR_AFTER.exec(after);
+    const prev = SCORE_PAIR_BEFORE.exec(before);
     if (pair || prev) {
       const a = pair ? value : Number(prev[1]);
       const b = pair ? Number(pair[1]) : value;
-      if ((f.scores || []).some(([x, y]) => (x === a && y === b) || (x === b && y === a))) continue;
-      const unitAfter = /^\s*(?:to|-)\s*\d+\s*(m|metres?|meters?|s|secs?|seconds?)\b/i.exec(after) || /^\s*(m|metres?|meters?|s|secs?|seconds?)\b/i.exec(after);
+      const whole = Number.isInteger(a) && Number.isInteger(b);
+      if (whole && (f.scores || []).some(([x, y]) => (x === a && y === b) || (x === b && y === a))) continue;
+      const unitAfter = /^\s*(?:to|-)\s*\d+(?:\.\d+)?\s*(m|metres?|meters?|s|secs?|seconds?)\b/i.exec(after) || /^\s*(m|metres?|meters?|s|secs?|seconds?)\b/i.exec(after);
       if (unitAfter) {
         const unit = /^m/i.test(unitAfter[1]) ? 'metres' : 'seconds';
         const ctx = { ...around(t, at, len), sentence: t };
@@ -1977,7 +1983,7 @@ function gateNumbers(s, facts, rs) {
         return fail(`${value} ${unit}`);
       }
       if (!english) continue;
-      return fail(`${a} to ${b}, which is no score of this match`);
+      return fail(whole ? `${a} to ${b}, which is no score of this match` : `${a} to ${b}`);
     }
     if (!english) {
       const unit = /^\s*(s|m|%)(?![A-Za-z])/.exec(after);
@@ -2374,6 +2380,18 @@ const LEANS_SUBJECT = /^(?:(?:and|but|so|then|still|yet|also)\s*,?\s+)?(?:(?:he|
  * verbs do. "This angle", "That spot" and "Its" are no verb.
  */
 const LEANS_IT_VERB = /^(?:(?:[Aa]nd|[Bb]ut|[Ss]o|[Tt]hen|[Ss]till|[Yy]et|[Aa]lso)\s*,?\s+)?(?:[Ii]t|[Tt]his|[Tt]hat)\s+(?:(?:also|only|then|still|just|always|never|usually|often|actually|even|really)\s+)?(?!(?:is|was|has|does)\b)[a-z]{2,}(?<!ss)s\b/;
+/*
+ * A POINTER AT THE PLAY (the coach bench 12): "That way you get the surprise
+ * of coming through your own smoke" (WCgnalZDT_A-4) and "If the spike timer
+ * still leaves time, that is the play" (x6HlAE0wHRA-4) were shown with the
+ * play they pointed at gone. An opening "that way" or "this way", and a
+ * condition's main clause that is only "that is the play" (the plan, the
+ * move, the idea, the point, the fix, the answer, the reason, why or how),
+ * lean as an opening "that is" does. "That is your moment" or "your cue"
+ * after "If you hear the plant start" is the condition itself, and stays,
+ * and so does "That way out", a place.
+ */
+const LEANS_POINTER = /^(?:(?:and|but|so)\s*,?\s+)?(?:that|this)\s+way\b(?!\s+(?:out|in|round|through|up|down)\b)|^(?:if|when|once|whenever|as\s+long\s+as|while)\b[^,]{1,80},\s*(?:then\s+)?(?:that|this)(?:'s|\s+is|\s+was|\s+would\s+be)\s+(?:(?:the|your)\s+(?:play|plan|move|idea|point|fix|answer|reason|version|option|way\s+to)\b|(?:why|how)\b)/i;
 const IT_IS_THE_ROUND = /^(?:(?:and|but|so)\s*,?\s+)?it(?:'s|\s+(?:was|is))\s+(?:(?:a|an|the|your|their)\s+)?(?:[a-z]+\s+){0,2}(?:round|match|game|half)\b/i;
 const LEANS_TRADE = new RegExp(`\\b(?:traded|avenged)\\s+(?:(?:their|the enemy|an enemy|the)\\s+)?(?:${AGENT_ALT})(?![A-Za-z0-9])|\\banswered\\b(?!\\s+(?:you|your)\\b)`, 'i');
 const LEAN_ANCHOR = /\b\d+(?:\.\d+)?\s*(?:s|secs?|seconds?)\s+(?:in|into)\b|\b(?:killed|died|traded|shot|planted|defused|eliminated|fell|answered|avenged|took out|picked off)\b|\b(?:deaths?|kills?)\b/i;
@@ -2388,7 +2406,7 @@ function leansOn(sentence) {
     for (const m of head.matchAll(CLAUSE_START)) cut = m.index;
     if (!LEAN_ANCHOR.test(head.slice(0, cut))) return 'time';
   }
-  if ((LEANS_SUBJECT.test(t) || LEANS_IT_VERB.test(t)) && !IT_IS_THE_ROUND.test(t)) return 'subject';
+  if ((LEANS_SUBJECT.test(t) || LEANS_IT_VERB.test(t) || LEANS_POINTER.test(t)) && !IT_IS_THE_ROUND.test(t)) return 'subject';
   const trade = LEANS_TRADE.exec(t);
   if (trade && !LEAN_ANCHOR.test(t.slice(0, trade.index))) return 'subject';
   return null;
@@ -3032,6 +3050,41 @@ function gateActionPremise(s, facts) {
   return why ? drop('premise', why) : null;
 }
 
+// ── The coach bench 12 (Nov 2026) ─────────────────────────────────────────
+
+/*
+ * THE SPIKE TURNED ROUND (the coach bench 12): "On defence with the spike
+ * planted, the attackers must come to you", "nobody has to come to you yet"
+ * of a defender before the plant, and "the spike is down, so you have time"
+ * on a retake (game-claims.js checkSpikeSide, by the sentence's own plant
+ * state and side, else facts.said's side).
+ */
+function gateSpikeSide(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const why = claims.checkSpikeSide(s, f.said || null);
+  return why ? drop('spike-side', why) : null;
+}
+
+/*
+ * THE MACHINERY IS NEVER SHOWN (the coach bench 12, ypyZNWaL-Rs-6): "The
+ * coaching note advises to smoke the push once it is confirmed". The rules
+ * already say never to say where advice comes from; the player never sees the
+ * notes, the cases, the playbook or the prompt, so a sentence naming one as
+ * a source (a note that advises or says, "according to the note", "my notes",
+ * "the coaching note", "the playbook says", "the knowledge base", "the worked
+ * cases") goes. "Note that", "take a note of", "a mental note", "keep notes"
+ * and the team's own playbook are the player's, and stay.
+ */
+const MACHINERY = /\b(?:the|my|these|those|this|that|a|one)\s+(?:coaching\s+)?notes?\s+(?:here\s+|above\s+|i\s+have\s+)?(?:advises?|advised|says?|said|suggests?|suggested|recommends?|recommended|tells?|told|states?|stated|holds?|mentions?|explains?|warns?|puts\s+it)\b|\b(?:according\s+to|as\s+per|per|from|in|as)\s+(?:the|my|a|this|that|one\s+of\s+the|one\s+of\s+my)\s+(?:coaching\s+)?notes?\b(?!\s+of\b)|\b(?:the|a|my)\s+coaching\s+notes?\b|\bmy\s+notes\b|\b(?:the|my)\s+knowledge\s+base\b|\b(?:the|a|my)\s+worked\s+cases?\b|\bone\s+of\s+the\s+(?:worked\s+)?cases\b|\b(?:the|my)\s+playbook\s+(?:says?|said|advises?|suggests?|recommends?|tells?|holds?|has)\b|\b(?:according\s+to|in|from|per)\s+(?:the|my)\s+playbook\b|\b(?:my|the)\s+system\s+prompt\b|\bmy\s+instructions\b/i;
+function gateMachinery(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en') return null;
+  return MACHINERY.test(String(s || ''))
+    ? drop('machinery', 'your reply named the coaching notes, the cases or the playbook to the player, who never sees them; give the advice in your own words as the coach')
+    : null;
+}
+
 // ── All of them ────────────────────────────────────────────────────────────
 
 /*
@@ -3094,6 +3147,9 @@ const GATES = [
   ['guided', gateGuided],
   ['side-use', gateSideUse],
   ['action-premise', gateActionPremise],
+  // The coach bench 12 (Nov 2026), after every gate before.
+  ['spike-side', gateSpikeSide],
+  ['machinery', gateMachinery],
 ];
 
 /**
@@ -3159,5 +3215,7 @@ module.exports = {
   gateEconomyScope, gatePistolPremise, gateMapHabit, RECORD_KIND_WORDS,
   // The coach bench 10 (Nov 2026), each asserted in test:chatgates.
   gateClock, gateSpikePremise, LEANS_IT_VERB,
+  // The coach bench 12 (Nov 2026), each asserted in test:chatgates.
+  gateSpikeSide, gateMachinery, MACHINERY, LEANS_POINTER, SCORE_PAIR_AFTER, SCORE_PAIR_BEFORE,
   BIGGEST_SAID, COUNTED_HOW_MANY, HEALTH_AT, ONE_HIT_KILLS, UTILITY_OWNERS, UTILITY_ASKED, UTIL_LIST, BUY_HEDGE_SAID, UTILITY_OURS, BUY_HELD_SAID, KIT_KILLS_YOU, KIT_KILLED_YOU,
 };

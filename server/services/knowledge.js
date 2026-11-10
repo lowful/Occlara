@@ -391,7 +391,8 @@ const PLAYBOOK = [
   { text: 'Play off your teammates fights, when you hear their contact, that is the moment their attention is elsewhere, take your space then.', weight: 2 },
 
   // ── post plant and retake geometry ──────────────────────────────────────
-  { phase: 'postplant', text: 'After the plant, time is on your side, so hold angles that make them come to you, and take a pick only when it keeps the numbers even, because the round is not won until the spike explodes.', weight: 3 },
+  // The attacker's (the coach bench 12): after the plant the clock runs against the defence.
+  { side: 'attack', phase: 'postplant', text: 'After the plant, time is on your side, so hold angles that make them come to you, and take a pick only when it keeps the numbers even, because the round is not won until the spike explodes.', weight: 3 },
   { phase: 'postplant', ranks: ['plat_diamond', 'asc_plus'], text: 'After the plant hold a different angle from your nearest teammate, so a retaker has to check two directions at once, but stay within one swing of each other in a loose triangle where any one of you who takes a fight can be seen and traded by the other two, because two players on one side die to one flash and two players on islands die one at a time.', weight: 3 },
   { phase: 'postplant', text: 'Hold different distances from the spike post plant, one close to punish the defuse, one far to catch the entry.', weight: 2 },
   { phase: 'postplant', text: 'Watch the defuse for the halfway checkpoint, because a defender who reaches it usually steps off to meet your peek, so keep your crosshair on that exit and let the timer help you.', weight: 2 },

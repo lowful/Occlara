@@ -2997,7 +2997,7 @@ console.log('\nround 8, the game facts gates:');
     const names = gates.GATES.map(([n]) => n);
     const at = names.indexOf('oneshot');
     // The coach bench 9's three gates come after them, then the coach bench 10's two and the bench 11's one (asserted in their own sections).
-    ok(names.slice(at, at + 5).join() === 'oneshot,move-fire,bullets,unseen,looks' && names.slice(at + 5).join() === 'economy-scope,premise,map-habit,clock,spike-premise,next-site,guided,side-use,action-premise',
+    ok(names.slice(at, at + 5).join() === 'oneshot,move-fire,bullets,unseen,looks' && names.slice(at + 5).join() === 'economy-scope,premise,map-habit,clock,spike-premise,next-site,guided,side-use,action-premise,spike-side,machinery',
       'the round 8 gates run after every gate before, and the stream C looks gate after them');
   }
   // Deathmatch: the disclaimer loophole (gateMode) and the frame across sentences (gateReply).
@@ -3903,7 +3903,7 @@ console.log('\nround 8, the game facts gates:');
   ok(gates.check(haven, fx9).drop?.gate === 'map-habit' && gates.check('They hit B and lost, so expect A next round.', fx9).drop?.gate === 'next-site'
     && !gates.check('They hit B and lost it.', fx9).drop, 'KVOVQ6jiQw8-6: the invented Haven habit goes, this enemy\'s own habit stays, and a next site predicted from it goes as next-site');
   // Changed by the coach bench 10 and 11: their gates (clock, spike-premise, next-site) come after these three.
-  ok(gates.GATES.slice(-9, -6).map(([n]) => n).join() === 'economy-scope,premise,map-habit', 'the three bench 9 gates run after every gate before');
+  ok(gates.GATES.slice(-11, -8).map(([n]) => n).join() === 'economy-scope,premise,map-habit', 'the three bench 9 gates run after every gate before');
   // Map control and positioning: the notes the four weaker moments were missing now reach them.
   const knowledge9 = require('../server/services/knowledge');
   const topic9 = new Map(knowledge9.all().map((n) => [n.text, n.source && n.source.topic]));
@@ -4205,7 +4205,173 @@ console.log('\nround 8, the game facts gates:');
     && !gateOf('The blind did not work because you popped it short.', fb), 'the general rule, the note\'s own line and the true account stay');
   ok(!claims.shortBlindSaid('I flashed the Raze and she killed my teammate'), 'a flash with no short pop said is no short blind');
 
-  ok(gates.GATES.slice(-4).map(([n]) => n).join() === 'next-site,guided,side-use,action-premise', 'the bench 11 gates run after every gate before');
+  const order11 = gates.GATES.map(([n]) => n);
+  ok(['next-site', 'guided', 'side-use', 'action-premise'].every((n, i, a) => order11.indexOf(n) > order11.indexOf(a[i - 1] || 'clock') && order11.indexOf('clock') >= 0),
+    'the bench 11 gates run after every gate before');
+}
+
+// ── The coach bench 12 (Nov 2026): the spike before and after the plant, steered drones,
+// banded head hits on a long line, the machinery never shown, dangling pointers ──
+{
+  console.log('\nthe coach bench 12:');
+  const claims = require('../server/services/game-claims');
+  const asked12 = (band, content) => {
+    const ctx = chatContext.build(null, { rows: [] }, null, content, { game: 'valorant', language: 'en', advanced: true, switchedFrom: null, now: 0 });
+    ctx.rankBand = band;
+    const input = cp.normalise(ctx);
+    const messages = [{ role: 'user', content }];
+    return { input, messages, f: cp.factsOf(input, messages) };
+  };
+  const gateOf = (s, f) => { const d = gates.check(s, f).drop; return d ? d.gate : null; };
+  const shown = (x, text) => cp.gateReply(text.split(/\n\s*\n/), x.f, {}).map((r) => (r.drop ? `[${r.drop.gate}]` : '') + r.s.trim());
+
+  // 1. The spike before and after the plant, who must come to whom (gate spike-side; Klgi_mbrwP8-4).
+  const kl = asked12('silver_gold', 'I was on Jett on Sunset, defense, late round 1v1 at low HP. The spike was dropped on site, their Astra knew roughly where I was, and I kept jiggling between angles where I could be seen from several directions and died. In a 1v1 where I am low HP and the spike is not planted, how should I play it?').f;
+  const atk = asked12('silver_gold', 'I was on Raze on Bind, attack, a 1v1 late in the round on B. How should I play it?').f;
+  ok(kl.said && kl.said.side === 'defense' && atk.said && atk.said.side === 'attack', 'SAID SIDE: the Klgi_mbrwP8-4 defender and an attacker', JSON.stringify([kl.said, atk.said]));
+  for (const [s, f] of [['On defence with the spike planted, the attackers must come to you and hold the clock.', kl],
+    ['With it dropped and not planted, nobody has to come to you yet.', kl],
+    ['Before the plant, nobody has to come to you on defence.', kl],
+    ['Once the spike is planted, the attackers have to come to you.', kl],
+    ['With the spike planted, nobody has to come to you.', atk],
+    ['Before the plant, the defenders have to come to you.', atk],
+    ['On attack before the plant, the defenders must come to you.', kl]]) {
+    ok(gateOf(s, f) === 'spike-side', `SPIKE SIDE GOES: "${s}"`, String(gateOf(s, f)));
+  }
+  for (const [s, f] of [['On defence before the plant, the attackers must come to you, so hold one angle.', kl],
+    ['With the spike not planted, the attackers have to come to you.', kl],
+    ['On defence with the spike planted, you must go to it.', kl],
+    ['On attack with the spike planted, the defenders must come to you.', kl],
+    ['The spike being down means the attackers must hold the site.', kl],
+    ['Before the plant, nobody has to come to you, so you must take the site.', atk],
+    ['With the spike planted, the defenders have to come to you.', atk],
+    ['If you hear the plant start, that is your moment: she is locked in place for four seconds.', kl],
+    ['Make them come to a place where only one angle can see you.', kl],
+    // The true ones the replay of benches 9 to 12 found, each said right in an earlier answer.
+    ['Yes, that jump was too early, and the reason is that on attack with no spike down and no defender pushing, nobody has to come to you.', atk],
+    ['On attack, the defenders do not have to come to you until the spike is down, so a lurk for a pick is waiting on players who have no reason to walk into you.', kl],
+    ['The defenders have to come to you, so you set up crossfires on the retake entrances, hold from cover off site, and let them walk into angles you already have.', kl],
+    ['Hold the angle the retake has to come through, let the spike go down, and then play from cover off the site so the defenders have to walk into you.', kl],
+    ['On defence with no spike down, the attackers have to come to you, so the site is yours to give up slowly.', kl]]) {
+    ok(gateOf(s, f) === null, `SPIKE SIDE STANDS: "${s}"`, String(gateOf(s, f)));
+  }
+
+  // 2. A retake is never given time by the planted spike (gate spike-side; Tx_okqpD79g-2).
+  const tx = asked12('silver_gold', 'I was on Omen on Fracture, defense, pistol round retake of B. I climbed the ropes toward tower, got surprised by their Sova at the top and took the duel while I was still on the rope. What should I have done when I met the Sova while on the ropes?').f;
+  for (const [s, f] of [['The spike is down and the defenders have to come to it, so you have time to reset and go in with your team rather than win a solo duel on a rope.', tx],
+    ['On a defence retake the spike being down gives you time to reset.', atk],
+    ['With the spike planted, time is on your side, so wait for your team.', tx],
+    ['On a retake you can take your time once the spike is down.', atk]]) {
+    ok(gateOf(s, f) === 'spike-side', `RETAKE TIME GOES: "${s}"`, String(gateOf(s, f)));
+  }
+  for (const [s, f] of [['The spike being down means the attackers must hold the site.', tx],
+    ['On attack with the spike down, the clock is on your side, so let them come.', tx],
+    ['With the spike planted, you have time on your side.', atk],
+    ['On a retake you do not have time to wait, the spike timer is running.', tx],
+    ['Before the plant you have time to reset on defence.', tx],
+    ['Group up and swing with the next player so if the Sova kills one of you the other kills him.', tx]]) {
+    ok(gateOf(s, f) === null, `RETAKE TIME STANDS: "${s}"`, String(gateOf(s, f)));
+  }
+
+  // 3. A drone is steered, a recon dart is not (gate guided; KVOVQ6jiQw8-5).
+  const kv = asked12('asc_plus', 'I was on Chamber on Haven, defense, A short. I held an angle with an Outlaw and my teleport while their recon dart came toward me; I waited to get tagged, the dart got destroyed but I did no damage and they took the site. How should I play against a recon drone coming at my angle as Chamber?').f;
+  for (const s of ['A dart or drone flies on its own, so nobody is steering it to punish you the moment you move.',
+    'A drone flies on its own.', 'Nobody is steering the drone, so just shoot it.', 'The Owl Drone is not piloted once it is out.']) {
+    ok(gateOf(s, kv) === 'guided', `UNSTEERED DRONE GOES: "${s}"`, String(gateOf(s, kv)));
+  }
+  for (const s of ['The recon dart flies on its own, so nobody is steering it.', 'A Recon Bolt is not guided.',
+    'The dart flies on its own, but a drone is piloted.', 'A recon drone flies on its own once it is shot.', 'The Sova is steering his Owl Drone into site, shoot it.',
+    'Shoot the dart early or hide until it passes.']) {
+    ok(gateOf(s, kv) === null, `FIXED DART STANDS: "${s}"`, String(gateOf(s, kv)));
+  }
+
+  // 4. A banded head hit told as the one thing that kills on a long line (gate oneshot; WCgnalZDT_A-6).
+  for (const s of ['The one thing that still kills you there is a Marshal or Sheriff head hit, so never stand still on that long line with your head in the open.',
+    'The one thing that kills you on a long line is a Sheriff head hit.', 'On a long line, the only thing that kills you is a Sheriff head hit.',
+    'On a long line, a Sheriff head hit kills you.', 'What still kills you at range is a Sheriff or a Marshal head hit.']) {
+    ok(!!claims.checkOneShot(s), `ONE THING KILLS GOES: "${s}"`);
+  }
+  for (const s of ['The one thing that still kills you there is a Marshal head hit, so never stand still on that long line.',
+    'The one thing that kills you up close is a Sheriff head hit.', 'What kills you on a long line is an Operator body hit.',
+    'The one thing that kills you on a long line is a Sheriff head hit through Light Armor.', 'The one thing that does not kill you on a long line is a Classic body hit.']) {
+    ok(!claims.checkOneShot(s), `ONE THING STANDS: "${s}"`);
+  }
+
+  // 5. Praise for the knife out the player chose over the reload (gate premise; FD8OFhwHF5M-2).
+  const fr = asked12('silver_gold', 'I was on Jett on Sunset, defense, round three. I held a tight angle toward A main with an Outlaw next to our Omen. I kept micro moving on the angle, and after I got a kill I stood there with my knife out instead of reloading while the Omen covered me. Was it fine to keep moving a little while I held that angle with the Outlaw?').f;
+  for (const s of ['The knife out after the kill was the right instinct, and the Omen covering you is what made it safe.',
+    'Having the knife out was the right instinct.', 'You were right to keep your knife out.', 'Standing there with the knife out was fine.']) {
+    // "Keep your knife out" is the count gate's first (a keep read as again and again); the premise check reads it too.
+    ok(!!claims.checkActionPremise(s, fr.notDone) && gateOf(s, fr) !== null, `KNIFE PRAISE GOES: "${s}"`, String(gateOf(s, fr)));
+  }
+  for (const s of ['Having the knife out after the kill was the mistake; reload while the Omen covers you.',
+    'Holding still on the angle was the right call.', 'Pulling your knife out to run is fine when nobody can see you.',
+    'The knife out was not the right instinct here.']) {
+    ok(gateOf(s, fr) === null, `KNIFE ADVICE STANDS: "${s}"`, String(gateOf(s, fr)));
+  }
+  const noReload = asked12('silver_gold', 'I was on Jett on Sunset, defense. After a kill I ran with my knife out to rotate. Was that fine?').f;
+  ok(gateOf('Having the knife out to rotate was the right call.', noReload) === null, 'knife praise with no reload left undone in the account stays');
+  ok(claims.PRAISED.test('Holding still was the right instinct.'), 'PRAISED reads the right instinct');
+
+  // 6. The coach's own material never named to the player (gate machinery; ypyZNWaL-Rs-6).
+  for (const s of ['The coaching note advises to smoke the push once it is confirmed rather than on the first sound because a smoke spent on a fake leaves the real hit with nothing in front of it.',
+    'My notes say to hold the angle.', 'According to the note, you should wait.', 'The playbook says to stack B.',
+    'In the knowledge base, this is called a lurk.', 'The notes advise holding the angle.', 'One of the worked cases has the same mistake.',
+    'As the note says, wait for the push.']) {
+    // "According to" is the attribution gate's first; either way the sentence goes, and MACHINERY reads it.
+    ok(gates.MACHINERY.test(s) && gateOf(s, kl) !== null, `MACHINERY GOES: "${s}"`, String(gateOf(s, kl)));
+  }
+  for (const s of ['Note that the spike makes a sound when it is planted.', 'Take a note of where they lurk.', 'Make a mental note of the timing.',
+    "Your team's playbook for B should start with a smoke.", 'Keep notes on what each enemy does after a won round.', 'Write down what you notice after each match.']) {
+    ok(!gates.MACHINERY.test(s) && gateOf(s, kl) === null, `MACHINERY STANDS: "${s}"`, String(gateOf(s, kl)));
+  }
+
+  // 7a. CT is a callout, never a name the player typed (x6HlAE0wHRA-4): every sentence on the teammates through CT went as an echo.
+  const x6 = asked12('plat_diamond', 'I was on Reyna on Abyss, retake, we were up numbers. Two teammates were coming through CT, I had two flashes and a flank route, and the defenders were bunched in one back site corner on the minimap. How should I play a retake when we are up numbers and I have flashes?');
+  ok(!x6.f.echo.has('CT'), 'ECHO: CT is no name', JSON.stringify([...x6.f.echo]));
+  ok(gateOf('Throw a Leer from your flank route into the corner while your teammates swing from CT, so they turn to face it.', x6.f) === null,
+    'x6HlAE0wHRA-4: the play with the teammates through CT stands');
+  const kj = asked12('silver_gold', 'I was on Killjoy on Breeze, defense, pistol round, anchoring B. I built a full setup for the elbow but stood far back with a Classic, then threw both Nanoswarms down at the start of the round with no info. How should I set up B on a defense pistol round with Killjoy and a Classic?');
+  ok(!kj.f.echo.has('Nanoswarms') && gateOf('Keep both Nanoswarms for the moment the push floods in.', kj.f) === null, 'ECHO: an ability in the plural is no name');
+  const named = asked12('silver_gold', 'My teammate Tessik kept baiting me on Bind. How do I stop that?');
+  ok(named.f.echo.has('Tessik') && gateOf('Tell Tessik to swing with you.', named.f) === 'name', 'a name the player typed is still an echo');
+
+  // 7b. "1 to 1.5 seconds" is a wait, never a score of 1 to 1 (WCgnalZDT_A-4: the middle with the wait went).
+  const wc = asked12('silver_gold', "I was on Skye on Lotus, defense, eco round on A. Our Omen dropped a smoke on A main and I pushed into it right away to look for an early pick on attackers walking to site. Is pushing straight into my controller's smoke on A main a good eco play?");
+  for (const s of ['Wait 1 to 1.5 seconds after it lands, then go to a pillar or box at the edge of the smoke and pop out for one kill.',
+    'Wait 1 to 1.5 s after it lands.', 'Wait 1-1.5 seconds after it lands.']) {
+    ok(gateOf(s, wc.f) === null, `A WAIT IS NO SCORE: "${s}"`, String(gateOf(s, wc.f)));
+  }
+  ok(gateOf('It was 1 to 1 at the half.', wc.f) === 'number', 'a score of 1 to 1 the facts lack still goes');
+
+  // 7c. A pointer at what a gate dropped goes with it (leansOn): "That way", "If ..., that is the play".
+  for (const s of ['That way you get the surprise of coming through your own smoke.', 'If the spike timer still leaves time, that is the play.',
+    'If they stack the corner, that is why the flank works.', 'When it lands, this is the move.']) {
+    ok(gates.leansOn(s) === 'subject', `POINTER LEANS: "${s}"`, String(gates.leansOn(s)));
+  }
+  for (const s of ['If you hear the plant start, that is your moment: she is locked in place.', 'If the spike is down, that is your cue to go.',
+    'That way out is the one they do not watch.', 'If they stack the corner, flank them.']) {
+    ok(gates.leansOn(s) === null, `POINTER STANDS: "${s}"`, String(gates.leansOn(s)));
+  }
+  const wcShown = shown(wc, 'Pushing straight through the smoke the moment it lands is the bad part.\n\nIt was 1 to 1 at the half. That way you get the surprise of coming through your own smoke.\n\nUse Guiding Light first.');
+  ok(wcShown[1].startsWith('[number]') && wcShown[2].startsWith('[leans]') && !wcShown[3].startsWith('['), 'WCgnalZDT_A-4: "That way" goes with the sentence it pointed at', JSON.stringify(wcShown));
+  const x6Shown = shown(x6, 'Make the defenders look one way.\n\nIt was 1 to 1 at the half. If the spike timer still leaves time, that is the play.');
+  ok(x6Shown[1].startsWith('[number]') && x6Shown[2].startsWith('[leans]'), 'x6HlAE0wHRA-4: "that is the play" goes with the play', JSON.stringify(x6Shown));
+  const keptShown = shown(x6, 'Flash the corner from your flank route while your teammates swing. If the spike timer still leaves time, that is the play.');
+  ok(keptShown.every((s) => !s.startsWith('[')), 'the pointer stays beside the play it points at', JSON.stringify(keptShown));
+
+  // A lead whose sentences went: "The spike being down changes everything here." (Klgi_mbrwP8-4 once its two reversed sentences go).
+  const klShown = shown(asked12('silver_gold', 'I was on Jett on Sunset, defense, late round 1v1 at low HP. In a 1v1 where I am low HP and the spike is not planted, how should I play it?'),
+    'Your job is to make them come to you.\n\nThe spike being down changes everything here. On defence with the spike planted, the attackers must come to you and hold the clock. With it dropped and not planted, nobody has to come to you yet.\n\nPick one piece of cover.');
+  ok(klShown[1].startsWith('[orphan]') && klShown[2].startsWith('[spike-side]') && klShown[3].startsWith('[spike-side]') && !klShown[4].startsWith('['),
+    'Klgi_mbrwP8-4: the lead goes with the two sentences it led to', JSON.stringify(klShown));
+  const coh = require('../server/services/coherence');
+  ok(coh.checkStructure([{ s: 'The spike being down changes everything here.', p: 0 }, { s: 'Hold one angle.', p: 0 }]).length === 0
+    && coh.checkStructure([{ s: 'Knowing their setup changes everything about how you hit B.', p: 0 }, { s: 'x', p: 0, dropped: true }]).length === 0,
+  'a lead with its sentence kept, and a sentence with its own content, stay');
+
+  const order = gates.GATES.map(([n]) => n);
+  ok(order.indexOf('spike-side') > order.indexOf('action-premise') && order.indexOf('machinery') > order.indexOf('action-premise'), 'the bench 12 gates run after every gate before');
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

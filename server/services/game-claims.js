@@ -95,8 +95,51 @@ const ENEMY_ECO = /\b(?:they(?:'re|\s+are|\s+were)|the\s+enem(?:y|ies)\s+(?:is|a
  * facts' primer entries (attribute 'hits' by part, band and armour), so a
  * match before a patch is held to its own numbers; else the game data.
  */
+/*
+ * THE ONE THING THAT KILLS YOU, SAID THE OTHER WAY ROUND (the coach bench 12,
+ * WCgnalZDT_A-6): "The one thing that still kills you there is a Marshal or
+ * Sheriff head hit, so never stand still on that long line" put "kills you"
+ * before the gun, which neither ONE_SHOT nor ONE_SHOT_GUN reads, so a Sheriff
+ * head hit, two through Heavy Armor past 30 m, went out as a long line kill.
+ * "The one thing", "the only thing" or "what" that kills you, then "is" and
+ * the guns and the part: every gun held to its band, the whole sentence its
+ * range ("there" points at the long line it names after the comma).
+ */
+const KILLS_YOU_IS = new RegExp(`\\b(?:(?:the\\s+)?(?:one|only)\\s+(?:thing|shot|hit)|what)\\s+(?:that\\s+)?(?:(?:still|really|actually|can|will|ever)\\s+)*(?:kills|drops|finishes|one[- ]shots)\\s+you\\b[^.;]{0,40}?\\b(?:is|are|would\\s+be|remains)\\s+(?:a|an|one|a\\s+single)\\s+((?:${GUN_ALT})(?:'s)?(?:\\s+(?:or|and)\\s+(?:(?:a|an)\\s+)?(?:${GUN_ALT})(?:'s)?)*)\\s+(?:clean\\s+)?(?:(body|chest|torso|head)\\s+)?(?:shot|hit|bullet|tap)s?\\b`, 'i');
+// A fronted place before the claim's comma: "On a long line, a Sheriff head hit kills you" (the coach bench 12).
+const FRONTED_PLACE = /^\s*(?:on|at|from|across|past|over|down|along)\b[^,;]{0,40}$/i;
+
+/** The first of a claim's guns whose band leaves Heavy Armor more than one hit of that part: the reason, or null. */
+function bandVerdict(guns, part, any, long, primer) {
+  for (const gun of guns) {
+    const w = W[gun.toLowerCase()];
+    if (!w || w.pellets || !Array.isArray(w.ranges) || !w.ranges.length) continue;
+    const bands = any ? w.ranges : long ? [w.ranges[w.ranges.length - 1]] : [w.ranges[0]];
+    const heavyHits = (b) => {
+      const e = Array.isArray(primer) ? primer.find((x) => x && x.subjectKind === 'gun' && x.subject === gun && x.attribute === 'hits'
+        && x.part === part && x.armor === 'Heavy Armor' && x.band && x.band.from === b.from && x.band.to === b.to && Number.isFinite(x.value)) : null;
+      return e ? e.value : hitsToKill(b[part], HEAVY);
+    };
+    const short = bands.map((b) => ({ b, hits: heavyHits(b) })).filter((x) => x.hits > 1);
+    if (!short.length) continue;
+    const { b, hits } = short[0];
+    return `your reply said one ${part} hit of the ${gun} kills${any ? ' at any range' : ''}, where its ${part} hit does ${Math.floor(b[part])} from ${b.from} to ${b.to} m and Heavy Armor from full health takes ${hits}; say the hits to kill with the armour the facts name`;
+  }
+  return null;
+}
+
 function checkOneShot(sentence, primer) {
   const t = String(sentence || '');
+  const rv = ONE_SHOT_GUN.test(t) ? null : KILLS_YOU_IS.exec(t);
+  if (rv) {
+    if (NEGATED.test(t.slice(Math.max(0, rv.index - 40), rv.index))) return null;
+    if (ARMOUR_QUALIFIED.test(t.replace(ENEMY_ECO, ' ')) || RANGE_STATED.test(t)) return null;
+    const guns = [...new Set([...rv[1].matchAll(GUN_RE)].map((m) => m[1]))];
+    const part = rv[2] ? (PART_HEAD.test(rv[2]) ? 'head' : 'body') : null;
+    if (!guns.length || !part) return null;
+    const any = ANY_RANGE.test(t);
+    return bandVerdict(guns, part, any, !any && LONG_RANGE.test(t) && !NEAR_RANGE.test(t), primer);
+  }
   const g = ONE_SHOT_GUN.exec(t);
   const k = g || ONE_SHOT.exec(t);
   if (!k) return null;
@@ -133,24 +176,16 @@ function checkOneShot(sentence, primer) {
     const head = t.slice(0, k.index);
     const from = Math.max(head.lastIndexOf(','), head.lastIndexOf(';'), head.lastIndexOf('.')) + 1;
     scope = t.slice(from, k.index) + scope;
+    // And a fronted place before that comma, the same clause's (the coach bench 12).
+    if (from > 0 && head[from - 1] === ',') {
+      const prevFrom = Math.max(head.lastIndexOf(',', from - 2), head.lastIndexOf(';', from - 2), head.lastIndexOf('.', from - 2)) + 1;
+      const prev = head.slice(prevFrom, from - 1);
+      if (FRONTED_PLACE.test(prev)) scope = prev + scope;
+    }
   }
   const any = ANY_RANGE.test(scope);
   const long = !any && LONG_RANGE.test(scope) && !NEAR_RANGE.test(scope);
-  for (const gun of guns) {
-    const w = W[gun.toLowerCase()];
-    if (!w || w.pellets || !Array.isArray(w.ranges) || !w.ranges.length) continue;
-    const bands = any ? w.ranges : long ? [w.ranges[w.ranges.length - 1]] : [w.ranges[0]];
-    const heavyHits = (b) => {
-      const e = Array.isArray(primer) ? primer.find((x) => x && x.subjectKind === 'gun' && x.subject === gun && x.attribute === 'hits'
-        && x.part === part && x.armor === 'Heavy Armor' && x.band && x.band.from === b.from && x.band.to === b.to && Number.isFinite(x.value)) : null;
-      return e ? e.value : hitsToKill(b[part], HEAVY);
-    };
-    const short = bands.map((b) => ({ b, hits: heavyHits(b) })).filter((x) => x.hits > 1);
-    if (!short.length) continue;
-    const { b, hits } = short[0];
-    return `your reply said one ${part} hit of the ${gun} kills${any ? ' at any range' : ''}, where its ${part} hit does ${Math.floor(b[part])} from ${b.from} to ${b.to} m and Heavy Armor from full health takes ${hits}; say the hits to kill with the armour the facts name`;
-  }
-  return null;
+  return bandVerdict(guns, part, any, long, primer);
 }
 
 // ── Firing while moving ───────────────────────────────────────────────────
@@ -608,8 +643,31 @@ function askedFixed(text) {
   const t = String(text || '');
   return FIXED_RE.test(t) && !STEERED_RE.test(t);
 }
+/*
+ * A STEERED ONE TOLD AS FLYING ON ITS OWN (the coach bench 12, KVOVQ6jiQw8-5):
+ * "A dart or drone flies on its own, so nobody is steering it", where a drone
+ * is piloted. The bench 11 gate read "nobody is steering" as a negation and
+ * let it stand, since a negation of steering is what it keeps for a fixed
+ * ability. A clause naming a steered one (STEERED_RE, a bare drone among
+ * them) and saying it flies on its own or nobody steers it goes; the Recon
+ * Bolt, a recon dart and a recon drone (the bolt) said to fly on their own
+ * stay, and so does "the dart flies on its own, but a drone is piloted".
+ */
+const UNSTEERED = /\b(?:flies|fly|flying|travels?|travelling|moves?|goes|rolls?)\s+(?:all\s+)?(?:on|by)\s+its(?:elf|\s+own)\b|\b(?:nobody|no\s+one|nothing)\s+(?:is\s+|was\s+)?(?:steer|guid|pilot|control)\w*|\b(?:is|are|was|were)(?:n't|\s+not)\s+(?:being\s+)?(?:steered|guided|piloted|controlled)\b|\bcan(?:not|'t)\s+be\s+(?:steered|guided|piloted|controlled)\b/i;
+const CLAUSE_CUT = /[,;:]|\b(?:but|while|whereas|although|though)\b/i;
+function checkUnsteered(sentence) {
+  for (const clause of String(sentence || '').split(CLAUSE_CUT)) {
+    const u = UNSTEERED.exec(clause);
+    const s = u ? STEERED_RE.exec(clause) : null;
+    if (u && s) return `your reply said the ${s[0].toLowerCase()} flies on its own or that nobody steers it, where the game gives it a pilot: it goes where its owner steers it; say what the player can do about it, shoot it early or break its line`;
+  }
+  return null;
+}
+
 function checkGuided(sentence, fixedAsked) {
   const t = String(sentence || '');
+  const unsteered = checkUnsteered(t);
+  if (unsteered) return unsteered;
   const g = GUIDE.exec(t);
   if (!g || GUIDE_NEG.test(t.slice(Math.max(0, g.index - 30), g.index)) || STEERED_RE.test(t)) return null;
   const named = FIXED_RE.exec(t);
@@ -654,7 +712,7 @@ function checkSideUse(sentence, side) {
  * right to reload") goes. Advice to do it ("reload while he covers you") stays.
  */
 const NOT_DONE = /\b(?:instead\s+of|rather\s+than|without)\s+([a-z]{3,}ing)\b|\b(?:did\s+not|didn't|never|forgot\s+to|failed\s+to|did\s+not\s+even)\s+([a-z]{3,})\b/gi;
-const PRAISED = /\b([a-z]{3,}ing)\b[^.;]{0,60}?\b(?:was|were)\s+(?:(?:also|still|exactly|absolutely)\s+)?(?:the\s+right\s+(?:call|move|play|thing|choice|idea)|right|fine|correct|good|smart|a\s+good\s+(?:call|habit|choice|idea))\b|\byou\s+(?:were|was)\s+right\s+to\s+([a-z]{3,})\b|\byou\s+did\s+(?:the\s+right\s+thing|well)\s+(?:by\s+)?([a-z]{3,}ing)\b/i;
+const PRAISED = /\b([a-z]{3,}ing)\b[^.;]{0,60}?\b(?:was|were)\s+(?:(?:also|still|exactly|absolutely)\s+)?(?:the\s+right\s+(?:call|move|play|thing|choice|idea|instinct)|right|fine|correct|good|smart|a\s+good\s+(?:call|habit|choice|idea|instinct))\b|\byou\s+(?:were|was)\s+right\s+to\s+([a-z]{3,})\b|\byou\s+did\s+(?:the\s+right\s+thing|well)\s+(?:by\s+)?([a-z]{3,}ing)\b/i;
 const NOT_VERB = new Set(['have', 'know', 'see', 'get', 'want', 'think', 'say', 'mean', 'need', 'make', 'go', 'do', 'be', 'even', 'really', 'just', 'any', 'anything', 'something', 'thing', 'nothing', 'everything', 'during', 'morning', 'evening', 'being', 'having', 'doing']);
 function verbStem(w) {
   let s = String(w || '').toLowerCase().replace(/(?:ing|ed)$/, '');
@@ -672,9 +730,23 @@ function notDoneOf(text) {
   }
   return [...out];
 }
+/*
+ * THE KNIFE OUT IN PLACE OF THE RELOAD (the coach bench 12, FD8OFhwHF5M-2):
+ * "I stood there with my knife out instead of reloading", answered "The knife
+ * out after the kill was the right instinct". Bench 11 took the reload's
+ * praise away and the answer praised what the player did in its place. Only
+ * where the account says the reload was not done: the knife out, kept out or
+ * pulled, told as right, fine or the right instinct, goes. A present tense
+ * rule ("pulling your knife out to run is fine") and a negation stay.
+ */
+const KNIFE_PRAISED = /\bknife(?:\s+out)?\b[^.;]{0,50}?\b(?:was|were)\s+(?:(?:also|still|exactly|absolutely)\s+)?(?:the\s+right\s+(?:call|move|play|thing|choice|idea|instinct)|right|fine|correct|good|smart|a\s+good\s+(?:call|habit|choice|idea|instinct))\b|\byou\s+(?:were|was)\s+right\s+to\s+(?:have|keep|pull|hold|take|get)\s+(?:the\s+|your\s+)?knife\b/i;
 function checkActionPremise(sentence, notDone) {
   if (!Array.isArray(notDone) || !notDone.length) return null;
   const t = String(sentence || '');
+  const knife = notDone.includes('reload') ? KNIFE_PRAISED.exec(t) : null;
+  if (knife && !NEGATED.test(t.slice(Math.max(0, knife.index - 30), knife.index))) {
+    return 'your reply praised the knife out the player chose instead of reloading; with a teammate covering, the reload is the play, so say to reload at once';
+  }
   const m = PRAISED.exec(t);
   if (!m) return null;
   const w = m[1] || m[2] || m[3];
@@ -703,7 +775,82 @@ function checkBlindPremise(sentence, shortSaid) {
   return 'your reply said the player\'s blind worked or was full, where they said it popped short and the blind was short; answer the round as they told it';
 }
 
+// ── Who must come to whom, before and after the plant (the coach bench 12) ─
+
+/*
+ * THE SPIKE TURNED ROUND (Nov 2026, the coach bench 12). Klgi_mbrwP8-4, a
+ * defender before the plant: "On defence with the spike planted, the
+ * attackers must come to you" and "With it dropped and not planted, nobody
+ * has to come to you yet", both backwards: before the plant the attackers
+ * must come to the defence to plant, after it the defenders must come to the
+ * spike. Tx_okqpD79g-2, a defender on a retake: "The spike is down ... so you
+ * have time to reset", where the spike's timer runs against the retake.
+ *
+ * Held to the plant state the sentence itself says (SPIKE_NOT_PLANTED,
+ * SPIKE_PLANTED; both or neither judges nothing, a retake is after a plant)
+ * and the player's side: the sentence's own "on defence" or "on attack", a
+ * retake (the defence's), whom it says must come ("the attackers must come to
+ * you" makes you the defence), else the side the player said (facts.said).
+ * "X must come to you" is true where you are the side approached, a defence
+ * before the plant or an attack after it, and "nobody has to come to you"
+ * the other way round. The time said to be yours goes for a defender after
+ * the plant. Every true counterpart stays, and so does "the spike being down
+ * means the attackers must hold the site", which claims neither.
+ */
+const SPIKE_NOT_PLANTED = /\bnot\s+(?:yet\s+)?(?:been\s+)?(?:down|planted)\b|\b(?:no\s+|without\s+(?:the\s+|a\s+)?|until\s+(?:the\s+)?)spike\s+(?:is\s+|goes\s+|gets\s+)?(?:down|planted)\b|\buntil\s+(?:it|they|you)\s+(?:is\s+|are\s+)?(?:down|plant|planted)\b|\bunplanted\b|\bbefore\s+(?:the|a|any)\s+plant\b|\bbefore\s+(?:it|the\s+spike)\s+(?:is|goes|gets)\s+(?:down|planted)\b|\bbefore\s+(?:they|the\s+attackers|you|your\s+team|we)\s+plant\b|\bno\s+plant\b|\bpre[- ]?plant\b/i;
+const SPIKE_PLANTED = /\bspike\s+(?:is\s+|was\s+|being\s+|goes\s+|went\s+|has\s+been\s+)?(?:already\s+)?(?:down|planted)\b|\b(?:with|once|after|now\s+that)\s+it\s+(?:is\s+|was\s+|goes\s+|went\s+)?(?:down|planted)\b|\bafter\s+(?:the|a|their|your)\s+plant\b|\bpost[- ]?plant\b|\bthe\s+planted\s+spike\b|\bretak(?:e|es|ing)\b/i;
+const SIDE_DEF_SAID = /\bon\s+(?:the\s+)?defen[cs]e\b|\bas\s+(?:a|the)\s+defender\b|\bon\s+(?:a\s+)?defen[cs]e\s+retakes?\b/i;
+const RETAKE_SAID = /\bretak(?:e|es|ing)\b/i;
+const SIDE_ATK_SAID = /\bon\s+(?:the\s+)?attack\b|\bas\s+(?:an|the)\s+attacker\b/i;
+const COME_TO_YOU = /\b(nobody|no\s+one|they|the\s+attackers|attackers|the\s+defenders|defenders|the\s+enem(?:y|ies)|enemies|the\s+other\s+team)\s+(?:(?:still|yet|now|then|really|even)\s+)?((?:has|have|need|needs)\s+to|must|(?:is|are)\s+forced\s+to|(?:will|would)\s+have\s+to|(?:does|do)(?:n't|\s+not)\s+(?:have|need)\s+to)\s+(?:come|go|walk|push|move)\s+(?:(?:in\s+)?to|into|onto|at|toward|towards)\s+you\b/i;
+const TIME_YOURS = /\b(?:you|your\s+team|we)\s+(?:still\s+)?(?:have|has|get|gets|got|can\s+take|can\s+afford)\s+(?:all\s+the\s+|plenty\s+of\s+|more\s+|enough\s+|the\s+|some\s+)?time\b|\btime\s+(?:is\s+)?(?:still\s+)?on\s+your\s+side\b|\bthe\s+clock\s+is\s+(?:on\s+your\s+side|yours|your\s+friend)\b|\b(?:gives?|gave|giving)\s+you\s+(?:the\s+|more\s+|enough\s+|plenty\s+of\s+)?time\b|\btake\s+your\s+time\b/i;
+function plantStated(t) {
+  const not = SPIKE_NOT_PLANTED.test(t);
+  const down = SPIKE_PLANTED.test(t.replace(SPIKE_NOT_PLANTED, ' '));
+  return not === down ? null : down;
+}
+// The side the sentence says: "on defence" or "on attack" first, then whom it says must
+// come ("the defenders have to come to you" on "the retake entrances" is the attack's), then a retake.
+function sideStated(t, subject) {
+  const def = SIDE_DEF_SAID.test(t);
+  const atk = SIDE_ATK_SAID.test(t);
+  if (def !== atk) return def ? 'defense' : 'attack';
+  if (subject && /attackers/i.test(subject)) return 'defense';
+  if (subject && /defenders/i.test(subject)) return 'attack';
+  if (!def && !atk && RETAKE_SAID.test(t)) return 'defense';
+  return null;
+}
+function checkSpikeSide(sentence, said) {
+  const t = String(sentence || '');
+  const saidSide = said && (said.side === 'defense' || said.side === 'attack') ? said.side : null;
+  const c = COME_TO_YOU.exec(t);
+  // A condition ("if they plant, the defenders must come to you") is the state it says, held the same.
+  if (c) {
+    const planted = plantStated(t);
+    const side = sideStated(t, c[1]) || saidSide;
+    if (planted !== null && side) {
+      const negative = /^(?:nobody|no\s+one)$/i.test(c[1]) || /n't|\bnot\b/i.test(c[2]);
+      const approached = (side === 'defense' && !planted) || (side === 'attack' && planted);
+      if (negative === approached) {
+        return planted
+          ? 'your reply turned the spike round: after the plant the defenders must come to the spike, and the attackers holding it wait for them; say who must move with the spike down'
+          : 'your reply turned the spike round: before the plant the attackers must come to the defence to plant, so the defender waits and the attacker takes the space; say who must move with the spike not planted';
+      }
+    }
+  }
+  const tm = TIME_YOURS.exec(t);
+  if (tm && !NEGATED.test(t.slice(Math.max(0, tm.index - 30), tm.index))) {
+    const planted = plantStated(t);
+    const side = sideStated(t, null) || saidSide;
+    if (planted === true && side === 'defense') {
+      return 'your reply gave a defender time after the plant, where the spike\'s timer runs against the retake; say how to retake before it runs out';
+    }
+  }
+  return null;
+}
+
 module.exports = {
+  checkSpikeSide, SPIKE_NOT_PLANTED, SPIKE_PLANTED, COME_TO_YOU, TIME_YOURS, KILLS_YOU_IS, FRONTED_PLACE, UNSTEERED, KNIFE_PRAISED, checkUnsteered,
   checkBlindPremise, shortBlindSaid, SHORT_BLIND_SAID, BLIND_WORKED,
   checkActionPremise, notDoneOf, NOT_DONE, PRAISED,
   checkSideUse, DENY_DEFUSE, DENY_PLANT,
