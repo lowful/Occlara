@@ -1,5 +1,29 @@
 [
   {
+    "version": "8.9.4",
+    "date": "2026-11-09",
+    "title": "Stay signed in, and a Start with no game stops by itself",
+    "summary": "You stay signed in after closing the app, a Start with no game ends itself, and the coach is more careful.",
+    "items": [
+      {
+        "kind": "fixed",
+        "text": "You stay signed in when you close and reopen Occlara. Since 8.9.1 it asked you to sign in again at every launch."
+      },
+      {
+        "kind": "new",
+        "text": "If you press Start and never get into a game, Occlara stops watching by itself: after 5 minutes with Valorant closed, or 30 minutes in the menus. Nothing is counted and no game is used."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach gives better advice on trading teammates after the plant and on pushing through your own smoke, and drops claims about head shots at long range, the clock before the plant and shooting on the move."
+      },
+      {
+        "kind": "fixed",
+        "text": "Opening the account menu with the keyboard puts you on its first row."
+      }
+    ]
+  },
+  {
     "version": "8.9.3",
     "date": "2026-11-09",
     "title": "The coach sticks to what it gets right",
