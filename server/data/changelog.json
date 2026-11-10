@@ -1,5 +1,21 @@
 [
   {
+    "version": "8.9.7",
+    "date": "2026-11-10",
+    "title": "Ask Coach keeps its whole answer",
+    "summary": "Ask Coach no longer loses true sentences mid answer, and drops a few more claims it cannot back up.",
+    "items": [
+      {
+        "kind": "fixed",
+        "text": "Ask Coach no longer cuts true sentences out of an answer when you mention CT or a wait like 1 to 1.5 seconds, so answers no longer have a hole in the middle."
+      },
+      {
+        "kind": "fixed",
+        "text": "Ask Coach drops claims that get the spike timing backwards, that a drone flies on its own, or that a Sheriff head hit kills at long range, and never mentions its own notes."
+      }
+    ]
+  },
+  {
     "version": "8.9.6",
     "date": "2026-11-10",
     "title": "Reviews read defence deaths right",
