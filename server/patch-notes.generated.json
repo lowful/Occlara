@@ -1,218 +1,973 @@
 {
-  "generatedAt": "2026-11-09T23:38:37.199Z",
-  "patch": "13.09",
-  "buildDate": "2026-10-28T06:11:26Z",
-  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-1309/",
-  "headline": "The definitive source on all updates coming to the game.",
+  "generatedAt": "2026-11-10T21:06:02.128Z",
+  "patch": "13.10",
+  "buildDate": "2026-11-07T00:25:20Z",
+  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-10/",
+  "headline": "Replays bookmarks, Gauntlet: Glitched updates, assist changes, and more bug fixes!",
   "changes": [
     {
       "type": "agent",
       "names": [
-        "Hush",
-        "Warden"
+        "Miks",
+        "Sage"
       ],
-      "line": "TL;DR: New Agent Hush is here, along with some updated tooltips, Warden buffs, and a plethora of bug fixes."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Hush"
-      ],
-      "line": "HELLOOO everybody 🙂Get ready to meet our latest Agent, Hush, as she changes the game. Try her out and let us know what you think!"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Hush"
-      ],
-      "line": "New Agent Hush is now in game!"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Hush"
-      ],
-      "line": "Hush can pick up weapons, the Spike (when on attacker side), and INTERACT with switches from an increased range."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Hush"
-      ],
-      "line": "INSTANTLY create an anchor. If Hush is in the air, briefly levitate in place. After a delay, propel towards it."
+      "line": "We’re also improving Sage’s Healing Orb targeting accuracy to match Miks’ Harmonize, making it easier to not accidentally heal the wrong teammates."
     },
     {
       "type": "agent",
       "names": [
         "Cypher"
       ],
-      "line": "Snapshot refers to the still image silhouette reveal debuff (Cypher's Neural Theft/Spycam)"
+      "line": "Cypher Spycam - Extreme Supervision"
+    },
+    {
+      "type": "weapon",
+      "names": [
+        "Classic",
+        "Sheriff"
+      ],
+      "line": "Spycam equips a Classic instead of firing tracking darts. Upgrades to a Sheriff."
     },
     {
       "type": "agent",
       "names": [
-        "Waylay"
+        "Skye"
       ],
-      "line": "Since they have identical effects, Waylay's Convergent Paths buff has been renamed to the new Haste buff"
+      "line": "Skye Trailblazer - Give a Dog a Gun"
+    },
+    {
+      "type": "weapon",
+      "names": [
+        "Frenzy",
+        "Classic"
+      ],
+      "line": "Trailblazer equips a Classic instead of leaping. Upgrades to a Frenzy."
     },
     {
       "type": "agent",
       "names": [
-        "Clove"
+        "Iso",
+        "Yoru",
+        "Reyna"
       ],
-      "line": "Killing Clove after they cast Not Dead Yet will now grant an ultimate point and signature refresh point to the player who killed them"
+      "line": "Fixed several text errors in the in-game ability descriptions for Reyna, Iso, and Yoru."
     },
     {
       "type": "agent",
       "names": [
-        "Jett"
+        "Chamber"
       ],
-      "line": "Removed Jett's passive from the Buy Menu to be consistent with other non-purchaseable passives"
+      "line": "Fixed an issue where Chamber's out-of-range voice line for Rendezvous could be heard by spectators and observers."
     },
     {
       "type": "agent",
       "names": [
         "Hush"
       ],
-      "line": "Hush is our first new Agent since Performance Score launched. Your scores on Hush may be a bit bumpy in the first few days as we tune what good utility use looks like"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Clove"
-      ],
-      "line": "Fixed an issue where Clove's Ruse ability map could be visible to enemies positioned below Clove"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Clove"
-      ],
-      "line": "Fixed an issue where Clove's Pick-Me-Up timer could remain visible on the HUD after the ability was used"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Cypher"
-      ],
-      "line": "Fixed an issue where Cypher's Cyber Cage could change orientation when placed on angled surfaces"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Deadlock"
-      ],
-      "line": "Fixed an issue where Deadlock's Annihilation capture voice line would not play for the captured enemy"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Gekko"
-      ],
-      "line": "Fixed an issue where Gekko's Mosh Pit could damage destructible objects outside its intended area of effect"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Omen"
-      ],
-      "line": "Fixed an issue where Omen's Shrouded Step arrival visual effects could end prematurely"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Raze"
-      ],
-      "line": "Fixed an issue where Raze's Boom Bot could continue tracking an enemy's location after they teleported"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Sova"
-      ],
-      "line": "Fixed an issue where Sova's Hunter's Fury could affect players positioned behind him"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Tejo"
-      ],
-      "line": "Fixed an issue where Tejo's Special Delivery could persist into the next round, occasionally damaging or concussing players after the round transition"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Tejo"
-      ],
-      "line": "Fixed an issue where Tejo's Guided Salvo could target an unintended location or fail to cast after a selected target moved out of range"
+      "line": "Fixed several issues with Hush’s Suspension:"
     },
     {
       "type": "agent",
       "names": [
         "Yoru"
       ],
-      "line": "Fixed an issue where Yoru's Gatecrash sound effects could repeatedly play when attempting to use the ability while suppressed."
+      "line": "Yoru's Fakeout now properly blinds enemies when shot while levitated into a low ceiling."
     },
     {
       "type": "agent",
       "names": [
-        "Gekko",
-        "Raze",
-        "Killjoy"
+        "Phoenix"
       ],
-      "line": "Fixed an issue where Vulnerable visual effects were incorrectly positioned on Gekko's Wingman , Killjoy's Turret, and Raze's Boom Bot"
+      "line": "Phoenix no longer remains briefly levitated after returning from Run It Back."
     },
     {
       "type": "agent",
       "names": [
-        "Tejo",
-        "Brimstone"
+        "Raze"
       ],
-      "line": "Fixed an issue where Tejo's Guided Salvo and Brimstone's Orbital Strike placement indicators could initially appear offset from the player's position"
+      "line": "Raze's Blast Pack sound effects no longer continue playing after detonation while she's suspended."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Hush"
+      ],
+      "line": "Hush's eye and hair effects no longer persist after being affected by another Suspension."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Hush"
+      ],
+      "line": "Fixed several visual issues with Hush's ability animations, including misplaced weapons, ability effects, and accessories when using Flashbulb, Displacement, and Suspension."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Phoenix"
+      ],
+      "line": "Fixed an issue where Phoenix could receive an assist from Blaze after the assist window had expired."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Sage"
+      ],
+      "line": "Fixed an issue where Sage could heal allies with Healing Orb without having line of sight to them."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Viper"
+      ],
+      "line": "Fixed an issue where Viper's Pit could fail to play its voice line when activated."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Viper"
+      ],
+      "line": "Fixed an issue where Viper's out-of-fuel voice line could repeatedly play and cut itself off when attempting to activate an ability without enough fuel."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Vyse"
+      ],
+      "line": "Fixed an issue where Vyse's Steel Garden could display weapon-disabling visual effects on enemies near the edge of its area of effect even when they were still able to fire."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Vyse"
+      ],
+      "line": "Fixed an issue where enemies could avoid the effects of Vyse's Steel Garden by crouching near the edge of its area of effect when there was a significant elevation difference."
     },
     {
       "type": "agent",
       "names": [
         "Chamber",
+        "Killjoy"
+      ],
+      "line": "Fixed an issue where Chamber's Rendezvous and Killjoy's Turret could become unusable after using Round Rollback in a custom game."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Sage",
         "Omen"
       ],
-      "line": "Fixed an issue where Chamber's and Omen's locations could briefly be revealed to enemies on the minimap after teleporting"
+      "line": "Fixed an issue where certain interactions between Sage's Barrier Orb and Omen's Shrouded Step could cause unintended movement."
     },
     {
       "type": "agent",
       "names": [
-        "Cypher",
-        "Killjoy",
-        "Vyse",
-        "Viper"
+        "Cypher"
       ],
-      "line": "Fixed an issue where certain abilities belonging to Cypher, Vyse, Viper, and Killjoy could be visible to opponents through barriers during the Buy Phase"
+      "line": "Fixed an issue where activating Cypher's Cyber Cage would not trigger controller vibration."
     },
     {
       "type": "agent",
       "names": [
-        "Vyse",
-        "Veto"
+        "Sage"
       ],
-      "line": "Veto and Vyse's in-game UI have been updated from PICK UP to RECALL to be consistent with other similar retrieval methods"
+      "line": "Fixed an issue where attempting to heal herself with Sage's Heal Orb at full health could incorrectly trigger controller vibration."
     },
     {
       "type": "agent",
       "names": [
-        "Neon"
+        "Sova"
       ],
-      "line": "Fixed an issue where Neon's Fast Lane visual effects could be invisible to spectators observing the Spike."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Miks"
-      ],
-      "line": "Fixed an issue where Miks' M-Pulse and Bassquake abilities did not provide controller vibration feedback when equipped or cast"
+      "line": "Fixed an issue where Sova's Recon Bolt icon could appear instead of Shock Bolt in the combat report when showing damage dealt by Shock Bolt ."
     }
   ],
   "notesFound": true,
   "history": [
+    {
+      "patch": "13.10",
+      "date": "2026-11-10T14:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-10/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 13.10",
+          "names": []
+        },
+        {
+          "line": "Game Updates JOY",
+          "names": []
+        },
+        {
+          "line": "2026-11-10T14:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "TL;DR: You can add bookmarks to your replays, Gauntlet: Glitched updates, assist changes, and bug fixes.",
+          "names": []
+        },
+        {
+          "line": "HELLOOO everyone! Joy here to bring you the latest on patch 13.10. In this patch, you get a gun, you get a gun, everybody gets a gun. We’re bringing some fun updates to Gauntlet: Glitched, where Cypher’s Spycam and Skye’s Trailblazer gain some memorable abilities... among a number of other updates. Read on for more. 😀",
+          "names": [
+            "Skye",
+            "Cypher"
+          ]
+        },
+        {
+          "line": "GENERAL UPDATES",
+          "names": []
+        },
+        {
+          "line": "Replay Bookmarking",
+          "names": []
+        },
+        {
+          "line": "You can now bookmark key moments during your matches, allowing you to easily navigate to those moments when viewing your Replays.",
+          "names": []
+        },
+        {
+          "line": "Your bookmarks are only visible to you and won’t appear for other players viewing the replay.",
+          "names": []
+        },
+        {
+          "line": "On PC, the keybind will be blank by default - you can set the keybinding in Settings → Controls → Interface → Replay Bookmarking.",
+          "names": []
+        },
+        {
+          "line": "On Console, you can capture bookmarks with a new button in the Options Menu while in game.",
+          "names": []
+        },
+        {
+          "line": "Here’s how to set this up!",
+          "names": []
+        },
+        {
+          "line": "PC",
+          "names": []
+        },
+        {
+          "line": "Set up your keybind",
+          "names": []
+        },
+        {
+          "line": "Use your keybind in game to bookmark a moment",
+          "names": []
+        },
+        {
+          "line": "Console",
+          "names": []
+        },
+        {
+          "line": "Add a bookmark from the options menu while in game",
+          "names": []
+        },
+        {
+          "line": "Here’s how bookmarks will look on the replay timeline",
+          "names": []
+        },
+        {
+          "line": "AGENTS UPDATES",
+          "names": []
+        },
+        {
+          "line": "We’re making some light changes to Sentinel cooldowns to help encourage more strategic back and forth between teams. This is a small, targeted change while we continue to look at ability cooldowns and Sentinel states across VALORANT more broadly. We're decreasing to a shorter cooldown after these abilities are destroyed to see if it gives Sentinels a bit more room to place utility early and reset mid-round, while still rewarding the team that breaks their setup. This puts these cooldowns slightly below Initiator signature cooldowns (50s). We'll be watching how it affects the back-and-forth around ability timing, and what we learn will help shape any bigger changes down the line.",
+          "names": []
+        },
+        {
+          "line": "Cypher",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Spycam",
+          "names": []
+        },
+        {
+          "line": "Cooldown after being destroyed decreased from 60s &gt;&gt;&gt; 45s.",
+          "names": []
+        },
+        {
+          "line": "Reclaim cooldown increased from 15s &gt;&gt;&gt; 20s, in line with other Sentinels",
+          "names": []
+        },
+        {
+          "line": "Killjoy",
+          "names": [
+            "Killjoy"
+          ]
+        },
+        {
+          "line": "Turret",
+          "names": []
+        },
+        {
+          "line": "Vyse",
+          "names": [
+            "Vyse"
+          ]
+        },
+        {
+          "line": "Arc Rose",
+          "names": []
+        },
+        {
+          "line": "Cooldown after being destroyed decreased from 60s &gt;&gt;&gt; 45s",
+          "names": []
+        },
+        {
+          "line": "We’re also improving Sage’s Healing Orb targeting accuracy to match Miks’ Harmonize, making it easier to not accidentally heal the wrong teammates.",
+          "names": [
+            "Miks",
+            "Sage"
+          ]
+        },
+        {
+          "line": "Sage",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Increased accuracy while targeting allies",
+          "names": []
+        },
+        {
+          "line": "Crosshair is now visible while targeting with Healing Orb",
+          "names": []
+        },
+        {
+          "line": "GAMEPLAY SYSTEMS UPDATES",
+          "names": []
+        },
+        {
+          "line": "In Patch 13.08, we updated how assists were awarded alongside our Performance Score updates, but missed including them in the patch notes then (whoops!). These changes are intended to more visibly encourage trading, better reward players who contribute to securing kills, and make sure healing assists reflect their impact on a fight.",
+          "names": []
+        },
+        {
+          "line": "Here’s what changed:",
+          "names": []
+        },
+        {
+          "line": "Damage Assists: You can now earn an assist by dealing more than 10 damage to an enemy within 3 seconds of a teammate securing a kill. You’ll also continue to earn assists for dealing at least 50 damage to an enemy that your teammates kill, regardless of when that damage is done.",
+          "names": []
+        },
+        {
+          "line": "Healing Assists : Healing assists are now awarded only when a player you’ve healed gets a kill within a 10 second window after the heal effect ends",
+          "names": []
+        },
+        {
+          "line": "MODE UPDATES",
+          "names": []
+        },
+        {
+          "line": "Gauntlet: Glitched",
+          "names": []
+        },
+        {
+          "line": "Matchmaking & Party Sizes",
+          "names": []
+        },
+        {
+          "line": "You can now queue with a group of up to 5 players! Pairings are randomized, so bring your friends and see who you’ll face.",
+          "names": []
+        },
+        {
+          "line": "New Abilities",
+          "names": []
+        },
+        {
+          "line": "Hush - Flow",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Prone to Flight: Gain additional charges",
+          "names": []
+        },
+        {
+          "line": "Go the Distance: Increase pull strength",
+          "names": []
+        },
+        {
+          "line": "Hush - Displacement",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Tug of War: Gain additional charges",
+          "names": []
+        },
+        {
+          "line": "Habit Forming: Recharge the ability with decreasing cooldown",
+          "names": []
+        },
+        {
+          "line": "Cypher - Spycam",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Dart Maniac: Recharge Spycam and fire tracking darts more frequently",
+          "names": []
+        },
+        {
+          "line": "Always Watching: Double targeting range and make tracking darts take longer to remove",
+          "names": []
+        },
+        {
+          "line": "Veto - Interceptor",
+          "names": [
+            "Veto"
+          ]
+        },
+        {
+          "line": "Cannon Fodder: Recharge the ability with decreasing cooldown",
+          "names": []
+        },
+        {
+          "line": "Long-term Assignment: Increase active duration",
+          "names": []
+        },
+        {
+          "line": "Waylay — Refract",
+          "names": [
+            "Waylay"
+          ]
+        },
+        {
+          "line": "HODL: Extend the window to teleport back to the beacon",
+          "names": []
+        },
+        {
+          "line": "Déjà vu: Recharge the ability with decreasing cooldown",
+          "names": []
+        },
+        {
+          "line": "New Glitches We’re bringing some fan-favourite bugs back as proper glitches in the draft pool!",
+          "names": []
+        },
+        {
+          "line": "Cypher Spycam - Extreme Supervision",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Spycam equips a Classic instead of firing tracking darts. Upgrades to a Sheriff.",
+          "names": [
+            "Classic",
+            "Sheriff"
+          ]
+        },
+        {
+          "line": "Skye Trailblazer - Give a Dog a Gun",
+          "names": [
+            "Skye"
+          ]
+        },
+        {
+          "line": "Trailblazer equips a Classic instead of leaping. Upgrades to a Frenzy.",
+          "names": [
+            "Frenzy",
+            "Classic"
+          ]
+        },
+        {
+          "line": "Replaces Greatest Dane.",
+          "names": []
+        },
+        {
+          "line": "New Ultimate",
+          "names": []
+        },
+        {
+          "line": "Hush - Suspension",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Send out a steerable projectile. Reactivate to levitate players where it lands.",
+          "names": []
+        },
+        {
+          "line": "Balance Updates We’re also tuning existing upgrades, with the goal to make more choices competitive, giving some abilities more opportunities to shine while reining in a few stronger options.",
+          "names": []
+        },
+        {
+          "line": "Blaze - Quickburn",
+          "names": []
+        },
+        {
+          "line": "Removed the wall length reduction at Levels 2 and 3.",
+          "names": []
+        },
+        {
+          "line": "Level 2: Recharge cooldown increased from 15s → 20s.",
+          "names": []
+        },
+        {
+          "line": "Level 3: Recharge cooldown increased from 6s → 10s.",
+          "names": []
+        },
+        {
+          "line": "Boom Bot - Overclocked",
+          "names": []
+        },
+        {
+          "line": "Level 2: Movement speed decreased from 150% → 125%.",
+          "names": []
+        },
+        {
+          "line": "Level 2: Active duration decreased from 8s → 7s.",
+          "names": []
+        },
+        {
+          "line": "Level 3: Active duration decreased from 12s → 10s.",
+          "names": []
+        },
+        {
+          "line": "Boom Bot - C4 Bot (Glitch)",
+          "names": []
+        },
+        {
+          "line": "Level 3: Recharge cooldown decreased from 10s → 7s.",
+          "names": []
+        },
+        {
+          "line": "Level 3: Now increases movement speed to 125% and active duration to 7s.",
+          "names": []
+        },
+        {
+          "line": "Contingency - Redundancy",
+          "names": []
+        },
+        {
+          "line": "Level 2: Added a 15s recharge.",
+          "names": []
+        },
+        {
+          "line": "Level 3: Added a 10s recharge. Charges decreased from 4 → 3.",
+          "names": []
+        },
+        {
+          "line": "Contingency - Wave Runner (Glitch)",
+          "names": []
+        },
+        {
+          "line": "Level 3: Recharge cooldown decreased from 20s → 15s.",
+          "names": []
+        },
+        {
+          "line": "Fakeout - Reprint",
+          "names": []
+        },
+        {
+          "line": "Level 2: Added a 20s recharge.",
+          "names": []
+        },
+        {
+          "line": "Prowler - Herding Cats",
+          "names": []
+        },
+        {
+          "line": "Level 3: Recharge cooldown decreased from 12s → 8s.",
+          "names": []
+        },
+        {
+          "line": "Prowler - Chonky Cat",
+          "names": []
+        },
+        {
+          "line": "Level 2: Health increased from 90 → 100.",
+          "names": []
+        },
+        {
+          "line": "Level 3: Health increased from 120 → 145.",
+          "names": []
+        },
+        {
+          "line": "Stim Beacon - Quick Hits",
+          "names": []
+        },
+        {
+          "line": "Levels 2 and 3: Duration increased from 2s → 4s.",
+          "names": []
+        },
+        {
+          "line": "Stim Beacon - The Good Stuff",
+          "names": []
+        },
+        {
+          "line": "Level 3: Duration decreased from 12s → 10s.",
+          "names": []
+        },
+        {
+          "line": "Trapwire - Broadband",
+          "names": []
+        },
+        {
+          "line": "Level 3: Added a 12s recharge.",
+          "names": []
+        },
+        {
+          "line": "Trapwire - Data Network",
+          "names": []
+        },
+        {
+          "line": "Level 2: Added a 12s recharge. Charges decreased from 4 → 3.",
+          "names": []
+        },
+        {
+          "line": "Blast Pack - Packs a Punch",
+          "names": []
+        },
+        {
+          "line": "Level 2: Armed damage increased from 60 → 75.",
+          "names": []
+        },
+        {
+          "line": "Level 3: Armed damage increased from 125 → 145.",
+          "names": []
+        },
+        {
+          "line": "Blast Pack - Surprise Pack (Glitch)",
+          "names": []
+        },
+        {
+          "line": "Headhunter - They Are So Dead (Glitch)",
+          "names": []
+        },
+        {
+          "line": "Level 3: Added a 25s recharge. Ammo decreased from 2 → 1.",
+          "names": []
+        },
+        {
+          "line": "Slow Orb - Blanket of Slow",
+          "names": []
+        },
+        {
+          "line": "Level 2: Now slows 10% more.",
+          "names": []
+        },
+        {
+          "line": "Level 3: Now slows 25% more.",
+          "names": []
+        },
+        {
+          "line": "Updraft - Trampoline",
+          "names": []
+        },
+        {
+          "line": "Level 2: Added a 10s recharge.",
+          "names": []
+        },
+        {
+          "line": "Level 3: Added a 7s recharge.",
+          "names": []
+        },
+        {
+          "line": "Wingman - All Grown Up (Glitch)",
+          "names": []
+        },
+        {
+          "line": "Level 3: Health doubled.",
+          "names": []
+        },
+        {
+          "line": "Dizzy - Pickup Game",
+          "names": []
+        },
+        {
+          "line": "Level 2: Pickup cooldown decreased from 5s → 3s.",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agents",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where the Main Abilities and Passive headings could appear misaligned in the in-game ability descriptions when playing in Arabic.",
+          "names": []
+        },
+        {
+          "line": "Multiple Agents",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where smoke abilities could disappear abruptly instead of fading out normally after a player disconnected and reconnected to a match.",
+          "names": []
+        },
+        {
+          "line": "Fixed several text errors in the in-game ability descriptions for Reyna, Iso, and Yoru.",
+          "names": [
+            "Iso",
+            "Yoru",
+            "Reyna"
+          ]
+        },
+        {
+          "line": "Chamber",
+          "names": [
+            "Chamber"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Chamber's out-of-range voice line for Rendezvous could be heard by spectators and observers.",
+          "names": [
+            "Chamber"
+          ]
+        },
+        {
+          "line": "Hush",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Fixed several issues with Hush’s Suspension:",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Suspension's visual effects no longer persist on weapons or the Spike after the ability ends, including into the next round.",
+          "names": []
+        },
+        {
+          "line": "Suspension's visual indicator no longer rapidly shifts positions when cast against a wall.",
+          "names": []
+        },
+        {
+          "line": "Yoru's Fakeout now properly blinds enemies when shot while levitated into a low ceiling.",
+          "names": [
+            "Yoru"
+          ]
+        },
+        {
+          "line": "Phoenix no longer remains briefly levitated after returning from Run It Back.",
+          "names": [
+            "Phoenix"
+          ]
+        },
+        {
+          "line": "Raze's Blast Pack sound effects no longer continue playing after detonation while she's suspended.",
+          "names": [
+            "Raze"
+          ]
+        },
+        {
+          "line": "Hush's eye and hair effects no longer persist after being affected by another Suspension.",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Fixed several visual issues with Hush's ability animations, including misplaced weapons, ability effects, and accessories when using Flashbulb, Displacement, and Suspension.",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Displacement's ability icon could be missing from the killfeed when a teammate eliminated an affected enemy.",
+          "names": []
+        },
+        {
+          "line": "Phoenix",
+          "names": [
+            "Phoenix"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Phoenix could receive an assist from Blaze after the assist window had expired.",
+          "names": [
+            "Phoenix"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Sage could heal allies with Healing Orb without having line of sight to them.",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Viper",
+          "names": [
+            "Viper"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Viper's Pit could fail to play its voice line when activated.",
+          "names": [
+            "Viper"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Viper's out-of-fuel voice line could repeatedly play and cut itself off when attempting to activate an ability without enough fuel.",
+          "names": [
+            "Viper"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Vyse's Steel Garden could display weapon-disabling visual effects on enemies near the edge of its area of effect even when they were still able to fire.",
+          "names": [
+            "Vyse"
+          ]
+        },
+        {
+          "line": "Fixed an issue where enemies could avoid the effects of Vyse's Steel Garden by crouching near the edge of its area of effect when there was a significant elevation difference.",
+          "names": [
+            "Vyse"
+          ]
+        },
+        {
+          "line": "Maps",
+          "names": []
+        },
+        {
+          "line": "Ascent",
+          "names": [
+            "Ascent"
+          ]
+        },
+        {
+          "line": "Fixed several areas to ensure Agent utility cannot be hidden behind foliage.",
+          "names": []
+        },
+        {
+          "line": "Breeze",
+          "names": [
+            "Breeze"
+          ]
+        },
+        {
+          "line": "Resolved multiple locations to prevent abilities from clipping through structures.",
+          "names": []
+        },
+        {
+          "line": "Corrode",
+          "names": [
+            "Corrode"
+          ]
+        },
+        {
+          "line": "Fixed Deathmatch respawn points so players do not respawn in clusters around A Site.",
+          "names": []
+        },
+        {
+          "line": "Updated the End of Game Timeline map image with the updated map.",
+          "names": []
+        },
+        {
+          "line": "Haven",
+          "names": [
+            "Haven"
+          ]
+        },
+        {
+          "line": "Fixed several areas where flashing abilities were blocked unintentionally by small map geometry.",
+          "names": []
+        },
+        {
+          "line": "Split",
+          "names": [
+            "Split"
+          ]
+        },
+        {
+          "line": "Summit",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "Fixed minor art bugs around the map.",
+          "names": []
+        },
+        {
+          "line": "Sunset",
+          "names": [
+            "Sunset"
+          ]
+        },
+        {
+          "line": "Resolved issues in multiple areas to prevent Agent utility from being hidden by small objects.",
+          "names": []
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Chamber's Rendezvous and Killjoy's Turret could become unusable after using Round Rollback in a custom game.",
+          "names": [
+            "Chamber",
+            "Killjoy"
+          ]
+        },
+        {
+          "line": "Fixed an issue where certain interactions between Sage's Barrier Orb and Omen's Shrouded Step could cause unintended movement.",
+          "names": [
+            "Sage",
+            "Omen"
+          ]
+        },
+        {
+          "line": "CONSOLE ONLY",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where activating Cypher's Cyber Cage would not trigger controller vibration.",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Fixed an issue where attempting to heal herself with Sage's Heal Orb at full health could incorrectly trigger controller vibration.",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Sova",
+          "names": [
+            "Sova"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Sova's Recon Bolt icon could appear instead of Shock Bolt in the combat report when showing damage dealt by Shock Bolt .",
+          "names": [
+            "Sova"
+          ]
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-27T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
     {
       "patch": "13.09",
       "date": "2026-10-27T13:00:00.000Z",
@@ -772,6 +1527,10 @@
           "names": []
         },
         {
+          "line": "2026-11-10T14:00:00.000Z",
+          "names": []
+        },
+        {
           "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
           "names": []
         }
@@ -1094,7 +1853,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-11-10T14:00:00.000Z",
           "names": []
         },
         {
@@ -1772,7 +2531,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-11-10T14:00:00.000Z",
           "names": []
         },
         {
@@ -2044,7 +2803,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-11-10T14:00:00.000Z",
           "names": []
         },
         {
@@ -2198,7 +2957,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-11-10T14:00:00.000Z",
           "names": []
         },
         {
@@ -2536,7 +3295,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-11-10T14:00:00.000Z",
           "names": []
         },
         {
@@ -3702,7 +4461,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-11-10T14:00:00.000Z",
           "names": []
         },
         {
@@ -3944,7 +4703,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-11-10T14:00:00.000Z",
           "names": []
         },
         {
@@ -4159,7 +4918,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-11-10T14:00:00.000Z",
           "names": []
         },
         {
@@ -4576,487 +5335,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
-          "names": []
-        }
-      ]
-    },
-    {
-      "patch": "12.08",
-      "date": "2026-04-28T13:00:00.000Z",
-      "dateFrom": "article",
-      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-12-08/",
-      "notesFound": true,
-      "linesKept": "all",
-      "capped": false,
-      "lines": [
-        {
-          "line": "VALORANT Patch Notes 12.08",
-          "names": []
-        },
-        {
-          "line": "Game Updates Ashley Tsao",
-          "names": []
-        },
-        {
-          "line": "2026-04-28T13:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "It’s Ash again! Patch 12.08 is bringing you an exciting new update to Skirmish called Skirmish: Ascension as well as another map rotation. Here’s the TLDR;",
-          "names": []
-        },
-        {
-          "line": "Skirmish: Ascension - a new, experimental ranked experience with its own competitive leaderboard on our FTW site",
-          "names": []
-        },
-        {
-          "line": "Ascent is in, Bind is out",
-          "names": [
-            "Ascent",
-            "Bind"
-          ]
-        },
-        {
-          "line": "[PC only] Premier is back!",
-          "names": []
-        },
-        {
-          "line": "More bug fixes",
-          "names": []
-        },
-        {
-          "line": "ALL PLATFORMS",
-          "names": []
-        },
-        {
-          "line": "MAP UPDATES",
-          "names": []
-        },
-        {
-          "line": "Map Pool Updates",
-          "names": []
-        },
-        {
-          "line": "ASCENT is IN the Competitive and Deathmatch queues.",
-          "names": [
-            "Ascent"
-          ]
-        },
-        {
-          "line": "BIND is OUT of the Competitive and Deathmatch queues.",
-          "names": [
-            "Bind"
-          ]
-        },
-        {
-          "line": "MODES UPDATES",
-          "names": []
-        },
-        {
-          "line": "NEW LIMITED TIME MODE",
-          "names": []
-        },
-        {
-          "line": "Introducing Skirmish: Ascension , a new limited ranked experience for Skirmish.",
-          "names": []
-        },
-        {
-          "line": "We designed this mode as a fast, skill-forward competitive experience where gunplay stays primary, but selected abilities create more tactical decisions and replayable duels. Pick from a curated roster of Agents, each equipped with a single ability, and fight through staged weapon rounds in 1v1 or 2v2 . Compete on the FTW ranked ladder to earn rewards and prove you are better. Available for Act 3.",
-          "names": []
-        },
-        {
-          "line": "Mode Details",
-          "names": []
-        },
-        {
-          "line": "Agents & Abilities",
-          "names": []
-        },
-        {
-          "line": "Choose from 14 Agents, each with one ability from their kit",
-          "names": []
-        },
-        {
-          "line": "Jett (Tailwind)",
-          "names": [
-            "Jett"
-          ]
-        },
-        {
-          "line": "Waylay (Refract)",
-          "names": [
-            "Waylay"
-          ]
-        },
-        {
-          "line": "Chamber (Rendezvous)",
-          "names": [
-            "Chamber"
-          ]
-        },
-        {
-          "line": "Cypher (Cyber Cage)",
-          "names": [
-            "Cypher"
-          ]
-        },
-        {
-          "line": "Omen (Shrouded Step)",
-          "names": [
-            "Omen"
-          ]
-        },
-        {
-          "line": "Phoenix (Curve Ball)",
-          "names": [
-            "Phoenix"
-          ]
-        },
-        {
-          "line": "Yoru (Clone)",
-          "names": [
-            "Yoru"
-          ]
-        },
-        {
-          "line": "Iso (Contingency)",
-          "names": [
-            "Iso"
-          ]
-        },
-        {
-          "line": "Sage (Barrier Orb)",
-          "names": [
-            "Sage"
-          ]
-        },
-        {
-          "line": "Raze (Blast Pack)",
-          "names": [
-            "Raze"
-          ]
-        },
-        {
-          "line": "Vyse (Arc Rose)",
-          "names": [
-            "Vyse"
-          ]
-        },
-        {
-          "line": "KAY/O (Flash/Drive)",
-          "names": [
-            "KAY/O"
-          ]
-        },
-        {
-          "line": "Breach (Flashpoint)",
-          "names": [
-            "Breach"
-          ]
-        },
-        {
-          "line": "Veto (Crosscut)",
-          "names": [
-            "Veto"
-          ]
-        },
-        {
-          "line": "Staged Weapons",
-          "names": []
-        },
-        {
-          "line": "No economy. Weapons escalate through stages as the match progresses",
-          "names": []
-        },
-        {
-          "line": "Rounds 1-4: Pistols (Bandit, Sheriff)",
-          "names": [
-            "Bandit",
-            "Sheriff"
-          ]
-        },
-        {
-          "line": "Rounds 5-8: Low-tier rifles (Guardian, Bulldog)",
-          "names": [
-            "Bulldog",
-            "Guardian"
-          ]
-        },
-        {
-          "line": "Round 9+: Vandal and Phantom",
-          "names": [
-            "Vandal",
-            "Phantom"
-          ]
-        },
-        {
-          "line": "Queues",
-          "names": []
-        },
-        {
-          "line": "1v1 and 2v2 with separate matchmaking",
-          "names": []
-        },
-        {
-          "line": "Round Structure",
-          "names": []
-        },
-        {
-          "line": "First to 10 rounds wins",
-          "names": []
-        },
-        {
-          "line": "FTW Ranked Ladder",
-          "names": []
-        },
-        {
-          "line": "Competitive leaderboard segmented by server, region, and platform",
-          "names": []
-        },
-        {
-          "line": "Separate leaderboards for 1v1 and 2v2, tracked independently",
-          "names": []
-        },
-        {
-          "line": "Rank Tiers",
-          "names": []
-        },
-        {
-          "line": "Iron: 0",
-          "names": []
-        },
-        {
-          "line": "Bronze: 700",
-          "names": []
-        },
-        {
-          "line": "Silver: 1100",
-          "names": []
-        },
-        {
-          "line": "Gold: 1500",
-          "names": []
-        },
-        {
-          "line": "Platinum: 1800",
-          "names": []
-        },
-        {
-          "line": "Diamond: 2100",
-          "names": []
-        },
-        {
-          "line": "Ascendant: 2400",
-          "names": []
-        },
-        {
-          "line": "Immortal: 2700",
-          "names": []
-        },
-        {
-          "line": "Radiant: Top 100",
-          "names": []
-        },
-        {
-          "line": "Rewards",
-          "names": []
-        },
-        {
-          "line": "Combat Ready player card: Complete 3 Skirmish: Ascension matches",
-          "names": []
-        },
-        {
-          "line": "Trade Me player card: Complete 15 Skirmish: Ascension matches",
-          "names": []
-        },
-        {
-          "line": "Titles awarded by highest rank achieved on either ladder",
-          "names": []
-        },
-        {
-          "line": "Skirmish Competitor: Gold to Platinum",
-          "names": []
-        },
-        {
-          "line": "Skirmish Expert: Diamond to Immortal",
-          "names": []
-        },
-        {
-          "line": "Skirmish Legend: Radiant",
-          "names": []
-        },
-        {
-          "line": "LEAVING LIMITED TIME MODES",
-          "names": []
-        },
-        {
-          "line": "Knockout is heading out. Thanks for playing!",
-          "names": []
-        },
-        {
-          "line": "BUG FIXES",
-          "names": []
-        },
-        {
-          "line": "Agent",
-          "names": []
-        },
-        {
-          "line": "These were fixed in Patch 12.07 but missed the notes.",
-          "names": []
-        },
-        {
-          "line": "Fixed a bug where using Miks’ Bassquake would cause the minimap cone to blink on use.",
-          "names": [
-            "Miks"
-          ]
-        },
-        {
-          "line": "Fixed a bug where Veto’s Chokehold could detect enemies behind rotating doors on Lotus.",
-          "names": [
-            "Veto",
-            "Lotus"
-          ]
-        },
-        {
-          "line": "Fixed a bug where KAY/O’s ability VFX were not appearing if used right after KAY/O casts NULL/cmd .",
-          "names": [
-            "KAY/O"
-          ]
-        },
-        {
-          "line": "Fixed a bug where Neon’s High Gear slide was not playing SFX for moving across different surface types.",
-          "names": [
-            "Neon"
-          ]
-        },
-        {
-          "line": "Fixed a bug where Tejo’s agent select animation would sometimes cut off the smoke from the explosion.",
-          "names": [
-            "Tejo"
-          ]
-        },
-        {
-          "line": "Fixed a bug where Gekko’s Dizzy would only target an enemy if their head was visible.",
-          "names": [
-            "Gekko"
-          ]
-        },
-        {
-          "line": "Fixed a bug where during Dimensional Drift Yoru could not see invisible abilities like Vyse’s Shear or Cypher’s Trapwire even if he was close enough to them.",
-          "names": [
-            "Cypher",
-            "Vyse",
-            "Yoru"
-          ]
-        },
-        {
-          "line": "These are new fixes in Patch 12.08.",
-          "names": []
-        },
-        {
-          "line": "Fixed a bug where Viper's Toxic Screen SFX would activate repeatedly when Veto walked into it with Evolution active",
-          "names": [
-            "Viper",
-            "Veto"
-          ]
-        },
-        {
-          "line": "Fixed a bug where players resurrected by Sage inside of Viper’s Decaying abilities would not gain Decay.",
-          "names": [
-            "Viper",
-            "Sage"
-          ]
-        },
-        {
-          "line": "Fixed a bug where Tejo’s Armageddon would sometimes cast targeting spawn instead of the intended location.",
-          "names": [
-            "Tejo"
-          ]
-        },
-        {
-          "line": "PC ONLY",
-          "names": []
-        },
-        {
-          "line": "PREMIER UPDATES UPDATES",
-          "names": []
-        },
-        {
-          "line": "Welcome to Stage V26A3! Matches start on May 6.",
-          "names": []
-        },
-        {
-          "line": "Contender and Invite Division schedule changes:",
-          "names": []
-        },
-        {
-          "line": "There are only 6 weeks of matches this stage – the matches are still each Saturday from May 9 - June 13.",
-          "names": []
-        },
-        {
-          "line": "Playoffs now take place across multiple days.",
-          "names": []
-        },
-        {
-          "line": "The first round of playoffs takes place on June 20.",
-          "names": []
-        },
-        {
-          "line": "Teams that advance from the first round return on June 21 for their next matchup.",
-          "names": []
-        },
-        {
-          "line": "Make sure to check the schedule in the client for round start times for your zone!",
-          "names": []
-        },
-        {
-          "line": "General",
-          "names": []
-        },
-        {
-          "line": "Fixed an issue in settings where audio sliders weren’t moving correctly",
-          "names": []
-        },
-        {
-          "line": "Fixed an issue where trying to exit the client while a replay was paused wasn’t working",
-          "names": []
-        },
-        {
-          "line": "CONSOLE ONLY",
-          "names": []
-        },
-        {
-          "line": "KNOWN ISSUES",
-          "names": []
-        },
-        {
-          "line": "Modes",
-          "names": []
-        },
-        {
-          "line": "Skirmish 2v2: Ascension and Skirmish 1v1: Ascension - Timer is stuck at 00.50 sec when during Overtime phase.",
-          "names": []
-        },
-        {
-          "line": "Skirmish 2v2: Ascension and Skirmish 1v1: Ascension - Agent abilities do not show up on the Combat Report in the following round after affecting enemies",
-          "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-11-10T14:00:00.000Z",
           "names": []
         },
         {

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-11-09T23:38:36.117Z",
+  "generatedAt": "2026-11-10T21:06:01.424Z",
   "source": "valorant-api.com",
-  "patch": "13.09",
-  "version": "13.09.00.5804228",
-  "buildDate": "2026-10-28T06:11:26Z",
+  "patch": "13.10",
+  "version": "13.10.00.5893614",
+  "buildDate": "2026-11-07T00:25:20Z",
   "agents": {
     "Gekko": {
       "role": "Initiator",
@@ -795,7 +795,7 @@
           "slot": "Ability1",
           "key": "Q",
           "name": "Undercut",
-          "description": "EQUIP an <whitebold>Undercut</>. FIRE to send it forward. Applies <debuffred>suppress</> and <debuffred>vulnerable</> to all players."
+          "description": "EQUIP <whitebold>Undercut</>. FIRE to send it forward. Applies <debuffred>suppress</> and <debuffred>vulnerable</> to all players."
         },
         {
           "slot": "Ability2",
@@ -918,7 +918,7 @@
           "slot": "Ability2",
           "key": "E",
           "name": "GATECRASH",
-          "description": "EQUIP <whitebold>Gatecrash</>. FIRE to send it forward. ALT FIRE to place. REACTIVATE to teleport to it. INTERACT to fake a teleport. Resets every two kills."
+          "description": "EQUIP a <whitebold>Gatecrash</>. FIRE to send it forward. ALT FIRE to place. REACTIVATE to teleport to it. INTERACT to fake a teleport. Resets every two kills."
         },
         {
           "slot": "Ultimate",
@@ -1029,7 +1029,7 @@
           "slot": "Ultimate",
           "key": "X",
           "name": "Empress",
-          "description": "INSTANTLY gain <teal>Empress</>. <teal>Empress</> grants <teal>combat stim</>, endless <whitebold>Soul Orb</> consumption, and permanent <teal>overheal</>."
+          "description": "INSTANTLY gain <teal>empress</>. <teal>Empress</> grants <teal>combat stim</>, endless <whitebold>Soul Orb</> consumption, and permanent <teal>overheal</>."
         },
         {
           "slot": "Passive",
