@@ -552,8 +552,9 @@ closed label, and a model only phrases it.
   alive, not when the look already said isolated), `early-attack` (attack,
   Riot's early, before any plant, all five up, untraded: on defence the
   attackers choose when to come), `no-utility` (every cast Riot holds at
-  zero; a dry peek takes it as its own evidence), `repeat-spot` (a third
-  death at one callout, never a whole site), and never first: `first-death`
+  zero; a dry peek takes it as its own evidence), and never first:
+  `repeat-spot` (a third death at one callout, never a whole site: context,
+  in what made it worse or earlier), `first-death`
   (untraded), `gave-advantage` (up in numbers, untraded, round lost),
   `same-killer` (an enemy who killed the player twice before),
   `untraded-close`. The record's own spot with no escape (`answeredKill`,
@@ -561,8 +562,17 @@ closed label, and a model only phrases it.
 - **The order** (`FIRST_ORDER`): where the player stood (isolated,
   overextend, rotating, no escape), then the fight as the look saw it on the
   frames (dry peek, crossfire, exposed, repeek), then the record's own
-  (nobody close, early on attack, no ability, same spot). What a death cost
-  and what the killer had done before are never first.
+  (nobody close, early on attack, no ability). What a death cost, the same
+  spot again and what the killer had done before are never first.
+- **Nobody close to trade is never first on defence before the plant** (the
+  owner's lead after the first pass, `firstAllowed`, and the server's
+  `chainWords` the same): holding a spot alone is often the job there, and the
+  coach was corrected once already for blaming a defence death wrongly. Beside
+  another first mistake it may still make a death worse (Bind round 6); with
+  none, the death has no first mistake and nothing worse is said. On attack
+  and after the plant (a retake, a post plant) it can be first. On the owner's
+  Bind this took it off rounds 1, 3, 5, 8, 9 and 11; round 7 keeps it, since
+  Riot has that death 10 seconds after the plant.
 - **Every sentence is the record's**: the place is Riot's callout, the killer
   Riot's agent, the seconds Riot's feed. No economy (no buy is read), no
   health, armour or position before the fight (the record holds none, so the

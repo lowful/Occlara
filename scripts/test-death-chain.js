@@ -59,6 +59,9 @@ const bind = () => [
   lived(7),
 ];
 
+// Rounds 1 and 3 on attack, where nobody close to trade can be a first mistake, so the match has a biggest repeat.
+const bindAtk = () => bind().map((r) => (r.n === 1 || r.n === 3 ? { ...r, side: 'attacking' } : r));
+
 // ── 1. The chain of round 6 ─────────────────────────────────────────────────
 console.log('\nthe chain of a death:');
 {
@@ -91,7 +94,8 @@ console.log('\nthe chain of a death:');
   // The spot with no way out from the record alone, with no look.
   const noLook = one({ forensics: null });
   ok(noLook.first.kind === 'no-escape' && noLook.first.from === 'record', 'with no look, the record\'s own kill answered at once is the first mistake');
-  ok(one({ forensics: null, feed: [{ ...feed6[0], ms: 7000 }, feed6[1]] }).first.kind === 'untradeable', 'a death 2.9 s after the kill is no instant answer: nobody close to trade comes first');
+  ok(!one({ forensics: null, feed: [{ ...feed6[0], ms: 7000 }, feed6[1]] }).first, 'a death 2.9 s after the kill is no instant answer, and on defence before the plant nobody close to trade is no first mistake');
+  ok(one({ forensics: null, side: 'attacking', feed: [{ ...feed6[0], ms: 7000 }, feed6[1]] }).first.kind === 'untradeable', 'on attack nobody close to trade comes first');
   // No first mistake and no fair fight: no chain of mistakes.
   const quiet = dc.chainOf(death(9, { traded: false, mateNear: 'close', riotSpot: 'A Short', killerAgent: 'Viper' }), [death(9, { mateNear: 'close', riotSpot: 'A Short', killerAgent: 'Viper' })]);
   ok(quiet === null, 'a death with a teammate close and no trade, and nothing else, is no chain: the record cannot show whose mistake it was');
@@ -111,16 +115,42 @@ console.log('\nthe chain of a death:');
   ok(early.first.kind === 'early-attack' && early.worse[0].kind === 'first-death', `an early untraded death on attack, first down (${early.first.kind}, ${early.worse.map((w) => w.kind)})`);
   ok(dc.chainOf(atk({ side: 'defending' }), [atk({ side: 'defending' })]) === null, 'on defence the attackers choose when to come: no early death mistake');
   // The same spot a third time, never a whole site.
-  const thrice = [death(1), death(3), death(5)];
+  const thrice = [death(1, { side: 'attacking' }), death(3, { side: 'attacking' }), death(5, { side: 'attacking' })];
   ok(dc.chainOf(thrice[2], thrice).first.kind === 'untradeable' && dc.chainOf(thrice[2], thrice).worse.some((w) => w.kind === 'repeat-spot' && w.short === 'your third death at Hookah, after rounds 1 and 3'),
     'a third death at one callout is the same spot again');
-  const sites = [death(1, { riotSpot: 'A site' }), death(3, { riotSpot: 'A site' }), death(5, { riotSpot: 'A site' })];
+  const sites = [1, 3, 5].map((n) => death(n, { riotSpot: 'A site', side: 'attacking' }));
   ok(!dc.chainOf(sites[2], sites).worse.some((w) => w.kind === 'repeat-spot') && dc.chainOf(sites[2], sites).earlier.every((t) => !/A site/.test(t)),
     'a whole site is never the same spot');
   // Ordinals past ten.
   const run = Array.from({ length: 12 }, (_, i) => death(i + 1, { riotSpot: 'A Short', killerAgent: ['Viper', 'Sova', 'Omen', 'Jett'][i % 4] }));
   ok(dc.chainOf(run[10], run).earlier.includes('your 11th death in a row that nobody traded') && dc.chainOf(run[11], run).earlier.includes('your 12th death in a row that nobody traded'),
     'the 11th and the 12th in a row');
+}
+
+// ── 1b. Defence before the plant, and the same spot (the owner's lead) ────────
+console.log('\nnobody close to trade on defence, and the same spot:');
+{
+  // The owner's Bind rounds 1, 3, 5, 8, 9 and 11 as the record has them: on
+  // defence, before any plant, no teammate close, nobody trading it, no look.
+  const owner = [1, 3, 5, 8, 9, 11].map((n) => death(n, { riotSpot: n <= 3 ? 'Hookah' : 'B Long', killerAgent: ['Phoenix', 'Astra'][n % 2] }));
+  for (const r of owner) {
+    const c = dc.chainOf(r, owner, { half: 12 });
+    ok(!c || (!c.first && !c.worse.length), `Bind round ${r.n} on defence before the plant: nobody close to trade is no first mistake, and nothing is said worse (${c && c.first && c.first.kind})`);
+  }
+  // Round 7: on defence after the plant (a retake or holding the plant), it can be first.
+  const r7 = death(7, { afterPlant: true, planted: true, riotPlantMs: 26000, deathSec: 36 });
+  ok(dc.chainOf(r7, [r7]).first.kind === 'untradeable', 'Bind round 7, after the plant: nobody close to trade can be first');
+  ok(dc.chainOf(death(4, { side: 'attacking' }), [death(4, { side: 'attacking' })]).first.kind === 'untradeable', 'and on attack');
+  // Beside another first mistake it may still make it worse: round 6 keeps it.
+  ok(dc.chainOf(bind()[5], bind()).worse[0].kind === 'untradeable', 'beside a first mistake on defence it still makes it worse');
+  // The same spot alone is never first: context in earlier.
+  const four = [1, 3, 6, 19].map((n) => death(n, { side: 'attacking', mateNear: 'close', killerAgent: ['Sova', 'Omen', 'Jett', 'Skye'][n % 4] }));
+  const c19 = dc.chainOf(four[3], four);
+  ok(c19 && !c19.first && !c19.worse.length && c19.earlier[0] === 'you died at Hookah in rounds 1, 3 and 6 too', `the same spot a fourth time is context, never the first mistake (${JSON.stringify(c19 && c19.first)})`);
+  // The server holds the same rule for a client that sends it anyway.
+  const srv = mm.rowsOfReview([{ n: 1, side: 'defending', result: 'lost', died: true, verified: true, traded: false, mate: 'far', alive: { mates: 3, enemies: 4 }, place: 'Hookah' }]);
+  ok(mm.chainWords({ n: 1, first: 'untradeable', worse: [] }, srv) === null && mm.chainWords({ n: 1, first: 'repeat-spot', worse: [] }, srv) === null,
+    'the server takes neither as a first mistake on defence before the plant');
 }
 
 // ── 2. The match's own memory ───────────────────────────────────────────────
@@ -149,13 +179,14 @@ console.log('\nthe match\'s memory:');
 // ── 3. Counted, and the biggest repeat ──────────────────────────────────────
 console.log('\nthe chains counted:');
 {
-  const rows = bind();
+  // Rounds 1 and 3 on attack, where nobody close to trade can be a first mistake.
+  const rows = bindAtk();
   const counted = insights.chainCounts(dc.chainsOf(rows, { half: 12 }));
   ok(counted.first.find((x) => x.kind === 'untradeable').count === 2 && counted.worse.find((x) => x.kind === 'untradeable').count === 1,
     'a kind is counted apart as a first mistake and as what made one worse');
   ok(counted.mainKind === 'untradeable' && counted.main === 'Your biggest repeat: dying where no teammate was close enough to trade, in 3 rounds, rounds 1, 3 and 6.',
     `the biggest repeat over every mistake of every death (${counted.main})`);
-  const beside = [1, 2, 3].map((n) => death(n, { riotSpot: null, killerAgent: null, aliveAtDeath: { mates: 4, enemies: 3 } }));
+  const beside = [1, 2, 3].map((n) => death(n, { side: 'attacking', riotSpot: null, killerAgent: null, aliveAtDeath: { mates: 4, enemies: 3 } }));
   ok(insights.chainCounts(dc.chainsOf(beside)).main === 'Your biggest repeat: dying where no teammate was close enough to trade, in 3 rounds, rounds 1, 2 and 3, and in 3 of those rounds also dying with your team up in numbers in a round it then lost.',
     'and the mistake most often beside it in those rounds');
   ok(insights.chainCounts([]).main === null, 'no chain, no repeat');
@@ -164,7 +195,7 @@ console.log('\nthe chains counted:');
 // ── 4. The review shows it, never on disk, and the grade does not move ──────
 console.log('\nthe review:');
 {
-  const built = review.build({ rounds: bind(), context: { map: 'Bind', agent: 'Iso', gameMode: 'standard' }, endedBy: 'stop' });
+  const built = review.build({ rounds: bindAtk(), context: { map: 'Bind', agent: 'Iso', gameMode: 'standard' }, endedBy: 'stop' });
   const before = JSON.stringify(built);
   const shown = review.served(JSON.parse(before));
   const r6 = shown.rounds.find((c) => c.n === 6);
@@ -180,7 +211,7 @@ console.log('\nthe review:');
 // ── 5. The review request and the server ────────────────────────────────────
 console.log('\nthe review request:');
 {
-  const rows = bind();
+  const rows = bindAtk();
   const body = review.requestBody({ rounds: rows, context: { map: 'Bind', agent: 'Iso', gameMode: 'standard' }, endedBy: 'stop' });
   ok(body.chains && body.chains.half === 12 && body.chains.rounds.find((c) => c.n === 6).first === 'no-escape' && body.chains.rounds.find((c) => c.n === 6).gap === 1.1,
     'the request carries each chain by its kinds, the half and the seconds of the spot with no way out');

@@ -91,7 +91,16 @@ const CHAIN_KEYS = [...LOOK_KINDS, ...Object.keys(KINDS)];
  * match had already shown of the killer come after, never first.
  */
 const FIRST_ORDER = ['isolated', 'overextend', 'rotating', 'no-escape', 'dry-peek', 'crossfire', 'exposed', 'repeek',
-  'untradeable', 'early-attack', 'no-utility', 'repeat-spot'];
+  'untradeable', 'early-attack', 'no-utility'];
+/*
+ * NEVER FIRST ON DEFENCE BEFORE THE PLANT (the owner's lead, Nov 2026): nobody
+ * close to trade is no first mistake there, since holding a spot alone is
+ * often the job on defence, and the coach was corrected once already for
+ * blaming a defence death wrongly. It may still be what made a death worse
+ * beside another first mistake; on attack, and after the plant (a retake or a
+ * post plant), it can be first. The same spot again is context, never first.
+ */
+const firstAllowed = (k, x) => !(k === 'untradeable' && x.side === 'defending' && !x.afterPlant);
 const WORSE_ORDER = ['no-escape', 'isolated', 'overextend', 'rotating', 'dry-peek', 'crossfire', 'exposed', 'repeek',
   'untradeable', 'no-utility', 'gave-advantage', 'first-death', 'early-attack', 'repeat-spot', 'same-killer', 'untraded-close'];
 const WORSE_MAX = 2;
@@ -330,7 +339,7 @@ function chainIn(x, all, opts = {}) {
   if (!judged(x)) return null;
   const kinds = found(x, all);
   const fair = !!(x.look && x.look.cause === 'lost-duel');
-  const firstKey = fair ? null : FIRST_ORDER.find((k) => kinds.has(k)) || null;
+  const firstKey = fair ? null : FIRST_ORDER.find((k) => kinds.has(k) && firstAllowed(k, x)) || null;
   const item = (k) => ({ kind: k, title: (KINDS[k] || CAUSES[k]).one, short: kinds.get(k).short, text: kinds.get(k).text, from: kinds.get(k).from });
   // No first mistake the record or the look can name, and no fair fight: what
   // the death cost is no chain of mistakes, so none is said (a close teammate
@@ -434,4 +443,4 @@ function memoryOf(rows, opts = {}) {
   return out;
 }
 
-module.exports = { chainOf, chainsOf, memoryOf, rowOf, rowsOf, situationOf, earlierOf, KINDS, LOOK_KINDS, LOOK_GERUND, CHAIN_KEYS, FIRST_ORDER, WORSE_ORDER, WORSE_MAX };
+module.exports = { firstAllowed, chainOf, chainsOf, memoryOf, rowOf, rowsOf, situationOf, earlierOf, KINDS, LOOK_KINDS, LOOK_GERUND, CHAIN_KEYS, FIRST_ORDER, WORSE_ORDER, WORSE_MAX };

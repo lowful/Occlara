@@ -78,7 +78,7 @@ const RECORD_KINDS = {
 const KINDS = { ...LOOK_KINDS, ...RECORD_KINDS };
 const CHAIN_KEYS = Object.keys(KINDS);
 const FIRST_KINDS = new Set(['isolated', 'overextend', 'rotating', 'no-escape', 'dry-peek', 'crossfire', 'exposed', 'repeek',
-  'untradeable', 'early-attack', 'no-utility', 'repeat-spot']);
+  'untradeable', 'early-attack', 'no-utility']);
 const NO_ESCAPE_SEC = 1.5;
 
 /** match-review.js normalise's rounds as rows. */
@@ -263,7 +263,9 @@ function chainWords(sent, rows) {
   const x = rows.find((r) => r.n === sent.n);
   if (!judged(x)) return null;
   const fair = sent.fair === true && x.cause === 'lost-duel';
-  const first = typeof sent.first === 'string' && FIRST_KINDS.has(sent.first) && !fair ? kindWords(sent.first, x, rows, sent) : null;
+  // Nobody close to trade is never first on defence before the plant (death-chain.js firstAllowed).
+  const firstOk = !(sent.first === 'untradeable' && x.side === 'defending' && !x.afterPlant);
+  const first = typeof sent.first === 'string' && FIRST_KINDS.has(sent.first) && firstOk && !fair ? kindWords(sent.first, x, rows, sent) : null;
   if (!first && !fair) return null;
   const worse = (Array.isArray(sent.worse) ? sent.worse : []).filter((k) => typeof k === 'string' && k !== (first && first.kind))
     .slice(0, 2).map((k) => kindWords(k, x, rows, sent)).filter(Boolean);
