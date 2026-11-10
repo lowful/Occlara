@@ -512,7 +512,10 @@ const GAMES_PRIOR_VERSION = String(store.get('changelogSeenVersion') || '')
 // Signed in or holding a key before this launch: an account made today on an
 // old install is never told its 4 games went up.
 let gamesHadAccount = false;
-try { gamesHadAccount = !!account.hasAuth(); } catch { gamesHadAccount = false; }
+// Read from the store, never through account.hasAuth(): this runs at module
+// load, before the app is ready, and decrypting the kept sign in then is not
+// possible (safeStorage is not available yet), which used to sign the player out.
+try { gamesHadAccount = !!(store.get('accountToken') || store.get('licenseKey')); } catch { gamesHadAccount = false; }
 const gamesWatch = gamesToast.createGamesWatch({ store, priorVersion: GAMES_PRIOR_VERSION, hadAccount: gamesHadAccount });
 let giftNameAsk = null;
 function flushGamesToasts() {

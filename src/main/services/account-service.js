@@ -157,10 +157,16 @@ function createAccountService(deps) {
   function token() {
     if (memToken) return memToken;
     if (tokenRead) return null;
-    tokenRead = true;
     const kept = d.store && d.store.get(TOKEN_KEY);
-    if (!kept || typeof kept !== 'string') return null;
+    if (!kept || typeof kept !== 'string') { tokenRead = true; return null; }
+    // THE KEPT SIGN IN IS NEVER GIVEN UP ON BEFORE ENCRYPTION CAN BE ASKED
+    // (8.9.2, the sign in lost at every restart). safeStorage answers
+    // "not available" until the app is ready, and 8.9.1 asked at module load
+    // (index.js gamesHadAccount): the first answer, null, was remembered for the
+    // whole run, so a player who had signed in was signed out at each launch.
+    // Not remembered now: the next call asks again once it can be answered.
     if (!canEncrypt()) return null;
+    tokenRead = true;
     try {
       const t = d.safeStorage.decryptString(Buffer.from(kept, 'base64'));
       memToken = TOKEN_SHAPE.test(t) ? t : null;

@@ -203,6 +203,15 @@ async function main() {
     // The next run reads it back through safeStorage.
     const next = harness({ store: h.store });
     ok(next.svc.signedIn() && next.svc.auth().Authorization === `Bearer ${h.token}`, 'the next run reads the sign in back through safeStorage');
+    // 8.9.2: asked before encryption can answer (module load, before the app is
+    // ready), the kept sign in is not given up on: the next ask, once it can be
+    // answered, finds it.
+    let ready = false;
+    const early = harness({ store: h.store, safe: { ...stubSafe(true), isEncryptionAvailable: () => ready } });
+    ok(early.svc.signedIn() === false && early.svc.hasAuth() === false, 'asked before encryption is available, there is no sign in yet');
+    ready = true;
+    ok(early.svc.signedIn() && early.svc.auth().Authorization === `Bearer ${h.token}`,
+      'and once it is available the kept sign in is found: a first early ask never signs the player out for the run');
     const foreign = harness({ store: memStore({ [TOKEN_KEY]: Buffer.from('plain').toString('base64') }) });
     ok(!foreign.svc.signedIn(), 'and a kept value safeStorage cannot read is no sign in');
 
