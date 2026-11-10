@@ -784,10 +784,10 @@ and Send; main checks and downscales the pictures and sends the report.
 Everything about it: feedback.md. `check:mainwindow` writes
 `main-feedback.png`, `main-feedback-filled.png` and `main-feedback-foot.png`.
 
-### The games toast (8.9.1)
+### The games toast (8.9.1, a centred reveal since 8.10.4)
 
 When the account's games go up for a reason the player did not just spend or
-reset, a card slides in at the top right under the bar, Discord's way: "You
+reset, a centred reveal plays over the window (a gift opening, or the crescent in a ring for a plan, the surface below), saying "You
 got 2 games" and one line with the reason, "Someone sent you a gift, 25
 games a month." (a gift, `source` 'gift' on `/account/me`), "Thanks for your
 purchase, 25 games a month." (a plan starting or moving up), "Your invite
@@ -815,18 +815,33 @@ it with (GET /api/gifts, the running gift's `from_name`), never a Riot ID
   launch (`changelogSeenVersion`, read at load before the changelog writes
   this one; onboarded with none counts as old) is below 8.9.1, is told "You
   got 2 games, Free is now N games". Decided once (`gamesRaiseChecked`).
-- **The surface** is a see-through `WebContentsView` of its own, made the
-  account menu's way (`main-window.js toast`, `src/renderer/toast`,
-  `toast-preload.js`), 388 by 128 at the top right of the page area, over
-  every page and under the open menu; the page keeps its bounds. One toast
-  at a time from main's queue: the view says `TOAST_ACT { done }` when its
-  time runs out or its X is pressed, `{ open }` when the card is pressed,
-  which opens Profile through index.js. The card: the gift mark for a gift
-  or an invite, the plus for the rest, `--good` on `--s2`, tokens only. In:
-  280ms `--ease-spring`, a slide and a slight scale, the mark pops, the
-  number counts up. 6 s, its time a line along the foot that hover holds.
-  Reduced motion: it fades, nothing slides, scales or counts, the line is
-  not drawn.
+- **The surface (8.10.4: a centred reveal, once a card at the top right)** is
+  a see-through `WebContentsView` of its own, made the account menu's way
+  (`main-window.js toast`, `src/renderer/toast`, `toast-preload.js`), over the
+  WHOLE window (`toastBounds`: 0, 0, the content size), over every page and
+  under the open menu; the page keeps its bounds. One at a time from main's
+  queue, and the view takes the keyboard while it is up (Esc and Enter close
+  it, the keyboard goes back to the page after). A flat scrim (`--bg` at 90%,
+  no blur, no gradient) and, centred, the picture, the number and one line:
+  `words()` carries `look` ('gift' for a gift of a plan, an invite, games
+  bought and the free raise, 'plan' for a plan bought or moved up), `big` (the
+  number counted up), `unit` ("games", or "games a month" for a plan), `rline`
+  and `tier` (Max's ring and number are `--warn`, everything else `--good`).
+  pre, n, post and line stay for the old checks. The gift: it drops in (spring),
+  shakes (220 ms), the lid pops and rests ajar, a ring pulses out, 22 flat
+  pieces burst, the number rises out of the box and counts to its value
+  ("+4 games"), then the unit, the line and the buttons, 80 to 140 ms apart. The
+  plan: a ring draws itself, the crescent (the logo's own path) turns in, a
+  ring pulses, the number counts ("25 games a month"). Every step is a delay
+  on its own CSS animation (toast.css lists the timeline); the page counts the
+  number and makes the pieces. Continue, Esc, a click on the scrim or 10 s
+  say `TOAST_ACT { done }`; See my games says `{ open }`, which opens Profile
+  through index.js. Motion is transform, opacity and one stroke draw, flat
+  colours only (no glow, no gradient). Reduced motion: it fades, nothing moves,
+  draws, bursts or counts. The class is `.rv-root`, not `.reveal`, which is
+  ui.css's accordion. Designed after the Figma limit was hit (see the
+  `design-in-figma` note); `scripts/shot-reveal.js` writes `reveal-sheet.png`
+  with both looks at six moments each.
 - **Never mid match** (screen-silence.md): index.js takes nothing off the
   waiting list while a match is in progress or the window is sealed
   (`flushGamesToasts`, flushed from `flushAccountWaits`, so from `syncSeal`

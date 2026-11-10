@@ -5,7 +5,7 @@ const C = require('../shared/channels');
 
 /**
  * Bridge for the games toast's own view (8.9.1, main-window.js toast): a
- * see-through view at the top right over the page, showing "You got 2 games"
+ * see-through view over the whole window, a centred reveal of "You got 2 games"
  * one at a time. It draws what main sends and says when one is done or was
  * clicked. It can open no page itself, read no config and send nothing else:
  * main opens Profile for a click, and only while nothing is sealed.

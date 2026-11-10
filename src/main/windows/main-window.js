@@ -100,8 +100,6 @@ let menuQueued = null;     // what to draw once the menu's document has loaded
 // made the menu's way. One at a time from toastQueue; never while sealed,
 // hidden or minimised: then it waits, and a toast on screen as the seal comes
 // on goes at once and is put back at the front, to be shown whole later.
-const TOAST_W = 388;       // the card (352) and its shadow's margin (18 each side)
-const TOAST_H = 128;
 const TOAST_MAX = 12;
 let toastView = null;
 let toastQueue = [];       // toasts waiting, oldest first
@@ -566,10 +564,13 @@ function menuState() {
 
 // ── The games toast (8.9.1), over the page ────────────────────────────────
 
-/** Where the toast's view sits: the top right of the page area, under the bar. */
+/**
+ * Where the reveal's view sits: the whole window (8.10.4). It draws a flat
+ * scrim over every page and the bar and centres the gift or the plan on it,
+ * so it covers everything and takes the keyboard (Esc, Enter) while it is up.
+ */
 function toastBounds(w, h) {
-  const width = Math.min(TOAST_W, Math.max(0, w));
-  return { x: Math.max(0, w - width), y: TOP_H, width, height: Math.min(TOAST_H, Math.max(0, h - TOP_H)) };
+  return { x: 0, y: 0, width: Math.max(0, w), height: Math.max(0, h) };
 }
 
 /** The toast's view, made on the first toast and kept, hidden, between them. */
@@ -637,6 +638,9 @@ function pumpToast() {
   win.contentView.addChildView(v);
   raiseMenu();
   v.setVisible(true);
+  // The reveal takes the keyboard so Esc and Enter close it; a test window
+  // with no real contents has nothing to focus.
+  try { if (v.webContents && typeof v.webContents.focus === 'function') v.webContents.focus(); } catch { /* not focusable */ }
   return true;
 }
 
@@ -657,6 +661,8 @@ function toastDone(id) {
   if (!pumpToast()) {
     const v = toastView;
     if (alive(v)) v.setVisible(false);
+    // The keyboard goes back to the window's own page.
+    try { if (win && !win.isDestroyed() && win.webContents && typeof win.webContents.focus === 'function') win.webContents.focus(); } catch { /* gone */ }
   }
 }
 
@@ -674,6 +680,13 @@ function toast(t) {
     n: Number.isFinite(t.n) && t.n > 0 ? Math.min(9999, Math.round(t.n)) : null,
     post: clip(t.post, 30),
     line: clip(t.line, 120),
+    // The centred reveal (8.10.4): its picture, its counted number, what it
+    // counts, its one line and a plan's tier (the ring's colour).
+    look: t.look === 'plan' ? 'plan' : 'gift',
+    big: Number.isFinite(t.big) && t.big > 0 ? Math.min(9999, Math.round(t.big)) : (Number.isFinite(t.n) && t.n > 0 ? Math.min(9999, Math.round(t.n)) : null),
+    unit: clip(t.unit, 30),
+    rline: clip(typeof t.rline === 'string' && t.rline ? t.rline : t.line, 120),
+    tier: t.tier === 'max' ? 'max' : t.tier === 'pro' ? 'pro' : '',
   };
   if (toastQueue.some((q) => q.id === one.id) || (toastNow && toastNow.id === one.id)) return false;
   toastQueue.push(one);

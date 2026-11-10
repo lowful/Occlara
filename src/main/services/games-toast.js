@@ -146,24 +146,35 @@ function words(ev) {
   const n = whole(e.n);
   const games = (k) => (k === 1 ? 'game' : 'games');
   const tier = TIER_LABEL[e.tier] || 'a plan';
+  // The reveal (8.10.4) draws the same event centred: `look` is the picture
+  // (a gift box opening, or the crescent in a ring for a plan), `big` the
+  // number counted up, `unit` what it counts, `rline` its one line and `tier`
+  // the colour of a plan's ring. pre, n, post and line stay as they were.
+  const rev = (look, big, unit, rline, t) => ({ look, big, unit, rline, tier: t || '' });
   switch (e.kind) {
     case 'gift': {
       const from = cleanFrom(e.from);
       return { pre: `You got ${tier}`, n: null, post: '',
-        line: `${from || 'Someone'} sent you a gift, ${n} ${games(n)} a month.` };
+        line: `${from || 'Someone'} sent you a gift, ${n} ${games(n)} a month.`,
+        ...rev('gift', n, `${games(n)} a month`, `${from || 'Someone'} sent you ${tier}.`, e.tier) };
     }
     case 'plan':
-      return { pre: `You got ${tier}`, n: null, post: '', line: `Thanks for your purchase, ${n} ${games(n)} a month.` };
+      return { pre: `You got ${tier}`, n: null, post: '', line: `Thanks for your purchase, ${n} ${games(n)} a month.`,
+        ...rev('plan', n, `${games(n)} a month`, `Welcome to ${tier}. Thanks for your purchase.`, e.tier) };
     case 'invite':
-      return { pre: 'You got ', n, post: ` ${games(n)}`, line: 'Your invite paid off.' };
+      return { pre: 'You got ', n, post: ` ${games(n)}`, line: 'Your invite paid off.',
+        ...rev('gift', n, games(n), 'Your invite paid off.') };
     case 'bought':
-      return { pre: 'You got ', n, post: ` ${games(n)}`, line: 'Thanks for your purchase.' };
+      return { pre: 'You got ', n, post: ` ${games(n)}`, line: 'Thanks for your purchase.',
+        ...rev('gift', n, games(n), 'Thanks for your purchase.') };
     case 'raise': {
       const total = whole(e.total);
-      return { pre: 'You got ', n, post: ` ${games(n)}`, line: total ? `Free is now ${total} games.` : 'Your free games went up.' };
+      const line = total ? `Free is now ${total} games.` : 'Your free games went up.';
+      return { pre: 'You got ', n, post: ` ${games(n)}`, line, ...rev('gift', n, games(n), line) };
     }
     default:
-      return { pre: 'You got ', n, post: ` ${games(n)}`, line: 'Your games went up.' };
+      return { pre: 'You got ', n, post: ` ${games(n)}`, line: 'Your games went up.',
+        ...rev('gift', n, games(n), 'Your games went up.') };
   }
 }
 

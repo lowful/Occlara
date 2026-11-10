@@ -1,5 +1,25 @@
 [
   {
+    "version": "8.10.4",
+    "date": "2026-11-10",
+    "title": "Gifts and upgrades get their moment",
+    "summary": "When games or a plan reach you, a centred animation shows exactly what you got, instead of a small note in the corner.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "A gift, an invite that paid off, games you bought or a higher free allowance now open a gift on screen and count up the games you got."
+      },
+      {
+        "kind": "new",
+        "text": "Upgrading to Pro or Max draws a ring around the crescent and counts up your games a month, in gold for Max."
+      },
+      {
+        "kind": "improved",
+        "text": "Continue, Esc or a click outside closes it, See my games opens your Profile, and it waits until your match is over."
+      }
+    ]
+  },
+  {
     "version": "8.10.3",
     "date": "2026-11-10",
     "title": "Fixes that fit the round",

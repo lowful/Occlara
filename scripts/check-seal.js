@@ -451,7 +451,8 @@ setTimeout(async () => {
     // index.js holds them while a match is on or the window is sealed
     // (flushGamesToasts, test:gamestoast); the window's toast view holds any
     // that reach it while sealed. Here one reaches it mid match.
-    const giftToast = { id: 'seal-gift', kind: 'gift', pre: 'You got Pro', n: null, post: '', line: 'Someone sent you a gift, 25 games a month.' };
+    const giftToast = { id: 'seal-gift', kind: 'gift', pre: 'You got Pro', n: null, post: '', line: 'Someone sent you a gift, 25 games a month.',
+      look: 'gift', big: 25, unit: 'games a month', rline: 'Someone sent you Pro.', tier: 'pro' };
     mainWindow.toast(giftToast);
     const tMid = mainWindow.toastState();
     lines.push(`resumed: a games toast mid match: shown=${tMid.shown} waiting=${tMid.queued.join(',') || 'none'}`);
@@ -469,9 +470,9 @@ setTimeout(async () => {
     const tShown = await until(() => mainWindow.toastState().shown, 3000);
     const tView = mainWindow.toastState().view;
     const tTitle = tView ? await until(() => tView.webContents.executeJavaScript(
-      "(() => { const b = document.getElementById('toast'); return b && !b.hidden ? document.getElementById('toast-title').textContent + ' | ' + document.getElementById('toast-line').textContent : ''; })()"), 4000) : null;
-    lines.push(`the real end: the games toast shown=${!!tShown} says "${tTitle || ''}"`);
-    if (!tShown || tTitle !== `${giftToast.pre} | ${giftToast.line}`) return report(false, 'once the match ended, the games toast that waited did not come');
+      "(() => { const b = document.getElementById('reveal'); const n = document.getElementById('rv-big').textContent; return b && !b.hidden && n === '25' ? n + ' ' + document.getElementById('rv-unit').textContent + ' | ' + document.getElementById('rv-line').textContent : ''; })()"), 5000) : null;
+    lines.push(`the real end: the games reveal shown=${!!tShown} says "${tTitle || ''}"`);
+    if (!tShown || tTitle !== `${giftToast.big} ${giftToast.unit} | ${giftToast.rline}`) return report(false, 'once the match ended, the games reveal that waited did not come');
     send(C.COACH_STOP);
 
     // 3. A Valorant Start pressed over a held seal, mid match, never lifts it.

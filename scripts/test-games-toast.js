@@ -112,6 +112,20 @@ ok(DASH.test(`a ${String.fromCharCode(0x2014)} b`) && !DASH.test('a, b'), 'the d
 const all = ['gift', 'plan', 'invite', 'bought', 'raise', 'other'].map((k) => W({ kind: k, n: 3, tier: 'pro', total: 4 }));
 ok(all.every((s) => !DASH.test(s) && !s.includes(';')), 'no dash and no semicolon in any toast', all.join(' / '));
 
+// The centred reveal (8.10.4) reads the same event: its picture, its counted number, its unit and its line.
+const R = (ev) => { const x = gt.words(ev); return `${x.look}|${x.big}|${x.unit}|${x.tier}|${x.rline}`; };
+eq(R({ kind: 'invite', n: 4 }), 'gift|4|games||Your invite paid off.', 'an invite opens the gift on 4 games');
+eq(R({ kind: 'bought', n: 1 }), 'gift|1|game||Thanks for your purchase.', 'one game bought: singular unit');
+eq(R({ kind: 'raise', n: 2, total: 4 }), 'gift|2|games||Free is now 4 games.', 'the raise opens the gift');
+eq(R({ kind: 'gift', n: 25, tier: 'pro', from: 'Alex' }), 'gift|25|games a month|pro|Alex sent you Pro.', 'a gifted plan: the gift, its 25 games a month, its tier, the giver');
+eq(R({ kind: 'gift', n: 70, tier: 'max' }), 'gift|70|games a month|max|Someone sent you Max.', 'a gifted Max: Someone when unsigned');
+eq(R({ kind: 'plan', n: 25, tier: 'pro' }), 'plan|25|games a month|pro|Welcome to Pro. Thanks for your purchase.', 'a plan bought: the crescent ring, 25 a month');
+eq(R({ kind: 'plan', n: 70, tier: 'max' }), 'plan|70|games a month|max|Welcome to Max. Thanks for your purchase.', 'Max: the ring takes its own tier');
+{
+  const lines = ['gift', 'plan', 'invite', 'bought', 'raise', 'other'].map((k) => R({ kind: k, n: 3, tier: 'max', total: 4, from: 'Sam' }));
+  ok(lines.every((s) => !DASH.test(s) && !s.includes(';')), 'no dash and no semicolon in any reveal line', lines.join(' / '));
+}
+
 console.log('\n[games toast] held while a match is on, kept across a restart');
 {
   const store = memStore();

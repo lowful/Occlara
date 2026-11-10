@@ -710,8 +710,8 @@ function rig() {
       const kids = third.contentView.children;
       ok(ts.shown && ts.now.id === 'g1' && kids[kids.length - 1] === ts.view && JSON.stringify(page.bounds) === before,
         'the seal lifted: it comes, on top of every page, and the page keeps its bounds');
-      ok(ts.bounds.x === 1200 - 388 && ts.bounds.y === mw.TOP_H && ts.bounds.width === 388 && ts.bounds.height === 128,
-        'at the top right of the page area, under the bar', JSON.stringify(ts.bounds));
+      ok(ts.bounds.x === 0 && ts.bounds.y === 0 && ts.bounds.width === 1200 && ts.bounds.height === 780,
+        'over the whole window, so the scrim covers every page and the bar', JSON.stringify(ts.bounds));
       ts.view.webContents.emit('did-finish-load');
       const drawn = () => ts.view.webContents.sent.filter((x) => x.ch === CH.PUSH_TOAST).map((x) => x.msg);
       ok(drawn().length === 1 && drawn()[0].toast.id === 'g1' && drawn()[0].toast.n === 4, 'what it draws waits for its document');

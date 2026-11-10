@@ -4,37 +4,61 @@
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
-  <title>Occlara toast</title>
+  <title>Occlara reveal</title>
   <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="toast.css" />
 </head>
 <body>
-  <!-- THE GAMES TOAST (8.9.1). A see-through view at the top right over every
-       page (main-window.js toast), one card at a time: "You got 2 games" and
-       its reason. Never shown while the window is sealed: main holds it. -->
-  <div id="toast" class="toast" role="status" aria-live="polite" hidden>
-    <button id="toast-body" class="toast-body" type="button" aria-label="Open Profile">
-      <span class="toast-mark" aria-hidden="true">
-        <svg class="mark-plus" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M12 5v14M5 12h14" />
+  <!-- THE REVEAL (8.10.4, was the games toast). A see-through view over the
+       whole window (main-window.js toast), one at a time: a flat scrim and,
+       centred on it, a gift opening ("+4 games") or the crescent in a ring
+       for a plan. Never shown while the window is sealed: main holds it. -->
+  <div id="reveal" class="rv-root" data-look="gift" data-tier="" role="dialog" aria-modal="true" aria-labelledby="rv-big" hidden>
+    <div id="rv-scrim" class="rv-scrim"></div>
+    <div id="rv-stage" class="rv-stage">
+
+      <!-- The gift: body, lid and bow (one drawing), a ring and flat pieces. -->
+      <div class="rv-hero rv-gift" aria-hidden="true">
+        <span class="rv-ring"></span>
+        <span id="rv-pieces" class="rv-pieces"></span>
+        <div class="rv-giftwrap">
+          <svg class="gift" viewBox="0 0 160 160" width="100%" height="100%" fill="none">
+            <g class="g-body">
+              <rect class="g-box" x="20" y="70" width="120" height="76" rx="10" />
+              <rect class="g-band" x="72" y="70" width="16" height="76" />
+            </g>
+            <g class="g-lid">
+              <rect class="g-cap" x="12" y="50" width="136" height="24" rx="8" />
+              <rect class="g-band" x="72" y="50" width="16" height="24" />
+              <path class="g-bow" d="M80 50C66 22 36 26 46 42C52 52 70 50 80 50Z" />
+              <path class="g-bow" d="M80 50C94 22 124 26 114 42C108 52 90 50 80 50Z" />
+              <circle class="g-knot" cx="80" cy="49" r="7" />
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- The plan: a ring that draws, the crescent in it. -->
+      <div class="rv-hero rv-plan" aria-hidden="true">
+        <span class="rv-ring"></span>
+        <svg class="plan-ring" viewBox="0 0 176 176" width="100%" height="100%" fill="none">
+          <circle class="plan-track" cx="88" cy="88" r="84" />
+          <circle class="plan-draw" cx="88" cy="88" r="84" pathLength="100" />
         </svg>
-        <svg class="mark-gift" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3.5" y="9" width="17" height="11" rx="2" />
-          <path d="M2.5 9h19v-1.5a1 1 0 0 0-1-1h-17a1 1 0 0 0-1 1z" />
-          <path d="M12 6.5V20" />
-          <path d="M12 6.5c-1.6-3.2-5.6-3.4-5.6-1.1 0 1.4 2.3 1.1 5.6 1.1z" />
-          <path d="M12 6.5c1.6-3.2 5.6-3.4 5.6-1.1 0 1.4-2.3 1.1-5.6 1.1z" />
+        <svg class="plan-moon" viewBox="0 0 120 120" width="42%" height="42%" fill="currentColor">
+          <path d="M67.444,10.281 A50,50 0 1,0 107.855,80.274 A42,42 0 1,1 67.444,10.281 Z" />
         </svg>
-      </span>
-      <span class="toast-text">
-        <span id="toast-title" class="toast-title"></span>
-        <span id="toast-line" class="toast-line"></span>
-      </span>
-    </button>
-    <button id="toast-close" class="toast-close" type="button" aria-label="Dismiss">
-      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
-    </button>
-    <span id="toast-time" class="toast-time" aria-hidden="true"></span>
+      </div>
+
+      <div class="rv-num"><span id="rv-big" class="rv-big"></span></div>
+      <div id="rv-unit" class="rv-unit"></div>
+      <p id="rv-line" class="rv-line"></p>
+      <div class="rv-actions">
+        <button id="rv-continue" class="btn btn-primary md" type="button">Continue</button>
+        <button id="rv-profile" class="btn btn-link md" type="button">See my games</button>
+      </div>
+    </div>
   </div>
   <script src="toast.js"></script>
 </body>

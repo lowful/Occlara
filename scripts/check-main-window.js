@@ -368,20 +368,22 @@ setTimeout(async () => {
     // page keeping its bounds; drawn as text, the number counted up to 2.
     {
       const homeBounds = JSON.stringify(mainWindow.pageViews().get('home').getBounds());
-      mainWindow.toast({ id: 'mw-raise', kind: 'raise', pre: 'You got ', n: 2, post: ' games', line: 'Free is now 4 games.' });
+      mainWindow.toast({ id: 'mw-raise', kind: 'raise', pre: 'You got ', n: 2, post: ' games', line: 'Free is now 4 games.',
+        look: 'gift', big: 2, unit: 'games', rline: 'Free is now 4 games.' });
       const tv = await until(() => (mainWindow.toastState().shown ? mainWindow.toastState().view : null), 3000);
+      // The reveal counts its number up, so it is read once it has arrived.
       const said = tv ? await until(() => tv.webContents.executeJavaScript(
-        "(() => { const t = document.getElementById('toast-title').textContent; return t === 'You got 2 games' ? t + ' | ' + document.getElementById('toast-line').textContent : ''; })()"), 4000) : null;
+        "(() => { const t = document.getElementById('rv-big').textContent; return t === '+2' ? t + ' ' + document.getElementById('rv-unit').textContent + ' | ' + document.getElementById('rv-line').textContent : ''; })()"), 5000) : null;
       const tb = mainWindow.toastState().bounds;
-      const [tw] = win.getContentSize();
-      lines.push(`games toast over Home: shown=${!!tv} says "${said || ''}" at ${JSON.stringify(tb)} Home kept its bounds=${JSON.stringify(mainWindow.pageViews().get('home').getBounds()) === homeBounds}`);
-      if (!tv || said !== 'You got 2 games | Free is now 4 games.') return report(false, 'the games toast did not come over Home with its words');
-      if (!tb || tb.y !== mainWindow.TOP_H || tb.x + tb.width !== tw) return report(false, `the games toast is not at the top right under the bar: ${JSON.stringify(tb)}`);
-      if (JSON.stringify(mainWindow.pageViews().get('home').getBounds()) !== homeBounds) return report(false, 'Home was moved for the games toast');
-      await wait(700);   // its way in and the count up over
+      const [tw, th] = win.getContentSize();
+      lines.push(`games reveal over Home: shown=${!!tv} says "${said || ''}" at ${JSON.stringify(tb)} Home kept its bounds=${JSON.stringify(mainWindow.pageViews().get('home').getBounds()) === homeBounds}`);
+      if (!tv || said !== '+2 games | Free is now 4 games.') return report(false, 'the games reveal did not come over Home with its words');
+      if (!tb || tb.x !== 0 || tb.y !== 0 || tb.width !== tw || tb.height !== th) return report(false, `the games reveal does not cover the window: ${JSON.stringify(tb)}`);
+      if (JSON.stringify(mainWindow.pageViews().get('home').getBounds()) !== homeBounds) return report(false, 'Home was moved for the games reveal');
+      await wait(1400);   // the rest of its timeline: unit, line and buttons in
       await shot('home-toast', mainWindow, win);
-      await tv.webContents.executeJavaScript("document.getElementById('toast-close').click(); true");
-      if (!await until(() => !mainWindow.toastState().shown, 3000)) return report(false, 'the X on the games toast did not take it away');
+      await tv.webContents.executeJavaScript("document.getElementById('rv-continue').click(); true");
+      if (!await until(() => !mainWindow.toastState().shown, 3000)) return report(false, 'Continue on the games reveal did not take it away');
     }
 
     // 3. A page from the sidebar shows beside it, at the sidebar's edge.

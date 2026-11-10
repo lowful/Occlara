@@ -1,116 +1,142 @@
 /* palette: tokens only */
-/* The games toast (8.9.1): one card at the top right of a see-through view
-   (main-window.js toast), "You got 2 games" and its reason, a line that runs
-   out as it waits, Discord's way. Comes in with a spring (280ms, a slide and
-   a slight scale), the number counts up, hover holds it. Reduced motion:
-   it fades, nothing slides, scales or counts. Tokens only. */
+/* The reveal (8.10.4, once the games toast): a see-through view over the whole
+   window. A flat scrim (--bg at 90%, no blur, no gradient) and, centred on it,
+   either a gift that drops, shakes and opens, with the number rising out of it
+   and counting up, or the crescent inside a ring that draws itself, for a
+   plan. One timeline per look, every step a delay on its own animation:
+     scrim 0, gift drops 120, shakes 620, lid opens 860 (ring and flat pieces
+     burst with it), number rises 900 and counts, unit 1500, line 1640,
+     buttons 1740 ms. A plan: ring draws 160, crescent 640, ring pulse 860,
+     the rest as the gift.
+   Motion is transform, opacity and one stroke draw. Reduced motion: it fades,
+   nothing moves, draws, bursts or counts. Tokens only. */
 html, body { width: 100%; height: 100%; margin: 0; background: transparent; overflow: hidden; }
 body { font-family: var(--font); color: var(--text); -webkit-font-smoothing: antialiased; user-select: none; }
 
-.toast {
-  position: absolute;
-  top: 12px;
-  right: 18px;
-  width: 352px;
-  box-sizing: border-box;
-  border-radius: var(--r-tile);
-  background: var(--s2);
-  box-shadow: var(--rim-2), var(--hi), 0 10px 28px -8px rgba(0, 0, 0, 0.7);
-  overflow: hidden;
-  transform-origin: 100% 0;
-  animation: toastIn 280ms var(--ease-spring) both;
-}
-.toast[hidden] { display: none; }
-.toast.leaving { animation: toastOut 180ms var(--ease-out) both; }
+.rv-root { position: absolute; inset: 0; }
+.rv-root[hidden] { display: none; }
 
-.toast-body {
-  all: unset;
+.rv-scrim { position: absolute; inset: 0; background: var(--bg); opacity: 0.9; animation: rvScrim 220ms var(--ease-out) both; }
+
+.rv-stage {
+  position: relative;
+  height: 100%;
   box-sizing: border-box;
+  padding: 28px 24px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 16px 44px 18px 16px;
-  cursor: pointer;
+  justify-content: center;
+  gap: clamp(8px, 1.8vh, 16px);
+  text-align: center;
 }
-.toast-body:focus-visible { box-shadow: inset 0 0 0 2px var(--line-2); border-radius: var(--r-tile); }
-.toast:hover { background: var(--s3); }
 
-.toast-mark {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--r-md);
+/* ── The picture ── */
+.rv-hero { position: relative; flex: none; width: clamp(112px, 21vh, 176px); aspect-ratio: 1; }
+.rv-root[data-look="gift"] .rv-plan,
+.rv-root[data-look="plan"] .rv-gift { display: none; }
+
+/* A gift reads best with the number above it, the box opening upward into it. */
+.rv-root[data-look="gift"] .rv-num { order: 1; }
+.rv-root[data-look="gift"] .rv-unit { order: 2; margin-top: -2px; }
+.rv-root[data-look="gift"] .rv-hero { order: 3; margin-top: clamp(4px, 1.6vh, 14px); }
+.rv-root[data-look="plan"] .rv-hero { order: 1; margin-bottom: clamp(2px, 1.4vh, 12px); }
+.rv-root[data-look="plan"] .rv-num { order: 2; }
+.rv-root[data-look="plan"] .rv-unit { order: 3; margin-top: -2px; }
+.rv-line { order: 4; }
+.rv-actions { order: 5; }
+
+.rv-giftwrap { position: absolute; inset: 0; animation: rvDrop 460ms var(--ease-spring) 120ms both; }
+.gift { display: block; overflow: visible; transform-origin: 50% 92%; animation: rvShake 220ms var(--ease-in-out) 620ms both; }
+.g-box { fill: var(--s3); stroke: var(--line-2); stroke-width: 1.5; }
+.g-cap { fill: var(--s4); stroke: var(--line-2); stroke-width: 1.5; }
+.g-band, .g-knot { fill: var(--good); }
+.g-bow { fill: none; stroke: var(--good); stroke-width: 5; stroke-linejoin: round; }
+.g-lid { transform-box: fill-box; transform-origin: 50% 100%; animation: rvLid 560ms var(--ease-spring) 860ms both; }
+
+/* The ring that pulses out of the picture, and the flat pieces that burst. */
+.rv-ring {
+  position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--good);
+  opacity: 0; animation: rvPulse 760ms var(--ease-expo) 860ms both;
+}
+.rv-pieces { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.pc { position: absolute; left: 0; top: 0; border-radius: 1.5px; opacity: 0; animation: rvBurst 1150ms cubic-bezier(0.12, 0.8, 0.3, 1) calc(860ms + var(--d, 0ms)) both; }
+.pc.c0 { background: var(--good); }
+.pc.c1 { background: var(--text); }
+.pc.c2 { background: var(--warn); }
+.pc.c3 { background: var(--text-dim); }
+
+/* The plan: the ring draws, the crescent comes in. */
+.rv-plan { color: var(--good); }
+.rv-root[data-tier="max"] .rv-plan { color: var(--warn); }
+.rv-root[data-tier="max"] .rv-ring { border-color: var(--warn); }
+.plan-ring { position: absolute; inset: 0; overflow: visible; }
+.plan-track { stroke: var(--line); stroke-width: 2; }
+.plan-draw {
+  stroke: currentColor; stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 100; stroke-dashoffset: 0;
+  transform: rotate(-90deg); transform-origin: 50% 50%;
+  animation: rvDraw 720ms var(--ease-out) 160ms both;
+}
+.plan-moon { position: absolute; left: 29%; top: 29%; animation: rvMoon 540ms var(--ease-spring) 640ms both; }
+.rv-plan .rv-ring { border-color: currentColor; }
+
+/* ── The words ── */
+.rv-num { animation: rvRise 760ms var(--ease-expo) 900ms both; }
+.rv-root[data-look="plan"] .rv-num { animation-name: rvRisePlan; }
+.rv-big {
+  display: block;
+  font-size: clamp(84px, 20vh, 152px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
   color: var(--good);
-  background: rgba(var(--good-rgb), 0.14);
-  box-shadow: inset 0 0 0 1px rgba(var(--good-rgb), 0.28);
 }
-.toast-mark svg { display: none; }
-.toast[data-mark="gift"] .mark-gift,
-.toast[data-mark="plus"] .mark-plus { display: block; }
-.toast:not(.leaving) .toast-mark { animation: markPop 420ms var(--ease-spring) 120ms both; }
+.rv-root[data-tier="max"][data-look="plan"] .rv-big { color: var(--warn); }
+.rv-unit { font-size: clamp(20px, 3.4vh, 28px); font-weight: 500; line-height: 1.2; color: var(--text-dim); animation: rvUp 320ms var(--ease-out) 1500ms both; }
+.rv-line { margin: 0; max-width: 44ch; font-size: 17px; line-height: 1.4; color: var(--text-dim); text-wrap: balance; animation: rvUp 320ms var(--ease-out) 1640ms both; }
+.rv-actions { display: flex; align-items: center; gap: 6px; margin-top: clamp(6px, 1.8vh, 16px); animation: rvUp 320ms var(--ease-out) 1740ms both; }
+.rv-actions .btn.md { height: 44px; padding: 0 26px; font-size: 15px; }
+.rv-actions .btn-link { color: var(--text-dim); }
 
-.toast-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.toast-title { font-size: 15px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; color: var(--text); }
-.toast-title .n { font-variant-numeric: tabular-nums; color: var(--good); }
-.toast-line { font-size: 13px; line-height: 1.35; color: var(--text-dim); }
+/* ── Leaving ── */
+.rv-root.leaving { animation: rvOut 180ms var(--ease-out) both; }
 
-.toast-close {
-  all: unset;
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--r-sm);
-  color: var(--text-mute);
-  cursor: pointer;
-  transition: color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
+/* ── Keyframes ── */
+@keyframes rvScrim { from { opacity: 0; } to { opacity: 0.9; } }
+@keyframes rvDrop { from { opacity: 0; transform: translateY(-64px) scale(0.74); } to { opacity: 1; transform: none; } }
+@keyframes rvShake {
+  0%   { transform: rotate(0); }
+  25%  { transform: rotate(4deg); }
+  55%  { transform: rotate(-4deg); }
+  80%  { transform: rotate(3deg); }
+  100% { transform: rotate(0); }
 }
-.toast-close:hover { color: var(--text); background: var(--s4); }
-.toast-close:focus-visible { box-shadow: inset 0 0 0 2px var(--line-2); }
-
-/* The time left: a line along the foot that runs out, held while hovered. */
-.toast-time {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 2px;
-  background: rgba(var(--good-rgb), 0.7);
-  transform-origin: 0 50%;
-  animation: toastTime var(--toast-ms, 6000ms) linear both;
+@keyframes rvLid {
+  0%   { transform: none; }
+  55%  { transform: translate(12px, -58px) rotate(-16deg); }
+  100% { transform: translate(8px, -24px) rotate(-8deg); }
 }
-.toast:hover .toast-time,
-.toast:focus-within .toast-time { animation-play-state: paused; }
-
-@keyframes toastIn {
-  from { opacity: 0; transform: translateX(28px) scale(0.94); }
-  to   { opacity: 1; transform: none; }
+@keyframes rvPulse { from { opacity: 0.6; transform: scale(0.5); } to { opacity: 0; transform: scale(2.5); } }
+@keyframes rvBurst {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0) scale(0.4); }
+  55%  { opacity: 1; transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--x), calc(var(--y) + 90px)) rotate(calc(var(--r) * 1.6)) scale(1); }
 }
-@keyframes toastOut {
-  from { opacity: 1; transform: none; }
-  to   { opacity: 0; transform: translateX(20px) scale(0.98); }
-}
-@keyframes markPop {
-  from { transform: scale(0.6) rotate(-12deg); }
-  to   { transform: none; }
-}
-@keyframes toastTime {
-  from { transform: scaleX(1); }
-  to   { transform: scaleX(0); }
-}
-@keyframes toastFadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes toastFadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes rvDraw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+@keyframes rvMoon { from { opacity: 0; transform: scale(0.55) rotate(-24deg); } to { opacity: 1; transform: none; } }
+@keyframes rvRise { from { opacity: 0; transform: translateY(clamp(120px, 24vh, 200px)) scale(0.4); } to { opacity: 1; transform: none; } }
+@keyframes rvRisePlan { from { opacity: 0; transform: translateY(26px) scale(0.86); } to { opacity: 1; transform: none; } }
+@keyframes rvUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes rvOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(0.985); } }
+@keyframes rvFade { from { opacity: 0; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .toast { animation: toastFadeIn 200ms linear both; }
-  .toast.leaving { animation: toastFadeOut 160ms linear both; }
-  .toast:not(.leaving) .toast-mark { animation: none; }
-  /* Still the clock (its end dismisses), just not drawn. */
-  .toast-time { opacity: 0; }
+  .rv-scrim { animation: rvScrim 160ms linear both; }
+  .rv-stage { animation: rvFade 200ms linear both; }
+  .rv-giftwrap, .gift, .g-lid, .rv-num, .rv-unit, .rv-line, .rv-actions, .plan-draw, .plan-moon { animation: none; }
+  .g-lid { transform: translate(8px, -24px) rotate(-8deg); }
+  .rv-ring, .rv-pieces { display: none; }
+  .rv-root.leaving { animation: rvFade 160ms linear reverse both; }
 }
