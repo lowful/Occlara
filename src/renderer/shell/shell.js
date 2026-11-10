@@ -134,9 +134,14 @@ function syncMenu(focus) {
 // A row changing while open (the seal locking it, the games left, the Riot ID)
 // is drawn again in the view, once a frame at most.
 let menuFrame = 0;
+// The focus an opening asked for, carried by the redraw its own opening
+// schedules: the view keeps only the latest state it is sent, so a redraw
+// with no focus right behind the opening's 'first' used to win, and the menu,
+// not its first row, held the focus (check:mainwindow, 8.9.4).
+let openFocus = null;
 const menuChanged = () => {
   if (drawerEl.hidden || menuFrame) return;
-  menuFrame = requestAnimationFrame(() => { menuFrame = 0; syncMenu(); });
+  menuFrame = requestAnimationFrame(() => { menuFrame = 0; const f = openFocus; openFocus = null; syncMenu(f); });
 };
 new MutationObserver(menuChanged).observe(drawerEl, { subtree: true, childList: true, attributes: true, characterData: true });
 window.addEventListener('resize', menuChanged);
@@ -149,7 +154,10 @@ function setDrawer(open, opts) {
   // Opened by the keyboard, the focus is on its first row (its last, by
   // ArrowUp), ringed; opened by a press, on the menu itself, so no row wears
   // a keyboard's ring the mouse did not ask for, and ArrowDown goes to the first.
-  if (next) syncMenu(opts && opts.last ? 'last' : opts && opts.by === 'pointer' ? 'menu' : 'first');
+  if (next) {
+    openFocus = opts && opts.last ? 'last' : opts && opts.by === 'pointer' ? 'menu' : 'first';
+    syncMenu(openFocus);
+  }
   else {
     if (hasMenuView) window.occlara.menu({ open: false });
     if (opts && opts.refocus) $('menu-btn').focus();
