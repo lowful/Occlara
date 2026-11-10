@@ -39,10 +39,16 @@ const DASHES = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']');
 // A match played an hour ago, so the primer withholds nothing a patch since
 // could have touched (game-primer.js matchGate).
 const AT = Date.now() - 60 * 60 * 1000;
-function abyssReview() {
+function abyssReview(moveSiteTo) {
   const abyss = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
   const riot = load('riot-abyss-13-11.json');
-  const { rounds, checks } = verify.reconcile(abyss.rounds, riot);
+  const reconciled = verify.reconcile(abyss.rounds, riot);
+  const checks = reconciled.checks;
+  // moveSiteTo: the deaths the screen placed at A Site moved to that callout.
+  // A whole site is no spot since Nov 2026 (insights.js WHOLE_SITE), so the
+  // repeat a counted spot allows is held at a callout (the count gate, below).
+  const rounds = !moveSiteTo ? reconciled.rounds
+    : reconciled.rounds.map((r) => (String(r.deathSpot || '').toLowerCase() === 'a site' ? { ...r, deathSpot: moveSiteTo } : r));
   const tracker = { matchId: 'abyss-test-match-0001', result: 'Victory', score: '13-11', agent: 'Jett', map: 'Abyss',
     kills: 31, deaths: 21, assists: 4, acs: 382, adr: 210, headshotPct: 24, kd: 1.48, mode: 'competitive' };
   const rv = review.build({ rounds, context: { ...abyss.context, agent: 'Jett' }, endedBy: 'score',
@@ -255,7 +261,15 @@ const F3 = factsFor(IN3, M3, STAND_IN);
   ok(keeps('In round 2 you dealt no damage before you died.', F3), 'and stays where the round\'s look said it', why('In round 2 you dealt no damage before you died.', F3));
   // Count and repetition.
   ok(keeps('20 of your 21 deaths went unanswered.', F3) && drops('19 of your 21 deaths went unanswered.', F3, 'count'), '"N of M" only as counted');
-  ok(keeps('You kept dying at A Site.', F3) && drops('You kept peeking alone.', F3, 'count'), 'a repeat only where a counted entry says so');
+  // The Abyss deaths at A Site count no same spot since Nov 2026 (a whole site
+  // is no spot), so the repeat is held at a callout: the same deaths at A Main.
+  {
+    const spotted = abyssReview('A Main');
+    const FM = factsFor(inputFor(spotted, Q3), M3, STAND_IN);
+    ok(spotted.insights.mistakes.some((m) => m.key === 'same-spot' && m.place === 'A Main')
+      && !ABYSS.insights.mistakes.some((m) => m.key === 'same-spot'), 'the deaths at A Main count a same spot, the ones at A Site none');
+    ok(keeps('You kept dying at A Main.', FM) && drops('You kept peeking alone.', FM, 'count'), 'a repeat only where a counted entry says so', why('You kept dying at A Main.', FM));
+  }
   ok(keeps('Check the minimap every round.', F3), 'advice in the present is no claim');
   // Buy blame.
   ok(drops('In round 2 you stood in spawn during the buy phase, which is why you died.', F3, 'buy-blame'), 'a death blamed on the buy phase drops');
@@ -4603,6 +4617,55 @@ console.log('\nround 8, the game facts gates:');
   for (const map of ['Split', 'Haven', 'Ascent']) {
     ok(mids[map].said.length >= 2 && !mids[map].cut.length, `${map}: the mid notes and cases are still served`, JSON.stringify(mids[map]));
   }
+}
+
+// ── What came earlier, judged in the claim's own clause (Nov 2026) ─────────
+// checkEarlier (record-claims.js) let a whole sentence go for an if, should,
+// could, would, whenever or next time anywhere in it, so "Chamber killed you
+// again in round 2, so you should hold a different angle." kept a false
+// again: the plan word now counts only in the clause that holds the claim.
+// And "for the third time", "a third time" and "once again Chamber caught
+// you" are read as well. Bind as Riot has it: Hookah only in round 1, Chamber
+// only in round 2.
+{
+  console.log('\nwhat came earlier, in the claim\'s own clause:');
+  const rc = require('../server/services/record-claims');
+  const D = (n, place, killer) => ({ n, died: true, afk: false, place, killer });
+  const rounds = [D(1, 'Hookah', 'Phoenix'), D(2, 'B Long', 'Chamber'), D(3, 'A Short', 'Raze'), D(4, 'A Lamps', 'Phoenix'), D(5, 'B Garden', 'Raze')];
+  const ctx = { rounds: new Map(rounds.map((r) => [r.n, r])), kind: 'chat', map: 'Bind', asked: null, enemies: new Set(), enemiesKnown: false };
+  const said = (s, st) => rc.checkEarlier(s, ctx, st || {});
+  const caught = (s, st) => typeof said(s, st) === 'string';
+  const kept = (s, st) => said(s, st) === null;
+  ok(caught('Chamber killed you again in round 2.'), 'CAUGHT: Chamber again in round 2, the first time Chamber killed you');
+  ok(caught('Chamber killed you again in round 2, so you should hold a different angle.'),
+    'CAUGHT: the same false again with ", so you should" after it: the plan is another clause', said('Chamber killed you again in round 2, so you should hold a different angle.'));
+  ok(caught('Chamber killed you again in round 2; next time hold a different angle.'), 'CAUGHT: and with "; next time" after it');
+  ok(caught('You died at Hookah again in round 1, so you should play off that angle.'), 'CAUGHT: a place said again in round 1, the plan in its own clause');
+  ok(kept('Chamber killed you again in round 4, so you should hold a different angle.'), 'kept: Chamber again in round 4, round 2 before it');
+  ok(kept('You died at Hookah again in round 3, so you should play off that angle.'), 'kept: Hookah again in round 3, round 1 before it');
+  ok(kept('If Chamber killed you again in round 2, you would hold a different angle.'), 'kept: a plan judges nothing');
+  ok(kept('You should hold a different angle if Chamber killed you again in round 2.'), 'kept: an if in the claim\'s own clause judges nothing');
+  // The new shapes.
+  ok(caught('In round 2, Chamber killed you for the third time.'), 'CAUGHT: "for the third time" in round 2, no Chamber kill before it');
+  ok(caught('Chamber killed you a third time in round 4.'), 'CAUGHT: "a third time" in round 4, one Chamber kill before it');
+  ok(kept('Chamber killed you a second time in round 4.') && kept('Chamber killed you for the second time in round 4.'),
+    'kept: "a second time" and "for the second time" in round 4');
+  ok(caught('For the fourth time, Chamber caught you in round 4.'), 'CAUGHT: "For the fourth time, Chamber caught you" in round 4');
+  ok(caught('You died to Chamber a second time in round 2.') && kept('You died to Chamber a second time in round 3.'),
+    'by "you died to Chamber a second time": round 2 goes, round 3 kept');
+  ok(kept('Chamber killed you for the second time in a row in round 3.'), 'kept: "for the second time in a row" is another count, judged by nothing here');
+  ok(caught('Once again Chamber caught you in round 2.') && caught('Once again, Chamber caught you in round 2.'),
+    'CAUGHT: "once again Chamber caught you" in round 2, with and without its comma');
+  ok(caught('Chamber caught you once again in round 2.') && kept('Chamber caught you once again in round 4.') && kept('Once again Chamber caught you in round 4.'),
+    '"caught you once again" in round 2 goes, in round 4 kept, and "once again" opening round 4 kept');
+  ok(kept('You died at Hookah for the second time in round 3.') && caught('You died at Hookah a third time in round 4.'),
+    'by place: a second time at Hookah in round 3 kept, a third time in round 4 goes');
+  ok(caught('You died at Hookah for the second time in round 1.'), 'CAUGHT: a second time at Hookah in round 1');
+  ok(caught('Once again you died at Hookah in round 1.') && kept('Once again you died at Hookah in round 3.') && kept('You died at Hookah once again in round 3.'),
+    '"once again you died at Hookah": round 1 goes, round 3 kept, either order of the words');
+  ok(kept('Once you died at Hookah, the round was gone.'), 'kept: a sentence that opens on a plain once is still left to the plan rule');
+  const rows = rc.checkRows([{ s: 'Chamber killed you again in round 2, so you should hold a different angle.', p: 0 }], ctx, {});
+  ok(rows.some((x) => x.kind === 'earlier' && x.reason), 'and it runs among the readers, as earlier', JSON.stringify(rows));
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

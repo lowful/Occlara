@@ -511,6 +511,63 @@ const refundOf = (n, over = {}) => {
     ok(ent(U1).status === 'active' && ent(U1).tier === 'pro', 'but a buyer whose account another live subscription pays for is left for a human');
   }
 
+  // ── A charge with its own subscription never ends the account through the customer ─
+  {
+    // Another product's subscription on the same Stripe customer as a Pro
+    // subscriber: the customer fallback once revoked the Pro licence,
+    // cancelled its subscription and ended the account.
+    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, source: 'stripe', stripe_subscription_id: 'sub_G', free_total: 4, bonus_pool: 3 }] });
+    const { end } = subscription({ n: 'G', lookupKey: 'occlara_pro_monthly' });
+    subscription({ n: 'F', meta: { other_app_user: 'abc', product: 'not-occlara' } });
+    for (const o of [st.s.subs.get('sub_F'), st.s.invoices.get('in_F'), st.s.charges.get('ch_F'), st.s.sessions.get('cs_F')]) o.customer = 'cus_G';
+    base.reset({ rows: [licenceOf({ n: 'G', key: 'GC-GGGG-GGGG-GGGG-GGGG', end })], schema: 'migrated' });
+    const { res } = await fire(refundOf('F'));
+    const e = ent(U1);
+    ok(res.code === 200 && lic('lic_G').status === 'active' && st.s.subs.get('sub_G').status === 'active' && st.s.subs.get('sub_F').status === 'active',
+      `a refund of another product's subscription leaves the Pro licence and its subscription alone (${lic('lic_G').status}, ${st.s.subs.get('sub_G').status})`);
+    ok(e.status === 'active' && e.tier === 'pro' && e.free_total === 4 && e.bonus_pool === 3 && sb.accounts.writes.length === 0,
+      `and the account is not touched (${e.tier} ${e.status} ${e.free_total} ${e.bonus_pool})`);
+  }
+
+  // ── Refunding an old subscription never ends an account a live one pays for ─
+  {
+    // Pro bought, then Max on another subscription; the old Pro charge is
+    // refunded. The account names Max, which Stripe still bills.
+    reset({ accounts: [{ user_id: U1, tier: 'max', cap_monthly: 70, source: 'stripe', stripe_subscription_id: 'sub_B2', free_total: 4, bonus_pool: 5 }] });
+    const a = subscription({ n: 'A2', lookupKey: 'occlara_pro_monthly' });
+    const b = subscription({ n: 'B2', lookupKey: 'occlara_max_monthly', plan: 'max_monthly' });
+    base.reset({ rows: [licenceOf({ n: 'A2', key: 'GC-AAA2-AAAA-AAAA-AAAA', end: a.end }), licenceOf({ n: 'B2', key: 'GC-BBB2-BBBB-BBBB-BBBB', end: b.end })],
+      schema: 'migrated' });
+    const { res, lines } = await fire(refundOf('A2'));
+    ok(res.code === 200 && lic('lic_A2').status === 'refunded' && st.s.subs.get('sub_A2').status === 'canceled',
+      'a refund of the old subscription still revokes its licence and cancels it');
+    const e = ent(U1);
+    ok(e.status === 'active' && e.tier === 'max' && e.cap_monthly === 70 && e.bonus_pool === 5 && e.free_total === 4
+      && lic('lic_B2').status === 'active' && st.s.subs.get('sub_B2').status === 'active',
+    `but the account the live subscription pays for is not ended (${e.tier} ${e.status} ${e.bonus_pool})`);
+    ok(lines.some((l) => l.includes('sub_B2') && l.includes('Needs a human')), 'and it is logged for a human');
+    await fire(st.event('invoice.paid', 'invoice', { ...st.s.invoices.get('in_B2'), billing_reason: 'subscription_cycle' }));
+    ok(ent(U1).status === 'active' && ent(U1).tier === 'max', `and the live subscription's renewal keeps it (${ent(U1).tier} ${ent(U1).status})`);
+  }
+  {
+    // The account names another subscription Stripe has ended: nothing pays
+    // for it any more, so the refund ends the account as it always did.
+    reset({ accounts: [{ user_id: U1, tier: 'free', cap_monthly: 0, source: 'stripe', stripe_subscription_id: 'sub_Z2', free_total: 4, bonus_pool: 2 }] });
+    const a = subscription({ n: 'A3', lookupKey: 'occlara_pro_monthly' });
+    subscription({ n: 'Z2', lookupKey: 'occlara_pro_monthly' });
+    st.s.subs.get('sub_Z2').status = 'canceled';
+    base.reset({ rows: [licenceOf({ n: 'A3', key: 'GC-AAA3-AAAA-AAAA-AAAA', end: a.end })], schema: 'migrated' });
+    await fire(refundOf('A3'));
+    ok(ent(U1).status === 'ended' && ent(U1).free_total === 0 && ent(U1).bonus_pool === 0,
+      `an account naming a subscription Stripe has ended is ended by the refund (${ent(U1).status})`);
+    // And one naming a subscription Stripe has no record of.
+    reset({ accounts: [{ user_id: U1, tier: 'free', cap_monthly: 0, source: 'stripe', stripe_subscription_id: 'sub_GONE', free_total: 4 }] });
+    const a4 = subscription({ n: 'A4', lookupKey: 'occlara_pro_monthly' });
+    base.reset({ rows: [licenceOf({ n: 'A4', key: 'GC-AAA4-AAAA-AAAA-AAAA', end: a4.end })], schema: 'migrated' });
+    const gone = await fire(refundOf('A4'));
+    ok(gone.res.code === 200 && ent(U1).status === 'ended', `and so is one naming a subscription Stripe has no record of (${ent(U1).status})`);
+  }
+
   // ── The customer fallback ignores free keys ───────────────────────────────
   {
     reset();

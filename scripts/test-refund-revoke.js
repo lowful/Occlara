@@ -253,6 +253,53 @@ const disputeOf = (chargeId, version) => {
     ok(st.s.subs.get('sub_E').status === 'canceled',
       `an Occlara subscription refunded before its key was minted is still cancelled, by its checkout (${st.s.subs.get('sub_E').status})`);
   }
+
+  // ── A charge with its own subscription or checkout never falls back to the customer ─
+  // The customer fallback is for a charge that names neither. One that names
+  // its own purchase, with no licence on it, is not the customer's ONE live
+  // licence: that licence is another purchase, and revoking it (and cancelling
+  // its subscription) took a paying customer's product over a refund of
+  // something else.
+  {
+    // Another product's subscription on the SAME Stripe customer as an Occlara one.
+    st.reset();
+    const mine = subscription({ sub: 'sub_C1', customer: 'cus_c', key: 'GC-CCC1-ZZZZ-CCCC-ZZZZ', id: 'lic_c1' });
+    subscription({ sub: 'sub_F1', customer: 'cus_c', key: null, id: null });
+    Object.assign(st.s.sessions.get('cs_F1'), { client_reference_id: 'u-other',
+      metadata: { supabase_user_id: 'u-other', plan: 'pro', period: 'monthly' } });
+    sb.reset({ rows: [mine], schema: 'migrated' });
+    const { res, lines } = await fire(refundOf('ch_F1', '2025-03-31.basil'));
+    ok(res.code === 200 && row('lic_c1').status === 'active' && !dead(row('lic_c1')),
+      `a refund of another product's subscription leaves the same customer's one Occlara licence alone (${row('lic_c1').status})`);
+    ok(st.s.subs.get('sub_C1').status === 'active' && st.s.subs.get('sub_F1').status === 'active' && st.calls('subscriptions.cancel').length === 0,
+      'and cancels neither subscription');
+    ok(lines.some((l) => l.includes('licence NOT revoked')), 'and logs that no licence matched');
+  }
+  {
+    // A Pro subscriber buys Max, and Max is refunded before the site minted
+    // its key: the Max subscription is cancelled, the Pro licence and its
+    // subscription go on.
+    st.reset();
+    const pro = subscription({ sub: 'sub_X1', customer: 'cus_x', key: 'GC-XXX1-ZZZZ-XXXX-ZZZZ', id: 'lic_x1' });
+    subscription({ sub: 'sub_Y1', customer: 'cus_x', key: 'GC-YYY1-ZZZZ-YYYY-ZZZZ', id: 'lic_y1', plan: 'max_monthly', amount: 6999 });
+    sb.reset({ rows: [pro], schema: 'migrated' });
+    const { res } = await fire(refundOf('ch_Y1', '2023-10-16'));
+    ok(res.code === 200 && st.s.subs.get('sub_Y1').status === 'canceled',
+      `an Occlara subscription refunded before its key was minted is cancelled (${st.s.subs.get('sub_Y1').status})`);
+    ok(row('lic_x1').status === 'active' && st.s.subs.get('sub_X1').status === 'active',
+      `and the same customer's other licence and subscription are untouched (${row('lic_x1').status}, ${st.s.subs.get('sub_X1').status})`);
+  }
+  {
+    // A one time checkout that is no Occlara purchase, on the customer of a
+    // lifetime licence: the session names its own purchase, and no licence.
+    lifetimeStripe();
+    st.s.sessions.set('cs_F2', { id: 'cs_F2', mode: 'payment', customer: 'cus_1', payment_intent: 'pi_F2', metadata: { product: 'not-occlara' } });
+    st.s.charges.set('ch_F2', { id: 'ch_F2', customer: 'cus_1', payment_intent: 'pi_F2', invoice: null, amount: 1500 });
+    sb.reset({ rows: [LIFETIME], schema: 'migrated' });
+    const { res } = await fire(refundOf('ch_F2', '2023-10-16'));
+    ok(res.code === 200 && row('lic_1').status === 'active',
+      `a refund of a checkout that names no licence leaves the customer's one lifetime licence alone (${row('lic_1').status})`);
+  }
   {
     // Made by hand in the dashboard: no checkout started it, its licence names
     // it. The licences trigger refusing the revoke, billing still stops first:

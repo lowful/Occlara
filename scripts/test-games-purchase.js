@@ -327,15 +327,27 @@ function proSubscriber(user = U1) {
       ok(sb._db.writes.filter((w) => w.op === 'update' && !w.table).length === 0, `${what}: not one write to the licences table`);
     }
 
-    // The control: the same refund with no kind anywhere and no purchase row
-    // is no games payment, and the customer fallback revokes the customer's
-    // one live licence. That is what the games check stands in front of.
+    // The control: the same refund with no kind anywhere, no purchase row and
+    // no checkout session is no games payment, and the customer fallback
+    // revokes the customer's one live licence. That is what the games check
+    // stands in front of.
     const pro = proSubscriber(U1);
     reset({ rows: pro.rows, entitlements: pro.entitlements });
     proSubscriber(U1);
     gamesCheckout({ n: 'H', games: 5, customer: 'cus_PRO', where: { charge: false, intent: false, session: false } });
+    st.s.sessions.delete('cs_H');
     await fire(refunded('H'));
-    ok(lic('lic_P').status !== 'active', 'control: a $10 charge that is no games payment goes the licence path, and its fallback revokes the Pro licence');
+    ok(lic('lic_P').status !== 'active', 'control: a $10 charge that is no games payment and names no checkout goes the licence path, and its fallback revokes the Pro licence');
+    // And with its checkout session there (a payment that names its own
+    // purchase), the licence path no longer asks the customer at all: a
+    // second wall, behind the games check.
+    const pro2 = proSubscriber(U1);
+    reset({ rows: pro2.rows, entitlements: pro2.entitlements });
+    proSubscriber(U1);
+    gamesCheckout({ n: 'H2', games: 5, customer: 'cus_PRO', where: { charge: false, intent: false, session: false } });
+    const r2 = await fire(refunded('H2'));
+    ok(r2.res.code === 200 && lic('lic_P').status === 'active' && st.s.subs.get('sub_P').status === 'active' && ent(U1).tier === 'pro',
+      'and one whose checkout session is found names its own purchase, so the customer fallback is never asked and the Pro licence stays');
   }
 
   // ── A licence refund is exactly as it was ─────────────────────────────────

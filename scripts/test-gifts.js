@@ -428,6 +428,27 @@ async function bought(n, over = {}) {
     const lr = await redeem(rt, OTHER, gifts.codeFor('cs_V5', SECRET));
     ok(late.res.code === 200 && giftOf('cs_V5').status === 'void' && lr.status === 410, 'and the late mint makes nothing redeemable');
 
+    // Refunded while GIFT_CODE_SECRET is not set: the mint was retried (500)
+    // and the refund could make no gift to void. Answered 200, Stripe never
+    // sent it again, and the mint retried once the secret was set made a live
+    // gift of a refunded payment. Now the refund answers 500 too, so Stripe
+    // retries it until the secret is there, in either order.
+    for (const [n, mintFirst] of [['V6', true], ['V7', false]]) {
+      giftCheckout({ n });
+      delete process.env.GIFT_CODE_SECRET;
+      const noMint = await fire(completed(n));
+      const noVoid = await fire(refunded(n));
+      ok(noMint.res.code === 500 && noVoid.res.code === 500 && !giftOf(`cs_${n}`),
+        `a gift refunded while the secret is not set: the refund answers 500 like the mint, so Stripe retries both (${noMint.res.code}, ${noVoid.res.code})`);
+      process.env.GIFT_CODE_SECRET = SECRET;
+      const order = mintFirst ? [completed, refunded] : [refunded, completed];
+      const one = await fire(order[0](n));
+      const two = await fire(order[1](n));
+      const r6 = await redeem(rt, OTHER, gifts.codeFor(`cs_${n}`, SECRET));
+      ok(one.res.code === 200 && two.res.code === 200 && giftOf(`cs_${n}`).status === 'void' && r6.status === 410,
+        `and once it is set, the retries leave the gift void, nothing redeemable (${mintFirst ? 'the mint' : 'the refund'} first)`);
+    }
+
     // A waiting gift refunded never starts.
     reset({ entitlements: [account(BUYER), account(FRIEND)] });
     const w1 = await bought('W1');

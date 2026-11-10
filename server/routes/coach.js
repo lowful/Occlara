@@ -422,6 +422,18 @@ const AI = {
   maxChatModel:      maxModel('AI_MAX_CHAT_MODEL', null),
 };
 
+/**
+ * Whether this request is paid for at the Max price, for what it may cost us.
+ * A legacy yearly key with no entitlement row reads as Max by tierOfPlan, but
+ * the payer rule makes it Pro from its renewal, so it gets Pro's models and
+ * Pro's Ask Coach cap (8.10.3).
+ */
+function isMaxPayer(req) {
+  const c = req && req.caller;
+  if (!c || c.tier !== 'max') return false;
+  return !(c.via === 'key' && c.entitled === false && c.plan === 'yearly');
+}
+
 function maxModel(env, fallback) {
   const v = String(process.env[env] || '').trim();
   if (v.toLowerCase() === 'off') return null;
@@ -437,8 +449,7 @@ function modelFor(req, job) {
   const bench = benchModel(req);
   if (bench) return bench;
   const shared = { review: AI.reviewModel, forensics: AI.forensicsModel, chat: AI.chatModel }[job];
-  const tier = req && req.caller && req.caller.tier;
-  if (tier !== 'max') return shared;
+  if (!isMaxPayer(req)) return shared;
   const max = { review: AI.maxReviewModel, forensics: AI.maxForensicsModel, chat: AI.maxChatModel }[job];
   return max || shared;
 }
@@ -3832,6 +3843,8 @@ function gateWord(d) {
 // parses to no summary is review: null and summary: null with its round lines
 // and focus kept.
 router.post('/match-review', async (req, res) => {
+  // A matchId that is no string is no match (8.10.3): read after the model, it threw and paid for nothing.
+  if (req.body && req.body.matchId != null && typeof req.body.matchId !== 'string') req.body.matchId = null;
   let licenseKey = null;
   // A review carrying Riot's matchId is the late one (riotLook, once Riot
   // publishes), often landing while the next match is played: usage.js
@@ -3881,7 +3894,7 @@ router.post('/match-review', async (req, res) => {
       // 503), never one written by a model that bench rejected.
       const text = await Promise.race([
         // 1600: variant C was cut off mid focus line at 1100 on the bench.
-        textInfer(prompt, 1600, { json: true, model: modelFor(req, 'review'), fallback: false }),
+        textInfer(prompt, 1600, { json: true, model: modelFor(req, 'review'), fallback: false, timeoutMs: 44000 }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 45000)),
       ]);
       trackCall(licenseKey);
@@ -3915,8 +3928,8 @@ router.post('/match-review', async (req, res) => {
         if (left > 15000) {
           try {
             const again = await Promise.race([
-              textInfer(prompt + matchReview.floorNote(parsed, fails), 1600, { json: true, model: modelFor(req, 'review'), fallback: false }),
-              new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), Math.min(30000, left - 5000))),
+              textInfer(prompt + matchReview.floorNote(parsed, fails), 1600, { json: true, model: modelFor(req, 'review'), fallback: false, timeoutMs: Math.min(30000, left - 5000) }),
+              new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), Math.min(30000, left - 5000) + 500)),
             ]);
             trackCall(licenseKey);
             second = matchReview.parse(again, input, { withoutNames: unnamed });
@@ -3973,6 +3986,9 @@ router.post('/match-review', async (req, res) => {
         // 3 rules alone: one before it is listed its notes as before.
         study: matchReview.study(input, 3, { lines: [...Object.values(rounds), clean(parsed.focus)] }),
         variant: input.variant,
+        // The insight the focus is about (8.10.3), so Practise this opens the
+        // drills for the mistake the focus names. Absent when there is none.
+        ...(() => { if (!clientAtLeast(req, V85)) return {}; let k = null; try { k = matchReview.focusKeyOf(input, parsed); } catch { k = null; } return k ? { focusKey: k } : {}; })(),
         // What the gates dropped, counted by kind (round 8, match-review.js
         // dropKind), never a word of it: a field a client before it ignores,
         // only where something went, and never to a client older than 8.5.0,
@@ -4409,7 +4425,7 @@ function chatGate(req, res, licenseKey) {
   const scope = costScope.getStore() || {};
   if (scope.bench) return null;
   const now = Date.now();
-  const room = chatRoom(licenseKey, now, req.caller && req.caller.tier);
+  const room = chatRoom(licenseKey, now, isMaxPayer(req) ? 'max' : null);
   if (!room.ok) {
     chatCounts().capped++;
     if (clientAtLeast(req, V85)) return res.status(429).json({ error: 'chat-daily', resetsAt: new Date(room.resetsAt).toISOString() });
@@ -4755,7 +4771,7 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
     return true;
   }
   if (!scope.bench) {
-    const room = chatRoom(licenseKey, Date.now(), req.caller && req.caller.tier);
+    const room = chatRoom(licenseKey, Date.now(), isMaxPayer(req) ? 'max' : null);
     if (!room.ok) {
       counts.capped++;
       res.status(429).json({ error: 'chat-daily', resetsAt: new Date(room.resetsAt).toISOString() });

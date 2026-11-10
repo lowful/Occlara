@@ -287,7 +287,10 @@ async function renew(subId, endSec, invoiceId) {
  *      one-time purchase (the old lifetime) is found.
  *   3. The customer, as a FALLBACK and only when they hold exactly one active
  *      licence: a customer who bought twice has several, and revoking all of
- *      them over one refund is a worse bug than the one this fixes.
+ *      them over one refund is a worse bug than the one this fixes. Only for
+ *      a charge with neither a subscription nor a checkout session: one that
+ *      names its own purchase, with no licence on it, never bought the
+ *      customer's other licence.
  *
  * THE SUBSCRIPTION IS CANCELLED FIRST, so billing stops even while the
  * database refuses the revoke and Stripe retries it. A full refund or any
@@ -413,6 +416,21 @@ async function cancelSubscription(subId, label, done) {
   console.log(`[webhook] ${label}: subscription ${subId} cancelled, nothing more will be charged`);
 }
 
+/**
+ * Whether Stripe still bills a subscription: any status but ended, a failing
+ * or lapsed one included (it can be paid again). One Stripe has no record of
+ * bills nothing. Any other Stripe failure throws, and Stripe retries the event.
+ */
+async function stillBilled(subId) {
+  try {
+    const sub = await stripe.subscriptions.retrieve(subId);
+    return !!sub && !SUB_ENDED.has(sub.status);
+  } catch (e) {
+    if (e && e.code === 'resource_missing') return false;
+    throw e;
+  }
+}
+
 async function revokeForCharge({ chargeId, customer, paymentIntent, reason, label }) {
   let charge = null;
   if (chargeId) charge = await stripe.charges.retrieve(chargeId, { expand: ['invoice'] });
@@ -427,27 +445,43 @@ async function revokeForCharge({ chargeId, customer, paymentIntent, reason, labe
   if (occlara) await cancelSubscription(subId, label, cancelled);
 
   let revoked = [];
+  let sessionId = null;
+  let session = null;
   if (subId) revoked = await revokeWhere('stripe_subscription_id', subId, reason, label);
   if (!revoked.length && pi) {
     const list = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
-    const sessionId = list && list.data && list.data[0] ? list.data[0].id : null;
+    session = list && list.data && list.data[0] ? list.data[0] : null;
+    sessionId = session ? session.id : null;
     if (sessionId) revoked = await revokeWhere('stripe_session_id', sessionId, reason, label);
   }
-  if (!revoked.length && who) revoked = await revokeOnlyActive(who, reason, label);
+  // THE CUSTOMER IS A FALLBACK ONLY FOR A CHARGE THAT NAMES NEITHER a
+  // subscription nor a checkout session. One that names its own purchase with
+  // no licence on it (an Occlara subscription refunded before the site minted
+  // its key, another product's subscription or checkout on the same Stripe
+  // customer) did not buy the customer's one live licence: that is another
+  // purchase, and the fallback revoked it and cancelled its subscription. An
+  // Occlara subscription with no licence still ends its buyer's account below
+  // (endAccounts, buyerOfSubscription).
+  // One kept exception: an Occlara licence checkout (a lifetime bought before
+  // licences kept their checkout's id) whose row was not found by it may still
+  // be the customer's one live licence, so a refund of it still revokes.
+  const fallback = !subId && !!who && (!sessionId || occlaraCheckout(session));
+  if (!revoked.length && fallback) revoked = await revokeOnlyActive(who, reason, label);
   for (const r of revoked) await cancelSubscription(r.stripe_subscription_id, label, cancelled);
 
   if (!revoked.length) {
     console.error(`[webhook] ${label} on charge ${chargeId}: no licence matched (subscription ${subId}, `
-      + `payment_intent ${pi}, customer ${who}), licence NOT revoked`);
+      + `payment_intent ${pi}, checkout ${sessionId}, customer ${who}${fallback ? '' : ', the customer not asked: the charge names its own purchase'}), `
+      + 'licence NOT revoked');
   }
 
   // AND THEN THE ACCOUNT, only after the licence is revoked and the billing
   // stopped: the order above is unchanged, and a refused write here throws
   // like any licence write, so Stripe retries the whole event. A retry the
   // customer fallback can no longer match still finds its account
-  // (alreadyRevokedUsers).
+  // (alreadyRevokedUsers), on the same terms as the fallback.
   const users = revoked.map((r) => r.user_id);
-  if (!revoked.length && !subId && who) users.push(...await alreadyRevokedUsers(who, label));
+  if (!revoked.length && fallback) users.push(...await alreadyRevokedUsers(who, label));
   await endAccounts({
     users: [...new Set(users.filter(Boolean))],
     subId: occlara ? subId : null,
@@ -821,10 +855,23 @@ async function endAccounts({ users, subId, label }) {
     const ent = await ensureEntitlement(userId, label);
     if (ent === NOT_LIVE) return;
     if (!ent) continue;
+    const other = ent.stripe_subscription_id && ent.stripe_subscription_id !== subId && ent.status === 'active'
+      ? ent.stripe_subscription_id : null;
     // Found only through the checkout: an account already paid for by ANOTHER
     // subscription is that purchase's, left for a human rather than ended.
-    if (buyers.has(userId) && ent.stripe_subscription_id && ent.stripe_subscription_id !== subId && ent.status === 'active') {
+    if (buyers.has(userId) && other) {
       console.error(`[webhook] ${label}: the buyer of subscription ${subId} is on another subscription, account left. Needs a human.`);
+      continue;
+    }
+    // The user of a revoked licence, on the same rule: an account another
+    // subscription pays for, one Stripe still bills, is that purchase's. A
+    // refund of an old subscription once ended it, and its own renewals never
+    // brought it back (grantPaid leaves an account ended under its own
+    // subscription for a human). One Stripe has ended, or has no record of,
+    // pays for nothing, and the account is ended as before.
+    if (other && await stillBilled(other)) {
+      console.error(`[webhook] ${label}: the account of a revoked licence is paid for by another subscription, ${other}, `
+        + 'which Stripe still bills, so it is left as it is. Needs a human.');
       continue;
     }
     const done = await writeEntitlements((q) => q.eq('user_id', userId), ENDED_ACCOUNT, `${label}: end an account`);
@@ -1105,6 +1152,16 @@ async function voidGiftOf({ sessionId, meta }, label) {
   const reason = label === 'chargeback' ? 'disputed' : 'refunded';
   const r = await gifts.voidRef(supabase, sessionId, reason);
   if (r.reason === 'none') {
+    // No gift yet, and none made here because GIFT_CODE_SECRET is not set: the
+    // mint is being retried (500) and makes a live gift the moment the secret
+    // is there. Answered 200, this refund was never sent again, and a refunded
+    // payment became a gift anyone with the link could redeem. So it answers
+    // 500 too, and Stripe retries it until the secret is set: then it makes the
+    // gift void here, or voids the one the retried mint made.
+    if (!secret) {
+      throw new Error(`${label} of gift checkout ${sessionId}: no gift was made for it yet and GIFT_CODE_SECRET is not set, `
+        + 'so none can be made to void. Answered 500 so Stripe retries until it is set. Needs a human.');
+    }
     console.error(`[webhook] ${label} of gift checkout ${sessionId}: no gift was made for it and none could be. Needs a human.`);
     return;
   }

@@ -2120,12 +2120,30 @@ function checkWholeList(sentence, ctx) {
  * names). A round before it the record does not place or has no killer for
  * leaves a count it could make true unjudged. A plan ("if you die at Hookah
  * again") judges nothing. A false claim drops the sentence.
+ *
+ * THE PLAN WORD COUNTS IN THE CLAIM'S OWN CLAUSE (Nov 2026). An if, should,
+ * could, would, whenever or next time anywhere in the sentence used to let it
+ * all go, so "Chamber killed you again in round 2, so you should hold a
+ * different angle." kept a false again: the should is the next clause's
+ * (clauseAt). Also read: "Chamber killed you for the third time", "a third
+ * time", "For the third time, Chamber caught you", "you died to Chamber a
+ * third time", "you died at Hookah a third time" (the deaths before exactly
+ * two; never "in a row", "this half" or a side, which count other sets), and
+ * "once again Chamber caught you", "caught you once again", "once again you
+ * died at Hookah" (one at least).
  */
 const EARLIER_ORD = { second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5, '6th': 6, '7th': 7, '8th': 8 };
 const EARLIER_ORD_ALT = 'second|third|fourth|fifth|sixth|seventh|eighth|2nd|3rd|4th|5th|6th|7th|8th';
 const EARLIER_TIMES = `(once|twice|${NUM}\\s+times)`;
 const EARLIER_DIED = '(?:died|were\\s+killed|got\\s+killed|fell|went\\s+down)';
 const EARLIER_BEFORE = '(?:before|already|earlier(?:\\s+in\\s+the\\s+(?:match|game))?|in\\s+earlier\\s+rounds)';
+// "for the third time", "a third time": its ordinal is the one group. Never
+// followed by a set of its own ("in a row", "this half", "on defence").
+const EARLIER_NTH = `(?:for\\s+(?:the|a)\\s+|a\\s+)(${EARLIER_ORD_ALT})\\s+time\\b(?!\\s+(?:in\\s+a\\s+row|running|straight|in\\s+succession|this\\s+(?:half|side|match|game)|in\\s+(?:this|the\\s+(?:first|second))\\s+half|on\\s+(?:defen[cs]e|attack)|since)\\b)`;
+// The plan words, read in the clause that holds the claim.
+const EARLIER_HYPO = /\b(?:if|next\s+time|should|would|could|whenever)\b/i;
+// "Once again Chamber caught you" opens on once and is no plan.
+const EARLIER_ONCE_AGAIN = /^\s*once\s+again\b/i;
 const earlierCount = (w) => {
   const s = String(w || '').toLowerCase();
   if (s === 'once') return 1;
@@ -2134,8 +2152,10 @@ const earlierCount = (w) => {
 };
 function checkEarlier(sentence, ctx, st) {
   const t = straight(sentence);
-  if (!ctx || !ctx.rounds || !ctx.rounds.size || OPENS_IF.test(t) || /\b(?:if|next\s+time|should|would|could|whenever)\b/i.test(t)) return null;
+  if (!ctx || !ctx.rounds || !ctx.rounds.size || (OPENS_IF.test(t) && !EARLIER_ONCE_AGAIN.test(t))) return null;
   if (!/\b(?:again|before|already|earlier|time|death)\b/i.test(t)) return null;
+  // A plan or a rule in the clause that holds the claim judges nothing.
+  const plan = (m) => EARLIER_HYPO.test(clauseAt(t, m.index));
   const n = roundOfSentence(t, ctx, st);
   if (!n) return null;
   const pl = ctx.map ? placesOf(ctx.map) : null;
@@ -2164,30 +2184,57 @@ function checkEarlier(sentence, ctx, st) {
   const wrong = (got, want, atLeast) => (atLeast ? got.at < want && !got.unknown : got.at !== want && (got.at > want || !got.unknown));
   const said = (what, got) => `your reply said what happened earlier in the match: ${what}, where Riot's record has ${got.at === 0 ? 'none' : got.at === 1 ? 'one' : got.at} before round ${n}; say what came before only as the record gives it`;
   const claims = [];
+  const nth = (w) => EARLIER_ORD[String(w).toLowerCase()] - 1;
   if (pl && pl.alt) {
     const P = `(${pl.alt})(?![A-Za-z0-9])`;
     for (const m of t.matchAll(new RegExp(`\\b(?:the|your)\\s+(${EARLIER_ORD_ALT})\\s+(?:time\\s+(?:that\\s+)?you\\s+${EARLIER_DIED}|death)\\s+(?:at|in|on|near)\\s+(?:the\\s+)?${P}`, 'gi'))) {
-      claims.push({ place: m[2], want: EARLIER_ORD[m[1].toLowerCase()] - 1, what: `the ${m[1]} death at ${m[2]}` });
+      if (plan(m)) continue;
+      claims.push({ place: m[2], want: nth(m[1]), what: `the ${m[1]} death at ${m[2]}` });
     }
     for (const m of t.matchAll(new RegExp(`\\byou\\s+(?:had\\s+)?(?:already\\s+)?(?:died|been\\s+killed|fallen|fell)\\s+(?:at|in|on|near)\\s+(?:the\\s+)?${P}\\s+${EARLIER_TIMES}\\s+${EARLIER_BEFORE}`, 'gi'))) {
+      if (plan(m)) continue;
       claims.push({ place: m[1], want: earlierCount(m[2]), what: `${m[2]} at ${m[1]} before` });
     }
-    for (const m of t.matchAll(new RegExp(`\\byou\\s+${EARLIER_DIED}\\s+(?:at|in|on|near)\\s+(?:the\\s+)?${P}\\s+again\\b|\\bagain\\s+at\\s+(?:the\\s+)?${P}`, 'gi'))) {
-      const p = m[1] || m[2];
+    // "you died at Hookah for the third time", "a third time".
+    for (const m of t.matchAll(new RegExp(`\\byou\\s+${EARLIER_DIED}\\s+(?:at|in|on|near)\\s+(?:the\\s+)?${P}\\s+${EARLIER_NTH}`, 'gi'))) {
+      if (plan(m)) continue;
+      claims.push({ place: m[1], want: nth(m[2]), what: `the ${m[2]} death at ${m[1]}` });
+    }
+    for (const m of t.matchAll(new RegExp(`\\byou\\s+${EARLIER_DIED}\\s+(?:at|in|on|near)\\s+(?:the\\s+)?${P}\\s+(?:once\\s+)?again\\b|\\bagain\\s+at\\s+(?:the\\s+)?${P}|\\bonce\\s+again,?\\s+you\\s+${EARLIER_DIED}\\s+(?:at|in|on|near)\\s+(?:the\\s+)?${P}`, 'gi'))) {
+      const p = m[1] || m[2] || m[3];
       if (/\bagain\s+at\b/i.test(m[0]) && !DEATH_SAID.test(t)) continue;
+      if (plan(m)) continue;
       claims.push({ place: p, want: 1, atLeast: true, what: `a death at ${p} again` });
     }
   }
   const A = `(${AGENT_ALT})(?![A-Za-z0-9])`;
-  for (const m of t.matchAll(new RegExp(`(?<![A-Za-z0-9])${A}\\s+(?:had\\s+)?(?:already\\s+)?(?:killed|got|caught)\\s+you\\s+${EARLIER_TIMES}\\s+${EARLIER_BEFORE}`, 'gi'))) {
+  const KILLED = '(?:killed|got|caught)';
+  for (const m of t.matchAll(new RegExp(`(?<![A-Za-z0-9])${A}\\s+(?:had\\s+)?(?:already\\s+)?${KILLED}\\s+you\\s+${EARLIER_TIMES}\\s+${EARLIER_BEFORE}`, 'gi'))) {
+    if (plan(m)) continue;
     claims.push({ agent: canon(m[1]), want: earlierCount(m[2]), what: `${m[1]} killing you ${m[2]} before` });
   }
-  for (const m of t.matchAll(new RegExp(`\\bthe\\s+(${EARLIER_ORD_ALT})\\s+time\\s+(?:(?:that\\s+)?(?<![A-Za-z0-9])${A}\\s+(?:killed|got|caught)\\s+you|you\\s+${EARLIER_DIED}\\s+to\\s+${A})`, 'gi'))) {
+  for (const m of t.matchAll(new RegExp(`\\bthe\\s+(${EARLIER_ORD_ALT})\\s+time\\s+(?:(?:that\\s+)?(?<![A-Za-z0-9])${A}\\s+${KILLED}\\s+you|you\\s+${EARLIER_DIED}\\s+to\\s+${A})`, 'gi'))) {
+    if (plan(m)) continue;
     const a = m[2] || m[3];
-    claims.push({ agent: canon(a), want: EARLIER_ORD[m[1].toLowerCase()] - 1, what: `the ${m[1]} time ${a} killed you` });
+    claims.push({ agent: canon(a), want: nth(m[1]), what: `the ${m[1]} time ${a} killed you` });
   }
-  for (const m of t.matchAll(new RegExp(`(?<![A-Za-z0-9])${A}\\s+(?:killed|got|caught)\\s+you\\s+again\\b`, 'gi'))) {
-    claims.push({ agent: canon(m[1]), want: 1, atLeast: true, what: `${m[1]} killing you again` });
+  // "Chamber killed you for the third time", "a third time", "you died to Chamber a third time".
+  for (const m of t.matchAll(new RegExp(`(?<![A-Za-z0-9])${A}\\s+${KILLED}\\s+you\\s+${EARLIER_NTH}|\\byou\\s+${EARLIER_DIED}\\s+to\\s+${A}\\s+${EARLIER_NTH}`, 'gi'))) {
+    if (plan(m)) continue;
+    const a = m[1] || m[3];
+    const w = m[2] || m[4];
+    claims.push({ agent: canon(a), want: nth(w), what: `the ${w} time ${a} killed you` });
+  }
+  // "For the third time, Chamber caught you".
+  for (const m of t.matchAll(new RegExp(`\\bfor\\s+(?:the|a)\\s+(${EARLIER_ORD_ALT})\\s+time,?\\s+${A}\\s+${KILLED}\\s+you\\b`, 'gi'))) {
+    if (plan(m)) continue;
+    claims.push({ agent: canon(m[2]), want: nth(m[1]), what: `the ${m[1]} time ${m[2]} killed you` });
+  }
+  // "Chamber killed you again", "caught you once again", "Chamber again caught you", "once again Chamber caught you".
+  for (const m of t.matchAll(new RegExp(`(?<![A-Za-z0-9])${A}\\s+${KILLED}\\s+you\\s+(?:once\\s+)?again\\b|(?<![A-Za-z0-9])${A}\\s+(?:once\\s+)?again\\s+${KILLED}\\s+you\\b|\\bonce\\s+again,?\\s+${A}\\s+${KILLED}\\s+you\\b`, 'gi'))) {
+    if (plan(m)) continue;
+    const a = m[1] || m[2] || m[3];
+    claims.push({ agent: canon(a), want: 1, atLeast: true, what: `${a} killing you again` });
   }
   for (const c of claims) {
     if (c.place !== undefined) {

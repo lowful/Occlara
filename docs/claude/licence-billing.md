@@ -40,6 +40,16 @@ subscription nor the session names a licence, the customer is used only if they
 have exactly ONE active licence: a repeat buyer has several, and revoking all of
 them over one refund is a worse bug than the one this fixes. It logs loudly and
 refuses rather than guessing. A dispute takes its customer from its charge.
+**And only for a charge that has neither a subscription nor a checkout
+session** (Nov 2026). A charge that names its own purchase with no licence on
+it did not buy the customer's one live licence: a Pro subscriber who bought
+Max and had Max refunded before the site minted its key, or another product's
+subscription or checkout on the same Stripe customer, had their Pro licence
+revoked, its subscription cancelled and their account ended. Such a refund
+now revokes nothing by the customer and logs "licence NOT revoked"; an Occlara
+subscription with no licence is still cancelled and still ends its buyer's
+account (`buyerOfSubscription`, below). `test:refundrevoke` and
+`test:entitlementwebhook` hold it.
 
 **The reason is written where the table allows it.** 'refunded' and 'disputed'
 once the site's migration adds them to the status CHECK; until then the CHECK
@@ -220,6 +230,17 @@ and throws, and with the tables missing the licence path runs unchanged. The
 detail, the payer rules and the switches are in accounts.md;
 `test:entitlementwebhook` holds it.
 
+**An account another live subscription pays for is never ended by a refund of
+an old one** (Nov 2026). The user of a revoked licence whose account names a
+DIFFERENT subscription, one Stripe still bills (any status but canceled or
+incomplete_expired, so a failing or lapsed one too), is left as it is and
+logged "Needs a human", the rule the buyer found only through the checkout
+already had. Refunding an old Pro charge once ended the account that the
+customer's live Max subscription paid for, and Max's renewals never brought it
+back, since `grantPaid` leaves an account ended under its own subscription for
+a human. An account naming a subscription Stripe has ended, or has no record
+of, pays for nothing and is ended as before.
+
 **Stripe can stop a subscription without ending it, so the plan ends on
 `customer.subscription.updated` too.** With its retries done Stripe leaves a
 subscription `unpaid` (or cancels it, by the account's setting), and a trial
@@ -309,7 +330,12 @@ subscribed to `checkout.session.async_payment_succeeded` as well. The webhook's
 own refund handling needs nothing new. `npm run test:gamespurchase` runs the real
 handler against `fake-billing.js` (whose two functions follow the SQL), and
 checks the SQL itself when `OCCLARA_SITE_DIR` or `OCCLARA_GAMES_SQL` finds it.
-Removing the games check makes its Pro licence checks fail.
+Removing the games check makes its take back checks fail. Its Pro licence
+checks no longer do: a games charge names its checkout session, so the
+customer fallback is not asked since the fallback rule above (Nov 2026), a
+second wall behind the games check. The test's control holds both: a charge
+with no kind and no checkout still revokes the customer's one licence, and the
+same with its checkout found revokes nothing.
 
 ### Gifts (8.8), and their refund never reaches the licence either
 
@@ -345,7 +371,13 @@ account are never touched, the customer fallback included. What it voids:
 
 A refund that lands before the mint mints the gift first (when the metadata
 and the secret allow) and voids it, so the late mint makes nothing
-redeemable. A second refund event changes nothing. A partial refund does
+redeemable. **Without `GIFT_CODE_SECRET` it answers 500** (Nov 2026), as the
+mint does, so Stripe retries it until the secret is set: answered 200, the
+refund was never sent again, and the mint retried after the secret was set
+made a live gift of a refunded payment. Once the secret is there the retried
+refund makes the gift void, or voids the one the retried mint made (a friend
+who redeemed it in between has its time taken away, as for any running gift).
+A second refund event changes nothing. A partial refund does
 nothing. `void_gift` raises 40001 when the gift was redeemed between its first
 read and its lock, and Stripe's retry finds it redeemed and takes its time away.
 
@@ -356,4 +388,5 @@ retried by Stripe), `GIFT_CODE_SECRET` on Railway, and the site's
 already takes `checkout.session.completed`, `async_payment_succeeded`,
 `charge.refunded` and `charge.dispute.created`. `npm run test:gifts` runs the
 real handler and routes against `fake-gifts.js`; removing the gift check from
-the refund path makes its licence checks fail.
+the refund path makes its void checks fail (its licence checks are held by the
+fallback rule above too, since a gift charge names its checkout session).

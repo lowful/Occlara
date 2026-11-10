@@ -394,9 +394,11 @@ before this change, gets 8.7.7's prompt and study list byte for byte (`test:valo
   both callers of `requestBody`: index.js `recurringNow(job.id)` for Riot's look and the engine's
   `opts.recurring`, read once in `requestMatchReview` before `match-ended` saves the match, never per
   frame) and this match's untraded deaths decided rounds (four, and
-  half the lost rounds with a death). Otherwise Iron gets the basic habit, Silver the matchup first,
+  half the lost rounds with a death). Otherwise Iron gets the basic habit (aim first since Nov 2026),
+  Silver the first death and the trade first (the matchup came first before Nov 2026),
   Platinum a decision (post plant, retake, advantage), Ascendant the side gap, the first fight's timing
-  or a repeated decision. The six audit matches at four bands are printed by the test. From Platinum a
+  or a repeated decision. The orders and the aim lever as they are now: "The review prompt fixes"
+  below. The six audit matches at four bands are printed by the test. From Platinum a
   `DEPTH` rule asks for the match's numbers and a trade off, and `fundamentalsCap` keeps one line
   teaching the trade habit at most.
 - **The notes and cases follow the swing** (`swingTopics`, `MATCHUP_BONUS`, `leverSituation`,
@@ -665,3 +667,70 @@ ability was cast (only how many, and most saved matches hold no casts at
 all), whether a teammate could see the killer, and why an enemy changed what
 they did. How the narrative and Ask Coach use the new blocks needs a paid
 bench (`bench:review`, `bench:chat`), the lead's call.
+
+### The review prompt fixes (Nov 2026)
+
+`server/services/match-review.js`, for a round 4 client (`round4`, the body
+carries `counts`). A client before round 4 is reviewed as at 4a5aa0e, byte for
+byte, its picks, its examples and its prompt (`test:valorantreview`). A read
+prompt change: `bench:review` before it ships, not run yet.
+
+- **The lever orders** (`LEVER_ORDER`): Iron `aim, first-death, tempo, trade,
+  killer`; Silver `first-death, trade, aim, tempo, killer, postplant, retake`;
+  Platinum as before with `aim` after `tempo`, before `trade`; Ascendant as
+  before, no aim. The audit's Split and Corrode at Silver now get the trade
+  where they got the matchup.
+- **The aim lever** fires only where `aimEvidence(input).low` (the scoreline's
+  headshot rate at or below `HS_USUAL` of the band less `HS_BELOW`), never on a
+  look's lost duel alone. Its text is the AIM EVIDENCE line's own: "Your
+  headshot rate this match was N percent, well below what is usual at this
+  level." `LEVER_TEACH.aim`: keeping the crosshair at head height on the next
+  corner, so the first shot needs no correction. `LEVER_TEACH.trade` is now
+  where to stand and when (a step to a teammate's side, not on their line, the
+  fight right after their contact), no longer "check a teammate is close".
+- **The focus's key** (`focusKeyOf(input, parsed)`, `FOCUS_KEYS`): the
+  client's insight key of the lever's kind, trade `untraded`, first-death
+  `first-death`, advantage `lost-advantage`, decision `cause:<cause>`,
+  postplant `postplant-lost`, killer `same-killer`, tempo `early`, aim
+  `low-headshots`; null for the retake and the side (the card counts no
+  mistake for them), with no lever, with no focus, and for a focus the floor
+  computed (`floorFill`, held in a WeakSet, nothing added to the parsed
+  object). Mirrored by hand from `src/shared/insights.js`; the test holds each
+  key to that file. The route builds its response field by field, so it goes
+  out only once `/match-review` adds `focusKey: matchReview.focusKeyOf(input, parsed) || undefined,`
+  beside `variant` (undefined is not serialised, so no key goes with none).
+  A client before it reads `summary`, `rounds`, `focus` and
+  `study` by name (index.js `buildValorantReview`) and never sees it.
+  `postplant-lost` is a missed entry, not a mistake, on the card.
+- **The round lines by level** (`maxRoundLines`, `ROUND_LINES_BY_BAND`): 4 at
+  Iron to Gold, 6 at Platinum and Diamond, 8 from Ascendant, 10 with no band;
+  `linePicks` asks for that many and `parse` keeps that many.
+- **The reason a round line gives** (a `ROUND4_SWAPS` entry after "the gun
+  that killed you)."): what the enemy could do or what the player gave away,
+  two defenders on the doorway, an Operator on that line, the second attacker
+  one step behind, never only the result.
+- **A repeat in the match's memory** (`CHAIN_RULE`, chain clients only): the
+  later death's line says what to change in the round after the earlier one,
+  a different spot, timing or an ability first, and says that round as "the
+  round after your earlier death", never by its number. Trap:
+  `record-claims.js roundOfSentence` reads a count ("the third time you died
+  at Hookah", "again") against the one round a sentence names, so in round 6's
+  line "the third time you died at Hookah, so after round 3 play a different
+  spot" was judged as round 3's and dropped, true as it was.
+- **The level examples** (`RANK_WORDS3`): Ascendant's was a read of where the
+  enemy would hit next ("They stacked B after two hits there, so a fast A take
+  beats the slow default"), the claim type dropped from Ask Coach at 4 of 6,
+  and Platinum's "let them come to you"; a round 4 client gets "You won the
+  first duel from the deep angle and died to the second attacker right behind
+  it, so take the pick and fall back..." and "Up four against three after the
+  first kill, take the next fight only where a teammate sees the same
+  angle...". A client before round 4 keeps the old two
+  (`RANK_EXAMPLES_BEFORE4`, `rankRule3(band, { before4 })`).
+
+Every new phrasing was run through `parse` on the Split record at all four
+bands: kept everywhere it is true; "four against three" goes as `state` in a
+round whose feed never stood at it. Not gated by anything: an Operator named
+"on that line" in a round Riot says a rifle won (the state gate reads N
+against M either way round too, so "up 4 against 3" passes in a round that
+stood at 3 against 4), and "you won the first duel" in a round the player
+killed nobody. Watch for both in the bench.

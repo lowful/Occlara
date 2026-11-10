@@ -1189,6 +1189,8 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
       store: { get: () => null },
       forensicsFor: async (rounds, snap) => { looked.push(snap.context); return { byRound: {}, frames: {} }; },
       repaintReview() {},
+      // The rank band for the headshot line (Nov 2026): none known here.
+      rankBandNow: () => null,
     });
     const main = vm.runInContext(`${built}\n${screen}\n;({ buildValorantReview, lookFromScreen })`, box);
     const snap = { rounds: kit, context: { map: 'Fracture', agent: 'Sova', agentConfirmed: true, agentSource: 'hud' }, endedBy: 'score' };
@@ -3653,6 +3655,203 @@ console.log('\nthe plant\'s time from Riot\'s record (the blind audit of round 7
   const retake = matchReview.normalise(mrBody([def(4, { plantSec: 40, afterPlant: true })]));
   const rt = matchReview.parse('R4: Your entry onto the site for the retake came alone, so wait for a teammate.', retake);
   ok(rt.rounds[4], 'a retake after the plant is the defenders entering a site, and stands');
+}
+
+// ── The review prompt fixes (Nov 2026) ──────────────────────────────────────
+// For a round 4 client: the lever by level with aim, the trade taught as where
+// to stand and when, the focus's insight key, the round lines by level, the
+// reason a round line gives, a repeat in the match's memory, and the level
+// examples. A client before round 4 is reviewed as before (the byte for byte
+// checks against 4a5aa0e above). A prompt change: bench:review before release.
+console.log('\nthe review prompt fixes (Nov 2026):');
+{
+  const fs = require('fs');
+  const path = require('path');
+  const gameClaims = require('../server/services/game-claims');
+  const DASHES = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
+  const seeded = (fn) => {
+    const random = Math.random;
+    let x = 7;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const after = require('./fixtures/audit-round3-after-reviews.json').reviews;
+  const bodyOf = (x, o) => ({ rounds: x.rounds, swing: [], counts: {}, mistakes: x.mistakes || [], strengths: [], patterns: [],
+    context: { agent: x.agent, map: x.map, rankBand: x.band, advancedTips: true },
+    final: { team: Number(x.score.split('-')[0]), enemy: Number(x.score.split('-')[1]), result: x.result, verified: true, scoreline: x.scoreline }, ...(o || {}) });
+  const inputOf = (x, o) => ({ ...matchReview.normalise(bodyOf(x, o)), byCause: true, byEnemy: true });
+  const without = (b, k) => { const c = { ...b }; delete c[k]; return c; };
+  const split = verify.reconcile([], load('riot-split-13-7.json')).rounds;
+  const splitBody = (hs) => review.requestBody({ rounds: split, context: { agent: 'Jett', map: 'Split' }, endedBy: 'score',
+    riot: { agent: 'Jett', map: 'Split', score: '13-7', result: 'Victory', scoreline: { kills: 17, deaths: 16, assists: 8, acs: 279, headshotPct: hs } } });
+  const splitIn = (hs, band, o) => {
+    const b = splitBody(hs);
+    return { ...matchReview.normalise({ ...b, context: { ...b.context, ...(band ? { rankBand: band } : {}) }, ...(o || {}) }), byCause: true, byEnemy: true };
+  };
+
+  // 1. The orders: aim leads at Iron, the first death and the trade lead at Silver, aim late at Platinum, none from Ascendant.
+  const L = matchReview.LEVER_ORDER;
+  ok(L.iron_bronze.join() === 'aim,first-death,tempo,trade,killer' && L.silver_gold.join() === 'first-death,trade,aim,tempo,killer,postplant,retake'
+    && L.plat_diamond.join() === 'postplant,retake,advantage,killer,decision,side,first-death,tempo,aim,trade'
+    && L.asc_plus.join() === 'side,tempo,decision,advantage,postplant,retake,killer,first-death,trade',
+  'the lever orders: Iron aim first, Silver the first death and the trade first, Platinum aim after every decision, Ascendant as before');
+
+  // 2. The aim lever, only on the headshot rate well below the level's usual (aimEvidence low).
+  const ironLow = splitIn(8, 'iron_bronze');
+  const aimLever = matchReview.leverOf(ironLow);
+  ok(aimLever && aimLever.kind === 'aim' && aimLever.text === 'Your headshot rate this match was 8 percent, well below what is usual at this level.',
+    `a headshot rate well below Iron's usual makes aim the lever (${aimLever && aimLever.kind}: ${aimLever && aimLever.text})`);
+  ok(matchReview.leverOf(splitIn(10, 'iron_bronze')).kind !== 'aim' && matchReview.leverOf(splitIn(22, 'iron_bronze')).kind !== 'aim',
+    'a rate not well below Iron\'s usual (10, 22) is no aim lever');
+  const duelOnly = splitIn(22, 'iron_bronze');
+  duelOnly.rounds = duelOnly.rounds.map((r) => (r.n === 3 ? { ...r, cause: 'lost-duel' } : r));
+  ok(matchReview.aimEvidence(duelOnly) && matchReview.aimEvidence(duelOnly).lostDuels === 1 && matchReview.leverOf(duelOnly).kind !== 'aim',
+    'a look\'s lost duel alone is aim evidence for a round line, never the aim lever');
+  const silverLow = splitIn(10, 'silver_gold');
+  ok(matchReview.leverOf(silverLow).kind === 'trade' && matchReview.leverOf({ ...silverLow, mistakes: [] }).kind === 'aim',
+    'at Silver the trade comes before aim, and aim before the timing and the matchup');
+  const fracturePlat = after.find((x) => x.id === 'review-fracture-5-1-plat_diamond');
+  const fractureAsc = after.find((x) => x.id === 'review-fracture-5-1-asc_plus');
+  const lowFinal = (x, hs) => ({ final: { ...bodyOf(x).final, scoreline: { ...x.scoreline, headshotPct: hs } } });
+  ok(matchReview.leverOf(inputOf(fracturePlat)) === null && matchReview.leverOf(inputOf(fracturePlat, lowFinal(fracturePlat, 10))).kind === 'aim'
+    && matchReview.leverOf(inputOf(fractureAsc, lowFinal(fractureAsc, 10))) === null,
+  'at Platinum aim is the lever only where no decision has a fact, and from Ascendant never');
+  const aimRule = matchReview.leverRule4(ironLow, aimLever);
+  ok(aimRule.includes(`Make the FOCUS about ${matchReview.LEVER_TEACH.aim}, and say why it wins rounds here.`)
+    && matchReview.LEVER_TEACH.aim === 'keeping the crosshair at head height on the next corner, so the first shot needs no correction'
+    && seeded(() => matchReview.buildPrompt(ironLow)).includes(`FOCUS LEVER: ${aimLever.text} Make the FOCUS about ${matchReview.LEVER_TEACH.aim}`),
+  'the aim lever teaches the crosshair at head height on the next corner, in the prompt');
+  ok(matchReview.LEVER_TEACH.trade === 'moving to a teammate before the fight, a step to their side and not on their line, and taking the fight right after their contact rather than before it'
+    && seeded(() => matchReview.buildPrompt(splitIn(22, 'silver_gold'))).includes(`Make the FOCUS about ${matchReview.LEVER_TEACH.trade}`),
+  'the trade lever teaches where to stand and when to fight, no longer a check');
+  ok(Object.values(matchReview.LEVER_TEACH).every((t) => !DASHES.test(t) && !/;/.test(t)), 'no dash and no semicolon in what a lever teaches');
+
+  // 3. The focus's key, the client's insight key of the lever's kind.
+  ok(JSON.stringify(matchReview.FOCUS_KEYS) === JSON.stringify({ trade: 'untraded', 'first-death': 'first-death', advantage: 'lost-advantage',
+    postplant: 'postplant-lost', killer: 'same-killer', tempo: 'early', aim: 'low-headshots' }), 'the focus keys by lever kind');
+  const insightsSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', 'insights.js'), 'utf8');
+  const unknown = Object.values(matchReview.FOCUS_KEYS).filter((k) => !insightsSrc.includes(`key: '${k}'`));
+  ok(!unknown.length && insightsSrc.includes('key: `cause:${'), `every focus key is a key insights.js counts, mirrored by hand (${unknown.join(', ') || 'all found'})`);
+  const keyed = [];
+  for (const x of after) {
+    const input = inputOf(x);
+    const lever = matchReview.leverOf(input);
+    const want = !lever ? null : lever.kind === 'decision' ? `cause:${lever.cause}` : (matchReview.FOCUS_KEYS[lever.kind] || null);
+    if (matchReview.focusKeyOf(input) !== want) keyed.push(x.id);
+  }
+  ok(!keyed.length, `the six audit matches at four bands each get their lever's key, or none (${keyed.join(', ') || 'all 24'})`);
+  const splitPlat = after.find((x) => x.id === 'review-split-13-7-plat_diamond');
+  const corrodePlat = after.find((x) => x.id === 'review-corrode-3-13-plat_diamond');
+  const sunsetPlat = after.find((x) => x.id === 'review-sunset-4-13-plat_diamond');
+  const splitAsc = after.find((x) => x.id === 'review-split-13-7-asc_plus');
+  const corrodeAsc = after.find((x) => x.id === 'review-corrode-3-13-asc_plus');
+  ok(matchReview.focusKeyOf(inputOf(splitPlat)) === 'same-killer' && matchReview.focusKeyOf(inputOf(corrodePlat)) === 'postplant-lost'
+    && matchReview.focusKeyOf(inputOf(corrodeAsc)) === 'lost-advantage' && matchReview.focusKeyOf(silverLow) === 'untraded'
+    && matchReview.focusKeyOf(ironLow) === 'low-headshots',
+  'the matchup is same-killer, the post plant postplant-lost, the advantage lost-advantage, the trade untraded, aim low-headshots');
+  ok(matchReview.focusKeyOf(inputOf(sunsetPlat)) === null && matchReview.focusKeyOf(inputOf(splitAsc)) === null,
+    'the retake and the side, which the card counts no mistake for, have none');
+  const dry = { key: 'cause:dry-peek', title: 'Dry peeks', detail: 'The coach saw a dry peek in 2 deaths, rounds 2 and 4.', rounds: [2, 4], count: 2 };
+  ok(matchReview.focusKeyOf(inputOf(fracturePlat, { mistakes: [dry] })) === 'cause:dry-peek', 'a decision the look saw twice is its cause key');
+  ok(matchReview.focusKeyOf(matchReview.normalise({ ...bodyOf(splitPlat), context: { agent: 'Jett' } })) === null
+    && matchReview.focusKeyOf(matchReview.normalise(without(bodyOf(splitPlat), 'counts'))) === null
+    && matchReview.focusKeyOf(inputOf(fracturePlat)) === null,
+  'no band, a client before round 4, or no lever: no key');
+  ok(matchReview.focusKeyOf(ironLow, { summary: 'x', rounds: {}, focus: 'Keep your crosshair at head height.', dropped: [], blamed: [] }) === 'low-headshots'
+    && matchReview.focusKeyOf(ironLow, { summary: 'x', rounds: {}, focus: null, dropped: [], blamed: [] }) === null,
+  'a reply with a focus gets the key, one with none gets none');
+  {
+    const floored = { summary: 'You won 13 to 7.', rounds: {}, focus: null, dropped: [], blamed: [] };
+    const filled = matchReview.floorFill(floored, ironLow);
+    ok(filled.includes('focus') && floored.focus && matchReview.focusKeyOf(ironLow, floored) === null && !Object.keys(floored).includes('focusKey'),
+      `a focus the floor computed from a round's facts is not the lever's, so it gets no key (${floored.focus})`);
+  }
+  // 4. The round lines by level, for a round 4 client with a band alone.
+  const worthy = split.length ? splitIn(22, null).rounds.filter(matchReview.lineWorthy).length : 0;
+  const caps = ['iron_bronze', 'silver_gold', 'plat_diamond', 'asc_plus'].map((b) => [b, matchReview.maxRoundLines(splitIn(22, b)), matchReview.linePicks(splitIn(22, b)).length]);
+  ok(JSON.stringify(caps) === JSON.stringify([['iron_bronze', 4, 4], ['silver_gold', 4, 4], ['plat_diamond', 6, 6], ['asc_plus', 8, Math.min(8, worthy)]])
+    && matchReview.maxRoundLines(splitIn(22, null)) === 10 && matchReview.linePicks(splitIn(22, null)).length === Math.min(10, worthy),
+  `the round lines by level: 4 below Platinum, 6 at Platinum, 8 from Ascendant, 10 with no band (${caps.map((c) => c.join(' ')).join(', ')}, ${worthy} worth a line)`);
+  const r3Band = matchReview.normalise(without({ ...splitBody(22), context: { ...splitBody(22).context, rankBand: 'iron_bronze' } }, 'counts'));
+  ok(!matchReview.round4(r3Band) && matchReview.maxRoundLines(r3Band) === 10, 'a client before round 4 keeps ten whatever its band');
+  {
+    const all = splitIn(22, null).rounds.filter(matchReview.lineWorthy).map((r) => `R${r.n}: Swing right after your teammate makes contact.`).join('\n');
+    const reply = `SUMMARY: You won 13 to 7.\n${all}\nFOCUS: Swing right after your teammate makes contact.`;
+    const iron = matchReview.parse(reply, splitIn(22, 'iron_bronze'));
+    const none = matchReview.parse(reply, splitIn(22, null));
+    ok(Object.keys(iron.rounds).length === 4 && Object.keys(none.rounds).length === worthy,
+      `and parse keeps as many lines as the level is asked for (${Object.keys(iron.rounds).length} at Iron, ${Object.keys(none.rounds).length} with no band)`);
+  }
+
+  // 5. The reason a round line gives: the enemy's chance or what was given away, never only the result.
+  const BECAUSE = 'The because must name what the enemy could do or what you gave away, such as two defenders seeing the doorway at once, '
+    + 'an Operator already on that line, or the second attacker one step behind the first, never only the result.';
+  const r4Prompt = seeded(() => matchReview.buildPrompt(splitIn(22, 'plat_diamond')));
+  const r3Prompt = seeded(() => matchReview.buildPrompt(matchReview.normalise(without(splitBody(22), 'counts'))));
+  ok(r4Prompt.includes(`the gun that killed you). ${BECAUSE} Write it as your own advice`) && !r3Prompt.includes('The because must name'),
+    'a round 4 round line is told to give the enemy\'s chance or what was given away, a client before round 4 is not');
+
+  // 6. A repeat in the match's memory: the later line says what to change after the earlier death, never by its round number.
+  ok(matchReview.CHAIN_RULE.includes('Where the memory shows a repeat, the same spot, the same enemy or a run of untraded deaths, the line for the later death says what to '
+    + 'change in the round right after the earlier one, a different spot, a different timing or an ability first, because the enemy had already seen it.')
+    && matchReview.CHAIN_RULE.endsWith('Say that round as the round after your earlier death, never by its number.') && !DASHES.test(matchReview.CHAIN_RULE),
+  'the chain rule asks a repeat\'s later line for the change after the earlier death');
+  {
+    // record-claims.js reads a count against the one round a sentence names, so a true count beside the earlier round's number goes.
+    const death = (n, o) => ({ n, side: 'defending', result: 'lost', died: true, early: false, planted: false, verified: true, deathSec: 40,
+      killerAgent: 'Phoenix', weapon: 'Vandal', kills: 0, traded: false, aliveAtDeath: { mates: 3, enemies: 4 }, feed: [], riotSpot: 'Hookah', mateNear: 'far', ...o });
+    const lived = (n) => ({ n, side: 'defending', result: 'won', died: false, verified: true, feed: [], kills: 1 });
+    const rows = [death(1), lived(2), death(3, { result: 'won' }), lived(4), death(5, { killerAgent: 'Chamber', riotSpot: 'B Long' }), death(6, { killerAgent: 'Chamber', weapon: 'Phantom' }), lived(7)];
+    const bindIn = matchReview.normalise(review.requestBody({ rounds: rows, context: { map: 'Bind', agent: 'Iso', gameMode: 'standard' }, endedBy: 'stop' }));
+    const line = (s) => matchReview.parse(`SUMMARY: You lost.\nR6: ${s}\nFOCUS: Swing right after your teammate makes contact.`, bindIn).rounds[6] || null;
+    ok(matchReview.memoryBlock(bindIn).includes('never by its number') && line('This was the third time you died at Hookah, so in the round after your earlier death play a different spot or use an ability first, because the enemy had already seen it.')
+      && line('You died at Hookah again, so in the round after your earlier death there hold a different spot, because they had already seen it.')
+      && !line('You died at Hookah again, so after round 1 hold a different spot, because they had already seen it.')
+      && !line('This was the fourth time you died at Hookah, so in the round after your earlier death play a different spot.'),
+    'the repeat said as the round after the earlier death stands, a false count goes, and one beside the earlier round\'s number is read as that round\'s');
+  }
+
+  // 7. The level examples: Ascendant no longer a read of the enemy's next site, Platinum no longer "let them come to you".
+  const W = matchReview.RANK_WORDS3;
+  const OLD = matchReview.RANK_EXAMPLES_BEFORE4;
+  ok(W.asc_plus[2] === 'You won the first duel from the deep angle and died to the second attacker right behind it, so take the pick and fall back to where a teammate can trade, giving up a second kill to keep the site.'
+    && W.plat_diamond[2] === 'Up four against three after the first kill, take the next fight only where a teammate sees the same angle, because the numbers win the fight on site.'
+    && [W.asc_plus[2], W.plat_diamond[2]].every((t) => !DASHES.test(t) && !/;/.test(t) && !gameClaims.checkNextSite(t))
+    && !/\b(?:stacked|hits?|take beats)\b/.test(W.asc_plus[2]),
+  'the Ascendant and Platinum examples, plain, and Ascendant no longer reads where the enemy hits next');
+  const ascNow = seeded(() => matchReview.buildPrompt(splitIn(22, 'asc_plus')));
+  const ascOld = seeded(() => matchReview.buildPrompt(matchReview.normalise(without({ ...splitBody(22), context: { ...splitBody(22).context, rankBand: 'asc_plus' } }, 'counts'))));
+  const platOld = seeded(() => matchReview.buildPrompt(matchReview.normalise(without({ ...splitBody(22), context: { ...splitBody(22).context, rankBand: 'plat_diamond' } }, 'counts'))));
+  ok(ascNow.includes(W.asc_plus[2]) && !ascNow.includes(OLD.asc_plus) && r4Prompt.includes(W.plat_diamond[2]) && !r4Prompt.includes(OLD.plat_diamond),
+    'a round 4 client is given the new examples');
+  ok(ascOld.includes(OLD.asc_plus) && !ascOld.includes(W.asc_plus[2]) && platOld.includes(OLD.plat_diamond) && !platOld.includes(W.plat_diamond[2]),
+    'a client before round 4 keeps the old ones, as at 4a5aa0e');
+  {
+    const plat = splitIn(22, 'plat_diamond');
+    const at = (n) => plat.rounds.find((r) => r.n === n);
+    ok(matchReview.claimOf(W.plat_diamond[2], plat, at(1)) === null && matchReview.claimOf(W.plat_diamond[2], plat, at(4)) === 'state',
+      'the Platinum example\'s four against three stands in a round that stood at it and goes as state in one that never did');
+  }
+
+  // 8. The new wording through every gate, at every band of the Split record, where it is true.
+  {
+    const LINES = [
+      'Hold the angle from cover with a teammate on the cross, because two defenders seeing the doorway at once beat one attacker swinging alone.',
+      'Swing right after your teammate makes contact, a step to their side, because the second attacker one step behind the first wins that fight.',
+      'Next time play a different spot after the first pick, because the enemy had already seen it.',
+    ];
+    const FOCUS = ['Keep your crosshair at head height on the next corner, so the first shot needs no correction.',
+      'Move to a teammate before the fight, a step to their side and not on their line, and take the fight right after their contact rather than before it.'];
+    const lost = [];
+    for (const band of ['iron_bronze', 'silver_gold', 'plat_diamond', 'asc_plus']) {
+      const input = splitIn(22, band);
+      for (const n of matchReview.linePicks(input)) {
+        for (const s of LINES) if (!matchReview.parse(`SUMMARY: You won 13 to 7.\nR${n}: ${s}\nFOCUS: ${FOCUS[0]}`, input).rounds[n]) lost.push(`${band} R${n} ${s.slice(0, 30)}`);
+      }
+      for (const f of FOCUS) if (matchReview.parse(`SUMMARY: You won 13 to 7.\nFOCUS: ${f}`, input).focus !== f) lost.push(`${band} focus ${f.slice(0, 30)}`);
+    }
+    ok(!lost.length, `the reasons the round rule asks for and the two levers' focuses stand through every gate (${lost.join('; ') || 'none dropped'})`);
+  }
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);

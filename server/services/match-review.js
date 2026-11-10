@@ -67,6 +67,19 @@ const counts = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const DEFAULT_VARIANT = 'C';
 const MAX_ROUND_LINES = 10;
 
+/*
+ * THE ROUND LINES BY LEVEL (Nov 2026): four below Platinum, so each line
+ * teaches one thing a player there can use, six at Platinum and Diamond,
+ * eight from Ascendant. A round 4 client with a band alone: no band, or a
+ * client before round 4, keeps MAX_ROUND_LINES, its picks and its prompt as
+ * before, byte for byte (test:valorantreview against 4a5aa0e).
+ */
+const ROUND_LINES_BY_BAND = { iron_bronze: 4, silver_gold: 4, plat_diamond: 6, asc_plus: 8 };
+function maxRoundLines(input) {
+  if (!round4(input)) return MAX_ROUND_LINES;
+  return ROUND_LINES_BY_BAND[knowledge.validBand(input.context && input.context.rankBand)] || MAX_ROUND_LINES;
+}
+
 // What each computed pattern is ABOUT, as the playbook's own topic names. The
 // study list is picked from these, so a match full of early deaths is sent to
 // the notes about taking space in checkpoints, not to a random good habit.
@@ -370,7 +383,15 @@ function withChain(input, n) {
  */
 const MEMORY_HEAD = "THE MATCH'S OWN MEMORY (counted in code from Riot's record of this match, these are true, and the only place to say what happened earlier in the match from, with its rounds exactly as given)";
 const CHAIN_RULE = 'Where a round line gives the death as a chain of mistakes, teach its first mistake and say what made it worse in a few words, never one of the later ones as the cause. '
-  + 'Say what happened earlier in the match only as a round line\'s earlier facts or a line above give it, never a count of your own.';
+  + 'Say what happened earlier in the match only as a round line\'s earlier facts or a line above give it, never a count of your own. '
+  // A repeat is a lesson about the next round, not only this one (Nov 2026).
+  // The earlier round is never named by its number: record-claims.js reads a
+  // count ("the third time", "again") against the one round a sentence names,
+  // so "the third time you died at Hookah, so after round 3 play a different
+  // spot" in round 6's line was read as round 3's and dropped, true as it was.
+  + 'Where the memory shows a repeat, the same spot, the same enemy or a run of untraded deaths, the line for the later death says what to '
+  + 'change in the round right after the earlier one, a different spot, a different timing or an ability first, because the enemy had already seen it. '
+  + 'Say that round as the round after your earlier death, never by its number.';
 function memoryBlock(input) {
   if (!input || !Array.isArray(input.chains)) return '';
   const lines = (input.memory || []).map((m) => m.text);
@@ -851,18 +872,22 @@ function ledgerOf(input) {
  * at least, and half the rounds lost with a death in them). Otherwise each
  * level is given its own kind of lever, from this match's numbers:
  *
- *   Iron, Bronze   the basic habit: the trade, the first fight's timing
- *   Silver, Gold   the matchup, then the trade, the first death
+ *   Iron, Bronze   the basic habit: aim, the first death, the first fight's timing
+ *   Silver, Gold   the first death, the trade, aim, then the timing and the matchup
  *   Plat, Diamond  a decision: the post plant, the retake, the advantage
  *   Ascendant up   the side or site gap, the tempo, a repeated decision
  *
  * The first kind this match has a fact for is the lever; none, and the round
- * 3 rule stands. No band is the round 3 rule, as before.
+ * 3 rule stands. No band is the round 3 rule, as before. Aim (Nov 2026) is a
+ * kind only where the AIM EVIDENCE says the headshot rate is well below the
+ * level's usual (aimEvidence low), never on a look's lost duel alone: below
+ * Platinum it leads, at Platinum it comes after every decision, and from
+ * Ascendant it is no lever.
  */
 const LEVER_ORDER = {
-  iron_bronze: ['trade', 'tempo', 'first-death', 'killer'],
-  silver_gold: ['killer', 'trade', 'first-death', 'tempo', 'postplant', 'retake'],
-  plat_diamond: ['postplant', 'retake', 'advantage', 'killer', 'decision', 'side', 'first-death', 'tempo', 'trade'],
+  iron_bronze: ['aim', 'first-death', 'tempo', 'trade', 'killer'],
+  silver_gold: ['first-death', 'trade', 'aim', 'tempo', 'killer', 'postplant', 'retake'],
+  plat_diamond: ['postplant', 'retake', 'advantage', 'killer', 'decision', 'side', 'first-death', 'tempo', 'aim', 'trade'],
   asc_plus: ['side', 'tempo', 'decision', 'advantage', 'postplant', 'retake', 'killer', 'first-death', 'trade'],
 };
 const HIGH_BANDS = new Set(['plat_diamond', 'asc_plus']);
@@ -884,11 +909,14 @@ function leverOf(input) {
     } else tradeOk = focusLever(input).tradeOk;
   }
   const decision = mistakes.find((m) => m && /^cause:/.test(m.key || '') && m.key !== 'cause:unclear' && forensics.CAUSES[m.key.slice(6)]) || null;
+  // Aim only on the headshot rate well below the level's (aimEvidence low), the AIM EVIDENCE line's own words.
+  const aim = aimEvidence(input);
   const found = {
     trade: tradeOk ? { text: qualifyCount(untraded.detail, input) } : null,
     'first-death': has('first-death') ? { text: has('first-death').detail } : null,
     advantage: has('lost-advantage') ? { text: has('lost-advantage').detail } : null,
     decision: decision ? { text: decision.detail, cause: decision.key.slice(6) } : null,
+    aim: aim && aim.low ? { text: `Your headshot rate this match was ${aim.hs} percent, well below what is usual at this level.`, hs: aim.hs } : null,
     ...facts,
   };
   // From Platinum, a trade habit the library finds again and this match
@@ -899,7 +927,8 @@ function leverOf(input) {
 }
 
 const LEVER_TEACH = {
-  trade: 'the habit of checking a teammate is close enough to kill your killer before the fight',
+  trade: 'moving to a teammate before the fight, a step to their side and not on their line, and taking the fight right after their contact rather than before it',
+  aim: 'keeping the crosshair at head height on the next corner, so the first shot needs no correction',
   'first-death': 'taking first contact only on a teammate\'s flash, drone or smoke, or with one following close',
   advantage: 'playing a numbers advantage: the fight the round did not need, and holding what the team has',
   decision: 'the decision the coach\'s look saw more than once, and what to do instead',
@@ -920,6 +949,31 @@ function leverRule4(input, lever) {
     + (lever.kind !== 'trade' && untraded ? ' Never make checking that a teammate can trade you the focus in this match: it is not '
       + 'what decides rounds at this level here.' : '')
     + entry;
+}
+
+/*
+ * THE FOCUS'S KEY (Nov 2026): the client's insight key (src/shared/insights.js,
+ * mirrored by hand since check:server forbids reaching into src/) of what the
+ * FOCUS LEVER chose, so the review page can tie the focus to the mistake it
+ * fixes. The response's `focusKey`, a field a client before it never reads
+ * (index.js buildValorantReview takes summary, rounds, focus and study by
+ * name). Null where no lever was chosen (no band, a client before round 4,
+ * no fact for any kind), for a kind the client counts no mistake for (the
+ * retake, the side), for a reply with no focus, and for a focus the floor
+ * computed from a round's own facts (floorFill), which is not the lever's.
+ */
+const FOCUS_KEYS = {
+  trade: 'untraded', 'first-death': 'first-death', advantage: 'lost-advantage', postplant: 'postplant-lost',
+  killer: 'same-killer', tempo: 'early', aim: 'low-headshots',
+};
+const FLOORED_FOCUS = new WeakSet();
+/** The insight key the focus fixes ('cause:<cause>' for a decision), or null. out, when given, is the parsed review. */
+function focusKeyOf(input, out) {
+  if (out && (!out.focus || FLOORED_FOCUS.has(out))) return null;
+  const lever = leverOf(input);
+  if (!lever) return null;
+  if (lever.kind === 'decision') return lever.cause ? `cause:${lever.cause}` : null;
+  return FOCUS_KEYS[lever.kind] || null;
 }
 
 /*
@@ -1672,16 +1726,30 @@ const RANK_WORDS3 = {
   silver_gold: ['Silver or Gold', 'the one habit that matters most and where it applies, such as stopping before the shot, crosshair height, information before a peek or one angle at a time',
     'Clear the close corner before you look at the site, because that is where a defender waits.'],
   plat_diamond: ['Platinum or Diamond', 'the decision and its timing, with the reason',
-    'With your team ahead after the first kill, hold the cross and let them come to you, because they have to take the space back.'],
+    'Up four against three after the first kill, take the next fight only where a teammate sees the same angle, because the numbers win the fight on site.'],
   asc_plus: ['Ascendant or above', 'the read, the tempo and the trade off, what the play gains and what it risks, and no basic they already have unless the rounds show it missing',
-    'They stacked B after two hits there, so a fast A take beats the slow default, at the cost of not knowing where mid is.'],
+    'You won the first duel from the deep angle and died to the second attacker right behind it, so take the pick and fall back to where a teammate can trade, giving up a second kill to keep the site.'],
+};
+/*
+ * THE EXAMPLES A CLIENT BEFORE ROUND 4 IS STILL GIVEN (Nov 2026). The two
+ * above replaced these for a round 4 client: Ascendant's read where the enemy
+ * would hit next (the claim type the owner dropped from Ask Coach, right 4
+ * of 6 on the bench) and Platinum's "let them come to you". A client before
+ * round 4 is reviewed as at 4a5aa0e, byte for byte (test:valorantreview), so
+ * its prompt keeps them.
+ */
+const RANK_EXAMPLES_BEFORE4 = {
+  plat_diamond: 'With your team ahead after the first kill, hold the cross and let them come to you, because they have to take the space back.',
+  asc_plus: 'They stacked B after two hits there, so a fast A take beats the slow default, at the cost of not knowing where mid is.',
 };
 
-function rankRule3(band) {
-  const w = RANK_WORDS3[knowledge.validBand(band)];
+function rankRule3(band, opts) {
+  const key = knowledge.validBand(band);
+  const w = RANK_WORDS3[key];
   if (!w) return '';
+  const example = (opts && opts.before4 && RANK_EXAMPLES_BEFORE4[key]) || w[2];
   return `PLAYER LEVEL: the player is ranked ${w[0]}. Round lines differ in kind by level, and at this level each one names `
-    + `${w[1]}, as in this example, which shows the kind and is never to be copied: ${w[2]} Fit the focus to the level too. `
+    + `${w[1]}, as in this example, which shows the kind and is never to be copied: ${example} Fit the focus to the level too. `
     + 'A line for this level must never be the one a lower ranked player would be given for the same round. '
     + 'Never prescribe a high rank micro decision to a player below it, and never say the rank back to the player.\n\n';
 }
@@ -1745,7 +1813,8 @@ function round3Write(input, picks, parts) {
     + 'in plain words, something a player can do in a round and see in their next review. One habit only, never two joined by and. '
     + 'Never a prohibition on its own (do not over peek) and never an attitude (be patient, stay aware, play smarter): say what to '
     + 'do instead. It is done in a real match: Deathmatch and the Range have no teammates, so never set a drill there that needs one.\n\n'
-    + rankRule3(input.context.rankBand)
+    // parts come from round4Write alone: a client before round 4 keeps its examples (RANK_EXAMPLES_BEFORE4).
+    + rankRule3(input.context.rankBand, { before4: !parts })
     + GROUNDING3;
 }
 
@@ -1771,6 +1840,10 @@ const ROUND4_SWAPS = [
   ['so never set a drill there that needs one.\n\n',
     'so never set a drill there that needs one. Never mention this review, a next review, the app or what it can check, and never '
       + 'suggest anything but playing, in a match, in Deathmatch or in the Range.\n\n'],
+  // The reason a round line gives is the enemy's chance or what the player gave away, never the result (Nov 2026).
+  ['the plant, the gun that killed you). ',
+    'the plant, the gun that killed you). The because must name what the enemy could do or what you gave away, such as two defenders '
+      + 'seeing the doorway at once, an Operator already on that line, or the second attacker one step behind the first, never only the result. '],
 ];
 /*
  * THE SWING LINE IS THE SERVER'S (round 8, the Ascendant Fracture review). Told
@@ -1951,7 +2024,7 @@ function wonPicks(rounds, opts) {
 }
 /** The rounds a review gives a line, a round 4 client's won ones too (wonPicks). */
 function linePicks(input) {
-  return teachable(input.rounds, MAX_ROUND_LINES, { won: round4(input) });
+  return teachable(input.rounds, maxRoundLines(input), { won: round4(input) });
 }
 function teachable(rounds, limit = MAX_ROUND_LINES, opts) {
   const won = wonPicks(rounds, opts);
@@ -2093,6 +2166,8 @@ function parse(text, input, opts = {}) {
   // Only a round worth a line can have one (lineWorthy): a won round with no
   // death is never explained, whatever the model writes.
   const valid = new Set(input.rounds.filter(lineWorthy).map((r) => r.n).concat(wonPicks(input.rounds, { won: round4(input) })));
+  // As many lines as the level is asked for (maxRoundLines), ten before round 4 or with no band.
+  const cap = maxRoundLines(input);
   let current = null;
   // LABELS ARE SPLIT ONTO THEIR OWN LINES FIRST. The first live bench got every
   // reply back as ONE line, because textInfer's sanitize() collapses newlines,
@@ -2112,7 +2187,7 @@ function parse(text, input, opts = {}) {
       if (/^summary$/i.test(label[1])) { out.summary = body; current = 'summary'; continue; }
       if (/^focus$/i.test(label[1])) { out.focus = body; current = 'focus'; continue; }
       const n = Number(label[2]);
-      if (valid.has(n) && body && Object.keys(out.rounds).length < MAX_ROUND_LINES) {
+      if (valid.has(n) && body && Object.keys(out.rounds).length < cap) {
         out.rounds[n] = body;
         current = n;
       } else current = null;
@@ -2527,7 +2602,7 @@ function floorFill(out, input, opts = {}) {
     if (!text) break;
     const got = parse(text, input, { withoutNames: opts.withoutNames });
     if (needRound && !filled.includes('rounds') && got.rounds[r.n]) { out.rounds = { ...out.rounds, [r.n]: got.rounds[r.n] }; filled.push('rounds'); }
-    if (needFocus && !filled.includes('focus') && got.focus) { out.focus = got.focus; filled.push('focus'); }
+    if (needFocus && !filled.includes('focus') && got.focus) { out.focus = got.focus; filled.push('focus'); FLOORED_FOCUS.add(out); }
     if ((!needRound || filled.includes('rounds')) && (!needFocus || filled.includes('focus'))) break;
   }
   return filled;
@@ -3340,7 +3415,9 @@ module.exports = { floorFails, floorNote, floorMerge, floorFill, floorLine, floo
   normalise, buildPrompt, parse, study, weakSide, roundLine, standingWords, plantWords, phaseKept, READ_DURING_PLANT, READ_SPIKE_DOWN, roundDigits, roundLabels, teachable, lineWorthy,
   namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, REPEAT_WORDS, ROUND_LABELS, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS,
   CAUSE_TOPICS, rankRule, enemiesOf, withinBudget, CASE_GROWTH, NOTES_FLOOR,
-  round3, rankRule3, RANK_WORDS3, GROUNDING, GROUNDING3, GROUNDING3_SWAPS, aimEvidence, HS_USUAL, HS_BELOW, focusLever, leverRule,
+  round3, rankRule3, RANK_WORDS3, RANK_EXAMPLES_BEFORE4, GROUNDING, GROUNDING3, GROUNDING3_SWAPS, aimEvidence, HS_USUAL, HS_BELOW, focusLever, leverRule,
+  // Nov 2026: the round lines by level, the aim lever, the focus's key.
+  maxRoundLines, ROUND_LINES_BY_BAND, LEVER_TEACH, FOCUS_KEYS, focusKeyOf,
   enemyWeaponsOf, claimOf, claimGates, TEMPLATE_LEAK, SPIKE_CARRY, PRAISE, AIM_DENIED, STUDY_VARIETY, spread, contradicted, CONTRADICTS,
   chainsIn, chainFacts, memoryBlock, MEMORY_HEAD, CHAIN_RULE,
   round4, matchCounts, matchFacts, countLines, qualifyCount, mistakesShown, allowedPairs, leverOf, leverRule4, LEVER_ORDER, HIGH_BANDS,

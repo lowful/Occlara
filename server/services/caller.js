@@ -507,7 +507,7 @@ function createResolver(deps = {}) {
     const legacy = planTier !== 'free' && !signed;
     return { status: 'valid', caller: {
       userId, accountKey: userId && !legacy ? `u:${userId}` : key, key,
-      tier: (ent && ent.tier) || planTier, via: 'key', legacy, plan: owner.plan || null,
+      tier: (ent && ent.tier) || planTier, via: 'key', legacy, plan: owner.plan || null, entitled: !!ent,
       deviceHash: owner.deviceId ? sha256(owner.deviceId) : null,
     } };
   }

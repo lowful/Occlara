@@ -267,7 +267,8 @@ function chainWords(sent, rows) {
   const firstOk = !(sent.first === 'untradeable' && x.side === 'defending' && !x.afterPlant);
   const first = typeof sent.first === 'string' && FIRST_KINDS.has(sent.first) && firstOk && !fair ? kindWords(sent.first, x, rows, sent) : null;
   if (!first && !fair) return null;
-  const worse = (Array.isArray(sent.worse) ? sent.worse : []).filter((k) => typeof k === 'string' && k !== (first && first.kind))
+  // Each kind once: a kind sent twice is one thing that made it worse, never two.
+  const worse = [...new Set((Array.isArray(sent.worse) ? sent.worse : []).filter((k) => typeof k === 'string' && k !== (first && first.kind)))]
     .slice(0, 2).map((k) => kindWords(k, x, rows, sent)).filter(Boolean);
   if (fair && !worse.length) return null;
   return { n: x.n, first, worse, fair };
@@ -290,17 +291,26 @@ function chainClause(c) {
  * to the checked chains: its rounds those whose chain carries the kind, the
  * beside count the chains' own. The client's sentence (insights.js
  * chainCounts main), from the server's words. Null where it does not hold.
+ *
+ * ONE CHAIN A ROUND, the first sent for it (the one the round's line takes,
+ * match-review.js chainFacts), and each round once: two chains sent for round
+ * 4 made "in 3 rounds, rounds 4, 4 and 7".
  */
+function oneARound(chains) {
+  const seen = new Set();
+  return (Array.isArray(chains) ? chains : []).filter((c) => c && Number.isInteger(c.n) && !seen.has(c.n) && seen.add(c.n));
+}
 function mainWords(main, chains) {
   if (!main || typeof main !== 'object' || !KINDS[main.kind]) return null;
-  const kindsOf = (c) => [c.first && c.first.kind, ...c.worse.map((w) => w.kind)].filter(Boolean);
-  const has = chains.filter((c) => kindsOf(c).includes(main.kind)).map((c) => c.n);
-  const sent = (Array.isArray(main.rounds) ? main.rounds : []).filter((n) => Number.isInteger(n));
+  const kindsOf = (c) => [...new Set([c.first && c.first.kind, ...c.worse.map((w) => w.kind)].filter(Boolean))];
+  const once = oneARound(chains);
+  const has = once.filter((c) => kindsOf(c).includes(main.kind)).map((c) => c.n);
+  const sent = [...new Set((Array.isArray(main.rounds) ? main.rounds : []).filter((n) => Number.isInteger(n)))];
   if (has.length < 2 || sent.length !== has.length || !sent.every((n) => has.includes(n))) return null;
   let tail = '.';
   const b = main.beside;
   if (b && KINDS[b.kind] && Number.isInteger(b.count) && b.count >= 2) {
-    const real = chains.filter((c) => has.includes(c.n) && kindsOf(c).includes(b.kind)).length;
+    const real = once.filter((c) => has.includes(c.n) && kindsOf(c).includes(b.kind)).length;
     if (real === b.count) tail = `, and in ${b.count} of those rounds also ${KINDS[b.kind].gerund}.`;
   }
   return `Your biggest repeat: ${KINDS[main.kind].gerund}, in ${has.length} rounds, ${roundList(has)}${tail}`;
