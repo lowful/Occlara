@@ -112,6 +112,10 @@ class CoachingEngine extends EventEmitter {
     this.lastWarnedSpot = null;   // de-dupe the "they keep peeking X" warning
     this.lastPhaseChange = null;  // { from, to, at }: round-transition awareness
     this.inLobby        = false;  // server saw a menu/lobby: silence ALL tips
+    // A START THAT NEVER REACHES A GAME (index.js, no-game-watch.js): whether
+    // any reply since Start was not LOBBY, and when the last LOBBY was captured.
+    this.sawGame        = false;
+    this.lastLobbyAt    = 0;
     this.matchMemory    = [];     // running log of the match (rounds, streaks, reads)
     this.playerNotes    = [];     // observed FACTS about what the player did on screen
     this.analyzedFrames = 0;      // frames analyzed this session (warm-up gate)
@@ -187,6 +191,8 @@ class CoachingEngine extends EventEmitter {
     this.lastWarnedSpot = null;
     this.lastPhaseChange = null;
     this.inLobby = false;
+    this.sawGame = false;
+    this.lastLobbyAt = 0;
     this.matchMemory = [];
     this.playerNotes = [];
     this.analyzedFrames = 0;
@@ -861,9 +867,13 @@ class CoachingEngine extends EventEmitter {
     if (!data || data.lobby) {
       if (!this.inLobby) console.log('[engine] menu or lobby');
       this.inLobby = true;
+      this.lastLobbyAt = now;
       return;
     }
     this.inLobby = false;
+    // Every reply the server could reserve a game on is one of these
+    // (coach.js inMatchState), so a session with none reserved nothing.
+    this.sawGame = true;
     const c = data.context || {};
     this.updateMatchContext(c, now);
     // The ultimate THIS frame read, the player's own only: once dead, the icon

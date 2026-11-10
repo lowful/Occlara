@@ -2120,6 +2120,53 @@ let engine = null;
 // How old an answer about the account Start still trusts (start()).
 const START_TRUST_MS = 5 * 60 * 1000;
 
+/*
+ * A START THAT NEVER REACHES A GAME IS CANCELLED (services/no-game-watch.js,
+ * docs/claude/match-to-review.md "A Start that never reaches a game"). Armed
+ * at a Valorant Start, checked every TICK_MS until the reader's first reply
+ * that is not LOBBY, which disarms it for the session: neither Valorant nor
+ * Riot's client running for 5 minutes, or the game open with nothing but
+ * menus for 30, and the session is stopped with nothing kept
+ * (controller.cancelNoGame). No game was reserved for it, so none is released:
+ * the server reserves one only on a reply in a match, which is never LOBBY.
+ */
+const noGame = require('./services/no-game-watch');
+let noGameWatch = null;
+let noGameTimer = null;
+let noGameProbing = false;
+function armNoGameWatch() {
+  disarmNoGameWatch();
+  noGameWatch = noGame.createNoGameWatch();
+  noGameWatch.arm();
+  noGameTimer = setInterval(() => { noGameTick().catch((e) => console.log('[coach] no game watch:', e.message)); }, noGame.TICK_MS);
+  if (noGameTimer && typeof noGameTimer.unref === 'function') noGameTimer.unref();
+}
+function disarmNoGameWatch() {
+  if (noGameTimer) clearInterval(noGameTimer);
+  noGameTimer = null;
+  noGameWatch = null;
+}
+/** Whether the reader has seen a game this session: a reply not LOBBY, a round, a match ended. */
+function engineSawGame(e) {
+  return !!e && (!!e.sawGame || !!(e.ledger && e.ledger.size() > 0) || !!(e.endWatch && e.endWatch.ended));
+}
+async function noGameTick() {
+  const w = noGameWatch;
+  const e = engine;
+  if (!w || noGameProbing) return;
+  if (!state.isCoaching || !(e instanceof CoachingEngine)) { disarmNoGameWatch(); return; }
+  if (engineSawGame(e)) { disarmNoGameWatch(); return; }
+  noGameProbing = true;
+  let proc = null;
+  try { proc = await noGame.probeValorant(); } catch { proc = null; } finally { noGameProbing = false; }
+  // Stopped, or started again, while the process list was read.
+  if (w !== noGameWatch || e !== engine || !state.isCoaching) return;
+  const verdict = w.check({ sawGame: engineSawGame(e), paused: !!state.isPaused, inLobby: !!e.inLobby,
+    lastLobbyAt: e.lastLobbyAt || 0, process: proc });
+  if (!w.armed()) { disarmNoGameWatch(); return; }
+  if (verdict) controller.cancelNoGame(verdict.reason);
+}
+
 const controller = {
   /**
    * START ASKS THE ACCOUNT (8.7), and refuses only on a definite cap: the
@@ -2310,10 +2357,30 @@ const controller = {
     recorder.startSession('valorant');
     setStatus('coaching');
     syncSeal();
+    armNoGameWatch();
     console.log('[coach] started');
   },
-  stop() {
+  /**
+   * A START THAT NEVER REACHED A GAME (noGameTick): stopped, and nothing of
+   * it kept. The recording is stopped and deleted with no counts sent, the
+   * session's AI log folder deleted, and no review is built (the reader's
+   * ledger is empty, so its stop asks for none). Ready again at once, with one
+   * calm line in the notice strip that names no match. Never while a match is
+   * seen or a stop mid match holds the seal: a match always wins.
+   */
+  cancelNoGame(reason) {
+    if (!state.isCoaching || !(engine instanceof CoachingEngine)) return false;
+    if (engineSawGame(engine) || sealHeld) return false;
+    console.log(`[coach] no game since Start (${reason}): stopped, the recording and the AI log discarded, nothing counted`);
+    controller.stop({ discard: true });
+    pushNotice(noGame.NOTICE, 'no-game');
+    syncSeal();
+    return true;
+  },
+  stop(opts) {
     if (!state.isCoaching) return;
+    const discard = !!(opts && opts.discard === true);
+    disarmNoGameWatch();
     state.isCoaching = false;
     state.isPaused   = false;
     // A review's Riot link keeps trying after recording stops: the player who
@@ -2331,8 +2398,13 @@ const controller = {
     // The engine first: a match stopped halfway is held as it ends (its
     // 'match-ended'), then the recording stops with its last chunks written.
     if (engine) { engine.stop(); engine = null; }
-    recorder.stopSession();
-    flushAiLog(true);
+    if (discard) {
+      recorder.stopSession({ discard: true });
+      discardAiLog();
+    } else {
+      recorder.stopSession();
+      flushAiLog(true);
+    }
     setStatus('stopped');
     console.log('[coach] stopped');
     // A cap's notice held through the session, said now unless a seal holds.
@@ -3919,6 +3991,24 @@ function flushAiLog(force) {
   };
   if (force || Date.now() - aiLogLastWrite >= AI_LOG_WRITE_MS) { clearTimeout(aiLogWriteTimer); write(); return; }
   if (!aiLogWriteTimer) aiLogWriteTimer = setTimeout(write, AI_LOG_WRITE_MS);
+}
+
+/**
+ * A Start that never reached a game (controller.cancelNoGame): the session's
+ * folder deleted rather than written, so nothing of it stays in the log.
+ */
+function discardAiLog() {
+  const dir = aiLogDir;
+  clearTimeout(aiLogWriteTimer);
+  aiLogWriteTimer = null;
+  aiLogDir = null;
+  aiLogRecords = [];
+  aiLogDirsCache = null;
+  if (!dir) return;
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+    console.log('[ai-log] discarded', path.basename(dir));
+  } catch (e) { console.log('[ai-log] discard failed, the next prune takes it:', e.message); }
 }
 
 /**

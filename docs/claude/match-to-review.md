@@ -572,3 +572,35 @@ nothing it writes reaches the player since 8.0, and changing it needs `verify:ai
 Tests: `test:valorantreview` ("the economy out of scope in the review", and the two byte for byte
 checks), `test:riotrecord` (the buys pattern and the grounding rule), `test:gameclaims` (the review's
 sentences).
+
+### A Start that never reaches a game (Nov 2026)
+
+The owner's ask: "make sure that when a user starts but doesn't go into a game it cancels that."
+Until then a Valorant Start ran until Stop whatever happened: the game never opened, or left in its
+menus, the reader kept reading the menus every 5 to 10 s, a recording session stayed open and an AI log
+folder was made, for hours. No game was counted (only a reply the server calls in a match reserves one,
+`coach.js inMatchState`, `usage.js noteRead`), but nothing ended it.
+
+- **Never entered a game**: since Start (or the last resume) no reply was anything but LOBBY
+  (`coaching-engine.js sawGame`, set in `processRead`, cleared by `start()`) and the ledger holds no
+  round. Every reply the server could reserve a game on is not LOBBY, so a session that may be cancelled
+  reserved nothing and nothing is released. The first reply that is not LOBBY disarms the watch for the
+  session: menus after a match are the ordinary state between matches.
+- **The rules** (`src/main/services/no-game-watch.js`, checked every `TICK_MS` 15 s while armed,
+  index.js `noGameTick`): `NO_GAME_PROCESS_MS` 5 min with neither Valorant nor Riot's client running
+  (`tasklist`, image names only; Riot's client up alone, launching or patching, is never gone; a probe
+  that cannot tell never cancels), or `MENUS_ONLY_MS` 30 min with the game open and only LOBBY replies,
+  one within `LOBBY_FRESH_MS` 2 min (reads failing or a capped account's stopped reads never cancel). 30
+  and not 20: a queue reads as LOBBY like the main menu, high rank and off hour queues run past ten
+  minutes, a dodge requeues, and a cancel in a queue loses the match's review, while 30 minutes of menus
+  cost about 190 reads. A pause restarts both clocks.
+- **The cancel** (`controller.cancelNoGame`, never with a game seen or a held seal): `stop({ discard:
+  true })`, the reader stopped (its empty ledger asks for no review), `recorder.stopSession({ discard:
+  true })` (this session's folders deleted after a clean stop, no counts block, no `recordingLast`; a
+  finished match's held recording is untouched), `discardAiLog` (the session folder deleted), then the
+  notice strip says `NOTICE`, "Stopped watching: no game started. Press Start when you are ready." (kind
+  `no-game`, nothing about a match), and Start works at once. A very short match keeps the server's
+  short game refund as before. League is not watched (it is coming soon; its recorder knows when a game
+  runs). Tests: `test:nogame` (the rules on a fake clock, the process list, the real reader),
+  `test:recorder` (the discard), `check:nogame` (the real index.js: cancelled with nothing kept, claimed
+  or reviewed, Start again, a queue under the threshold left alone, a match always wins).

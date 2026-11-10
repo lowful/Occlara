@@ -1048,12 +1048,20 @@ class Recorder extends EventEmitter {
    * written), and the session's counts handed out as 'report'. A session that
    * never got as far as recording or refusing has nothing to count.
    * Resolves with the block, or null.
+   *
+   * DISCARDED (`discard`, index.js controller.cancelNoGame): a Start that
+   * never reached a game. Once its recording has stopped cleanly, every
+   * folder this session wrote is deleted, and it hands out no counts block
+   * and writes no recordingLast: there was nothing to record. Another
+   * session's recording, a finished match's held for its review's look
+   * included, is untouched.
    */
-  stopSession() {
+  stopSession(opts) {
     const s = this.session;
     if (!s) return Promise.resolve(null);
     this.session = null;
     s.ended = true;
+    if (opts && opts.discard) s.discard = true;
     // Until its last step has run, a quit ends it at once (shutdown).
     this.ending = s;
     this.unserve();
@@ -1062,8 +1070,20 @@ class Recorder extends EventEmitter {
     let block = null;
     return this.enqueue(async () => {
       await this.stopSegment();
+      if (s.discard) this.discardSession(s);
       block = this.finish(s);
     }).then(() => block);
+  }
+
+  /** Every folder one session wrote, deleted (stopSession's discard). */
+  discardSession(s) {
+    for (const g of this.segments) {
+      if (g.session !== s || g === this.seg) continue;
+      g.discarded = true;
+      g.active = false;
+      try { this.files.removeTree(g.dir); g.gone = true; } catch { /* the next prune or launch takes it */ }
+    }
+    this.segments = this.segments.filter((g) => !g.gone);
   }
 
   /**
@@ -1074,6 +1094,7 @@ class Recorder extends EventEmitter {
     if (!s || s.finished) return null;
     s.finished = true;
     if (this.ending === s) this.ending = null;
+    if (s.discard) return null;
     const outcome = s.outcome || (s.recordedMs > 0 ? 'recorded' : null);
     if (!outcome) return null;
     s.outcome = outcome;

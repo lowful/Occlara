@@ -1836,6 +1836,37 @@ function readerAfter(frames, menus) {
       'Auto turned itself off (a second busy session): the match it gave up in still has its clip');
   });
 
+  await section('a Start that never reached a game: its session stopped and discarded, nothing else (stopSession discard):', async () => {
+    // A match recorded and ended in an earlier session, held for its review's
+    // look; then a session that never reached a game, cancelled.
+    const h = harness();
+    await h.start();
+    await h.run(70);
+    const t = h.clock.now();
+    h.rec.hold(t - 70000, t);
+    await h.stop();
+    const kept = h.files.under(ROOT);
+    const reportsBefore = h.reports.length;
+    const lastBefore = JSON.stringify(h.prefs.data.recordingLast || null);
+    await h.start();
+    await h.run(40);
+    ok(h.files.under(ROOT).length > kept.length, 'the empty session wrote its own pages meanwhile');
+    const b = await h.rec.stopSession({ discard: true });
+    await settle();
+    ok(b === null && h.reports.length === reportsBefore && JSON.stringify(h.prefs.data.recordingLast || null) === lastBefore,
+      'discarded: no counts block, no report, recordingLast untouched', JSON.stringify(b));
+    ok(h.page().closed && h.page().count('stop') === 1 && h.rec.state === 'idle', 'the recording stopped cleanly first');
+    ok(same(h.files.under(ROOT), kept), 'every page of the empty session deleted, the held match\'s recording kept byte for byte',
+      JSON.stringify({ now: h.files.under(ROOT).length, kept: kept.length }));
+    const at = t - 30000;
+    ok(h.rec.cutClip(at - 11000, at + 4000, at) !== null && h.rec.holds.length === 1, 'and the held match still has its clip and its hold');
+    // Start again at once: it records.
+    await h.start();
+    await h.run(3);
+    ok(h.rec.state === 'recording', 'Start again at once: recording');
+    await h.stop();
+  });
+
   await section('the comparison with GDI:', async () => {
     ok(compareVerdict({ gdiLuma: 120, streamLuma: 110 }) === 'ok', 'both see the game: ok');
     ok(compareVerdict({ gdiLuma: 120, streamLuma: SPEC.black - 0.1 }) === 'stream-black', 'the stream black under 4 of 255 while GDI is not: it cannot see this game');

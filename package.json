@@ -150,7 +150,9 @@
     "test:usage": "node scripts/test-usage-strings.js",
     "test:valorantreview": "node scripts/test-valorant-review.js",
     "test:webm": "node scripts/test-webm.js",
-    "verify:ai": "node scripts/bench-read.js live --gate"
+    "verify:ai": "node scripts/bench-read.js live --gate",
+    "check:nogame": "node scripts/check-no-game.js",
+    "test:nogame": "node scripts/test-no-game.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
