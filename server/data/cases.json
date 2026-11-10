@@ -6219,5 +6219,75 @@
       "kind": "vod-review",
       "topic": "stick it or step off"
     }
+  },
+  {
+    "id": "k206",
+    "title": "Your first kill on defence, the attack close behind",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "On defence before the plant you kill the first attacker from your angle, and the rest of the attack is close behind.",
+    "decision": "Call the kill, step out of that line at once and hold again from a second spot or fall back toward a teammate.",
+    "why": "The next attacker is already aimed where you shot from, while the attack, now a player down, still has to come into the site.",
+    "mistakeToAvoid": "Peeking the same angle again for a second kill.",
+    "cause": [
+      "repeek"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "guide",
+      "topic": "after your first kill on defence"
+    }
+  },
+  {
+    "id": "k207",
+    "title": "Up a player early on defence",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your team wins the first fight on defence early in the round, and nobody has planted.",
+    "decision": "Go back to your positions, cover the gap of anyone who died, and let the attackers come into the site.",
+    "why": "Before the plant the attack must still enter a site, and holding keeps the numbers for the fight that happens there.",
+    "mistakeToAvoid": "Pushing out for a second kill and giving the numbers back.",
+    "cause": [
+      "overextend"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "guide",
+      "topic": "up in numbers on defence"
+    }
   }
 ]

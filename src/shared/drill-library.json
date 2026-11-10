@@ -1,0 +1,1106 @@
+{
+  "version": 1,
+  "note": "Solo drills for the Practice page, one habit each, keyed by the cause or repeated mistake a review names (death-causes.js CAUSES, insights.js keys without their cause: prefix) or general. Researched 10 Nov 2026 (docs/claude/playbook.md, 'The drill library and the research of 10 Nov'). Checked by npm run test:drilllibrary. Every mode feature named here exists in the game as of patch 13.09: the Range F3 settings (Speed, Streak, Bots Strafe, Bot Armor, Infinite Ammo), the accuracy target and its distances, custom games with Allow Cheats (Ghost, Pause Match Timer, Infinite Abilities, Infinite Ammo, End Game Phase), Deathmatch with no abilities, the crosshair's Movement Error lines and the Shooting Error graph.",
+  "drills": [
+    {
+      "id": "dry-peek-ability-first",
+      "title": "One ability before every held corner",
+      "cause": "dry-peek",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game on the map you play most with Allow Cheats on, then turn on Infinite Abilities and Pause Match Timer.",
+        "Walk the attacking route into one site and stop before every corner a defender usually holds.",
+        "Before each corner, use the ability your agent has for it: a flash, a recon, a smoke, a wall or a molly.",
+        "Swing only once it has landed, and say out loud which angle it took away.",
+        "Repeat on the second site."
+      ],
+      "goal": "Clear 6 held corners on each site with an ability thrown from cover before you swing.",
+      "why": "A dry peek is an even fight you chose with nothing on your side, and one ability first tilts it your way.",
+      "check": "Fewer deaths the look calls dry peeks, and fewer deaths with no ability used before them."
+    },
+    {
+      "id": "dry-peek-jiggle-first",
+      "title": "Jiggle before you commit",
+      "cause": "dry-peek",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": ["iron_bronze", "silver_gold", "plat_diamond"],
+      "steps": [
+        "Play one Deathmatch with a rifle.",
+        "At every corner you think is held, jiggle first: tap out and straight back behind the wall.",
+        "Commit with a wide swing only when the jiggle showed you nobody or showed you exactly where the enemy is.",
+        "Count the corners you swung without a jiggle or a sound first."
+      ],
+      "goal": "Jiggle before 15 corners in one Deathmatch, and swing blind at fewer than 5.",
+      "why": "A jiggle gets you the information a dry peek is missing for almost no exposure.",
+      "check": "Fewer deaths the look calls dry peeks in the next review."
+    },
+    {
+      "id": "dry-peek-info-rule",
+      "title": "No swing without a reason",
+      "cause": "dry-peek",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match with one rule.",
+        "Swing a held angle only after a sound, a call, a reveal or your own ability.",
+        "When none of those is there, wait for it or take a different route.",
+        "After each round, count the swings you took with nothing."
+      ],
+      "goal": "No more than 3 swings with no information across the 8 rounds.",
+      "why": "Most dry peeks are habit, not choice, and a rule you can count breaks the habit.",
+      "check": "Fewer dry peek deaths and fewer deaths with no ability used before them."
+    },
+    {
+      "id": "isolated-trade-spots",
+      "title": "Find the trade spot for each of your positions",
+      "cause": "isolated",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game on your most played map with Allow Cheats and Ghost on.",
+        "Stand in 5 spots you often play, on attack and on defence.",
+        "For each, find where a second player could stand to see the enemy who would fight you there.",
+        "Walk from that spot to yours and make sure it is only a step or two of swing, not a run across open ground.",
+        "Drop any spot of yours that no second spot can cover."
+      ],
+      "goal": "Name one covering spot within one swing for each of your 5 spots.",
+      "why": "You are caught alone when nobody can see your killer, and that is decided by where you stand before the fight.",
+      "check": "Fewer deaths the look calls caught alone, and fewer deaths nobody traded."
+    },
+    {
+      "id": "isolated-who-swings",
+      "title": "Who swings if you die",
+      "cause": "isolated",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": ["iron_bronze", "silver_gold"],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "Before every fight, find on the minimap the teammate who could swing your killer.",
+        "If nobody could, do not take that fight: wait, fall back or move toward a teammate first.",
+        "Say the teammate's position out loud each time so the habit is spoken, not assumed."
+      ],
+      "goal": "In 8 rounds, no death with no teammate close enough to see your killer.",
+      "why": "A death your team can answer costs a trade, a death alone costs the round a player.",
+      "check": "Fewer deaths nobody traded with your teammates far, and fewer caught alone."
+    },
+    {
+      "id": "isolated-minimap-stops",
+      "title": "Minimap at every stop",
+      "cause": "isolated",
+      "where": "unrated",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Play 8 rounds of an unrated match.",
+        "Every time you stop moving, glance at the minimap.",
+        "Name the closest teammate and how far away they are.",
+        "If you are the farthest player forward on your side with nobody near, step back toward the team."
+      ],
+      "goal": "A minimap glance at every stop in 8 rounds, with the nearest teammate named each time.",
+      "why": "Isolation creeps up while you move, and a glance at each stop catches it before the fight does.",
+      "check": "Fewer deaths the look calls caught alone."
+    },
+    {
+      "id": "repeek-second-spot",
+      "title": "A second spot for every angle you hold",
+      "cause": "repeek",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game with Allow Cheats on, on a map you play.",
+        "On defence, stand in each angle you usually hold on two sites.",
+        "For each, find a second spot behind cover that watches the same entrance from a different line.",
+        "Walk the move from the first spot to the second until you do it without looking for the path.",
+        "Rehearse it as one action: shoot, step into cover, walk to the second spot, hold again."
+      ],
+      "goal": "Every angle you hold on 2 sites has a second spot within 3 seconds of walking.",
+      "why": "After the first exchange the enemy knows your exact line, and a new line is the only one they are not aiming at.",
+      "check": "Fewer deaths the look calls repeeks."
+    },
+    {
+      "id": "repeek-kill-and-move",
+      "title": "Kill, then leave the line",
+      "cause": "repeek",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "Play one Deathmatch.",
+        "After every kill, step off the line you fired from before you reload or look for the next fight.",
+        "Take the next fight from a new angle or a new height.",
+        "Count the kills you reloaded or stood still on the same spot after."
+      ],
+      "goal": "15 of your first 20 kills followed by a step off the line before the reload.",
+      "why": "Staying on the angle after a kill is the repeek habit, and Deathmatch punishes it fast enough to feel.",
+      "check": "Fewer repeek deaths, and fewer deaths the look calls risky spot, no escape."
+    },
+    {
+      "id": "repeek-reset-rule",
+      "title": "After any exchange, reset",
+      "cause": "repeek",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "After any exchange, a kill, damage taken or damage dealt, break line of sight at once.",
+        "Peek again only from somewhere else, or with an ability first.",
+        "Note each time you fought twice from the same angle."
+      ],
+      "goal": "No death on the same angle you had just fought from, across the 8 rounds.",
+      "why": "The second peek from the same spot meets an enemy who is already aimed there.",
+      "check": "Fewer deaths the look calls repeeks."
+    },
+    {
+      "id": "crossfire-map-study",
+      "title": "Map the crossfires on one site",
+      "cause": "crossfire",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game with Allow Cheats and Ghost on.",
+        "On one site, stand at each entrance the attackers use.",
+        "Find the two defender spots that watch that entrance from different lines.",
+        "From the entrance, find the one corner that splits them, where only one of the two can see you.",
+        "Write down the entrance, the two spots and the splitting corner."
+      ],
+      "goal": "For 3 entrances of one site, name both crossfire spots and the corner that splits them.",
+      "why": "You walk into a crossfire when you did not know it was there, and knowing the two spots shows you the corner to clear first.",
+      "check": "Fewer deaths the look calls walked into a crossfire."
+    },
+    {
+      "id": "crossfire-one-angle",
+      "title": "One angle at a time",
+      "cause": "crossfire",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": ["iron_bronze", "silver_gold", "plat_diamond"],
+      "steps": [
+        "Play one Deathmatch.",
+        "Move so that only one new angle opens to you at a time, slicing each corner from cover.",
+        "Avoid stepping into open space that two angles can see at once.",
+        "Count the fights where two enemies shot at you at the same moment."
+      ],
+      "goal": "Fewer than 3 fights in the Deathmatch where two enemies saw you at once.",
+      "why": "A crossfire only works on a player who shows themselves to both angles together.",
+      "check": "Fewer crossfire deaths in the next review."
+    },
+    {
+      "id": "crossfire-block-the-second",
+      "title": "Block the second angle, take the first",
+      "cause": "crossfire",
+      "where": "custom",
+      "minutes": 15,
+      "bands": ["silver_gold", "plat_diamond", "asc_plus"],
+      "steps": [
+        "Start a custom game with Allow Cheats and Infinite Abilities on.",
+        "Pick 3 entrances that defenders hold from two angles.",
+        "For each, find where your smoke, flash, wall or molly takes away the second angle.",
+        "Throw it from cover, then clear the first angle on its own.",
+        "Repeat until you can throw it without looking for the spot."
+      ],
+      "goal": "For 3 entrances, an ability that removes the second angle, thrown from cover 3 times in a row.",
+      "why": "Two angles become one fight you can win when one of them is blinded or blocked.",
+      "check": "Fewer crossfire deaths, and fewer deaths with no ability used before them."
+    },
+    {
+      "id": "rotating-routes",
+      "title": "Learn your rotation routes",
+      "cause": "rotating",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game on your most played map as a defender with Allow Cheats on.",
+        "Use End Game Phase to start the round, then walk from each site to the other by every route.",
+        "Note on the round clock how long each route takes.",
+        "On each route, find the one corner where an attacker could wait for you.",
+        "Walk each route again with your crosshair at head height on that corner."
+      ],
+      "goal": "Know the time of 2 routes between each pair of sites and the corner to watch on each.",
+      "why": "Players are caught rotating on the corner they never expected, and the route you know has none.",
+      "check": "Fewer deaths the look calls caught rotating."
+    },
+    {
+      "id": "rotating-crosshair-up",
+      "title": "Crosshair up while you move",
+      "cause": "rotating",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": ["iron_bronze", "silver_gold"],
+      "steps": [
+        "Play one Deathmatch.",
+        "Whenever you run between fights, keep your crosshair at head height on the next corner, never on the floor.",
+        "Move your aim only sideways while you run.",
+        "Count every fight you started by moving your crosshair up or down to the head."
+      ],
+      "goal": "Fewer than 5 fights in the Deathmatch that needed your crosshair moved up or down.",
+      "why": "A rotation is where you meet enemies on the move, and the crosshair already at head height wins that meeting.",
+      "check": "Fewer deaths caught rotating, and a higher headshot rate."
+    },
+    {
+      "id": "rotating-on-a-call",
+      "title": "Rotate on a call, through cover",
+      "cause": "rotating",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match on defence.",
+        "Rotate only on a clear sign: the spike seen, several enemies, or their utility on the site.",
+        "Never rotate on one sound alone.",
+        "When you rotate, go early and through the covered route, not across open ground."
+      ],
+      "goal": "No rotation started on one sound alone in the 8 rounds.",
+      "why": "An early rotation on a real call arrives set, a late one on a guess arrives in the middle of their fight.",
+      "check": "Fewer deaths the look calls caught rotating."
+    },
+    {
+      "id": "overextend-cover-first",
+      "title": "Pick your way back before you push",
+      "cause": "overextend",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "Play one Deathmatch.",
+        "Before each push for a kill, pick the cover you will go back to.",
+        "After the kill, go back to that cover before you take another fight.",
+        "Count the kills that ended with you back in your chosen cover."
+      ],
+      "goal": "15 kills in the Deathmatch that ended with you back in the cover you chose.",
+      "why": "Overextending is chasing past the point you can come back from, so the way back is chosen first.",
+      "check": "Fewer deaths the look calls overextended."
+    },
+    {
+      "id": "overextend-limit-line",
+      "title": "Set your limit before the round",
+      "cause": "overextend",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "At the start of every round, pick the farthest point you will go without a teammate beside you.",
+        "Never pass it alone, even after a kill.",
+        "If a kill tempts you past it, look at the minimap first and go only with a teammate."
+      ],
+      "goal": "In 8 rounds, never pass your chosen point alone.",
+      "why": "A limit chosen before the round holds when the excitement of a kill would not.",
+      "check": "Fewer overextended deaths, and fewer deaths nobody traded."
+    },
+    {
+      "id": "overextend-pause-after-kill",
+      "title": "Two seconds after a kill",
+      "cause": "overextend",
+      "where": "unrated",
+      "minutes": 15,
+      "bands": ["iron_bronze", "silver_gold", "plat_diamond"],
+      "steps": [
+        "Play 8 rounds of an unrated match.",
+        "After every kill, stop for two seconds behind cover.",
+        "Use them to look at the minimap and count who is alive on each side.",
+        "Move forward only if a teammate is coming with you."
+      ],
+      "goal": "A two second stop and a count after every kill in 8 rounds.",
+      "why": "The kill is the moment the chase starts, and a short stop is enough to see whether anyone can follow.",
+      "check": "Fewer overextended deaths, and fewer advantages given back."
+    },
+    {
+      "id": "exposed-covered-plants",
+      "title": "Covered plant spots",
+      "cause": "exposed",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game as an attacker with Allow Cheats on.",
+        "Use End Game Phase to start the round and take the spike to one site.",
+        "Find 2 plant spots behind cover that the main defender entrances cannot see.",
+        "Check each from those entrances by walking there and looking back.",
+        "Plant at each spot twice, then do the same on the second site."
+      ],
+      "goal": "2 covered plant spots per site, each checked from 3 defender entrances.",
+      "why": "You are exposed on the spike when the plant spot is chosen by habit instead of by cover.",
+      "check": "Fewer deaths the look calls exposed on the spike."
+    },
+    {
+      "id": "exposed-defuse-cover",
+      "title": "One ability that covers your defuse",
+      "cause": "exposed",
+      "where": "custom",
+      "minutes": 15,
+      "bands": ["silver_gold", "plat_diamond", "asc_plus"],
+      "steps": [
+        "Start a custom game with Allow Cheats and Infinite Abilities on, playing the agent you use on defence.",
+        "On each site, find where the spike is usually planted.",
+        "Find the one smoke, wall or flash of your agent that blocks the main post plant angle on that spot.",
+        "Throw it from cover 3 times in a row, then practise stepping onto the spike as it lands."
+      ],
+      "goal": "One ability per site that blocks the main post plant angle, landed 3 times in a row.",
+      "why": "A defuse in the open is a free kill, and one ability on the right angle makes it a fight they have to take.",
+      "check": "Fewer deaths exposed on the spike, and more retakes won."
+    },
+    {
+      "id": "exposed-plant-call",
+      "title": "Plant only when it is covered",
+      "cause": "exposed",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "On attack, plant only after a teammate is watching the main entrance or a smoke is up on it.",
+        "On defence, start a defuse only with a smoke, a wall or a teammate covering you.",
+        "Say out loud who or what is covering you before you press the key."
+      ],
+      "goal": "Name your cover before every plant and every defuse in the 8 rounds.",
+      "why": "Planting and defusing lock you in place, so the cover has to be there before you start.",
+      "check": "Fewer deaths the look calls exposed on the spike."
+    },
+    {
+      "id": "no-escape-one-step",
+      "title": "Cover one step away",
+      "cause": "no-escape",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game on defence with Allow Cheats on.",
+        "Stand in every angle you hold on two sites.",
+        "From each, find the cover you can step into in one step after a kill.",
+        "Drop any angle that has none, and replace it with one a step back that does."
+      ],
+      "goal": "Every angle you hold on 2 sites has cover one step away.",
+      "why": "The next enemy often comes right behind the first, and only a spot you can leave survives the second one.",
+      "check": "Fewer deaths the look calls risky spot, no escape."
+    },
+    {
+      "id": "no-escape-step-after-kill",
+      "title": "Wall beside you, step after the kill",
+      "cause": "no-escape",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "Play one Deathmatch.",
+        "Take fights only from spots with a wall or a box right beside you.",
+        "After each kill, step behind it before you look for the next enemy.",
+        "Count the kills you followed with a step into cover."
+      ],
+      "goal": "20 kills, each followed by a step into cover.",
+      "why": "A kill shows your position to everyone nearby, and the step into cover is the escape you planned before the fight.",
+      "check": "Fewer deaths the look calls risky spot, no escape, and fewer repeeks."
+    },
+    {
+      "id": "no-escape-leave-after-first",
+      "title": "Leave after the first kill on defence",
+      "cause": "no-escape",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match on defence.",
+        "Hold an off angle only if it has a way back to cover.",
+        "After your first kill from any spot, leave it at once and hold again from somewhere else.",
+        "Call the kill and where you moved to."
+      ],
+      "goal": "Leave the spot after every first kill in the 8 defence rounds.",
+      "why": "After a kill on defence the attackers know where you are, while they still have to come to you, so moving keeps your edge.",
+      "check": "Fewer deaths the look calls risky spot, no escape."
+    },
+    {
+      "id": "lost-duel-counter-strafe",
+      "title": "Counter strafe on strafing bots",
+      "cause": "lost-duel",
+      "where": "range",
+      "minutes": 10,
+      "bands": ["iron_bronze", "silver_gold", "plat_diamond"],
+      "steps": [
+        "In Settings, Crosshair, turn on Movement Error for the inner lines so you can see when you are accurate.",
+        "In the Range, press F3 and set Bots to Strafe.",
+        "Strafe left or right, tap the opposite key to stop, and fire one shot only once the lines have closed.",
+        "Do it in both directions, then switch to two shot bursts."
+      ],
+      "goal": "8 of 10 first shots on the head of a strafing bot.",
+      "why": "A fair fight is lost when the first bullet leaves while you are still moving, and the stop before it is a skill you can drill.",
+      "check": "Fewer deaths the look calls lost duels, and a higher headshot rate."
+    },
+    {
+      "id": "lost-duel-first-bullet",
+      "title": "First bullet Deathmatch",
+      "cause": "lost-duel",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "Before you start, note your headshot rate from your last ranked match.",
+        "Play one Deathmatch with a rifle and aim every first bullet at the head.",
+        "After the first bullet, either tap again or step out of sight, never hold the trigger down.",
+        "At the end, open the match details and read your headshot rate."
+      ],
+      "goal": "A Deathmatch headshot rate at least 5 points above your last ranked headshot rate.",
+      "why": "Most duels are decided by the first bullet, and Deathmatch gives you dozens of them in one sitting.",
+      "check": "A higher headshot rate, and fewer lost duels."
+    },
+    {
+      "id": "lost-duel-head-height-walk",
+      "title": "Head height on every corner",
+      "cause": "lost-duel",
+      "where": "custom",
+      "minutes": 10,
+      "bands": ["iron_bronze", "silver_gold"],
+      "steps": [
+        "Start a custom game on your most played map with Allow Cheats on.",
+        "Walk 3 routes to a site, slowly.",
+        "Keep your crosshair at head height on the edge of the next corner the whole way.",
+        "At each corner, stop and check: would an enemy's head be on your crosshair, or would you have to move it."
+      ],
+      "goal": "Walk 3 routes with no corner where your crosshair needed to move up or down.",
+      "why": "Crosshair placement turns the fight into a click instead of a flick, which is what a fair duel is decided on.",
+      "check": "Fewer lost duels and a higher headshot rate."
+    },
+    {
+      "id": "lost-duel-shooting-error",
+      "title": "Read your shooting error",
+      "cause": "lost-duel",
+      "where": "range",
+      "minutes": 10,
+      "bands": ["silver_gold", "plat_diamond", "asc_plus"],
+      "steps": [
+        "Turn on the Shooting Error graph in Settings, Video, Stats.",
+        "In the Range, take 30 fights against strafing bots with a counter strafe before each shot.",
+        "Watch the graph after each shot: a tall bar means the shot left before you stopped.",
+        "Slow your fire down until the bars stay short, then speed up again."
+      ],
+      "goal": "25 of 30 shots with a short bar on the Shooting Error graph.",
+      "why": "The graph shows the moving shots you cannot feel, which is the hidden cause of many lost duels.",
+      "check": "Fewer lost duels and a higher headshot rate."
+    },
+    {
+      "id": "first-death-second-fight",
+      "title": "Take the second fight",
+      "cause": "first-death",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "If you are not the entry, never be the first to make contact on attack.",
+        "Let your entry, a teammate or your own utility find the first enemy, then take the fight that follows.",
+        "On defence, do not push out for a kill in the first seconds of the round."
+      ],
+      "goal": "First to die in no more than 1 of the 8 rounds.",
+      "why": "The first death starts the round four against five, and the second fight is the one a teammate can trade.",
+      "check": "Fewer rounds where you were first to die and nobody traded it."
+    },
+    {
+      "id": "first-death-swing-as-it-pops",
+      "title": "Swing as your ability lands",
+      "cause": "first-death",
+      "where": "custom",
+      "minutes": 15,
+      "bands": ["silver_gold", "plat_diamond", "asc_plus"],
+      "steps": [
+        "Start a custom game with Allow Cheats and Infinite Abilities on, playing your agent.",
+        "Pick 3 entrances you use on attack.",
+        "Throw your flash, recon or smoke at each, and practise the timing of swinging out right as it takes effect.",
+        "Repeat each entrance until the swing and the ability land together every time."
+      ],
+      "goal": "10 swings in a row out of cover as the ability takes effect.",
+      "why": "An entry that swings late wastes the ability, and one that swings early meets the defender before it lands.",
+      "check": "Fewer first deaths, and fewer dry peek deaths."
+    },
+    {
+      "id": "first-death-defence-start",
+      "title": "Defence start spots seen by one entrance",
+      "cause": "first-death",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game on defence with Allow Cheats and Ghost on.",
+        "For each site, find a starting spot that sees the main entrance from cover.",
+        "Check from the attacker side that only one entrance can see that spot.",
+        "Hold it at the start of each round instead of pushing out for an early kill."
+      ],
+      "goal": "1 start spot per site that only one entrance can see, checked from 2 entrances.",
+      "why": "On defence before the plant the attackers have to come to you, so a first death from pushing out gives that edge away.",
+      "check": "Fewer rounds where you were first to die on defence."
+    },
+    {
+      "id": "lost-advantage-move-together",
+      "title": "Up in numbers, move together",
+      "cause": "lost-advantage",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "After every kill, say the count out loud, for example four against three.",
+        "With your team up in numbers, take fights only where a teammate can see the same enemy.",
+        "On defence before the plant, hold and let them come to you.",
+        "On attack, take the site together and plant."
+      ],
+      "goal": "Say the count after every kill in 8 rounds, with 0 deaths alone while your team is ahead in numbers.",
+      "why": "An advantage is given back one lone fight at a time, and saying the count makes you play it.",
+      "check": "Fewer rounds under gave back the advantage."
+    },
+    {
+      "id": "lost-advantage-fast-plant",
+      "title": "The quick covered plant",
+      "cause": "lost-advantage",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game as an attacker with Allow Cheats on.",
+        "Use End Game Phase to start the round and take the spike to a site.",
+        "From each entrance, find the nearest plant spot behind cover.",
+        "Time the walk from the entrance to the plant on the round clock.",
+        "Repeat on the second site."
+      ],
+      "goal": "From each entrance of 2 sites, a covered plant spot you reach in under 5 seconds.",
+      "why": "With the numbers up on attack the round is won by planting, and a plant you know is reached before the advantage leaks away.",
+      "check": "Fewer rounds under gave back the advantage on attack."
+    },
+    {
+      "id": "lost-advantage-defence-hold",
+      "title": "After the first kill on defence, hold",
+      "cause": "lost-advantage",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": ["silver_gold", "plat_diamond", "asc_plus"],
+      "steps": [
+        "Play the first 8 rounds of an unrated match on defence.",
+        "When your team gets the first kill, go back to your position instead of looking for a second kill.",
+        "If a teammate died, move to cover the gap they left.",
+        "Make the attackers come to you and take the risks."
+      ],
+      "goal": "0 deaths chasing a second kill after your team opened the round, across the 8 defence rounds.",
+      "why": "Before the plant the attackers must enter a site, so a defence up in numbers only loses by fighting where it does not need to.",
+      "check": "Fewer rounds under gave back the advantage, and fewer overextended deaths."
+    },
+    {
+      "id": "untraded-swing-after",
+      "title": "Swing right after your teammate",
+      "cause": "untraded",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "Play second behind a teammate, close enough to see past the corner they take.",
+        "When they make contact, swing the same fight at once, not after you hear the result.",
+        "After each round, note any death of a teammate you were close to and did not answer."
+      ],
+      "goal": "Trade or try to trade every teammate death you were close to in the 8 rounds.",
+      "why": "A trade only happens when the second player is already set to swing, a second late is too late.",
+      "check": "More trades of your teammates, and fewer of your own deaths nobody traded."
+    },
+    {
+      "id": "untraded-spacing-spots",
+      "title": "Spacing behind the entry",
+      "cause": "untraded",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game with Allow Cheats and Ghost on.",
+        "Pick 2 entrances your team takes on attack.",
+        "Stand where your entry would stand, then find a spot a few steps back that sees past the door they go through.",
+        "Check that it is not on the same line as the entry, where one spray hits you both.",
+        "Walk the swing from your spot to the door until it is one smooth move."
+      ],
+      "goal": "For 2 entrances, a trading spot that sees past the door and is not stacked on the entry's line.",
+      "why": "Too close and one spray kills both of you, too far and you arrive after the fight, so the spot is learned in advance.",
+      "check": "Fewer deaths nobody traded with a teammate close."
+    },
+    {
+      "id": "untraded-call-before-swing",
+      "title": "Call before you swing",
+      "cause": "untraded",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": ["iron_bronze", "silver_gold", "plat_diamond"],
+      "steps": [
+        "Play the first 8 rounds of an unrated match with your voice on.",
+        "Before you swing an angle, say which one, for example swinging main.",
+        "Wait half a beat so a teammate can follow.",
+        "If nobody is near enough to follow, do not swing."
+      ],
+      "goal": "Call before 10 swings across the 8 rounds.",
+      "why": "A teammate can only trade a fight they know is coming.",
+      "check": "Fewer deaths nobody traded."
+    },
+    {
+      "id": "early-one-job",
+      "title": "One job for the first 30 seconds",
+      "cause": "early",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "Before each round, pick one job for the first 30 seconds: hold your start spot, or one information action.",
+        "Take no duel in that time unless the enemy walks into you.",
+        "After 30 seconds, play the round as normal."
+      ],
+      "goal": "No death in the first 30 seconds across the 8 rounds.",
+      "why": "Early deaths come from fights the round did not need yet, and one job keeps you out of them.",
+      "check": "Fewer deaths in the first 30 seconds."
+    },
+    {
+      "id": "early-default-spots",
+      "title": "Safe default spots on attack",
+      "cause": "early",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game as an attacker with Allow Cheats and Ghost on.",
+        "For each lane of the map, find a spot that holds the lane from cover without stepping into a common defender angle.",
+        "Check each spot from the defender side to see what can shoot it.",
+        "Keep the 3 safest."
+      ],
+      "goal": "3 default spots on attack that no common defender angle can see.",
+      "why": "An early death on attack is usually a step into a held angle while waiting, and a safe default spot removes it.",
+      "check": "Fewer deaths in the first 30 seconds on attack."
+    },
+    {
+      "id": "early-one-look-defence",
+      "title": "One look, then fall back",
+      "cause": "early",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": ["silver_gold", "plat_diamond", "asc_plus"],
+      "steps": [
+        "Play the first 8 rounds of an unrated match on defence.",
+        "Take one early look for information, a jiggle or an ability, never a full swing.",
+        "Fall back to your angle right after it, whatever it showed.",
+        "Call what you saw."
+      ],
+      "goal": "No death in the first 30 seconds on defence in the 8 rounds.",
+      "why": "On defence before the plant the attackers must come to you, so an early full swing risks the edge you already have.",
+      "check": "Fewer deaths in the first 30 seconds on defence."
+    },
+    {
+      "id": "same-spot-two-new-spots",
+      "title": "Two new spots for the spot you die at",
+      "cause": "same-spot",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Open your last review and find the place it says you died at most.",
+        "Start a custom game on that map with Allow Cheats and Ghost on.",
+        "Go to that place and find 2 other spots that watch the same entrance.",
+        "Check each from the attacker side for what can see it, and how you would leave it."
+      ],
+      "goal": "2 new spots for the place you died at most, each with a way out.",
+      "why": "Enemies remember where they killed you, so the same spot every round is a spot they are ready for.",
+      "check": "Not dying at the same place three times in the next review."
+    },
+    {
+      "id": "same-spot-rotate-three",
+      "title": "Three spots, never twice in a row",
+      "cause": "same-spot",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "Pick 3 spots on the site or lane you play.",
+        "Never use the same spot two rounds in a row.",
+        "After each round you die in, write down where."
+      ],
+      "goal": "No spot used two rounds in a row in the 8 rounds.",
+      "why": "A spot repeated is a habit the enemy can read from the rounds before.",
+      "check": "No dying at the same place three times in the next review."
+    },
+    {
+      "id": "same-spot-change-timing",
+      "title": "Same spot, new timing",
+      "cause": "same-spot",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": ["plat_diamond", "asc_plus"],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "If you keep your usual spot, change when you are there: hold it later, or take one early look and fall back.",
+        "Change one of the spot or the timing every round.",
+        "Watch whether the enemy keeps clearing the spot the old way."
+      ],
+      "goal": "Change your spot or your timing in every one of the 8 rounds.",
+      "why": "An enemy who learned your spot also learned your timing, and changing either breaks the read.",
+      "check": "No dying at the same place three times in the next review."
+    },
+    {
+      "id": "same-killer-learn-the-kit",
+      "title": "Learn the agent who keeps winning",
+      "cause": "same-killer",
+      "where": "range",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "Open your last review and find the agent it says kept winning against you.",
+        "In the Range, press F2 and switch to that agent.",
+        "Use each of the four abilities a few times and learn how far it reaches and how it sounds.",
+        "Note which of them can stop you or reveal you, and what you would do against each."
+      ],
+      "goal": "Name what each of the agent's 4 abilities does to you and 1 answer for each.",
+      "why": "An agent who keeps winning is often winning with a kit you do not know, and knowing it tells you when to fight.",
+      "check": "That agent no longer listed as the one who kept winning."
+    },
+    {
+      "id": "same-killer-long-lines",
+      "title": "Cross the long lines with cover",
+      "cause": "same-killer",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game on the map with Allow Cheats and Ghost on.",
+        "Find the 3 longest sightlines on the site you died near most.",
+        "For each, find how to cross it: a smoke, a wall, a different route or a jump spot out of sight.",
+        "Walk each crossing twice."
+      ],
+      "goal": "3 long sightlines on one site, each with a way across out of sight.",
+      "why": "A player who keeps winning from range is winning the lines you cross in the open.",
+      "check": "That player's agent no longer listed as the one who kept winning, and fewer dry peek deaths."
+    },
+    {
+      "id": "same-killer-change-the-duel",
+      "title": "Never the same duel twice",
+      "cause": "same-killer",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": ["silver_gold", "plat_diamond", "asc_plus"],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "When the same enemy beats you twice, change how you meet them.",
+        "Meet them from a different angle, with an ability first, or with a teammate beside you.",
+        "Never take the same duel against them a third time."
+      ],
+      "goal": "No third identical duel against the same enemy in the 8 rounds.",
+      "why": "An enemy who won twice has learned your duel, so the third one has to be a different fight.",
+      "check": "No enemy listed as the one who kept winning in the next review."
+    },
+    {
+      "id": "ult-held-plan-it",
+      "title": "A plan for your ultimate on every site",
+      "cause": "ult-held",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game with Allow Cheats and Infinite Abilities on, playing your agent.",
+        "On each site, practise one use of your ultimate on attack and one on defence or a retake.",
+        "Cast each from cover 3 times until you know where to stand.",
+        "Write down when in a round each one goes."
+      ],
+      "goal": "1 practised use of your ultimate per site on each side, cast from cover 3 times.",
+      "why": "An ultimate is held to the death when there is no plan for it, and a planned use goes in the round it is ready.",
+      "check": "No death with your ultimate ready."
+    },
+    {
+      "id": "ult-held-round-check",
+      "title": "Check your ultimate every round",
+      "cause": "ult-held",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": ["iron_bronze", "silver_gold"],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "At the start of every round, look at your ultimate points.",
+        "When it is ready, decide out loud whether it goes this round and where.",
+        "If you are about to take a risky fight with it ready, use it first or step back."
+      ],
+      "goal": "No death with your ultimate ready in the 8 rounds.",
+      "why": "An ultimate used late is often never used, and a glance each round puts it into the plan.",
+      "check": "No death with your ultimate ready."
+    },
+    {
+      "id": "ult-held-before-the-fight",
+      "title": "Use it before the risky fight",
+      "cause": "ult-held",
+      "where": "custom",
+      "minutes": 10,
+      "bands": ["plat_diamond", "asc_plus"],
+      "steps": [
+        "Start a custom game with Allow Cheats and Infinite Abilities on.",
+        "Pick 2 fights on attack and 2 on a retake that you lose often.",
+        "For each, find how your ultimate makes that fight easier.",
+        "Practise casting it from cover and then taking the fight."
+      ],
+      "goal": "4 fights you lose often, each with a practised ultimate that makes it easier.",
+      "why": "The ultimate is worth most in the fight you would otherwise lose, not after it.",
+      "check": "No death with your ultimate ready, and more retakes won."
+    },
+    {
+      "id": "one-v-one-hold-or-hunt",
+      "title": "Hold or hunt",
+      "cause": "one-v-one",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "When a round comes down to you and one enemy, stop for a second behind cover.",
+        "Check the clock and whether the spike is down.",
+        "Say hold or hunt out loud: hold when the clock or the spike works for you, hunt only when it works against you.",
+        "Then commit to that choice."
+      ],
+      "goal": "Say hold or hunt in 100% of the one against ones you play in 8 rounds.",
+      "why": "Most lost one against ones are lost by the side the clock favours chasing a fight it did not need.",
+      "check": "Fewer one against one rounds lost."
+    },
+    {
+      "id": "one-v-one-hear-first",
+      "title": "Hear them first",
+      "cause": "one-v-one",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "Play one Deathmatch with good headphones.",
+        "Walk the last few steps before every corner and listen.",
+        "Take fights only when you heard the enemy first, or when you are already aimed at the corner they come from.",
+        "Count the kills that came from a fight you heard first."
+      ],
+      "goal": "10 kills in the Deathmatch from fights you heard first.",
+      "why": "A one against one is won by the player with information, and in a quiet round sound is most of it.",
+      "check": "Fewer one against one rounds lost."
+    },
+    {
+      "id": "one-v-one-isolate-angles",
+      "title": "One angle at a time in the clutch",
+      "cause": "one-v-one",
+      "where": "custom",
+      "minutes": 15,
+      "bands": ["silver_gold", "plat_diamond", "asc_plus"],
+      "steps": [
+        "Start a custom game with Allow Cheats and Ghost on.",
+        "On each site, find 2 spots near the spike where only one entrance can see you.",
+        "From each, practise checking the angles one at a time with cover between them.",
+        "Repeat for the attacker side after a plant."
+      ],
+      "goal": "2 spots per site that only one entrance can see, on both sides.",
+      "why": "A clutch is won one fight at a time, and a spot that shows you to one angle at a time makes it so.",
+      "check": "Fewer one against one rounds lost, and more won as the last one standing."
+    },
+    {
+      "id": "postplant-watch-from-cover",
+      "title": "Watch the spike from cover",
+      "cause": "postplant-lost",
+      "where": "custom",
+      "minutes": 15,
+      "bands": [],
+      "steps": [
+        "Start a custom game as an attacker with Allow Cheats on, and plant at your usual spot on one site.",
+        "Find 2 spots off the open site that see the spike from cover.",
+        "Check that each has a way back if a defender swings you.",
+        "Make sure the two spots see the spike from different lines.",
+        "Repeat on the second site."
+      ],
+      "goal": "2 spots per site that see the spike from cover, from different lines, each with a way back.",
+      "why": "After the plant the defenders have to come to the spike, so you win by watching it, not by looking for fights.",
+      "check": "More post plants won."
+    },
+    {
+      "id": "postplant-one-lineup",
+      "title": "One ability on the spike from cover",
+      "cause": "postplant-lost",
+      "where": "custom",
+      "minutes": 20,
+      "bands": ["silver_gold", "plat_diamond", "asc_plus"],
+      "steps": [
+        "Start a custom game with Allow Cheats and Infinite Abilities on, playing an agent with a molly, a dart, a stun or a wall.",
+        "Plant at the usual spot of one site.",
+        "From a covered spot, find one throw that lands your ability on the spike.",
+        "Land it 3 times in a row, then repeat on the second site."
+      ],
+      "goal": "One throw per site that lands on the spike from cover, 3 times out of 3.",
+      "why": "An ability on the spike stops a defuse without showing yourself.",
+      "check": "More post plants won."
+    },
+    {
+      "id": "postplant-wait-for-defuse",
+      "title": "Wait for the defuse",
+      "cause": "postplant-lost",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "After every plant on attack, hold the spike from cover.",
+        "Do not peek before you hear the defuse start or see a defender commit.",
+        "Use your ability on the spike as the defuse starts, not before."
+      ],
+      "goal": "No peek before the defuse starts in any post plant of the 8 rounds.",
+      "why": "After the plant the clock is yours, and every early peek gives the defenders the fight they need.",
+      "check": "More post plants won, and fewer deaths exposed on the spike."
+    },
+    {
+      "id": "general-range-warm-up",
+      "title": "Ten minute warm up",
+      "cause": "general",
+      "where": "range",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "In the Range, press F3 and set Speed Medium and Streak Eliminate 50.",
+        "Run the timed bot test once with your main rifle.",
+        "Switch Bots to Strafe and take 20 single shots at the head with a stop before each.",
+        "At the accuracy target set to 20 m, fire 10 single taps at the head."
+      ],
+      "goal": "Finish the timed bot test, then 15 of 20 head hits on strafing bots.",
+      "why": "Your first rounds are played on cold aim unless you warm it up before you queue.",
+      "check": "A higher headshot rate, and fewer lost duels."
+    },
+    {
+      "id": "general-one-habit-deathmatch",
+      "title": "One habit per Deathmatch",
+      "cause": "general",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": [],
+      "steps": [
+        "Pick one habit before the Deathmatch: head height, the stop before the shot, or the step off the line after a kill.",
+        "Play the whole Deathmatch on that habit alone, ignoring the score.",
+        "Count every time you broke it.",
+        "Write the count down and beat it next time."
+      ],
+      "goal": "Break the habit fewer than 10 times, and fewer times than in your last Deathmatch.",
+      "why": "Deathmatch played for the score builds nothing, played for one habit it builds that habit.",
+      "check": "The habit you drilled shows in the next review: a higher headshot rate or fewer repeeks."
+    },
+    {
+      "id": "general-focus-fix",
+      "title": "Play the review's one fix",
+      "cause": "general",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Open your last review and read its one fix for the next match.",
+        "Play the first 8 rounds of an unrated match with only that fix in mind.",
+        "After each round, say whether you did it.",
+        "Ignore every other habit until the 8 rounds are over."
+      ],
+      "goal": "Do the fix in at least 6 of the 8 rounds.",
+      "why": "One habit practised on purpose sticks, five at once do not.",
+      "check": "The repeated mistake the fix was for appears less in the next review."
+    },
+    {
+      "id": "general-reset-after-a-loss",
+      "title": "Reset after every lost round",
+      "cause": "general",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": [],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "After every lost round, take one slow breath.",
+        "Say one short cue for the next round, for example hold the angle or check the minimap.",
+        "Let the lost round go, and play the next one on the cue."
+      ],
+      "goal": "A cue said after every lost round in the 8 rounds.",
+      "why": "Tilt is carrying one bad round into the next, and a cue gives the next round a job instead.",
+      "check": "Fewer runs of lost rounds in a row, and fewer deaths in the first 30 seconds."
+    },
+    {
+      "id": "general-learn-a-map",
+      "title": "Learn one site of a map you struggle on",
+      "cause": "general",
+      "where": "custom",
+      "minutes": 15,
+      "bands": ["iron_bronze", "silver_gold"],
+      "steps": [
+        "Start a custom game with Allow Cheats and Ghost on, on the map you lose most.",
+        "Walk one site and name each callout you see on the minimap.",
+        "Stand where defenders usually hold and look back at each entrance.",
+        "Then walk in from each entrance and find the common angles."
+      ],
+      "goal": "Name every callout of one site and 5 common angles on it.",
+      "why": "A map you do not know makes every corner a surprise, and one site learned removes many of them.",
+      "check": "Fewer deaths at the same place on that map."
+    },
+    {
+      "id": "general-stop-to-shoot",
+      "title": "Stop, then shoot",
+      "cause": "general",
+      "where": "deathmatch",
+      "minutes": 10,
+      "bands": ["iron_bronze", "silver_gold"],
+      "steps": [
+        "Play one Deathmatch with a rifle.",
+        "Before every shot, come to a full stop.",
+        "If an enemy appears while you move, stop first, even if it feels slow.",
+        "Count the kills where you were stopped when you fired."
+      ],
+      "goal": "20 kills where you were stopped when you fired.",
+      "why": "Moving shots go wide with every rifle, and the stop is the cheapest aim gain there is at this level.",
+      "check": "A higher headshot rate and fewer lost duels."
+    },
+    {
+      "id": "general-spray-control",
+      "title": "First five bullets on the dummy",
+      "cause": "general",
+      "where": "range",
+      "minutes": 10,
+      "bands": ["silver_gold", "plat_diamond"],
+      "steps": [
+        "Go to the accuracy target outside the Range and set it to 20 m.",
+        "Fire bursts of five bullets at the dummy's head with your main rifle, pulling down against the climb.",
+        "Check where the bullet marks land after each burst.",
+        "Then do the same at 10 m."
+      ],
+      "goal": "7 of 10 five bullet bursts inside the dummy's upper body at 20 m.",
+      "why": "A fight that does not end on the first bullet is won by the next few, and the pull down is learned on a still target.",
+      "check": "A higher headshot rate and fewer lost duels."
+    },
+    {
+      "id": "general-utility-setups",
+      "title": "Two setups per site for your agent",
+      "cause": "general",
+      "where": "custom",
+      "minutes": 20,
+      "bands": ["plat_diamond", "asc_plus"],
+      "steps": [
+        "Start a custom game with Allow Cheats and Infinite Abilities on, playing your main agent.",
+        "On each site, build one attack setup and one defence or retake setup of your abilities.",
+        "Throw each from cover until it lands the same way 3 times in a row.",
+        "Write down when in a round each one is used."
+      ],
+      "goal": "2 setups per site that land 3 times in a row.",
+      "why": "From Platinum up rounds are won on utility timed with the team, and that starts with utility you can place without thinking.",
+      "check": "Fewer deaths with no ability used before them, and fewer dry peek deaths."
+    },
+    {
+      "id": "general-read-the-enemy",
+      "title": "Three habits of this enemy",
+      "cause": "general",
+      "where": "unrated",
+      "minutes": 20,
+      "bands": ["plat_diamond", "asc_plus"],
+      "steps": [
+        "Play the first 8 rounds of an unrated match.",
+        "After every round, note where the first contact came and which utility they used early.",
+        "By round 5, name 3 habits this enemy has shown.",
+        "Change one thing of your own to meet one habit, a spot, a timing or an early look, and watch whether the habit holds."
+      ],
+      "goal": "3 enemy habits named by round 5, and one change of yours made for one of them.",
+      "why": "Enemies repeat what worked, so a habit seen twice is information the next round can use.",
+      "check": "Fewer deaths at the same place and fewer to the same killer."
+    }
+  ]
+}

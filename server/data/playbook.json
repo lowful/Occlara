@@ -12125,5 +12125,209 @@
     },
     "when": "A defender holds an angle while an enemy recon dart or drone flies at it, waits to be tagged, and the attackers take the site off the reveal.",
     "why": "A reveal turns a held angle into a known one, so the holder either uses the moment before it or gets out of its reach."
+  },
+  {
+    "text": "On defence before the plant the attackers have to come to you, so you hold the power: set up on an angle you chose, with your utility ready, and let them walk into it rather than peeking out for a fight you do not need, because a peek gives back the edge of the side that is approached, and the only early peeks worth taking are one look for information or one your team planned.",
+    "side": "defense",
+    "phase": "active",
+    "cause": [
+      "dry-peek",
+      "overextend"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "defence holds the power"
+    },
+    "when": "A defender peeks out before the plant for a fight nobody planned and dies, when holding the angle would have made the attackers come into it.",
+    "why": "Before the plant the attackers must enter a site to win, so the defender who waits on a chosen angle fights on their own terms."
+  },
+  {
+    "text": "After your first kill on defence the attackers know exactly where you are, so call the kill, step out of that line and hold again from a different spot or fall back toward your team, rather than peeking the same angle for a second kill, because the next attacker is already aiming where you shot from and the attack, now a player down, still has to come to you.",
+    "side": "defense",
+    "cause": [
+      "repeek",
+      "overextend"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "after your first kill on defence"
+    },
+    "when": "A defender gets the first kill of the round and dies on the same angle to the next attacker, or chases a second kill.",
+    "why": "A kill gives away the shooter's exact line, and moving keeps the defender's edge while the attack is still a player down."
+  },
+  {
+    "text": "On defence, choose an angle you can step back from after the first shots, with cover one step away, over an open spot that only works if you win every fight there, because the next attacker often comes right behind the first, and an off angle is good only when it has a way out after the pick.",
+    "side": "defense",
+    "cause": [
+      "repeek",
+      "lost-duel"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "holding from a spot you can leave"
+    },
+    "when": "A defender kills the first attacker from an open or deep spot and is killed by the second before they can leave it.",
+    "why": "A spot with no way out turns one won fight into a lost round, while a spot with cover beside it lets the defender take the first fight and live."
+  },
+  {
+    "text": "On attack, follow your entry close enough to swing the moment they make contact, a step or two behind and on a different line so you can see past the corner they take, rather than straight behind them in a doorway where one spray hits you both, or so far back that the fight is over when you arrive, because a trade only works when the second player is already set to swing.",
+    "side": "attack",
+    "phase": "active",
+    "cause": [
+      "isolated"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "trading distance on attack"
+    },
+    "when": "An entry dies on attack with a teammate nearby who could not see the killer, or two attackers die to one spray in a doorway.",
+    "why": "The trade depends on the follower already seeing past the entry's corner, which is decided by where they stand before contact."
+  },
+  {
+    "text": "On defence, hold your angle with a teammate who watches the same entrance from a different line, so an attacker who swings one of you is open to the other, and when your partner dies, swing the angle that sees their killer at once, rather than holding a spot nobody else can see into, because a defender alone can at best trade one for one.",
+    "side": "defense",
+    "phase": "active",
+    "cause": [
+      "isolated"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "trading on defence"
+    },
+    "when": "A defender dies on an angle no teammate could see into, or a partner dies and the defender holds instead of swinging the killer.",
+    "why": "Two lines on one entrance make every attacker's swing a fight against two, and the answer to a partner's death is the killer who just showed himself."
+  },
+  {
+    "text": "When one death holds several mistakes, a spot with no way out, no information before the fight and nobody close to trade, name the earliest decision that made the death possible as the mistake and fix that one first, and mention the others only as what followed from it, because the later mistakes usually come from the first, and a player told three things at once fixes none of them.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "the first mistake in the chain"
+    },
+    "when": "A death where the position, the missing information and the missing trade all played a part, and the coach has to say what to fix.",
+    "why": "The real mistake is usually seconds before the death, and one named fix is the one a player can carry into the next match."
+  },
+  {
+    "text": "When you come back to a spot where this enemy already killed you or found you, assume they remember it: change the spot, the timing or your first look, and use what this enemy has shown in earlier rounds, the agent who swung you and the utility they used to clear you, rather than playing it the same way again, because a habit you showed is one they can punish.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "starting positions"
+    },
+    "when": "A player dies twice or more at the same place, or to the same agent clearing it the same way, within one match.",
+    "why": "Enemies repeat what worked against you, so the information from earlier rounds is as useful to you as it was to them."
+  },
+  {
+    "text": "If you die with your abilities still in hand, the fight was taken without them: use the one that helps that fight first, from cover, a flash before the swing, a recon before the clear, a molly to move a defender off a spot, unless it is the one your team planned for later in the round, because an ability unused at your death did nothing for the round.",
+    "cause": [
+      "dry-peek"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "utility unused at death"
+    },
+    "when": "A player dies in a fight they chose with their abilities still unused.",
+    "why": "Abilities exist to make the fight uneven, and one kept for a better moment is lost with the player."
+  },
+  {
+    "text": "In Iron and Bronze, fix two habits before anything else: keep your crosshair at head height on the corner you are about to see, and stop moving before you shoot, because most fights at this level go to whoever lands the first bullet, and plans matter little until those two are automatic.",
+    "ranks": [
+      "iron_bronze"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "rank priorities"
+    },
+    "when": "An Iron or Bronze player asks what to fix first, or loses most duels on the first bullet.",
+    "why": "At the lowest ranks crosshair placement and the stop before the shot decide more rounds than any team play."
+  },
+  {
+    "text": "In Silver and Gold, the biggest gain is not dying alone: take fights where a teammate can trade you, use one ability before a fight you choose, and play for the spike, planting on attack and staying alive for the defuse on defence, because at this level rounds are lost more by lone deaths than by aim.",
+    "ranks": [
+      "silver_gold"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "rank priorities"
+    },
+    "when": "A Silver or Gold player asks what to fix first, or dies untraded in many rounds.",
+    "why": "Once basic aim is in place, the trade and the objective decide most rounds in the middle ranks."
+  },
+  {
+    "text": "In Platinum and Diamond, aim alone no longer separates players: time your utility with the teammate who swings off it, keep the numbers you win by playing together after the first kill, and make one clear decision a round, because rounds here are lost by fights taken at the wrong time more than by missed shots.",
+    "ranks": [
+      "plat_diamond"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "rank priorities"
+    },
+    "when": "A Platinum or Diamond player asks what to fix first, or gives back advantages after winning the first fight.",
+    "why": "In these ranks most players hit their shots, so timing and decisions decide who wins the fight."
+  },
+  {
+    "text": "From Ascendant up, everyone aims and knows the basics, so the edge is in adapting: notice what this enemy repeats across rounds, change your spot or timing before they punish yours, and spend utility on information your team acts on, because a fixed routine is read and countered within a few rounds.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "rank priorities"
+    },
+    "when": "An Ascendant or higher player asks what to fix first, or dies to the same counter more than once.",
+    "why": "At the top ranks every habit is noticed, so the player who changes first wins the read."
+  },
+  {
+    "text": "On defence, when your team wins the first fight, go back to your positions and cover the gap of anyone who died, rather than pushing for a second kill, because before the plant the attackers still have to enter a site, and the numbers win the fight that happens there.",
+    "side": "defense",
+    "cause": [
+      "overextend"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "up in numbers on defence"
+    },
+    "when": "A defence up in numbers before the plant loses players chasing kills and then loses the site.",
+    "why": "A numbers advantage on defence is kept by holding, since the attack must still come into the site."
+  },
+  {
+    "text": "Practise the mistake your reviews count most, one drill at a time: a short Range or Deathmatch block on that one habit, then a match played with it in mind, then a look at that count in the next review, because practice aimed at the mistake that costs you rounds is what moves your rank, and general aim practice alone often does not.",
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "practice the counted mistake"
+    },
+    "when": "A player asks how to practise or what to drill before the next match.",
+    "why": "Practice tied to a measured mistake can be checked, and a habit that is checked is one that changes."
   }
 ]

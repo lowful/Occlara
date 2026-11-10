@@ -121,6 +121,7 @@
     "test:caplock": "node scripts/test-cap-lock.js",
     "test:ratelimits": "node scripts/test-rate-limits.js",
     "test:rank-band": "node scripts/test-rank-band.js",
+    "test:drilllibrary": "node scripts/test-drill-library.js",
     "test:chatspam": "node scripts/test-chat-spam.js",
     "test:readgate": "node scripts/test-read-gate.js",
     "test:referral": "node scripts/test-referral.js",

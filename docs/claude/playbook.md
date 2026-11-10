@@ -648,3 +648,54 @@ Bench 11 left map control at 6 of 9. The code side is in `ask-coach.md`, "The co
 
 Fact checked against 13.09: the Sheriff head kills through Light Armor from 30 to 50 m and takes two through
 Heavy Armor, the Marshal kills at any range; no other game numbers. Not benched live.
+
+## The drill library and the research of 10 Nov (Nov 2026)
+
+**`src/shared/drill-library.json`** is what the Practice page offers a player for the mistakes a review
+names: `{ version: 1, note, drills: [{ id, title, cause, where, minutes, bands, steps, goal, why, check }] }`,
+64 drills. `cause` is a death cause of `death-causes.js` (every one but `unclear`) or a Valorant mistake or
+missed key of `insights.js` without its `cause:` prefix (first-death, lost-advantage, untraded, early,
+same-spot, same-killer, ult-held, one-v-one, postplant-lost), 3 each and 4 for lost-duel, or `general` (9, for every rank and per band).
+`where` is `range`, `deathmatch`, `custom` (a solo custom game, Allow Cheats on) or `unrated` (the first 8
+rounds of one match, which keeps it inside 20 minutes); `bands` empty means every band; 3 to 6 imperative
+steps; a goal with a number; one sentence of why; and a `check` naming what the next review counts (deaths
+nobody traded, first 30 seconds, headshot rate, the look's causes, ultimate ready, post plants won and so on).
+Every mode feature named was checked against the game as of 13.09: the Range's F3 settings (Speed, Streak,
+Bots Strafe, Bot Armor, Infinite Ammo), the accuracy target and its distances, F2 to switch agent, the
+crosshair's Movement Error lines and the Shooting Error graph, custom games' cheats (Ghost, Pause Match Timer,
+Infinite Abilities, Infinite Ammo, End Game Phase), Deathmatch with no abilities. The Range's old plant and
+defuse practice modes were removed in 9.02, so no drill uses them.
+
+**`npm run test:drilllibrary`** (`scripts/test-drill-library.js`) holds the file to that shape, to unique
+ids, and to coverage: it reads every cause the app can name from `death-causes.js` and from the Mistakes and
+Missed sections of `insights.js valorant()`, so a new cause there fails until it has 3 drills, and `general`
+needs 8. No dash, no semicolon, no economy word (economy, buy, save round, credits), no name (a capitalised
+word inside a sentence must be a word of the game data or of the menus named), and every sentence passes
+`checkMoveFire`, `checkOneShot`, `checkBullets`, `teamDrill` and `economyClaim`, so a Range or Deathmatch drill
+never asks for a teammate. Its SERVED section holds the notes below to the situations they were written for.
+
+**The research.** Free web search and fetch plus 22 Parallel searches through Composio (charged nothing on
+the instant account's discount), over Riot's own pages (the Range wiki, the Deathmatch rules, the netcode
+article on peeker's advantage) and coaching guides, every claim kept only when two independent sources
+agreed or one agreed with the game data. The source list is outside the repo, in the session's research
+folder, as every research pass keeps its sources.
+
+**14 notes** (`source.kind: 'guide'`, each with `when` and `why`, no game numbers, no economy) for the gaps
+the benches and the owner named: on defence before the plant the attackers have to come to you, so hold the
+power and peek only for one look or a planned play (`defence holds the power`, cause dry-peek and overextend);
+after your first kill on defence, call it and leave the line (`after your first kill on defence`, repeek and
+overextend); an angle you can step back from (`holding from a spot you can leave`, repeek and lost-duel, the
+two labels `no-escape` is made from, since `check:playbook`'s cause list has no `no-escape`); the trading
+distance on attack and the crossfire partner on defence (isolated); a death that holds several mistakes is
+named by its earliest decision and fixed there (`the first mistake in the chain`); what this enemy did last
+time at your spot (topic `starting positions`, so the spot pattern's study list carries it); abilities still
+in hand at death (dry-peek); one rank priorities note per band, each for that band alone; up in numbers on
+defence (overextend); and practise the counted mistake. **2 cases**: k206, the first kill on defence with the
+attack close behind (mid, repeek), and k207, up a player early on defence (early, overextend).
+
+Measured with `retrieve()` seeded (the test): every defence note is served in 18 or more of 20 draws in its
+cause's situation and never on the other side, the attack trading note in 10 or more, a band's rank note never
+above the band; `study()` lists the spot note for the spot pattern; Ask Coach with no match serves each band's
+rank note to a climbing question and the power note to "should I just hold?". Not served by Ask Coach with no
+match: the practice note (the practice topic's stronger notes win) and the chain note, which is for the
+review's model. Nothing benched live.
