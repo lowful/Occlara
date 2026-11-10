@@ -1,5 +1,25 @@
 [
   {
+    "version": "8.10.1",
+    "date": "2026-11-10",
+    "title": "Ask Coach keeps more of what is true",
+    "summary": "Ask Coach stops cutting true sentences out of its answers, and drops a few more wrong ones.",
+    "items": [
+      {
+        "kind": "fixed",
+        "text": "Ask Coach keeps true sentences it used to cut: numbers you gave it yourself, the working behind a damage answer, kit rules like a reset every two kills, and advice phrased as how to win more fights like a round you lost."
+      },
+      {
+        "kind": "fixed",
+        "text": "A short, correct answer to a direct question is shown as it is, without being asked again."
+      },
+      {
+        "kind": "fixed",
+        "text": "Ask Coach no longer talks about mid on Bind, Fracture or Lotus, and drops advice that gets the spike, the defuse or a reload you never did wrong."
+      }
+    ]
+  },
+  {
     "version": "8.10.0",
     "date": "2026-11-10",
     "title": "Practice, and reviews that read the whole match",
