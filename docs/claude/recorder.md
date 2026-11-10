@@ -74,7 +74,7 @@ PC coped, never what was on it.
   then took a whole core in software). MediaRecorder, Matroska first, 1.33 Mbps
   at 480p, 3 at 720p and 6 at 1080p (more for a recording bigger than its box, in proportion
   to its pixels, twice the box's at most: `bitrateFor`), a keyframe and a chunk
-  every second. At 720p and 1080p (480p's below) the capture is asked for 60 fps, because asked for 30 with the
+  every second. At 720p and 1080p (480p's below) the capture is asked for 45 fps (60 until 2026-11-09, below), because asked for 30 with the
   whole screen moving it delivered 21, and the recording is handed 30 of them
   (8.4.2, `src/renderer/recorder/grid.js`, `RECORD_FPS`): Chromium sets
   MediaRecorder's encoder for 30 frames a second whatever it is handed, so
@@ -168,7 +168,48 @@ PC coped, never what was on it.
   cannot be tried here without changing Windows' display settings. 45 should
   deliver 30 on a 60 Hz display by the same arithmetic (a grab, then the
   first refresh a frame period later) and 36 to 41 on 144 to 240 Hz, untried
-  on 60 Hz. Both are proposals for a game test, not shipped.
+  on 60 Hz. Both are proposals for a game test, not shipped. (Superseded on
+  2026-11-09: 45 shipped, next item.)
+- **Asked for 45, not 60** (2026-11-09, the owner: "if it doesn't need 60
+  fps then we don't need that"). WHY: asked for 60 and recorded at 30, the
+  capture cost the main process twice what the recording needed, 28.8% of a
+  core against 14.7% asked for 30, since the capturer runs in main and every
+  frame past the grid's 30 was grabbed, copied, handed over and closed
+  unrecorded. NOW: `RES[720]` and `RES[1080]` ask 45 (`ASK_FPS`); the record
+  rate (30), the grid, the 1 s keyframes and chunks, clip cutting, the busy
+  floor (`minFps` 12) and 480p (asks 30, records 15) are as they were. WHY
+  45 AND NOT 30: a capturer that waits 1/45 s (22 ms) after a grab still
+  catches the next frame of a 60 Hz display at 33 ms, so a 60 Hz game is
+  delivered at 30; asked 30 (33 ms, a hair past the frame) the 8.3 spike got
+  21 on a 60 Hz screen, under the grid's 30. MEASURED on this PC (240 Hz,
+  `scripts/spike-recorder.js --motion`, which records every frame delivered,
+  so the grid would keep min(30, delivered)), delivered fps and main's p50 %
+  of a core: 720p asked 60, 55.9 and 26.4; asked 45, 32.2 and 15.5 (30 s)
+  and 43.5 and 22.0 (60 s); asked 30, 29.3 and 14.1. 1080p asked 60, 32.2
+  and 11.0; asked 45, 43.4 and 14.7 (30 s) and 32.2 and 11.6 (60 s); asked
+  30, 29.0 and 10.8, with 6 gaps over 50 ms and one of 137. So 45 delivered
+  32 to 44 in all four runs (always enough for 30 recorded), and 30 delivered
+  29 here and 21 on the 8.3 display, below 30 recorded either way. The GPU
+  process stayed at 15 to 22 throughout, too noisy to rank; main follows the
+  frames delivered, which is why a run that delivered 32 cost less than one
+  that delivered 43. Untried: a 60 Hz display, and the felt smoothness of a
+  game, which needs the PresentMon protocol. `OCCLARA_DEV_RECORDER_ASK_FPS`
+  tries another ask in a game (clips.md, the dev switches), and the session
+  counts now carry main's and the GPU process's CPU (`mainCpuP50`,
+  `gpuCpuP50`; the minute line says both) so the fleet shows whether it
+  worked on other PCs. Their CPU is counted only: the busy rule's 60% stays
+  the page's alone, since main at 15 to 30% on a healthy PC would strike.
+  test:recorder holds 45, the dev ask (15 to 120, whole, any size) and that
+  main and the GPU process at 400% never give up a recording; check:recorder
+  draws its picture at 45 and holds the real start line's ask and the real
+  counts' main and GPU fields. The same day onboarding's Record gameplay row
+  and Settings' folded recording hint (`settings.js SMOOTHEST`, both games)
+  gained "For the smoothest game, turn off NVIDIA Instant Replay, AMD ReLive
+  or Xbox Game Bar capture while Occlara records.", since a second capture
+  of the game doubles the work (this PC's NVIDIA one ran on the Video Encode
+  engine through every spike run); the row's own text was cut to "Recorded
+  at about 30 fps for clips of your deaths, kept on this PC." so the page
+  still fits its card (check:onboardingriot).
 - **Never cropped, and never fewer rows than the read.** The display's own
   shape (`fitSize`): asked a box of another shape, this Chromium hands back
   exactly the box (a 1280x600 ask on a 1920x1080 display came back 1280x600).

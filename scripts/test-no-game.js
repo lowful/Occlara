@@ -176,6 +176,78 @@ console.log('\nthe process list:');
     ok(e === null, 'tasklist failing: cannot tell');
   }
 
+  // FILTERED, THE GAME FIRST (owner, 2026-11-09, "make recording lighter"):
+  // the whole list cost 300 to 530 ms of CPU a probe, every 15 s; filtered by
+  // name it is a sixth of that or less. Two /FI on one field AND together, so
+  // the game's names and Riot's client are a call each, the client's only when
+  // the game is absent. The verdicts are the ones the whole list gave.
+  console.log('\nthe probe, filtered by name, the game first:');
+  {
+    const NO_MATCH = 'INFO: No tasks are running which match the specified criteria.\r\n';
+    const row = (n) => `"${n}","1","Console","1","1 K"`;
+    // A fake tasklist that answers each filter as the real one does, from a list of running names.
+    const fakeExec = (running, seen, fail) => (file, args, opts, cb) => {
+      seen.push({ file, args: args.slice(), hide: opts && opts.windowsHide });
+      const at = args.indexOf('/FI');
+      if (fail && fail(seen.length)) { cb(new Error('denied')); return; }
+      if (at < 0) { cb(null, running.map(row).join('\r\n')); return; }
+      const m = String(args[at + 1]).match(/^IMAGENAME eq (.+)$/i);
+      const pat = m ? m[1].toLowerCase() : '';
+      const hit = running.filter((n) => (pat.endsWith('*') ? n.toLowerCase().startsWith(pat.slice(0, -1)) : n.toLowerCase() === pat));
+      cb(null, hit.length ? hit.map(row).join('\r\n') : NO_MATCH);
+    };
+    const filterOf = (call) => { const i = call.args.indexOf('/FI'); return i >= 0 ? call.args[i + 1] : null; };
+    const ALL = ['System Idle Process', 'explorer.exe', 'vgc.exe', 'RiotClientServices.exe', 'VALORANT-Win64-Shipping.exe', 'Occlara.exe'];
+
+    let seen = [];
+    const game = await NG.probeValorant({ platform: 'win32', exec: fakeExec(ALL, seen) });
+    ok(game === 'game' && seen.length === 1 && seen[0].file === 'tasklist' && seen[0].hide === true
+      && filterOf(seen[0]) === 'IMAGENAME eq VALORANT*' && seen[0].args.includes('/NH') && seen[0].args.includes('CSV'),
+    'the game running: one call, filtered to VALORANT*, and Riot\'s client is never asked', JSON.stringify(seen));
+
+    seen = [];
+    const stub = await NG.probeValorant({ platform: 'win32', exec: fakeExec(['explorer.exe', 'VALORANT.exe'], seen) });
+    ok(stub === 'launcher' && seen.length === 1, 'the VALORANT.exe stub alone: launcher, from the first call', JSON.stringify(seen));
+
+    seen = [];
+    const client = await NG.probeValorant({ platform: 'win32', exec: fakeExec(['explorer.exe', 'RiotClientServices.exe', 'RiotClientUx.exe'], seen) });
+    ok(client === 'launcher' && seen.length === 2 && filterOf(seen[0]) === 'IMAGENAME eq VALORANT*'
+      && filterOf(seen[1]) === 'IMAGENAME eq RiotClient*',
+    'only Riot\'s client: the game first, then RiotClient*, launcher', JSON.stringify(seen.map(filterOf)));
+
+    seen = [];
+    const none = await NG.probeValorant({ platform: 'win32', exec: fakeExec(['explorer.exe', 'vgc.exe', 'Occlara.exe'], seen) });
+    ok(none === 'none' && seen.length === 2, 'neither (Vanguard\'s service is no game): none, after two calls', JSON.stringify(seen.map(filterOf)));
+
+    seen = [];
+    const secondFails = await NG.probeValorant({ platform: 'win32', exec: fakeExec(['explorer.exe'], seen, (n) => n === 2) });
+    ok(secondFails === null && seen.length === 2, 'the game absent and the second call failing: cannot tell, never none');
+
+    seen = [];
+    const firstFails = await NG.probeValorant({ platform: 'win32', exec: fakeExec(ALL, seen, (n) => n === 1) });
+    ok(firstFails === null && seen.length === 1, 'the first call failing: cannot tell, and nothing more is run');
+
+    // A call that prints nothing at all is not tasklist saying no match.
+    seen = [];
+    const silent = await NG.probeValorant({ platform: 'win32', exec: (f, a, o, cb) => { seen.push(a); cb(null, ''); } });
+    ok(silent === null && seen.length === 1, 'a call that prints nothing: cannot tell');
+    seen = [];
+    const silent2 = await NG.probeValorant({ platform: 'win32',
+      exec: (f, a, o, cb) => { seen.push(a); cb(null, seen.length === 1 ? NO_MATCH : '  \r\n'); } });
+    ok(silent2 === null && seen.length === 2, 'the game absent and the second call printing nothing: cannot tell');
+
+    // The same verdicts as the whole list gave, for every mix.
+    const mixes = [ALL, ['RiotClientServices.exe'], ['VALORANT.exe'], ['explorer.exe'], ['VALORANT-Win64-Shipping.exe'],
+      ['RiotClientCrashHandler.exe', 'explorer.exe'], ['valorant-win64-shipping.exe', 'riotclientux.exe']];
+    const differ = [];
+    for (const mix of mixes) {
+      const whole = NG.stateOf(NG.parseTasklist(mix.map(row).join('\r\n')));
+      const got = await NG.probeValorant({ platform: 'win32', exec: fakeExec(mix, []) });
+      if (got !== whole) differ.push({ mix, whole, got });
+    }
+    ok(differ.length === 0, `the filtered probe gives the whole list's verdict for all ${mixes.length} mixes`, JSON.stringify(differ));
+  }
+
   console.log('\nthe real reader:');
   {
     const Module = require('module');

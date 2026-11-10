@@ -83,8 +83,8 @@ const webm = require('../../shared/webm');
 // writes about half of that. Measured on this PC (docs/claude/recorder.md).
 const RES = {
   480: { width: 854, height: 480, bitrate: 1.33e6, ask: 30, record: 15, minFps: 6 },
-  720: { width: 1280, height: 720, bitrate: 3e6, ask: 60, record: 30, minFps: 12 },
-  1080: { width: 1920, height: 1080, bitrate: 6e6, ask: 60, record: 30, minFps: 12 },
+  720: { width: 1280, height: 720, bitrate: 3e6, ask: 45, record: 30, minFps: 12 },
+  1080: { width: 1920, height: 1080, bitrate: 6e6, ask: 45, record: 30, minFps: 12 },
 };
 // The sizes Settings and onboarding offer, the lightest first.
 const RES_CHOICES = ['480', '720', '1080'];
@@ -116,12 +116,34 @@ const BITRATE_MAX_SCALE = 2;
 // of bits more. The player's Fracture swiftplay, recorded at 57 a second,
 // wrote 74 to 91 MB a minute where its 6 Mbps is 43, a constant 24 KB a frame.
 // These are 720p's and 1080p's; 480p asks and records less (RES, 8.7).
-const ASK_FPS = 60;
+//
+// ASKED FOR 45 SINCE 2026-11-09 ("if it doesn't need 60 fps then we don't
+// need that"). The capturer runs in the MAIN process, and asking it for 60
+// cost main 28.8% of a core where asking for 30 cost 14.7%, to record the
+// same 30 a second: every frame past 30 was copied, handed over and closed
+// unrecorded. 45 is the least that keeps the grid supplied: a capturer that
+// waits 1/45 s (22 ms) after a grab still catches the next frame of a 60 Hz
+// display at 33 ms, so a 60 Hz game is delivered at 30, where an ask of 30
+// (33 ms, a hair past the frame) delivered 21. Measured on this PC's 240 Hz
+// display with the spike's moving window (scripts/spike-recorder.js --motion,
+// docs/claude/recorder.md): asked 45, 32 to 44 delivered in four runs and
+// main 12 to 22% of a core (it follows the frames delivered), against 56 and
+// 26% asked 60 at 720p; asked 30, 29 delivered, below the grid's 30. OCCLARA_DEV_RECORDER_ASK_FPS tries another value (index.js).
+const ASK_FPS = 45;
 const RECORD_FPS = 30;
-/** What a size asks the capture for, records, and holds the busy rule to: { ask, record, minFps }. */
-function ratesFor(res) {
+// The range a dev ask is taken in, as the spike's --fps.
+const DEV_ASK_MIN = 15;
+const DEV_ASK_MAX = 120;
+/**
+ * What a size asks the capture for, records, and holds the busy rule to:
+ * { ask, record, minFps }. `devAsk`, a whole number from 15 to 120, is the
+ * ask at any size (dev only); the record rate and the floor stay the size's.
+ */
+function ratesFor(res, devAsk) {
   const t = RES[resOf(res)];
-  return { ask: t.ask, record: t.record, minFps: t.minFps };
+  const d = Number(devAsk);
+  const ask = Number.isInteger(d) && d >= DEV_ASK_MIN && d <= DEV_ASK_MAX ? d : t.ask;
+  return { ask, record: t.record, minFps: t.minFps };
 }
 // Every Cluster then opens on a keyframe that carries its own SPS and PPS
 // (measured in the spike), so a clip can begin at any Cluster.
@@ -428,6 +450,8 @@ function quantile(xs, q) {
 }
 
 const round1 = (x) => (Number.isFinite(x) ? Math.round(x * 10) / 10 : null);
+/** A CPU reading for the minute line: "22.4% of a core", or n/a when none came. */
+const cpuText = (x) => (Number.isFinite(x) ? round1(x) + '% of a core' : 'n/a');
 
 /**
  * A recording's stop, for debug.log (8.4.2): the chunks the page said it
@@ -489,7 +513,10 @@ const NOTICE = {
  * Frame rates and CPU are of the seconds recorded while a match was in
  * progress, the frame rate only of those whose picture changed (a still
  * screen delivers few frames by design), and it is the frames RECORDED a
- * second (8.4.2), 30 of a capture that delivers 60.
+ * second (8.4.2), 30 of a capture that delivers 60. Since 2026-11-09 the
+ * main process's and the GPU process's CPU too (mainCpuP50, gpuCpuP50, % of
+ * one core): the capturer runs in main, so the page's figure alone read about
+ * a tenth of what recording costs.
  */
 function reportBlock(s, version) {
   return {
@@ -501,6 +528,10 @@ function reportBlock(s, version) {
     minutes: Math.round((s.recordedMs || 0) / 6000) / 10,
     fpsP50: round1(quantile(s.fps, 0.5)),
     recorderCpuP50: round1(quantile(s.recorderCpu, 0.5)),
+    // The capture's real cost (2026-11-09): main hosts the capturer and the
+    // GPU process copies its frames. Counted only: no rule reads them.
+    mainCpuP50: round1(quantile(s.mainCpu, 0.5)),
+    gpuCpuP50: round1(quantile(s.gpuCpu, 0.5)),
     systemCpuP90: round1(quantile(s.systemCpu, 0.9)),
     encoderOk: typeof s.encoderOk === 'boolean' ? s.encoderOk : null,
   };
@@ -823,7 +854,8 @@ let current = null;
  *               height } }, the primary display, or null
  *   gdi         () => Promise of one GDI frame, base64 JPEG
  *   capture     { useStream(source | null) }
- *   metrics     (pid) => { recorderCpu (% of one core), systemCpu (%), memoryMB }
+ *   metrics     (pid) => { recorderCpu (% of one core), systemCpu (%), memoryMB,
+ *               mainCpu, gpuCpu (% of one core, counted and never judged) }
  *   freeBytes   (dir) => free bytes on its drive, or null
  *   inMatch     () => whether a match is in progress (valorantInMatch)
  *   keepSince   () => when the match in progress began (ms), or null
@@ -837,6 +869,8 @@ let current = null;
  *   pageMs      () => a page's length (dev only)
  *   fake        null, or what the page draws instead of the screen
  *   fakeFps     () => how many frames a second it draws that at (dev only)
+ *   askFps      () => the capture's ask at every size, in place of the
+ *               size's (dev only, OCCLARA_DEV_RECORDER_ASK_FPS)
  *   files, now, timers, version, log
  *
  * Events: 'notice' { kind, text } (text null clears its kind), 'report' (the
@@ -870,6 +904,8 @@ class Recorder extends EventEmitter {
     this.devFake = typeof d.fake === 'function' ? d.fake : () => d.fake || null;
     // How many frames a second the generated picture is drawn at (dev only).
     this.devFakeFps = typeof d.fakeFps === 'function' ? d.fakeFps : () => d.fakeFps || null;
+    // The capture's ask in place of the size's (dev only, ratesFor).
+    this.devAskFps = typeof d.askFps === 'function' ? d.askFps : () => d.askFps || null;
     this.files = d.files || realFiles;
     this.now = d.now || Date.now;
     this.timers = d.timers || { setTimeout, clearTimeout, setInterval, clearInterval };
@@ -1033,7 +1069,7 @@ class Recorder extends EventEmitter {
     if (this.session) return;
     const s = {
       at: this.now(), game: GAMES.includes(game) ? game : GAMES[0], mode: this.mode(), res: this.res(), outcome: null, encoderOk: null,
-      recordedMs: 0, fps: [], captureFps: [], recorderCpu: [], systemCpu: [],
+      recordedMs: 0, fps: [], captureFps: [], recorderCpu: [], systemCpu: [], mainCpu: [], gpuCpu: [],
       gaveUp: false, paused: false, ended: false, finished: false, limits: this.devLimits() || {},
     };
     this.session = s;
@@ -1354,7 +1390,9 @@ class Recorder extends EventEmitter {
     const size = fitSize(display, s.res, read);
     const bitrate = bitrateFor(size, s.res);
     // What the capture is asked for and what is recorded of it, by the size (RES).
-    const rates = ratesFor(s.res);
+    let devAsk = null;
+    try { devAsk = this.devAskFps(); } catch { devAsk = null; }
+    const rates = ratesFor(s.res, devAsk);
     let page = null;
     try { page = await this.openPage(); } catch (e) { page = null; this.log('[recorder] the page did not open: ' + e.message); }
     if (!this.wanted(s)) {
@@ -1722,6 +1760,9 @@ class Recorder extends EventEmitter {
       lagMs: Math.max(0, sinceChunk - TIMESLICE_MS, pageLag),
       recorderCpu: Number.isFinite(m.recorderCpu) ? m.recorderCpu : null,
       systemCpu: Number.isFinite(m.systemCpu) ? m.systemCpu : null,
+      // Counted, never judged: the busy rule (createHealth) reads neither.
+      mainCpu: Number.isFinite(m.mainCpu) ? m.mainCpu : null,
+      gpuCpu: Number.isFinite(m.gpuCpu) ? m.gpuCpu : null,
     };
     this.lastSample = sample;
     this.lastMemoryMB = Number.isFinite(m.memoryMB) ? m.memoryMB : null;
@@ -1734,6 +1775,8 @@ class Recorder extends EventEmitter {
       if (sample.changing) keep(s.captureFps, sample.fps);
       if (sample.recorderCpu !== null) keep(s.recorderCpu, sample.recorderCpu);
       if (sample.systemCpu !== null) keep(s.systemCpu, sample.systemCpu);
+      if (sample.mainCpu !== null) keep(s.mainCpu, sample.mainCpu);
+      if (sample.gpuCpu !== null) keep(s.gpuCpu, sample.gpuCpu);
     }
     const verdict = this.rules.sample(sample);
     if (verdict) {
@@ -1826,6 +1869,7 @@ class Recorder extends EventEmitter {
     const h = this.health || {};
     this.log(`[recorder] fps p50 ${quantile(last(s.captureFps), 0.5)} delivered and ${quantile(last(s.fps), 0.5)} recorded, ${trackText(h.track)}, ${this.writtenSince(now)},`
       + ` recorder CPU p50 ${round1(quantile(last(s.recorderCpu), 0.5))}% of a core,`
+      + ` main process CPU p50 ${cpuText(quantile(last(s.mainCpu || []), 0.5))}, GPU process CPU p50 ${cpuText(quantile(last(s.gpuCpu || []), 0.5))},`
       + ` PC CPU p90 ${round1(quantile(last(s.systemCpu), 0.9))}%, page memory ${this.lastMemoryMB === null ? 'n/a' : this.lastMemoryMB + ' MB'},`
       + ` frames held open ${Number.isFinite(h.framesOpen) ? h.framesOpen : 'n/a'}, lag ${Math.round(l.lagMs || 0)} ms,`
       + ` ${st.pages} pages on disk (${Math.round(st.bytes / 1048576)} MB), ${st.holds} held`);

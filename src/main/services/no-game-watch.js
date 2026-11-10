@@ -76,17 +76,45 @@ function stateOf(names) {
   return 'none';
 }
 
-/** Whether Valorant runs now: 'game', 'launcher', 'none', or null (cannot tell). Never throws. */
-function probeValorant(deps = {}) {
-  const platform = deps.platform || process.platform;
-  if (platform !== 'win32') return Promise.resolve(null);
-  const exec = deps.exec || require('child_process').execFile;
+// FILTERED BY NAME, THE GAME FIRST (owner, 2026-11-09, "make recording
+// lighter"). The whole process list cost 300 to 530 ms of CPU a probe, every
+// TICK_MS through agent select and loading; filtered by name, 16 to 78. Two
+// /FI on the same field AND together, so it is a call each: the game's names
+// (VALORANT*, the game and its VALORANT.exe stub), and only when neither runs,
+// Riot's client (RiotClient*). The filters are LAUNCHER_PREFIXES, so the
+// verdicts are the ones the whole list gave (test:nogame holds every mix).
+const PROBE_FILTERS = ['IMAGENAME eq VALORANT*', 'IMAGENAME eq RiotClient*'];
+
+/**
+ * One filtered tasklist: the set of names it printed, an empty set when it
+ * said none matched (a line of its own, in the PC's language), or null when
+ * it failed or printed nothing at all, which is not tasklist saying no match.
+ */
+function listFiltered(exec, filter) {
   return new Promise((resolve) => {
     try {
-      exec('tasklist', ['/FO', 'CSV', '/NH'], { windowsHide: true, timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
-        (err, out) => resolve(err ? null : stateOf(parseTasklist(out))));
+      exec('tasklist', ['/FO', 'CSV', '/NH', '/FI', filter], { windowsHide: true, timeout: 10000, maxBuffer: 1024 * 1024 },
+        (err, out) => {
+          if (err) { resolve(null); return; }
+          const names = parseTasklist(out);
+          resolve(names.size || String(out || '').trim() ? names : null);
+        });
     } catch { resolve(null); }
   });
+}
+
+/** Whether Valorant runs now: 'game', 'launcher', 'none', or null (cannot tell). Never throws. */
+async function probeValorant(deps = {}) {
+  const platform = deps.platform || process.platform;
+  if (platform !== 'win32') return null;
+  const exec = deps.exec || require('child_process').execFile;
+  for (const filter of PROBE_FILTERS) {
+    const names = await listFiltered(exec, filter);
+    if (names === null) return null;
+    const s = stateOf(names);
+    if (s === 'game' || s === 'launcher') return s;
+  }
+  return 'none';
 }
 
 /**
@@ -124,6 +152,6 @@ function createNoGameWatch(opts = {}) {
 }
 
 module.exports = {
-  NO_GAME_PROCESS_MS, MENUS_ONLY_MS, LOBBY_FRESH_MS, TICK_MS, NOTICE,
+  NO_GAME_PROCESS_MS, MENUS_ONLY_MS, LOBBY_FRESH_MS, TICK_MS, NOTICE, PROBE_FILTERS,
   parseTasklist, stateOf, probeValorant, createNoGameWatch,
 };

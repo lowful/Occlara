@@ -10,8 +10,8 @@
  * screen, and makes every GDI frame a flat grey one made with Electron's own
  * encoder, so nothing here touches the screen. The canvas is the busy picture
  * (=busy, blocks that move every frame, which the encoder spends its whole
- * budget on), drawn 60 times a second (OCCLARA_DEV_FAKE_FPS) as a capture
- * asked for 60 delivers it. Everything else is what ships: the hidden window,
+ * budget on), drawn 45 times a second (OCCLARA_DEV_FAKE_FPS) as a capture
+ * asked for 45 delivers it (60 until 2026-11-09). Everything else is what ships: the hidden window,
  * its preload and its strict page, the hardware H.264 gate, MediaRecorder fed
  * thirty frames a second by the grid, the processors on the capture track and
  * its clone, the comparison with GDI, the health rules.
@@ -28,8 +28,8 @@
  *      stops it cleanly: the page gone, every chunk the page said it handed
  *      over written, the pages read back as whole Clusters on keyframes, the
  *      session's counts posted (to a stand in, never the network) as
- *      'recorded', ten fields, kept until the post is taken. And 8.4.2's:
- *      the 60 a second delivered recorded at 30 at most, on disk, in a clip
+ *      'recorded', twelve fields, kept until the post is taken. And 8.4.2's:
+ *      the 45 a second delivered recorded at 30 at most, on disk, in a clip
  *      cut from it and in what the page and Settings say, at the bitrate
  *      asked (within BITRATE_BAND of it, where 60 a second wrote twice it),
  *      no frame left open and no track live once the page tore its tracks
@@ -49,8 +49,8 @@
  *      session, the reads stay on GDI, and the notice says Windowed Fullscreen.
  *      Then the primary display changing while recording: the old page stops
  *      with every chunk on disk and nothing open, and a new page records 30 a
- *      second of the 60 delivered, built again. And 480p (8.7): the real page
- *      records 854x480 at 15 a second of the 60 drawn, its read on the GDI
+ *      second of the 45 delivered, built again. And 480p (8.7): the real page
+ *      records 854x480 at 15 a second of the 45 drawn, its read on the GDI
  *      helper, at the 1.33 Mbps asked, said so where Settings and the log say it.
  *   5. A match's end holds its recording, and a resume lets the hold go with
  *      the withdrawn review. The displays changing reach the recorder with
@@ -87,9 +87,9 @@ const BUSY_TEXT = 'Recording stopped for this session: your PC was busy. The coa
 // Longer than the recorder waits on a stop (STOP_TIMEOUT_MS, 10 s).
 const STOP_WAIT_MS = 14000;
 const BLACK_TEXT = 'Recording needs Windowed Fullscreen in this game. The coach still reads your screen up to once a second.';
-// The generated picture's frames a second, as a capture asked for 60 delivers
+// The generated picture's frames a second, as a capture asked for 45 delivers
 // them, and what the recording keeps of them (8.4.2).
-const FAKE_FPS = 60;
+const FAKE_FPS = 45;
 const RECORD_FPS = 30;
 // The bitrate a recording may run at against the one asked: what the encoder
 // overshoots by on the busy picture at 30 a second. Handed 60 a second, it ran
@@ -104,8 +104,8 @@ if (!process.versions.electron) {
   const env = Object.assign({}, process.env, {
     OCCLARA_RECORDER_OUT: OUT,
     OCCLARA_RECORDER_POSTS: POSTS,
-    // A picture the encoder spends its whole budget on, drawn 60 times a
-    // second as a capture asked for 60 delivers it (8.4.2).
+    // A picture the encoder spends its whole budget on, drawn 45 times a
+    // second as a capture asked for 45 delivers it (8.4.2; 60 until 2026-11-09).
     OCCLARA_FAKE_CAPTURE: 'busy',
     OCCLARA_DEV_FAKE_FPS: String(FAKE_FPS),
     OCCLARA_DEV_RECORDER_PAGE_MS: '4000',
@@ -140,7 +140,7 @@ if (!process.versions.electron) {
   if (rec.fatal) console.log('FAIL  ' + rec.fatal);
   const bad = rec.lines.filter((l) => !l.ok).length + (rec.fatal ? 1 : 0);
   if (bad) { console.error(`\nFAIL: ${bad} of ${rec.lines.length} recorder checks failed`); process.exit(1); }
-  console.log(`\nPASS: all ${rec.lines.length} checks: the real recorder records generated frames into pages, 30 a second of the 60 drawn at the bitrate asked (15 at 480p), serves the read its frame, stops cleanly with every chunk the page sent and nothing left open, falls back to GDI with its notice when busy, stops when the capture reads black, starts again whole on a display change, ends at once when Windows ends its session or any quit comes, and its counts reach the server once however the session ended`);
+  console.log(`\nPASS: all ${rec.lines.length} checks: the real recorder records generated frames into pages, 30 a second of the 45 drawn at the bitrate asked (15 at 480p), serves the read its frame, stops cleanly with every chunk the page sent and nothing left open, falls back to GDI with its notice when busy, stops when the capture reads black, starts again whole on a display change, ends at once when Windows ends its session or any quit comes, and its counts reach the server once however the session ended`);
   process.exit(0);
 }
 
@@ -382,8 +382,8 @@ setTimeout(async () => {
       `Settings is told the size the track is with the state, not only the setting: ${JSON.stringify(live)}`);
     // A frame never closed is a capture buffer never given back.
     ok(framesOpen.length >= 5 && Math.max(...framesOpen) <= 2, `the page holds at most the newest frame open (a clone besides, for a moment): ${framesOpen.join(', ')}`);
-    // THIRTY A SECOND OF IT (8.4.2): the picture drawn 60 times a second, as a
-    // capture asked for 60 delivers it, and the recording keeps 30.
+    // THIRTY A SECOND OF IT (8.4.2): the picture drawn 45 times a second, as a
+    // capture asked for 45 delivers it, and the recording keeps 30.
     ok(kept.length >= 5 && quantile(delivered, 0.5) >= FAKE_FPS * 0.75 && quantile(kept, 0.5) >= RECORD_FPS - 3 && Math.max(...kept) <= RECORD_FPS + 2,
       `the page says what the capture delivered and what was recorded: p50 ${quantile(delivered, 0.5)} delivered, ${quantile(kept, 0.5)} recorded, at most ${Math.max(...kept)} (${kept.join(', ')})`);
     ok(live && live.fps === RECORD_FPS, `Settings says "about ${live && live.fps} fps", the frames recorded, not the ${quantile(delivered, 0.5)} delivered`);
@@ -496,7 +496,7 @@ setTimeout(async () => {
     const r0 = await until(() => reportsTo()[1], 6000);
     const appVersion = require(path.join(REPO, 'package.json')).version;
     ok(r0 && r0.outcome === 'recorded' && r0.game === 'valorant' && r0.mode === 'auto' && r0.res === '720' && r0.encoderOk === true && r0.minutes > 0
-      && r0.version === appVersion && Object.keys(r0).length === 10, `the session's counts posted, the ten fields: ${JSON.stringify(r0)}`);
+      && r0.version === appVersion && Object.keys(r0).length === 12, `the session's counts posted, the twelve fields: ${JSON.stringify(r0)}`);
     ok(await until(() => store.get('recordingReportPending') === null, 4000), 'kept until the server took them, then let go');
     ok(log && !log.isDestroyed() && !log.isContentProtected(), 'with recording stopped, the AI log is back in captures');
     if (log && !log.isDestroyed()) log.destroy();
@@ -542,6 +542,12 @@ setTimeout(async () => {
     send(C.COACH_STOP);
     const rB = await until(() => reportsTo()[2], 6000);
     ok(rB && rB.outcome === 'busy', `the session's counts say busy: ${JSON.stringify(rB)}`);
+    // The capture's real cost (2026-11-09), from a session in a match: the
+    // real createMetrics finds main (type Browser) and the GPU process in
+    // app.getAppMetrics() and counts them beside the page. Main is low here,
+    // the canvas being drawn in the page: on the screen main hosts the capturer.
+    ok(rB && Number.isFinite(rB.mainCpuP50) && rB.mainCpuP50 > 0 && Number.isFinite(rB.gpuCpuP50) && rB.gpuCpuP50 >= 0 && Number.isFinite(rB.recorderCpuP50),
+      `and the main and GPU processes' CPU counted beside the page's: main ${rB && rB.mainCpuP50}%, GPU ${rB && rB.gpuCpuP50}%, page ${rB && rB.recorderCpuP50}% of a core`);
     const unsealed = await invoke(C.SHELL_GET);
     ok(!unsealed.sealed && !mainWindow.get().isContentProtected(), 'stopped: the seal lifts, and the main window is back in captures');
 
@@ -571,10 +577,13 @@ setTimeout(async () => {
     ok(shape && shape[1] === '1280' && shape[2] === '720', `the track came back ${shape ? shape[1] + 'x' + shape[2] : 'unknown'}, the display's own shape`);
     // And the bitrate MediaRecorder took beside the one asked (8.4.1).
     const TOOK = /\[recorder\] recording \d+x\d+ of a [^\n]*; the track's own settings [^\n,]+, MediaRecorder at ([\d.]+) Mbps/;
-    const tookSample = TOOK.test("[recorder] recording 1280x720 of a 1920x1080 display (its own shape), asked 1280x720 at up to 60 fps, recorded at up to 30, 3 Mbps, x; the track's own settings 60 fps, MediaRecorder at 3 Mbps")
-      && !TOOK.test("[recorder] recording 1280x720 of a 1920x1080 display (its own shape), asked 1280x720 at up to 60 fps, recorded at up to 30, 3 Mbps, x; the track's own settings 60 fps, MediaRecorder at a bitrate it did not say");
+    const tookSample = TOOK.test("[recorder] recording 1280x720 of a 1920x1080 display (its own shape), asked 1280x720 at up to 45 fps, recorded at up to 30, 3 Mbps, x; the track's own settings 45 fps, MediaRecorder at 3 Mbps")
+      && !TOOK.test("[recorder] recording 1280x720 of a 1920x1080 display (its own shape), asked 1280x720 at up to 45 fps, recorded at up to 30, 3 Mbps, x; the track's own settings 45 fps, MediaRecorder at a bitrate it did not say");
     const took = TOOK.exec(logText);
     ok(tookSample && took && Number(took[1]) > 0, `the start line says the bitrate MediaRecorder took: ${took ? took[1] + ' Mbps, 3 asked' : 'not said'}`);
+    // The real page asked the capture for 45 at 720p (2026-11-09; 60 before).
+    ok(/\[recorder\] recording 1280x720 of a 1920x1080 display \(its own shape\), asked 1280x720 at up to 45 fps, recorded at up to 30, 3 Mbps/.test(logText),
+      'the start line says 720p asks the capture for 45 a second and records 30');
     ok(cpu.length >= 5, `measured while recording: the recorder page's CPU p50 ${r1(quantile(cpu, 0.5))}%, p90 ${r1(quantile(cpu, 0.9))}% of one core;`
       + ` its private memory ${mem[0]} MB at first, ${mem[mem.length - 1]} MB after ${mem.length} s;`
       + ` a read's frame from the stream p50 ${quantile(reads.map((x) => x.ms), 0.5)} ms, p90 ${quantile(reads.map((x) => x.ms), 0.9)} ms`);
@@ -607,7 +616,7 @@ setTimeout(async () => {
 
     // 4c. 480P, THE LIGHT SIZE (8.7): the real page asked for 854x480, the
     // capture for 30 a second and the recording for 15 of them; the busy
-    // picture is still drawn 60 times a second, so the grid keeps 15 of 60.
+    // picture is still drawn 45 times a second, so the grid keeps 15 of 45.
     // It cannot hand the Standard read its 1280x720 frame, so every read
     // stays on the GDI helper (the grey frame), as it is with recording Off.
     const sentBefore480 = reportsTo().length;

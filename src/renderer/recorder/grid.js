@@ -10,7 +10,7 @@
  * the rate a start that names none gets. Every rule below is in slots of that
  * rate, so it holds at 15 as at 30 (test:recorder runs both).
  *
- * WHY. The capture is asked for 60 frames a second, because asked for 30 with
+ * WHY. The capture is asked for 45 frames a second (60 until 2026-11-09), because asked for 30 with
  * the whole screen moving it delivered 21 (recorder.js ASK_FPS). MediaRecorder
  * was handed that track and recorded every frame it delivered, and Chromium
  * configures MediaRecorder's encoder for 30 frames a second whatever comes,

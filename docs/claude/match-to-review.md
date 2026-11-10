@@ -589,7 +589,10 @@ folder was made, for hours. No game was counted (only a reply the server calls i
 - **The rules** (`src/main/services/no-game-watch.js`, checked every `TICK_MS` 15 s while armed,
   index.js `noGameTick`): `NO_GAME_PROCESS_MS` 5 min with neither Valorant nor Riot's client running
   (`tasklist`, image names only; Riot's client up alone, launching or patching, is never gone; a probe
-  that cannot tell never cancels), or `MENUS_ONLY_MS` 30 min with the game open and only LOBBY replies,
+  that cannot tell never cancels; filtered by name since 2026-11-09, `PROBE_FILTERS`: `VALORANT*`
+  first and, only when neither the game nor its stub runs, `RiotClient*`, a call each since two `/FI`
+  on one field AND together, 16 to 78 ms of CPU a probe where the whole list took 300 to 530; a call
+  that fails or prints nothing at all is cannot tell, tasklist's own no match line is absent), or `MENUS_ONLY_MS` 30 min with the game open and only LOBBY replies,
   one within `LOBBY_FRESH_MS` 2 min (reads failing or a capped account's stopped reads never cancel). 30
   and not 20: a queue reads as LOBBY like the main menu, high rank and off hour queues run past ten
   minutes, a dodge requeues, and a cancel in a queue loses the match's review, while 30 minutes of menus

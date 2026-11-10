@@ -182,9 +182,12 @@ const still = () => (recGame === 'lol' ? "Your review is still built from the ga
  * A Valorant match is recorded while its screen is read, and a League game
  * while its own record is (Settings never says League's screen is read).
  */
+// A second capture of the same game doubles the work (2026-11-09): the
+// GPU's own replay recorders are the one thing a player can turn off.
+const SMOOTHEST = 'For the smoothest game, turn off NVIDIA Instant Replay, AMD ReLive or Xbox Game Bar capture while Occlara records.';
 const REC_HINT = {
-  valorant: 'On records each match on this PC at about 30 frames a second (15 at 480p, the lightest size, whose death moments are less sharp) while the coach reads your screen; if your PC cannot keep up while you play, recording stops for that session and the coach keeps reading. Off records nothing, and the coach still reads your screen at the speed set above. The video stays on this PC: once a review is built, a short clip of each moment it looked at is kept beside it and the rest is deleted.',
-  lol: "On records each game on this PC at about 30 frames a second (15 at 480p, the lightest size, whose death moments are less sharp); if your PC cannot keep up while you play, recording stops for that session. Off records nothing. Either way your review is built from the game's own record. The video stays on this PC: once a review is built, short clips of up to six of your deaths, spread across the game, are kept beside it and the rest is deleted.",
+  valorant: 'On records each match on this PC at about 30 frames a second (15 at 480p, the lightest size, whose death moments are less sharp) while the coach reads your screen; if your PC cannot keep up while you play, recording stops for that session and the coach keeps reading. Off records nothing, and the coach still reads your screen at the speed set above. The video stays on this PC: once a review is built, a short clip of each moment it looked at is kept beside it and the rest is deleted. ' + SMOOTHEST,
+  lol: "On records each game on this PC at about 30 frames a second (15 at 480p, the lightest size, whose death moments are less sharp); if your PC cannot keep up while you play, recording stops for that session. Off records nothing. Either way your review is built from the game's own record. The video stays on this PC: once a review is built, short clips of up to six of your deaths, spread across the game, are kept beside it and the rest is deleted. " + SMOOTHEST,
 };
 // Capture speed and Performance are about reading the screen, and say what
 // they do in each game. Both are the Valorant engine's alone: League's

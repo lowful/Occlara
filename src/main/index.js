@@ -168,8 +168,12 @@ app.on('before-quit', () => { appQuitting = true; });
 //                               blocks that move every frame, a picture the
 //                               encoder spends its whole budget on)
 //   OCCLARA_DEV_FAKE_FPS        how many frames a second the canvas is drawn
-//                               at (30 unless set; a capture asked for 60
-//                               delivers up to 60)
+//                               at (30 unless set; a capture asked for 45
+//                               delivers up to 45)
+//   OCCLARA_DEV_RECORDER_ASK_FPS the frame rate the capture is asked for, at
+//                               every size, a whole number from 15 to 120
+//                               (45 at 720p and 1080p, 30 at 480p unless set;
+//                               recorder.js ratesFor), to try another in a game
 //   OCCLARA_DEV_RECORDER_MIN_FPS, OCCLARA_DEV_RECORDER_BUSY_MS
 //                               the busy rule's frame floor and how long it holds
 //   OCCLARA_DEV_RECORDER_PAGE_MS a page's length
@@ -227,6 +231,7 @@ const recorder = new Recorder({
   pageMs: () => devNumber('OCCLARA_DEV_RECORDER_PAGE_MS'),
   fake: fakeCapture,
   fakeFps: () => devNumber('OCCLARA_DEV_FAKE_FPS'),
+  askFps: () => devNumber('OCCLARA_DEV_RECORDER_ASK_FPS'),
   // The app's own version, as api-client.js reads it: run any way but as the
   // app (a check), app.getVersion() is Electron's.
   version: (() => { try { return require('../../package.json').version; } catch { return app.getVersion(); } })(),

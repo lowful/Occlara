@@ -57,7 +57,8 @@ const sessions = [];
 // list or the word 'other', every number is clamped and rounded, the version
 // is a version or 'other', and every other field a client sends is dropped
 // unread. The client sends { version, game, mode, res, outcome, minutes,
-// fpsP50, recorderCpuP50, systemCpuP90, encoderOk }, the game since League
+// fpsP50, recorderCpuP50, mainCpuP50, gpuCpuP50, systemCpuP90, encoderOk }
+// (the main and GPU processes' CPU since 2026-11-09), the game since League
 // games record too (a League game and a Valorant match cost a PC different
 // things); a block from before it has no game, is kept as it came, and
 // counts its game as 'other'. The tip era's reports never carried an
@@ -94,6 +95,10 @@ function recordRecording(r, keyHash) {
     fpsP50: clampTo(r.fpsP50, 0, 240),
     // % of ONE core, so a process using four reads 400; 16 cores is the cap.
     recorderCpuP50: clampTo(r.recorderCpuP50, 0, 1600),
+    // Since 2026-11-09 the main process (which hosts the capturer) and the
+    // GPU process too, the same unit; a block from before has neither.
+    mainCpuP50: clampTo(r.mainCpuP50, 0, 1600),
+    gpuCpuP50: clampTo(r.gpuCpuP50, 0, 1600),
     systemCpuP90: clampTo(r.systemCpuP90, 0, 100),
     encoderOk: typeof r.encoderOk === 'boolean' ? r.encoderOk : null,
   });
@@ -129,6 +134,8 @@ function recordingSummary(rows) {
     recordedShare: share(rs.filter((r) => r.mode === 'auto' && r.outcome === 'recorded').length, rs.filter((r) => r.mode === 'auto').length),
     medianFps: median(rs.map((r) => r.fpsP50)),
     medianRecorderCpu: median(rs.map((r) => r.recorderCpuP50)),
+    medianMainCpu: median(rs.map((r) => r.mainCpuP50)),
+    medianGpuCpu: median(rs.map((r) => r.gpuCpuP50)),
     medianSystemCpuP90: median(rs.map((r) => r.systemCpuP90)),
   });
   const byVersion = {};

@@ -6,7 +6,7 @@
  * does (src/renderer/recorder/recorder.js; check:recorder runs the real one).
  *
  * The numbers asserted are the SPEC's, written here, never read back from the
- * module: 720p in 1280x720 at 3 Mbps and 1080p at 6, asked for 60 fps and
+ * module: 720p in 1280x720 at 3 Mbps and 1080p at 6, asked for 45 fps and
  * recorded at 30, a keyframe and a chunk a second; one minute pages, two minutes kept, an hour's
  * hold; no start under 8 GB free, a stop under 4; for 20 s straight, under 12
  * frames a second while the picture changes, a chunk 4 s late, the recorder
@@ -99,8 +99,11 @@ const SPEC = {
   // The read's frame (the Standard profile), which a recording covers, and
   // H.264 level 4.0's frame, which none passes.
   read: { width: 1280, height: 720 }, mbLevel40: 8160,
-  askFps: 60, keyframeMs: 1000, timesliceMs: 1000,
-  // Recorded at 30 a second of the capture's up to 60 (8.4.2, grid.js).
+  // Asked for 45 since 2026-11-09 (60 before): main hosting the capturer
+  // ran 28.8% of a core asked for 60 and 14.7% asked for 30, and 45 is the
+  // least that still hands the grid frames past 30 on a 60 Hz display.
+  askFps: 45, keyframeMs: 1000, timesliceMs: 1000,
+  // Recorded at 30 a second of the capture's up to 45 (8.4.2, grid.js).
   recordFps: 30,
   pageMs: 60000, keepRecentMs: 120000, holdMs: 3600000, keepMatchMs: 90 * 60000,
   diskStart: 8 * 1024 ** 3, diskStop: 4 * 1024 ** 3,
@@ -281,7 +284,7 @@ function fakePage(h) {
         later(() => p.emit('status', h.opts.gate === false
           ? { type: 'started', ok: false, outcome: 'no-hw-encoder', encoderOk: false, why: `no hardware H.264 encoder at ${msg.width}x${msg.height}` }
           : { type: 'started', ok: true, encoderOk: true, startWall: h.clock.now() - (h.opts.startEarly || 0), mime: 'video/x-matroska;codecs=avc1',
-            settings: { width: track.width, height: track.height, frameRate: 60 }, videoBitsPerSecond: msg.bitrate }));
+            settings: { width: track.width, height: track.height, frameRate: msg.fps }, videoBitsPerSecond: msg.bitrate }));
       } else if (msg.type === 'stop') {
         // As the real page answers: its chunks, then nothing left open, and
         // the frames it recorded (thirty a second of what it was handed).
@@ -541,6 +544,7 @@ function harness(opts) {
     cadence: () => h.env.cadence,
     limits: () => o.limits || {},
     pageMs: () => o.pageMs || null,
+    askFps: () => (o.askFps === undefined ? null : o.askFps),
     version: '8.3.0',
     log: o.log || (() => {}),
   });
@@ -679,7 +683,7 @@ function readerAfter(frames, menus) {
     const s = p && p.started;
     ok(s && s.width === SPEC.res720.width && s.height === SPEC.res720.height && s.bitrate === SPEC.res720.bitrate
       && s.fps === SPEC.askFps && s.keyframeMs === SPEC.keyframeMs && s.timesliceMs === SPEC.timesliceMs && s.sourceId === 'screen:0:0',
-    '720p by default: 1280x720 of a 1920x1080 display, 3 Mbps, asked for 60 fps, a keyframe and a chunk every second', JSON.stringify(s));
+    '720p by default: 1280x720 of a 1920x1080 display, 3 Mbps, asked for 45 fps, a keyframe and a chunk every second', JSON.stringify(s));
     ok(s && s.codec === 'avc1.42E01F' && s.mimeTypes[0] === 'video/x-matroska;codecs=avc1'
       && s.mimeTypes.every((m) => /avc1|h264/.test(m)) && !s.mimeTypes.some((m) => /vp8|vp9|av1/.test(m)),
     'H.264 only, the Matroska type first', JSON.stringify(s && s.mimeTypes));
@@ -807,12 +811,26 @@ function readerAfter(frames, menus) {
     // An old saved number reads as before: 1080 records 1080p, 720 720p.
     const old = harness({ prefsInit: { recordingRes: 1080 } });
     const so = (await old.start()).started;
-    ok(so.width === 1920 && so.fps === 60 && so.recordFps === 30 && old.rec.res() === '1080', 'a size saved as the number 1080 records 1080p, asked 60 and recorded at 30', JSON.stringify(so));
+    ok(so.width === 1920 && so.fps === SPEC.askFps && so.recordFps === 30 && old.rec.res() === '1080', 'a size saved as the number 1080 records 1080p, asked 45 and recorded at 30', JSON.stringify(so));
     await old.stop();
     const junk = harness({ prefsInit: { recordingRes: '4k' } });
     const sj = (await junk.start()).started;
-    ok(sj.width === 1280 && sj.fps === 60 && sj.recordFps === 30 && junk.rec.view().res === '720', 'and anything else 720p, as before', JSON.stringify(sj));
+    ok(sj.width === 1280 && sj.fps === SPEC.askFps && sj.recordFps === 30 && junk.rec.view().res === '720', 'and anything else 720p, as before', JSON.stringify(sj));
     await junk.stop();
+    // THE ASK AS A DEV SWITCH (OCCLARA_DEV_RECORDER_ASK_FPS, 2026-11-09), so
+    // another value can be tried in a game: it is the ask at every size, the
+    // record rate, the grid and the busy floor stay the size's own, and a
+    // value off 15 to 120 or not whole is no value.
+    const asks = [];
+    for (const [res, ask] of [['720', 30], ['1080', 60], ['480', 20], ['720', 500], ['720', 7], ['720', 37.5], ['720', null]]) {
+      const d = harness({ prefsInit: { recordingRes: res }, askFps: ask });
+      const st = (await d.start()).started;
+      asks.push([res, ask, st.fps, st.recordFps, d.rec.rules.limits.minFps]);
+      await d.stop();
+    }
+    ok(same(asks, [['720', 30, 30, 30, 12], ['1080', 60, 60, 30, 12], ['480', 20, 20, 15, 6], ['720', 500, 45, 30, 12], ['720', 7, 45, 30, 12],
+      ['720', 37.5, 45, 30, 12], ['720', null, 45, 30, 12]]),
+    'a dev ask is the capture\'s ask at any size, the recorded rate and the busy floor the size\'s; 500, 7, 37.5 and none ask the default', JSON.stringify(asks));
   });
 
   // THE MINUTE LINE SAYS WHAT HAPPENED (8.4.1). On the player's Fracture
@@ -827,11 +845,14 @@ function readerAfter(frames, menus) {
     const lines = [];
     const h = harness({ prefsInit: { recordingRes: '1080' }, log: (...a) => lines.push(a.join(' ')) });
     h.env.inMatch = true;
+    // The capture's real cost (2026-11-09): main hosts the capturer and the
+    // GPU process copies its frames, and the page alone showed a tenth of it.
+    h.env.metrics = { recorderCpu: 3, systemCpu: 30, memoryMB: 140, mainCpu: 22.4, gpuCpu: 9.1 };
     const p = await h.start();
     const started = lines.find((l) => l.startsWith('[recorder] recording '));
-    ok(started && / asked 1920x1080 at up to 60 fps, recorded at up to 30, 6 Mbps, /.test(started)
-      && started.endsWith("; the track's own settings 60 fps, MediaRecorder at 6 Mbps"),
-    'the start line says the capture is asked for up to 60 a second and recorded at up to 30, the track\'s own frame rate and the bitrate MediaRecorder took', started);
+    ok(started && / asked 1920x1080 at up to 45 fps, recorded at up to 30, 6 Mbps, /.test(started)
+      && started.endsWith("; the track's own settings 45 fps, MediaRecorder at 6 Mbps"),
+    'the start line says the capture is asked for up to 45 a second and recorded at up to 30, the track\'s own frame rate and the bitrate MediaRecorder took', started);
     // A second of it: the capture delivered `fps`, the recording kept 30 of
     // them, written as 30 frames of 24 KB.
     const second = async (fps, frameRate) => {
@@ -862,19 +883,24 @@ function readerAfter(frames, menus) {
     `the second minute says the track was asked for 30, the capture delivered 32, and 30 a second were written at 24 KB a frame (${rate(two)} a second, ${mbps(two)} Mbps)`, two);
     ok(h.rec.state === 'recording' && !h.notices.length && h.rec.session && !h.rec.session.gaveUp,
       'and nothing is judged by it: still recording, no notice');
+    ok(/ recorder CPU p50 3% of a core, main process CPU p50 22\.4% of a core, GPU process CPU p50 9\.1% of a core, PC CPU p90 30%, /.test(one || ''),
+      'the minute line counts the main process (the capturer) and the GPU process beside the recorder page', one);
     await h.stop();
     ok(R.trackText(null) === "the track's own settings not reported" && R.trackText({ width: 1280, height: 720 }) === "the track's own settings 1280x720 at no frame rate",
       'a page that reported no settings, or no frame rate, says so');
   });
 
-  // THIRTY FRAMES A SECOND (8.4.2). The capture is asked for 60, and
+  // THIRTY FRAMES A SECOND (8.4.2). The capture is asked for 45 (60 until 2026-11-09), and
   // MediaRecorder gives each frame it is handed the bits of a thirtieth of a
   // second: the player's match, recorded at 57 a second, wrote twice the 6
   // Mbps asked. So the page hands it 30 a second, chosen by grid.js.
   await section('the recording\'s frames, thirty a second by each frame\'s own timestamp (grid.js, as the page loads it):', () => {
     const Grid = require('../src/renderer/recorder/grid.js');
     ok(Grid.RECORD_FPS === SPEC.recordFps && R.RECORD_FPS === SPEC.recordFps && R.ASK_FPS === SPEC.askFps,
-      'the capture asked for 60 a second, the recording 30, in the page and in main');
+      'the capture asked for 45 a second, the recording 30, in the page and in main');
+    ok(R.RES[720].ask === SPEC.askFps && R.RES[1080].ask === SPEC.askFps && same(R.ratesFor('720'), { ask: 45, record: 30, minFps: 12 })
+      && same(R.ratesFor('1080'), { ask: 45, record: 30, minFps: 12 }),
+    '720p and 1080p ask the capture for 45 and record 30, the busy floor 12 (2026-11-09; 60 before)', JSON.stringify([R.ratesFor('720'), R.ratesFor('1080')]));
     // A seeded generator, so every run is the same run.
     const rng = (seed) => { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
     // A capture's timestamps (µs): `fps` a second for `seconds`, each up to `jitterMs` early or late.
@@ -948,9 +974,9 @@ function readerAfter(frames, menus) {
   await section('480p records 15 a second by the same grid, of a capture asked for 30 (grid.js at the 480p rate):', () => {
     const Grid = require('../src/renderer/recorder/grid.js');
     ok(R.RES[480].ask === SPEC.res480.ask && R.RES[480].record === SPEC.res480.record && same(R.ratesFor('480'), { ask: 30, record: 15, minFps: 6 })
-      && same(R.ratesFor('720'), { ask: 60, record: 30, minFps: 12 }) && same(R.ratesFor('1080'), { ask: 60, record: 30, minFps: 12 })
+      && same(R.ratesFor('720'), { ask: 45, record: 30, minFps: 12 }) && same(R.ratesFor('1080'), { ask: 45, record: 30, minFps: 12 })
       && same(R.ratesFor('1440'), R.ratesFor('720')),
-    '480p asks the capture for 30 and records 15, its busy floor 6; 720p and 1080p ask 60 and record 30, their floor 12, as before', JSON.stringify(R.ratesFor('480')));
+    '480p asks the capture for 30 and records 15, its busy floor 6; 720p and 1080p ask 45 (60 until 2026-11-09) and record 30, their floor 12', JSON.stringify(R.ratesFor('480')));
     const rng = (seed) => { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
     const capture = (fps, seconds, jitterMs, seed) => {
       const r = rng(seed || 1);
@@ -1094,7 +1120,7 @@ function readerAfter(frames, menus) {
     h.env.inMatch = true;
     const p = await h.start();
     ok(p.started.fps === SPEC.askFps && p.started.recordFps === SPEC.recordFps,
-      `the page is told to ask the capture for up to 60 a second and to record 30 (${p.started.fps}, ${p.started.recordFps})`);
+      `the page is told to ask the capture for up to 45 a second and to record 30 (${p.started.fps}, ${p.started.recordFps})`);
     await h.run(40, () => ({ health: { fps: 57, recordedFps: 30 } }));
     ok(h.rec.liveView().fps === 30, `Settings: "about 30 fps", the frames recorded, never the 57 delivered (${h.rec.liveView().fps})`);
     const b = await h.stop();
@@ -1699,6 +1725,21 @@ function readerAfter(frames, menus) {
       const b = await h.stop();
       ok(b && b.outcome === 'busy', `${rule}: the session ends as busy`, JSON.stringify(b));
     }
+    // THE MAIN AND GPU PROCESSES ARE COUNTED, NEVER JUDGED (2026-11-09). The
+    // 60% page limit was sized on the page alone; main hosting the capture
+    // runs 15 to 30% of a core on a healthy PC, so fed in, it would strike.
+    const counted = harness();
+    counted.env.inMatch = true;
+    await counted.start();
+    await counted.run(5);
+    counted.env.metrics = { recorderCpu: 3, systemCpu: 30, memoryMB: 140, mainCpu: 400, gpuCpu: 400 };
+    await counted.run(60);
+    ok(counted.rec.state === 'recording' && !counted.notices.length && !counted.rec.session.gaveUp,
+      'main and the GPU process at 400% of a core for 60 s: still recording, no notice, the busy rule never reads them');
+    ok(!R.HEALTH.maxMainCpu && !R.HEALTH.maxGpuCpu && R.HEALTH.maxRecorderCpu === SPEC.maxRecorderCpu,
+      'HEALTH holds no limit for them, and the page\'s 60% is as it was', JSON.stringify(R.HEALTH));
+    const cb = await counted.stop();
+    ok(cb && cb.outcome === 'recorded' && cb.mainCpuP50 === 400 && cb.gpuCpuP50 === 400, 'and the session reports them', JSON.stringify(cb));
     // At the moment it gives up, not once the page has finished stopping.
     const now = harness({ slowStop: 5000 });
     now.env.inMatch = true;
@@ -1981,7 +2022,7 @@ function readerAfter(frames, menus) {
     // the old page answered its stop with every chunk and nothing open.
     const [old] = h.rec.segments;
     ok(old.pageChunks === old.chunks && old.chunks === 5 && old.pageFramesOpen === 0 && old.pageTracksLive === 0 && p2.started.recordFps === SPEC.recordFps && p2.started.fps === SPEC.askFps,
-      `and the recording built again on the new page, asked for 60 and recording 30; the old one ended with all ${old.chunks} chunks and ${old.pageFramesOpen} frames open`);
+      `and the recording built again on the new page, asked for 45 and recording 30; the old one ended with all ${old.chunks} chunks and ${old.pageFramesOpen} frames open`);
     ok(h.capture.stream === null && h.rec.displaysChanged(222) === false, 'compared before it serves, and 222 is already what it records');
     await h.run(4);
     ok(h.capture.stream && h.rec.state === 'recording', 'then served, from the primary display');
@@ -2047,15 +2088,19 @@ function readerAfter(frames, menus) {
     let i = 0;
     await h.run(40, () => {
       i += 1;
-      h.env.metrics = { recorderCpu: i % 2 ? 2 : 4, systemCpu: i <= 35 ? 40 : 90 };
+      h.env.metrics = { recorderCpu: i % 2 ? 2 : 4, systemCpu: i <= 35 ? 40 : 90, mainCpu: i <= 30 ? 14.7 : 28.8, gpuCpu: 6 };
       return { health: i <= 15 ? { fps: 30, changing: true } : { fps: 2, changing: false } };
     });
     h.env.inMatch = false;
-    h.env.metrics = { recorderCpu: 50, systemCpu: 99 };
+    h.env.metrics = { recorderCpu: 50, systemCpu: 99, mainCpu: 90, gpuCpu: 90 };
     await h.run(30, () => ({ health: { fps: 5, changing: true } }));
     const b = await h.stop();
-    ok(b && same(Object.keys(b).sort(), ['encoderOk', 'fpsP50', 'game', 'minutes', 'mode', 'outcome', 'recorderCpuP50', 'res', 'systemCpuP90', 'version']),
-      'ten fields, and nothing else', JSON.stringify(b));
+    ok(b && same(Object.keys(b).sort(), ['encoderOk', 'fpsP50', 'game', 'gpuCpuP50', 'mainCpuP50', 'minutes', 'mode', 'outcome', 'recorderCpuP50', 'res', 'systemCpuP90', 'version']),
+      'twelve fields, the main and GPU processes\' CPU since 2026-11-09, and nothing else', JSON.stringify(b));
+    ok(b.mainCpuP50 === 14.7 && b.gpuCpuP50 === 6,
+      'the main process\'s CPU p50 (the capturer) and the GPU process\'s, % of one core, the match\'s alone', JSON.stringify(b));
+    const oldPc = reportBlock({ outcome: 'recorded', recorderCpu: [3], systemCpu: [40] }, '8.9.4');
+    ok(oldPc.mainCpuP50 === null && oldPc.gpuCpuP50 === null, 'a session with no reading of them sends none, never 0', JSON.stringify(oldPc));
     ok(b.game === 'valorant', 'the game the session was started for: Valorant', JSON.stringify(b));
     const lol = harness();
     await lol.start('lol');

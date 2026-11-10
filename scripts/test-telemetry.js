@@ -105,9 +105,10 @@ const tipFields = (x) => { const { recording, ...rest } = x; return JSON.stringi
 
 console.log('\nthe recorder\'s block is counted, field by field, and kept apart from the tip era\'s:');
 const block = reportBlock({ game: 'lol', mode: 'auto', res: '720', outcome: 'recorded', recordedMs: 41 * 60000 + 30000,
-  fps: [29, 31, 30, 30.5], recorderCpu: [3.1, 2.9, 3.4], systemCpu: [40, 55, 61, 72, 90], encoderOk: true }, '8.3.0');
-check('  the client sends exactly the ten fields, and no others',
-  JSON.stringify(Object.keys(block).sort()) === JSON.stringify(['encoderOk', 'fpsP50', 'game', 'minutes', 'mode', 'outcome', 'recorderCpuP50', 'res', 'systemCpuP90', 'version']),
+  fps: [29, 31, 30, 30.5], recorderCpu: [3.1, 2.9, 3.4], systemCpu: [40, 55, 61, 72, 90], mainCpu: [14.7, 15.2, 14.1], gpuCpu: [5.5, 6, 6.5],
+  encoderOk: true }, '8.3.0');
+check('  the client sends exactly the twelve fields, the main and GPU processes\' CPU since 2026-11-09, and no others',
+  JSON.stringify(Object.keys(block).sort()) === JSON.stringify(['encoderOk', 'fpsP50', 'game', 'gpuCpuP50', 'mainCpuP50', 'minutes', 'mode', 'outcome', 'recorderCpuP50', 'res', 'systemCpuP90', 'version']),
   JSON.stringify(block));
 check('  the server knows the same outcomes and games the client can send',
   JSON.stringify(t.RECORDING_OUTCOMES) === JSON.stringify(OUTCOMES) && JSON.stringify(t.RECORDING_GAMES) === JSON.stringify(GAMES)
@@ -125,6 +126,7 @@ const row = t.recordingRows()[0];
 check('  every field kept as sent: League, auto, 720, recorded, 41.5 minutes, the medians, the gate',
   row && row.version === '8.3.0' && row.game === 'lol' && row.mode === 'auto' && row.res === '720' && row.outcome === 'recorded'
     && row.minutes === 41.5 && row.fpsP50 === 30 && row.recorderCpuP50 === 3.1 && row.systemCpuP90 === 90
+    && row.mainCpuP50 === 14.7 && row.gpuCpuP50 === 6
     && row.encoderOk === true && row.user === 'feedbeef', JSON.stringify(row));
 check('  and it is not a tip era session: their counts are what they were',
   t.summary().sessions === 3 && tipFields(t.summary()) === tipFields(JSON.parse(before)), tipFields(t.summary()));
@@ -132,7 +134,7 @@ check('  and it is not a tip era session: their counts are what they were',
 console.log('\nNOTHING OUTSIDE THE CLOSED LISTS OR THE NUMBERS GETS THROUGH:');
 t.record({
   version: 'Hookah 1.0 TenZ#NA1', game: 'Breeze B Market', mode: 'manual', res: '3440x1440', outcome: 'busy in Breeze B Market',
-  minutes: 1e9, fpsP50: -5, recorderCpuP50: 'lots', systemCpuP90: 150, encoderOk: 'yes',
+  minutes: 1e9, fpsP50: -5, recorderCpuP50: 'lots', systemCpuP90: 150, encoderOk: 'yes', mainCpuP50: 1e6, gpuCpuP50: 'Jett',
   map: 'Breeze', agent: 'Jett', riotId: 'TenZ#NA1', frame: '/9j/4AAQSkZJRg', tip: 'stay tight on Hookah',
 }, 'leaky123456');
 // A block from before the game was sent: the nine fields, no game.
@@ -145,14 +147,16 @@ t.record({ version: '8.3.1', game: 'valorant', mode: 'auto', res: '720', outcome
   recorderCpuP50: null, systemCpuP90: null, encoderOk: false }, 'nohwuser');
 const rows = t.recordingRows();
 const leaky = rows[1];
-const KEYS = ['at', 'user', 'version', 'game', 'mode', 'res', 'outcome', 'minutes', 'fpsP50', 'recorderCpuP50', 'systemCpuP90', 'encoderOk'];
+const KEYS = ['at', 'user', 'version', 'game', 'mode', 'res', 'outcome', 'minutes', 'fpsP50', 'recorderCpuP50', 'mainCpuP50', 'gpuCpuP50',
+  'systemCpuP90', 'encoderOk'];
 check('  a word off the list is the word other, a version that is not one is other',
   leaky.version === 'other' && leaky.game === 'other' && leaky.mode === 'other' && leaky.res === 'other' && leaky.outcome === 'other', JSON.stringify(leaky));
 check('  an old client\'s nine field block is still a recorder session, every field kept as before, its game other',
   rows.length === 5 && rows[2].user === 'offuser1' && rows[2].version === '8.3.0' && rows[2].mode === 'off' && rows[2].outcome === 'off'
     && rows[2].minutes === 0 && rows[2].encoderOk === null && rows[2].game === 'other', JSON.stringify(rows[2]));
 check('  every number clamped or dropped: 600 minutes, 0 fps, no CPU, 100%, no gate',
-  leaky.minutes === 600 && leaky.fpsP50 === 0 && leaky.recorderCpuP50 === null && leaky.systemCpuP90 === 100 && leaky.encoderOk === null,
+  leaky.minutes === 600 && leaky.fpsP50 === 0 && leaky.recorderCpuP50 === null && leaky.systemCpuP90 === 100 && leaky.encoderOk === null
+    && leaky.mainCpuP50 === 1600 && leaky.gpuCpuP50 === null,
   JSON.stringify(leaky));
 check('  and no other field is kept, in any row', rows.every((r) => JSON.stringify(Object.keys(r)) === JSON.stringify(KEYS)),
   rows.map((r) => Object.keys(r).join(',')).join(' | '));
@@ -172,6 +176,11 @@ check('  the share that recorded, of the sessions that tried (Auto): 1 of 3', rs
 // with none (off, no encoder) is left out rather than counted as 0.
 check('  the median frame rate across sessions, a session without one left out',
   rs.medianFps === 10, `fps ${rs.medianFps}`);
+check('  a block from before 2026-11-09 has no main or GPU CPU: none, never 0',
+  rows[2].mainCpuP50 === null && rows[2].gpuCpuP50 === null && rows[3].mainCpuP50 === null, JSON.stringify(rows[3]));
+// Main: 14.7 (the client's block) and the stray row's 1e6 clamped to 1600; GPU: 6 alone.
+check('  the median main and GPU process CPU, a session without one left out',
+  rs.medianMainCpu === 807.4 && rs.medianGpuCpu === 6, `main ${rs.medianMainCpu}, GPU ${rs.medianGpuCpu}`);
 check('  the median recorder CPU and the median of the PC\'s p90',
   rs.medianRecorderCpu === 37.2 && rs.medianSystemCpuP90 === 97, `recorder ${rs.medianRecorderCpu}, PC ${rs.medianSystemCpuP90}`);
 check('  by version: 8.3.0 recorded 1 of 1 that tried, 8.3.1 recorded 0 of 2',

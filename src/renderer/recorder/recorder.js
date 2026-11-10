@@ -11,7 +11,7 @@
  * prefer-hardware answer told the GPU's encoder apart in the 8.3 spike (yes
  * for H.264, no for VP9, which then took a whole core in software).
  *
- * ONE CAPTURE, TWO USES. The capture is asked for up to 60 frames a second,
+ * ONE CAPTURE, TWO USES. The capture is asked for up to 45 frames a second (60 until 2026-11-09),
  * and the recording is handed 30 of them (8.4.2), or at 480p asked for 30
  * and handed 15 (8.7): both numbers come with the start (`fps`, `recordFps`,
  * main's recorder.js RES), so this page assumes neither. A MediaStreamTrackProcessor
@@ -117,7 +117,7 @@
    * second, then none, while its timers and animation frames ran on.
    *
    * `fakeFps` draws it that many times a second instead (a capture asked for
-   * 60 delivers up to 60), and 'busy' draws four hundred blocks that move
+   * 45 delivers up to 45), and 'busy' draws four hundred blocks that move
    * every frame, a picture the encoder has to spend its whole budget on, as
    * it does on a game; the flat picture asks it for less (8.4.2).
    */

@@ -295,8 +295,12 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   `server/services/telemetry.js RECORDING_RES` holds the same, test:telemetry
   holding the two equal), the outcome from a closed list (recorded, off,
   no-hw-encoder, busy, disk, black, error), minutes recorded, fps p50 (the
-  frames recorded, in a match, picture changing), the recorder's CPU p50 and
-  the PC's p90, whether the gate passed. Nothing else; `server/services/telemetry.js` keeps only
+  frames recorded, in a match, picture changing), the recorder's CPU p50,
+  the main process's and the GPU process's CPU p50 (`mainCpuP50`,
+  `gpuCpuP50`, since 2026-11-09, % of one core: main hosts the capturer, so
+  the page alone read about a tenth of the cost; counted only, the busy
+  rule never reads them, and the server keeps them only from the release
+  that lists them) and the PC's p90, whether the gate passed. Nothing else; `server/services/telemetry.js` keeps only
   those words or 'other' (a block from before the game counts its game as
   'other'), clamps every number, splits the summary by game, and counts the
   tip era's reports as before. A session ends with its block however it ends,
@@ -337,6 +341,12 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   so twice the bitrate never showed on it). `OCCLARA_DEV_FAKE_FPS` draws it
   that many times a second (30 unless set). `OCCLARA_DEV_RECORDER_MIN_FPS`,
   `_BUSY_MS` and `_PAGE_MS` force the busy rule and shorten pages.
+  `OCCLARA_DEV_RECORDER_ASK_FPS` (2026-11-09) is the frame rate the capture
+  is asked for at every size, a whole number from 15 to 120 (anything else is
+  ignored), in place of the size's own (45 at 720p and 1080p, 30 at 480p,
+  `recorder.js ratesFor`), so another ask can be tried in a game; the record
+  rate, the grid and the busy floor stay the size's. The start line in
+  debug.log says the ask it used (`asked WxH at up to N fps`).
 
 `npm run test:recorder` holds every rule above on a fake clock and fake files
 with the real fixture, the Valorant rules on the real reader replaying the

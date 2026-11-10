@@ -145,23 +145,37 @@ function cpuTimes() {
  * read 6.24 on a 16 thread machine, and Windows' own counters matched the
  * reading times 16 to within 2 points (the 8.3 spike). So it is multiplied
  * back, and 100 is one whole core.
+ *
+ * THE CAPTURE'S REAL COST (2026-11-09): the main process (type 'Browser')
+ * hosts the screen capturer and the GPU process copies its frames, so the
+ * page alone read about a tenth of what recording costs (main 28.8% of a core
+ * asked for 60 a second, the page 3). Both are counted as mainCpu and gpuCpu,
+ * for the minute line and the session's counts, and never judged: the busy
+ * rule's 60% (recorder.js HEALTH) was sized on the page alone.
  */
-function createMetrics() {
-  const cores = os.cpus().length || 1;
-  let prev = cpuTimes();
+function createMetrics(deps = {}) {
+  const cores = (deps.cores || os.cpus().length) || 1;
+  const appMetrics = deps.appMetrics || (() => app.getAppMetrics());
+  const times = deps.cpuTimes || cpuTimes;
+  let prev = times();
+  const cpuOf = (m) => (m && m.cpu ? (m.cpu.percentCPUUsage || 0) * cores : null);
   return (pid) => {
-    const now = cpuTimes();
+    const now = times();
     const dt = now.total - prev.total;
     const systemCpu = dt > 0 ? Math.max(0, Math.min(100, 100 * (1 - (now.idle - prev.idle) / dt))) : null;
     prev = now;
     let recorderCpu = null;
     let memoryMB = null;
+    let all = [];
+    try { all = appMetrics() || []; } catch { all = []; }
     if (pid) {
-      const m = app.getAppMetrics().find((x) => x.pid === pid);
-      if (m && m.cpu) recorderCpu = (m.cpu.percentCPUUsage || 0) * cores;
+      const m = all.find((x) => x.pid === pid);
+      recorderCpu = cpuOf(m);
       if (m && m.memory) memoryMB = Math.round((m.memory.privateBytes || m.memory.workingSetSize || 0) / 1024);
     }
-    return { recorderCpu, systemCpu, memoryMB };
+    const mainCpu = cpuOf(all.find((x) => x.type === 'Browser'));
+    const gpuCpu = cpuOf(all.find((x) => x.type === 'GPU'));
+    return { recorderCpu, systemCpu, memoryMB, mainCpu, gpuCpu };
   };
 }
 

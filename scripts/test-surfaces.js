@@ -3547,7 +3547,9 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     const val = hint(plain);
     ok(val === 'On records each match on this PC at about 30 frames a second (15 at 480p, the lightest size, whose death moments are less sharp) while the coach reads your screen; if your PC cannot keep up while you play, '
       + 'recording stops for that session and the coach keeps reading. Off records nothing, and the coach still reads your screen at the speed set above. '
-      + 'The video stays on this PC: once a review is built, a short clip of each moment it looked at is kept beside it and the rest is deleted.',
+      + 'The video stays on this PC: once a review is built, a short clip of each moment it looked at is kept beside it and the rest is deleted. '
+      // A second capture of the same game doubles the work (2026-11-09).
+      + 'For the smoothest game, turn off NVIDIA Instant Replay, AMD ReLive or Xbox Game Bar capture while Occlara records.',
     'Valorant: what On and Off do, and that the coach reads the screen either way', val);
     const lol = await open({ game: 'lol', recordingMode: 'off', recordingAutoOff: autoOff });
     const lolHint = hint(lol);
@@ -3556,7 +3558,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(SCREEN_READ.test(val) && SCREEN_READ.test('the coach reads the screen') && !SCREEN_READ.test("the review is built from the game's own record"),
       'the screen read detector finds the Valorant hint and passes over the League sentence');
     ok(/^On records each game on this PC/.test(lolHint) && /Off records nothing/.test(lolHint) && /built from the game's own record/.test(lolHint)
-      && /up to six of your deaths/.test(lolHint) && !SCREEN_READ.test(lolHint) && !/screen/i.test(lolHint),
+      && /up to six of your deaths/.test(lolHint) && /For the smoothest game, turn off NVIDIA Instant Replay, AMD ReLive or Xbox Game Bar capture while Occlara records\.$/.test(lolHint) && !SCREEN_READ.test(lolHint) && !/screen/i.test(lolHint),
     'League: what On and Off do, its review built from the game\'s own record either way, and no word of a screen', lolHint);
     ok(!lol.$('rec-note').hidden && !SCREEN_READ.test(lolNote) && /Your review is still built from the game's own record\.$/.test(lolNote)
       && !lol.$('rec-retry').hidden, 'and its note, turned off by itself, says the same', lolNote);
@@ -5861,8 +5863,11 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
       'every sentence that says the screen is read says Valorant, and none says League', screen.join(' | '));
     const recCard = big.p.$('ob-rec').textContent;
     const framesCard = big.p.$('ob-frames').textContent;
-    ok(/Valorant and League are recorded at about 30 fps/.test(recCard) && /stays on this PC/.test(recCard),
-      'Record gameplay: Valorant and League, about 30 fps, and the video stays on this PC', recCard);
+    // Shortened on 2026-11-09 so the replay capture line fits the card
+    // (check:onboardingriot): no game named, so it holds in every game.
+    ok(/^\s*Record gameplay[\s\S]*Recorded at about 30 fps for clips of your deaths, kept on this PC\. /.test(recCard)
+      && /For the smoothest game, turn off NVIDIA Instant Replay, AMD ReLive or Xbox Game Bar capture while Occlara records\.\s*$/.test(recCard),
+      'Record gameplay: about 30 fps, clips of your deaths kept on this PC, and the GPU\'s own replay capture is worth turning off', recCard);
     ok(/Nothing is recorded/.test(framesCard) && /no clips/.test(framesCard), 'Frames only: nothing is recorded, so no clips', framesCard);
     ok(!words.some((w) => /Rivals|Marvel/.test(w)), 'and nothing names a game Occlara no longer coaches');
   });
