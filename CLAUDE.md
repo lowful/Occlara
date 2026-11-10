@@ -118,6 +118,8 @@ in `docs/claude/` to find it.
 | Changing licences, the Stripe webhook, refunds, renewals, grace or `sync-expiry` | `docs/claude/licence-billing.md` |
 | Touching accounts, sign in, tiers, game caps, `game_usage`, the read gate, referral, `ENFORCE_CAPS` or a rate limit | `docs/claude/accounts.md` |
 | The changelog, What's new, Home's update line, `/api/changelog`, the Discord button or post | `docs/claude/changelog.md` |
+| Changing the Practice page, the drill library (`drill-library.json`) or `practice.js` | `docs/claude/ui.md`, "The Practice page", and `docs/claude/playbook.md`, "The drill library" |
+| Changing how a death is read as a chain of mistakes, or the match's own memory (`death-chain.js`, `match-memory.js`) | `docs/claude/death-look.md`, "Chains of mistakes", and `docs/claude/match-to-review.md`, "The match's own memory" |
 | Changing the Profile page, buying games in the app or `profile.js` | `docs/claude/ui.md`, "The Profile page", and `docs/claude/accounts.md`, "Buying games, in the app" |
 | Report a problem: its button, page, `/api/feedback`, the inbox (`npm run feedback`) or triaging a player's report | `docs/claude/feedback.md` |
 
