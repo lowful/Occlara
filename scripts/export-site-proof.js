@@ -347,7 +347,7 @@ const READ_REVIEW = `(() => { ${READ_HELPERS}
     fix: { heading: txt('#v-focus-wrap > .v-focus-label'), text: txt('#v-focus'), was: shown(Q('#v-focus-was')) ? txt('#v-focus-was') : '',
       wasHeading: shown(Q('#v-focus-was-wrap')) ? txt('#v-focus-was-wrap .v-focus-label') : '' },
     progress: QA('#v-prog .gv-prog').map((p) => ({ text: T(p), tone: [...p.classList].find((c) => ['good', 'bad', 'warn', 'even'].includes(c)) || 'even' })),
-    read: { heading: txt('#v-summary-wrap h3, #v-summary-wrap .label'), lines: list('#v-summary li') },
+    read: { heading: txt('#v-summary-wrap h3, #v-summary-wrap .label'), lines: list('#v-summary li:not(.v-chain-main)'), repeat: txt('#v-summary li.v-chain-main') },
     grade: { categories: QA('#grade-host .gv-cat').map((c) => ({ name: txt('.gv-cat-name', c), score: txt('.gv-cat-score', c), evidence: list('.gv-chip', c) })) },
     lists: QA('#insights-host .gv-block').map((b) => ({ heading: txt('h3', b), items: QA('.gv-item', b).map(item) })),
     comps: txt('#v-comps'), patterns: list('#v-patterns li'),

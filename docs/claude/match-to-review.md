@@ -607,3 +607,61 @@ folder was made, for hours. No game was counted (only a reply the server calls i
   runs). Tests: `test:nogame` (the rules on a fake clock, the process list, the real reader),
   `test:recorder` (the discard), `check:nogame` (the real index.js: cancelled with nothing kept, claimed
   or reviewed, Start again, a queue under the threshold left alone, a match always wins).
+
+### The match's own memory (Nov 2026)
+
+A death is read in the context of the match (`src/shared/death-chain.js
+memoryOf`, `earlierOf`; the chains themselves in death-look.md, "Chains of
+mistakes"). Counted in code from Riot's record of the rounds the player
+played, each line with its floor: the callouts the player died at twice or
+more (two at most) and the enemy who killed them there twice; the enemy who
+killed them three times or more; an enemy who killed them in none of three or
+more deaths before a round and three times from it on (an adjustment, said
+as the counts and never as a reason); the longest run of three or more
+deaths nobody traded with a teammate alive, said as its span past four
+rounds; the round's first fights (three or more); and what the first half
+kept that the second dropped by half its share (trades, first kills). Per
+death, `earlier`: the same callout and the same killer in rounds before it,
+and its place in a run nobody traded.
+
+- **To the narrative** (`valorant-review.js requestBody` `chains`, always an
+  object: `{ half, rounds: [{ n, first, worse, fair, gap }], main }`, kinds and
+  numbers, never a sentence). The server (`match-review.js normalise
+  chainsIn`, `server/services/match-memory.js`) checks each kind against its
+  own rounds (`chainWords`: one the rounds do not bear out is dropped, a
+  first mistake that goes takes its chain with it), words it, counts the
+  memory itself (`memoryLines`, the client's rules, `test:deathchain` holds the
+  two line for line), and holds the biggest repeat to the checked chains
+  (`mainWords`). The round line gains the chain and "earlier in the match,
+  ..." (`chainFacts`), and a block `MEMORY_HEAD` after the counted strengths
+  carries the lines, the repeat and `CHAIN_RULE` (teach the first mistake, the
+  later ones in a few words, earlier only as given). A client before sends no
+  `chains`: no key is added and the prompt is byte for byte as before (the
+  pattern of `swing` and `counts`), so the 8.4.4 pins and the round 3 and 4
+  replays are untouched.
+- **To Ask Coach** (`chat-context.js cardOf` sends a card's `chain` as kinds
+  alone; `chat-prompt.js factsOf` `f.memory`, only when a card carries one):
+  the match part gets up to four memory lines under COUNTED ("The match's own
+  memory: ..."), and each round asked, in full, its chain checked and worded
+  by `match-memory.js` and "EARLIER IN THIS MATCH, before round N" (three
+  lines at most), every number harvested for the gates. A client before
+  sends no chain and is told none of it.
+- **Held to the record** (`record-claims.js checkEarlier`, reader `earlier`,
+  last among the readers, the review and Ask Coach alike): "the third time
+  you died at Hookah", "your third death at Hookah", "you had died at Hookah
+  twice before", "Chamber had killed you twice before", "the third time
+  Chamber killed you", "you died at Hookah again", "Chamber killed you again"
+  are counted against Riot's rounds before the sentence's round, by Riot's
+  place (never a whole site) and killer; a round before it the record cannot
+  place leaves a count it could make true unjudged; a plan judges nothing; a
+  false one drops the sentence. The memory lines and the repeat join the
+  review's counted texts (`contextOfReview countedTexts`), so a count and its
+  list are held to them too.
+
+What the record cannot show, so nothing here says it: health and armour at
+the fight, where anyone stood before the kill (positions are read on the
+server only for the teammate's distance at the death), when in the round an
+ability was cast (only how many, and most saved matches hold no casts at
+all), whether a teammate could see the killer, and why an enemy changed what
+they did. How the narrative and Ask Coach use the new blocks needs a paid
+bench (`bench:review`, `bench:chat`), the lead's call.

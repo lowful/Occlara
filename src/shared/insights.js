@@ -680,5 +680,54 @@ function todaysEntry(e) {
   return out;
 }
 
-module.exports = { valorant, lol, roundList, repeatTitle, specificOf, WEIGHT, aliveAtPlant, shareFloor,
+/*
+ * THE CHAINS COUNTED (Nov 2026, death-chain.js): every death's first mistake
+ * and what made it worse, counted apart, so the repeated mistakes reflect
+ * every mistake of a death and not its one label. Nothing here changes the
+ * three lists above or the grade: it is its own count, shown beside them
+ * (valorant-review.js withView, `review.context.chains`) and handed to the
+ * narrative and Ask Coach as code's facts.
+ *
+ *   first  [{ kind, title, count, rounds }]  as a death's first mistake
+ *   worse  [{ kind, title, count, rounds }]  as what made one worse
+ *   main   the match's biggest repeat in a sentence, or null: the kind that
+ *          was a mistake (first or worse) in the most rounds, twice at least,
+ *          a cause before what a death cost, and the kind most often beside
+ *          it in those same rounds, twice at least ("and in 4 of those ...").
+ */
+const CHAIN_COST = new Set(['first-death', 'gave-advantage', 'same-killer', 'untraded-close']);
+function chainCounts(chains) {
+  const dc = require('./death-chain');
+  const list = (Array.isArray(chains) ? chains : []).filter((e) => e && Number.isInteger(e.n) && e.chain);
+  const titleOf = (k) => (dc.KINDS[k] ? dc.KINDS[k].one : CAUSES[k] ? CAUSES[k].one : k);
+  const tally = (pick) => {
+    const m = new Map();
+    for (const e of list) for (const k of pick(e.chain)) m.set(k, [...(m.get(k) || []), e.n]);
+    return [...m.entries()].map(([kind, rounds]) => ({ kind, title: titleOf(kind), count: rounds.length, rounds }))
+      .sort((a, b) => b.count - a.count || dc.WORSE_ORDER.indexOf(a.kind) - dc.WORSE_ORDER.indexOf(b.kind));
+  };
+  const first = tally((c) => (c.first ? [c.first.kind] : []));
+  const worse = tally((c) => (c.worse || []).map((w) => w.kind));
+  const kindsOf = (c) => [c.first && c.first.kind, ...(c.worse || []).map((w) => w.kind)].filter(Boolean);
+  const all = tally(kindsOf);
+  const firstCount = (k) => (first.find((x) => x.kind === k) || { count: 0 }).count;
+  const pool = all.filter((x) => x.count >= 2);
+  const top = pool.filter((x) => !CHAIN_COST.has(x.kind)).sort((a, b) => b.count - a.count || firstCount(b.kind) - firstCount(a.kind))[0]
+    || pool.sort((a, b) => b.count - a.count)[0] || null;
+  let main = null;
+  let beside = null;
+  if (top) {
+    const these = list.filter((e) => top.rounds.includes(e.n));
+    const co = new Map();
+    for (const e of these) for (const k of new Set(kindsOf(e.chain))) if (k !== top.kind) co.set(k, (co.get(k) || 0) + 1);
+    const best = [...co.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1] || dc.WORSE_ORDER.indexOf(a[0]) - dc.WORSE_ORDER.indexOf(b[0]))[0];
+    const gerund = (k) => dc.KINDS[k] ? dc.KINDS[k].gerund : dc.LOOK_GERUND[k] || titleOf(k).toLowerCase();
+    main = `Your biggest repeat: ${gerund(top.kind)}, in ${plural(top.count, 'round')}, ${roundList(top.rounds)}`
+      + (best ? `, and in ${best[1]} of those rounds also ${gerund(best[0])}.` : '.');
+    if (best) beside = { kind: best[0], count: best[1] };
+  }
+  return { first, worse, main, mainKind: top ? top.kind : null, mainRounds: top ? top.rounds : [], beside };
+}
+
+module.exports = { chainCounts, CHAIN_COST, valorant, lol, roundList, repeatTitle, specificOf, WEIGHT, aliveAtPlant, shareFloor,
   factsView, asFacts, countable, inTodaysWords, tradesDetail, CLUTCH_RE, ONLY_RE, TRADES_RE };

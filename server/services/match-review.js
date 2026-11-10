@@ -35,6 +35,7 @@ const { promptName } = require('./languages');
 const { noSemicolons } = require('./plain-text');
 const abilityFacts = require('./ability-facts');
 const gameClaims = require('./game-claims');
+const matchMemory = require('./match-memory');
 
 // "a Vandal", "an Outlaw". The prompt's own grammar is what the model copies,
 // and "with a Outlaw" came back in its sentences. So is "1 assist", which the
@@ -321,7 +322,61 @@ function normalise(body) {
     // The counted mistakes the player's library finds again across their
     // recent matches (round 4), keys only. Missing is none repeated.
     recurring: Array.isArray(b.recurring) ? [...new Set(b.recurring.filter((k) => typeof k === 'string' && /^[a-z][a-z:-]{0,29}$/.test(k)))].slice(0, 8) : null,
+    // A CLIENT BUILT FOR CHAINS (Nov 2026, valorant-review.js chainsSent,
+    // an object every time): each death's chain checked against these rounds
+    // and worded here, the match's memory counted here from them, and the
+    // biggest repeat held to the checked chains (match-memory.js). A client
+    // before it sends none, and no key is added: reviewed as before, byte for byte.
+    ...chainsIn(b.chains, rounds),
   };
+}
+
+/*
+ * THE CHAINS AND THE MEMORY OF A CLIENT BUILT FOR THEM (Nov 2026): {} for a
+ * client before, else { chains, memory, chainMain, chainHalf }: chains
+ * checked and worded from the rounds (match-memory.js chainWords), the
+ * memory lines counted from them, the biggest repeat or null.
+ */
+function chainsIn(sent, rounds) {
+  if (!sent || typeof sent !== 'object' || Array.isArray(sent)) return {};
+  const rows = matchMemory.rowsOfReview(rounds);
+  const half = Number.isInteger(sent.half) && sent.half > 0 && sent.half <= 12 ? sent.half : null;
+  const chains = (Array.isArray(sent.rounds) ? sent.rounds : []).slice(0, 40).map((c) => matchMemory.chainWords(c, rows)).filter(Boolean);
+  const memory = matchMemory.memoryLines(rows, half).slice(0, 8);
+  return { chains, memory, chainMain: matchMemory.mainWords(sent.main, chains), chainHalf: half };
+}
+
+/* A round's chain and what came before it, as the facts its round line adds (roundLine's opts.chain). */
+function chainFacts(input, n) {
+  if (!input || !Array.isArray(input.chains)) return null;
+  const out = [];
+  const c = input.chains.find((x) => x.n === n);
+  if (c) out.push(matchMemory.chainClause(c));
+  const earlier = matchMemory.earlierLines(matchMemory.rowsOfReview(input.rounds), n);
+  if (earlier.length) out.push(`earlier in the match, ${earlier.join(', ')}`);
+  return out.length ? out : null;
+}
+
+/* The opts a round line takes for its chain, none for a client before chains. */
+function withChain(input, n) {
+  const facts = chainFacts(input, n);
+  return facts ? { chain: facts } : {};
+}
+
+/*
+ * THE MATCH'S OWN MEMORY IN THE PROMPT (Nov 2026), for a client built for
+ * chains alone: the memory lines, the biggest repeat, and how to use them.
+ * Empty for a client before, so its prompt is as before, byte for byte.
+ */
+const MEMORY_HEAD = "THE MATCH'S OWN MEMORY (counted in code from Riot's record of this match, these are true, and the only place to say what happened earlier in the match from, with its rounds exactly as given)";
+const CHAIN_RULE = 'Where a round line gives the death as a chain of mistakes, teach its first mistake and say what made it worse in a few words, never one of the later ones as the cause. '
+  + 'Say what happened earlier in the match only as a round line\'s earlier facts or a line above give it, never a count of your own.';
+function memoryBlock(input) {
+  if (!input || !Array.isArray(input.chains)) return '';
+  const lines = (input.memory || []).map((m) => m.text);
+  if (input.chainMain) lines.push(input.chainMain);
+  if (!lines.length && !input.chains.length) return '';
+  return `\n\n${MEMORY_HEAD}:\n${lines.length ? lines.map((t) => '- ' + t).join('\n') : '- nothing repeated in this match'}\n${CHAIN_RULE}`;
 }
 
 /*
@@ -1374,6 +1429,8 @@ function roundLine(r0, opts) {
   if (opts && opts.plant && r.verified && !r.afk && (r.side === 'attacking' || r.side === 'defending')) facts.push(`the enemy were the ${r.side === 'attacking' ? 'defenders' : 'attackers'}`);
   // A won round given a line (round 8, wonPicks).
   if (opts && opts.risk) facts.push('your team won it anyway, so say what the death risked, never that it lost the round');
+  // A client built for chains (Nov 2026, chainFacts): the death's chain and what came before it.
+  if (opts && Array.isArray(opts.chain)) facts.push(...opts.chain);
   let line =`${bits.join(' ')}${facts.length ? '. ' + facts.join('; ') : ''}.`;
   // The last of what the screen showed the player doing in play, before the
   // death where there was one. Only play reaches here (normalise).
@@ -1504,11 +1561,12 @@ function promptRounds(input, withKnowledge, opts) {
   // A won round picked for a line (wonPicks) says so in its facts.
   const risk = new Set(wonPicks(rounds, { won: r4 }));
   const assemble = (knowledgeBlock) => `You are reviewing one finished Valorant match for the player, ${who}. ${score}\n\n`
-    + `${ledgerNote}\n${(r4 ? rounds.map((r) => roundLine(r, { plant: true, map: context.map, risk: risk.has(r.n) })) : rounds.map((r) => roundLine(r, { map: context.map }))).join('\n')}\n\n`
+    + `${ledgerNote}\n${(r4 ? rounds.map((r) => roundLine(r, { plant: true, map: context.map, risk: risk.has(r.n), ...withChain(input, r.n) })) : rounds.map((r) => roundLine(r, { map: context.map, ...withChain(input, r.n) }))).join('\n')}\n\n`
     + `COMPUTED PATTERNS (arithmetic over the ledger, these are true):\n`
     + (patterns.length ? patterns.map((p) => '- ' + p.text).join('\n') : '- none cleared the bar in this match')
     + block('COUNTED MISTAKES (counted from the rounds above, most serious first, these are true):', mistakesShown(input))
     + block('COUNTED STRENGTHS (counted the same way, these are true):', input.strengths)
+    + memoryBlock(input)
     + knowledgeBlock
     // A client of the round 3 rules gets them (round3Write); one before it
     // gets these instructions byte for byte.
@@ -3282,6 +3340,7 @@ module.exports = { floorFails, floorNote, floorMerge, floorFill, floorLine, floo
   CAUSE_TOPICS, rankRule, enemiesOf, withinBudget, CASE_GROWTH, NOTES_FLOOR,
   round3, rankRule3, RANK_WORDS3, GROUNDING, GROUNDING3, GROUNDING3_SWAPS, aimEvidence, HS_USUAL, HS_BELOW, focusLever, leverRule,
   enemyWeaponsOf, claimOf, claimGates, TEMPLATE_LEAK, SPIKE_CARRY, PRAISE, AIM_DENIED, STUDY_VARIETY, spread, contradicted, CONTRADICTS,
+  chainsIn, chainFacts, memoryBlock, MEMORY_HEAD, CHAIN_RULE,
   round4, matchCounts, matchFacts, countLines, qualifyCount, mistakesShown, allowedPairs, leverOf, leverRule4, LEVER_ORDER, HIGH_BANDS,
   depthRule, kitBlockOf, kitAgents, swingTopics, caseSituation, leverSituation, cohere, productCut, stateWrong, fundamentalsCap, structureGates,
   ROUND4_SWAPS, GROUNDING4, GROUNDING4_SWAPS, PRODUCT_TALK, CROSS_MATCH, TRADE_HABIT,

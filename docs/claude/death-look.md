@@ -526,3 +526,68 @@ Tests: `test:valorantreview` (the round 6 record through build, served and
 requestBody, each condition held, the lever and the gates), `test:forensics`
 (the code only cause in no prompt, the words against sentences they must and
 must not catch, the look's gate on defence, attack and a retake).
+
+
+### Chains of mistakes (Nov 2026)
+
+The owner's goal: the coach reads a death as the TRUE mistake or mistakes and
+in the context of the match, never one label alone. The look still gives one
+cause (above); `src/shared/death-chain.js chainOf` reads each verified death
+the player played as a chain, in code, from Riot's record and the look's
+closed label, and a model only phrases it.
+
+- **What a chain is**: `first`, the earliest mistake that made the death
+  likely; `worse`, up to two (`WORSE_MAX`) that made it worse; `fair` when the
+  look called it a lost duel (then no first mistake, and `worse` says what it
+  cost); `earlier`, what came before it in the match; `situation`, context
+  only (the score before the round, match point, the half's first or last
+  round, overtime, a clutch, the seconds after the plant). `mistakes` counts
+  first and worse. Null for a round sat out, a death Riot never verified,
+  and a death with neither a first mistake nor a fair fight nor anything
+  earlier: with no first mistake and no fair fight, `worse` is empty too,
+  since "a teammate close and nobody traded it" or "first down" alone are no
+  mistake the record can pin on the player.
+- **The kinds** (`KINDS`, plus the look's avoidable causes by their own
+  keys): `untradeable` (Riot's `traded` false and `mate` far, a teammate
+  alive, not when the look already said isolated), `early-attack` (attack,
+  Riot's early, before any plant, all five up, untraded: on defence the
+  attackers choose when to come), `no-utility` (every cast Riot holds at
+  zero; a dry peek takes it as its own evidence), `repeat-spot` (a third
+  death at one callout, never a whole site), and never first: `first-death`
+  (untraded), `gave-advantage` (up in numbers, untraded, round lost),
+  `same-killer` (an enemy who killed the player twice before),
+  `untraded-close`. The record's own spot with no escape (`answeredKill`,
+  8.9.6's rule) is a first mistake where no look said anything.
+- **The order** (`FIRST_ORDER`): where the player stood (isolated,
+  overextend, rotating, no escape), then the fight as the look saw it on the
+  frames (dry peek, crossfire, exposed, repeek), then the record's own
+  (nobody close, early on attack, no ability, same spot). What a death cost
+  and what the killer had done before are never first.
+- **Every sentence is the record's**: the place is Riot's callout, the killer
+  Riot's agent, the seconds Riot's feed. No economy (no buy is read), no
+  health, armour or position before the fight (the record holds none, so the
+  chain says none), no always or never.
+- **Shown, never on disk** (`valorant-review.js withView`, `VIEW_CARD_FIELDS`
+  `chain`, `VIEW_FIELDS` `context`): every review served, of any version, that
+  holds Riot's record. The card in `review.js chainEl`: "The first mistake",
+  "What made it worse" (or "The fight" and "What made it cost more" for a fair
+  duel), "Earlier in the match", one line each by textContent; a round with
+  more than one mistake has an "N mistakes" tag on its line; the match's
+  biggest repeat (`insights.js chainCounts main`) is a line under the coach's
+  read. A review graded from Riot's record alone gets no chain (it counts
+  facts, never mistakes) and keeps the memory.
+- **Counted apart** (`insights.js chainCounts`): each kind as a first mistake
+  and as what made one worse, and the biggest repeat: the kind that was a
+  mistake in the most rounds, a cause before a cost, with the kind most often
+  beside it ("and in 3 of those rounds also ..."). The three lists, the
+  `cause:` counts the library keeps, and the grade's four numbers do not
+  move (`test:deathchain` holds the grade and the mistakes as built).
+- **The chip that showed a key**: `review.js CAUSE_TITLE` had no
+  `no-escape` since 8.9.6, so a card showed "no-escape"; it says "Risky
+  spot, no escape" now.
+
+The owner's Bind round 6 reads: first, risky spot, no escape (a kill at
+Hookah, then Chamber killed you 1.1 seconds later); made worse by nobody
+close to trade and the five against four given back in a lost round; earlier,
+the deaths at Hookah in rounds 1 and 3 and Chamber in round 5.
+`npm run test:deathchain` holds every condition both ways.

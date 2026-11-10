@@ -77,6 +77,7 @@
     "test:claimgame": "node scripts/test-claim-game.js",
     "test:clips": "node scripts/test-clips.js",
     "test:costrollover": "node scripts/test-cost-rollover.js",
+    "test:deathchain": "node scripts/test-death-chain.js",
     "test:deathhp": "node scripts/test-death-hp.js",
     "test:deathreconcile": "node scripts/test-death-reconcile.js",
     "test:facttags": "node scripts/test-fact-tags.js",

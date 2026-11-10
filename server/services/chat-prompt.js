@@ -64,6 +64,7 @@ const casesMod = () => optional('./cases');
 const abilityFactsMod = () => optional('./ability-facts');
 const coherenceMod = () => optional('./coherence');
 const recordMod = () => optional('./record-claims');
+const memoryMod = () => optional('./match-memory');
 const KIT_HEAD = "THE KITS, what each ability does in the game's own words, the player's agent first. Say nothing of an ability that its line does not say, and name each by its name, never by its key:";
 
 const lower = (s) => String(s == null ? '' : s).toLowerCase();
@@ -112,6 +113,20 @@ const RANK_WORDS = /^(?:Unranked|(?:Iron|Bronze|Silver|Gold|Platinum|Diamond|Asc
 const SIDES = new Set(['attacking', 'defending']);
 const FIGHTS = new Set(['right', 'wrong-spot', 'wrong-time', 'not-needed', 'unclear']);
 const CHANGES = new Set(['aim', 'position', 'timing', 'decision', 'utility', 'team', 'none']);
+// A death's chain as a client built for chains sends it on a card (Nov 2026,
+// chat-context.js cardOf): kinds of match-memory.js's alone, checked against
+// the cards and worded there. The memory lines a match's part carries, at most.
+const CHAIN_KINDS = new Set(['dry-peek', 'isolated', 'repeek', 'crossfire', 'rotating', 'overextend', 'exposed', 'no-escape',
+  'untradeable', 'early-attack', 'no-utility', 'repeat-spot', 'first-death', 'gave-advantage', 'same-killer', 'untraded-close']);
+const MEMORY_LINES = 4;
+function chainOfCard(ch) {
+  if (!ch || typeof ch !== 'object') return null;
+  return {
+    first: CHAIN_KINDS.has(ch.first) ? ch.first : null,
+    worse: list(ch.worse, 2).filter((k) => CHAIN_KINDS.has(k)),
+    fair: ch.fair === true,
+  };
+}
 const AGAINST = new Set(['ACS', 'Damage per round', 'K/D', 'Headshot %']);
 const causes = () => {
   const f = forensicsMod();
@@ -362,6 +377,8 @@ function cardOf(c, m) {
     screen,
     look,
     why: gateText(c.why, { killer: riot && riot.killer, screen: !c.verified, agent: m.agent, language: m.language }, 320),
+    // A death's chain by its kinds (Nov 2026), only where the client sent one.
+    ...(chainOfCard(c.chain) ? { chain: chainOfCard(c.chain) } : {}),
   };
 }
 
@@ -1115,6 +1132,30 @@ function factsOf(input, messages, opts) {
     f.enemyAsked = ea ? ea.text : null;
     f.enemyAgent = ea ? ea.who : null;
     if (f.enemyAsked) harvest(f.enemyAsked);
+    /*
+     * THE MATCH'S OWN MEMORY (Nov 2026, match-memory.js), for a client built
+     * for chains alone (a card carries `chain`): the memory lines of the
+     * match, and for each round asked its chain checked against the cards and
+     * what came before it in the match, each finished in code from Riot's
+     * record and its numbers harvested. A client before it gets none of it.
+     */
+    f.memory = null;
+    const mm = m.cards.some((c) => c && c.chain) ? memoryMod() : null;
+    if (mm) {
+      const rows = mm.rowsOfCards(m.cards);
+      const half = REGULATION[modeKey(m)] ? REGULATION[modeKey(m)] / 2 : null;
+      const lines = mm.memoryLines(rows, half).slice(0, MEMORY_LINES).map((x) => x.text);
+      const asked = new Map();
+      for (const n of f.askedRounds || []) {
+        const c = m.cards.find((x) => x.n === n);
+        const chain = c && c.chain ? mm.chainWords({ n, ...c.chain, gap: c.derived && fin(c.derived.sinceOwnKill) ? c.derived.sinceOwnKill : null }, rows) : null;
+        const earlier = mm.earlierLines(rows, n).slice(0, 3);
+        if (chain || earlier.length) asked.set(n, { chain: chain ? mm.chainCore(chain) : null, earlier });
+      }
+      f.memory = { lines, asked };
+      for (const t of lines) harvest(t);
+      for (const a of asked.values()) { if (a.chain) harvest(a.chain); for (const t of a.earlier) harvest(t); }
+    }
     // How many mistakes code counted, for a reply that says how many (fact-gates.js gateCounted).
     f.counted.mistakeCount = m.lists.mistakes.length;
     f.counted.missedCount = m.lists.missed.length;
@@ -1857,6 +1898,8 @@ function renderMatch(input, facts, trim) {
   for (const p of m.patterns) counted.push(`- Pattern: ${p.text}`);
   for (const line of (facts && facts.plantLines) || []) counted.push(`- Alive at the plant: ${line}`);
   if (facts && facts.costLine) counted.push(`- ${facts.costLine}`);
+  // The match's own memory (Nov 2026, factsOf), a client built for chains alone.
+  for (const line of (facts && facts.memory && facts.memory.lines) || []) counted.push(`- The match's own memory: ${line}`);
   if (counted.length) lines.push(`COUNTED (code counted these from the record, so they are true; quote their numbers exactly)\n${counted.join('\n')}`);
   // The ledger of the trades and the distance (round 8, factsOf), then how to
   // read a teammate's distance, both before the round lines it counts.
@@ -1919,6 +1962,12 @@ function renderAsked(input, rounds, withWhy, facts) {
     }
     const look = lookLines(c);
     if (look) full.push(look);
+    // ITS CHAIN AND WHAT CAME BEFORE IT (Nov 2026, factsOf's memory), a client built for chains alone.
+    const said = facts && facts.memory && facts.memory.asked.get(c.n);
+    if (said && said.chain) full.push(`Code read this death from Riot's record and the coach's look as a chain of mistakes: ${said.chain}. Teach the first mistake, and say what made it worse in a few words.`);
+    if (said && said.earlier.length) {
+      full.push(`EARLIER IN THIS MATCH, before round ${c.n} (counted in code from Riot's record; say what came before only from here or the memory lines): ${said.earlier.join('; ')}.`);
+    }
     // Through the record gates as THE COACH'S EARLIER WORDS are (round 8, earlierFilter).
     const why = withWhy && c.why ? earlierFilter(facts || factsOf(input, []))(c.why, c.n, true) : null;
     if (why) full.push(`The coach's earlier line for it (written by a model from the same facts; use it only where the facts agree): ${why}`);

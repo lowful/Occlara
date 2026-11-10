@@ -181,4 +181,4 @@ function movesPlayer(text, agent) {
   return phraseHits(text, agent).some((k) => k !== 'aim');
 }
 
-module.exports = { CAUSES, isAvoidable, causeTitle, recordCause, recordOf, NO_ESCAPE_SEC, FIGHTS, CHANGES, VARIANTS, variantOf, PHRASES, PHRASE_ORDER, phraseHits, movesPlayer };
+module.exports = { CAUSES, isAvoidable, causeTitle, recordCause, recordOf, answeredKill, NO_ESCAPE_SEC, FIGHTS, CHANGES, VARIANTS, variantOf, PHRASES, PHRASE_ORDER, phraseHits, movesPlayer };

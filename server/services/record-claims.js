@@ -254,7 +254,9 @@ function contextOfReview(input) {
     scoreline: inp.final && inp.final.scoreline && fin(inp.final.scoreline.kills) && fin(inp.final.scoreline.deaths)
       ? { kills: inp.final.scoreline.kills, deaths: inp.final.scoreline.deaths } : null,
     // The counted lines the review was given, lower case (checkCountList).
-    countedTexts: (inp.patterns || []).map((p) => p && p.text).concat(inp.swing || [], (inp.mistakes || []).map((m) => m && m.detail))
+    // The match's own memory and its biggest repeat (Nov 2026, match-memory.js), for a client built for chains.
+    countedTexts: (inp.patterns || []).map((p) => p && p.text).concat(inp.swing || [], (inp.mistakes || []).map((m) => m && m.detail),
+      (inp.memory || []).map((m) => m && m.text), inp.chainMain ? [inp.chainMain] : [])
       .filter((x) => typeof x === 'string' && x).map((x) => straight(x).toLowerCase()),
   };
 }
@@ -2099,6 +2101,107 @@ function checkWholeList(sentence, ctx) {
   return null;
 }
 
+/*
+ * EARLIER IN THE MATCH, AS RIOT'S RECORD HAS IT (Nov 2026, the match's own
+ * memory, death-chain.js and match-memory.js). The review and Ask Coach are
+ * now handed what came before a death ("you died at Hookah in rounds 1 and 3
+ * too"), and a reply that says it in its own words is held to the record of
+ * the rounds before the one it is about:
+ *
+ *   "the third time you died at Hookah", "your third death at Hookah"   the
+ *       deaths there before that round are exactly two
+ *   "you had died at Hookah twice before"                               two
+ *   "Chamber had killed you twice before", "the third time Chamber killed
+ *       you"                                                            the same, by killer
+ *   "you died at Hookah again", "Chamber killed you again"              one at least
+ *
+ * Only Riot's place counts (a whole site never: "A site" is the article trap),
+ * and only a sentence whose round is known (the round line's, or the one it
+ * names). A round before it the record does not place or has no killer for
+ * leaves a count it could make true unjudged. A plan ("if you die at Hookah
+ * again") judges nothing. A false claim drops the sentence.
+ */
+const EARLIER_ORD = { second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5, '6th': 6, '7th': 7, '8th': 8 };
+const EARLIER_ORD_ALT = 'second|third|fourth|fifth|sixth|seventh|eighth|2nd|3rd|4th|5th|6th|7th|8th';
+const EARLIER_TIMES = `(once|twice|${NUM}\\s+times)`;
+const EARLIER_DIED = '(?:died|were\\s+killed|got\\s+killed|fell|went\\s+down)';
+const EARLIER_BEFORE = '(?:before|already|earlier(?:\\s+in\\s+the\\s+(?:match|game))?|in\\s+earlier\\s+rounds)';
+const earlierCount = (w) => {
+  const s = String(w || '').toLowerCase();
+  if (s === 'once') return 1;
+  if (s === 'twice') return 2;
+  return numOf(s.replace(/\s+times$/, ''));
+};
+function checkEarlier(sentence, ctx, st) {
+  const t = straight(sentence);
+  if (!ctx || !ctx.rounds || !ctx.rounds.size || OPENS_IF.test(t) || /\b(?:if|next\s+time|should|would|could|whenever)\b/i.test(t)) return null;
+  if (!/\b(?:again|before|already|earlier|time|death)\b/i.test(t)) return null;
+  const n = roundOfSentence(t, ctx, st);
+  if (!n) return null;
+  const pl = ctx.map ? placesOf(ctx.map) : null;
+  const k = knowledgeOf();
+  const samePlace = (a, b) => {
+    const x = String(a).toLowerCase();
+    const y = String(b).toLowerCase();
+    if (x === y || (pl && (pl.canonOf.get(x) || x) === (pl.canonOf.get(y) || y))) return true;
+    return !!(k && typeof k.samePlace === 'function' && k.samePlace(ctx.map, x, y));
+  };
+  // The deaths before round n by place or by killer: { at, unknown }.
+  const before = (test, has) => {
+    let at = 0;
+    let unknown = 0;
+    for (let i = 1; i < n; i++) {
+      const r = ctx.rounds.get(i);
+      if (!r) { unknown += 1; continue; }
+      if (!r.died || r.afk) continue;
+      if (!has(r)) { unknown += 1; continue; }
+      if (test(r)) at += 1;
+    }
+    return { at, unknown };
+  };
+  const byPlace = (p) => before((r) => samePlace(r.place, p), (r) => !!r.place);
+  const byKiller = (a) => before((r) => r.killer === a, (r) => !!r.killer);
+  const wrong = (got, want, atLeast) => (atLeast ? got.at < want && !got.unknown : got.at !== want && (got.at > want || !got.unknown));
+  const said = (what, got) => `your reply said what happened earlier in the match: ${what}, where Riot's record has ${got.at === 0 ? 'none' : got.at === 1 ? 'one' : got.at} before round ${n}; say what came before only as the record gives it`;
+  const claims = [];
+  if (pl && pl.alt) {
+    const P = `(${pl.alt})(?![A-Za-z0-9])`;
+    for (const m of t.matchAll(new RegExp(`\\b(?:the|your)\\s+(${EARLIER_ORD_ALT})\\s+(?:time\\s+(?:that\\s+)?you\\s+${EARLIER_DIED}|death)\\s+(?:at|in|on|near)\\s+(?:the\\s+)?${P}`, 'gi'))) {
+      claims.push({ place: m[2], want: EARLIER_ORD[m[1].toLowerCase()] - 1, what: `the ${m[1]} death at ${m[2]}` });
+    }
+    for (const m of t.matchAll(new RegExp(`\\byou\\s+(?:had\\s+)?(?:already\\s+)?(?:died|been\\s+killed|fallen|fell)\\s+(?:at|in|on|near)\\s+(?:the\\s+)?${P}\\s+${EARLIER_TIMES}\\s+${EARLIER_BEFORE}`, 'gi'))) {
+      claims.push({ place: m[1], want: earlierCount(m[2]), what: `${m[2]} at ${m[1]} before` });
+    }
+    for (const m of t.matchAll(new RegExp(`\\byou\\s+${EARLIER_DIED}\\s+(?:at|in|on|near)\\s+(?:the\\s+)?${P}\\s+again\\b|\\bagain\\s+at\\s+(?:the\\s+)?${P}`, 'gi'))) {
+      const p = m[1] || m[2];
+      if (/\bagain\s+at\b/i.test(m[0]) && !DEATH_SAID.test(t)) continue;
+      claims.push({ place: p, want: 1, atLeast: true, what: `a death at ${p} again` });
+    }
+  }
+  const A = `(${AGENT_ALT})(?![A-Za-z0-9])`;
+  for (const m of t.matchAll(new RegExp(`(?<![A-Za-z0-9])${A}\\s+(?:had\\s+)?(?:already\\s+)?(?:killed|got|caught)\\s+you\\s+${EARLIER_TIMES}\\s+${EARLIER_BEFORE}`, 'gi'))) {
+    claims.push({ agent: canon(m[1]), want: earlierCount(m[2]), what: `${m[1]} killing you ${m[2]} before` });
+  }
+  for (const m of t.matchAll(new RegExp(`\\bthe\\s+(${EARLIER_ORD_ALT})\\s+time\\s+(?:(?:that\\s+)?(?<![A-Za-z0-9])${A}\\s+(?:killed|got|caught)\\s+you|you\\s+${EARLIER_DIED}\\s+to\\s+${A})`, 'gi'))) {
+    const a = m[2] || m[3];
+    claims.push({ agent: canon(a), want: EARLIER_ORD[m[1].toLowerCase()] - 1, what: `the ${m[1]} time ${a} killed you` });
+  }
+  for (const m of t.matchAll(new RegExp(`(?<![A-Za-z0-9])${A}\\s+(?:killed|got|caught)\\s+you\\s+again\\b`, 'gi'))) {
+    claims.push({ agent: canon(m[1]), want: 1, atLeast: true, what: `${m[1]} killing you again` });
+  }
+  for (const c of claims) {
+    if (c.place !== undefined) {
+      if (articleNotSite(c.place) || /^[abc] site$/i.test(c.place) || c.want == null) continue;
+      const got = byPlace(c.place);
+      if (wrong(got, c.want, c.atLeast)) return said(c.what, got);
+    } else if (c.agent && c.want != null) {
+      const got = byKiller(c.agent);
+      if (wrong(got, c.want, c.atLeast)) return said(c.what, got);
+    }
+  }
+  return null;
+}
+
 const READERS = [
   ['kills', checkKills],
   ['share', checkKillerShare],
@@ -2133,6 +2236,8 @@ const READERS = [
   ['leftwords', checkLeftWords],
   ['later', checkLater],
   ['killplace', checkKillPlace],
+  // The match's own memory (Nov 2026): what a reply says came earlier in the match, held to the rounds before.
+  ['earlier', checkEarlier],
 ];
 const REVIEW_READERS = [...READERS, ['side', checkSide], ['result', checkResult]];
 
@@ -2248,6 +2353,8 @@ module.exports = {
   checkDeathPlace, PLACE_PREP, PLACE_GAP_BREAK, DEATH_SAID, YOU_HEAD,
   checkKillsDeaths, DEATHS_MORE, KILLS_MORE, KD_NEG, KD_CUT,
   checkCountList, COUNT_HEAD, LIST_AFTER, LIST_SOME, COUNT_DEATH_BEFORE, COUNT_NEW_CLAUSE, runRounds,
+  // The match's own memory (Nov 2026).
+  checkEarlier, EARLIER_ORD, EARLIER_TIMES,
   // Its review: who stands at the place, the scoreline's subject, the list's own words.
   PLACE_VERB, YOU_OBJECT, PLACE_EARLIER, PLACE_LATER, DEATH_PLACE_HEAD, DEATH_GAP_BREAK, KD_OTHER, KD_SCOPE, LIST_BEFORE, LIST_NOT_BEFORE, countKinds, foldRounds,
   // The stream C review's open gap: a list with no count, told as the whole set.

@@ -1828,6 +1828,30 @@ async function openShell(cfg, state, opts) {
     ok(kq.$('round-10').classList.contains('quiet') && !kq.$('round-10').querySelector('.v-killer, .v-fold'),
       'a died round with no card and nothing said stays one quiet line');
     ok(!v.document.querySelectorAll('.v-killer').length, 'and a round served with no card draws none');
+    // A DEATH AS A CHAIN (Nov 2026, death-chain.js through served()): the
+    // first mistake, what made it worse and what came before, one line each,
+    // under a look or alone; a round with more than one mistake says how many
+    // on its line; the match's biggest repeat under the coach's read.
+    const CH = { first: { kind: 'no-escape', title: 'Risky spot, no escape', short: 'a kill at Hookah, then Chamber killed you 1.1 seconds later' },
+      worse: [{ kind: 'untradeable', title: 'Nobody close to trade', short: 'no teammate close, and nobody traded it' },
+        { kind: 'gave-advantage', title: 'Advantage given back', short: 'your team was up 5 against 4 and lost the round' }],
+      fair: false, mistakes: 3, earlier: ['you died at Hookah in rounds 1 and 3 too', 'Chamber killed you in round 5 too'], situation: [] };
+    const kc = await open({ ...base, context: { memory: [], chains: { main: 'Your biggest repeat: dying where no teammate was close enough to trade, in 3 rounds, rounds 1, 3 and 6.' } },
+      rounds: [{ ...base.rounds[3], chain: CH }, row(11, 'lost', 'Defence', ['Died at Hookah'], { chain: { ...CH, worse: [], mistakes: 1 }, open: true })] });
+    const chainLines = (n) => [...kc.$(n).querySelectorAll('.v-chain .v-why-line')].map((p) => p.textContent);
+    ok(same(chainLines('moment-9'), ['The first mistakeRisky spot, no escape (a kill at Hookah, then Chamber killed you 1.1 seconds later).',
+      'What made it worseNobody close to trade (no teammate close, and nobody traded it), and Advantage given back (your team was up 5 against 4 and lost the round).',
+      'Earlier in the matchYou died at Hookah in rounds 1 and 3 too, Chamber killed you in round 5 too.']),
+    'a death\'s chain under its look: the first mistake, what made it worse, what came before', chainLines('moment-9').join(' | '));
+    const tag9 = kc.$('round-9').querySelector('.v-round-head .v-tag[data-kind="chain"]');
+    ok(tag9 && tag9.textContent === '3 mistakes' && !kc.$('round-11').querySelector('.v-round-head .v-tag[data-kind="chain"]'),
+      'a round with more than one mistake says how many on its line, one with one says nothing');
+    ok(!kc.$('round-11').classList.contains('quiet') && kc.$('round-11').querySelector('.v-chain') && chainLines('round-11').length === 2,
+      'a chain with no look and no why still has its lines');
+    const lis = [...kc.$('v-summary').querySelectorAll('li')].map((x) => x.textContent);
+    ok(lis[lis.length - 1] === 'Your biggest repeat: dying where no teammate was close enough to trade, in 3 rounds, rounds 1, 3 and 6.',
+      'the biggest repeat is a line under the coach\'s read', lis.join(' | '));
+    ok(!v.document.querySelectorAll('.v-chain').length, 'and a review served with no chain draws none');
     const fig = imgs(m9)[0].parentNode;
     imgs(m9)[0].click();
     const zoomed = fig.classList.contains('zoom');

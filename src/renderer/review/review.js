@@ -227,7 +227,11 @@ function paintValorant(r, verdict) {
       : r.aiUnavailable ? 'The coach could not be reached to write this part. Everything else on this page was computed from the match.'
         : '');
   const lines = summary && Array.isArray(r.summaryLines) && r.summaryLines.length ? r.summaryLines : said ? [said] : [];
-  $('v-summary').replaceChildren(...lines.map((line) => el('li', 'v-summary-line', line)));
+  // The match's biggest repeat, counted over every death's chain (Nov 2026,
+  // insights.js chainCounts via served()), under the coach's read.
+  const repeat = summary && r.context && r.context.chains && typeof r.context.chains.main === 'string' ? r.context.chains.main : null;
+  $('v-summary').replaceChildren(...lines.map((line) => el('li', 'v-summary-line', line)),
+    ...(repeat ? [el('li', 'v-summary-line v-chain-main', repeat)] : []));
   // A focus with no read above it: no empty line between the heading and it.
   $('v-summary').hidden = !lines.length;
   $('v-focus-wrap').hidden = !r.focus;
@@ -700,7 +704,9 @@ function roundRow(r, c, frames) {
   // neither looked at nor wrote about still has the card when the record
   // has one, alone in the row's body, folded or open as served() says.
   const killerOnly = !f && !why ? killerCardEl(c.killerCard) : null;
-  const row = el('article', 'v-round' + (f || why || killerOnly ? '' : ' quiet'));
+  // The death as a chain of mistakes (Nov 2026, served() from death-chain.js).
+  const chain = chainEl(c.chain);
+  const row = el('article', 'v-round' + (f || why || killerOnly || chain ? '' : ' quiet'));
   row.id = `round-${c.n}`;
   const head = el('div', 'v-round-head');
   // The number is the row's anchor (8.7): a click brings the row into view
@@ -713,8 +719,15 @@ function roundRow(r, c, frames) {
   head.append(rn);
   if (c.result) head.append(el('span', 'v-chip ' + c.result, c.result === 'won' ? 'Won' : 'Lost'));
   if (c.side) head.append(el('span', 'v-side', c.side));
+  // A round whose death holds more than one mistake says so on its line.
+  const many = c.chain && Number.isInteger(c.chain.mistakes) && c.chain.mistakes > 1 ? c.chain.mistakes : 0;
+  if (many) {
+    const mark = el('span', 'v-tag warn', `${many} mistakes`);
+    mark.dataset.kind = 'chain';
+    head.append(mark);
+  }
   row.append(head);
-  if (!f && !why && !killerOnly) {
+  if (!f && !why && !killerOnly && !chain) {
     const facts = factsOf(c, 'span');
     if (facts) head.append(facts);
     return row;
@@ -723,7 +736,14 @@ function roundRow(r, c, frames) {
   // match: the eye in the page's header opens the match on its first death.
   const eye = f && r.id && r.aiLog === 'kept' && typeof f.at === 'number' && window.LogEye
     ? window.LogEye.button('kept', () => window.occlara.openAiLog(r.id, f.at), window.LogEye.MOMENT) : null;
-  const said = f ? look(c, frames, why) : why ? whyWithKiller(c, why) : killerOnly;
+  const plain = f ? look(c, frames, why, chain) : why ? whyWithKiller(c, why) : killerOnly;
+  // With no look, the chain leads the row's words, the why or the killer card under it.
+  let said = plain;
+  if (chain && !f) {
+    said = el('div', 'v-why-block');
+    said.append(chain);
+    if (plain) said.append(plain);
+  }
   /*
    * A ROUND NOT OPEN IS ONE LINE UNTIL ASKED (8.7): served() opens a round
    * with a look or a why, or one of the top mistake's, and the rest of the
@@ -925,7 +945,7 @@ function killerCardEl(k) {
 const CAUSE_TITLE = {
   'dry-peek': 'Dry peek', 'isolated': 'Caught alone', 'repeek': 'Repeek', 'crossfire': 'Crossfire',
   'rotating': 'Caught rotating', 'overextend': 'Overextended', 'exposed': 'Exposed on the spike',
-  'lost-duel': 'Lost the duel', 'unclear': 'Frame unclear',
+  'no-escape': 'Risky spot, no escape', 'lost-duel': 'Lost the duel', 'unclear': 'Frame unclear',
 };
 function causeChip(f) {
   return el('span', 'v-cause ' + (f.cause === 'lost-duel' || f.cause === 'unclear' ? 'neutral' : 'bad'),
@@ -1052,7 +1072,32 @@ function markShown(strip, i) {
  * one Riot's record never reached are painted alike, and the second says its
  * timing is the coach's own read.
  */
-function look(c, frames, why) {
+/*
+ * A DEATH AS A CHAIN OF MISTAKES (Nov 2026, valorant-review.js withView from
+ * death-chain.js): the first mistake, what made it worse, and what came
+ * before it in the match, one plain line each, every word computed from
+ * Riot's record and the look's label. Set by textContent. Null with none.
+ */
+const capital = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+function chainEl(ch) {
+  if (!ch || typeof ch !== 'object') return null;
+  const box = el('div', 'v-why-block v-chain');
+  const line = (label, text) => {
+    const p = el('p', 'v-why-line');
+    p.append(el('span', 'gv-fix-label', label), el('span', 'v-why', text));
+    box.append(p);
+  };
+  const item = (w) => (w && w.title ? `${w.title}${w.short ? ` (${w.short})` : ''}` : null);
+  if (ch.first && item(ch.first)) line('The first mistake', `${item(ch.first)}.`);
+  else if (ch.fair) line('The fight', "A fair duel, by the coach's look.");
+  const worse = (Array.isArray(ch.worse) ? ch.worse : []).map(item).filter(Boolean);
+  if (worse.length) line(ch.first ? 'What made it worse' : 'What made it cost more', `${worse.join(', and ')}.`);
+  const earlier = (Array.isArray(ch.earlier) ? ch.earlier : []).filter((t) => typeof t === 'string' && t);
+  if (earlier.length) line('Earlier in the match', `${capital(earlier.join(', '))}.`);
+  return box.children.length ? box : null;
+}
+
+function look(c, frames, why, chain) {
   const f = c.forensics;
   const box = el('div', 'v-moment');
   box.id = `moment-${c.n}`;
@@ -1102,6 +1147,7 @@ function look(c, frames, why) {
   // (the advice of an unclear look, or the line a screen look landed after:
   // roundRow) comes under it.
   if (f.source === 'screen') advice.append(el('p', 'v-moment-src', SCREEN_TIMING));
+  if (chain) advice.append(chain);
   if (why) advice.append(whyLine(why, said));
   if (gone && !shots.length) advice.append(gone);
   const killer = killerCardEl(c.killerCard);

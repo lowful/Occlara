@@ -19,6 +19,7 @@
  */
 
 const insights = require('./insights');
+const deathChain = require('./death-chain');
 const grader = require('./grade');
 const { CLIP_RE, LOOK_AT } = require('./clips');
 const { roleOf } = require('./agent-roles');
@@ -1169,8 +1170,25 @@ function withoutEconomy(review) {
  * holds, so a review from any version gets them. withoutView takes them off
  * again, for a test that holds the rest of what is shown unchanged.
  */
-const VIEW_FIELDS = ['summaryLines'];
-const VIEW_CARD_FIELDS = ['tags', 'open', 'killerCard'];
+const VIEW_FIELDS = ['summaryLines', 'context'];
+const VIEW_CARD_FIELDS = ['tags', 'open', 'killerCard', 'chain'];
+
+/*
+ * A DEATH AS A CHAIN, AND THE MATCH'S OWN MEMORY (Nov 2026, death-chain.js),
+ * worked out here when a review is shown, never on disk, so a review saved by
+ * any version that holds Riot's record gets them: each judged death's chain
+ * on its card (`chain`), and on the review `context`: the memory lines and
+ * the chains counted (insights.js chainCounts). A review graded from Riot's
+ * record alone counts no mistake (asFacts), so it gets the memory, which is
+ * facts, and no chain.
+ */
+function contextOf(review) {
+  const rounds = Array.isArray(review.rounds) ? review.rounds : [];
+  const half = Number.isInteger(review.halftimeAfter) ? review.halftimeAfter : null;
+  const chains = review.source === 'riot' ? [] : deathChain.chainsOf(rounds, { half });
+  const memory = deathChain.memoryOf(rounds, { half });
+  return { chains, memory };
+}
 
 function withView(review) {
   if (!review || typeof review !== 'object') return review;
@@ -1178,6 +1196,8 @@ function withView(review) {
   // with. None from Riot's record alone, which counts facts, not mistakes.
   const top = insights.countable(review).mistakes[0];
   const hot = new Set(top && Array.isArray(top.rounds) ? top.rounds : []);
+  const { chains, memory } = review.kind === 'valorant' ? contextOf(review) : { chains: [], memory: [] };
+  const chainOf = new Map(chains.map((e) => [e.n, e.chain]));
   const rounds = Array.isArray(review.rounds)
     ? review.rounds.map((c) => {
       if (!c || typeof c !== 'object') return c;
@@ -1194,10 +1214,13 @@ function withView(review) {
       const card = { ...c, tags: factTags(c.facts), open: !!(c.forensics || c.why || hot.has(c.n)) };
       const killer = killerCard(c);
       if (killer) card.killerCard = killer;
+      if (chainOf.has(c.n)) card.chain = chainOf.get(c.n);
       return card;
     })
     : review.rounds;
-  return { ...review, rounds, summaryLines: summaryLines(review.summary) };
+  const counted = chains.length ? insights.chainCounts(chains) : null;
+  const context = memory.length || counted ? { memory, ...(counted ? { chains: counted } : {}) } : null;
+  return { ...review, rounds, summaryLines: summaryLines(review.summary), ...(context ? { context } : {}) };
 }
 
 /*
@@ -1482,6 +1505,38 @@ function countsOf(rounds) {
   };
 }
 
+/*
+ * THE CHAINS A REVIEW REQUEST CARRIES (Nov 2026): each judged death's first
+ * mistake and what made it worse by kind, the seconds from the player's kill
+ * to the death where a kind is the record's spot with no escape (the server
+ * has no feed to read it from), and the match's biggest repeat by its kinds
+ * and rounds. No sentence: the server words every one from its own rounds,
+ * and drops a kind its rounds do not bear out.
+ */
+function chainsSent(rounds, half) {
+  const rs = Array.isArray(rounds) ? rounds : [];
+  const list = deathChain.chainsOf(rs, { half });
+  const counted = list.length ? insights.chainCounts(list) : null;
+  const gapOf = (n) => {
+    const r = rs.find((x) => x && x.n === n);
+    const feed = r && Array.isArray(r.feed) ? r.feed.filter((e) => e && Number.isFinite(e.ms)) : [];
+    const death = feed.find((e) => e.on === 'me');
+    const kills = death ? feed.filter((e) => e.by === 'me' && e.on === 'enemy' && e.ms <= death.ms) : [];
+    return kills.length ? Math.round((death.ms - kills[kills.length - 1].ms) / 100) / 10 : null;
+  };
+  return {
+    half: Number.isInteger(half) ? half : null,
+    rounds: list.map(({ n, chain }) => ({
+      n,
+      first: chain.first ? chain.first.kind : null,
+      worse: chain.worse.map((w) => w.kind),
+      fair: chain.fair,
+      ...((chain.first && chain.first.kind === 'no-escape') || chain.worse.some((w) => w.kind === 'no-escape') ? { gap: gapOf(n) } : {}),
+    })),
+    main: counted && counted.mainKind ? { kind: counted.mainKind, rounds: counted.mainRounds, ...(counted.beside ? { beside: counted.beside } : {}) } : null,
+  };
+}
+
 function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring }) {
   const ctx = context || {};
   const team = typeof ctx.teamScore === 'number' ? ctx.teamScore : null;
@@ -1571,6 +1626,12 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring })
     // What the card counted (round 4, countsOf), always an object: the mark
     // of the round 4 rules, as `swing` is of round 3's.
     counts: countsOf(rounds),
+    // Each death's chain of mistakes and the half's length, keys and numbers
+    // only (Nov 2026, chainsSent), always an object: the mark of a client
+    // built for chains, which the server words from its own rounds and checks
+    // against them (match-memory.js). A client before it sends none and is
+    // reviewed as before, byte for byte.
+    chains: chainsSent(rounds, halftimeAfter(ctx.gameMode, rounds)),
     // The counted mistakes the library finds again across recent matches,
     // keys only, where the caller knows them. From Platinum the trade habit
     // is the focus only when it is one of these (server leverOf).
@@ -1699,6 +1760,6 @@ function against(tracker, role, history) {
 
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
   queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, teamAgentsOf, lookJudgement,
-  factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS,
+  factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS, contextOf, chainsSent,
   BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX, countsOf,
   buyDiscipline, castsNamed, recordOnCard, BUY_WORDS, BUYS_MIN, deathPlace, ECONOMY_PATTERNS, recordCausesSaved };

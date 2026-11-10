@@ -443,6 +443,15 @@ function cardOf(c, review, pistols) {
     screen: spot || ult || digits.length ? { spot, ult: ult ? 'ready' : null, lookDigits: digits } : null,
     look,
     why: typeof c.why === 'string' && c.why ? c.why : null,
+    // A death's chain of mistakes (Nov 2026, death-chain.js, on the card as
+    // served shows it): its kinds alone. The server checks each against the
+    // cards and words it (match-memory.js), and tells the round asked what
+    // came before it in the match. A card with none sends no key.
+    ...(c.chain && typeof c.chain === 'object' ? { chain: {
+      first: c.chain.first && c.chain.first.kind ? c.chain.first.kind : null,
+      worse: (Array.isArray(c.chain.worse) ? c.chain.worse : []).map((w) => w && w.kind).filter(Boolean).slice(0, 2),
+      fair: c.chain.fair === true,
+    } } : {}),
   };
 }
 
