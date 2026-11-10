@@ -143,10 +143,24 @@ const CAUSES = {
   'rotating':    'caught moving between areas, not set up for a fight',
   'overextend':  'pushed past the team or chased a kill into enemy ground',
   'exposed':     'stood in the open while planting, defusing or holding the spike',
+  'no-escape':   'got a kill from a spot with no way out, and the next enemy killed the player before they could leave it',
   'lost-duel':   'a fair fight from a sound position, lost on the shot',
   'unclear':     'the frame does not show enough to say',
 };
-const AVOIDABLE = new Set(['dry-peek', 'isolated', 'repeek', 'crossfire', 'rotating', 'overextend', 'exposed']);
+const AVOIDABLE = new Set(['dry-peek', 'isolated', 'repeek', 'crossfire', 'rotating', 'overextend', 'exposed', 'no-escape']);
+
+/*
+ * A CAUSE CODE GIVES, NEVER THE MODEL (8.9.6). no-escape is set by the client
+ * from Riot's kill feed (src/shared/death-causes.js recordCause: the player's
+ * own kill answered by another enemy within a second and a half, on defence
+ * or alone on attack), over a look's repeek or lost duel. It is on CAUSES so
+ * the review and Ask Coach take it from a client (match-review.js normalise
+ * keeps a cause CAUSES knows) and quote its words, and it is in no prompt and
+ * no parse: every variant's prompt lists MODEL_CAUSES, which is today's list
+ * byte for byte, and a reply naming it is read as a word off the list.
+ */
+const CODE_ONLY = new Set(['no-escape']);
+const modelCauses = (list) => Object.fromEntries(Object.entries(list).filter(([k]) => !CODE_ONLY.has(k)));
 
 /*
  * VARIANT B'S WORDS FOR TWO OF THEM, the keys the same. Repeek widened to
@@ -544,7 +558,7 @@ Player's agent: ${input.agent || 'unknown'}. Their abilities: ${kit.length ? kit
 ${b ? kitBlockFor(input, death) : ''}Map: ${input.map || 'unknown'}. Callouts that exist on it: ${callouts.length ? callouts.join(', ') : 'unknown, so name no callouts'}.
 
 ${pick}
-${Object.entries(b ? CAUSES_B : CAUSES).map(([k, v]) => `${k}: ${v}`).join('\n')}${judge}
+${Object.entries(modelCauses(b ? CAUSES_B : CAUSES)).map(([k, v]) => `${k}: ${v}`).join('\n')}${judge}
 
 Rules:
 - Describe only what is visible in the ${many ? 'frames' : 'frame'} and stated in the facts. If the frame does not show the moment (a menu, a death screen only, a blur), the cause is unclear.
@@ -669,9 +683,29 @@ function wrongSide(text, death, input) {
   return said && said !== fact ? `the death at ${m[1]}, where Riot's record has ${death.place}` : null;
 }
 
+/*
+ * DEFENCE HAS NO ENTRY (8.9.6, the owner's Bind match). The player held
+ * Hookah on defence, killed the first attacker and died to the second, and
+ * the review told them about their entry: an entry is the attackers' first
+ * contact on a site take. A sentence calling a death on defence an entry, an
+ * entry frag, going in first or a site take is the round's side wrong, and
+ * goes, in the look (parse, every variant, English) and in the review's lines
+ * (match-review.js sideWrong). A retake is the defenders entering a site, so
+ * a death after the plant or a sentence about the retake or the defuse is
+ * never judged.
+ */
+const ENTRY_WORDS = /\b(?:entry|entries|entry\s+frags?|entry\s+fraggers?|entering\s+(?:the\s+|a\s+|their\s+)?(?:[abc]\s+)?site|(?:go|goes|going|went)\s+in\s+first|first\s+one\s+in|site\s+(?:takes?|hits?|executes?))\b/i;
+const RETAKE_WORDS = /\b(?:retakes?|retaking|retook|defus\w*|spike\s+(?:is\s+|was\s+)?(?:down|planted)|after\s+(?:the|their)\s+plant)\b/i;
+/** Whether a sentence calls a death on defence before the plant an entry. */
+function entryOnDefence(text, side, afterPlant) {
+  if (side !== 'defending' || afterPlant === true) return false;
+  const t = String(text || '');
+  return ENTRY_WORDS.test(t) && !RETAKE_WORDS.test(t);
+}
+
 /** A word of the model's reply as a key: "Dry Peek" is dry-peek, "wrong spot" wrong-spot. */
 const asKey = (v) => lower(v).trim().replace(/\s+/g, '-');
-const isCause = (k) => Object.prototype.hasOwnProperty.call(CAUSES, k);
+const isCause = (k) => Object.prototype.hasOwnProperty.call(CAUSES, k) && !CODE_ONLY.has(k);
 // What a conflict names of a reply's word: its key, 'unknown' for a word off
 // the list, 'none' for no word. Never the word itself.
 const named = (v, key) => key || (lower(v).trim() && lower(v).trim() !== 'none' ? 'unknown' : 'none');
@@ -702,7 +736,7 @@ function rawLabels(text) {
     const k = asKey(v);
     return keys.includes(k) ? k : k && k !== 'none' ? 'unknown' : null;
   };
-  const causes = Object.keys(CAUSES);
+  const causes = Object.keys(modelCauses(CAUSES));
   return { json: true, fight: read(j.fight, Object.keys(FIGHTS)), cause: read(j.cause, causes), alt: read(j.alt, causes),
     change: read(j.change, CHANGES), what: !!clip(j.what, 240) };
 }
@@ -764,6 +798,11 @@ function parse(text, input, death) {
     const bad = wrongMap(s, input.map) || foreignAbility(s, input.agent) || wrongKiller(s, death.killer, input.source, input)
       || wrongSide(s, death, input);
     if (bad) { out.dropped.push({ field, why: bad }); continue; }
+    // DEFENCE HAS NO ENTRY (entryOnDefence): English, Riot's side or the screen's.
+    if (gateLanguage(input) === 'en' && entryOnDefence(s, death.side, death.afterPlant)) {
+      out.dropped.push({ field, why: 'entry on defence', gate: 'side' });
+      continue;
+    }
     // THE KIT AS THE DATA HAS IT (every client and variant): a look sentence
     // that says an ability does what the game's description does not is
     // dropped as one naming another map is, and the look carries on without it.
@@ -945,4 +984,5 @@ module.exports = {
   buildPrompt, parse, normalise, wrongMap, foreignAbility, wrongKiller, calloutsOf,
   phraseHits, movesPlayer, replyJson, rawLabels, logLines, replyOf, tokensFor, judgement, judgementB2, judgesFight,
   rankRule, BAND_WORDS, kitBlockFor, kitWrong, recordOf, recordLines, wrongSide, BUY_SAID,
+  CODE_ONLY, modelCauses, ENTRY_WORDS, RETAKE_WORDS, entryOnDefence,
 };

@@ -73,8 +73,46 @@ const prompt = df.buildPrompt(input, d2);
 ok(/Killed by Viper with a Marshal/.test(prompt) && /first death of the round/i.test(prompt), 'Riot\'s facts are in the prompt');
 ok(/not traded/.test(prompt) && /5 of their team, player included, against 5/.test(prompt), 'and the trade and the numbers standing');
 ok(/tailwind|updraft|cloudburst|blade storm/i.test(prompt), 'the player\'s own kit is listed');
-ok(Object.keys(df.CAUSES).every((c) => prompt.includes(c + ':')), 'every cause label is offered');
+ok(Object.keys(df.modelCauses(df.CAUSES)).every((c) => prompt.includes(c + ':')), 'every cause label the model may give is offered');
 ok(!/[\u2013\u2014]/.test(prompt), 'no dashes in the prompt');
+
+// \u2500\u2500 8.9.6: a cause code gives, and defence has no entry \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+{
+  ok(df.CAUSES['no-escape'] && df.AVOIDABLE.has('no-escape') && df.CODE_ONLY.has('no-escape') && clientCauses.CAUSES['no-escape'],
+    'no-escape is a cause both copies know, avoidable, and code only');
+  const pb = df.buildPrompt({ ...input, variant: 'b' }, d2);
+  const pb2 = df.buildPrompt({ ...input, variant: 'b2' }, d2);
+  ok(![prompt, pb, pb2].some((p) => p.includes('no-escape')), 'and no prompt offers it, a, b or b2');
+  ok(df.parse('{"cause": "no-escape", "what": "You held B Window and the Viper killed you.", "better": "Hold from cover."}', input, d2).cause === 'unclear',
+    'a reply naming it in a is a word off the list');
+  const b = { ...input, variant: 'b2' };
+  const viaB = df.parse(JSON.stringify({ what: 'You held B Window and the Viper killed you.', fight: 'wrong-spot', better: 'Hold from cover.', change: 'position', cause: 'no-escape', alt: 'crossfire' }), b, d2);
+  ok(viaB.cause === 'crossfire', `and in b2 it gives way to the second choice (${viaB.cause})`);
+  ok(df.rawLabels('{"cause": "no-escape"}').cause === 'unknown', 'the bench reads it as a word off the list');
+
+  // The words, each held to a sentence it must catch and one it must not.
+  for (const s of ['You took the entry alone.', 'Your entry frag died first.', 'Before entering a site, wait for the flash.', 'You went in first with no smoke.', 'The site take was too early.']) {
+    ok(df.ENTRY_WORDS.test(s), `entry words catch: ${s}`);
+  }
+  for (const s of ['You were entering a smoke.', 'Retake the site with your team.', 'You held the entrance to Hookah.', 'Go in second behind the flash.']) {
+    ok(!df.ENTRY_WORDS.test(s), `and let through: ${s}`);
+  }
+  ok(df.RETAKE_WORDS.test('On the retake, your entry came first.') && df.RETAKE_WORDS.test('After their plant, wait.') && !df.RETAKE_WORDS.test('You took the entry.'),
+    'the retake words catch a retake and a plant, not an entry');
+
+  // The owner's Bind round 6: a defence death called an entry loses the sentence.
+  const reply = JSON.stringify({ cause: 'dry-peek', what: 'You took the entry into Mid alone and the Viper killed you.', better: 'Go in first only behind a smoke.' });
+  const def = df.parse(reply, input, d2);
+  ok(def.what === null && def.better === null && def.cause === 'unclear'
+    && def.dropped.filter((d) => d.why === 'entry on defence' && d.gate === 'side').length === 2,
+  `on defence an entry sentence goes, and a mistake left with no what is unclear (${JSON.stringify(def.dropped)})`);
+  const atk = df.parse(reply, input, { ...d2, side: 'attacking' });
+  ok(atk.cause === 'dry-peek' && atk.what && atk.better, 'the same sentences on attack stand');
+  const retake = df.parse(reply, input, { ...d2, afterPlant: true });
+  ok(retake.cause === 'dry-peek' && retake.what, 'and on defence after the plant, a retake, they stand');
+  const plain = df.parse(JSON.stringify({ cause: 'dry-peek', what: 'You held Mid alone and the Viper killed you.', better: 'Hold from cover a teammate can see.' }), input, d2);
+  ok(plain.cause === 'dry-peek' && plain.what && plain.better && !plain.dropped.length, 'a defence look that says no entry is untouched');
+}
 
 // ── Parsing ─────────────────────────────────────────────────────────────────
 const good = df.parse('```json\n{"cause": "dry-peek", "what": "You swung wide into mid with no utility thrown", "better": "Dash in behind a cloudburst or wait for the flash."}\n```', input, d2);
@@ -177,7 +215,7 @@ ok(/The screen saw the spike planted in this round\./.test(screenPrompt) && !/pl
   'a plant, without the timing against it the screen cannot know');
 ok(/last one before the screen read the player as dead/.test(screenPrompt) && /watching a teammate, the cause is unclear/.test(screenPrompt),
   'the frames are said to be framed by when the screen read the death, which can be late');
-ok(/The screen placed the death at A Site\./.test(screenPrompt) && Object.keys(df.CAUSES).every((c) => screenPrompt.includes(c + ':')),
+ok(/The screen placed the death at A Site\./.test(screenPrompt) && Object.keys(df.modelCauses(df.CAUSES)).every((c) => screenPrompt.includes(c + ':')),
   'and it keeps the screen\'s spot and every cause label');
 ok(!DASH.test(screenPrompt), 'no dashes in the screen prompt');
 ok(/FACTS FROM RIOT'S RECORD, exact/.test(prompt) && /Name no killer other than the one in the facts\./.test(prompt)
@@ -329,7 +367,7 @@ ok(look(riotEs, 'Viper te mató con la Marshal mientras sostenías solo.', 'Jueg
   'what to read in the frames before the death and the one after it, and no count of the first frame\'s seconds beside them');
   ok(/The screen placed the death at Mid Courtyard\. If the frames print another place above the minimap, that is where it was\./.test(p6),
     "the screen's spot, the last place it read, gives way to the place the frames print (on the real Sunset match round 6's spot was a round earlier's)");
-  ok(/FACTS FROM RIOT'S RECORD, exact/.test(p6) && /Killed by KAY\/O with a Sheriff\./.test(p6) && Object.keys(df.CAUSES).every((c) => p6.includes(c + ':'))
+  ok(/FACTS FROM RIOT'S RECORD, exact/.test(p6) && /Killed by KAY\/O with a Sheriff\./.test(p6) && Object.keys(df.modelCauses(df.CAUSES)).every((c) => p6.includes(c + ':'))
     && /Name no killer other than the one in the facts\./.test(p6) && /map|Callouts that exist/.test(p6) && !DASH.test(p6),
   "with Riot's facts, every cause, the killer and map rules kept, and no dash");
   const seven = df.normalise({ deaths: [{ n: 2, frames: [-6, -4, -3, -2, -1, 1, 3].map((s) => frame + s), frameAt: [-6, -4, -3, -2, -1, 1, 3], framesFrom: 'recording' }] }).deaths[0];
@@ -569,7 +607,7 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
   // and every avoidable cause is some judgement's.
   const fam = Object.values(df.FIGHTS).flatMap((f) => f.causes);
   ok(fam.every((c) => df.CAUSES[c]) && df.FIGHTS.right.causes.join() === 'lost-duel'
-    && [...df.AVOIDABLE].every((c) => fam.includes(c)) && !Object.entries(df.FIGHTS).some(([k, f]) => k !== 'right' && f.causes.includes('lost-duel')),
+    && [...df.AVOIDABLE].every((c) => fam.includes(c) || df.CODE_ONLY.has(c)) && !Object.entries(df.FIGHTS).some(([k, f]) => k !== 'right' && f.causes.includes('lost-duel')),
   'the families: known causes only, lost-duel only for a right fight, every avoidable cause in one');
   ok(Object.keys(df.FIGHTS).join() === clientCauses.FIGHTS.join() && df.CHANGES.join() === clientCauses.CHANGES.join(),
     "the client's lists of fights and changes are the server's");

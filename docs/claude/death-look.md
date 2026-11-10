@@ -473,3 +473,56 @@ teammate stood close and the team's buy (`death-forensics.js recordOf`,
 prompted as before. `wrongSide` drops a look sentence that puts the death on
 another lettered side than Riot's callout; the distance is never judged,
 since `MATE_CLOSE_UNITS` has no stated unit (`test:forensics`).
+
+### Defence has no entry, and a risky spot with no escape (8.9.6)
+
+The owner's Bind match (13 to 10, Iso, the app on for rounds 4 to 9 only):
+its one look was round 6, on defence, 10 s in at Hookah. Riot's kill feed has
+the player's Stinger kill on the first attacker at 8.8 s and the second, a
+Chamber with a Phantom, killing them at 9.87 s, no teammate close, nobody
+answering the Chamber (the stills show both coming through the door one behind
+the other; the combat report has 135 dealt to the Chamber, 273 taken). The look
+called it a repeek, "stayed on the same angle", with "step back behind cover"
+as the better play, and the review's focus said "Before entering a site ...
+gives your entry a chance", by the duelist entry note given for role alone,
+where 12 of the match's 19 untraded deaths were on defence.
+
+- **A cause code gives, never the model** (`death-causes.js recordCause`,
+  `CAUSES['no-escape']`, "Risky spot, no escape" and "Risky spots, no
+  escape", avoidable). A look's repeek or lost duel is this cause when Riot's
+  feed has the player's own kill and then their death to another enemy within
+  `NO_ESCAPE_SEC` (1.5 s), on defence, or on attack with no teammate close (on
+  attack with one close it is a traded entry, a duelist's job). In a second
+  there is no choice to stay or to peek again: the spot gave no way out. Its
+  sentences are the record's alone, Riot's place, killer and seconds ("You got
+  a kill at Hookah, and Chamber killed you 1.1 seconds later, too soon to
+  leave the spot."), never cover the record does not hold; the look's own label
+  is kept as `was`, a b look's fight becomes wrong-spot and its change
+  position. A look from the screen alone has no feed and is never changed.
+  `valorant-review.js build` applies it to the rows before anything counts
+  them and to what the narrative is sent; `served` shows a review saved before
+  by it (`recordCausesSaved`: the card and its one round's miss, never a label
+  a repeated mistake counts, nothing on disk).
+- **The server knows the key and never offers it** (`death-forensics.js
+  CODE_ONLY`, `modelCauses`): it is on `CAUSES` so `match-review.js normalise`
+  takes it from a client and quotes its words, and Ask Coach's titles know it
+  (`fact-gates.js CAUSE_TITLES`, `CAUSE_WORDS`); every variant's prompt lists
+  today's causes byte for byte, and a reply naming it is a word off the list.
+- **Defence has no entry** (`death-forensics.js ENTRY_WORDS`, `RETAKE_WORDS`,
+  `entryOnDefence`). A look sentence calling a death on defence before the
+  plant an entry, an entry frag, going in first or a site take is dropped
+  (`gate: 'side'`, every variant, English); `match-review.js
+  defenceEntryGate` drops such a round line whole (logged 'entry on defence',
+  the record's kind for the retry), and a summary or focus sentence alone
+  where every round it names is a defence round, or it names none and every
+  death on record came on defence. A retake, after the plant or in its words,
+  is never judged. A round 4 client's duelist entry note is given only where
+  the lesson's deaths (the untraded ones, or the first deaths) came more on
+  attack; else `DEFENCE_NOT_ENTRY` says there is none on defence and what to
+  teach instead (`leverRule4`, `defenceLesson`). A client before round 4 is
+  reviewed byte for byte as before.
+
+Tests: `test:valorantreview` (the round 6 record through build, served and
+requestBody, each condition held, the lever and the gates), `test:forensics`
+(the code only cause in no prompt, the words against sentences they must and
+must not catch, the look's gate on defence, attack and a retake).

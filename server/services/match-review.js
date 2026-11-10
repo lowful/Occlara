@@ -557,8 +557,37 @@ function focusLever(input) {
   return { untraded: !!untraded, tradeOk, entry: role === 'duelist' };
 }
 
+/*
+ * DEFENCE HAS NO ENTRY (8.9.6, the owner's Bind match). The duelist's entry
+ * note was given by role alone, and the Bind review, 12 of its 19 untraded
+ * deaths on defence and its one look a defence death at Hookah, told the
+ * player "Before entering a site ... gives your entry a chance". The note is
+ * for deaths on attack: given where the lesson's deaths (the untraded ones for
+ * the trade lever, the first deaths for the first death lever) came more on
+ * attack than on defence; where they came more on defence the prompt says
+ * there is no entry there and what the lesson is instead (DEFENCE_NOT_ENTRY).
+ */
+function lessonSides(input, kind) {
+  const v = ((input && input.rounds) || []).filter((r) => r && r.verified && !r.afk && r.died);
+  const of = kind === 'first-death' ? v.filter((r) => r.firstDeath) : v.filter((r) => r.traded === false);
+  return {
+    attack: of.filter((r) => r.side === 'attacking').length,
+    defence: of.filter((r) => r.side === 'defending').length,
+  };
+}
+const DEFENCE_NOT_ENTRY = ' Most of these deaths came on defence, where there is no entry: never call a death on defence an entry or '
+  + 'tell the player to enter a site for it. On defence teach holding first contact from a spot a teammate can trade and the player can '
+  + 'step back from.';
+/** Whether a lesson's deaths came on defence at least as often as on attack, so no entry note is given. */
+function defenceLesson(input, kind) {
+  const s = lessonSides(input, kind);
+  return s.defence > 0 && s.defence >= s.attack;
+}
+
 function leverRule(input, noTrade) {
   const lever = noTrade ? { ...focusLever(input), tradeOk: false } : focusLever(input);
+  // A client before round 4 is reviewed as it was, byte for byte: the
+  // defence note is leverRule4's (DEFENCE_NOT_ENTRY).
   const entry = lever.entry
     ? ' The player plays a duelist, whose job is to go in first, so where the lesson is about who followed them in, teach their part of '
       + 'the entry, going in on a teammate\'s flash, drone or smoke or saying which teammate follows, never waiting for the team.'
@@ -829,8 +858,9 @@ const LEVER_TEACH = {
 function leverRule4(input, lever) {
   const untraded = (input.mistakes || []).some((m) => m && m.key === 'untraded');
   const entry = focusLever(input).entry && (lever.kind === 'trade' || lever.kind === 'first-death')
-    ? ' The player plays a duelist, whose job is to go in first, so teach their part of the entry, going in on a teammate\'s flash, '
-      + 'drone or smoke or saying which teammate follows, never waiting for the team.' : '';
+    ? (defenceLesson(input, lever.kind) ? DEFENCE_NOT_ENTRY
+      : ' The player plays a duelist, whose job is to go in first, so teach their part of the entry, going in on a teammate\'s flash, '
+        + 'drone or smoke or saying which teammate follows, never waiting for the team.') : '';
   return `FOCUS LEVER: ${lever.text} Make the FOCUS about ${LEVER_TEACH[lever.kind]}, and say why it wins rounds here.`
     + (lever.kind !== 'trade' && untraded ? ' Never make checking that a teammate can trade you the focus in this match: it is not '
       + 'what decides rounds at this level here.' : '')
@@ -2189,6 +2219,8 @@ function parse(text, input, opts = {}) {
       out.dropped.push({ n: r.n, said: 'the facts again', riot: null });
     }
   }
+  // DEFENCE HAS NO ENTRY (8.9.6, defenceEntryGate).
+  defenceEntryGate(out, input);
   // THE ROUND 3 GATES (claimGates): a line the record or the kit table
   // contradicts goes whole, a summary or focus sentence goes alone, never the
   // review. For every client: each drops only what is false or leaked.
@@ -2327,6 +2359,8 @@ function dropKind(d) {
   if (/(?:^| )name$/.test(said)) return 'name';
   if (/^(?:(?:summary|focus) )?record\b/.test(said)) return 'record';
   if (said === 'traded' || said === 'not traded') return 'trade';
+  // The round's side is Riot's record (defenceEntryGate).
+  if (/(?:^| )entry on defence$/.test(said)) return 'record';
   if (AGENT_NAMES.includes(said)) return 'killer';
   if (said === 'focus no instruction') return 'focus';
   const m = /^(?:summary|focus) (.+)$/.exec(said);
@@ -2753,6 +2787,46 @@ function stateWrong(text, r) {
   if (r.side === 'attacking' && (COME_TO_YOU.test(text) || CLOCK_YOURS.test(text))) return 'round state';
   if (SPIKE_NEEDED.test(text)) return 'no plant';
   return null;
+}
+
+/*
+ * DEFENCE HAS NO ENTRY (8.9.6, the owner's Bind match; the words are
+ * death-forensics.js ENTRY_WORDS and RETAKE_WORDS, the look's own gate). A
+ * round line calling a death on defence before the plant an entry, an entry
+ * frag, going in first or a site take goes whole, logged as 'entry on
+ * defence'. A summary or focus sentence that says it goes alone where every
+ * round it names is such a defence round, or where it names none and every
+ * death Riot's record holds came on defence: with attack deaths beside them
+ * an entry lesson can be the attack's, and stands. English only, as the
+ * words are.
+ */
+function defenceEntryGate(out, input) {
+  if (promptName(input.context && input.context.language) !== 'English') return;
+  const byN = new Map(input.rounds.map((r) => [r.n, r]));
+  const onDefence = (r) => !!(r && r.verified && r.side === 'defending' && r.afterPlant !== true);
+  for (const r of input.rounds) {
+    const why = out.rounds[r.n];
+    if (!why || !onDefence(r)) continue;
+    if (forensics.entryOnDefence(why, r.side, r.afterPlant)) {
+      delete out.rounds[r.n];
+      out.dropped.push({ n: r.n, said: 'entry on defence', riot: 'defence' });
+    }
+  }
+  const deaths = input.rounds.filter((r) => r && r.verified && r.died && !r.afk);
+  const allDefence = deaths.length > 0 && deaths.every(onDefence);
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const all = splitSentences(out[field]).map((s) => s.trim()).filter(Boolean);
+    const kept = all.filter((s) => {
+      if (!forensics.entryOnDefence(s, 'defending', false)) return true;
+      const ns = namedRounds(s).filter((n) => byN.has(n));
+      return ns.length ? !ns.every((n) => onDefence(byN.get(n))) : !allDefence;
+    });
+    if (kept.length < all.length) {
+      out[field] = kept.join(' ').trim() || null;
+      out.dropped.push({ n: null, said: `${field} entry on defence`, riot: 'defence' });
+    }
+  }
 }
 
 /** From Platinum, the trade habit in one place at most: the focus first, else the first round line. */
@@ -3222,4 +3296,6 @@ module.exports = { floorFails, floorNote, floorMerge, floorFill, floorLine, floo
   // 8.8: the rounds the player sat out, and the team's two patterns past the cut.
   satOutRounds, satOutLine, satOutGate, SAT_OUT_SAID, SAT_OUT_RANGE, PAST_CUT,
   // The economy out of scope (Nov 2026), asserted in test:valorantreview.
-  economyGates, ECONOMY_REVIEW_RULE, ECONOMY_PATTERNS, teachesEconomy, reviewCasePool };
+  economyGates, ECONOMY_REVIEW_RULE, ECONOMY_PATTERNS, teachesEconomy, reviewCasePool,
+  // 8.9.6: defence has no entry.
+  defenceEntryGate, defenceLesson, lessonSides, DEFENCE_NOT_ENTRY };

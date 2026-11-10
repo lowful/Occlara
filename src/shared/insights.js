@@ -78,6 +78,7 @@ const CAUSE_FIX = {
   'rotating': 'Rotate early or rotate through cover, and have your crosshair up while you move.',
   'overextend': 'Take the space your team can hold with you. Stop chasing kills past them.',
   'exposed': 'Plant or defuse from cover, with a smoke or a teammate covering you.',
+  'no-escape': 'Take the first fight from a spot you can step back from after the kill, because the next enemy can come right behind the first.',
 };
 
 /**

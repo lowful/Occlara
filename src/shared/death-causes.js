@@ -34,6 +34,7 @@ const CAUSES = {
   'rotating':   { title: 'Caught rotating',       one: 'Caught rotating',         detail: 'moving between areas, not set for a fight', avoidable: true },
   'overextend': { title: 'Overextended',          one: 'Overextended',            detail: 'pushed past the team or chased a kill into their ground', avoidable: true },
   'exposed':    { title: 'Exposed on the spike',  one: 'Exposed on the spike',    detail: 'in the open while planting, defusing or holding the spike', avoidable: true },
+  'no-escape':  { title: 'Risky spots, no escape', one: 'Risky spot, no escape',  detail: 'got a kill from a spot with no way out, and the next enemy killed you before you could leave it', avoidable: true },
   'lost-duel':  { title: 'Lost duels',            one: 'Lost the duel',           detail: 'a fair fight from a sound position that went the other way', avoidable: false },
   'unclear':    { title: 'Unclear',               one: 'Unclear',                 detail: 'the frame did not show enough to say', avoidable: false },
 };
@@ -45,6 +46,82 @@ function causeTitle(cause, count) {
   const c = CAUSES[cause];
   if (!c) return null;
   return count === 1 ? c.one : c.title;
+}
+
+/*
+ * A RISKY SPOT WITH NO ESCAPE, FROM RIOT'S RECORD (8.9.6, the owner's Bind
+ * match, round 6). On defence at Hookah the player killed the first attacker
+ * through the door and the second killed them 1.07 s later: the look called it
+ * a repeek, "stayed on the same angle", and its better play said to step back
+ * behind cover. In about a second there is no choice to stay or to peek again:
+ * the spot itself gave no way out once a second enemy came right behind the
+ * first. So a look's repeek or lost duel is this cause in code, never the
+ * model's word, when Riot's kill feed has the player's own kill and then their
+ * death to ANOTHER enemy within NO_ESCAPE_SEC, and the player was on defence,
+ * where nothing is an entry, or on attack with no teammate close (on attack
+ * with one close it is a traded entry, a duelist's job). A look from the
+ * screen alone has no feed and is never changed. Its sentences are the
+ * record's alone: the place is Riot's callout, the killer Riot's agent, the
+ * seconds Riot's, and nothing is said of cover the record does not hold. The
+ * look's own label is kept as `was`. The model is never offered it
+ * (death-forensics.js CODE_ONLY), so no prompt changed.
+ */
+const NO_ESCAPE_SEC = 1.5;
+const NO_ESCAPE_FROM = new Set(['repeek', 'lost-duel']);
+
+/**
+ * The round's record as recordCause reads it, from a ledger row (build's
+ * input) or a saved card: { side, feed, killer, mate, place }.
+ */
+function recordOf(r) {
+  if (!r || typeof r !== 'object') return null;
+  if (r.riot && typeof r.riot === 'object') {
+    return { side: r.sideKey || null, feed: r.riot.feed, killer: r.riot.killer || null, mate: r.riot.mate || null, place: r.riot.place || null };
+  }
+  return { side: r.side || null, feed: r.feed, killer: r.killerAgent || null, mate: r.mateNear || null, place: r.riotSpot || null };
+}
+
+/** The player's own kill and the death right after it, or null: { gap, death } from Riot's kill feed. */
+function answeredKill(rec) {
+  const feed = rec && Array.isArray(rec.feed) ? rec.feed.filter((e) => e && Number.isFinite(e.ms)) : [];
+  const death = feed.find((e) => e.on === 'me' && e.by === 'enemy');
+  if (!death) return null;
+  const kills = feed.filter((e) => e.by === 'me' && e.on === 'enemy' && e.ms <= death.ms);
+  const kill = kills[kills.length - 1];
+  if (!kill) return null;
+  // Another enemy: the one the player killed cannot have killed them.
+  if (!death.ka || !kill.va || death.ka === kill.va) return null;
+  if (rec.killer && death.ka !== rec.killer) return null;
+  const gap = (death.ms - kill.ms) / 1000;
+  return gap >= 0 && gap <= NO_ESCAPE_SEC ? { gap, death } : null;
+}
+
+/**
+ * A look as Riot's record has it: the look unchanged, or with cause
+ * 'no-escape', the record's own sentences, and its own label as `was`.
+ */
+function recordCause(look, r) {
+  if (!look || !NO_ESCAPE_FROM.has(look.cause) || look.source === 'screen') return look;
+  const rec = recordOf(r);
+  if (!rec || (rec.side !== 'defending' && !(rec.side === 'attacking' && rec.mate === 'far'))) return look;
+  const hit = answeredKill(rec);
+  if (!hit) return look;
+  const secs = Math.round(hit.gap * 10) / 10;
+  const when = secs <= 1 ? 'a second' : `${secs} seconds`;
+  const place = typeof rec.place === 'string' && rec.place ? ` at ${rec.place}` : '';
+  const out = {
+    ...look,
+    cause: 'no-escape',
+    was: look.cause,
+    what: `You got a kill${place}, and ${hit.death.ka} killed you ${when} later, too soon to leave the spot.`,
+    better: rec.side === 'defending'
+      ? 'On defence, hold from a spot you can step back from after the first kill, off a wide open angle, because the next enemy can come right behind the first.'
+      : 'Take the first fight from a spot you can step back from after the kill, because the next enemy can come right behind the first.',
+  };
+  // A look asked with variant b keeps a judgement of its fight: the spot was
+  // the mistake, so the fight was a wrong spot and the play changes position.
+  if (look.fight) { out.fight = 'wrong-spot'; out.change = 'position'; }
+  return out;
 }
 
 /*
@@ -104,4 +181,4 @@ function movesPlayer(text, agent) {
   return phraseHits(text, agent).some((k) => k !== 'aim');
 }
 
-module.exports = { CAUSES, isAvoidable, causeTitle, FIGHTS, CHANGES, VARIANTS, variantOf, PHRASES, PHRASE_ORDER, phraseHits, movesPlayer };
+module.exports = { CAUSES, isAvoidable, causeTitle, recordCause, recordOf, NO_ESCAPE_SEC, FIGHTS, CHANGES, VARIANTS, variantOf, PHRASES, PHRASE_ORDER, phraseHits, movesPlayer };

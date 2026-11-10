@@ -23,7 +23,7 @@ const grader = require('./grade');
 const { CLIP_RE, LOOK_AT } = require('./clips');
 const { roleOf } = require('./agent-roles');
 const { weaponName } = require('./valorant-verify');
-const { FIGHTS, CHANGES } = require('./death-causes');
+const { FIGHTS, CHANGES, CAUSES, recordCause } = require('./death-causes');
 const icons = require('./valorant-icons');
 const { satOut, cardSatOut } = require('./sat-out');
 
@@ -214,6 +214,53 @@ function lookJudgement(f) {
   if (CHANGES.includes(f && f.change)) out.change = f.change;
   if (f && (f.variant === 'a' || f.variant === 'b')) out.variant = f.variant;
   return out;
+}
+
+/*
+ * A RISKY SPOT WITH NO ESCAPE (8.9.6, death-causes.js recordCause): a look's
+ * repeek or lost duel that Riot's kill feed shows was the player's own kill
+ * answered by another enemy within a second and a half, on defence or alone
+ * on attack. Applied to the ledger's rows before build counts anything, to
+ * what the narrative is sent, and to a review saved before (recordCausesSaved).
+ */
+function withRecordCauses(rows) {
+  return rows.map((r) => {
+    if (!r || !r.forensics) return r;
+    const f = recordCause(r.forensics, r);
+    return f === r.forensics ? r : { ...r, forensics: f };
+  });
+}
+const lookSent = (f) => ({ cause: f.cause, seen: f.what || null });
+
+/*
+ * A REVIEW SAVED BEFORE 8.9.6, shown by today's rule: each card whose look
+ * the record calls a risky spot with no escape shows that cause, and the miss
+ * of that one round under "What you missed" says it too. A label a repeated
+ * mistake counts in two or more rounds stays as it was, card and list alike,
+ * so the page never says two things of one death; nothing on disk changes.
+ */
+function recordCausesSaved(review) {
+  if (!review || !Array.isArray(review.rounds)) return review;
+  const repeated = new Set(((review.insights && review.insights.mistakes) || [])
+    .filter((m) => m && /^cause:/.test(m.key || '')).map((m) => m.key.slice(6)));
+  const changed = new Map();
+  const rounds = review.rounds.map((c) => {
+    if (!c || !c.forensics || repeated.has(c.forensics.cause)) return c;
+    const f = recordCause(c.forensics, c);
+    if (f === c.forensics) return c;
+    changed.set(c.n, f);
+    return { ...c, forensics: f };
+  });
+  if (!changed.size) return review;
+  const missed = review.insights && Array.isArray(review.insights.missed)
+    ? review.insights.missed.map((m) => {
+      const n = m && Array.isArray(m.rounds) && m.rounds.length === 1 ? m.rounds[0] : null;
+      const f = n !== null ? changed.get(n) : null;
+      if (!f || m.key !== `cause:${f.was}`) return m;
+      return { ...m, key: 'cause:no-escape', title: CAUSES['no-escape'].one, detail: `Round ${n}: ${f.what}`, fix: f.better };
+    })
+    : null;
+  return { ...review, rounds, ...(missed ? { insights: { ...review.insights, missed } } : {}) };
 }
 
 /*
@@ -789,7 +836,9 @@ function roundFacts(r, opts) {
  * @param input.history    past historyEntry() rows
  */
 function build(input) {
-  const rounds = Array.isArray(input.rounds) ? input.rounds : [];
+  // A look Riot's record says was a risky spot with no escape is that cause
+  // before anything counts it (death-causes.js recordCause, 8.9.6).
+  const rounds = withRecordCauses(Array.isArray(input.rounds) ? input.rounds : []);
   const ctx = input.context || {};
   const ai = input.ai || {};
   const tracker = input.tracker || null;
@@ -898,6 +947,8 @@ function build(input) {
       // grade, and only where the look said it, so a card saved before keeps
       // its keys: a look with no variant was asked with a.
       ...lookJudgement(r.forensics),
+      // The look's own label where Riot's record changed it (recordCause).
+      ...(r.forensics.was && CAUSES[r.forensics.was] ? { was: r.forensics.was } : {}),
     } : null,
   }));
 
@@ -1084,7 +1135,9 @@ function riotOnlyNote(grade, riotOnly) {
  *   graded from Riot's record alone  facts in place of the three lists, and
  *       Decisions saying what it counted. Saved by 8.0.3 or 8.1, it kept fix
  *       lines and titles claiming what Riot never records.
- *   recorded                         its clutch line, "one against 1" until 8.2
+ *   recorded                         its clutch line, "one against 1" until 8.2,
+ *       and a look Riot's record calls a risky spot with no escape shown as
+ *       that cause, its one round's miss with it (recordCausesSaved, 8.9.6)
  *
  * A review built today comes back with the same content.
  */
@@ -1094,7 +1147,7 @@ function served(review) {
     return withView(withCompsLine(weaponsInTodaysWords(withoutEconomy({ ...review, insights: insights.asFacts(review.insights),
       grade: grader.riotWords(review.grade) }))));
   }
-  const out = review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review;
+  const out = recordCausesSaved(review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review);
   return withView(withCompsLine(weaponsInTodaysWords(aboutNotesInTodaysWords(withoutEconomy(out)))));
 }
 
@@ -1507,7 +1560,7 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring })
       } : {}),
       // The coach's look at the death, so the summary and the round lines
       // agree with the cause the review counts.
-      ...(r.forensics && r.forensics.cause ? { cause: r.forensics.cause, seen: r.forensics.what || null } : {}),
+      ...(r.forensics && r.forensics.cause ? lookSent(recordCause(r.forensics, r)) : {}),
     })),
     patterns: patterns(rounds),
     // The match's swing from Riot's record (round 3, swingOf), always an
@@ -1648,4 +1701,4 @@ module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, 
   queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, teamAgentsOf, lookJudgement,
   factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS,
   BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX, countsOf,
-  buyDiscipline, castsNamed, recordOnCard, BUY_WORDS, BUYS_MIN, deathPlace, ECONOMY_PATTERNS };
+  buyDiscipline, castsNamed, recordOnCard, BUY_WORDS, BUYS_MIN, deathPlace, ECONOMY_PATTERNS, recordCausesSaved };

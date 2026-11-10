@@ -3554,5 +3554,106 @@ console.log('\nthe plant\'s time from Riot\'s record (the blind audit of round 7
   ok(!old.patterns.some((x) => x.key === 'buys') && old.patterns.some((x) => x.key === 'sides'), 'the server drops a buys pattern an older client sends');
 }
 
+// ── 8.9.6: defence has no entry, and a risky spot with no escape ─────────────
+// The owner's Bind match, round 6, as Riot's record and the look saved it:
+// on defence at Hookah, a Stinger kill on the first attacker 8.8 s in and
+// the player dead to the second, a Chamber, 1.07 s later, no teammate close.
+// The look said repeek, "stayed on the same angle". Agents only, no names.
+{
+  const causes = require('../src/shared/death-causes');
+  const feed = [
+    { ms: 8808, by: 'me', on: 'enemy', ka: 'Iso', va: 'Phoenix', w: 'Stinger' },
+    { ms: 9874, by: 'enemy', on: 'me', ka: 'Chamber', va: 'Iso', w: 'Phantom' },
+    { ms: 21000, by: 'mate', on: 'enemy', ka: 'Phoenix', va: 'Neon', w: 'Phantom' },
+  ];
+  const look = { cause: 'repeek', what: 'You held the edge of cover at B Window, killed the first enemy, then stayed on the same angle and Chamber killed you with a Phantom.',
+    better: 'After the first kill, step back behind cover instead of staying on the angle for Chamber.', frames: [], source: 'riot', fight: 'wrong-time', change: 'timing', variant: 'b' };
+  const row = (o) => ({ n: 6, side: 'defending', result: 'lost', died: true, early: true, planted: true, verified: true, deathSec: 10,
+    killerAgent: 'Chamber', weapon: 'Phantom', firstKill: true, kills: 1, traded: false, aliveAtDeath: { mates: 5, enemies: 4 },
+    feed, riotSpot: 'Hookah', mateNear: 'far', forensics: look, ...o });
+  // Two rounds survived beside it, since the lists count from three rounds.
+  const quiet = (n) => ({ n, side: 'defending', result: 'won', died: false, verified: true, feed: [] });
+  const one = (o) => review.build({ rounds: [row(o), quiet(7), quiet(8)], context: { map: 'Bind', agent: 'Iso' }, endedBy: 'stop' });
+  const r6 = one({}).rounds[0].forensics;
+  ok(r6.cause === 'no-escape' && r6.was === 'repeek' && r6.fight === 'wrong-spot' && r6.change === 'position',
+    `the owner's round 6 is a risky spot with no escape, the look's repeek kept as was (${r6.cause}, ${r6.was})`);
+  ok(r6.what === 'You got a kill at Hookah, and Chamber killed you 1.1 seconds later, too soon to leave the spot.',
+    `its what is the record's: Riot's place, Riot's killer, Riot's seconds (${r6.what})`);
+  ok(/^On defence, hold from a spot you can step back from after the first kill/.test(r6.better) && !/entry|entering|go in first/i.test(r6.what + r6.better),
+    'its better play is defence\'s, and says no entry');
+  const miss = one({}).insights.missed.find((m) => m.key === 'cause:no-escape');
+  ok(miss && miss.title === 'Risky spot, no escape' && miss.detail.startsWith('Round 6: You got a kill at Hookah') && miss.fix === r6.better,
+    'its miss under What you missed says it too');
+  ok(causes.isAvoidable('no-escape') && causes.causeTitle('no-escape', 2) === 'Risky spots, no escape', 'avoidable, with its two titles');
+  ok(review.requestBody({ rounds: [row({})], context: { map: 'Bind', agent: 'Iso' }, endedBy: 'stop' }).rounds[0].cause === 'no-escape',
+    'and the narrative is sent the cause the review counts');
+
+  // Each condition held: a look the record does not answer is left as the look said it.
+  const keeps = (o, why) => ok(one(o).rounds[0].forensics.cause === (o.forensics ? o.forensics.cause : 'repeek'), why);
+  keeps({ feed: [{ ...feed[0], ms: 7300 }, feed[1]] }, 'a death 2.6 s after the kill is no instant answer, the look stands');
+  keeps({ feed: [{ ...feed[0], va: 'Chamber' }, feed[1]] }, 'the enemy the player killed did not kill them: a feed saying so changes nothing');
+  keeps({ feed: [feed[1]] }, 'a death with no kill of the player\'s before it stands');
+  keeps({ side: 'attacking', mateNear: 'close' }, 'on attack with a teammate close it is a traded entry, a duelist\'s job, and stands');
+  keeps({ forensics: { ...look, cause: 'isolated' } }, 'a position label the look gave stands');
+  keeps({ forensics: { ...look, source: 'screen' } }, 'a look from the screen alone, which has no feed, stands');
+  const atk = one({ side: 'attacking', mateNear: 'far' }).rounds[0].forensics;
+  ok(atk.cause === 'no-escape' && /^Take the first fight from a spot you can step back from/.test(atk.better),
+    'on attack with nobody close it is one too, with attack\'s better play');
+  const duel = one({ forensics: { ...look, cause: 'lost-duel', fight: 'right', change: 'aim' } }).rounds[0].forensics;
+  ok(duel.cause === 'no-escape' && duel.was === 'lost-duel', 'a lost duel the record shows was the kill answered at once is one too');
+
+  // A review saved before: shown by today's rule, nothing on disk changed.
+  const saved = one({ forensics: look });
+  saved.rounds[0].forensics = { ...look, frames: [] };
+  saved.insights.missed = [{ key: 'cause:repeek', title: 'Repeek', detail: `Round 6: ${look.what}`, fix: look.better, rounds: [6], judged: true, count: 1 }];
+  saved.rounds[0].riot = { ...saved.rounds[0].riot, feed, place: 'Hookah', mate: 'far', killer: 'Chamber' };
+  const shown = review.served(JSON.parse(JSON.stringify(saved)));
+  ok(shown.rounds[0].forensics.cause === 'no-escape' && shown.insights.missed[0].key === 'cause:no-escape' && shown.insights.missed[0].title === 'Risky spot, no escape'
+    && saved.rounds[0].forensics.cause === 'repeek', 'a saved review shows its round 6 look and miss as no escape, the saved copy untouched');
+  const counted = JSON.parse(JSON.stringify(saved));
+  counted.insights.mistakes = [{ key: 'cause:repeek', title: 'Repeeks', rounds: [2, 6], count: 2 }];
+  ok(review.served(counted).rounds[0].forensics.cause === 'repeek', 'but a label a repeated mistake counts stays, card and list alike');
+  const today = one({});
+  ok(JSON.stringify(review.withoutView(review.served(today)).rounds) === JSON.stringify(today.rounds), 'and a review built today comes back the same');
+
+  // The server: the cause taken from a client, the entry note and the gates.
+  const mrBody = (rs, extra) => ({ variant: 'C', context: { agent: 'Iso', map: 'Bind', language: 'en', ...((extra && extra.context) || {}) }, rounds: rs, patterns: [],
+    mistakes: (extra && extra.mistakes) || [], tips: [], notes: [] });
+  const def = (n, o) => ({ n, side: 'defending', result: 'lost', died: true, verified: true, sec: 20, killer: 'Chamber', traded: false, ...o });
+  const att = (n, o) => ({ ...def(n, o), side: 'attacking', ...o });
+  const inDef = matchReview.normalise(mrBody([def(6, { cause: 'no-escape', seen: 'You got a kill at Hookah, and Chamber killed you 1.1 seconds later, too soon to leave the spot.' }), def(7), def(8), att(14)]));
+  ok(inDef.rounds[0].cause === 'no-escape', 'the server takes no-escape from a client');
+  ok(matchReview.defenceLesson(inDef, 'trade') && !matchReview.defenceLesson(matchReview.normalise(mrBody([def(1), att(13), att(14)])), 'trade'),
+    'the untraded deaths are a defence lesson where they came more on defence, not where they came more on attack');
+  const untraded = [{ key: 'untraded', title: 'Deaths nobody traded', detail: '4 of your 4 deaths went unanswered.', rounds: [6, 7, 8, 14], count: 4, weight: 2 }];
+  const lever = { kind: 'trade', text: '4 of your 4 deaths went unanswered.' };
+  const lr = matchReview.leverRule4(matchReview.normalise(mrBody(inDef.rounds, { mistakes: untraded })), lever);
+  ok(lr.includes(matchReview.DEFENCE_NOT_ENTRY) && !/teach their part of the entry/.test(lr), `a duelist's lever on a defence lesson says there is no entry there (${lr.slice(-200)})`);
+  const lrAtk = matchReview.leverRule4(matchReview.normalise(mrBody([def(1), att(13), att(14), att(15)], { mistakes: untraded })), lever);
+  ok(/teach their part of the entry/.test(lrAtk) && !lrAtk.includes(matchReview.DEFENCE_NOT_ENTRY), 'and on an attack lesson it keeps the entry note');
+  const lrFirst = matchReview.leverRule4(matchReview.normalise(mrBody([def(1, { firstDeath: true }), def(2, { firstDeath: true }), att(13, { firstDeath: true })])),
+    { kind: 'first-death', text: 'First to die in 3 rounds.' });
+  ok(lrFirst.includes(matchReview.DEFENCE_NOT_ENTRY), 'the first death lever counts its own deaths by side');
+  const sage = matchReview.leverRule4(matchReview.normalise(mrBody(inDef.rounds, { mistakes: untraded, context: { agent: 'Sage' } })), lever);
+  ok(!sage.includes(matchReview.DEFENCE_NOT_ENTRY) && !/the entry/.test(sage), 'a player who is no duelist gets neither note, as before');
+
+  const reply = 'SUMMARY: You won 13 to 10.\nR6: Your entry at Hookah came with nobody behind you, so wait for a teammate.\n'
+    + 'R14: Your entry onto B came with nobody behind you, so say who follows.\n'
+    + 'FOCUS: Before entering a site in round 6, say which teammate follows. Hold first contact from a spot you can step back from.';
+  const parsed = matchReview.parse(reply, inDef);
+  ok(!parsed.rounds[6] && parsed.dropped.some((d) => d.n === 6 && d.said === 'entry on defence') && matchReview.dropKind({ said: 'entry on defence' }) === 'record',
+    `a round line calling a defence death an entry goes whole, logged as the record (${JSON.stringify(parsed.dropped)})`);
+  ok(parsed.rounds[14] && /entry onto B/.test(parsed.rounds[14]), 'the same line on an attack round stands');
+  ok(parsed.focus === 'Hold first contact from a spot you can step back from.', `a focus sentence naming only a defence round goes alone (${parsed.focus})`);
+  const mixed = matchReview.parse('FOCUS: Before entering a site, say which teammate follows. Hold your angle from cover.', inDef);
+  ok(/Before entering a site/.test(mixed.focus || ''), 'with attack deaths in the match, an entry focus naming no round stands');
+  const allDef = matchReview.normalise(mrBody([def(6), def(7)]));
+  const onlyDef = matchReview.parse('FOCUS: Before entering a site, say which teammate follows. Hold your angle from cover.', allDef);
+  ok(onlyDef.focus === 'Hold your angle from cover.', `with every death on defence, it goes (${onlyDef.focus})`);
+  const retake = matchReview.normalise(mrBody([def(4, { plantSec: 40, afterPlant: true })]));
+  const rt = matchReview.parse('R4: Your entry onto the site for the retake came alone, so wait for a teammate.', retake);
+  ok(rt.rounds[4], 'a retake after the plant is the defenders entering a site, and stands');
+}
+
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);
 process.exit(fails ? 1 : 0);
