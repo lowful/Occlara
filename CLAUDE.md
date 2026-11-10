@@ -234,10 +234,13 @@ A version bump needs its `changelog/changelog.json` entry, synced
 
 The main repo's single release (id 296500148) carries the **public download**,
 and `scripts/publish-download.js` refreshes it as the second half of
-`npm run release`. It publishes the same bytes under **two** names:
+`npm run release`. The release holds **two** names:
 
-- `Occlara-Setup.exe`, which every new link should use
-- `GhostCoach.2.0.Setup.exe`, which must never be removed
+- `Occlara-Setup.exe`, which every new link should use and which is the only one
+  refreshed each release
+- `GhostCoach.2.0.Setup.exe`, which must never be removed but is no longer
+  refreshed (since 8.10.3 it stays the 8.10.3 build, an install from it updates
+  itself on first launch; `OCCLARA_REFRESH_LEGACY_NAME=1` refreshes it again)
 
 The old name stays because GitHub bakes the filename into the download URL and
 offers no redirect for it, so every link already in the wild, in Discord, in

@@ -307,8 +307,8 @@ Release: bump `package.json`, `npm test`, commit, push, then `npm run release`
 with a `GH_TOKEN`. electron-builder publishes to **GhostCoach-releases** (that
 is what electron-updater reads), then `scripts/publish-download.js` refreshes
 the main repo's single release, id **296500148**, tag **`Release`**, publishing
-the same bytes under **two** names: `Occlara-Setup.exe` for every new link and
-`GhostCoach.2.0.Setup.exe`, which must never be removed.
+`Occlara-Setup.exe` for every new link, while `GhostCoach.2.0.Setup.exe` must
+never be removed but is no longer refreshed (it stays the 8.10.3 build).
 
 **Run `npm run verify:ai` after ANY read prompt or model change.** It runs the
 live read over the 240 real frames of the Abyss session (kept in

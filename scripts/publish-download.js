@@ -177,7 +177,14 @@ async function main() {
   // Read the installer once; it is ~100MB and both names get the same bytes.
   const body = fs.readFileSync(installer);
 
-  for (const [assetName, backupName] of [[ASSET_NAME, BACKUP_NAME], [NEW_ASSET_NAME, NEW_BACKUP_NAME]]) {
+  // Only the Occlara name is refreshed. The old GhostCoach.2.0.Setup.exe is left
+  // exactly as it is (8.10.3): it exists so old links keep resolving, an app
+  // installed from it updates itself on first launch, and re-uploading 100MB
+  // under a second name every release bought nothing. Set
+  // OCCLARA_REFRESH_LEGACY_NAME=1 to refresh it again.
+  const names = [[NEW_ASSET_NAME, NEW_BACKUP_NAME]];
+  if (process.env.OCCLARA_REFRESH_LEGACY_NAME === '1') names.unshift([ASSET_NAME, BACKUP_NAME]);
+  for (const [assetName, backupName] of names) {
     await swapAsset({ assetName, backupName, body, manifest, assets });
   }
 }
