@@ -1,5 +1,33 @@
 [
   {
+    "version": "8.10.0",
+    "date": "2026-11-10",
+    "title": "Practice, and reviews that read the whole match",
+    "summary": "A new Practice page built from your own repeated mistakes, and reviews that name every mistake in a death and remember the match.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Practice: a plan built from your own repeated mistakes, with drills for your rank, a goal for each, and a plain check on whether the mistake is going away. Mark drills as practised and see your streak."
+      },
+      {
+        "kind": "new",
+        "text": "Reviews read a death as a chain: the first mistake, what made it worse, and what happened earlier in the match, like dying at the same spot or to the same enemy again."
+      },
+      {
+        "kind": "new",
+        "text": "Ask Coach and your review now remember the match, so they can say you died here twice before, or that an enemy started finding you from a round on."
+      },
+      {
+        "kind": "improved",
+        "text": "Home suggests today's practice, and each review has a Practise this link under its fix."
+      },
+      {
+        "kind": "improved",
+        "text": "More researched coaching advice, including holding the power on defence before the plant."
+      }
+    ]
+  },
+  {
     "version": "8.9.7",
     "date": "2026-11-10",
     "title": "Ask Coach keeps its whole answer",
