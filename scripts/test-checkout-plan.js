@@ -15,7 +15,9 @@
  * STRIPE_PRICE_* variables are not needed to tell weekly from yearly any more.
  *
  * Only the old Railway checkout's purchases (client_reference_id or
- * metadata.userId) are minted by the webhook; the site mints its own.
+ * metadata.userId) are minted by the webhook; the site mints its own. And
+ * only once paid (8.11.0): an unpaid checkout mints nothing until its
+ * async_payment_succeeded, which mints it once.
  *
  * The real webhook runs here against fake-billing.js.
  *
@@ -41,21 +43,28 @@ const sb = require('./fixtures/fake-accounts').notLive(makeSupabase());
 const st = makeStripe();
 const handler = loadWith(path.join(SERVER, 'routes', 'webhook.js'), { supabase: sb, stripe: st.api });
 
-async function buy({ mode, metaPlan, priceId, interval, lineItemsThrow, userId = 'user_1' }) {
+async function buy({ mode, metaPlan, priceId, interval, lineItemsThrow, userId = 'user_1', paymentStatus = 'paid' }) {
   st.reset();
   sb.reset({ rows: [], schema: 'migrated' });
   if (lineItemsThrow) st.s.fail.add('checkout.sessions.listLineItems');
   const session = {
     id: 'cs_1', mode, customer: 'cus_1', subscription: mode === 'subscription' ? 'sub_1' : null,
     client_reference_id: userId, metadata: metaPlan ? { plan: metaPlan, userId } : {},
-    customer_details: { email: 'buyer@example.com' }, payment_status: 'paid', priceId, interval,
+    customer_details: { email: 'buyer@example.com' }, payment_status: paymentStatus, priceId, interval,
   };
   st.s.sessions.set(session.id, session);
   let res;
   const logs = await captureLogs(async () => {
     res = await deliver(handler, st.event('checkout.session.completed', 'session', session));
   });
-  return { lic: sb._db.rows[0] || null, logs, res };
+  return { lic: sb._db.rows[0] || null, logs, res, session };
+}
+
+/** The same session delivered again as another event, the database kept. */
+async function again(type, session) {
+  let res;
+  const logs = await captureLogs(async () => { res = await deliver(handler, st.event(type, 'session', session)); });
+  return { rows: sb._db.rows.length, lic: sb._db.rows[0] || null, logs, res };
 }
 
 (async () => {
@@ -104,6 +113,46 @@ async function buy({ mode, metaPlan, priceId, interval, lineItemsThrow, userId =
     const line = logs.find((l) => l.includes('UNLINKED PURCHASE')) || '';
     ok(line.includes('cs_1') && line.includes('cus_1'), 'but logs the session and the customer, so support can find the buyer in Stripe');
     ok(!logs.join('\n').includes('buyer@example.com'), 'and never the email itself');
+  }
+
+  // ── Only a paid checkout mints (8.11.0) ──────────────────────────────────────
+  // A delayed payment method completes the checkout unpaid, and its money may
+  // never arrive: nothing is minted until checkout.session.async_payment_succeeded
+  // says it is paid, which mints it once, however often it is delivered.
+  for (const mode of ['payment', 'subscription']) {
+    const { lic, logs, res, session } = await buy({ mode, metaPlan: mode === 'payment' ? 'lifetime' : null,
+      priceId: 'price_any', interval: mode === 'subscription' ? 'month' : undefined, paymentStatus: 'unpaid' });
+    ok(res.code === 200 && lic === null, `an unpaid ${mode} checkout mints no licence (${res.code}, ${lic && lic.plan})`);
+    ok(logs.some((l) => l.includes('cs_1 is unpaid, nothing granted until it is paid')) && !logs.some((l) => l.includes('UNLINKED')),
+      'and says it waits for the payment');
+    session.payment_status = 'paid';
+    const paid = await again('checkout.session.async_payment_succeeded', session);
+    ok(paid.res.code === 200 && paid.rows === 1 && paid.lic && paid.lic.plan === (mode === 'payment' ? 'lifetime' : 'monthly')
+      && paid.lic.stripe_session_id === 'cs_1',
+    `its async_payment_succeeded mints it, once (${paid.rows} licence, ${paid.lic && paid.lic.plan})`);
+    const twice = await again('checkout.session.async_payment_succeeded', session);
+    const late = await again('checkout.session.completed', session);
+    ok(twice.res.code === 200 && late.res.code === 200 && twice.rows === 1 && late.rows === 1
+      && twice.lic.license_key === paid.lic.license_key,
+    'and the same success, or the completion, delivered again mints nothing more');
+  }
+  {
+    // A session with nothing to pay (a trial, a whole discount) is not paid either.
+    const { lic, res } = await buy({ mode: 'subscription', priceId: 'price_any', interval: 'month', paymentStatus: 'no_payment_required' });
+    ok(res.code === 200 && lic === null, 'a checkout with no payment required mints nothing here (its invoice.paid sets the account)');
+  }
+  {
+    // A failed signature answers a sentence and nothing of why: the reason stays in the log.
+    const res = { code: 200, body: null };
+    res.status = (c) => { res.code = c; return res; };
+    res.json = (b) => { res.body = b; return res; };
+    const logs = await captureLogs(async () => {
+      await handler({ headers: { 'stripe-signature': 't=1,v1=forged' }, body: Buffer.from('not json at all') }, res);
+    });
+    ok(res.code === 400 && res.body && res.body.error === 'Webhook signature verification failed' && Object.keys(res.body).length === 1,
+      `a bad signature is 400 with a generic sentence (${JSON.stringify(res.body)})`);
+    ok(logs.some((l) => l.includes('Signature verification failed') && l.length > '[webhook] Signature verification failed:'.length),
+      'and its reason is logged on the server');
   }
 
   console.log(`\n${fails ? fails + ' failure(s)' : 'all checkout plan checks passed'}`);

@@ -20,6 +20,15 @@
  *   the page      its dom hooks, its plan, its League panel, a mark and a
  *                 removal through its bridge, nothing painted mid match
  *   the review    its Practise this link, opening the page on that mistake
+ *   own clip      (8.11) the newest kept clip of each mistake, the Moments
+ *                 page's join over a real review store in a temp folder: the
+ *                 newest match and its latest round win, a clip gone from
+ *                 disk is passed over, a sat out round and a Riot only match
+ *                 are not moments, no clip is no tile, Watch the round plays
+ *                 it in the clip player, and a repaint keeps it open
+ *   demos         (8.11) a drill's demo kept only under occlara.app/drills/,
+ *                 its card unchanged until the poster is in and after any
+ *                 failure, a hover preview, a click under reduced motion
  *
  * Run: npm run test:practice
  */
@@ -32,6 +41,8 @@ const patternsOf = require('../src/shared/patterns');
 const nav = require('../src/shared/shell-nav');
 const C = require('../src/shared/channels');
 const { createPractice } = require('../src/main/services/practice-store');
+const { ReviewStore, newId } = require('../src/main/services/review-store');
+const clipScheme = require('../src/main/services/clip-scheme');
 const { loadSurface, settle } = require('./fixtures/fake-dom');
 
 let fails = 0;
@@ -87,6 +98,51 @@ ok(lib && lib.drills.length === fixture.drills.length, `the sample library reads
   } else {
     console.log('skip  the real drill library is not in this tree yet');
   }
+}
+
+// ── A drill's demo (8.11) ─────────────────────────────────────────────────
+const GOOD_DEMO = { src: 'https://occlara.app/drills/lost-duel-counter-strafe.webm', poster: 'https://occlara.app/drills/lost-duel-counter-strafe.webp', secs: 8 };
+{
+  const base = { id: 'x', title: 'A drill', cause: 'repeek', steps: ['one'] };
+  const demoOfDrill = (demo) => { const l = P.normaliseLibrary([{ ...base, demo }]); return l ? l.drills[0].demo : 'no drill'; };
+  ok(JSON.stringify(demoOfDrill(GOOD_DEMO)) === JSON.stringify(GOOD_DEMO), 'DEMOS: a demo under occlara.app/drills/ is kept, its video, poster and seconds');
+  ok(demoOfDrill(undefined) === null, 'a drill with no demo reads as before, its demo none');
+  const bad = [
+    ['http', { ...GOOD_DEMO, src: 'http://occlara.app/drills/a.webm' }],
+    ['another host', { ...GOOD_DEMO, src: 'https://example.com/drills/a.webm' }],
+    ['a look alike host', { ...GOOD_DEMO, src: 'https://occlara.app.example.com/drills/a.webm' }],
+    ['a subdomain', { ...GOOD_DEMO, poster: 'https://cdn.occlara.app/drills/a.webp' }],
+    ['outside drills', { ...GOOD_DEMO, src: 'https://occlara.app/a.webm' }],
+    ['a folder that only starts like drills', { ...GOOD_DEMO, src: 'https://occlara.app/drillsx/a.webm' }],
+    ['climbing out', { ...GOOD_DEMO, src: 'https://occlara.app/drills/../a.webm' }],
+    ['an escaped climb', { ...GOOD_DEMO, src: 'https://occlara.app/drills/%2e%2e/a.webm' }],
+    ['a query', { ...GOOD_DEMO, src: 'https://occlara.app/drills/a.webm?x=1' }],
+    ['a fragment', { ...GOOD_DEMO, poster: 'https://occlara.app/drills/a.webp#x' }],
+    ['a login', { ...GOOD_DEMO, src: 'https://me@occlara.app/drills/a.webm' }],
+    ['a port', { ...GOOD_DEMO, src: 'https://occlara.app:8443/drills/a.webm' }],
+    ['a picture as the video', { ...GOOD_DEMO, src: 'https://occlara.app/drills/a.webp' }],
+    ['a video as the poster', { ...GOOD_DEMO, poster: 'https://occlara.app/drills/a.webm' }],
+    ['a script', { ...GOOD_DEMO, src: 'https://occlara.app/drills/a.js' }],
+    ['a data URL', { ...GOOD_DEMO, poster: 'data:image/webp;base64,AAAA' }],
+    ['javascript', { ...GOOD_DEMO, src: 'javascript:alert(1)' }],
+    ['a file URL', { ...GOOD_DEMO, src: 'file:///C:/drills/a.webm' }],
+    ['a backslash', { ...GOOD_DEMO, src: 'https://occlara.app/drills' + String.fromCharCode(92) + 'a.webm' }],
+    ['an upper case scheme', { ...GOOD_DEMO, src: 'HTTPS://occlara.app/drills/a.webm' }],
+    ['a space', { ...GOOD_DEMO, src: 'https://occlara.app/drills/a b.webm' }],
+    ['the video alone', { src: GOOD_DEMO.src }],
+    ['the poster alone', { poster: GOOD_DEMO.poster }],
+    ['not a string', { src: 7, poster: GOOD_DEMO.poster }],
+    ['a list', [GOOD_DEMO.src, GOOD_DEMO.poster]],
+    ['a string', GOOD_DEMO.src],
+  ];
+  const kept = bad.filter(([, d]) => demoOfDrill(d) !== null).map(([w]) => w);
+  ok(!kept.length, `a demo anywhere else is dropped (${bad.length} kinds: http, other hosts, outside /drills/, a climb, a query, a login, a port, the wrong kind of file, one URL alone)`, kept.join(', '));
+  ok(bad.every(([, d]) => { const l = P.normaliseLibrary([{ ...base, demo: d }]); return l && l.drills.length === 1; }), 'and a bad demo never drops its drill');
+  ok(demoOfDrill({ ...GOOD_DEMO, secs: 'x' }).secs === null && demoOfDrill({ ...GOOD_DEMO, secs: 300 }).secs === null && demoOfDrill({ ...GOOD_DEMO, secs: 7.6 }).secs === 8,
+    'its seconds kept only when they are a sensible length, rounded');
+  ok(P.demoOf({ src: 'https://occlara.app/drills/v2/a-b_c.mp4', poster: 'https://occlara.app/drills/v2/a-b_c.jpg' }) !== null, 'a folder under drills, mp4 and jpg read too');
+  const view = P.planView({ patterns: { enough: false, recorded: 0, mistakes: [] }, library: P.normaliseLibrary([{ ...base, cause: 'general', demo: GOOD_DEMO }]), state: P.emptyState(), now: day(0), saved: [] });
+  ok(view.general[0] && view.general[0].demo && view.general[0].demo.src === GOOD_DEMO.src, 'and the page is handed it with the drill');
 }
 
 // ── The plan ──────────────────────────────────────────────────────────────
@@ -189,6 +245,83 @@ const series = (after, before) => [
   p = P.progressOf(s, KEY, day(0));
   ok(p.text === 'Down from 2 of 2 to 0 of 3', 'a match Riot never reached, and one graded from Riot alone, count in neither window', p.text);
   ok(!DASHES.test(JSON.stringify([p])), 'no dash in a line');
+}
+
+// ── The player's own clip of a mistake (8.11) ─────────────────────────────
+// Reviews as main saves them: each round card the player died in with the
+// look's clip named, the mistake counted in its rounds (insights), and what
+// is on disk handed in, as moments.js build is handed it.
+const CK = 'untraded';
+const cid = (i) => `valorant-${1762000000000 + i}-abcd${i}`;
+const died = (n, clip, extra) => ({ n, died: true, result: 'lost',
+  forensics: { cause: 'isolated', what: 'You swung alone.', clip, clipDeath: 11000, frames: [`r${n}-a.jpg`, `r${n}-b.jpg`], frameAt: [-3, 0.5] }, ...(extra || {}) });
+const crv = (i, rounds, opts) => ({
+  id: cid(i), at: day(0) - (i + 1) * HOUR, game: 'valorant',
+  review: { kind: 'valorant', verified: true, source: opts && opts.riot ? 'riot' : undefined, game: { map: (opts && opts.map) || 'Ascent', agent: 'Jett' }, rounds,
+    insights: { mistakes: [{ key: CK, title: 'Deaths nobody traded', rounds: (opts && opts.counted) || rounds.map((c) => c.n), count: 1 }] } },
+});
+function clipIo(disk) {
+  const asked = [];
+  return {
+    asked,
+    clips: (id) => { asked.push(id); return [...(disk[id] || [])]; },
+    url: (id, name) => clipScheme.urlFor(id, name),
+    frames: () => ({ times: [0, 33.3, 66.6], end: 15000 }),
+    poster: (id, name) => `data:image/jpeg;base64,${Buffer.from(`${id}/${name}`).toString('base64')}`,
+  };
+}
+const posterIs = (c, id, name) => c && c.poster === `data:image/jpeg;base64,${Buffer.from(`${id}/${name}`).toString('base64')}`;
+{
+  const older = crv(5, [died(11, 'r11-clip.mkv')], { map: 'Bind' });
+  const newer = crv(1, [died(3, 'r3-clip.mkv'), died(7, 'r7-clip.mkv')]);
+  const disk = { [cid(5)]: ['r11-clip.mkv'], [cid(1)]: ['r3-clip.mkv', 'r7-clip.mkv'] };
+  let c = P.clipFor([older, newer], CK, clipIo(disk));
+  ok(c && c.url === clipScheme.urlFor(cid(1), 'r7-clip.mkv') && c.round === 7,
+    'OWN CLIP: the newest match wins whatever order the reviews come in, and inside it the latest round', c && c.url);
+  ok(c.death === 11000 && c.frames && c.frames.end === 15000 && c.map === 'Ascent' && c.at === newer.at && c.id === cid(1),
+    'with the death\'s place in the clip, main\'s read of its frames, the map and the match', JSON.stringify(c && { death: c.death, map: c.map }));
+  ok(c.line === 'Round 7 on Ascent' && c.label === 'The clip of round 7' && c.title === 'Your newest clip of this mistake', 'its words are main\'s', c.line);
+  ok(posterIs(c, cid(1), 'r7-a.jpg'), 'its poster the look\'s frame nearest the death from before it');
+  // Gone from disk: passed over for the next one kept.
+  c = P.clipFor([older, newer], CK, clipIo({ ...disk, [cid(1)]: ['r3-clip.mkv'] }));
+  ok(c && c.round === 3 && c.id === cid(1), 'a clip named on its card but gone from disk is passed over for the next round kept', c && c.url);
+  c = P.clipFor([older, newer], CK, clipIo({ ...disk, [cid(1)]: [] }));
+  ok(c && c.id === cid(5) && c.round === 11 && c.line === 'Round 11 on Bind', 'and with none of the newest match kept, the match before it', c && c.url);
+  ok(P.clipFor([older, newer], CK, clipIo({})) === null, 'NO CLIP: nothing on disk, nothing shown');
+  ok(P.clipFor([older, newer], 'early', clipIo(disk)) === null, 'a mistake never counted in a round with a clip has none');
+  // Counted in round 3 only: round 7's clip is of another moment.
+  c = P.clipFor([crv(1, [died(3, 'r3-clip.mkv'), died(7, 'r7-clip.mkv')], { counted: [3] })], CK, clipIo(disk));
+  ok(c && c.round === 3, 'only a round the mistake was counted in, as the Moments page joins them', c && c.url);
+  // A round sat out, a round not died in, a Riot only match, a name that is no clip's: none of them.
+  const sat = crv(1, [died(3, 'r3-clip.mkv', { riot: { afk: true } })]);
+  const alive = crv(1, [{ ...died(3, 'r3-clip.mkv'), died: false }]);
+  const riot = crv(1, [died(3, 'r3-clip.mkv')], { riot: true });
+  const odd = crv(1, [died(3, '../r3-clip.mkv')]);
+  ok([sat, alive, riot, odd].every((s) => P.clipFor([s], CK, clipIo({ [cid(1)]: ['r3-clip.mkv', '../r3-clip.mkv'] })) === null),
+    'a round the player sat out, one they did not die in, a match graded from Riot alone and a name that is no clip\'s are never shown');
+  // The disk is asked only for a review with a candidate.
+  const io = clipIo(disk);
+  P.clipFor([crv(2, [{ n: 4, died: true }]), newer], CK, io);
+  ok(io.asked.join() === cid(1), 'the disk is asked only of a review that has a clip to show', io.asked.join());
+  // The poster: the first frame with no seconds, none with no frames, none when the frame is gone.
+  const noAt = crv(1, [{ ...died(3, 'r3-clip.mkv'), forensics: { ...died(3, 'r3-clip.mkv').forensics, frameAt: null } }]);
+  ok(posterIs(P.clipFor([noAt], CK, clipIo(disk)), cid(1), 'r3-a.jpg'), 'a look with no seconds on its frames: its first frame is the poster');
+  const noFrames = crv(1, [{ ...died(3, 'r3-clip.mkv'), forensics: { cause: 'isolated', clip: 'r3-clip.mkv' } }]);
+  const nf = P.clipFor([noFrames], CK, clipIo(disk));
+  ok(nf && nf.poster === null && nf.death === null, 'a look with no frames has no poster, and a clip with no place for the death has none either');
+  ok(P.clipFor([newer], CK, { ...clipIo(disk), poster: () => null }).poster === null, 'and a frame gone from disk is no poster, the clip still shown');
+  ok(P.clipFor([newer], CK, null) === null && P.clipFor([newer], null, clipIo(disk)) === null && P.clipFor(null, CK, clipIo(disk)) === null,
+    'with nothing to ask, nothing is shown, never a throw');
+  ok(P.clipFor([newer], CK, { ...clipIo(disk), clips: () => { throw new Error('disk'); } }) === null, 'and a disk that throws is no clip');
+  ok(!DASHES.test(JSON.stringify(P.clipFor([older, newer], CK, clipIo(disk)))), 'no dash in its words');
+  // planView carries it on each focus and on the review's link, and says nothing when there is none.
+  const p = { enough: true, recorded: 6, mistakes: [{ key: CK, title: 'Deaths nobody traded', matches: 4, fix: 'Fix.' }, { key: 'early', title: 'Dying early', matches: 3, fix: 'Fix.' }] };
+  const chosen = P.choosePlan({ patterns: p, library: lib, band: null, state: P.emptyState(), now: day(0) }).state;
+  const pv = P.planView({ patterns: p, library: lib, state: chosen, now: day(0), saved: [older, newer], clipOf: (k) => P.clipFor([older, newer], k, clipIo(disk)), focus: { key: 'cause:repeek', title: 'Repeeks' } });
+  ok(pv.focus[0].clip && pv.focus[0].clip.round === 7 && pv.focus[1].clip === null && pv.asked && pv.asked.clip === null,
+    'the page\'s view: the clip on its focus, none on a focus or a review\'s link with none kept');
+  const pv2 = P.planView({ patterns: p, library: lib, state: chosen, now: day(0), saved: [], clipOf: () => { throw new Error('x'); } });
+  ok(pv2.focus.every((f) => f.clip === null), 'and a join that throws is no clip, never a page that fails');
 }
 
 // ── The streak and the log ────────────────────────────────────────────────
@@ -384,6 +517,160 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     await settle(10);
     ok(!$('pc-empty').hidden && $('pc-empty-title').textContent === 'League of Legends practice' && $('pc-plan').hidden && $('pc-log-sec').hidden,
       'League: its panel and nothing else');
+  }
+
+  // ── The player's own clip, through main and on the page (8.11) ──────────
+  {
+    // A real review store in a temp folder: six recorded matches with both
+    // mistakes, the newest two with the look's clip of round 2 kept beside
+    // them (stand in bytes, never a real clip) and the look's frames.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-practice-clips-'));
+    const store = new ReviewStore(root);
+    const ids = [];
+    for (let i = 0; i < 6; i++) {
+      const at = day(0) - (i + 1) * 2 * HOUR;
+      const id = newId('valorant', at);
+      ids.push(id);
+      const rounds = i < 2 ? [died(2, 'r2-clip.mkv'), { n: 9, died: true }] : [{ n: 2, died: true }];
+      store.save({ id, game: 'valorant', at, review: { kind: 'valorant', verified: true, game: { map: i ? 'Bind' : 'Ascent', agent: 'Jett' }, rounds,
+        insights: { mistakes: [
+          { key: 'untraded', title: 'Deaths nobody traded', rounds: [2], count: 1, fix: 'Fix untraded.' },
+          { key: 'early', title: 'Dying early', rounds: [9], count: 1, fix: 'Fix early.' },
+        ] } },
+      frames: i < 2 ? { 'r2-a.jpg': Buffer.from(`stand in frame ${i}`).toString('base64'), 'r2-b.jpg': Buffer.from('later').toString('base64') } : undefined });
+      if (i < 2) store.saveClip(id, 'r2-clip.mkv', Buffer.from(`stand in clip ${i}`));
+    }
+    const mk = (withStore) => {
+      const data = {};
+      return createPractice({
+        store: { get: (k) => data[k], set: (k, v) => { data[k] = JSON.parse(JSON.stringify(v)); } },
+        recent: () => store.recent('valorant', patternsOf.LOOK_BACK),
+        summarise: (s) => patternsOf.summarise(s),
+        band: () => null, riotId: () => '', busy: () => false, game: () => 'valorant',
+        gameLabel: () => 'Valorant', open: () => {}, changed: () => {},
+        library: FIXTURE, now: () => day(0),
+        ...(withStore ? { reviews: store } : {}),
+      });
+    };
+    const svc = mk(true);
+    let v = svc.get('valorant');
+    const un = v && v.focus.find((f) => f.key === 'untraded');
+    const ea = v && v.focus.find((f) => f.key === 'early');
+    ok(un && un.clip && un.clip.url === clipScheme.urlFor(ids[0], 'r2-clip.mkv') && un.clip.url.startsWith('occlara-clip://review/'),
+      'THROUGH MAIN: the newest kept clip of the mistake, by occlara-clip\'s own URL for that review', un && JSON.stringify(un.clip && un.clip.url));
+    ok(un.clip.poster === `data:image/jpeg;base64,${Buffer.from('stand in frame 0').toString('base64')}` && un.clip.line === 'Round 2 on Ascent',
+      'its poster the look\'s own frame from the store, its line the round and map');
+    ok(ea && ea.clip === null, 'a mistake with no clip kept has none');
+    // The clip deleted from disk: the next match's is shown, then none.
+    fs.rmSync(store.clipFile(ids[0], 'r2-clip.mkv'));
+    v = svc.get('valorant');
+    ok(v.focus.find((f) => f.key === 'untraded').clip.url === clipScheme.urlFor(ids[1], 'r2-clip.mkv'), 'CLIP DELETED FROM DISK: asked again, the match before it');
+    const q = loadSurface('practice', { handlers: {
+      [C.STATE_GET]: () => ({ gameId: 'valorant' }),
+      [C.PRACTICE_GET]: (g, asked) => svc.get(g, asked),
+    } });
+    await settle(10);
+    const blocks = q.document.querySelectorAll('.pc-focus');
+    const withClip = blocks.find((b) => b.dataset.key === 'untraded');
+    const without = blocks.find((b) => b.dataset.key === 'early');
+    const tile = withClip && withClip.querySelector('.pc-clip');
+    ok(tile && tile.querySelector('.pc-clip-tile') && tile.querySelector('.pc-clip-poster') && tile.querySelector('.pc-clip-watch').textContent === 'Watch the round',
+      'THE PAGE: the focus with a clip has its tile, the look\'s frame and Watch the round');
+    ok(/^Round 2 on Bind, /.test(tile.querySelector('.pc-clip-line').textContent), 'with the round, the map and the day', tile.querySelector('.pc-clip-line').textContent);
+    ok(without && !without.querySelector('.pc-clip') && !without.querySelector('video'), 'NO CLIP: no tile and no empty box');
+    const order = withClip.children.map((n) => n.className);
+    ok(order.indexOf('pc-clip') === order.indexOf('pc-focus-head') + 1 && order.indexOf('pc-drills') === order.indexOf('pc-clip') + 1, 'beside its drills: after the mistake, before the cards', order.join());
+    ok(!q.document.querySelectorAll('video').length, 'nothing loads before it is asked for: no video on the page');
+    q.fire(tile.querySelector('.pc-clip-watch'), 'click');
+    await settle(5);
+    const open = withClip.querySelector('.pc-clip.open');
+    const vid = open && open.querySelector('.v-clip video');
+    ok(open && vid && vid.getAttribute('src') === clipScheme.urlFor(ids[1], 'r2-clip.mkv') && vid.getAttribute('preload') === 'none' && vid.muted === true,
+      'Watch the round opens it in the review\'s own clip player, muted, by main\'s URL', vid && vid.getAttribute('src'));
+    ok(open.querySelector('.cp-row') && /^Round 2 on Bind/.test(open.querySelector('.pc-clip-line').textContent), 'with its controls, and still saying what it is');
+    q.bridge.emit(C.PUSH_PRACTICE, null);
+    await settle(10);
+    ok(q.document.querySelector('.pc-clip.open') === open && open.querySelector('video').getAttribute('src'), 'A REPAINT keeps the clip being watched as it is');
+    fs.rmSync(store.clipFile(ids[1], 'r2-clip.mkv'));
+    q.bridge.emit(C.PUSH_PRACTICE, null);
+    await settle(10);
+    ok(!q.document.querySelectorAll('.pc-clip').length && !open.querySelector('video').getAttribute('src'),
+      'and once no clip is kept the tile goes, the open one let go');
+    // Without the review store wired, the page is as it was.
+    const bare = mk(false).get('valorant');
+    ok(bare.focus.every((f) => f.clip === null), 'without the review store handed in, no clip, and the page as before');
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+
+  // ── A drill's demo on the page (8.11) ───────────────────────────────────
+  {
+    const withDemos = path.join(os.tmpdir(), `occlara-demo-drills-${process.pid}.json`);
+    fs.writeFileSync(withDemos, JSON.stringify({ ...fixture, drills: fixture.drills.map((d) => ({ ...d, demo: { src: `https://occlara.app/drills/${d.id}.webm`, poster: `https://occlara.app/drills/${d.id}.webp`, secs: 8 } })) }));
+    const page = async (reduced) => {
+      const s = service({ stored: undefined, saved: libraryOf(6, ['untraded', 'early']), now: day(0), busy: () => false, game: () => 'valorant', library: withDemos });
+      const mq = { matches: !!reduced, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} };
+      const q = loadSurface('practice', { handlers: {
+        [C.STATE_GET]: () => ({ gameId: 'valorant' }),
+        [C.PRACTICE_GET]: (g, asked) => s.svc.get(g, asked),
+      }, window: { matchMedia: () => mq } });
+      await settle(10);
+      return q;
+    };
+    const q = await page(false);
+    const cards = q.document.querySelectorAll('.pc-drill');
+    const boxes = q.document.querySelectorAll('.pc-drill .pc-demo');
+    ok(cards.length >= 4 && boxes.length === cards.length && boxes.every((b) => b.hidden) && !q.document.querySelectorAll('video').length,
+      'DEMOS ON THE PAGE: each card holds its demo hidden until the poster is in, and nothing of the video loads', `${boxes.length} of ${cards.length}`);
+    const [b0, b1, b2] = boxes;
+    ok(b0.querySelector('.pc-demo-poster').src === `https://occlara.app/drills/${cards[0].dataset.drill}.webp` && cards[0].firstChild === b0, 'its poster from the website, at the top of the card');
+    q.fire(b0.querySelector('.pc-demo-poster'), 'load');
+    ok(!b0.hidden && b0.querySelector('.pc-demo-tag').textContent === 'Demo, 8 s', 'the poster in, the demo shows, its length on it');
+    // Offline: the poster fails, and the card is as it was.
+    const before = cards[1].children.length;
+    q.fire(b1.querySelector('.pc-demo-poster'), 'error');
+    ok(!cards[1].querySelector('.pc-demo') && cards[1].children.length === before - 1 && cards[1].querySelector('.pc-d-title') && cards[1].querySelector('.pc-mark'),
+      'OFFLINE: a poster that fails takes the demo away, the card exactly as before');
+    // A hover previews it, a click keeps it playing, a second click stops it.
+    const btn = b0.querySelector('.pc-demo-btn');
+    q.fire(btn, 'pointerenter');
+    const v0 = b0.querySelector('video');
+    ok(v0 && v0.getAttribute('src') === `https://occlara.app/drills/${cards[0].dataset.drill}.webm` && v0.getAttribute('preload') === 'none'
+      && v0.muted === true && v0.getAttribute('loop') !== null, 'a hover makes its video: muted, looping, preload none, from the website');
+    q.fire(btn, 'click');
+    ok(btn.getAttribute('aria-pressed') === 'true', 'a click keeps it playing');
+    q.fire(btn, 'click');
+    ok(btn.getAttribute('aria-pressed') === 'false', 'and a second stops it');
+    // The video failing takes the demo away too.
+    q.fire(v0, 'error');
+    ok(!cards[0].querySelector('.pc-demo') && cards[0].querySelector('.pc-d-title'), 'a video that fails takes the demo away, the card as before');
+    q.fire(b2.querySelector('.pc-demo-poster'), 'load');
+    q.bridge.emit(C.PUSH_PRACTICE, null);
+    await settle(10);
+    ok(q.document.querySelectorAll('.pc-drill .pc-demo').length === cards.length, 'painted again, each card asks for its demo again');
+    // REDUCED MOTION: the poster with its play mark, nothing on a hover, a click plays.
+    const r = await page(true);
+    const rb = r.document.querySelector('.pc-drill .pc-demo');
+    r.fire(rb.querySelector('.pc-demo-poster'), 'load');
+    r.fire(rb.querySelector('.pc-demo-btn'), 'pointerenter');
+    ok(!rb.hidden && rb.querySelector('.pc-demo-mark') && !rb.querySelector('video'), 'REDUCED MOTION: the poster and its play button, nothing played on a hover');
+    r.fire(rb.querySelector('.pc-demo-btn'), 'click');
+    ok(rb.querySelector('video') && rb.querySelector('.pc-demo-btn').getAttribute('aria-pressed') === 'true', 'and a click plays it');
+    // No demo in the library: the cards as they were.
+    const plain = service({ stored: undefined, saved: libraryOf(6, ['untraded', 'early']), now: day(0), busy: () => false, game: () => 'valorant' });
+    const pq = loadSurface('practice', { handlers: { [C.STATE_GET]: () => ({ gameId: 'valorant' }), [C.PRACTICE_GET]: (g, a) => plain.svc.get(g, a) } });
+    await settle(10);
+    ok(pq.document.querySelectorAll('.pc-drill').length >= 4 && !pq.document.querySelectorAll('.pc-demo').length, 'a drill with no demo has no box at all');
+    fs.rmSync(withDemos, { force: true });
+  }
+  {
+    const html = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'practice', 'index.html'), 'utf8');
+    const csp = (/http-equiv="Content-Security-Policy"\s+content="([^"]+)"/.exec(html) || [])[1] || '';
+    const dir = (name) => ((csp.split(';').map((s) => s.trim()).find((s) => s.startsWith(`${name} `)) || '').split(/\s+/).slice(1));
+    ok(dir('media-src').join(' ') === "'self' occlara-clip: https://occlara.app" && dir('img-src').join(' ') === "'self' data: https://occlara.app",
+      'ITS CSP: media from itself, occlara-clip and the website, pictures from itself, data and the website', csp);
+    ok(dir('default-src').join(' ') === "'self'" && !/connect-src|script-src [^;]*https/.test(csp) && dir('base-uri').join() === "'none'" && dir('form-action').join() === "'none'" && dir('object-src').join() === "'none'",
+      'and nothing else from the web: no script, no connection, no base, no form, no object');
+    ok(['../review/clip-time.js', '../review/clip-player.js', '../review/clip-player.css'].every((f) => html.includes(`"${f}"`)), 'it loads the review\'s own clip player');
   }
 
   // ── Home's line on the page ─────────────────────────────────────────────

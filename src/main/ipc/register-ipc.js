@@ -11,6 +11,7 @@ const advancedCoaching = require('../services/advanced-coaching');
 const updater = require('../updater');
 const pcCheck = require('../services/pc-check');
 const { resOf } = require('../services/recorder');
+const { isOwnPage } = require('../windows/web-guard');
 
 /**
  * Registers every ipcMain handler in one place. All channel names come from the
@@ -238,8 +239,26 @@ function snapshotConfig() {
   };
 }
 
+/**
+ * Whether a call came from one of our own pages (8.11). web-guard already holds
+ * every window to our files, so this is the second lock: a frame that is not a
+ * file under src/renderer is refused. A call with no frame to read (a stand in
+ * in a test, a frame already gone) is let through, as before.
+ */
+function fromOwnPage(event) {
+  const f = event && event.senderFrame;
+  if (!f) return true;
+  let url = '';
+  try { url = f.url; } catch { return true; }
+  return !url || isOwnPage(url);
+}
+
 function safeHandle(channel, fn) {
   ipcMain.handle(channel, async (event, ...args) => {
+    if (!fromOwnPage(event)) {
+      console.warn(`[ipc] ${channel} refused: not one of our pages`);
+      return { ok: false, error: 'refused' };
+    }
     try {
       return await fn(event, ...args);
     } catch (err) {

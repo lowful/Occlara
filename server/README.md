@@ -28,13 +28,14 @@ Edit `.env` and fill in all values:
 - `STRIPE_SECRET_KEY`, from the Stripe dashboard (test key starts with `sk_test_`)
 - `STRIPE_WEBHOOK_SECRET`, generated when you configure the webhook endpoint
 - `STRIPE_PRICE_WEEKLY`, `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_LIFETIME`: no longer read by anything, delete them
-- `ADMIN_PASSWORD`, gates `/api/admin/*`. Unset means those routes always answer 401.
+- `ADMIN_PASSWORD`, gates `/api/admin/*` and the detail of `/health`. Unset means those routes always answer 401.
+  Use 24 characters or more: a shorter one boots with a warning line (the password itself is never printed).
 - `AI_API_KEY`, `AI_BASE_URL`, the OpenAI-compatible provider used for coaching
 - `AI_DATA_COLLECTION`, unset by default, which asks OpenRouter for providers that
   neither store nor train on the frames (`provider: { data_collection: 'deny' }`).
   `allow` sends the request without that preference, as it was before. A call
   OpenRouter refuses for that preference (404, "No endpoints found matching your
-  data policy") is sent once more without it, and `/health` counts each route's
+  data policy") is sent once more without it, and `/health` (with the admin password) counts each route's
   under `dataPolicy`: `fellBack` the calls a provider may have taken without it,
   `refusedAgain` those refused once more, which no provider took.
 
@@ -193,7 +194,7 @@ password is what lets a bench run `benchModel` (see `benchModel` in coach.js).
 
 | Method | Path          | Description                                  |
 |--------|---------------|----------------------------------------------|
-| GET    | `/health`     | Status, the live AI model slugs, and `dataPolicy` (the calls each route sent without the data policy since boot) |
+| GET    | `/health`     | `{ status: 'ok' }`. With `X-Admin-Password`: the boot time, the live AI model slugs, and `dataPolicy` (the calls each route sent without the data policy since boot); a wrong password is 401 and counted by the admin limiter |
 | GET    | `/api/health` | Same payload, for platforms that require /api |
 
 ## Database

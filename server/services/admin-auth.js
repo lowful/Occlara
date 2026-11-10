@@ -53,9 +53,15 @@ function makeAdminLimiter() {
   // Required here rather than at the top, so the coach routes, which only
   // need the password check, do not load a rate limiter they never use.
   const rateLimit = require('express-rate-limit');
+  const { ipBucket } = require('./caller');
   return rateLimit({
     windowMs: 60 * 60 * 1000,
     max: 10,
+    // PER NETWORK, NOT PER ADDRESS (8.11.0): keyed by caller.js ipBucket, an
+    // IPv4 address or an IPv6 caller's /64. Keyed by the bare req.ip, one
+    // IPv6 home or host, which holds a whole /64, had ten fresh guesses an
+    // hour for every address in it, which is no limit at all.
+    keyGenerator: (req) => ipBucket(req.ip || (req.socket && req.socket.remoteAddress)),
     skipSuccessfulRequests: true,
     // A 5xx is the server failing, not a guess, the same rule as the
     // activation limiter. The live page keeps polling through one, so ten of
@@ -68,4 +74,21 @@ function makeAdminLimiter() {
   });
 }
 
-module.exports = { adminPasswordOk, adminPasswordOf, isAdmin, makeAdminLimiter };
+/*
+ * A SHORT ADMIN PASSWORD IS SAID AT BOOT, never refused (8.11.0). The limiter
+ * stops guessing at ten an hour, but a short password is still the weakest
+ * door to every licence holder's email. Booting is not refused for it, since
+ * the server carrying every player's coaching must not go down over the admin
+ * page: one warning line, naming the length rule and never the password, its
+ * length or any part of it. Null when there is nothing to say.
+ */
+const ADMIN_PASSWORD_MIN = 24;
+function adminPasswordWarning(env = process.env) {
+  const pw = env && typeof env.ADMIN_PASSWORD === 'string' ? env.ADMIN_PASSWORD : '';
+  if (!pw) return null;
+  if (pw.length >= ADMIN_PASSWORD_MIN) return null;
+  return `[server] ADMIN_PASSWORD is shorter than ${ADMIN_PASSWORD_MIN} characters. `
+    + `Set a longer random one on Railway (${ADMIN_PASSWORD_MIN} or more). The admin views still work.`;
+}
+
+module.exports = { adminPasswordOk, adminPasswordOf, isAdmin, makeAdminLimiter, adminPasswordWarning, ADMIN_PASSWORD_MIN };

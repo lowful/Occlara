@@ -220,10 +220,14 @@ async function renderRankGraph(host, opts) {
   const net = points.reduce((sum, p) => sum + (p.change || 0), 0);
   const last = points[points.length - 1];
 
+  // Tiers and numbers come from the server: text is escaped and numbers are
+  // made numbers before they go into the markup (8.11).
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   wrap.innerHTML = `
     <div class="rg-head">
       <span class="rg-title">Rank journey · last ${points.length} comp games</span>
-      <span class="rg-net ${net >= 0 ? 'up' : 'down'}">${net >= 0 ? '+' : ''}${net} RR</span>
+      <span class="rg-net ${net >= 0 ? 'up' : 'down'}">${net >= 0 ? '+' : ''}${num(net)} RR</span>
     </div>
     <div class="rg-plot">
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
@@ -233,8 +237,8 @@ async function renderRankGraph(host, opts) {
       <span class="rg-dot" style="left: ${((x(points.length - 1) / W) * 100).toFixed(2)}%; top: ${((y(last.elo) / H) * 100).toFixed(2)}%"></span>
     </div>
     <div class="rg-foot">
-      <span>${points[0].tier || ''}</span>
-      <span>${last.tier || ''}${last.change != null ? ' · last game ' + (last.change >= 0 ? '+' : '') + last.change + ' RR' : ''}</span>
+      <span>${esc(points[0].tier)}</span>
+      <span>${esc(last.tier)}${last.change != null ? ' · last game ' + (num(last.change) >= 0 ? '+' : '') + num(last.change) + ' RR' : ''}</span>
     </div>`;
 }
 

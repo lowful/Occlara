@@ -43,6 +43,15 @@
  *   game it does not know, no other server code or data names it, and no
  *   file of the app calls those routes, so a current install loses nothing.
  *
+ *   THE 8.11.0 HARDENING, in the server as Railway starts it: /health says
+ *   only { status: 'ok' } without the admin password, and a wrong one is a
+ *   401 the admin limiter counts; a short admin password boots with a
+ *   warning that never prints it; the death look and a report with no
+ *   credentials are 401 before their body is read; CORS lets in the brand,
+ *   this server, the dev server and an https Lovable preview, with no
+ *   credentials and no admin header; made up keys put nobody in the live
+ *   view; and the admin limiter counts an IPv6 caller by its /64.
+ *
  * Real modules throughout, against a fake Supabase and a fake model. Nothing
  * leaves the machine: the server as Railway starts it runs on a local port.
  *
@@ -948,21 +957,25 @@ const PW = 'correct horse battery staple';
     for (const [k, v] of Object.entries(process.env)) {
       if (!/^(AI_|STRIPE_|SUPABASE_|ADMIN_|GEMINI|OPENROUTER|HENRIKDEV|TRACKER|RIOT)/i.test(k)) env[k] = v;
     }
+    // A short admin password (17 characters), which boots with a warning (8.11.0).
+    const SHORT_ADMIN = 'stand-in-guards-4';
     Object.assign(env, { PRIMER_LIVE_CHECK: 'off', PORT: String(port), SUPABASE_URL: 'http://localhost:54321', SUPABASE_SERVICE_KEY: 'stand-in-guards-1',
-      AI_API_KEY: 'sk-or-v1-stand-in-guards-2', AI_BASE_URL: 'https://openrouter.ai/api/v1', STRIPE_SECRET_KEY: 'sk_test_stand_in_guards_3' });
+      AI_API_KEY: 'sk-or-v1-stand-in-guards-2', AI_BASE_URL: 'https://openrouter.ai/api/v1', STRIPE_SECRET_KEY: 'sk_test_stand_in_guards_3',
+      ADMIN_PASSWORD: SHORT_ADMIN });
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-guards-'));
     const child = spawn(process.execPath, [path.join(SERVER, 'server.js')], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let output = '';
     child.stdout.on('data', (d) => { output += d; });
     child.stderr.on('data', (d) => { output += d; });
     const exited = new Promise((resolve) => child.once('exit', resolve));
-    const send = (method, p, { headers = {}, body = null } = {}) => new Promise((resolve) => {
-      const data = body === null ? null : JSON.stringify(body);
+    // `raw` sends a body as it is, JSON or not, under a JSON content type.
+    const send = (method, p, { headers = {}, body = null, raw = null } = {}) => new Promise((resolve) => {
+      const data = raw !== null ? raw : body === null ? null : JSON.stringify(body);
       const req = http.request({ host: '127.0.0.1', port, method, path: p, timeout: 3000,
         headers: { ...headers, ...(data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {}) } }, (res) => {
         let text = '';
         res.on('data', (c) => { text += c; });
-        res.on('end', () => { let json = null; try { json = JSON.parse(text); } catch (e) { /* not JSON */ } resolve({ status: res.statusCode, json, text }); });
+        res.on('end', () => { let json = null; try { json = JSON.parse(text); } catch (e) { /* not JSON */ } resolve({ status: res.statusCode, json, text, headers: res.headers }); });
       });
       req.on('error', () => resolve(null));
       req.on('timeout', () => { req.destroy(); resolve(null); });
@@ -989,6 +1002,40 @@ const PW = 'correct horse battery staple';
       for (let i = 0; i < 95; i++) results.burst.push(await send('POST', '/api/rivals/draft', { headers: LICENCE, body: { image: 'aGVsbG8=' } }));
       results.read = await send('POST', '/api/coach/read', { body: { image: 'aGVsbG8=' } });
       results.nothing = await send('GET', '/api/nothing-here');
+
+      // ── 8.11.0 hardening, as Railway starts it ──────────────────────────
+      // /health: public is { status: 'ok' }, the owner's detail beside the password.
+      results.healthAdmin = await send('GET', '/health', { headers: { 'X-Admin-Password': SHORT_ADMIN } });
+      results.apiHealthAdmin = await send('GET', '/api/health', { headers: { 'X-Admin-Password': SHORT_ADMIN } });
+      results.healthWrong = await send('GET', '/health', { headers: { 'X-Admin-Password': 'guess' } });
+      results.apiHealth = await send('GET', '/api/health');
+      // The two big bodies: no credentials is 401 before the body is read (a
+      // malformed one is never parsed), credentials let it on to the parser.
+      const BAD = '{"deaths": [ this is not json';
+      results.bigNoCreds = [];
+      for (const p of ['/api/coach/death-forensics', '/api/feedback']) {
+        results.bigNoCreds.push({ p, r: await send('POST', p, { raw: BAD }) });
+        results.bigNoCreds.push({ p: `${p} (Bearer with no token)`, r: await send('POST', p, { raw: BAD, headers: { Authorization: 'Bearer' } }) });
+      }
+      results.bigKey = await send('POST', '/api/coach/death-forensics', { raw: BAD, headers: LICENCE });
+      results.bigBearer = await send('POST', '/api/feedback', { raw: BAD, headers: { Authorization: 'Bearer occ_stand_in_token' } });
+      // CORS: the brand, this server's own origin, the dev server and a Lovable
+      // preview are let in, with no credentials and no admin header; the rest is refused.
+      const preflight = (origin) => send('OPTIONS', '/api/account/me', { headers: { Origin: origin,
+        'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'authorization' } });
+      results.cors = {};
+      for (const origin of ['https://occlara.app', 'https://www.occlara.app', 'https://ghostcoach-production.up.railway.app',
+        'http://localhost:5173', 'https://id-preview--1a2b3c.lovable.app', 'https://ghostcoach.lovable.app',
+        'http://id-preview--1a2b3c.lovable.app', 'https://a.b.lovable.app', 'https://x.lovable.dev', 'https://lovable.app',
+        'https://evil.lovable.app.example.com', 'https://ghostcoachai.com', 'https://www.ghostcoachai.com', 'https://evil.example']) {
+        results.cors[origin] = await preflight(origin);
+      }
+      // The live view: made up keys in a header or a body put nobody in it.
+      const MADE_UP = 'GC-MADE-UPKE-YSEE-NNOW';
+      await send('GET', '/api/changelog', { headers: { 'X-License-Key': MADE_UP } });
+      await send('POST', '/api/license/validate', { body: { key: MADE_UP, device_id: 'pc' } });
+      await send('POST', '/api/coach/read', { headers: { 'X-License-Key': MADE_UP }, body: { image: 'aGVsbG8=' } });
+      results.live = await send('GET', '/api/admin/live', { headers: { 'X-Admin-Password': SHORT_ADMIN } });
     } finally {
       child.kill();
       await exited;
@@ -1004,6 +1051,69 @@ const PW = 'correct horse battery staple';
       `however often it asks: 95 in a minute from one licence are all 410, no rate limit turns one into a 429 (${burst.map((r) => (r ? r.status : 'none')).filter((s) => s !== 410).join(', ') || 'all 410'})`);
     ok(results.read && results.read.status === 400 && results.nothing && results.nothing.status === 404,
       `while the coach routes beside it answer as before, and a path nobody serves is still 404 (${results.read && results.read.status}, ${results.nothing && results.nothing.status})`);
+
+    // ── 8.11.0 hardening ──────────────────────────────────────────────────
+    ok(h && h.status === 200 && h.text === JSON.stringify({ status: 'ok' })
+      && results.apiHealth && results.apiHealth.text === JSON.stringify({ status: 'ok' }),
+    `the public /health and /api/health say only { status: 'ok' } (${h && h.text})`);
+    const ha = results.healthAdmin && results.healthAdmin.json;
+    ok(ha && results.healthAdmin.status === 200 && ha.status === 'ok' && typeof ha.startedAt === 'string' && 'readModel' in ha && ha.dataPolicy
+      && results.apiHealthAdmin && results.apiHealthAdmin.json && results.apiHealthAdmin.json.dataPolicy,
+    `beside the admin password they keep the models, the data policy and the boot (${results.healthAdmin && results.healthAdmin.status})`);
+    ok(results.healthWrong && results.healthWrong.status === 401 && !('readModel' in (results.healthWrong.json || {}))
+      && results.healthWrong.headers && results.healthWrong.headers['ratelimit-remaining'] !== undefined,
+    `a wrong password on /health is a 401 the admin limiter counts, so it is no free way to test guesses (${results.healthWrong && results.healthWrong.status})`);
+    ok(/ADMIN_PASSWORD is shorter than 24 characters/.test(output) && !output.includes(SHORT_ADMIN) && h && h.status === 200,
+      'a short admin password is said at boot, never printed, and the server still boots');
+    const big = results.bigNoCreds || [];
+    ok(big.length === 4 && big.every(({ r }) => r && r.status === 401 && r.json && r.json.error === 'sign-in-required'),
+      `the death look and a report with no credentials are 401 before the body is read, a malformed one never parsed (${big.map(({ p, r }) => `${p} ${r && r.status}`).join(', ')})`);
+    ok(results.bigKey && results.bigKey.status === 400 && results.bigKey.json && results.bigKey.json.error === 'Malformed JSON body'
+      && results.bigBearer && results.bigBearer.status === 400,
+    `with a licence key or a Bearer token the body goes on to the parser, as before (${results.bigKey && results.bigKey.status}, ${results.bigBearer && results.bigBearer.status})`);
+    const allowed = ['https://occlara.app', 'https://www.occlara.app', 'https://ghostcoach-production.up.railway.app',
+      'http://localhost:5173', 'https://id-preview--1a2b3c.lovable.app', 'https://ghostcoach.lovable.app'];
+    const cors = results.cors || {};
+    const wrongCors = Object.entries(cors).filter(([origin, r]) => {
+      if (!r) return true;
+      if (allowed.includes(origin)) {
+        return r.status !== 204 || r.headers['access-control-allow-origin'] !== origin
+          || r.headers['access-control-allow-credentials'] !== undefined
+          || /x-admin-password/i.test(String(r.headers['access-control-allow-headers'] || ''));
+      }
+      return r.status !== 400 || r.headers['access-control-allow-origin'] !== undefined;
+    }).map(([origin, r]) => `${origin} ${r ? `${r.status} ${r.headers['access-control-allow-origin'] || '-'} ${r.headers['access-control-allow-credentials'] || '-'}` : 'no answer'}`);
+    ok(Object.keys(cors).length === 14 && wrongCors.length === 0,
+      `CORS lets in the brand, this server, the dev server and an https Lovable preview, with no credentials and no admin header, and refuses http, nested and lovable.dev hosts, the old brand and the rest${wrongCors.length ? `: ${wrongCors.join('; ')}` : ''}`);
+    const live = results.live && results.live.json;
+    ok(live && results.live.status === 200 && Array.isArray(live.users) && live.users.length === 0 && live.now && live.now.seenToday === 0,
+      `made up keys in a header or a body, and the hundred Rivals calls above carrying a key nothing checked, put nobody in the live view (${live ? `${live.users.length} people` : results.live && results.live.status})`);
+  }
+
+  // ── The admin limiter counts an IPv6 caller by its /64 (8.11.0) ─────────
+  {
+    const limiter = makeAdminLimiter();
+    let through = 0;
+    for (let i = 1; i <= 10; i++) if ((await throughLimiter(limiter, { ip: `2001:db8:a:b::${i}`, status: 401 })).passed) through++;
+    const sameNet = await throughLimiter(limiter, { ip: '2001:db8:a:b:ffff:1:2:3', status: 200 });
+    const otherNet = await throughLimiter(limiter, { ip: '2001:db8:a:c::1', status: 401 });
+    const v4 = await throughLimiter(limiter, { ip: '::ffff:203.0.113.50', status: 401 });
+    ok(through === 10 && !sameNet.passed && sameNet.status === 429,
+      `ten wrong passwords from ten addresses of one IPv6 /64, then the eleventh, from another address in it, is 429 (${through} through, then ${sameNet.status})`);
+    ok(otherNet.passed && v4.passed, 'while the next /64 and an IPv4 caller are their own buckets');
+  }
+
+  // ── A short admin password is a warning, never a refusal (8.11.0) ───────
+  {
+    const { adminPasswordWarning, ADMIN_PASSWORD_MIN } = require(path.join(SERVER, 'services', 'admin-auth.js'));
+    const short = 'abc123-short-pass';
+    const said = adminPasswordWarning({ ADMIN_PASSWORD: short });
+    ok(ADMIN_PASSWORD_MIN === 24 && typeof said === 'string' && /shorter than 24 characters/.test(said)
+      && !said.includes(short) && !said.includes(String(short.length)),
+    `a password under 24 characters gets one line naming the rule, never the password or its length (${said})`);
+    ok(adminPasswordWarning({ ADMIN_PASSWORD: 'x'.repeat(24) }) === null && adminPasswordWarning({}) === null
+      && adminPasswordWarning({ ADMIN_PASSWORD: '' }) === null,
+    'one of 24 or more, or none at all, says nothing (none is already said by every admin route)');
   }
 
   // ── The server core of 8.5.0: scripts/server-guards-core.js ─────────────

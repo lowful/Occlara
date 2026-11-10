@@ -877,10 +877,12 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       });
       const got = {};
       try {
-        for (let i = 0; i < 120 && !got.health && child.exitCode === null; i++) {
-          got.health = await get('/health');
-          if (!got.health) await sleep(150);
+        for (let i = 0; i < 120 && !got.public && child.exitCode === null; i++) {
+          got.public = await get('/health');
+          if (!got.public) await sleep(150);
         }
+        // The models are the owner's since 8.11.0: beside the admin password.
+        got.health = got.public ? await get('/health', { 'X-Admin-Password': 'stand-in-core-4' }) : null;
         got.chat = await get('/api/admin/chat', { 'X-Admin-Password': 'stand-in-core-4' });
         got.refused = await get('/api/admin/chat', { 'X-Admin-Password': 'guess' });
         got.primer = await get('/api/admin/primer', { 'X-Admin-Password': 'stand-in-core-4' });
@@ -893,7 +895,9 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       const h = got.health && got.health.json;
       ok(h && h.chatModel === 'deepseek/deepseek-v4.1-flash-1017' && h.textModelNow === h.textModel && h.textModel === 'google/gemini-3-flash-preview'
         && !/asked|honest|capped|retried|licencesAtCap/.test(got.health.text) && !got.health.text.includes('stand-in-core'),
-      `GET /health names chatModel and textModelNow, and no count of Ask Coach's and no secret (${got.health ? got.health.status : `no answer: ${output.slice(-200)}`})`);
+      `GET /health with the admin password names chatModel and textModelNow, and no count of Ask Coach's and no secret (${got.health ? got.health.status : `no answer: ${output.slice(-200)}`})`);
+      ok(got.public && got.public.status === 200 && got.public.text === JSON.stringify({ status: 'ok' }),
+        `and without it names no model at all, only that the server is up (${got.public ? got.public.text : 'no answer'})`);
       const c = got.chat && got.chat.json;
       ok(c && got.chat.status === 200 && c.asked && typeof c.asked.v2 === 'number' && c.cap && c.cap.usd === 0.15 && c.served === 'v2'
         && got.refused && got.refused.status === 401,

@@ -219,6 +219,13 @@ function routeLimits(deps = {}) {
     // Riot's). Six matches an hour is twenty four; a bench is not counted.
     { paths: ['/api/coach/match-review'], mw: L({ name: 'review', windowMs: 60 * MIN, max: 60, skip: bench }) },
     { paths: ['/api/coach/death-forensics'], mw: L({ name: 'look', windowMs: 60 * MIN, max: 60, skip: bench }) },
+    // The agent look (8.11.0): a vision call too, and before this only the
+    // 90 a minute of every coach route held it, 5400 an hour. The app sends
+    // none since the look was turned off (AGENT_LOOKS_PER_MATCH 0), at most a
+    // few a match when on, and an app before 8.4.4 retried every 30 s until
+    // an agent locked, 120 in an hour that never locks. 60 an hour leaves
+    // every match its looks; a bench is not counted.
+    { paths: ['/api/coach/detect-agent'], mw: L({ name: 'agent-look', windowMs: 60 * MIN, max: 60, skip: bench }) },
     // HenrikDev's quota, shared by every player: for every tier now, the free
     // tier's tighter limit (server.js freeRiotLimiter) as well.
     { paths: RIOT_DATA, mw: L({ name: 'riot-data', windowMs: 10 * MIN, max: 120 }) },

@@ -4,7 +4,9 @@ const crypto = require('crypto');
 
 /*
  * A licence key, from the operating system's random source (Math.random's next
- * outputs can be worked out from earlier ones). Used by create-test-key.js.
+ * outputs can be worked out from earlier ones). create-test-key.js, which
+ * wrote a test key straight into the live licences table, was deleted in
+ * 8.11.0; test:renewals still holds this file's shape.
  *
  * This file also held getExpiresAt and extendExpiresAt, copies of the webhook's
  * that nothing required: no yearly plan, and the "old expiry plus 7 or 30 days"

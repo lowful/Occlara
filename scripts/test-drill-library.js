@@ -11,7 +11,8 @@
  * 1. The shape: version 1, unique ids, a cause the app can name or 'general',
  *    a real place to practise, 5 to 20 minutes, the four bands, 3 to 6 steps,
  *    one goal with a number, one why, one check that names something Occlara
- *    measures.
+ *    measures. An optional demo (8.11) is the site's <id>.webm and <id>.webp
+ *    under occlara.app/drills/, 6 to 12 seconds, kept as is by practice.js.
  * 2. Coverage: every cause the app can name, read from death-causes.js and
  *    from the Valorant mistakes and missed entries insights.js writes, has 3
  *    drills or more, and 'general' has 8 or more. A new cause added there
@@ -56,8 +57,32 @@ const drills = Array.isArray(lib.drills) ? lib.drills : [];
 ok(drills.length >= 40, `at least 40 drills (${drills.length})`);
 const ids = new Set();
 const KEYS = ['id', 'title', 'cause', 'where', 'minutes', 'bands', 'steps', 'goal', 'why', 'check'];
-// Optional: `also`, the further causes a drill serves (Nov 2026, low-headshots on the aim drills).
-const OPTIONAL = ['also'];
+// Optional: `also`, the further causes a drill serves (Nov 2026, low-headshots on the aim drills),
+// and `demo` (8.11), the owner's short video of the drill on the website.
+const OPTIONAL = ['also', 'demo'];
+// A DEMO (8.11) is what scripts/make-drill-demo.js writes and the site hosts:
+// <id>.webm and <id>.webp under occlara.app/drills/, 6 to 12 seconds, and
+// practice.js keeps it as it is (a demo it would drop is a typo here).
+const practiceLib = require(path.join(ROOT, 'src', 'shared', 'practice.js'));
+const demoProblem = (d) => {
+  const m = d.demo;
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return 'not an object';
+  const extra = Object.keys(m).filter((k) => !['src', 'poster', 'secs'].includes(k));
+  if (extra.length) return `unknown keys ${extra.join()}`;
+  if (m.src !== `${practiceLib.DEMO_BASE}${d.id}.webm`) return `src is not ${practiceLib.DEMO_BASE}${d.id}.webm`;
+  if (m.poster !== `${practiceLib.DEMO_BASE}${d.id}.webp`) return `poster is not ${practiceLib.DEMO_BASE}${d.id}.webp`;
+  if (!Number.isInteger(m.secs) || m.secs < 6 || m.secs > 12) return 'secs is not 6 to 12';
+  const kept = practiceLib.demoOf(m);
+  if (!kept || kept.src !== m.src || kept.poster !== m.poster || kept.secs !== m.secs) return 'practice.js would not keep it';
+  return null;
+};
+{
+  const good = { id: 'lost-duel-first-bullet', demo: { src: 'https://occlara.app/drills/lost-duel-first-bullet.webm', poster: 'https://occlara.app/drills/lost-duel-first-bullet.webp', secs: 8 } };
+  ok(demoProblem(good) === null, 'a demo as the script writes it passes');
+  ok(demoProblem({ ...good, demo: { ...good.demo, src: 'https://occlara.app/drills/other.webm' } }) && demoProblem({ ...good, demo: { ...good.demo, secs: 30 } })
+    && demoProblem({ ...good, demo: { ...good.demo, poster: 'http://occlara.app/drills/lost-duel-first-bullet.webp' } }) && demoProblem({ ...good, demo: { ...good.demo, extra: 1 } }),
+  'and one named for another drill, too long, over http or with another key fails');
+}
 // A FULL UNRATED MATCH (Nov 2026): a drill for a moment too rare for 8 rounds
 // (the last one alive) is played over a whole match, and says so in a step.
 const FULL_MATCH = /\bfull unrated match\b/;
@@ -65,9 +90,10 @@ ok(FULL_MATCH.test('Play a full unrated match, since the last one alive is too r
 for (const d of drills) {
   const at = `drill ${d && d.id}`;
   const extra = Object.keys(d || {}).filter((k) => !KEYS.includes(k));
-  ok(d && KEYS.every((k) => k in d) && extra.every((k) => OPTIONAL.includes(k)), `${at}: the ten fields, and also at most`, Object.keys(d || {}).join());
+  ok(d && KEYS.every((k) => k in d) && extra.every((k) => OPTIONAL.includes(k)), `${at}: the ten fields, and also and demo at most`, Object.keys(d || {}).join());
   ok(!('also' in d) || (Array.isArray(d.also) && d.also.length >= 1 && d.also.every((c) => typeof c === 'string' && c !== d.cause) && new Set(d.also).size === d.also.length),
     `${at}: also is a list of further causes, none its own cause, none twice`, JSON.stringify(d.also));
+  ok(!('demo' in d) || !demoProblem(d), `${at}: its demo is the site's <id>.webm and <id>.webp, 6 to 12 seconds`, 'demo' in d ? demoProblem(d) : '');
   ok(typeof d.id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(d.id) && !ids.has(d.id), `${at}: a unique lower case id`);
   ids.add(d.id);
   ok(typeof d.title === 'string' && d.title.length >= 8 && d.title.length <= 60, `${at}: a short title`);

@@ -766,6 +766,56 @@ const V4 = {
     henrik.account = async () => ({ status: 200, json: { data: { region: 'eu' } } });
   }
 
+  // ── the region is a word before it goes into a path (8.11.0) ─────────────
+  // It comes from HenrikDev's account answer and is put into every path after
+  // it: only a word is taken (latam has five letters), and each path encodes it.
+  {
+    const { regionWord, REGION_SHAPE } = coach.__test;
+    ok(['eu', 'na', 'ap', 'kr', 'br', 'latam'].every((x) => REGION_SHAPE.test(x) && regionWord(x) === x),
+      'every HenrikDev region, latam (five letters) included, is a region word');
+    ok(['eu/../v1', 'eu?x=1', 'e', 'eu.', '', 'eu%2F', 'n a', null, 42, 'abcdefghi'].every((x) => regionWord(x) === null),
+      'a slash, a query, a dot, a space, one letter, nine letters or no string at all is not');
+    regionCache.clear();
+    calls.length = 0;
+    henrik.account = async () => ({ status: 200, json: { data: { region: 'eu/../../v1/account/x/y?z=' } } });
+    henrik.stored = async () => ({ status: 200, json: { data: [row('comp', 'Competitive', 13, 11, 40)] } });
+    const bad = await call(coach, 'GET', `/last-match?username=${ME}`, { headers: H });
+    ok(bad.body && bad.body.error && !bad.body.matchId && calls.length === 1 && calls[0].includes('/v2/account/'),
+      `a region that is no word never goes into a path: the account alone was asked (${calls.length} call${calls.length === 1 ? '' : 's'})`);
+    regionCache.clear();
+    calls.length = 0;
+    henrik.account = async () => ({ status: 200, json: { data: { region: 'latam' } } });
+    const latam = await call(coach, 'GET', `/last-match?username=${ME}`, { headers: H });
+    ok(latam.body && latam.body.matchId === 'comp' && calls.some((u) => u.includes('/stored-matches/latam/')),
+      `and latam goes into the path as it is (${latam.body && (latam.body.matchId || latam.body.error)})`);
+
+    // What a player is told never names the server's variables (8.11.0): a
+    // refused key, a lookup that threw, and no key at all.
+    const leaks = /HENRIKDEV|_API_KEY|Railway|\b40[13]\b/;
+    ok(leaks.test('Check HENRIKDEV_API_KEY.') && leaks.test('rejected (401/403)') && !leaks.test('The stats service is unavailable right now. Try again later.'),
+      'the leak check finds a variable name and a status, and passes the plain sentence');
+    regionCache.clear();
+    henrik.account = async () => ({ status: 403, json: { errors: [{ message: 'Invalid API key' }] } });
+    const refused = await call(coach, 'GET', `/player-stats?username=${ME}`, { headers: H });
+    ok(refused.body && refused.body.error === 'The stats service is unavailable right now. Try again later.',
+      `a key HenrikDev refuses is "unavailable" to the player, the variable named in the log only (${refused.body && refused.body.error})`);
+    regionCache.clear();
+    henrik.account = async () => ({ status: 200, json: { data: { region: 'eu' } } });
+    henrik.mmr2 = async () => { throw new Error('socket hang up at 10.0.0.7:443'); };
+    henrik.stored = async () => ({ status: 200, json: { data: [] } });
+    const threw = await call(coach, 'GET', `/player-stats?username=${ME}`, { headers: H });
+    ok(threw.body && threw.body.error && !leaks.test(threw.body.error) && !/socket|10\.0\.0\.7|HenrikDev error/.test(threw.body.error),
+      `a lookup that threw says nothing of why (${threw.body && threw.body.error})`);
+    henrik.mmr2 = null;
+    const keyWas = process.env.HENRIKDEV_API_KEY;
+    delete process.env.HENRIKDEV_API_KEY;
+    const none = await call(coach, 'GET', `/player-stats?username=${ME}`, { headers: H });
+    process.env.HENRIKDEV_API_KEY = keyWas;
+    ok(none.body && none.body.error === 'No stats provider configured.', `no key at all is the sentence every stats route says (${none.body && none.body.error})`);
+    regionCache.clear();
+    henrik.account = async () => ({ status: 200, json: { data: { region: 'eu' } } });
+  }
+
   // ── every tracker call can time out ──────────────────────────────────────
   ok(signals.length > 0 && signals.every((s) => s && typeof s.aborted === 'boolean'),
     'every HenrikDev request carries an abort signal, so a hung one ends instead of holding the route');

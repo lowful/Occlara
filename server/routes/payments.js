@@ -42,8 +42,11 @@ router.post('/cancel', signedIn, async (req, res) => {
   try {
     await cancelAll(req, res);
   } catch (e) {
+    // The detail stays in the log (8.11.0): an exception's message can name
+    // Stripe's or the database's internals, and the answer goes to a browser.
+    // No full stop: the site prints it inside its own sentence.
     console.error('[payments] Cancel error:', e.message);
-    if (!res.headersSent) res.status(500).json({ error: 'Failed to cancel subscription: ' + e.message });
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to cancel subscription' });
   }
 });
 

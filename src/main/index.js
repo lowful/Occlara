@@ -1823,7 +1823,7 @@ function onValorantMatchReview(reviewText, snap) {
 // tries by this factor, so a match Riot lists only once it is over and
 // published runs on its real timeline in seconds. Never above 1.
 const LINK_DELAY_SCALE = (() => {
-  const s = Number(process.env.OCCLARA_DEV_LINK_SCALE);
+  const s = app.isPackaged ? 1 : Number(process.env.OCCLARA_DEV_LINK_SCALE);
   return s > 0 && s < 1 ? s : 1;
 })();
 
@@ -4663,8 +4663,11 @@ const practiceIpc = createPractice({
   gameLabel: (id) => { const g = gameRegistry.get(id); return g ? g.label : null; },
   open: (page) => openPage(page),
   changed: () => registry.broadcast(C.PUSH_PRACTICE, null),
+  // The player's own clip of each mistake (8.11): the clips kept beside each
+  // review, their frames and the look's poster frame, read in main only.
+  reviews: reviewStore,
   // The drill library, or a stand in for it in a dev run (check:mainwindow).
-  ...(process.env.OCCLARA_DRILLS ? { library: process.env.OCCLARA_DRILLS } : {}),
+  ...(!app.isPackaged && process.env.OCCLARA_DRILLS ? { library: process.env.OCCLARA_DRILLS } : {}),
 });
 const changelogIpc = {
   /** At launch: what this launch says, if anything. */
@@ -4902,7 +4905,7 @@ function createAppSurfaces(opts) {
 
 // A boot check sets OCCLARA_DEV_LATE_LINK_MS so it does not sit out the wait,
 // nor the minute between tries while a match is being played.
-const LATE_LINK_DEV_MS = Number(process.env.OCCLARA_DEV_LATE_LINK_MS) || 0;
+const LATE_LINK_DEV_MS = (!app.isPackaged && Number(process.env.OCCLARA_DEV_LATE_LINK_MS)) || 0;
 const LATE_LINK_DELAY_MS = LATE_LINK_DEV_MS || 20000;
 let lateLinkTimer = null;
 
@@ -5171,7 +5174,9 @@ if (!app.requestSingleInstanceLock()) {
 
     // Dev-only self-test (never runs in normal use): bypasses the license server
     // and exercises launch → IPC round-trip, writing results to debug.log.
-    if (process.env.OCCLARA_DEV_AUTOLAUNCH === '1') {
+    // Never in an installed build (8.11): it skips the licence, so only a
+    // run from the repo may use it.
+    if (!app.isPackaged && process.env.OCCLARA_DEV_AUTOLAUNCH === '1') {
       setTimeout(() => {
         console.log('[dev] auto-launch (license bypassed) for self-test');
         launchMainApp();
@@ -5192,7 +5197,7 @@ if (!app.requestSingleInstanceLock()) {
 
     // Dev-only: drive the REAL license path (service → live server → persist →
     // launch) with a key from the env. Lets us verify activation from the CLI.
-    if (process.env.OCCLARA_DEV_ACTIVATE_KEY) {
+    if (!app.isPackaged && process.env.OCCLARA_DEV_ACTIVATE_KEY) {
       if (!licenseService.isLocallyValid()) activationWindow.create();
       license.activate(process.env.OCCLARA_DEV_ACTIVATE_KEY).then((r) => {
         console.log('[dev] activate result:', JSON.stringify(r));

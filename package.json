@@ -1,6 +1,6 @@
 {
   "name": "occlara",
-  "version": "8.10.4",
+  "version": "8.11.0",
   "description": "Occlara, an AI coach for Valorant, with League of Legends coming soon. Reads the screen, never the game, shows nothing during a match, and grades every match when it ends.",
   "main": "src/main/index.js",
   "scripts": {
@@ -155,7 +155,8 @@
     "test:webm": "node scripts/test-webm.js",
     "verify:ai": "node scripts/bench-read.js live --gate",
     "check:nogame": "node scripts/check-no-game.js",
-    "test:nogame": "node scripts/test-no-game.js"
+    "test:nogame": "node scripts/test-no-game.js",
+    "make:drilldemo": "node scripts/make-drill-demo.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
@@ -220,6 +221,13 @@
       "buildResources": "assets"
     },
     "asar": true,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    },
     "publish": {
       "provider": "github",
       "owner": "lowful",

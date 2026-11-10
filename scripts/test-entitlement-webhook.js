@@ -8,6 +8,8 @@
  *   - checkout.session.completed and invoice.paid set the tier from the
  *     price's lookup_key, occlara_{pro,max}_{monthly,yearly}: cap 25 or 70,
  *     source stripe, the subscription, period_anchor its current period start.
+ *     A checkout only once it is paid (8.11.0): an unpaid one waits for
+ *     async_payment_succeeded, which sets it once.
  *     An old price maps by the payer rules: weekly and monthly are Pro, a
  *     yearly is Max until its renewal and Pro from it, lifetime is Max.
  *   - a key this server mints is plan monthly or yearly, never pro or max, so
@@ -146,6 +148,45 @@ const refundOf = (n, over = {}) => {
       ok(e && e.free_total === FREE_GAMES && e.bonus_pool === 0, 'and the free games and the bonus as they were');
       ok(base._db.rows.length === 0, 'and the site still mints the key, so nothing is minted here');
     }
+  }
+
+  // ── Only a paid checkout sets the tier (8.11.0) ───────────────────────────
+  // A delayed payment completes the checkout unpaid: no plan until
+  // async_payment_succeeded says it is paid, which sets it once.
+  {
+    reset();
+    const { start } = subscription({ n: 'P', lookupKey: 'occlara_max_monthly', plan: 'max_monthly' });
+    const s = st.s.sessions.get('cs_P');
+    s.payment_status = 'unpaid';
+    const unpaid = await fire(st.event('checkout.session.completed', 'session', s));
+    ok(unpaid.res.code === 200 && !ent(U1) && sb.accounts.ensures.length === 0 && sb.accounts.writes.length === 0,
+      `an unpaid site checkout sets no tier and makes no account (${JSON.stringify(ent(U1) && ent(U1).tier)})`);
+    ok(unpaid.lines.some((l) => l.includes('cs_P is unpaid, nothing granted until it is paid')), 'and says it waits for the payment');
+    s.payment_status = 'paid';
+    const paid = await fire(st.event('checkout.session.async_payment_succeeded', 'session', s));
+    const e = ent(U1);
+    ok(paid.res.code === 200 && e && e.tier === 'max' && e.cap_monthly === 70 && e.stripe_subscription_id === 'sub_P'
+      && e.period_anchor === iso(start) && e.free_total === FREE_GAMES && e.bonus_pool === 0,
+    `its async_payment_succeeded sets it max, 70 a month, the free games as they were (${e && e.tier} ${e && e.cap_monthly})`);
+    const before = JSON.stringify(ent(U1));
+    const twice = await fire(st.event('checkout.session.async_payment_succeeded', 'session', s));
+    const late = await fire(st.event('checkout.session.completed', 'session', s));
+    const after = { ...ent(U1) };
+    const same = (a) => { const o = JSON.parse(a); delete o.updated_at; return JSON.stringify(o); };
+    delete after.updated_at;
+    ok(twice.res.code === 200 && late.res.code === 200 && same(before) === JSON.stringify(after) && sb.accounts.rows.length === 1
+      && base._db.rows.length === 0,
+    'and the same success, or the completion, delivered again grants nothing more: one account, the same plan, no licence minted here');
+  }
+  {
+    reset();
+    subscription({ n: 'Q', lookupKey: 'occlara_pro_monthly' });
+    const s = st.s.sessions.get('cs_Q');
+    s.payment_status = 'no_payment_required';
+    const { res } = await fire(st.event('checkout.session.completed', 'session', s));
+    ok(res.code === 200 && !ent(U1), 'a checkout with no payment required sets no tier at its completion');
+    await fire(st.event('invoice.paid', 'invoice', st.s.invoices.get('in_Q')));
+    ok(ent(U1) && ent(U1).tier === 'pro', 'its invoice.paid sets the account, as for any subscription');
   }
 
   // ── A key minted here is monthly or yearly, never pro or max ──────────────

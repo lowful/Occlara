@@ -194,7 +194,8 @@ const readOf = (v) => routeOf(v, 'read');
  * before has no bench route, and its zeros change nothing.
  */
 async function snapshot() {
-  const health = await getJson(`${SERVER}/health`);
+  // The models and the data policy are behind the admin password since 8.11.0.
+  const health = await getJson(`${SERVER}/health`, { 'x-admin-password': ADMIN });
   const costs = await getJson(`${SERVER}/api/admin/costs`, { 'x-admin-password': ADMIN });
   const mine = (costs.topUsers || []).find((u) => u.user === licenceHash) || null;
   const sum = (o) => Object.values(o || {}).reduce((a, b) => a + (Number(b) || 0), 0);

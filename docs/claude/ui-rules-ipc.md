@@ -191,6 +191,16 @@ bug was main and preload drifting to different names, after which a window
 silently stopped receiving events with no error. Add the constant to
 `channels.js` first, then use it on both sides.
 
+**Locks on the app itself (8.11, the security audit of 10 Nov 2026).**
+- Every invoke handler made through `register-ipc.js safeHandle` first refuses a caller whose frame is not a file under `src/renderer` (`fromOwnPage`, reusing `web-guard.js isOwnPage`); a call with no frame to read is let through, so test stand ins still work.
+- Every page's CSP ends with `base-uri 'none'; form-action 'none'; object-src 'none'`.
+- The dev switches `OCCLARA_DEV_AUTOLAUNCH` and `OCCLARA_DEV_ACTIVATE_KEY` (both skip the licence), `OCCLARA_DRILLS`, `OCCLARA_DEV_LINK_SCALE` and `OCCLARA_DEV_LATE_LINK_MS` are honoured only by a run from the repo (`!app.isPackaged`), like `OCCLARA_DEV_USERDATA`.
+- `package.json build.electronFuses` turns off RunAsNode, NODE_OPTIONS and the inspector flags in the installed exe and turns on the asar integrity check and loading the app only from its asar. Check a build with `npx @electron/fuses read --app dist/win-unpacked/Occlara.exe`.
+- `test:webguard` holds all of this.
+- Deliberately not done:
+  - The licence key stays in the store unencrypted. safeStorage on Windows is DPAPI for the same user, so anything that can read the file can decrypt it too, and the key is bound to its device on the server; moving it risked signing paying players out.
+  - The preloads still run with the sandbox off, because every window loads only our own files.
+
 Renderers have no Node access. Everything crosses through a preload via
 `contextBridge`. The library is `REVIEWS_LIST`, `REVIEW_GET`, `REVIEW_OPEN`,
 `REVIEW_AILOG` (the eye: the AI log on that review's match, or at one moment

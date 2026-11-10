@@ -16,7 +16,7 @@ default where it is not: `AI_READ_MODEL` (default deepseek/deepseek-v4.1-flash),
 `AI_TEXT_MODEL`, which Ask Coach keeps for every client before 8.5.0; the
 bench tables are beside each in coach.js), and `AI_CHAT_MODEL` (8.5.0, Ask
 Coach v2's, below, default openai/gpt-6-sol until bench:chat names a winner).
-`AI_TEXT_MODEL`'s code default is google/gemini-3-flash-preview, so a /health
+`AI_TEXT_MODEL`'s code default is google/gemini-3-flash-preview, so a /health (read with the admin password since 8.11)
 naming qwen/qwen3.7-flash as `textModel` is Railway's env var, which
 bench:review measured at 10 wrong facts or more in 84 lines against Gemini 3
 Flash's 4. Two rounds of benches on 13 Oct 2026 kept the read on DeepSeek: the
@@ -44,7 +44,7 @@ moved Ask Coach. The review passes `fallback: false`, and so does Ask Coach v2:
 a failure there is no narrative (a 503, or an empty reply that parses to a null
 summary, which every client handles, and Riot's repaint asks again). Strikes
 are counted per model, an empty wallet striking none, and the configured text
-model moves to the backstop only after its own: `/health` says `textModel` and
+model moves to the backstop only after its own: `/health` with the admin password says `textModel` and
 `textModelNow`, the one unpinned calls go to now, and `chatModel`. Only an
 UNPINNED call strikes: bench:review and bench:chat bench Gemini 3 Flash, the
 text model's own default, and one bench answer empty or cut off at v2's

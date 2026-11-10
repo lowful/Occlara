@@ -2605,6 +2605,12 @@ function fillRefused(now) {
  */
 const REGION_MS = 24 * 60 * 60 * 1000;
 const regionCache = new Map();   // riotId (lower) -> { region, puuid, at }
+// THE REGION GOES INTO EVERY HENRIKDEV PATH (8.11.0), so only a word is taken
+// from the account answer: eu, na, ap, kr, br, latam (five letters, so not a
+// two to four letter rule), and room for one more. Anything else (a slash, a
+// dot, a query) is no region, and every path encodes it as well.
+const REGION_SHAPE = /^[A-Za-z]{2,8}$/;
+const regionWord = (r) => (typeof r === 'string' && REGION_SHAPE.test(r) ? r : null);
 async function regionOf(name, tag) {
   const id = `${name}#${tag}`.toLowerCase();
   const hit = regionCache.get(id);
@@ -2615,7 +2621,9 @@ async function regionOf(name, tag) {
   } catch (e) {
     console.warn('[stats] account lookup failed:', e.message);
   }
-  const region = acct.json && acct.json.data && acct.json.data.region;
+  const rawRegion = acct.json && acct.json.data && acct.json.data.region;
+  const region = regionWord(rawRegion);
+  if (rawRegion && !region) console.warn('[stats] the account answer named a region that is no region word, ignored');
   const rawPuuid = acct.json && acct.json.data && acct.json.data.puuid;
   const puuid = typeof rawPuuid === 'string' && /^[A-Za-z0-9_-]{20,90}$/.test(rawPuuid) ? rawPuuid : null;
   if (region) {
@@ -2642,7 +2650,7 @@ async function accoladesOf(region, puuid) {
   // accolades are the one thing on the profile that can wait.
   if (henrikThrottled(Date.now())) return hit ? hit.data : null;
   try {
-    const r = await henrikGet(`/valorant/v1/by-puuid/accolades/${region}/pc/${encodeURIComponent(puuid)}`);
+    const r = await henrikGet(`/valorant/v1/by-puuid/accolades/${encodeURIComponent(region)}/pc/${encodeURIComponent(puuid)}`);
     const data = r.ok ? henrikRank.accoladesV1(r.json, puuid) : null;
     if (data) { cacheSet(accoladesCache, key, { at: Date.now(), data }, 2000); return data; }
     // An answer that holds none (a 404, a shape that does not parse) is held
@@ -2670,7 +2678,12 @@ async function henrikStats(name, tag, modeKey) {
   const queues = MODE_QUEUES[modeKey === 'unrated' ? 'unrated' : 'competitive'];
   const acct = await regionOf(name, tag);
   const region = acct.region;
-  if (!region && (acct.status === 401 || acct.status === 403)) return { fail: 'HenrikDev key rejected (401/403). Check HENRIKDEV_API_KEY.' };
+  // The player is told the stats are unavailable; which variable to check is
+  // the server log's to say, never an answer's (8.11.0).
+  if (!region && (acct.status === 401 || acct.status === 403)) {
+    console.error(`[stats] HenrikDev refused the key (${acct.status}). Check HENRIKDEV_API_KEY on Railway.`);
+    return { fail: 'The stats service is unavailable right now. Try again later.' };
+  }
   if (!region && acct.status === 404) return { fail: 'HenrikDev could not find that Riot ID. Check Name#TAG is exact.' };
   if (!region && acct.status === 429) return { fail: 'HenrikDev rate limit hit. Wait a minute and try again.' };
   if (!region) return { fail: 'HenrikDev returned no region for that account (status ' + acct.status + ').' };
@@ -2683,13 +2696,13 @@ async function henrikStats(name, tag, modeKey) {
   // key spends exactly the calls it did before.
   let detail = null;
   if (acct.puuid && !henrikThrottled(Date.now())) {
-    const v3 = await henrikGet(`/valorant/v3/by-puuid/mmr/${region}/pc/${enc(acct.puuid)}`).catch(() => null);
+    const v3 = await henrikGet(`/valorant/v3/by-puuid/mmr/${encodeURIComponent(region)}/pc/${enc(acct.puuid)}`).catch(() => null);
     detail = v3 && v3.ok ? henrikRank.mmrV3(v3.json) : null;
   }
   let rank = detail ? detail.rank : null;
   let peakRank = detail ? detail.peakRank : null;
   if (!detail) {
-    const mmr  = await henrikGet(`/valorant/v2/mmr/${region}/${enc(name)}/${enc(tag)}`);
+    const mmr  = await henrikGet(`/valorant/v2/mmr/${encodeURIComponent(region)}/${enc(name)}/${enc(tag)}`);
     rank = mmr.json?.data?.current_data?.currenttierpatched || null;
     peakRank = mmr.json?.data?.highest_rank?.patched_tier || null;
   }
@@ -2701,7 +2714,7 @@ async function henrikStats(name, tag, modeKey) {
   try {
     const matches = [];
     for (const q of queues) {
-      const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=${q}&size=25`);
+      const sm = await henrikGet(`/valorant/v1/stored-matches/${encodeURIComponent(region)}/${enc(name)}/${enc(tag)}?mode=${q}&size=25`);
       const arr = (sm.json && Array.isArray(sm.json.data)) ? sm.json.data : [];
       for (const m of arr) matches.push(m);
     }
@@ -2789,7 +2802,11 @@ router.get('/player-stats', async (req, res) => {
 
   // 1) HenrikDev first: it actually works from Railway/cloud IPs.
   if (process.env.HENRIKDEV_API_KEY) {
-    const r = await henrikStats(name, tag, req.query.mode).catch((e) => ({ fail: 'HenrikDev error: ' + e.message }));
+    // What went wrong is logged; the player is told the profile did not load (8.11.0).
+    const r = await henrikStats(name, tag, req.query.mode).catch((e) => {
+      console.warn('[stats] the HenrikDev lookup failed for', idHash(username), '::', (e && e.message) || 'unknown error');
+      return { fail: 'Could not load that profile right now. Try again shortly.' };
+    });
     if (r.stats) { console.log('[stats] henrikdev ok:', r.stats.rank); return res.json(r.stats); }
     if (r.fail) reasons.push(r.fail);
   }
@@ -2797,7 +2814,9 @@ router.get('/player-stats', async (req, res) => {
   // There is no second provider: tracker.gg's internal API was removed in 8.7.9 because its staff
   // state that nobody may use it, and its public API does not cover VALORANT.
   if (!process.env.HENRIKDEV_API_KEY) {
-    return res.json({ error: 'No stats provider is configured on the server. Add HENRIKDEV_API_KEY in Railway.' });
+    // The same words every other stats route answers; the variable is named in the log only.
+    console.warn('[stats] no stats provider: HENRIKDEV_API_KEY is not set on the server');
+    return res.json({ error: 'No stats provider configured.' });
   }
   // A Riot ID is a player's name: the log carries its short hash, never the ID (S10).
   console.warn('[stats] all providers failed for', idHash(username), '::', reasons.join(' | '));
@@ -2877,11 +2896,11 @@ router.get('/rank-history', async (req, res) => {
     // empty success, and that one is cached as before.
     let points = null;
     if (puuid && !henrikThrottled(Date.now())) {
-      const st = await henrikGet(`/valorant/v2/by-puuid/stored-mmr-history/${region}/pc/${enc(puuid)}?size=20`).catch(() => null);
+      const st = await henrikGet(`/valorant/v2/by-puuid/stored-mmr-history/${encodeURIComponent(region)}/pc/${enc(puuid)}?size=20`).catch(() => null);
       points = st && st.ok ? henrikRank.storedHistoryV2(st.json, 20) : null;
     }
     if (!points || !points.length) {
-      const mh = await henrikGet(`/valorant/v1/mmr-history/${region}/${enc(name)}/${enc(tag)}`).catch(() => null);
+      const mh = await henrikGet(`/valorant/v1/mmr-history/${encodeURIComponent(region)}/${enc(name)}/${enc(tag)}`).catch(() => null);
       if (!rankHistoryAnswered(mh)) {
         if (hit && hit.data) return res.json(hit.data);
         return res.json({ error: 'unavailable' });
@@ -2939,7 +2958,7 @@ async function matchDetail(region, matchId, name, tag, rounds = 0) {
   const cacheKey = mvpKey(matchId, name, tag);
   if (matchMvpCache.has(cacheKey)) return matchMvpCache.get(cacheKey);
   try {
-    const md = await henrikGet(`/valorant/v4/match/${region}/${encodeURIComponent(matchId)}`);
+    const md = await henrikGet(`/valorant/v4/match/${encodeURIComponent(region)}/${encodeURIComponent(matchId)}`);
     const d = md.json && md.json.data;
     const players = Array.isArray(d && d.players) ? d.players
       : (d && d.players && Array.isArray(d.players.all_players)) ? d.players.all_players : [];
@@ -3090,7 +3109,7 @@ router.get('/match-deaths', async (req, res) => {
     const { region } = await regionOf(name, tag);
     if (!region) return res.json({ error: 'Could not resolve the account region.' });
 
-    const md = await henrikGet(`/valorant/v4/match/${region}/${enc(matchId)}`);
+    const md = await henrikGet(`/valorant/v4/match/${encodeURIComponent(region)}/${enc(matchId)}`);
     if (md.status === 429) return res.json({ error: 'Tracker rate limit, try again shortly.' });
     const d = md.json && md.json.data;
     if (!d) return res.json({ error: 'The tracker returned no match detail.' });
@@ -3182,7 +3201,7 @@ router.get('/match-rounds', async (req, res) => {
       return roundsRetry(res, acct.status === 429
         ? 'Tracker rate limit, try again shortly.' : 'Could not resolve the account region.');
     }
-    const md = await henrikGet(`/valorant/v4/match/${acct.region}/${enc(matchId)}`, MATCH_DETAIL_TIMEOUT_MS);
+    const md = await henrikGet(`/valorant/v4/match/${encodeURIComponent(acct.region)}/${enc(matchId)}`, MATCH_DETAIL_TIMEOUT_MS);
     if (md.status === 429) return roundsRetry(res, 'Tracker rate limit, try again shortly.');
     // The id came from the tracker's own match list, so a 404 for its detail
     // is the record not being ready yet rather than a match that never was.
@@ -3265,7 +3284,7 @@ router.get('/matches', async (req, res) => {
       // A call past henrikGet's deadline throws rather than answering, and a
       // throw here used to fail the whole tab. It is one failed queue, like a
       // 429, so it takes the same fallback to that queue's last good rows.
-      const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=${q}&size=10`)
+      const sm = await henrikGet(`/valorant/v1/stored-matches/${encodeURIComponent(region)}/${enc(name)}/${enc(tag)}?mode=${q}&size=10`)
         .catch((e) => ({ status: 0, ok: false, json: null, error: e.message }));
       const arr = (sm.ok && sm.json && Array.isArray(sm.json.data)) ? sm.json.data : null;
 
@@ -3510,7 +3529,7 @@ router.get('/last-match', async (req, res) => {
     // the newest is picked, and ten rows rather than five so a real match
     // behind a few deathmatches is still found. The rest is rejected
     // downstream by the map, agent and timing checks.
-    const sm   = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?size=10`);
+    const sm   = await henrikGet(`/valorant/v1/stored-matches/${encodeURIComponent(region)}/${enc(name)}/${enc(tag)}?size=10`);
     const rows = Array.isArray(sm.json?.data) ? sm.json.data.filter((x) => x && x.stats && roundBased(x)) : [];
     rows.sort((a, b) => (Date.parse(b.meta?.started_at || 0) || 0) - (Date.parse(a.meta?.started_at || 0) || 0));
     const m = rows[0];
@@ -3568,7 +3587,7 @@ router.get('/recent-matches', async (req, res) => {
       if (acct.status === 404 || acct.status === 400) return res.json({ error: 'Account not found.' });
       return res.json({ error: `Could not resolve the account region (status ${acct.status}).` });
     }
-    const base = `/valorant/v1/stored-matches/${acct.region}/${enc(name)}/${enc(tag)}?size=10`;
+    const base = `/valorant/v1/stored-matches/${encodeURIComponent(acct.region)}/${enc(name)}/${enc(tag)}?size=10`;
     const first = await henrikGet(base).catch(() => ({ status: 0, ok: false, json: null }));
     // An account HenrikDev has no stored matches for is an account with none
     // to grade, not a tracker that refused: the region lookup above already
@@ -5244,7 +5263,8 @@ ${valorant ? `- COACH LIKE THE BEST, in the second half of your reply: diagnose 
     chatCounts().failed++;
     // Same reasoning as analyze: without the provider's status this is not
     // diagnosable from outside Railway.
-    res.status(500).json({ error: 'Chat failed', upstream: (e && e.status) || null, detail: (e && e.message) || null });
+    // The provider's status stays; its message is in the log above, never the reply (8.11).
+    res.status(500).json({ error: 'Chat failed', upstream: (e && e.status) || null });
   }
 });
 
@@ -5269,7 +5289,7 @@ module.exports.__test = {
   setChatGuard: (g) => { chatGuard = g || chatGuardMod.createChatGuard(); },
   // The wrong admin passwords counted per IP on the coach routes (S2).
   adminGuesses, ADMIN_GUESS_MAX,
-  checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,
+  checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache, regionWord, REGION_SHAPE,
   // 8.7.9: Riot's accolades by puuid, held 15 minutes, and the rank history's.
   accoladesCache, rankHistoryCache,
   benchModel, readVariant, TELL_MAX, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,

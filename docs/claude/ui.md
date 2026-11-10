@@ -734,6 +734,47 @@ sent anywhere; the page says so at its foot.
   "How you will know" (the drill's check line, what the next review will show),
   and Mark as practised: one dated entry, once a day a drill ("Practised
   today"), "Done 2 of 3 times" under it.
+- **The player's own clip of it** (8.11, the owner's ask: show the mistake,
+  do not only tell it). Each focus, and the review's link to a mistake not in
+  the plan, carries the newest kept clip of that mistake (`practice.js
+  clipFor`): THE MOMENTS PAGE'S OWN JOIN, `moments.js mistakesAt` for the
+  rounds a review counted it in and `clipOf` for what is still on disk, the
+  newest recorded match first and inside it the latest round; a round sat out,
+  one not died in and a Riot only match are never shown, and a clip named on a
+  card but gone from disk (the cap, Clear clips) is passed over for the next
+  one kept. Main builds it in `practice-store.js` from the review store it is
+  handed (`deps.reviews`, index.js `practiceIpc`: `reviews: reviewStore`;
+  without it no clip, the page as before): the URL is `clip-scheme.js urlFor`,
+  the frames `review-clips.js frameTimes`, the poster the look's own frame
+  nearest the death from before it as a data URL, and the words main's ("Your
+  newest clip of this mistake", "Round 7 on Ascent", "The clip of round 7").
+  Nothing the page hands in names a file. The page draws a tile under the
+  mistake's fix and above its drills (`.pc-clip`: the poster with the play
+  mark, the line and the day, Watch the round); a click on either opens the
+  review's own clip player in its place (`clip-player.js`, `clip-time.js`,
+  `clip-player.css`, loaded as Moments and Ask Coach load them) and plays it,
+  muted. No clip kept, no tile and no empty box. A repaint (a mark, a review
+  saved) carries an open clip across as it is, playing or not; one whose clip
+  is gone is let go. Leaving the page pauses everything on it.
+- **A drill's demo** (8.11): an optional `demo: { src, poster, secs }` on a
+  drill (the drill library, playbook.md), the owner's own short recording
+  hosted at `https://occlara.app/drills/` (`scripts/make-drill-demo.js`,
+  `docs/drill-demo-guide.md`). `practice.js demoOf` keeps it only when both
+  URLs are https on that host under `/drills/`, with no query, fragment, login
+  or port, a video (webm, mp4) and a picture (webp, jpg, png); otherwise the
+  drill reads as having none. The card puts it at its top (`.pc-demo`), HIDDEN
+  UNTIL ITS POSTER HAS LOADED, and takes it away at the first failure of
+  either file, so offline the card is exactly as before. A muted loop
+  (`preload="none"`, nothing of it fetched before) plays while the pointer is
+  over it; a click plays it and keeps it playing, a second stops it; out of
+  view or on leaving the page it stops. Under reduced motion a hover does
+  nothing: the poster waits with its play button for a click. "Demo, 8 s" sits
+  on it.
+- **Its CSP** allows the website for pictures and media alone: `img-src 'self'
+  data: https://occlara.app; media-src 'self' occlara-clip:
+  https://occlara.app`, with `base-uri`, `form-action` and `object-src`
+  `'none'` as every page. Nothing else on the page reaches the web, and
+  nothing of the player's is sent anywhere.
 - **Is it working?** For each focus, the last five recorded matches since the
   plan against the five before them, as counts: "Down from 5 of 5 to 2 of 5",
   "Up from 1 of 5 to 3 of 3", "Same, 2 of 5 both times", "Same rate, 2 of 4
@@ -765,7 +806,11 @@ sent anywhere; the page says so at its foot.
   `check:mainwindow` measures it on a page with Start in the bar).
 - Tests: `test:practice` (the library, the plan, no churn, the refresh after
   three marks, the wording at each threshold, the store's tolerance, Home's line
-  once a day and never mid match, the page's dom hooks and its bridge),
+  once a day and never mid match, the page's dom hooks and its bridge; since
+  8.11 the own clip's join over a real review store in a temp folder, newest
+  wins, a clip deleted from disk, no clip no tile, Watch the round in the clip
+  player, a repaint keeping it open, the demo URLs kept and refused, the card
+  unchanged offline, the hover and reduced motion, and the CSP),
   `test:shellnav` and `test:surfaces` (the tab), `check:seal`,
   `check:mainwindow` (the plan on the sample library, a mark and its removal
   moving the log and Home's line, the review's Practise this, the bar at 960;

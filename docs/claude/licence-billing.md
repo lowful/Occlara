@@ -170,6 +170,30 @@ The old public `POST /api/payments/create-checkout` (no sign in, any userId, the
 old $20 and $100 prices) and `GET /api/payments/success` (a key for any session
 id) answer 410: neither the site nor the app calls them.
 
+**Only a paid checkout grants a plan (8.11.0).** A checkout paid by a delayed
+method (a bank debit) completes with `payment_status` 'unpaid', and its money
+may never arrive, yet `checkout.session.completed` minted the old checkout's
+licence and set the account's tier (`mintFromCheckout`, `entitleCheckout`)
+whatever the status. Both now act only on 'paid' (`webhook.js checkoutPaid`),
+as the games and gift paths already did, and
+`checkout.session.async_payment_succeeded` of a plan's checkout grants exactly
+what the completion would have (`planCheckout`, run by both events): the
+licence is found by its session before one is minted and the account write is
+the same write, so a redelivery, or the completion arriving after the success,
+grants nothing more. 'no_payment_required' (a trial, a whole discount) is not
+'paid' either: its first `invoice.paid` sets the account (`entitleInvoice`
+finds the buyer by the checkout that started the subscription) and the site
+mints the key. The site's own create-license at /success is not in this repo:
+whether it waits for 'paid' is the site's to check. `test:checkoutplan` and
+`test:entitlementwebhook` hold it: an unpaid checkout grants nothing, its
+async success grants once.
+
+**What a failure tells the caller (8.11.0).** A bad Stripe signature answers
+400 `Webhook signature verification failed` and `/api/payments/cancel`'s
+unexpected failure 500 `Failed to cancel subscription` (no full stop: the
+site prints it inside its own sentence); the exception's own message is
+logged on Railway and no longer sent.
+
 **The frames go only to providers that keep nothing, and asking never takes
 the product down.** Every OpenRouter call (`chatCall` in coach.js) asks for
 `provider: { data_collection: 'deny' }`. A model with no provider that denies
@@ -183,7 +207,8 @@ or a timeout is the call's own answer). The calls
 that fell back are counted per route since boot (read, forensics, review,
 chat, bench, other), said in one log line a route an hour at most, and
 `GET /health` counts them as `dataPolicy: { mode, fellBack, refusedAgain,
-since }`: a route counting in `fellBack` sends its model's frames to providers
+since }` (beside the admin password since 8.11.0; without it `/health` is only
+`{ status: 'ok' }`): a route counting in `fellBack` sends its model's frames to providers
 that may keep them, each call after a refused round trip, until the model
 changes. They are counted by what happened to the retry: one OpenRouter
 refuses again ("No endpoints found" once more) went to no provider, so it is
@@ -205,9 +230,10 @@ provider, so it is `fellBack`.
   failing.
 - The Stripe endpoint subscribed to `invoice.paid`, `invoice.payment_failed`,
   `customer.subscription.deleted`, `customer.subscription.updated`,
-  `charge.refunded`, `charge.dispute.created` and
-  `checkout.session.completed`. It was created listing four. Its API
-  version can be either shape; the code reads both.
+  `charge.refunded`, `charge.dispute.created`,
+  `checkout.session.completed` and `checkout.session.async_payment_succeeded`
+  (since 8.11.0 a plan's delayed payment is granted only on that one). It was
+  created listing four. Its API version can be either shape; the code reads both.
 - The repair run once, dry first, then `?apply=1`.
 - STRIPE_PRICE_WEEKLY, MONTHLY and LIFETIME removed from Railway: nothing reads them.
 

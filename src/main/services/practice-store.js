@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const P = require('../../shared/practice');
+const clipScheme = require('./clip-scheme');
+const reviewClips = require('./review-clips');
 
 /**
  * THE PRACTICE PAGE'S MAIN HALF (docs/claude/ui.md, "The Practice page"):
@@ -34,6 +36,18 @@ const P = require('../../shared/practice');
  * @param deps.changed    () => PUSH_PRACTICE to every page
  * @param deps.library    the drill library's path (OCCLARA_DRILLS in dev)
  * @param deps.now        () => ms
+ * @param deps.reviews    the review store (review-store.js: clipsOf, clipFile,
+ *                        frame), for the player's own clip of each mistake
+ *                        (8.11, practice.js clipFor). Without it no clip is
+ *                        shown and the page is as before.
+ *
+ * THE PLAYER'S OWN CLIP (8.11). Each mistake on the page carries the newest
+ * clip kept of it, found by the Moments page's join over what is on disk
+ * beside each review, asked of the disk on every ask (the cap takes the
+ * oldest clips whenever a new one is kept). Its URL is occlara-clip's
+ * (clip-scheme.js urlFor), served from the reviews' own folders and nowhere
+ * else; its frames are main's read (review-clips.js frameTimes); its poster
+ * the look's own frame, as a data URL. Nothing a page hands in names a file.
  */
 const LIBRARY = path.join(__dirname, '..', '..', 'shared', 'drill-library.json');
 const KEY = 'practice';
@@ -60,6 +74,22 @@ function createPractice(deps) {
   const read = () => { try { return P.normaliseState(d.store.get(KEY)); } catch { return P.emptyState(); } };
   const write = (s) => { try { d.store.set(KEY, s); } catch (e) { console.log('[practice] could not save:', e && e.message); } };
   const say = () => { try { if (d.changed) d.changed(); } catch { /* no window */ } };
+
+  /** (key) => the player's own newest kept clip of that mistake, or null; none at all without the review store. */
+  function clipsOver(saved) {
+    const r = d.reviews;
+    if (!r || typeof r.clipsOf !== 'function') return null;
+    const io = {
+      clips: (id) => r.clipsOf(id).map((c) => (typeof c === 'string' ? c : c && c.name)),
+      url: (id, name) => clipScheme.urlFor(id, name),
+      frames: (id, name) => (typeof r.clipFile === 'function' ? reviewClips.frameTimes(r.clipFile(id, name)) : null),
+      poster: (id, name) => {
+        const b64 = typeof r.frame === 'function' ? r.frame(id, name) : null;
+        return b64 ? `data:image/jpeg;base64,${b64}` : null;
+      },
+    };
+    return (key) => P.clipFor(saved, key, io);
+  }
 
   /** Everything the plan rests on, the plan kept or refreshed and saved when it moved. */
   function current() {
@@ -96,7 +126,7 @@ function createPractice(deps) {
       const fresh = pending;
       pending = null;
       const riotId = String((d.riotId && d.riotId()) || '').includes('#');
-      return { game: 'valorant', ...P.planView({ ...c, library: c.lib, now: c.t, riotId, focus }), opened: fresh || null };
+      return { game: 'valorant', ...P.planView({ ...c, library: c.lib, now: c.t, riotId, focus, clipOf: clipsOver(c.saved) }), opened: fresh || null };
     },
 
     /** A drill marked practised today: { ok } or { ok: false, error }. */

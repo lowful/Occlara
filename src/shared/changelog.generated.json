@@ -1,5 +1,29 @@
 [
   {
+    "version": "8.11.0",
+    "date": "2026-11-10",
+    "title": "Practice shows the round you are fixing",
+    "summary": "Each focus on the Practice page now shows your own clip of that mistake, and Occlara is locked down further after a full security review.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Practice shows your newest recorded clip of each mistake beside its drills. Press Watch the round to see exactly what went wrong."
+      },
+      {
+        "kind": "new",
+        "text": "Drills can now carry a short demo video, so you can see how to do them. The first ones arrive over the next updates."
+      },
+      {
+        "kind": "improved",
+        "text": "A security review of the app and the server found no backdoors. The installed app now refuses developer switches and debugging tools, checks its own files, and only lets its own pages talk to it."
+      },
+      {
+        "kind": "improved",
+        "text": "Plans and games are only granted once a payment has actually gone through, and the server refuses more kinds of misuse."
+      }
+    ]
+  },
+  {
     "version": "8.10.4",
     "date": "2026-11-10",
     "title": "Gifts and upgrades get their moment",

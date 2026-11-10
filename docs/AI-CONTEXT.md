@@ -354,7 +354,7 @@ read's context is checked with `npm run verify:ai -- --lag 4`.
 
 ## 9. Honest current limitations
 
-- The live model is set outside this repo, so `/health` is the only truth.
+- The live model is set outside this repo, so `/health` (with the admin password, since 8.11) is the only truth.
 - The overlay's tip glyph lexicon covers Valorant vocabulary only.
 - Tips are still full sentences. Compressing them into comms shorthand would
   need a prompt change and the AI regression gate, and risks losing the "why"

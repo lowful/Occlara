@@ -340,4 +340,6 @@ const GONE = Object.freeze({
   gone: 'Clip gone',
 });
 
-module.exports = { build, valorantDeaths, valorantHighlights, lolDeaths, secText, roundsText, NOTES, GONE, MULTI_KILLS, ACE_KILLS, STREAK, LOOK_BACK };
+// mistakesAt and clipOf are the Practice page's join too (8.11, practice.js
+// clipFor): its own clip of a mistake is found exactly as the compilation finds it.
+module.exports = { build, valorantDeaths, valorantHighlights, lolDeaths, mistakesAt, clipOf, secText, roundsText, NOTES, GONE, MULTI_KILLS, ACE_KILLS, STREAK, LOOK_BACK };

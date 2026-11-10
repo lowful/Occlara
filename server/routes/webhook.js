@@ -500,11 +500,32 @@ async function revokeForCharge({ chargeId, customer, paymentIntent, reason, labe
  * line, logged for every site sale, hid the real orphans it was written to find.
  */
 /*
+ * ONLY A PAID CHECKOUT GRANTS A PLAN (8.11.0). A checkout paid by a delayed
+ * method (a bank debit) completes with payment_status 'unpaid', and its money
+ * may never arrive: minting the licence and setting the tier then gave the
+ * plan away for a payment that could still fail. Nothing is granted until the
+ * session says 'paid', which checkout.session.async_payment_succeeded brings
+ * for those, and that event grants exactly what the completion would have.
+ * Both are idempotent: the licence is found by its session before one is
+ * minted, and the account write is the same write. 'no_payment_required' (a
+ * trial, a whole discount) is not 'paid' either: its first invoice.paid sets
+ * the account (entitleInvoice) and the site mints the key. The games and the
+ * gift checkouts held this rule already (grantGames, mintGift).
+ */
+function checkoutPaid(session, label) {
+  if (session && session.payment_status === 'paid') return true;
+  console.log(`[webhook] ${label} is ${(session && session.payment_status) || 'not paid'}, nothing granted until it is paid`);
+  return false;
+}
+
+/*
  * Answers { key } with the licence key the checkout holds (minted here or
  * before), { key: null } when it was minted meanwhile by someone else, or null
- * when the checkout is no Occlara purchase (its user is unknown).
+ * when nothing is minted: the checkout is not paid, or no Occlara purchase
+ * (its user is unknown).
  */
 async function mintFromCheckout(session, userId, price) {
+  if (!checkoutPaid(session, `checkout ${session.id}`)) return null;
   const plan = await planOfCheckout(session, price);
 
   const { data: existing, error: lookupError } = await supabase
@@ -659,6 +680,7 @@ function keyOf(rows, userId) {
 /** A checkout's account: the tier its price (or plan) entitles, from the period it started. */
 async function entitleCheckout(session, userId, mintedKey, price) {
   const label = `checkout ${session.id}`;
+  if (!checkoutPaid(session, label)) return;
   const ent = await ensureEntitlement(userId, label);
   if (!ent || ent === NOT_LIVE) return;
 
@@ -1176,6 +1198,38 @@ async function voidGiftOf({ sessionId, meta }, label) {
   console.log(`[webhook] ${label} of gift checkout ${sessionId}: gift voided (${what}), licence untouched`);
 }
 
+/*
+ * A plan's checkout, neither games nor a gift: the old Railway checkout's
+ * licence and its account, or a site purchase's account. Run by
+ * checkout.session.completed and by checkout.session.async_payment_succeeded,
+ * and only once the session is paid (checkoutPaid): a delayed payment's
+ * completion grants nothing, its later success grants it, and either one
+ * delivered again changes nothing.
+ */
+async function planCheckout(session) {
+  const meta = session.metadata || {};
+  if (!checkoutPaid(session, `checkout ${session.id}`)) return;
+  const userId = session.client_reference_id || meta.userId || null;
+  const price = checkoutPrice(session);
+  if (!userId) {
+    if (meta.user_id) {
+      console.log(`[webhook] checkout ${session.id}: a site purchase (${meta.plan || 'plan not named'}), the site mints its licence`);
+      // The site mints the key; the account is set here, at once, so
+      // the tier holds before the buyer reaches /success.
+      if (occlaraCheckout(session)) await entitleCheckout(session, meta.user_id, null, price);
+      return;
+    }
+    // A PAID PURCHASE WITH NO LICENCE: neither the site's checkout nor
+    // the old one made it. The buyer is on the session in Stripe.
+    // Search Railway logs for "UNLINKED PURCHASE" to find every one.
+    console.error(`[webhook] UNLINKED PURCHASE: checkout ${session.id}, customer ${idOf(session.customer) || 'none'}, `
+      + `mode ${session.mode}. No licence was created; find the buyer on the session in Stripe.`);
+    return;
+  }
+  const minted = await mintFromCheckout(session, userId, price);
+  if (minted) await entitleCheckout(session, userId, minted.key, price);
+}
+
 // POST /api/payments/webhook
 async function webhookHandler(req, res) {
   const sig = req.headers['stripe-signature'];
@@ -1188,8 +1242,10 @@ async function webhookHandler(req, res) {
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
+    // The reason stays in the log: the answer goes to whoever sent the
+    // request, and a forged one learns nothing from it (8.11.0).
     console.error('[webhook] Signature verification failed:', err.message);
-    return res.status(400).json({ error: `Webhook signature verification failed: ${err.message}` });
+    return res.status(400).json({ error: 'Webhook signature verification failed' });
   }
 
   console.log(`[webhook] ${event.type} ${event.id || ''}`);
@@ -1197,13 +1253,15 @@ async function webhookHandler(req, res) {
   try {
     switch (event.type) {
 
-      // Only a games checkout is paid later (a delayed payment method); a
-      // licence checkout's is left as it always was.
+      // A checkout paid later (a delayed payment method) is granted here, as
+      // its completion would have been once paid: games, a gift, or a plan
+      // (8.11.0; a plan's was left ungranted before, its completion granted
+      // it unpaid).
       case 'checkout.session.async_payment_succeeded': {
         const session = event.data.object;
         if (isGamesMeta(session.metadata)) await grantGames(session);
         else if (isGiftMeta(session.metadata)) await mintGift(session);
-        else console.log(`[webhook] checkout ${session.id} paid later, not a games checkout, nothing to do`);
+        else await planCheckout(session);
         break;
       }
 
@@ -1220,25 +1278,7 @@ async function webhookHandler(req, res) {
           await mintGift(session);
           break;
         }
-        const userId = session.client_reference_id || meta.userId || null;
-        const price = checkoutPrice(session);
-        if (!userId) {
-          if (meta.user_id) {
-            console.log(`[webhook] checkout ${session.id}: a site purchase (${meta.plan || 'plan not named'}), the site mints its licence`);
-            // The site mints the key; the account is set here, at once, so
-            // the tier holds before the buyer reaches /success.
-            if (occlaraCheckout(session)) await entitleCheckout(session, meta.user_id, null, price);
-            break;
-          }
-          // A PAID PURCHASE WITH NO LICENCE: neither the site's checkout nor
-          // the old one made it. The buyer is on the session in Stripe.
-          // Search Railway logs for "UNLINKED PURCHASE" to find every one.
-          console.error(`[webhook] UNLINKED PURCHASE: checkout ${session.id}, customer ${idOf(session.customer) || 'none'}, `
-            + `mode ${session.mode}. No licence was created; find the buyer on the session in Stripe.`);
-          break;
-        }
-        const minted = await mintFromCheckout(session, userId, price);
-        if (minted) await entitleCheckout(session, userId, minted.key, price);
+        await planCheckout(session);
         break;
       }
 

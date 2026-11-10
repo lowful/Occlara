@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://occlara.app; font-src 'self'; media-src 'self' occlara-clip: https://occlara.app; base-uri 'none'; form-action 'none'; object-src 'none';" />
   <title>Occlara Practice</title>
   <!-- Before the body: a page of the main window never paints its old window chrome. -->
   <script src="../shared/embed.js"></script>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="../shared/motion.css" />
+  <link rel="stylesheet" href="../review/clip-player.css" />
   <link rel="stylesheet" href="practice.css" />
 </head>
 <body>
@@ -19,7 +20,12 @@
        the player's rank band, whether it is shrinking since the plan was made,
        the days practised and the log. Every line is main's
        (src/shared/practice.js planView); this page paints. Everything is kept
-       on this PC. Locked by the seal like every page. -->
+       on this PC. Locked by the seal like every page.
+       SHOWN, NOT ONLY TOLD (8.11): each mistake carries the player's own
+       newest kept clip of it, played in the review's own clip player
+       (occlara-clip:, main's URL), and a drill may carry a demo from the
+       website (https://occlara.app/drills/ only, the one web origin this
+       page's CSP allows, for pictures and media alone). -->
   <div class="sheet glass">
     <header class="drag">
       <div class="h-brand">
@@ -50,6 +56,8 @@
             <h3 id="pc-asked-title" class="pc-focus-title"></h3>
             <p id="pc-asked-line" class="pc-hint" hidden></p>
           </div>
+          <!-- The player's own clip of it, when one is kept. -->
+          <div id="pc-asked-clip" hidden></div>
           <div id="pc-asked-drills" class="pc-drills"></div>
         </section>
 
@@ -95,6 +103,8 @@
   </div>
 
   <script src="../shared/motion.js"></script>
+  <script src="../review/clip-time.js"></script>
+  <script src="../review/clip-player.js"></script>
   <script src="practice.js"></script>
 </body>
 </html>

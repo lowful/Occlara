@@ -150,6 +150,18 @@ const under = (p, url) => url === p || url.startsWith(p.endsWith('/') ? p : `${p
     for (let i = 0; i < 61; i++) wrong.push(await hit(review, reqOf({ account: 'u:guess', headers: { 'x-admin-password': 'wrong' } })));
     ok(await hit(review, reqOf({ account: 'u:bench' })) === 'next' && wrong[60].status === 429,
       'a bench with the right admin password is never counted on the review and look limits, a wrong one is');
+    // The agent look (8.11.0): an hourly limit per account like the review's
+    // and the look's, where only the coach routes' 90 a minute held it.
+    const agent = table.find((t) => t.mw.limits.name === 'agent-look');
+    ok(agent && agent.paths.length === 1 && agent.paths[0] === '/api/coach/detect-agent'
+      && agent.mw.limits.max === 60 && agent.mw.limits.windowMs === 60 * 60 * 1000,
+    `the agent look is limited to 60 an hour per account (${agent && `${agent.mw.limits.max} in ${agent.mw.limits.windowMs / 60000} min`})`);
+    const agentWhen = [];
+    for (let i = 0; i < 61; i++) agentWhen.push(await hit(agent.mw, reqOf({ path: '/api/coach/detect-agent', account: 'u:agent' })));
+    for (let i = 0; i < 100; i++) await hit(agent.mw, reqOf({ path: '/api/coach/detect-agent', account: 'u:agent-bench', headers: { 'x-admin-password': 'right' } }));
+    ok(agentWhen.slice(0, 60).every((r) => r === 'next') && agentWhen[60].status === 429 && agentWhen[60].body.what === 'agent-look'
+      && await hit(agent.mw, reqOf({ path: '/api/coach/detect-agent', account: 'u:agent-bench' })) === 'next',
+    'its 61st in an hour is 429 agent-look, and a bench with the admin password is never counted');
     const anon = table.find((t) => t.mw.limits.name === 'anonymous').mw;
     const credentialed = [];
     for (let i = 0; i < 400; i++) credentialed.push(await hit(anon, reqOf({ ip: '198.51.100.30', headers: { authorization: 'Bearer occ_x' } })));

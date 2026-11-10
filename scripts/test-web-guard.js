@@ -67,5 +67,29 @@ const setPath = /app\.setPath\('userData',\s*([^\n]+)\);/.exec(idx);
 ok(setPath && /\(!app\.isPackaged && process\.env\.OCCLARA_DEV_USERDATA\)\s*\|\|\s*profileMigration\.migrate\(/.test(setPath[1]),
   'an installed build never takes OCCLARA_DEV_USERDATA', setPath ? setPath[1] : 'no setPath');
 
+// 8.11: every other dev switch is a repo run's alone too. Two of them skip the
+// licence (AUTOLAUNCH launches without one, ACTIVATE_KEY drives activation).
+for (const name of ['OCCLARA_DEV_AUTOLAUNCH', 'OCCLARA_DEV_ACTIVATE_KEY', 'OCCLARA_DRILLS']) {
+  const uses = idx.split('\n').filter((l) => l.includes(`process.env.${name}`) && /\bif\b|\?|\.\.\./.test(l));
+  ok(uses.length > 0 && uses.every((l) => l.includes('!app.isPackaged')), `an installed build never takes ${name}`, uses.join(' | '));
+}
+ok(/app\.isPackaged \? 1 : Number\(process\.env\.OCCLARA_DEV_LINK_SCALE\)/.test(idx), 'an installed build never takes OCCLARA_DEV_LINK_SCALE');
+ok(/\(!app\.isPackaged && Number\(process\.env\.OCCLARA_DEV_LATE_LINK_MS\)\)/.test(idx), 'an installed build never takes OCCLARA_DEV_LATE_LINK_MS');
+
+// 8.11: an invoke from a frame that is not one of our pages is refused before its handler runs.
+{
+  const ipcSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'ipc', 'register-ipc.js'), 'utf8');
+  ok(/if \(!fromOwnPage\(event\)\)/.test(ipcSrc) && /isOwnPage\(url\)/.test(ipcSrc), 'every invoke handler first checks the caller is one of our pages');
+  const home = isOwnPage(pathToFileURL(path.join(RENDERER_ROOT, 'home', 'index.html')).href);
+  ok(home && !isOwnPage('https://example.com/') && !isOwnPage('file:///C:/Windows/evil.html'), 'our page passes, a web page and a file elsewhere do not');
+}
+
+// 8.11: the installed exe will not run as Node, take inspector flags or NODE_OPTIONS, and loads only its own checked archive.
+{
+  const fuses = (require('../package.json').build || {}).electronFuses || {};
+  ok(fuses.runAsNode === false && fuses.enableNodeCliInspectArguments === false && fuses.enableNodeOptionsEnvironmentVariable === false
+    && fuses.enableEmbeddedAsarIntegrityValidation === true && fuses.onlyLoadAppFromAsar === true, 'the Electron fuses are set', JSON.stringify(fuses));
+}
+
 console.log(failed ? `FAIL: ${failed} of ${passed + failed} web guard checks failed` : `PASS: all ${passed} web guard checks passed`);
 process.exit(failed ? 1 : 0);

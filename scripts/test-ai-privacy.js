@@ -21,7 +21,8 @@
  * Held: that one refusal is sent once more without the preference and
  * answers, booked as any call; it is counted under its route, said once a
  * route an hour, and GET /health shows dataPolicy { mode, fellBack,
- * refusedAgain, since } with nothing secret; a call refused again without it
+ * refusedAgain, since } with nothing secret, beside the admin password only
+ * (8.11.0; without it /health is { status: 'ok' }); a call refused again without it
  * (an account wide privacy setting, a model with no live provider) went to no
  * provider and is counted as refusedAgain, never as fallen back; any other
  * refusal (400, 401, 402, 403, 429, 5xx, a 404 for anything else) and a
@@ -490,8 +491,8 @@ const IMG = 'x'.repeat(4000);
     child.stdout.on('data', (d) => { output += d; });
     child.stderr.on('data', (d) => { output += d; });
     const exited = new Promise((resolve) => child.once('exit', resolve));
-    const get = (p) => new Promise((resolve) => {
-      const req = http.get({ host: '127.0.0.1', port, path: p, timeout: 3000 }, (res) => {
+    const get = (p, headers) => new Promise((resolve) => {
+      const req = http.get({ host: '127.0.0.1', port, path: p, timeout: 3000, headers: headers || {} }, (res) => {
         let body = '';
         res.on('data', (c) => { body += c; });
         res.on('end', () => resolve({ status: res.statusCode, body }));
@@ -499,14 +500,19 @@ const IMG = 'x'.repeat(4000);
       req.on('error', () => resolve(null));
       req.on('timeout', () => { req.destroy(); resolve(null); });
     });
+    // Since 8.11.0 the data policy is the owner's: /health says it beside the
+    // admin password, and says only { status: 'ok' } to anyone else.
+    const ADMIN = { 'X-Admin-Password': SECRETS.ADMIN_PASSWORD };
     let health = null;
     let apiHealth = null;
+    let publicHealth = null;
     try {
-      for (let i = 0; i < 120 && !health && child.exitCode === null; i++) {
-        health = await get('/health');
-        if (!health) await new Promise((r) => setTimeout(r, 150));
+      for (let i = 0; i < 120 && !publicHealth && child.exitCode === null; i++) {
+        publicHealth = await get('/health');
+        if (!publicHealth) await new Promise((r) => setTimeout(r, 150));
       }
-      apiHealth = health ? await get('/api/health') : null;
+      health = publicHealth ? await get('/health', ADMIN) : null;
+      apiHealth = health ? await get('/api/health', ADMIN) : null;
     } finally {
       child.kill();
       await exited;
@@ -523,6 +529,8 @@ const IMG = 'x'.repeat(4000);
       && Date.parse(dp.since) >= started - 2000 && Date.parse(dp.since) <= Date.now(),
     `counted since that server started (${dp && dp.since})`);
     ok(apiBody && JSON.stringify(apiBody.dataPolicy) === JSON.stringify(dp), 'and /api/health shows the same');
+    ok(publicHealth && publicHealth.status === 200 && publicHealth.body === JSON.stringify({ status: 'ok' }),
+      `and without the password /health says only that it is up (${publicHealth ? publicHealth.body : 'no answer'})`);
     const shown = `${health && health.body}${apiHealth && apiHealth.body}`;
     ok(!!health && Object.values(SECRETS).every((s) => !shown.includes(s)), 'with no secret in either: no provider, database, Stripe or admin key');
     ok(!!health && !!apiHealth && JSON.stringify(Object.keys((dp && dp.fellBack) || {})) === JSON.stringify(Object.keys(zero))

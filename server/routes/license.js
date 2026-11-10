@@ -186,6 +186,8 @@ router.post('/activate', async (req, res) => {
     }
   }
 
+  // The key this request was found valid as: the live view puts it down (server.js, presence).
+  req.verifiedLicence = cleanKey;
   res.json({
     valid: true, plan: license.plan, status: license.status,
     expiresAt: license.expires_at, deviceName: device_name || license.device_name,
@@ -290,6 +292,7 @@ router.post('/validate', async (req, res) => {
   if (device_id && license.device_id && license.device_id !== device_id)
     return res.json({ valid: false, status: 'device_mismatch', reason: 'device_mismatch', error: 'License is activated on a different device.' });
 
+  req.verifiedLicence = cleanKey;
   res.json({
     valid: true, plan: license.plan, status: license.status,
     expiresAt: license.expires_at, deviceName: license.device_name || null,

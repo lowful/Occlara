@@ -31,6 +31,11 @@
  * EVERYTHING HERE IS LOCAL. The plan, the log and the streak live in the
  * store on this PC; nothing is sent anywhere. No economy content: a drill
  * that talks about credits or buys is dropped from the library as it is read.
+ *
+ * SHOWN, NOT ONLY TOLD (8.11): each mistake carries the player's own newest
+ * kept clip of it (clipFor, the Moments page's join), and a drill may carry a
+ * demo hosted on the website (demoOf, only under DEMO_BASE). The page fetches
+ * the demo from there; nothing of the player's goes anywhere.
  */
 
 const { countable } = require('./insights');
@@ -38,6 +43,10 @@ const { cardSatOut } = require('./sat-out');
 const { causeTitle } = require('./death-causes');
 const { couldCount } = require('./progress');
 const { validBand } = require('./rank-band');
+// The player's own clip of a mistake is the Moments page's join (8.11):
+// the rounds a review counted the mistake in, and the clip kept of the death
+// there while it is on disk.
+const { mistakesAt, clipOf } = require('./moments');
 
 const SCHEMA = 1;
 const FOCUS_N = 2;      // mistakes in the plan
@@ -67,6 +76,43 @@ const listOf = (x) => (Array.isArray(x) ? x : typeof x === 'string' ? [x] : []);
 const causeKey = (k) => String(k || '').trim().toLowerCase().replace(/^cause:/, '');
 
 // ── The drill library ──────────────────────────────────────────────────────
+
+/*
+ * A DRILL'S DEMO (8.11): an optional short video of the drill being done,
+ * `demo: { src, poster, secs }`, recorded by the owner and hosted on the
+ * website (scripts/make-drill-demo.js makes it, docs/drill-demo-guide.md says
+ * how). Kept only when both URLs are https under DEMO_BASE, with no query,
+ * fragment, login or port, and a video or picture file's own extension, so the
+ * library can never point the page anywhere else; anything less and the drill
+ * reads as having no demo. The page's CSP allows that one origin for media
+ * and pictures, and nothing else from the web.
+ */
+const DEMO_BASE = 'https://occlara.app/drills/';
+const DEMO_PATH = /^\/drills\/[a-z0-9][a-z0-9_-]{0,63}(?:\/[a-z0-9][a-z0-9_-]{0,63})*\.([a-z0-9]{3,4})$/;
+const DEMO_VIDEO = new Set(['webm', 'mp4']);
+const DEMO_PICTURE = new Set(['webp', 'jpg', 'jpeg', 'png']);
+
+/** One demo URL as given, when it is a file of that kind under DEMO_BASE, else null. */
+function demoUrl(raw, kinds) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s.startsWith(DEMO_BASE) || s.length > 300) return null;
+  let u;
+  try { u = new URL(s); } catch { return null; }
+  if (u.href !== s || u.protocol !== 'https:' || u.hostname !== 'occlara.app' || u.port || u.username || u.password || u.search || u.hash) return null;
+  const m = DEMO_PATH.exec(u.pathname);
+  return m && kinds.has(m[1]) ? u.href : null;
+}
+
+/** A drill's demo, or null: both URLs good, and its seconds when they are a sensible length. */
+function demoOf(raw) {
+  if (!isObj(raw)) return null;
+  const src = demoUrl(raw.src, DEMO_VIDEO);
+  const poster = demoUrl(raw.poster, DEMO_PICTURE);
+  if (!src || !poster) return null;
+  const n = Number(raw.secs);
+  return { src, poster, secs: Number.isFinite(n) && n >= 1 && n <= 30 ? Math.round(n) : null };
+}
 
 function whereOf(raw) {
   const s = String(raw || '').toLowerCase();
@@ -99,6 +145,7 @@ function normDrill(d) {
     bands: [...new Set(listOf(d.bands || d.band || d.ranks).map(validBand).filter(Boolean))],
     where: whereOf(d.where || d.mode || d.place),
     minutes: Number.isFinite(m) && m >= 1 && m <= 90 ? Math.round(m) : null,
+    demo: demoOf(d.demo),
   };
 }
 
@@ -316,12 +363,85 @@ function progressOf(saved, key, since) {
   return { ...base, tone: 'even', trend: 'same', text: A === B ? `Same, ${a} of ${A} both times` : `Same rate, ${a} of ${A} against ${b} of ${B}` };
 }
 
+// ── The player's own clip of it ────────────────────────────────────────────
+
+/** The frame a clip shows until it plays: the look's frame nearest the death from before it, else its first (review.js posterOf). */
+function posterName(f) {
+  const names = Array.isArray(f.frames) ? f.frames.filter((n) => typeof n === 'string' && n) : [];
+  const at = Array.isArray(f.frameAt) && f.frameAt.length === names.length ? f.frameAt : null;
+  if (!names.length) return null;
+  if (at) {
+    let best = null;
+    names.forEach((n, i) => { if (typeof at[i] === 'number' && at[i] < 0) best = n; });
+    if (best) return best;
+  }
+  return names[0];
+}
+
+/**
+ * THE PLAYER'S OWN CLIP OF A MISTAKE (8.11), shown beside its drills: the
+ * newest kept clip of a death in a round the mistake was counted in. The
+ * Moments page's own join (moments.js mistakesAt for the rounds, clipOf for
+ * what is still on disk): the newest recorded match first and, inside it, its
+ * latest round; a clip named on a card but gone from disk is passed over for
+ * the next one, and with none kept there is none. A round the player sat out
+ * is no moment to learn from, as on Moments. Every URL is main's (io.url),
+ * never a path a page handed in.
+ *
+ * @param saved   the saved reviews, any order ({ id, at, game, review })
+ * @param key     the mistake's key, as the patterns and insights name it
+ * @param io.clips   (id) => the clip names on disk beside that review
+ * @param io.url     (id, name) => the URL the page plays it by
+ * @param io.frames  (id, name) => its frames ({ times, end }), or none
+ * @param io.poster  (id, frameName) => a picture URL of that frame, or none
+ * @returns {{ url, name, death, frames, round, map, at, id, poster, title, line, label } | null}
+ */
+function clipFor(saved, key, io) {
+  const o = io || {};
+  if (typeof key !== 'string' || !key || typeof o.clips !== 'function' || typeof o.url !== 'function') return null;
+  const moIo = { url: o.url, frames: typeof o.frames === 'function' ? o.frames : () => null };
+  for (const s of recordedOf(saved)) {
+    if (!s.id) continue;
+    const review = s.review;
+    const cards = (Array.isArray(review.rounds) ? review.rounds : [])
+      .filter((c) => c && c.died && Number.isInteger(c.n) && !cardSatOut(c)
+        && c.forensics && typeof c.forensics.clip === 'string' && c.forensics.clip
+        && mistakesAt(review, c.n).some((m) => m.key === key))
+      .sort((a, b) => b.n - a.n);
+    if (!cards.length) continue;
+    // Asked of the disk only for a review that has a candidate.
+    let have;
+    try { have = new Set((o.clips(s.id) || []).map((c) => (typeof c === 'string' ? c : c && c.name)).filter(Boolean)); } catch { have = new Set(); }
+    for (const c of cards) {
+      const f = c.forensics;
+      const { clip } = clipOf(f.clip, f.clipDeath, have, review, moIo, s.id);
+      if (!clip) continue;
+      const g = review.game || {};
+      const map = typeof g.map === 'string' && g.map ? clean(g.map, 40) : null;
+      let poster = null;
+      const pn = posterName(f);
+      if (pn && typeof o.poster === 'function') {
+        try { poster = o.poster(s.id, pn) || null; } catch { poster = null; }
+      }
+      return {
+        url: clip.url, name: clip.name, death: clip.death, frames: clip.frames,
+        round: c.n, map, at: s.at, id: s.id, poster,
+        title: 'Your newest clip of this mistake',
+        line: map ? `Round ${c.n} on ${map}` : `Round ${c.n}`,
+        label: `The clip of round ${c.n}`,
+      };
+    }
+  }
+  return null;
+}
+
 // ── What the page shows ────────────────────────────────────────────────────
 
 function drillView(d, log, now) {
   const done = timesDone(log, d.id);
   return {
     id: d.id, title: d.title, where: d.where, minutes: d.minutes, steps: d.steps, goal: d.goal, check: d.check, why: d.why,
+    demo: d.demo || null,
     done, finish: FINISH, finished: done >= FINISH, today: doneToday(log, d.id, now),
     doneLine: done >= FINISH ? `Done ${done} times, finished` : done ? `Done ${done} of ${FINISH} times` : null,
   };
@@ -361,9 +481,14 @@ function todayOf(state, library, now, game) {
  * @param o.saved     the saved reviews the patterns were made from, newest first
  * @param o.riotId    whether a Riot ID is set in Settings
  * @param o.focus     { key, title } the review asked the page to open on, or null
+ * @param o.clipOf    (key) => the player's own clip of that mistake (clipFor), or none
  * @returns { status: 'plan' | 'norepeats' | 'nomatches' | 'nolibrary', ... }
  */
 function planView(o) {
+  const clipFn = (key) => {
+    if (typeof o.clipOf !== 'function') return null;
+    try { return o.clipOf(key) || null; } catch { return null; }
+  };
   const state = o.state || emptyState();
   const log = state.log;
   const now = o.now;
@@ -387,6 +512,7 @@ function planView(o) {
       focused: f.key === focusKey,
       drills: f.drills.map((id) => byId.get(id)).filter(Boolean).map((d) => drillView(d, log, now)),
       progress: progressOf(o.saved, f.key, f.since),
+      clip: clipFn(f.key),
     };
   }) : [];
 
@@ -395,7 +521,7 @@ function planView(o) {
   if (library && focusKey && !focus.some((f) => f.key === focusKey)) {
     const drills = drillsFor(library, focusKey, band, log).slice(0, DRILLS_N).map((d) => drillView(d, log, now));
     const title = titleOfKey(focusKey, o.focus.title);
-    asked = { key: focusKey, title, drills, line: drills.length ? null : 'The drill library has no drills for this mistake yet.' };
+    asked = { key: focusKey, title, drills, line: drills.length ? null : 'The drill library has no drills for this mistake yet.', clip: clipFn(focusKey) };
   }
 
   const general = library && status !== 'plan'
@@ -445,7 +571,7 @@ function unmark(state, id) {
 }
 
 module.exports = {
-  SCHEMA, FOCUS_N, DRILLS_N, FINISH, WINDOW, ENOUGH, GENERAL, WHERE, BAND_LABEL,
+  SCHEMA, FOCUS_N, DRILLS_N, FINISH, WINDOW, ENOUGH, GENERAL, WHERE, BAND_LABEL, DEMO_BASE,
   normaliseLibrary, normaliseState, emptyState, choosePlan, planView, progressOf, streakOf,
-  todayOf, drillsFor, carries, mark, unmark, dayKey, causeKey,
+  todayOf, drillsFor, carries, mark, unmark, dayKey, causeKey, clipFor, demoOf,
 };

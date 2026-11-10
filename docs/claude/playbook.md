@@ -677,6 +677,18 @@ or are process goals (no duel walked into in the first 30 seconds, no fight on a
 teammate who could swing); `one-v-one-hold-or-hunt` is played over a full unrated match, 40 minutes, the one
 kind of drill the test lets run past 20 (a step saying "full unrated match", up to 45).
 
+**Demos (8.11).** An optional twelfth field, `demo: { src, poster, secs }`, is the owner's own short
+recording of the drill being done, shown on its card on the Practice page (ui.md, "The Practice page"):
+`https://occlara.app/drills/<id>.webm` and `<id>.webp`, 6 to 12 seconds. `scripts/make-drill-demo.js`
+makes both from a recording (VP9 two pass at CRF 26 with `-b:v 0` and `-row-mt 1`, 1920x1080 or 1280x720
+with `--720`, 60 fps kept when the recording has it, no sound, `--blur x,y,w,h` for every place another
+player's name shows, the poster a 90 quality WebP; it prints the size, aiming at about 1.5 to 3 MB, and the
+line to paste), and `docs/drill-demo-guide.md` says what to record for the first 12 drills and the rule that
+no other player's name may be visible in any frame. The site (`lowful/ghostcoach-9a45ac05`, `public/drills/`)
+hosts them. `practice.js demoOf` keeps a demo only under that address; `test:drilllibrary` holds one to the
+script's names, 6 to 12 seconds and to practice.js keeping it as written. None is filled in yet: a drill
+with no demo, offline or with its files failing, shows its card as before.
+
 **`npm run test:drilllibrary`** (`scripts/test-drill-library.js`) holds the file to that shape, to unique
 ids, and to coverage: it reads every cause the app can name from `death-causes.js` and from the Mistakes and
 Missed sections of `insights.js valorant()`, so a new cause there fails until it has 3 drills, and `general`

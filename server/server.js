@@ -48,7 +48,7 @@ const feedbackRoutes = require('./routes/feedback');
 const feedbackModel = require('./services/feedback');
 const webhookHandler = require('./routes/webhook');
 const { errorHandler, corsRefusal } = require('./services/http-errors');
-const { makeAdminLimiter, isAdmin } = require('./services/admin-auth');
+const { makeAdminLimiter, isAdmin, adminPasswordOf, adminPasswordWarning } = require('./services/admin-auth');
 const rateLimits = require('./services/rate-limits');
 
 const app  = express();
@@ -68,37 +68,52 @@ app.use(rateLimits.realIpMiddleware(process.env));
 app.use(helmet());
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
+// NARROWED IN 8.11.0. Every browser caller is the site, and the site sends a
+// Bearer token, never a cookie, so nothing needs credentials: true, which is
+// dropped. The old brand (ghostcoachai.com and www) is gone from the list:
+// since Nov 2026 it answers every path with a 302 to the same path on
+// occlara.app (checked by hand on 10 Nov), so no page is served from it to
+// call this API. X-Admin-Password is no longer an allowed header: the one
+// page that sends it, /admin, is served by this server itself, and a page's
+// own origin needs no CORS (scripts send it from Node, which has none).
 const allowedOrigins = [
-  // The new brand. www is listed separately because an Origin header carries
+  // The brand. www is listed separately because an Origin header carries
   // the exact host, and occlara.app and www.occlara.app are different origins.
   'https://occlara.app',
   'https://www.occlara.app',
-  // The old brand, KEPT ON PURPOSE. A rename is a transition rather than a
-  // switch: the previous site stays reachable while DNS settles and while
-  // anybody still has it open, and removing it here would break checkout for
-  // them the moment this deploys. Delete these once occlara.app has served
-  // every path for a while and the old domain redirects.
-  'https://ghostcoachai.com',
-  'https://www.ghostcoachai.com',
+  // This server's own origin: the /admin page lives here, and a browser names
+  // it as the Origin of that page's own POSTs.
   'https://ghostcoach-production.up.railway.app',
+  // The site's dev server (Vite) on the owner's machine.
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:5174',
 ];
+// THE SITE'S LOVABLE PREVIEWS. No exact Lovable host is named in this repo or
+// its docs. The site repo names one, https://ghostcoach.lovable.app (its
+// create-checkout origin list), which answered 404 on 10 Nov 2026, and the
+// editor's previews live on per project subdomains of lovable.app that
+// nothing records. So the suffix rule is KEPT, tightened to the shape the
+// site's own create-checkout accepts: https, exactly one label, lovable.app.
+// It used to take any origin ending in .lovable.app or .lovable.dev, http
+// and nested labels included. Any Lovable user can host a page on such a
+// subdomain; with no credentials allowed it reads only what its own
+// request's token or key could read anyway. Name the exact preview host here
+// and drop this rule once it is known.
+const LOVABLE_PREVIEW = /^https:\/\/[a-z0-9-]+\.lovable\.app$/;
 
 app.use(cors({
   origin: (origin, callback) => {
     // No Origin header = native clients (the Electron app, curl); allowed.
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    if (origin.endsWith('.lovable.app') || origin.endsWith('.lovable.dev')) return callback(null, true);
+    if (LOVABLE_PREVIEW.test(origin)) return callback(null, true);
     // Everything else is rejected before any route runs, as a client error
     // (400) rather than the 500 a plain Error became. See http-errors.js.
     callback(corsRefusal());
   },
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key', 'X-Prompt-Mode', 'X-Combat-Tip-Given', 'X-Recent-Tips', 'X-Admin-Password', 'X-Forced', 'X-Player-Stats', 'X-Occlara-Version'],
-  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key', 'X-Prompt-Mode', 'X-Combat-Tip-Given', 'X-Recent-Tips', 'X-Forced', 'X-Player-Stats', 'X-Occlara-Version'],
 }));
 
 // ─── Rate limiters ────────────────────────────────────────────────────────────
@@ -185,6 +200,21 @@ const adminLimiter = makeAdminLimiter();
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), webhookHandler);
 app.post('/api/coach/summary/round', express.raw({ type: 'image/jpeg', limit: '500kb' }), (req, _, next) => { req._rawBody = req.body; next(); });
 
+// ─── The two big bodies need credentials before they are read (8.11.0) ──────
+// The death look (8 MB) and a report (9 MB) are the only bodies over the
+// global 2 MB, and both routes answer nobody without credentials. Parsed
+// first, a request with none still made the server take in and parse up to
+// 9 MB before refusing it. Now one carrying neither an X-License-Key nor an
+// Authorization: Bearer header is answered 401 before its body is read.
+// Whether the credentials it does carry are good is still asked after the
+// parse, by identifyFirst and the route, as before. Every app sends one of
+// the two on both routes (account-service.js auth()).
+const BIG_BODY_PATHS = ['/api/coach/death-forensics', '/api/feedback'];
+app.use(BIG_BODY_PATHS, (req, res, next) => {
+  if (callers.hasCredentials(req)) return next();
+  res.status(401).json({ error: 'sign-in-required' });
+});
+
 // ─── JSON parsers ─────────────────────────────────────────────────────────────
 // The death look carries up to eight frames (four deaths, two each) at 720p,
 // about 1.5 MB of base64 on a busy match, which sat right at the global 2 MB
@@ -234,21 +264,30 @@ app.use(IDENTIFIED, identifyFirst);
 // ─── Who is using it ────────────────────────────────────────────────────────
 // Every client call carries its licence or its session, so the server knows
 // who was last seen and doing what. See services/presence.js and the /admin page.
+//
+// ONLY A CALLER THE SERVER CHECKED IS A PERSON (8.11.0). A request is put
+// down once it is answered, as the caller identifyFirst or the route's admit
+// verified (req.caller), or as the licence a licence route just found valid
+// (req.verifiedLicence, routes/license.js). Any key in a header or a body
+// used to be put down before anything checked it, so a script sending made
+// up keys of the right shape could fill the admin view's 2000 people.
 app.use('/api', (req, res, next) => {
   const path = req.originalUrl.split('?')[0];
   const t0 = Date.now();
-  presence.touch({
-    key: req.headers['x-license-key'] || (req.body && (req.body.key || req.body.licenseKey)),
-    account: req.caller && req.caller.accountKey,
-    path,
-    version: req.headers['x-occlara-version'],
+  res.on('finish', () => {
+    presence.touch({
+      key: req.verifiedLicence || null,
+      account: req.caller && req.caller.accountKey,
+      path,
+      version: req.headers['x-occlara-version'],
+    });
+    // A path no route answered is one bucket, not one row each: a scan of 200
+    // made up paths used to push the real routes out of the admin view.
+    presence.finish({
+      path: res.statusCode === 404 && !req.route ? '(no such route)' : path,
+      status: res.statusCode, ms: Date.now() - t0,
+    });
   });
-  // A path no route answered is one bucket, not one row each: a scan of 200
-  // made up paths used to push the real routes out of the admin view.
-  res.on('finish', () => presence.finish({
-    path: res.statusCode === 404 && !req.route ? '(no such route)' : path,
-    status: res.statusCode, ms: Date.now() - t0,
-  }));
   next();
 });
 
@@ -324,8 +363,20 @@ const healthInfo = () => ({
   uptimeSec: Math.round(process.uptime()),
   ...coachRoutes.liveModels(),
 });
-app.get('/health',     (_, res) => res.json(healthInfo()));
-app.get('/api/health', (_, res) => res.json(healthInfo()));
+// THE PUBLIC ANSWER IS { status: 'ok' } (8.11.0). Railway's check, and anyone
+// else, learns the server is up and nothing more. The models, the data
+// policy counts and the boot time are the owner's: sent only beside the
+// admin password (X-Admin-Password). A request naming a password goes
+// through the admin limiter, and a wrong one is a 401 it counts, so /health
+// is no free way to test guesses.
+const healthAdminLimit = (req, res, next) => (adminPasswordOf(req) === null ? next() : adminLimiter(req, res, next));
+function health(req, res) {
+  if (adminPasswordOf(req) === null) return res.json({ status: 'ok' });
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  res.json(healthInfo());
+}
+app.get('/health',     healthAdminLimit, health);
+app.get('/api/health', healthAdminLimit, health);
 
 // ─── 404 / Error ─────────────────────────────────────────────────────────────
 app.use((_, res) => res.status(404).json({ error: 'Not found' }));
@@ -351,6 +402,9 @@ app.listen(PORT, () => {
   console[giftSecretOk() ? 'log' : 'error'](`[server] Gift codes: ${giftSecretOk()
     ? 'ready'
     : 'GIFT_CODE_SECRET IS NOT SET OR SHORTER THAN 32 CHARACTERS, every paid gift will fail. Needs a human.'}`);
+  // A short admin password is said, never refused (admin-auth.js), and never printed.
+  const shortAdmin = adminPasswordWarning(process.env);
+  if (shortAdmin) console.warn(shortAdmin);
   // THE PRIMER'S LIVE VERSION CHECK (8.5.0, game-primer.js): at boot and
   // every six hours on Railway, never in a check, a test or CI
   // (liveCheckWanted). /api/admin/primer says what it found.

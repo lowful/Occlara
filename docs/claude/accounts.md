@@ -584,6 +584,8 @@ network is not.
 | same, inside the routes (8.7.3, `chat-guard.js`) | account | one question in flight; 2 s from the last one's start; 5 a minute; the same question about the same match or frame within 30 s is the remembered answer, no model | spam from an account with games (below) |
 | `/api/coach/match-review` | account | 60 an hour, bench skipped | the costliest call: two a match |
 | `/api/coach/death-forensics` | account | 60 an hour, bench skipped | up to twenty stills a call: two a match |
+| `/api/coach/detect-agent` (8.11.0) | account | 60 an hour, bench skipped | a vision call; the app sends none while the look is off, an app before 8.4.4 retried every 30 s until a lock |
+| `/api/coach/death-forensics`, `/api/feedback` (8.11.0) | none | no `X-License-Key` and no `Authorization: Bearer` header is 401 `sign-in-required` before the body is read | the 8 MB and 9 MB bodies |
 | Riot data (`player-stats`, `rank-history`, `match-deaths`, `match-rounds`, `matches`, `last-match`, `recent-matches`) | account | 120 in 10 min, and free 40 in 10 min (unchanged) | HenrikDev's shared quota |
 | `/api/coach/session-report` | account | 30 an hour | telemetry, one a session |
 | `/api/account/me` | account | 120 in 10 min | account_state per call; the app asks about once a minute |
@@ -600,9 +602,9 @@ network is not.
 | `/api/account/dashboard` | address | 60 in 10 min | a Supabase Auth call before the route |
 | `/api/account/portal`, `/api/payments/cancel`, `/api/license/deactivate` | address | 20 in 10 min, one bucket | Stripe calls or licence writes |
 | `/api/payments/create-checkout` | address | 20 an hour (unchanged, answers 410) | retired |
-| `/health`, `/api/health`, `/admin` | address | 120 a min | public |
+| `/health`, `/api/health`, `/admin` | address | 120 a min | public (`/health` answers `{ status: 'ok' }` alone since 8.11.0) |
 | any `/api` with no credentials | address | 300 a min | the floor for everything unauthenticated |
-| `/api/admin/*`, `/admin` | address | 10 FAILED passwords an hour (unchanged) | password guessing |
+| `/api/admin/*`, `/admin`, and `/health` carrying `X-Admin-Password` (8.11.0) | address, an IPv6 caller's /64 (8.11.0) | 10 FAILED passwords an hour | password guessing |
 | credentials refused (`identifyFirst`) | address | 60 in 10 min, then 429 before the lookup | made up keys and tokens each cost a lookup |
 | `/api/payments/webhook` | none | never | Stripe |
 
@@ -630,6 +632,53 @@ characters, each chat message at 1,200, the last eight (v2) or twelve (v1).
 apart, sweeps old keys, and replays the five recorded sessions back to back
 twice with every call the app makes around them, and a cafe of twenty players
 on one address: no 429.
+
+### The 8.11.0 hardening (server only)
+
+From the 10 Nov 2026 audit, all in `server/`; no client changed.
+
+- **The admin limiter** (`admin-auth.js makeAdminLimiter`) keys by
+  `caller.js ipBucket`, so an IPv6 caller's whole /64 shares ten failed
+  passwords an hour. A short `ADMIN_PASSWORD` (under 24 characters) is one
+  warning line at boot (`adminPasswordWarning`), never a refusal, and the
+  password is never printed.
+- **`/health` and `/api/health`** answer `{ status: 'ok' }`. The boot time,
+  the models and the data policy counts come only beside `X-Admin-Password`;
+  a request carrying one goes through the admin limiter, and a wrong one is a
+  401 it counts. `bench-sessions.js` sends the password.
+- **The 8 MB look and the 9 MB report** (`/api/coach/death-forensics`,
+  `/api/feedback`) answer 401 `sign-in-required` before their body is read
+  when the request carries neither an `X-License-Key` nor an `Authorization:
+  Bearer` header (`server.js BIG_BODY_PATHS`, `callers.hasCredentials`).
+  Whether the credentials are good is asked after the parse, as before.
+- **The live view puts down only a verified caller**: presence is touched
+  when the response finishes, as `req.caller` (identifyFirst or a route's
+  admit) or as the key `/api/license/activate` or `/validate` just found
+  valid (`req.verifiedLicence`). A key in a header or body that nothing
+  checked was a "person" before.
+- **CORS**: occlara.app, www.occlara.app, this server's own Railway origin
+  (the /admin page) and the localhost dev ports, plus `https://<one
+  label>.lovable.app` for the site's Lovable previews (no exact preview host
+  is recorded anywhere; the site repo's `ghostcoach.lovable.app` answered 404
+  on 10 Nov). Gone: the old ghostcoachai.com and www (they 302 every path to
+  occlara.app), any `*.lovable.dev`, http and nested Lovable hosts,
+  `credentials: true` (the site sends a Bearer token, never a cookie) and
+  `X-Admin-Password` among the allowed headers (the /admin page is same
+  origin).
+- **Answers name no internals**: the Stats route's refused HenrikDev key, a
+  lookup that threw and a missing `HENRIKDEV_API_KEY` say a plain sentence to
+  the player and name the variable in the log only; the HenrikDev region is
+  taken only as a word (`coach.js REGION_SHAPE`, latam is five letters) and
+  encoded in every path.
+- `server/create-test-key.js` (wrote a key straight into the licences table)
+  is deleted, and `server/package.json` says `"engines": { "node": ">=20" }`,
+  the floor supabase-js already asks. Railway's builder reads `engines.node`
+  to choose the Node it runs, so the first deploy after this may move to
+  another major (not checked); set `NODE_VERSION` on Railway to pin one.
+
+`test:serverguards` boots the server as Railway does and holds each of these;
+`test:ratelimits` the agent look's limit; `test:trackerroutes` the region and
+the Stats sentences.
 
 ## Switches
 
