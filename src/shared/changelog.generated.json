@@ -1,5 +1,25 @@
 [
   {
+    "version": "8.9.5",
+    "date": "2026-11-10",
+    "title": "Lighter recording",
+    "summary": "Recording costs your PC less while you play, and the clips stay at 30 fps.",
+    "items": [
+      {
+        "kind": "improved",
+        "text": "Recording is lighter on your PC: the screen is captured at 45 frames a second instead of 60, while your clips stay at 30."
+      },
+      {
+        "kind": "improved",
+        "text": "Before a match, the check for whether the game is open costs a fraction of what it did."
+      },
+      {
+        "kind": "new",
+        "text": "Settings and setup now suggest turning off NVIDIA Instant Replay, AMD ReLive or Xbox Game Bar capture while Occlara records, for the smoothest game."
+      }
+    ]
+  },
+  {
     "version": "8.9.4",
     "date": "2026-11-09",
     "title": "Stay signed in, and a Start with no game stops by itself",
