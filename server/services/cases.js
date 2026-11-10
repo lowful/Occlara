@@ -159,6 +159,9 @@ function scored(x, pool) {
     if (at.role && (!s.role || at.role !== s.role)) continue;
     if (at.map && (!s.map || lower(at.map) !== s.map)) continue;
     if (at.side && !s.sides.has(at.side)) continue;
+    // Never a case that sends the player through mid on a map with none (knowledge.js reliesOnMid).
+    if (typeof knowledge.reliesOnMid === 'function'
+      && [c.signal, c.decision, c.why, c.mistakeToAvoid].some((t) => knowledge.reliesOnMid(t, s.map))) continue;
     // A cause the record rules out, by its tag or by its words (round 8):
     // "Rushing the isolated Chamber alone" for a death with a teammate close.
     if (s.ruledOut.size && Array.isArray(c.cause) && c.cause.some((k) => s.ruledOut.has(k))) continue;

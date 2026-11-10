@@ -1495,8 +1495,13 @@ against the record or the player's question, and 9 newly dropped, each one of th
 praise in the raw and the shown answer, the backwards cause). Re-running the route's reply logic over the run's saved replies (the first reply, then the
 retry where there was one) gives 1 of 84 asked again (1.2%, the true split-r15-hash drop) and no
 honest line, against 13.1% and 3.6%. Every playbook note and case sentence is unchanged on a map with a
-mid; on Bind, Fracture and Lotus the 14 that send the player through mid now go as `map`, which is
-right there, and two true "one kill" lines stand on every map (a third, a save round's, now goes at the
+mid; on Bind, Fracture and Lotus the 14 that send the player through mid (4 notes, 10 sentences of 9
+cases) would go as `map`, so they are never served there (`knowledge.js reliesOnMid` and `midless`,
+the gate's own `MID_SAID` and `mapsIn` held to `mapGeometry.hasMid`): `retrieve()`, the review's
+`study()`, `cases.js scored` and Ask Coach's `noteInScope` (the match's map, else the question's,
+`mapOfNotes`) leave them out, so the answer has no hole where the gate cut one. Replayed over the 72
+bench 13 questions (20 seeded draws each), one note is newly withheld (WCgnalZDT_A-2, Lotus, the
+retake "through the middle"), and two true "one kill" lines stand on every map (a third, a save round's, now goes at the
 economy scope gate after the number gate). Tests: `test:chatgates`, "the coach
 bench 13" (every new regex both ways, each true sentence beside its false twin). Not benched live.
 

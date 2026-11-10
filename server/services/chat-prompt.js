@@ -2972,26 +2972,39 @@ function aimNote(note, band, moving) {
  * corpus) reaches Ask Coach; nor a note resting on a pistol result the player
  * did not have ("After you win the pistol round" was served to "We lost pistol
  * on C" and answered as "after winning a pistol round"); nor one stating a
- * habit of the whole map. The review keeps its own notes.
+ * habit of the whole map. The review keeps its own notes. Nor, on a map with
+ * no mid, one that sends the player through mid (the coach bench 13,
+ * knowledge.js reliesOnMid): the answer's map gate cuts that sentence out, so
+ * the note is never served there. The map is the match's, else the one the
+ * question names, as the gate reads it (mapOfNotes).
  */
-function noteInScope(text, pistol) {
+function noteInScope(text, pistol, map) {
   const t = String(text || '');
+  const k = map ? knowledgeMod() : null;
   return !gameClaims.economyClaim(t) && !gameClaims.notePistolConflict(t, pistol || null)
-    && !gameClaims.checkMapHabit(t);
+    && !gameClaims.checkMapHabit(t)
+    && !(k && typeof k.reliesOnMid === 'function' && k.reliesOnMid(t, map));
+}
+/** The map a note is held to: the match's, else the one the question names (fact-gates.js gateMapAndKit). */
+function mapOfNotes(input, messages) {
+  const f = factsOf(input, messages);
+  return f.map || f.askedMap || null;
 }
 
 function pickNotes(input, messages) {
   if (input.game === 'lol') return [];
   const picked = pickNotesAll(input, messages);
   const pistol = factsOf(input, messages).pistol;
-  return picked.filter((t) => noteInScope(t, pistol));
+  const map = mapOfNotes(input, messages);
+  return picked.filter((t) => noteInScope(t, pistol, map));
 }
 
 function pickNotesAll(input, messages) {
   const k = knowledgeMod();
   if (!k || typeof k.retrieve !== 'function' || typeof k.all !== 'function') return [];
   const pistol = factsOf(input, messages).pistol;
-  const inScope = (t) => noteInScope(t, pistol);
+  const notesMap = mapOfNotes(input, messages);
+  const inScope = (t) => noteInScope(t, pistol, notesMap);
   const rev = reviewMod() || {};
   const m = input.match;
   const advanced = input.advanced === true;
@@ -3355,7 +3368,13 @@ function buildParts(input, messages, opts) {
    */
   // No case that teaches the economy or rests on a pistol result the player did not have (the coach bench 9).
   const pistol = inp.game === 'lol' ? null : factsOf(inp, msgs).pistol;
-  const worked = casesFor(inp, msgs).filter((c) => noteInScope([c.situation, c.signal, c.decision, c.why, c.mistakeToAvoid].filter(Boolean).join(' '), pistol));
+  // Nor one that sends the player through mid on a map with none (noteInScope, the coach bench 13).
+  const casesMap = inp.game === 'lol' ? null : mapOfNotes(inp, msgs);
+  const km = casesMap ? knowledgeMod() : null;
+  const midHole = (c) => !!(km && typeof km.reliesOnMid === 'function'
+    && [c.signal, c.decision, c.why, c.mistakeToAvoid].some((t) => km.reliesOnMid(t, casesMap)));
+  const worked = casesFor(inp, msgs).filter((c) => noteInScope([c.situation, c.signal, c.decision, c.why, c.mistakeToAvoid].filter(Boolean).join(' '), pistol)
+    && !midHole(c));
   if (!worked.length) return today;
   const cap = Math.floor(today.parts.join('').length * (1 + CASE_GROWTH));
   for (const cs of [worked, worked.slice(0, 1)]) {

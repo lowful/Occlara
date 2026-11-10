@@ -788,6 +788,42 @@ function placeRegion(map, p) {
   return r === undefined ? null : r;
 }
 
+/*
+ * A NOTE THAT RELIES ON MID, ON A MAP WITH NONE (the coach bench 13): the
+ * answer's map gate (fact-gates.js gateMapAndKit, MID_SAID) drops a sentence
+ * that sends the player through mid on Bind, Fracture or Lotus, so a note or
+ * a case saying it was served there and then cut out of the answer, leaving
+ * a hole. It is never served there instead. The same reading as the gate:
+ * each sentence that says mid (MID_SAID: "through mid", "mid control", "the
+ * middle lane"; never "the middle of the site" or "mid-climb") is held to the
+ * map it names, else the given one, and the game's geometry says which maps
+ * have a mid (mapGeometry hasMid). A map with a mid, or no map, changes nothing.
+ */
+let factGatesMod;
+function factGates() {
+  if (factGatesMod === undefined) { try { factGatesMod = require('./fact-gates'); } catch { factGatesMod = null; } }
+  return factGatesMod;
+}
+/** Whether the game's geometry says the map has no mid (Bind, Fracture, Lotus). */
+function midless(map) {
+  if (typeof map !== 'string' || !map) return false;
+  let geometry = {};
+  try { geometry = require('../valorant-data.generated.json').mapGeometry || {}; } catch { geometry = {}; }
+  const g = geometry[map.toLowerCase()];
+  return !!(g && g.hasMid === false);
+}
+/** Whether a sentence of the text sends the player through a mid the map does not have. */
+function reliesOnMid(text, map) {
+  const g = factGates();
+  if (!g || !(g.MID_SAID instanceof RegExp)) return false;
+  for (const sentence of String(text || '').split(/(?<=[.!?])\s+/)) {
+    if (!g.MID_SAID.test(sentence)) continue;
+    const named = typeof g.mapsIn === 'function' ? g.mapsIn(sentence)[0] : null;
+    if (midless(named || map)) return true;
+  }
+  return false;
+}
+
 // A map's note that names a callout the player died at alone (retrieve's `places`).
 const PLACE_FIT = 3;
 const placeRe = (p) => new RegExp(`(?<![A-Za-z0-9])${String(p).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}(?![A-Za-z0-9])`, 'i');
@@ -1080,6 +1116,8 @@ function retrieve(ctx, limit = 8, opts = {}) {
     if (note.weapons && (!s.weapon || !note.weapons.some((w) => s.weapon.includes(w)))) continue;
     if (note.situations && !note.situations.some((f) => s.flags.has(f))) continue;
     if (note.cause && !note.cause.some((c) => s.causes.has(c))) continue;
+    // A note that sends the player through mid, on a map with none (reliesOnMid).
+    if (reliesOnMid(note.text, s.map)) continue;
     // Above the player's band: never served. A cause note reaching here
     // answers one of the player's own deaths, which is the data showing it.
     const ranked = band ? rankAdjust(note, band, !!note.cause || s.flags.has('deathstreak')) : 0;
@@ -1176,4 +1214,4 @@ module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: ()
   roleOf: (agent) => ROLE_OF[String(agent || '').toLowerCase()] || null,
   ASKED_FLAGS, ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust,
   ENEMY_FIT, enemiesOf, enemyFit, enemyWeaponsOf, WEAPON_NAMES, ADVANCED_SLOTS_BY_BAND, advancedSlots, bandFirst,
-  teamOf, teamFit, recordSignals, anySignal, placeOf, placesNamed, samePlace, placeRegion, RECORD_ECONOMY, RECORD_MIN, REPEAT_MIN, PLACE_FIT, ISOLATION_LESSON };
+  teamOf, teamFit, recordSignals, anySignal, placeOf, placesNamed, samePlace, placeRegion, midless, reliesOnMid, RECORD_ECONOMY, RECORD_MIN, REPEAT_MIN, PLACE_FIT, ISOLATION_LESSON };

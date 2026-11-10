@@ -1224,6 +1224,8 @@ function study(input, limit = 3, opts = {}) {
     if (note.agents && (!s.agent || !note.agents.some((a) => a.toLowerCase() === s.agent.toLowerCase()))) continue;
     if (note.roles && (!s.role || !note.roles.includes(s.role))) continue;
     if (note.maps && (!s.map || !note.maps.some((m) => m.toLowerCase() === s.map))) continue;
+    // Never a note that sends the player through mid on a map with none (knowledge.js reliesOnMid).
+    if (typeof knowledge.reliesOnMid === 'function' && knowledge.reliesOnMid(note.text, s.map)) continue;
     const advanced = note.tier === 'advanced';
     if (advanced && !advancedOn) continue;
     const ranked = band ? knowledge.rankAdjust(note, band, wanted.has(src.topic) || looked.has(src.topic)

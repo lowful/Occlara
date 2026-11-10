@@ -4553,6 +4553,56 @@ console.log('\nround 8, the game facts gates:');
     'QJNLQKSUI3M-3: the right order given as the cause of the death goes');
   ok(gateOf('You died because your flash covered one angle of four, and the other three could still see you.', qj.f) === null
     && gateOf('You died even though you flashed before you peeked.', qj.f) === null, 'and the real cause, and the order said as no cause, stay');
+
+  // A mid note is never served on a map without a mid (knowledge.js reliesOnMid):
+  // the map gate above cuts such a sentence out of the answer, so a note or a
+  // case saying it would leave a hole. Over 20 seeded draws a mid question on
+  // Bind, Fracture and Lotus is served none, from Ask Coach's notes and cases,
+  // retrieve() and the review's study(); on Split, Haven and Ascent the same
+  // question is still served its mid notes.
+  const kn = require('../server/services/knowledge');
+  const mr = require('../server/services/match-review');
+  const casesMod = require('../server/services/cases');
+  const cutOn = (t, map) => String(t || '').split(/(?<=[.!?])\s+/).some((s) => !!gates.gateMapAndKit(s, { game: 'valorant', language: 'en', map }));
+  ok(kn.midless('Bind') && kn.midless('fracture') && kn.midless('Lotus') && !kn.midless('Split') && !kn.midless('Haven') && !kn.midless('Ascent') && !kn.midless(null),
+    'midless: the game geometry says Bind, Fracture and Lotus have no mid');
+  ok(kn.reliesOnMid('On defence, when nobody on your team takes mid, that job is yours.', 'Bind') && !kn.reliesOnMid('On defence, when nobody on your team takes mid, that job is yours.', 'Split')
+    && !kn.reliesOnMid('Clear the middle of the site before you plant.', 'Bind') && !kn.reliesOnMid('A duel you take mid-climb is lost.', 'Lotus')
+    && kn.reliesOnMid('Mid control on Bind is everything.', null) && !kn.reliesOnMid('Mid control on Ascent decides it.', 'Bind'),
+    'reliesOnMid: the gate\'s reading, the sentence\'s own map first, the middle of the site and mid-climb stay');
+  let midSeed = 1;
+  const realRandom = Math.random;
+  Math.random = () => { midSeed = (midSeed * 1103515245 + 12345) % 2147483648; return midSeed / 2147483648; };
+  const mids = {};
+  try {
+    for (const map of ['Bind', 'Fracture', 'Lotus', 'Split', 'Haven', 'Ascent']) {
+      const content = `I was on Cypher on ${map}, defense. Nobody on our team takes mid, our aggressive teammate keeps pushing it alone and dying, and I set up for the retake. Should I be the one who takes mid?`;
+      const served = new Set();
+      for (let d = 0; d < 20; d++) {
+        midSeed = 7 + d;
+        const a = asked13('asc_plus', content);
+        for (const t of cp.pickNotes(a.input, a.messages)) served.add(t);
+        for (const c of cp.casesFor(a.input, a.messages)) for (const t of [c.signal, c.decision, c.why, c.mistakeToAvoid]) served.add(t);
+        for (const t of kn.retrieve({ agent: 'Cypher', map, side: 'defending', rankBand: 'asc_plus' }, 12, { advanced: true })) served.add(t);
+        for (const t of kn.retrieve({ agent: 'Cypher', map, side: 'defending', phase: 'postplant', asked: ['retake'], rankBand: 'asc_plus' }, 12, { advanced: true })) served.add(t);
+      }
+      for (const key of Object.keys(mr.PATTERN_TOPICS || {})) {
+        for (const n of mr.study({ context: { agent: 'Cypher', map, advancedTips: true, rankBand: 'asc_plus' }, patterns: [{ key }], rounds: [], mistakes: [] }, 8)) served.add(n.text);
+      }
+      for (const side of ['defense', 'attack']) for (const phase of ['early', 'mid', 'execute', 'retake', 'postplant']) for (const agent of [null, 'Sova', 'Cypher']) {
+        for (const s of casesMod.scored({ agent, map, sides: [side], phases: [phase], advanced: true, rankBand: 'asc_plus', enemies: ['Chamber'] })) {
+          for (const t of [s.c.signal, s.c.decision, s.c.why, s.c.mistakeToAvoid]) served.add(t);
+        }
+      }
+      mids[map] = { said: [...served].filter((t) => gates.MID_SAID.test(t)), cut: [...served].filter((t) => cutOn(t, map)) };
+    }
+  } finally { Math.random = realRandom; }
+  for (const map of ['Bind', 'Fracture', 'Lotus']) {
+    ok(!mids[map].cut.length && !mids[map].said.length, `${map}: no note or case that sends the player through mid is served, over 20 draws`, JSON.stringify(mids[map]));
+  }
+  for (const map of ['Split', 'Haven', 'Ascent']) {
+    ok(mids[map].said.length >= 2 && !mids[map].cut.length, `${map}: the mid notes and cases are still served`, JSON.stringify(mids[map]));
+  }
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');
