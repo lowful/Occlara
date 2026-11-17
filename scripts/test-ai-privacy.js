@@ -15,19 +15,16 @@
  *   AI_DATA_COLLECTION=allow on Railway takes it off again, read on every call
  *   a provider that is not OpenRouter is sent no such field
  *
- * AND THE PREFERENCE NEVER TAKES THE PRODUCT DOWN. A model none of whose
- * providers deny collection has every call refused by OpenRouter (HTTP 404,
- * "No endpoints found matching your data policy"), so every read would fail.
- * Held: that one refusal is sent once more without the preference and
- * answers, booked as any call; it is counted under its route, said once a
- * route an hour, and GET /health shows dataPolicy { mode, fellBack,
- * refusedAgain, since } with nothing secret, beside the admin password only
- * (8.11.0; without it /health is { status: 'ok' }); a call refused again without it
- * (an account wide privacy setting, a model with no live provider) went to no
- * provider and is counted as refusedAgain, never as fallen back; any other
- * refusal (400, 401, 402, 403, 429, 5xx, a 404 for anything else) and a
- * timeout are never sent without it; with AI_DATA_COLLECTION=allow nothing is
- * sent and nothing retried.
+ * AND IT IS NEVER DROPPED (8.11.1). A model none of whose providers deny
+ * collection has every call refused by OpenRouter (HTTP 404, "No endpoints
+ * found matching your data policy", or the 503 for routing requirements).
+ * Held: that refusal is the call's answer and is never sent again without
+ * the preference, so no provider ever has the frame; it is counted as held
+ * under its route, said once a route an hour, and GET /health shows
+ * dataPolicy { mode, held, since } with nothing secret, beside the admin
+ * password only (without it /health is { status: 'ok' }); any other refusal
+ * and a timeout are the call's answer, still asking deny; with
+ * AI_DATA_COLLECTION=allow nothing is asked.
  *
  * Run: npm run test:aiprivacy
  */
@@ -197,96 +194,95 @@ const IMG = 'x'.repeat(4000);
   console.warn = (...a) => { logs.push(a.join(' ')); };
   console.error = (...a) => { logs.push(a.join(' ')); };
   const policyLines = (route) => logs.filter((l) => l.startsWith(`[coach] ${route}: no provider of`));
-  const refusedLines = (route) => logs.filter((l) => l.startsWith(`[coach] ${route}: `) && / was refused again without /.test(l));
   coach = loadCoach();
   // What /health is handed (liveModels), read so that a missing field fails the checks rather than crashing them.
   const policyNow = () => coach.liveModels().dataPolicy || {};
-  const counts = () => policyNow().fellBack || {};
-  const refused = () => policyNow().refusedAgain || {};
+  const held = () => policyNow().held || {};
   const zero = { read: 0, forensics: 0, review: 0, chat: 0, bench: 0, other: 0 };
-  ok(JSON.stringify(counts()) === JSON.stringify(zero) && JSON.stringify(refused()) === JSON.stringify(zero) && policyNow().mode === 'deny',
-    `a server just started counts nothing, every route listed, asking deny (${JSON.stringify(coach.liveModels().dataPolicy)})`);
+  ok(JSON.stringify(held()) === JSON.stringify(zero) && policyNow().mode === 'deny'
+    && !('fellBack' in policyNow()) && !('refusedAgain' in policyNow()),
+  `a server just started holds nothing, every route listed, asking deny, and nothing is ever fallen back (${JSON.stringify(coach.liveModels().dataPolicy)})`);
   {
+    // 8.11.1: a read OpenRouter refuses for the policy is NEVER sent again
+    // without it. The refusal is the read's error, and no provider has the frame.
     sent.length = 0;
-    reply = (n) => (n === 1 ? REFUSED : fine(0.00042));
+    reply = () => REFUSED;
     const r = await call(coach, 'POST', '/read', { headers: { 'X-License-Key': KEY }, body: { image: 'aGVsbG8=', context: {} } });
-    ok(r.status === 200 && sent.length === 2 && denies(sent[0]) && !('provider' in sent[1].body),
-      `a read OpenRouter refuses for the policy is sent once more without it, and answers (${r.status}, ${sent.length} requests)`);
-    ok(sent[1] && sent[1].body.model === sent[0].body.model && sent[1].body.usage && sent[1].body.usage.include === true
-      && JSON.stringify(sent[1].body.messages) === JSON.stringify(sent[0].body.messages),
-    'the same request otherwise: the same model, the same frame, still asking its cost');
+    ok(r.status !== 200 && sent.length >= 1 && sent.every(denies),
+      `a read OpenRouter refuses for the policy fails, and every request it made asked deny (${r.status}, ${sent.length} request(s))`);
     const booked = coach.costs.report(null).today.routes.read;
-    ok(booked.calls === 1 && booked.priced === 1 && Math.abs(booked.real - 0.00042) < 1e-9,
-      `booked as usual: the answer at what it cost, the refusal at nothing (${JSON.stringify(booked)})`);
-    ok(counts().read === 1, `and counted under the read (${JSON.stringify(counts())})`);
-    ok(policyLines('read').length === 1 && /data_collection deny/.test(policyLines('read')[0])
+    ok(!booked || booked.real === 0 || booked.real == null, `and the refusal is billed nothing (${JSON.stringify(booked)})`);
+    ok(held().read >= 1, `and it is counted as held under the read (${JSON.stringify(held())})`);
+    ok(policyLines('read').length === 1 && /data_collection deny/.test(policyLines('read')[0]) && /sent nowhere/.test(policyLines('read')[0])
       && /No endpoints found matching your data policy/.test(policyLines('read')[0]),
     `one line says so, OpenRouter's words in it (${policyLines('read')[0]})`);
   }
   {
-    // Every route, each counted under its own name: the routes costScope books,
+    // Every route, each held under its own name: the routes costScope books,
     // and a call made outside any route under other.
     const each = {
       forensics: () => coach.__test.asRoute('forensics', null, () => coach.__test.visionInfer([IMG, IMG], 'look at this death', 50, true)),
       review: () => coach.__test.asRoute('review', null, () => coach.__test.textInfer('write the review', 50, { json: true })),
       chat: () => coach.__test.asRoute('chat', null, () => coach.__test.textInfer('answer the player', 50)),
-      // An admin bench's call, booked apart since 8.5.0, is counted apart too.
       bench: () => coach.__test.asRoute('bench', null, () => coach.__test.textInfer('a bench call', 50, { json: true })),
       other: () => coach.__test.textInfer('say ok', 5),
     };
-    const answered = {};
+    const failed = {};
     for (const [route, fn] of Object.entries(each)) {
       sent.length = 0;
-      reply = (n) => (n === 1 ? REFUSED : fine(0.001));
+      reply = () => REFUSED;
       const out = await caught(fn);
-      answered[route] = !out.error && sent.length === 2 && denies(sent[0]) && !('provider' in sent[1].body);
+      failed[route] = !!out.error && sent.length >= 1 && sent.every(denies);
     }
-    ok(Object.values(answered).every(Boolean), `the death look, the review, Ask Coach and the rest fall back the same (${JSON.stringify(answered)})`);
-    ok(JSON.stringify(counts()) === JSON.stringify({ read: 1, forensics: 1, review: 1, chat: 1, bench: 1, other: 1 }),
-      `each counted under its own route, and no other route is kept (${JSON.stringify(counts())})`);
+    ok(Object.values(failed).every(Boolean), `the death look, the review, Ask Coach and the rest fail the same, never without the preference (${JSON.stringify(failed)})`);
+    ok(['forensics', 'review', 'chat', 'bench', 'other'].every((r) => held()[r] >= 1),
+      `each held under its own route (${JSON.stringify(held())})`);
     ok(['forensics', 'review', 'chat', 'bench', 'other'].every((r) => policyLines(r).length === 1),
       'and each route says so in a line of its own');
   }
   {
     // One line a route an hour at most.
+    const before = held().read;
     for (let i = 0; i < 3; i++) {
       sent.length = 0;
-      reply = (n) => (n === 1 ? REFUSED : fine(0.0004));
+      reply = () => REFUSED;
       await call(coach, 'POST', '/read', { headers: { 'X-License-Key': KEY }, body: { image: 'aGVsbG8=', context: {} } });
     }
-    ok(counts().read === 4 && policyLines('read').length === 1,
-      `three more reads that fall back are counted (${counts().read}) and say nothing more within the hour (${policyLines('read').length} line)`);
+    ok(held().read >= before + 3 && policyLines('read').length === 1,
+      `three more held reads are counted (${held().read}) and say nothing more within the hour (${policyLines('read').length} line)`);
     const realNow = Date.now;
     Date.now = () => realNow() + 61 * 60 * 1000;
     try {
       sent.length = 0;
-      reply = (n) => (n === 1 ? REFUSED : fine(0.0004));
+      reply = () => REFUSED;
       await call(coach, 'POST', '/read', { headers: { 'X-License-Key': KEY }, body: { image: 'aGVsbG8=', context: {} } });
     } finally { Date.now = realNow; }
-    ok(policyLines('read').length === 2 && /5 read call/.test(policyLines('read')[1]),
+    ok(policyLines('read').length === 2 && new RegExp(`${held().read} read call`).test(policyLines('read')[1]),
       `an hour on, the next says it again with the count (${policyLines('read')[1]})`);
     const all = logs.join('\n') + JSON.stringify(coach.liveModels().dataPolicy);
     const KEY_SHAPE = /GC-[A-Z0-9]{4}-/;
     ok(KEY_SHAPE.test(KEY) && !KEY_SHAPE.test(all) && !all.includes('test-ai-key'), 'no licence key and no provider key in the lines or the counts');
   }
   {
-    // OpenRouter's other wordings of the same refusal.
-    const wordings = ['No endpoints found matching your data policy (Zero data retention)', 'No endpoints found matching your data policy'];
-    const took = [];
-    for (const w of wordings) {
+    // OpenRouter's other wordings of the same refusal, the 503 included: held, never resent.
+    const refusals = [
+      POLICY_404('No endpoints found matching your data policy (Zero data retention)'),
+      POLICY_404('No endpoints found matching your data policy'),
+      { status: 404, text: 'No endpoints found matching your data policy' },
+      { status: 503, text: JSON.stringify({ error: { message: 'There is no available model provider that meets your routing requirements', code: 503 } }) },
+    ];
+    const kept = [];
+    for (const r of refusals) {
+      const before = held().other;
       sent.length = 0;
-      reply = (n) => (n === 1 ? POLICY_404(w) : fine(0.0001));
-      const out = await caught(() => coach.__test.textInfer('say ok', 5));
-      took.push(!out.error && sent.length === 2 && !('provider' in sent[1].body));
+      reply = () => r;
+      const out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
+      kept.push(!!out.error && sent.length === 1 && denies(sent[0]) && held().other === before + 1);
     }
-    sent.length = 0;
-    reply = (n) => (n === 1 ? { status: 404, text: 'No endpoints found matching your data policy' } : fine(0.0001));
-    const plain = await caught(() => coach.__test.textInfer('say ok', 5));
-    took.push(!plain.error && sent.length === 2);
-    ok(took.every(Boolean), `and so are its other wordings, JSON or plain text (${took.join(', ')})`);
+    ok(kept.every(Boolean), `and so are its other wordings, JSON, plain text or the 503 for routing requirements (${kept.join(', ')})`);
   }
   {
-    // A 404 for anything else would be refused without the preference all the same.
+    // A 404 for anything else is the call's answer and is not counted as held.
     const others = [
       'No endpoints found that support tool use. To learn more about provider routing, visit: https://openrouter.ai/docs/provider-routing',
       'No endpoints found that can handle the requested parameters. To learn more about provider routing, visit: https://openrouter.ai/docs/provider-routing',
@@ -294,7 +290,7 @@ const IMG = 'x'.repeat(4000);
       'No allowed providers are available for the selected model.',
       'Not Found',
     ];
-    const before = JSON.stringify(counts());
+    const before = JSON.stringify(held());
     const kept = [];
     for (const m of others) {
       sent.length = 0;
@@ -303,82 +299,22 @@ const IMG = 'x'.repeat(4000);
       // textInfer tries its backstop model once on an error: every request still denies.
       kept.push(!!out.error && out.error.status === 404 && sent.length >= 1 && sent.every(denies));
     }
-    ok(kept.every(Boolean) && JSON.stringify(counts()) === before,
-      `a 404 for anything but the data policy is never sent without it (${kept.join(', ')})`);
+    ok(kept.every(Boolean) && JSON.stringify(held()) === before,
+      `a 404 for anything but the data policy is the call's answer, still asking deny, and not counted as held (${kept.join(', ')})`);
   }
   {
-    // Refused without it too (an account wide privacy setting, say): not asked a
-    // third time, and COUNTED BY WHAT HAPPENED. No provider took that frame, so
-    // it is no fall back: /health's fellBack says a frame went to a provider
-    // that may keep it, and setting AI_DATA_COLLECTION=allow would not help.
+    // The retry without the reasoning switch keeps the preference, and a
+    // refusal of it is held the same.
+    const before = held().other;
     sent.length = 0;
-    reply = () => REFUSED;
-    const before = counts().other;
-    const again = refused().other;
+    reply = (n) => (n === 1 ? { status: 400, text: 'reasoning is not supported' } : REFUSED);
     const out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
-    ok(out.error && out.error.status === 404 && sent.length === 2 && denies(sent[0]) && !('provider' in sent[1].body)
-      && counts().other === before && refused().other === again + 1,
-    `a call refused again without the preference is the call's 404, retried once, and counted as refused again, never as fallen back (${sent.length} requests, fellBack ${counts().other}, refusedAgain ${refused().other})`);
-    ok(refusedLines('other').length === 1 && /refused again without data_collection deny/.test(refusedLines('other')[0])
-      && /AI_DATA_COLLECTION=allow does not change/.test(refusedLines('other')[0]),
-    `and one line says the preference is not what stops it (${refusedLines('other')[0]})`);
-    // A model OpenRouter has no live provider for, refused for the policy first
-    // and then for itself: the retry is harmless, and counted as what it was.
-    sent.length = 0;
-    reply = (n) => (n === 1 ? REFUSED : POLICY_404('No endpoints found for deepseek/deepseek-v9-flash.'));
-    const gone = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
-    ok(gone.error && gone.error.status === 404 && sent.length === 2 && counts().other === before && refused().other === again + 2
-      && refusedLines('other').length === 1,
-    `a model with no endpoint at all is the same: refused again, never fallen back, and said no more within the hour (fellBack ${counts().other}, refusedAgain ${refused().other})`);
-    // Cut off on its way without the preference: a provider may have had the frame by then.
-    sent.length = 0;
-    reply = (n) => (n === 1 ? REFUSED : { hang: true });
-    let watchdog = null;
-    const cut = await Promise.race([
-      caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false, null, { abortMs: 80 })),
-      new Promise((resolve) => { watchdog = setTimeout(() => resolve({ error: { name: 'no abort after 3s' } }), 3000); }),
-    ]);
-    clearTimeout(watchdog);
-    ok(cut.error && /TimeoutError|AbortError/.test(cut.error.name) && sent.length === 2 && counts().other === before + 1
-      && refused().other === again + 2,
-    `while one cut off on its way without it counts as fallen back, as a provider may have had it (${cut.error && cut.error.name}, fellBack ${counts().other})`);
-    // A 404 in any words but OpenRouter's "No endpoints found" could be a
-    // provider's own: it may have had the frame, so it fell back.
-    sent.length = 0;
-    reply = (n) => (n === 1 ? REFUSED : { status: 404, text: 'Not Found' });
-    const plain = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
-    ok(plain.error && plain.error.status === 404 && sent.length === 2 && counts().other === before + 2 && refused().other === again + 2,
-      `and so does one answered by a 404 in other words (fellBack ${counts().other}, refusedAgain ${refused().other})`);
-  }
-  {
-    // The call's other retries carry what the call carries by then.
-    sent.length = 0;
-    reply = (n) => (n === 1 ? REFUSED : n === 2 ? { status: 400, text: 'reasoning is not supported' } : fine(0.0002));
-    let out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
-    ok(!out.error && sent.length === 3 && denies(sent[0]) && sent.slice(1).every((s) => !('provider' in s.body)),
-      `after the fall back, the retry without the reasoning switch goes without the preference too (${sent.length} requests)`);
-    sent.length = 0;
-    reply = (n) => (n === 1 ? { status: 400, text: 'reasoning is not supported' } : n === 2 ? REFUSED : fine(0.0002));
-    out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
-    ok(!out.error && sent.length === 3 && denies(sent[0]) && denies(sent[1]) && !('provider' in sent[2].body),
-      `and a refusal of the retry without the reasoning switch falls back the same (${sent.length} requests)`);
-  }
-  {
-    // OpenRouter's errors page words the same refusal as a 503, "There is no
-    // available model provider that meets your routing requirements", and the
-    // data policy is the only routing requirement this server sends.
-    const before = counts().read;
-    sent.length = 0;
-    reply = (n) => (n === 1
-      ? { status: 503, text: JSON.stringify({ error: { message: 'There is no available model provider that meets your routing requirements', code: 503 } }) }
-      : fine(0.0003));
-    const r = await call(coach, 'POST', '/read', { headers: { 'X-License-Key': KEY }, body: { image: 'aGVsbG8=', context: {} } });
-    ok(r.status === 200 && sent.length === 2 && denies(sent[0]) && !('provider' in sent[1].body) && counts().read === before + 1,
-      `a read refused with the 503 for its routing requirements is sent once more without the preference, and counted as fallen back (${r.status}, ${sent.length} requests, fellBack ${counts().read})`);
+    ok(!!out.error && sent.length === 2 && sent.every(denies) && held().other === before + 1,
+      `a retry without the reasoning switch still asks deny, and its refusal is held (${sent.length} requests)`);
   }
   {
     // Never on any other error, a timeout included: each is the call's answer.
-    const before = JSON.stringify(counts());
+    const before = JSON.stringify(held());
     const SAYS = 'No endpoints found matching your data policy';
     const cases = [
       [401, { status: 401, text: `${SAYS} (no such key)` }],
@@ -388,18 +324,18 @@ const IMG = 'x'.repeat(4000);
       [502, { status: 502, text: SAYS }],
       [503, { status: 503, text: JSON.stringify({ error: { message: 'Service temporarily unavailable', code: 503 } }) }],
     ];
-    const held = [];
+    const answers = [];
     for (const [status, r] of cases) {
       sent.length = 0;
       reply = () => r;
       const out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
-      held.push(`${status} ${!!out.error && out.error.status === status && sent.length === 1 && denies(sent[0])}`);
+      answers.push(`${status} ${!!out.error && out.error.status === status && sent.length === 1 && denies(sent[0])}`);
     }
     // A 400 is asked once more without the reasoning switch, as always, and still denies.
     sent.length = 0;
     reply = () => ({ status: 400, text: SAYS });
     let out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
-    held.push(`400 ${!!out.error && out.error.status === 400 && sent.length === 2 && sent.every(denies)}`);
+    answers.push(`400 ${!!out.error && out.error.status === 400 && sent.length === 2 && sent.every(denies)}`);
     sent.length = 0;
     reply = () => ({ hang: true });
     // Raced against a watchdog of our own: the deadline's timer does not keep
@@ -411,14 +347,14 @@ const IMG = 'x'.repeat(4000);
       new Promise((resolve) => { watchdog = setTimeout(() => resolve({ error: { name: 'no abort after 3s' } }), 3000); }),
     ]);
     clearTimeout(watchdog);
-    held.push(`timeout ${!!out.error && /TimeoutError|AbortError/.test(out.error.name) && sent.length === 1 && denies(sent[0])}`);
-    ok(held.every((h) => h.endsWith('true')) && JSON.stringify(counts()) === before,
-      `no other refusal and no timeout is ever sent without the preference (${held.join(', ')})`);
+    answers.push(`timeout ${!!out.error && /TimeoutError|AbortError/.test(out.error.name) && sent.length === 1 && denies(sent[0])}`);
+    ok(answers.every((h) => h.endsWith('true')) && JSON.stringify(held()) === before,
+      `no other refusal and no timeout is ever sent without the preference (${answers.join(', ')})`);
     // Last, as it opens the credits breaker: the fresh load below closes it again.
     sent.length = 0;
     reply = () => ({ status: 402, text: SAYS });
     out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
-    ok(out.error && out.error.status === 402 && sent.length === 1 && denies(sent[0]) && JSON.stringify(counts()) === before,
+    ok(out.error && out.error.status === 402 && sent.length === 1 && denies(sent[0]) && JSON.stringify(held()) === before,
       `nor is an empty wallet (402) (${sent.length} request)`);
   }
   {
@@ -429,7 +365,7 @@ const IMG = 'x'.repeat(4000);
     reply = () => REFUSED;
     const out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
     ok(out.error && out.error.status === 404 && sent.length === 1 && !('provider' in sent[0].body)
-      && JSON.stringify(counts()) === JSON.stringify(zero),
+      && JSON.stringify(held()) === JSON.stringify(zero),
     `with AI_DATA_COLLECTION=allow nothing is asked and nothing retried (${sent.length} request)`);
     ok(policyNow().mode === 'allow', `and the policy reads allow (${policyNow().mode})`);
     delete process.env.AI_DATA_COLLECTION;
@@ -453,7 +389,7 @@ const IMG = 'x'.repeat(4000);
   sent.length = 0;
   reply = () => ({ status: 404, text: JSON.stringify({ error: { message: 'No endpoints found matching your data policy', code: 404 } }) });
   try { await coach.__test.visionInfer(IMG, 'read this', 10, false); } catch (e) { /* the call's own 404 */ }
-  ok(sent.length === 1 && counts().other === 0, 'and what it answers is never taken for a refusal of one');
+  ok(sent.length === 1 && held().other === 0, 'and what it answers is never taken for a refusal of one');
   reply = () => ({ status: 200, json: { choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] } });
   process.env.AI_BASE_URL = 'https://openrouter.ai.evil.example/v1';
   coach = loadCoach();
@@ -522,9 +458,9 @@ const IMG = 'x'.repeat(4000);
     let apiBody = null;
     try { body = JSON.parse(health.body); apiBody = JSON.parse(apiHealth.body); } catch (e) { /* reported below */ }
     const dp = body && body.dataPolicy;
-    ok(health && health.status === 200 && dp && dp.mode === 'deny' && JSON.stringify(dp.fellBack) === JSON.stringify(zero)
-      && JSON.stringify(dp.refusedAgain) === JSON.stringify(zero),
-    `GET /health shows dataPolicy: deny, nothing fallen back or refused again on every route (${health ? `${health.status} ${JSON.stringify(dp)}` : `no answer: ${output.slice(-300)}`})`);
+    ok(health && health.status === 200 && dp && dp.mode === 'deny' && JSON.stringify(dp.held) === JSON.stringify(zero)
+      && !('fellBack' in dp) && !('refusedAgain' in dp),
+    `GET /health shows dataPolicy: deny, nothing held on every route and no fall back at all (${health ? `${health.status} ${JSON.stringify(dp)}` : `no answer: ${output.slice(-300)}`})`);
     ok(dp && typeof dp.since === 'string' && new Date(dp.since).toISOString() === dp.since
       && Date.parse(dp.since) >= started - 2000 && Date.parse(dp.since) <= Date.now(),
     `counted since that server started (${dp && dp.since})`);
@@ -533,9 +469,9 @@ const IMG = 'x'.repeat(4000);
       `and without the password /health says only that it is up (${publicHealth ? publicHealth.body : 'no answer'})`);
     const shown = `${health && health.body}${apiHealth && apiHealth.body}`;
     ok(!!health && Object.values(SECRETS).every((s) => !shown.includes(s)), 'with no secret in either: no provider, database, Stripe or admin key');
-    ok(!!health && !!apiHealth && JSON.stringify(Object.keys((dp && dp.fellBack) || {})) === JSON.stringify(Object.keys(zero))
-      && JSON.stringify(Object.keys((dp && dp.refusedAgain) || {})) === JSON.stringify(Object.keys(zero)) && !/rivals/i.test(shown),
-    `and the routes it lists are read, forensics, review, chat, bench and other, none of a game Occlara no longer coaches (${dp && Object.keys(dp.fellBack || {}).join(', ')})`);
+    ok(!!health && !!apiHealth && JSON.stringify(Object.keys((dp && dp.held) || {})) === JSON.stringify(Object.keys(zero))
+      && !/rivals/i.test(shown),
+    `and the routes it lists are read, forensics, review, chat, bench and other, none of a game Occlara no longer coaches (${dp && Object.keys(dp.held || {}).join(', ')})`);
   }
 
   finished = true;

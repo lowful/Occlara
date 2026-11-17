@@ -756,9 +756,9 @@ async function chatCall({ prompt, parts, imageB64, maxTokens, temperature, model
   // its deadline (billed all the same, its reply never read), books the flat
   // price. A reply with an error status is not billed and books nothing.
   const usage = asksUsage(AI.baseUrl) ? { usage: { include: true } } : {};
-  // The data policy every request of this call carries, until OpenRouter
-  // refuses it for want of a provider that takes it (send, below).
-  let policy = dataPolicy(AI.baseUrl);
+  // The data policy every request of this call carries, every retry included:
+  // since 8.11.1 nothing ever drops it (send, below).
+  const policy = dataPolicy(AI.baseUrl);
   const post = async (maxT, thinkOn) => {
     try {
       return await fetch(`${AI.baseUrl}/chat/completions`, {
@@ -787,44 +787,20 @@ async function chatCall({ prompt, parts, imageB64, maxTokens, temperature, model
       throw e;
     }
   };
-  // THE PRIVACY PREFERENCE NEVER TAKES THE PRODUCT DOWN (policyRefused): a
-  // request OpenRouter refuses because no provider of the model takes the data
-  // policy is sent once more without it, and the call's later retries go
-  // without it too. Nothing else drops it: every other refusal, and a timeout,
-  // is the call's own answer.
-  //
-  // COUNTED BY WHAT HAPPENED TO IT. Taken without the preference, or cut off on
-  // the way (a provider may have had it by then), it fell back (policyFellBack):
-  // its frame may have gone to a provider that keeps it. Refused again, a 404
-  // once more, no provider took it at all, so nothing fell back: what stops
-  // that model is not the preference (an account wide privacy setting, or no
-  // live provider at all) and AI_DATA_COLLECTION=allow would not change it, so
-  // it is counted apart (policyRefusedAgain), never as a frame sent off.
+  // A REFUSAL FOR THE DATA POLICY IS THE CALL'S ANSWER (8.11.1, the owner's
+  // choice). Until 8.11.0 a request OpenRouter refused because no provider of
+  // the model takes data_collection deny was sent once more without it, so a
+  // frame could reach a provider that keeps it or trains on it. Now it is
+  // never sent without it: the refusal is the call's error, no provider has
+  // the frame, and it is counted and said (policyHeld) so a model that cannot
+  // honour the policy is seen and changed. That lets the privacy policy and
+  // the schools sheet promise no storing and no training without a caveat.
   const send = async (maxT, thinkOn) => {
     const r = await post(maxT, thinkOn);
     if (!policy.provider || (r.status !== 404 && r.status !== 503)) return r;
     const text = await r.text();
-    if (!policyRefused(r.status, text)) return answered(r, text);
-    policy = {};
-    let again;
-    try {
-      again = await post(maxT, thinkOn);
-    } catch (e) {
-      policyFellBack(model, text);
-      throw e;
-    }
-    if (again.status !== 404 && again.status !== 503) {
-      policyFellBack(model, text);
-      return again;
-    }
-    // Refused by OpenRouter's own routing ("No endpoints found", or no
-    // provider meeting the routing requirements): no provider took it. A 404
-    // or a 503 in any other words could be a provider's own, so it may.
-    const second = await again.text();
-    const said = refusalMessage(second);
-    if (NO_ENDPOINTS.test(said) || NO_ROUTE.test(said)) policyRefusedAgain(model, second);
-    else policyFellBack(model, text);
-    return answered(again, second);
+    if (policyRefused(r.status, text)) policyHeld(model, text);
+    return answered(r, text);
   };
   // A reply that came back whole: its JSON, and its cost booked.
   const read = async (r) => {
@@ -918,32 +894,26 @@ function asksUsage(baseUrl) {
  * non-transiently and may train on it". So every call to OpenRouter asks for
  * 'deny': only providers that neither keep the request nor train on it.
  *
- * AND IT NEVER TAKES THE PRODUCT DOWN. A model none of whose providers deny
+ * AND IT IS NEVER DROPPED (8.11.1). A model none of whose providers deny
  * collection has every call refused: HTTP 404, {"error":{"message":"No
  * endpoints found matching your data policy ...","code":404}}, as integrators
- * report it for data_collection deny and zdr (OpenRouter's routing docs give
- * the same 404 for a request no allowed provider satisfies), and every read,
- * look and review would fail with it. So that one refusal (policyRefused) is
- * sent once more without the preference, per call, in chatCall; the retry is
- * booked like any call, the refusal is billed nothing, and the calls that went
- * without it are counted by route since boot (policyFellBack: one log line a
- * route an hour at most), which /health shows as dataPolicy
- * (dataPolicyReport). A call refused again without it (an account wide
- * privacy setting, a model with no live provider) went to no provider, so it
- * is counted apart as refusedAgain (policyRefusedAgain), never as fallen back:
- * a frame sent off is what fellBack says. Nothing else is retried without it: a 400
- * (whose own retry, without the reasoning switch, keeps the preference), 401,
- * 402, 403, 429, any 5xx, OpenRouter's 503 "no available model provider that
- * meets your routing requirements" included, and a timeout are the call's
- * answer as they were.
+ * report it for data_collection deny and zdr, or OpenRouter's 503 "no
+ * available model provider that meets your routing requirements". Until
+ * 8.11.0 that refusal was sent once more without the preference, so the
+ * product never went down for it, at the price of a frame reaching a provider
+ * that may keep it. Now the refusal (policyRefused) is the call's answer: the
+ * read, look or review fails, no provider has the frame, and the calls held
+ * are counted by route since boot (policyHeld: one log line a route an hour at
+ * most), which /health shows as dataPolicy.held (dataPolicyReport). On
+ * 14 to 17 Nov 2026 every live model took the preference: 0 calls fell back in
+ * 3 days. A model change that counts in `held` is a model to change back;
+ * `npm run verify:ai` after any model change catches it before players do.
  *
- * AI_DATA_COLLECTION=allow on Railway takes the preference off again, the
- * request as it was before, without a deploy: nothing is sent, so nothing is
- * refused or retried, and that is the switch to reach for when /health counts
- * a model's calls going without it (each one waits out a refusal first) while
- * the model is changed, never for refusedAgain, which it does not change.
- * Read on every call. Other providers are sent nothing,
- * as they know no such field.
+ * AI_DATA_COLLECTION=allow on Railway takes the preference off, the request
+ * as it was before it existed, without a deploy. It breaks what the privacy
+ * policy and the schools sheet promise, so it is for an emergency only and
+ * the policy must change with it. Read on every call. Other providers are
+ * sent nothing, as they know no such field.
  */
 function dataPolicy(baseUrl) {
   if (!asksUsage(baseUrl)) return {};
@@ -986,16 +956,13 @@ function answered(r, text) {
   return { status: r.status, ok: r.ok, headers: r.headers, text: async () => text, json: async () => JSON.parse(text) };
 }
 
-// The calls sent again without the data policy, by the route each served
-// (costScope, as bookCost books them), in memory since this process started:
-// those a provider may have taken (fellBack), and those refused once more
-// (refusedAgain), which no provider took.
+// The calls refused for the data policy and so held, sent to no provider, by
+// the route each served (costScope, as bookCost books them), in memory since
+// this process started.
 const POLICY_SINCE = new Date().toISOString();
 const POLICY_LOG_MS = 60 * 60 * 1000;
-const policyFallbacks = Object.fromEntries(COST_ROUTES.map((r) => [r, 0]));
+const policyHolds = Object.fromEntries(COST_ROUTES.map((r) => [r, 0]));
 const policyLoggedAt = Object.fromEntries(COST_ROUTES.map((r) => [r, 0]));
-const policyRefusals = Object.fromEntries(COST_ROUTES.map((r) => [r, 0]));
-const refusalLoggedAt = Object.fromEntries(COST_ROUTES.map((r) => [r, 0]));
 
 /** The route the call in hand serves (costScope), 'other' outside one. */
 function policyRoute() {
@@ -1003,40 +970,28 @@ function policyRoute() {
   return COST_ROUTES.includes(scope.route) ? scope.route : 'other';
 }
 
-/** One call of `model` sent again without the data policy, which a provider may have taken: counted, and logged once a route an hour. */
-function policyFellBack(model, text) {
+/** One call of `model` refused for the data policy and held, sent to no provider: counted, and logged once a route an hour. */
+function policyHeld(model, text) {
   const route = policyRoute();
-  policyFallbacks[route] += 1;
+  policyHolds[route] += 1;
   if (Date.now() - policyLoggedAt[route] < POLICY_LOG_MS) return;
   policyLoggedAt[route] = Date.now();
-  console.warn(`[coach] ${route}: no provider of ${model} takes data_collection deny, so its call went again without it `
-    + `(${policyFallbacks[route]} ${route} call(s) since ${POLICY_SINCE}, said once an hour). `
-    + `OpenRouter said: ${refusalMessage(text).slice(0, 160)}`);
-}
-
-/** One call of `model` refused again without the data policy, which no provider took: counted apart, and logged once a route an hour. */
-function policyRefusedAgain(model, text) {
-  const route = policyRoute();
-  policyRefusals[route] += 1;
-  if (Date.now() - refusalLoggedAt[route] < POLICY_LOG_MS) return;
-  refusalLoggedAt[route] = Date.now();
-  console.warn(`[coach] ${route}: ${model} was refused again without data_collection deny, so the preference is not what `
-    + 'stops it: an account wide privacy setting or a model with no live provider, which AI_DATA_COLLECTION=allow does not change '
-    + `(${policyRefusals[route]} ${route} call(s) since ${POLICY_SINCE}, said once an hour). `
+  console.error(`[coach] ${route}: no provider of ${model} takes data_collection deny, so its call failed and was sent nowhere. `
+    + 'Change the model to one with a provider that keeps nothing and trains on nothing '
+    + `(${policyHolds[route]} ${route} call(s) since ${POLICY_SINCE}, said once an hour). `
     + `OpenRouter said: ${refusalMessage(text).slice(0, 160)}`);
 }
 
 /**
  * The data policy as /health shows it: `mode` what a call is sent with now
  * ('deny' when it carries the preference, 'allow' when it carries none, as with
- * AI_DATA_COLLECTION=allow or a provider that is not OpenRouter), `fellBack`
- * the calls each route sent again without it that a provider may have taken,
- * `refusedAgain` those refused once more without it, which no provider took,
- * and `since` when counting began. Counts and a time: nothing in it is secret.
+ * AI_DATA_COLLECTION=allow or a provider that is not OpenRouter), `held` the
+ * calls each route had refused for it and sent nowhere, and `since` when
+ * counting began. Counts and a time: nothing in it is secret.
  */
 function dataPolicyReport() {
   const deny = AI.provider !== 'gemini' && !!dataPolicy(AI.baseUrl).provider;
-  return { mode: deny ? 'deny' : 'allow', fellBack: { ...policyFallbacks }, refusedAgain: { ...policyRefusals }, since: POLICY_SINCE };
+  return { mode: deny ? 'deny' : 'allow', held: { ...policyHolds }, since: POLICY_SINCE };
 }
 
 /** A fetch that stopped at its deadline (AbortSignal.timeout) or was aborted. */

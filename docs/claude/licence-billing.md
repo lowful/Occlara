@@ -194,29 +194,28 @@ unexpected failure 500 `Failed to cancel subscription` (no full stop: the
 site prints it inside its own sentence); the exception's own message is
 logged on Railway and no longer sent.
 
-**The frames go only to providers that keep nothing, and asking never takes
-the product down.** Every OpenRouter call (`chatCall` in coach.js) asks for
-`provider: { data_collection: 'deny' }`. A model with no provider that denies
-collection has every call refused, HTTP 404 "No endpoints found matching your
-data policy" (or the 503 OpenRouter's errors page lists for the same, "There
-is no available model provider that meets your routing requirements", the
-data policy being the only routing requirement sent), so that one refusal
-falls back per call: it is sent once more without the preference, booked as
-any call, and nothing else ever is (a 400, 401, 402, 403, 429, any other 5xx
-or a timeout is the call's own answer). The calls
-that fell back are counted per route since boot (read, forensics, review,
-chat, bench, other), said in one log line a route an hour at most, and
-`GET /health` counts them as `dataPolicy: { mode, fellBack, refusedAgain,
-since }` (beside the admin password since 8.11.0; without it `/health` is only
-`{ status: 'ok' }`): a route counting in `fellBack` sends its model's frames to providers
-that may keep them, each call after a refused round trip, until the model
-changes. They are counted by what happened to the retry: one OpenRouter
-refuses again ("No endpoints found" once more) went to no provider, so it is
-`refusedAgain`, never `fellBack`: an account wide privacy setting or a model
-with no live provider stops it, which `AI_DATA_COLLECTION=allow` does not
-change. One answered, cut off, or refused in other words may have reached a
-provider, so it is `fellBack`.
-`AI_DATA_COLLECTION=allow` sends no preference and retries nothing.
+**The frames go only to providers that keep nothing and train on nothing,
+with no exception (8.11.1, the owner's choice).** Every OpenRouter call
+(`chatCall` in coach.js) asks for `provider: { data_collection: 'deny' }`.
+A model with no provider that denies collection has every call refused, HTTP
+404 "No endpoints found matching your data policy" (or the 503 "There is no
+available model provider that meets your routing requirements", the data
+policy being the only routing requirement sent). Until 8.11.0 that refusal
+was sent once more without the preference, so the product never went down
+for it but a frame could reach a provider that keeps it. Since 8.11.1 the
+refusal is the call's answer: the read, look or review fails, no provider has
+the frame, and the calls held are counted per route since boot (read,
+forensics, review, chat, bench, other), said in one error line a route an
+hour at most, and `GET /health` shows them as `dataPolicy: { mode, held,
+since }` (beside the admin password; without it `/health` is only
+`{ status: 'ok' }`). Before the change every live model took the
+preference: 0 calls fell back from 14 to 17 Nov 2026. **So a model change must
+pick a model with a provider that denies collection**: `npm run verify:ai`
+after it, and a route counting in `held` is a model to change back. The
+privacy policy and the schools sheet promise this without a caveat, so never
+bring the fallback back. `AI_DATA_COLLECTION=allow` sends no preference at
+all: an emergency switch that breaks that promise, and the policy must change
+with it.
 `test:aiprivacy` holds it on a scripted provider, and boots the server for
 /health.
 
