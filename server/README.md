@@ -33,11 +33,13 @@ Edit `.env` and fill in all values:
 - `AI_API_KEY`, `AI_BASE_URL`, the OpenAI-compatible provider used for coaching
 - `AI_DATA_COLLECTION`, unset by default, which asks OpenRouter for providers that
   neither store nor train on the frames (`provider: { data_collection: 'deny' }`).
-  `allow` sends the request without that preference, as it was before. A call
-  OpenRouter refuses for that preference (404, "No endpoints found matching your
-  data policy") is sent once more without it, and `/health` (with the admin password) counts each route's
-  under `dataPolicy`: `fellBack` the calls a provider may have taken without it,
-  `refusedAgain` those refused once more, which no provider took.
+  `allow` sends the request without that preference, as it was before, and
+  breaks what the privacy policy promises: an emergency switch only. Since
+  8.11.1 a call OpenRouter refuses for that preference (404, "No endpoints found
+  matching your data policy", or its 503 for routing requirements) is never
+  sent again without it: it fails, and `/health` (with the admin password)
+  counts each route's under `dataPolicy.held`. A route counting there has a
+  model with no provider that keeps nothing: change the model.
 
 ### 3. Create Stripe products and prices
 

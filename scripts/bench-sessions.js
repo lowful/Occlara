@@ -203,8 +203,7 @@ async function snapshot() {
   return {
     asOf: costs.asOf || new Date().toISOString(), since: costs.since, startedAt: health.startedAt || null,
     readModel: health.readModel || null,
-    dataPolicy: { mode: health.dataPolicy ? health.dataPolicy.mode : null, fellBack: sum(health.dataPolicy && health.dataPolicy.fellBack),
-      refusedAgain: sum(health.dataPolicy && health.dataPolicy.refusedAgain) },
+    dataPolicy: { mode: health.dataPolicy ? health.dataPolicy.mode : null, held: sum(health.dataPolicy && health.dataPolicy.held) },
     own: mine ? { today: readOf(mine.spendToday), month: readOf(mine.spendMonth) } : null,
     bench: spend ? { today: routeOf(spend.today, 'bench'), month: routeOf(spend.month, 'bench') } : null,
   };
@@ -235,7 +234,7 @@ function costBetween(a, b) {
   const benchTo = (b.bench && b.bench[period]) || routeOf(null, 'bench');
   const both = (k) => (to[k] - from[k]) + (benchTo[k] - benchFrom[k]);
   return { known: true, restarted, basis, calls: both('calls'), real: r6(both('real')), estimated: r6(both('estimated')),
-    usd: r6(both('cost')), fellBack: b.dataPolicy.fellBack - a.dataPolicy.fellBack, refusedAgain: b.dataPolicy.refusedAgain - a.dataPolicy.refusedAgain };
+    usd: r6(both('cost')), held: b.dataPolicy.held - a.dataPolicy.held };
 }
 
 /** One bench-read.js process, its output to a file beside its trace. */
@@ -275,7 +274,7 @@ function stopAfter(run, res, cost) {
     return `run ${run.i} read ${reads.length} of its ${run.reads} frames (exit ${res.status}): ${(why ? why[0] : res.out.trim().split('\n').slice(-1)[0] || '').slice(0, 160)}`;
   }
   if (cost.restarted) return `the server restarted during run ${run.i}`;
-  if (cost.known && (cost.fellBack > 0 || cost.refusedAgain > 0)) return `the data policy fell back during run ${run.i} (fellBack +${cost.fellBack}, refusedAgain +${cost.refusedAgain})`;
+  if (cost.known && cost.held > 0) return `the data policy held calls during run ${run.i} (held +${cost.held}): a model with no provider that keeps nothing`;
   return null;
 }
 

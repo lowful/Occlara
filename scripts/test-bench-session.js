@@ -509,7 +509,7 @@ async function sessionsRuns() {
     req.on('end', () => {
       const json = (status, o) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
       if (req.url === '/health') return json(200, { startedAt: '2026-10-14T09:00:00.000Z', readModel: 'stand/in',
-        dataPolicy: { mode: 'deny', fellBack: { read: fellBack }, refusedAgain: { read: 0 }, since: '2026-10-14T09:00:00.000Z' } });
+        dataPolicy: { mode: 'deny', held: { read: fellBack }, since: '2026-10-14T09:00:00.000Z' } });
       if (req.url === '/api/admin/costs') {
         other.push({ url: req.url, admin: req.headers['x-admin-password'] || null });
         if (req.headers['x-admin-password'] !== ADMIN) return json(401, { error: 'Unauthorized' });
@@ -628,8 +628,8 @@ async function sessionsRuns() {
     fallBackAt = 2;
     const out3 = path.join(tmp, 'out3');
     const fell = await run(['--go', '--sessions', 'fracture', '--runs', '1', '--no-gate', '--out', out3]);
-    ok(fell.status === 2 && reads.length === 3 && /STOPPED: the data policy fell back during run 1 \(fellBack \+1/.test(fell.out),
-      'and so does a data policy fallback during a run', fell.out);
+    ok(fell.status === 2 && reads.length === 3 && /STOPPED: the data policy held calls during run 1 \(held \+1/.test(fell.out),
+      'and so does a call held for the data policy during a run', fell.out);
     fallBackAt = 0;
 
     // The candidate's run of the Sunset loses its frame 1 part way (a folder
