@@ -138,6 +138,13 @@ const CHANNELS = {
   // (src/main/services/backfill.js).
   BACKFILL_START:  'backfill:start',     // () -> the run's status
   BACKFILL_STATUS: 'backfill:status',    // () -> the run's status
+  // Import a recording (8.12). Main holds the file: no path or byte crosses.
+  IMPORT_GET:      'import:get',         // (withGate) -> { status, gate, card }, nothing while sealed
+  IMPORT_PICK:     'import:pick',        // () -> status, after the native file picker
+  IMPORT_START:    'import:start',       // (matchId|null) -> status
+  IMPORT_CANCEL:   'import:cancel',      // () -> status
+  IMPORT_CLOSE:    'import:close',       // () -> status, the choice put down
+  IMPORT_ACTION:   'import:action',      // ('upgrade'|'buy'|'licence'|'open', id?) -> { ok }
   // The clips kept beside the reviews (8.3, src/main/services/review-clips.js),
   // for Settings: what they take against the cap, and Clear clips.
   CLIPS_USAGE:     'clips:usage',        // () -> { bytes, clips, reviews, capGB }
@@ -193,6 +200,7 @@ const CHANNELS = {
   PUSH_GAME:         'push:game',         // { id, label } the game changed, reload anything game-scoped
   // The backfill's status on every change: { state, account, total, done, items, message, ... }
   PUSH_BACKFILL:     'push:backfill',
+  PUSH_IMPORT:       'push:import',
   // The recorded League game is graded and ready. Fired ONCE per finished game,
   // after it ends, never during it.
   PUSH_LOL_REVIEW:   'push:lolReview',
@@ -278,6 +286,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_GAME,
   CHANNELS.PUSH_REVIEWS,
   CHANNELS.PUSH_BACKFILL,
+  CHANNELS.PUSH_IMPORT,
   CHANNELS.PUSH_LOL_REVIEW,
   CHANNELS.PUSH_VALORANT_REVIEW,
   CHANNELS.PUSH_REVIEW_WORK,

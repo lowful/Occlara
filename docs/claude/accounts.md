@@ -589,6 +589,7 @@ network is not.
 | Riot data (`player-stats`, `rank-history`, `match-deaths`, `match-rounds`, `matches`, `last-match`, `recent-matches`) | account | 120 in 10 min, and free 40 in 10 min (unchanged) | HenrikDev's shared quota |
 | `/api/coach/session-report` | account | 30 an hour | telemetry, one a session |
 | `/api/account/me` | account | 120 in 10 min | account_state per call; the app asks about once a minute |
+| `POST /api/usage/import` (8.12) | account | 10 an hour | claims an import, which then costs a match of reads; `docs/claude/import.md` |
 | `/api/usage/claim`, `/release` | account | 60 in 10 min, one bucket | claim_game and settle; a Riot record run claims 10 |
 | `/api/referral`, `/redeem` | account | 30 in 10 min; redeem also 10 a min per address | code inserts and lookups |
 | `/api/gifts/peek` | address | 60 in 10 min | a gift lookup, no sign in |

@@ -201,6 +201,10 @@ function enforced(caller, env = process.env, now = Date.now()) {
   return true;
 }
 
+// Imported recordings a Pro account has each billing month (8.12). The site's
+// SQL (claim_import, import_state) must say the same number.
+const IMPORTS_PER_MONTH_PRO = 5;
+
 const b64urlJson = (s) => JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
 
 /**
@@ -578,5 +582,5 @@ module.exports = {
   enforced, tierOfPlan, isMissing, sha256, safeEqual, bearerOf, hasCredentials, clientAtLeast, knowsFreeKeys, playsFree,
   ipPrefix, ipPrefixHash, ipBucket,
   KEY_REGEX, SESSION_TOKEN, MISSING_CODES, SESSION_MS, LAST_SEEN_MS, JWKS_MS, DOWN_MS, FREE_KEYS_FROM, FREE_PLAY_FROM, UPDATE_FOR_FREE,
-  FREE_GAMES, INVITE_EXTRA_GAMES,
+  FREE_GAMES, INVITE_EXTRA_GAMES, IMPORTS_PER_MONTH_PRO,
 };

@@ -189,7 +189,9 @@ function valorant(input) {
     return finish(empty, false, [satOutNote(all), "Riot's record has you sitting out every round it verified, so there is nothing to grade."].filter(Boolean));
   }
   if (!isVerified && !sl) {
-    notes.push(input.linkMissing === 'taken'
+    notes.push(input.linkMissing === 'imported'
+      ? "A full grade needs Riot's record of the match, and this recording was not matched to it."
+      : input.linkMissing === 'taken'
       ? "A full grade needs Riot's record of the match, and it is on another review of this match in your library."
       : input.linkMissing === 'later'
       ? "A full grade needs Riot's record of the match, which was not found yet: the match may have gone on after the coach ended it. It grades itself when a later check finds it."

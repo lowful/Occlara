@@ -1,0 +1,19 @@
+FFmpeg in Occlara
+
+Occlara uses FFmpeg to read a video you choose with Import a recording. FFmpeg is
+a separate program, installed unmodified beside Occlara as ffmpeg.exe. Occlara
+only starts it. It is not part of Occlara, and Occlara's own licence does not
+apply to it.
+
+This build is FFmpeg 6.1.1, the "essentials" Windows build from gyan.dev,
+distributed through the ffmpeg-static 5.3.0 package. It is licensed under the
+GNU General Public License, version 3. The full licence is in
+ffmpeg-LICENSE.txt, and the build's configuration and the libraries it includes
+are listed in ffmpeg-README.txt, both beside this file.
+
+Source code:
+  FFmpeg 6.1.1   https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz
+  Build details  https://www.gyan.dev/ffmpeg/builds/
+  Packaging      https://github.com/eugeneware/ffmpeg-static
+
+You may use, study, change and share FFmpeg under the terms of its licence.

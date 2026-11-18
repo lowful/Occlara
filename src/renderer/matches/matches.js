@@ -876,6 +876,114 @@ $('bf-go').addEventListener('click', async () => {
   paintBf();
 });
 
+// ── Importing a recording (8.12) ─────────────────────────────────────────────
+// Main picks and holds the file and does the work (import-video.js). This shows
+// where it is, from the status it pushes, and the plan's card from usage.js.
+let imp = { state: 'idle' };
+let impCard = null;
+let impNote = '';
+const IMP_STEPS = { saved: 'Saving the match', riot: "Getting Riot's record", deaths: 'Checking the deaths',
+  look: 'Looking at your deaths', writing: 'Writing the review' };
+const clockOf = (sec) => {
+  const s = Math.round(Number(sec) || 0);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+function matchOption(m) {
+  const day = Number.isFinite(m.startedAt) ? new Date(m.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  const o = document.createElement('option');
+  o.value = m.matchId;
+  o.textContent = [m.map, m.agent, m.score, day, m.taken ? 'already in your library' : ''].filter(Boolean).join(', ');
+  o.disabled = !!m.taken;
+  return o;
+}
+
+function paintImport() {
+  $('imp-go').hidden = game !== 'valorant';
+  const s = imp || { state: 'idle' };
+  const lock = impCard && impCard.allowed === false ? impCard : null;
+  const choosing = s.state === 'choosing' || (s.state === 'choosing-refused' && !s.gate);
+  const running = ['starting', 'reading', 'paused', 'cancelling'].includes(s.state);
+  const show = (id, on) => { $(id).hidden = !on; };
+  const box = $('imp');
+  const visible = !!lock || choosing || running || ['review', 'done', 'failed'].includes(s.state) || !!impNote;
+  box.hidden = game !== 'valorant' || !visible;
+  $('imp-go').disabled = running || s.state === 'review';
+  if (box.hidden) return;
+  let title = s.fileName || 'Import a recording';
+  let line = impNote;
+  if (lock) { title = lock.title; line = lock.body; }
+  else if (choosing) {
+    line = [clockOf(s.seconds) + ' long', s.message || (impCard && impCard.line) || ''].filter(Boolean).join('. ');
+  } else if (s.state === 'starting') line = 'Starting';
+  else if (s.state === 'reading') line = `Reading the video, ${s.percent || 0}%. You can keep using Occlara.`;
+  else if (s.state === 'paused') line = 'Paused until your match is over.';
+  else if (s.state === 'cancelling') line = 'Cancelling';
+  else if (s.state === 'review') line = IMP_STEPS[s.step] || 'Building your review';
+  else if (s.state === 'done') {
+    title = s.locked ? 'Saved, but locked' : 'Your review is ready';
+    line = [s.matched ? "Matched to Riot's record." : "Reviewed from the screen, not matched to Riot's record.",
+      s.restUnread ? 'The first full match was reviewed, the rest of the file was not read.' : ''].filter(Boolean).join(' ');
+  } else if (s.state === 'failed') { title = 'This recording was not imported'; line = s.message || ''; }
+  $('imp-title').textContent = title;
+  $('imp-line').textContent = line;
+  show('imp-pick', choosing && !lock && Array.isArray(s.matches) && s.matches.some((m) => !m.taken));
+  if (!$('imp-pick').hidden && $('imp-match').dataset.for !== s.fileName) {
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = "Not in the list, review it from the screen";
+    $('imp-match').replaceChildren(...s.matches.map(matchOption), none);
+    $('imp-match').value = s.nearest || '';
+    $('imp-match').dataset.for = s.fileName || '';
+  }
+  show('imp-bar', running && s.state !== 'starting');
+  $('imp-fill').style.width = `${s.percent || 0}%`;
+  $('imp-bar').setAttribute('aria-valuenow', String(s.percent || 0));
+  show('imp-start', choosing && !lock);
+  show('imp-open', s.state === 'done' && !!s.reviewId);
+  show('imp-upgrade', !!(lock && lock.upgrade));
+  $('imp-upgrade').textContent = lock && lock.upgrade === 'max' ? 'Upgrade to Max' : 'Upgrade to Pro';
+  show('imp-buy', !!(lock && lock.buy));
+  show('imp-cancel', s.state === 'reading' || s.state === 'paused');
+  show('imp-close', !!lock || choosing || s.state === 'done' || s.state === 'failed' || (!!impNote && !running));
+  show('imp-licence', choosing && !lock);
+}
+
+function takeImport(s) {
+  if (!s || s.sealed) return;
+  if (s.error === 'match') return;
+  imp = s;
+  impNote = s.state === 'idle' && s.message ? s.message : '';
+  paintImport();
+}
+
+$('imp-go').addEventListener('click', async () => {
+  const got = await window.occlara.getImport(true).catch(() => null);
+  if (!got || got.sealed) return;
+  impCard = got.card;
+  impNote = got.card ? '' : 'Imports are not available right now. Try again shortly.';
+  if (!got.card || got.card.allowed === false) { imp = got.status || imp; paintImport(); return; }
+  takeImport(await window.occlara.pickImport().catch(() => null));
+});
+$('imp-start').addEventListener('click', async () => {
+  const id = $('imp-pick').hidden ? null : $('imp-match').value || null;
+  const s = await window.occlara.startImport(id).catch(() => null);
+  if (s && s.state === 'choosing-refused' && s.gate) impCard = (await window.occlara.getImport(true).catch(() => ({}))).card || impCard;
+  takeImport(s);
+});
+$('imp-cancel').addEventListener('click', async () => takeImport(await window.occlara.cancelImport().catch(() => null)));
+$('imp-close').addEventListener('click', async () => {
+  impCard = null;
+  impNote = '';
+  imp = (await window.occlara.closeImport().catch(() => null)) || { state: 'idle' };
+  if (['done', 'failed', 'choosing-refused'].includes(imp.state)) imp = { state: 'idle' };
+  paintImport();
+});
+$('imp-open').addEventListener('click', () => { if (imp.reviewId) window.occlara.openReview(imp.reviewId); });
+$('imp-upgrade').addEventListener('click', () => window.occlara.importAction('upgrade'));
+$('imp-buy').addEventListener('click', () => window.occlara.importAction('buy'));
+$('imp-licence').addEventListener('click', () => window.occlara.importAction('licence'));
+
 /**
  * One match: a card holding two buttons side by side, the row, which opens its
  * review, and the eye, which opens the AI log on its frames where main says it
@@ -933,7 +1041,7 @@ function row(m, gutter, marks, delta) {
     }
   }
   main.append(top);
-  main.append(el('div', 'm-meta', [fmtWhen(m.at), m.mode,
+  main.append(el('div', 'm-meta', [fmtWhen(m.at), m.mode, m.imported ? (m.matchId || m.verified ? 'imported recording' : "imported, not matched to Riot's record") : null,
     m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null]
     .filter(Boolean).join('  ·  ')));
   // The top mistake as the row's quiet second line, its label quieter still.
@@ -1112,6 +1220,10 @@ const SECTION_TITLES = { list: 'Matches', patterns: 'Patterns' };
   await load();
   backfill = await window.occlara.getBackfill().catch(() => null);
   paintBf();
+  const importNow = await window.occlara.getImport(false).catch(() => null);
+  if (importNow && importNow.status) imp = importNow.status;
+  paintImport();
+  window.occlara.onImport((s) => takeImport(s));
   // CONNECT IN SETTINGS IS WHAT STARTS A RUN, usually while this window is
   // open, and the Riot ID was read when the list loaded. Read it again with
   // each push, or the button kept saying "Add your Riot ID" under a run that
@@ -1131,6 +1243,6 @@ const SECTION_TITLES = { list: 'Matches', patterns: 'Patterns' };
   // A review still being built moving on, or whole at last (8.4.1): its row
   // says it is being checked, or shows its grade.
   if (typeof window.occlara.onReviewWork === 'function') window.occlara.onReviewWork(() => load());
-  window.occlara.onGame((g) => { if (g && g.id) { game = g.id; paintTabs(games); load(); } });
+  window.occlara.onGame((g) => { if (g && g.id) { game = g.id; paintTabs(games); load(); paintImport(); } });
   console.log('[matches] ready');
 })();

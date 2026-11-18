@@ -499,6 +499,18 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .bf { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); min-width: 0; flex: 1; }
 .bf-status { font-size: 13px; color: var(--text-dim); line-height: 1.4; text-align: right; min-width: 0; }
 .bf-go { flex: none; }
+.imp-go { flex: none; }
+/* An imported recording's panel (8.12): one ruled block over the rows. */
+.imp { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) 0; margin-bottom: var(--space-3); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.imp[hidden], .imp-pick[hidden], .imp-bar[hidden] { display: none; }
+.imp-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.imp-line { margin: var(--space-1) 0 0; font-size: 13px; line-height: 1.45; color: var(--text-dim); }
+.imp-pick { display: flex; flex-direction: column; gap: var(--space-1); max-width: 460px; font-size: 13px; color: var(--text-dim); }
+.imp-pick select { height: 34px; padding: 0 var(--space-2); color: var(--text); background: var(--s2); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.imp-bar { height: 4px; overflow: hidden; border-radius: 2px; background: var(--s3); }
+.imp-bar span { display: block; height: 100%; width: 0; background: var(--text); transition: width var(--dur-press, 160ms) linear; }
+.imp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.imp-licence { margin-left: auto; padding: 0; border: 0; background: none; color: var(--text-dim); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
 
 @media (max-width: 700px) {
   .b-tr { grid-template-columns: var(--cols-narrow); }
@@ -522,7 +534,7 @@ html[data-section="patterns"] #patterns .p-head h3 { display: none; }
 html.embedded .sheet > header .h-brand { align-items: baseline; }
 /* On its page the list's grading line stands alone over the rows. */
 html[data-section="list"] #every .l-head { justify-content: flex-end; }
-html[data-section="list"] #every .l-head:has(#bf[hidden]) { display: none; }
+html[data-section="list"] #every .l-head:has(#bf[hidden]):has(#imp-go[hidden]) { display: none; }
 @media (max-width: 860px) { .every-grid.charted { grid-template-columns: minmax(0, 1fr); } }
 
 /* Embedded, the sheet is the page ground (ui.css html.embedded .sheet.glass). */

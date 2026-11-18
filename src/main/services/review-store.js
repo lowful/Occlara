@@ -111,6 +111,9 @@ function metaOf(id, game, review, at) {
     // numbers and the upgrade card's line for it. Only on a locked one, so
     // every row saved before is written as it was.
     ...(r.locked === true ? { locked: true } : {}),
+    // From a recording the player imported (8.12), a live match's review in
+    // every other way. Only on one, so every other row is written as it was.
+    ...(r.imported === true ? { imported: true } : {}),
     // Where its frames are in the AI log (8.2, index.js), so the list can say
     // whether they are still kept without opening the review. Null when the
     // log was off; left out for a review saved before 8.2, which kept none

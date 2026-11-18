@@ -39,6 +39,14 @@ contextBridge.exposeInMainWorld('occlara', {
   startBackfill: () => ipcRenderer.invoke(C.BACKFILL_START),
   getBackfill:  () => ipcRenderer.invoke(C.BACKFILL_STATUS),
   onBackfill:   (cb) => subscribe(C.PUSH_BACKFILL, cb),
+  // Importing a recording (8.12): main picks and holds the file.
+  getImport:    (withGate) => ipcRenderer.invoke(C.IMPORT_GET, !!withGate),
+  pickImport:   () => ipcRenderer.invoke(C.IMPORT_PICK),
+  startImport:  (matchId) => ipcRenderer.invoke(C.IMPORT_START, typeof matchId === 'string' ? matchId : null),
+  cancelImport: () => ipcRenderer.invoke(C.IMPORT_CANCEL),
+  closeImport:  () => ipcRenderer.invoke(C.IMPORT_CLOSE),
+  importAction: (what, id) => ipcRenderer.invoke(C.IMPORT_ACTION, what, typeof id === 'string' ? id : null),
+  onImport:     (cb) => subscribe(C.PUSH_IMPORT, cb),
   openReview:   (id) => ipcRenderer.send(C.REVIEW_OPEN, id),
   // The eye on a row: the review's id only, and main finds its frames.
   openAiLog:    (id) => ipcRenderer.send(C.REVIEW_AILOG, id),

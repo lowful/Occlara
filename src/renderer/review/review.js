@@ -201,7 +201,9 @@ function paintValorant(r, verdict) {
     // A match graded after the fact (riot-review.js), which the coach never
     // watched, says where its facts came from instead of a rounds count.
     r.source === 'riot' ? "From Riot's record" : null,
-    w.rounds ? `${w.rounds} round${w.rounds === 1 ? '' : 's'} watched` : null,
+    // A recording the player imported (8.12).
+    r.imported ? (r.matchId || r.verified ? 'Imported recording' : "Imported recording, not matched to Riot's record") : null,
+    w.rounds ? `${w.rounds} round${w.rounds === 1 ? '' : 's'} ${r.imported ? 'read' : 'watched'}` : null,
   ].filter(Boolean).join('  ·  ');
 
   // What Riot's record changed, said out loud. A review whose numbers moved
@@ -1975,7 +1977,8 @@ function paintLockedValorant(r) {
   const score = String(g.score || '').split('-');
   $('v-score').textContent = score.length === 2 ? `${score[0]} : ${score[1]}` : '';
   $('v-score').hidden = score.length !== 2;
-  $('v-meta').textContent = [g.agent, g.map, g.mode, r.scoreline || r.source === 'riot' ? "From Riot's record" : null].filter(Boolean).join('  ·  ');
+  $('v-meta').textContent = [g.agent, g.map, g.mode, (r.scoreline || r.source === 'riot') ? "From Riot's record" : null,
+    r.imported ? (r.matchId || r.verified ? 'Imported recording' : "Imported recording, not matched to Riot's record") : null].filter(Boolean).join('  ·  ');
   $('v-verified').hidden = true;
   $('v-verified').textContent = '';
   paintStats(r);

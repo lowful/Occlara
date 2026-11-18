@@ -48,6 +48,7 @@
  */
 
 const fs = require('fs');
+const { withClock } = require('../src/shared/virtual-clock');
 const path = require('path');
 const Module = require('module');
 const { clockSeconds } = require('../src/shared/valorant-rounds');
@@ -172,18 +173,15 @@ class AppReader {
 
   /** fn() with the clock at `at` and the engine's log lines kept apart. */
   at(at, fn) {
-    const realNow = Date.now;
     const realLog = console.log;
     const realErr = console.error;
     this.clock = at;
     const bucket = [];
-    Date.now = () => at;
     console.log = (...a) => { const s = a.join(' '); bucket.push(s); this.lines.push({ at, s }); };
     console.error = console.log;
     try {
-      return fn(bucket);
+      return withClock(at, () => fn(bucket));
     } finally {
-      Date.now = realNow;
       console.log = realLog;
       console.error = realErr;
     }

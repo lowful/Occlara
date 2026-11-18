@@ -58,7 +58,8 @@ async function cutClips(opts) {
     if (!w || !clips.CLIP_RE.test(String(look.name || ''))) continue;
     out.tried += 1;
     let got = null;
-    try { got = o.cut(w.from, w.to, look.moment); } catch { got = null; }
+    // Awaited: an imported recording's clips are cut by ffmpeg (import-video.js).
+    try { got = await o.cut(w.from, w.to, look.moment); } catch { got = null; }
     const bytes = got && got.bytes;
     if (!bytes || !bytes.length) { out.missed += 1; continue; }
     // Withdrawn while it was cut: nothing is written for a review that is gone.

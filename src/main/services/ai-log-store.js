@@ -373,19 +373,23 @@ function scopeFor(entry, kept, finished) {
  * the error was swallowed by the "a dropped frame is not worth interrupting
  * coaching" catch. Two weeks of decision logs went missing in silence, and the
  * only symptom was the log window showing nothing newer than the release.
+ *
+ * `live` may be a list (8.12): the session being recorded and any imported
+ * recording still being read or reviewed.
  */
 function prune(root, keep, live) {
   try {
     if (!root || !fs.existsSync(root)) return;
+    const held = new Set((Array.isArray(live) ? live : [live]).filter(Boolean));
     const all = fs.readdirSync(root)
       .filter((f) => /^session-/.test(f))
-      .filter((f) => f !== live)
+      .filter((f) => !held.has(f))
       .map((f) => ({ f, t: fs.statSync(path.join(root, f)).mtimeMs, has: fs.existsSync(path.join(root, f, 'log.json')) }));
     const empty = all.filter((d) => !d.has);
     const real = all.filter((d) => d.has).sort((a, b) => b.t - a.t);
     // The live session counts against the budget even though it is not a
     // candidate for removal, or starting one always keeps keep+1 on disk.
-    const room = live ? Math.max(0, keep - 1) : keep;
+    const room = Math.max(0, keep - held.size);
     for (const d of [...empty, ...real.slice(room)]) {
       fs.rmSync(path.join(root, d.f), { recursive: true, force: true });
     }

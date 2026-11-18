@@ -139,7 +139,9 @@ function shared(span, w) {
  */
 function openOf(library) {
   return (Array.isArray(library) ? library : [])
-    .filter((e) => e && e.meta && !e.meta.matchId && e.meta.source !== 'riot' && e.review && e.review.kind === 'valorant')
+    // Never an imported recording (8.12): its match was the player's choice,
+    // "not in the list" included, and its times are the file's.
+    .filter((e) => e && e.meta && !e.meta.matchId && !e.meta.imported && e.meta.source !== 'riot' && e.review && e.review.kind === 'valorant')
     .map((e) => ({ id: e.meta.id, verified: !!e.review.verified, w: windowOf(e) }));
 }
 

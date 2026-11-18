@@ -37,6 +37,10 @@ const FRIEND_GIFT = 2;
 // same player already used (server/services/free-allowance.js, 8.8).
 const ONE_PER_PLAYER = 'Free games are one per player.';
 
+// Imported recordings a Pro account has each billing month (8.12). The server
+// says the same (server/services/caller.js, and the SQL's claim_import).
+const IMPORTS_PRO = 5;
+
 const UPGRADE_URL = 'https://occlara.app/pricing';
 const ACCOUNT_URL = 'https://occlara.app/account';
 const SIGNUP_URL = 'https://occlara.app/signup';
@@ -176,6 +180,53 @@ function capNotice(state, opts) {
 }
 
 /**
+ * WHAT THE IMPORT PANEL SAYS (8.12), from GET /api/usage/import:
+ * { allowed, line } with room to import, or { allowed: false, title, body,
+ * upgrade, buy } for the lock: `upgrade` the tier its button offers, `buy`
+ * whether buying a game opens another import. Null while the server cannot say.
+ */
+function importCard(gate, opts) {
+  if (!gate || gate.unavailable) return null;
+  const importsLeft = int(gate.importsLeft);
+  const games = int(gate.gamesLeft) || 0;
+  const bonus = int(gate.boughtGames) || 0;
+  const day = dayOf(gate.periodEnd, opts);
+  const when = day ? `They renew ${day}.` : 'They renew with your plan.';
+  if (gate.reason === 'plan' || gate.tier === 'free') {
+    return {
+      allowed: false,
+      title: 'Imports come with Pro and Max',
+      body: `Add a video you already have and get the same review as a live match. Pro includes ${IMPORTS_PRO} imports a month, Max has no monthly limit, and each import uses 1 game.`,
+      upgrade: 'pro', buy: false,
+    };
+  }
+  if (gate.reason === 'imports') {
+    return {
+      allowed: false,
+      title: `You have used this month's ${IMPORTS_PRO} imports`,
+      body: `${when} Upgrade to Max for no monthly limit, or buy a game to import one more now.`,
+      upgrade: 'max', buy: true,
+    };
+  }
+  if (gate.reason === 'games') {
+    return {
+      allowed: false,
+      title: 'You have no games left',
+      body: `Each import uses 1 game. ${when} You can buy a game to import now.`,
+      upgrade: gate.tier === 'pro' ? 'max' : null, buy: true,
+    };
+  }
+  const uses = `${plural(games, 'game')} left, this import uses 1`;
+  if (gate.tier === 'pro' && importsLeft === 0 && bonus > 0) {
+    return { allowed: true, line: `No imports left this month, this one uses 1 of your ${plural(bonus, 'bonus game')}` };
+  }
+  if (gate.tier === 'pro' && importsLeft !== null) {
+    return { allowed: true, line: `${importsLeft} of ${IMPORTS_PRO} imports left this month. ${uses}` };
+  }
+  return { allowed: true, line: uses };
+}
+
+/**
  * The Invite page's progress line, e.g. "1 of 5 friends joined, 4 games
  * earned". `ref` is GET /api/referral's answer. '' for none.
  */
@@ -193,7 +244,7 @@ function inviteProgress(ref) {
 }
 
 module.exports = {
-  TIERS, FREE_GAMES, MAX_FRIENDS, MAX_EARNED, GAMES_PER_FRIEND, FRIEND_GIFT, INVITE_HOW, ONE_PER_PLAYER,
+  TIERS, FREE_GAMES, IMPORTS_PRO, importCard, MAX_FRIENDS, MAX_EARNED, GAMES_PER_FRIEND, FRIEND_GIFT, INVITE_HOW, ONE_PER_PLAYER,
   UPGRADE_URL, ACCOUNT_URL, SIGNUP_URL,
   tierLabel, dayOf, figures, gamesLeft, capState, capNotice, inviteProgress,
 };

@@ -125,6 +125,12 @@ function registerIpc(deps) {
   safeHandle(C.MOMENTS_GET, async (_e, game) => controller.getMoments(game));
   safeHandle(C.BACKFILL_START, async () => controller.startBackfill());
   safeHandle(C.BACKFILL_STATUS, async () => controller.getBackfillStatus());
+  safeHandle(C.IMPORT_GET, async (_e, withGate) => controller.importGet(withGate === true));
+  safeHandle(C.IMPORT_PICK, async () => controller.importPick());
+  safeHandle(C.IMPORT_START, async (_e, id) => controller.importStart(typeof id === 'string' ? id : null));
+  safeHandle(C.IMPORT_CANCEL, async () => controller.importCancel());
+  safeHandle(C.IMPORT_CLOSE, async () => controller.importClose());
+  safeHandle(C.IMPORT_ACTION, async (_e, what, id) => controller.importAction(String(what || ''), typeof id === 'string' ? id : null));
   safeHandle(C.CLIPS_USAGE, async () => controller.clipsUsage());
   safeHandle(C.CLIPS_CLEAR, async () => controller.clearClips());
   // Onboarding's PC check (8.3.1): what Node can tell of this PC, and the

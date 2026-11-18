@@ -27,6 +27,7 @@ const chatGuardMod = require('../services/chat-guard');
 const { byCaller } = require('../services/rate-limits');
 let meterOverride = null;
 const usageMeter = () => meterOverride || require('./usage').meter;
+const importIdOf = (req) => require('./usage').importIdOf(req);
 const router = express.Router();
 
 // ─── Cost tracking (in-memory, resets on server restart) ──────────────────────
@@ -3608,8 +3609,12 @@ router.post('/read', async (req, res) => {
   // caller with no live game open and no game left is answered 402 { error:
   // 'cap', left: 0 } and costs nothing. A bench is never metered.
   const metered = !(costScope.getStore() || {}).bench;
+  // A read of an imported recording (8.12) is held to, and booked on, the row
+  // its import claimed, and never opens a live game.
+  const importId = metered ? importIdOf(req) : null;
+  const noteRead = (seen) => (importId ? usageMeter().noteImportRead(caller, importId, seen) : usageMeter().noteRead(caller, seen));
   if (metered) {
-    const gate = await usageMeter().gate(caller, { req });
+    const gate = importId ? await usageMeter().importGate(caller, importId) : await usageMeter().gate(caller, { req });
     if (!gate.ok) return res.status(gate.status).json(gate.body);
   }
   // No client match id is taken here (8.7): a live claim with one the client
@@ -3646,7 +3651,7 @@ router.post('/read', async (req, res) => {
     trackCall(licenseKey, 1);
     const text = String(raw || '').replace(/```(?:json)?/gi, '').trim();
     if (/^LOBBY\b/i.test(text)) {
-      if (metered) usageMeter().noteRead(caller, { inMatch: false });
+      if (metered) noteRead({ inMatch: false });
       return res.json({ lobby: true, context: {}, ms: Date.now() - t0, ...told, ...used() });
     }
 
@@ -3662,7 +3667,7 @@ router.post('/read', async (req, res) => {
     // The score goes with it: a counted game whose score went back to 0-0 is
     // over, so the next match claims its own (usage.js noteScore).
     if (metered) {
-      usageMeter().noteRead(caller, { inMatch: inMatchState(outCtx, !!m),
+      noteRead({ inMatch: inMatchState(outCtx, !!m),
         score: { team: outCtx.teamScore, enemy: outCtx.enemyScore } });
     }
     res.json({ lobby: false, context: outCtx, parsed: !!m, ms: Date.now() - t0, ...told, ...used() });
@@ -3730,7 +3735,9 @@ router.post('/death-forensics', async (req, res) => {
   // THE REVIEW GATE (8.7): with caps enforced, the look needs its live game,
   // open or counted, before any model is asked (usage.js reviewGate).
   if (!(costScope.getStore() || {}).bench) {
-    const gate = await usageMeter().reviewGate(caller, { what: 'look' });
+    const importId = importIdOf(req);
+    const gate = importId ? await usageMeter().importGate(caller, importId, { what: 'look' })
+      : await usageMeter().reviewGate(caller, { what: 'look' });
     if (!gate.ok) return res.status(gate.status).json(gate.body);
   }
   const model = modelFor(req, 'forensics');
@@ -3824,13 +3831,19 @@ router.post('/match-review', async (req, res) => {
   // publishes), often landing while the next match is played: usage.js
   // reviewDone never counts that next match for it.
   const reviewed = { late: !!(req.body && typeof req.body.matchId === 'string' && req.body.matchId) };
+  // The review of an imported recording (8.12) counts its own row, never a live game.
+  const reviewedImport = importIdOf(req);
+  const reviewDone = (caller) => (reviewedImport ? usageMeter().importReviewed(caller, reviewedImport)
+    : usageMeter().reviewDone(caller, reviewed));
   try {
     const caller = await admit(req, res);
     if (!caller) return;
     licenseKey = caller.accountKey;
     // THE REVIEW GATE (8.7): with caps enforced, a review needs the live game
     // it reviews, open or counted, before any model is asked (usage.js).
-    const gate = (costScope.getStore() || {}).bench ? { ok: true } : await usageMeter().reviewGate(caller);
+    const gate = (costScope.getStore() || {}).bench ? { ok: true }
+      : reviewedImport ? await usageMeter().importGate(caller, reviewedImport, { what: 'review' })
+        : await usageMeter().reviewGate(caller);
     if (!gate.ok) return res.status(gate.status).json({ ...gate.body, review: null });
 
     /*
@@ -3949,7 +3962,7 @@ router.post('/match-review', async (req, res) => {
       const rounds = {};
       for (const [n, why] of Object.entries(parsed.rounds)) rounds[n] = clean(why);
       // A review written counts its live game (8.7); one that failed leaves it.
-      if (clean(parsed.summary)) usageMeter().reviewDone(caller, reviewed);
+      if (clean(parsed.summary)) reviewDone(caller);
       return res.json({
         review: clean(parsed.summary) || null,
         summary: clean(parsed.summary) || null,
@@ -3998,7 +4011,7 @@ router.post('/match-review', async (req, res) => {
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 24000)),
     ]);
     trackCall(licenseKey);
-    if (review) usageMeter().reviewDone(caller, reviewed);
+    if (review) reviewDone(caller);
     res.json({ review: review || null });
   } catch (e) {
     console.error('[review] Error:', e.message);

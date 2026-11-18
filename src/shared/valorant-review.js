@@ -1005,7 +1005,9 @@ function build(input) {
     // 'later' (8.2.1): the watch ended the match on a score only swiftplay
     // ends on, and the link gave up before Riot's record of it was out. That
     // match may well have gone on, so it is not called another account's.
-    refused.push(input.linkMissing === 'taken'
+    refused.push(input.linkMissing === 'imported'
+      ? "This recording was not matched to Riot's record, so its review comes from the screen alone."
+      : input.linkMissing === 'taken'
       ? "Riot's record of this match is already on another review in your library, so it is not repeated here."
       : input.linkMissing === 'later'
       ? "Riot's record of this match was not found yet. The coach ended it "

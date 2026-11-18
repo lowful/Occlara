@@ -67,6 +67,17 @@ const VERIFIER = /^[A-Za-z0-9._~-]{43,128}$/;
 const REF_CODE = /^[A-Za-z0-9]{4,16}$/;
 const GAMES = new Set(['valorant', 'lol']);
 const CLAIM_KINDS = new Set(['riot', 'league']);
+// An imported recording (8.12): the job's id, sent as X-Occlara-Import.
+const IMPORT_ID = /^[a-z0-9][a-z0-9-]{7,63}$/;
+const IMPORT_WINDOW_MS = 12 * 60 * 60 * 1000; // claim_import's stale limit
+const IMPORT_MAX_READS = 4000;                // over an hour at one read a second
+const IMPORT_ENDS = new Set(['done', 'cancelled', 'failed']);
+const importClientId = (id) => `import:${id}`;
+/** The import a request belongs to, or null. */
+function importIdOf(req) {
+  const v = String((req && req.headers && req.headers['x-occlara-import']) || '').trim().toLowerCase();
+  return IMPORT_ID.test(v) ? v : null;
+}
 
 // What an app before FREE_PLAY_FROM is told beside its refusal (needsUpdate).
 const UPDATE_REFUSAL = { reason: 'update-required', message: callers.UPDATE_FOR_FREE };
@@ -96,7 +107,8 @@ function createMeter(deps = {}) {
   /** Every per account map is bounded: past MAP_MAX the oldest entries go (S12). */
   const trimMap = (map) => { while (map.size > MAP_MAX) map.delete(map.keys().next().value); };
   const put = (map, k, v) => { map.delete(k); map.set(k, v); trimMap(map); };
-  const trim = () => { for (const map of [opens, allow, ensured, refunds, spent, olds]) trimMap(map); };
+  const imports = new Map();  // user id|job id -> the imported recording being metered
+  const trim = () => { for (const map of [opens, allow, ensured, refunds, spent, olds, imports]) trimMap(map); };
   const counts = { claims: 0, refused: 0, gated: 0, counted: 0, refunded: 0, flushes: 0, oldFree: 0, oldRefused: 0 };
 
   const live = () => resolver.accountsLive();
@@ -525,6 +537,89 @@ function createMeter(deps = {}) {
     } catch (e) { console.warn('[usage] a review was not counted:', e.message); }
   }
 
+  /*
+   * AN IMPORTED RECORDING IS METERED ON ITS OWN ROW (8.12). claim_import made
+   * the row before the first read, so its reads never open a live game, and
+   * the row is what lets them through: no row of this account under this job
+   * id, no read. Once it is settled no more reads are taken, and a job never
+   * reads past IMPORT_MAX_READS, so an old id is no free reader. Its review
+   * and looks keep REVIEWS_PER_GAME each. Any doubt from the database lets a
+   * call through, as the other gates do.
+   */
+  const importKey = (caller, id) => `${caller.userId}|${id}`;
+  async function importRow(caller, id) {
+    const k = importKey(caller, id);
+    const hit = imports.get(k);
+    if (hit) return hit;
+    try {
+      const r = await db().from('game_usage').select('id,status,match_reads,reads,created_at')
+        .eq('user_id', caller.userId).eq('kind', 'import').eq('client_match_id', importClientId(id)).maybeSingle();
+      if (r && r.error) { quiet('import row')(r); return undefined; }
+      if (!r || !r.data) return null;
+      const matchReads = Number(r.data.match_reads) || 0;
+      const reads = Number(r.data.reads) || 0;
+      const row = { accountKey: caller.accountKey, userId: caller.userId, usageId: r.data.id, status: r.data.status,
+        createdAt: Date.parse(r.data.created_at) || now(), matchReads, reads, flushed: { matchReads, reads }, lastFlush: 0 };
+      put(imports, k, row);
+      return row;
+    } catch { return undefined; }
+  }
+
+  async function importGate(caller, id, { what = 'read' } = {}) {
+    if (!caller || !caller.userId || !live()) return { ok: true };
+    const row = await importRow(caller, id);
+    if (row === undefined) return { ok: true };
+    if (!row || row.status === 'refunded' || now() - row.createdAt > IMPORT_WINDOW_MS) { counts.gated++; return capped(); }
+    if (what === 'read') {
+      if (row.status !== 'reserved' || row.reads >= IMPORT_MAX_READS) { counts.gated++; return capped(); }
+      return { ok: true };
+    }
+    if (!withinBudget(row.usageId, what)) { counts.gated++; return capped(); }
+    return { ok: true };
+  }
+
+  function noteImportRead(caller, id, { inMatch } = {}) {
+    if (!caller || !caller.userId || !live()) return Promise.resolve();
+    return (async () => {
+      const row = await importRow(caller, id);
+      if (!row || row.status !== 'reserved') return;
+      row.reads++;
+      if (inMatch) row.matchReads++;
+      await flush(row, false);
+    })().catch((e) => console.warn('[usage] an import read was not metered:', e.message));
+  }
+
+  /** The import's review was written: it is counted, and no live game is touched. */
+  async function importReviewed(caller, id) {
+    if (!caller || !caller.userId || !live()) return;
+    try {
+      const row = await importRow(caller, id);
+      if (!row) return;
+      await flush(row, true);
+      await settle(row, 'counted', 'review');
+    } catch (e) { console.warn('[usage] an import was not counted:', e.message); }
+  }
+
+  /*
+   * THE END OF AN IMPORT, as the app reports it. Saved: counted. Cancelled:
+   * given back before MATCH_READS_COUNTED match frames were read, the point a
+   * live game counts, and counted after. Failed: given back. settle_game holds
+   * every give back to three a day, so a client that calls each run failed
+   * gets no more than that, and a row already settled does not move.
+   */
+  async function endImport(caller, id, outcome) {
+    const row = await importRow(caller, id);
+    if (!row) return { found: row === null ? false : null, status: null };
+    await flush(row, true);
+    if (row.status === 'reserved') {
+      if (outcome === 'done') await settle(row, 'counted', 'import');
+      else if (outcome === 'failed') await settle(row, 'refunded', 'import-failed');
+      else if (row.matchReads >= MATCH_READS_COUNTED) await settle(row, 'counted', 'import-cancelled');
+      else await settle(row, 'refunded', 'import-cancelled');
+    }
+    return { found: true, status: row.status };
+  }
+
   /** Every few minutes: write what is waiting, give back what ended short, forget what is done. */
   async function sweep() {
     const at = now();
@@ -538,6 +633,10 @@ function createMeter(deps = {}) {
       const doneAt = row.lastInMatch || row.claimedAt;
       if ((row.status !== 'reserved' || row.refused || !row.usageId) && at - doneAt > REVIEW_WINDOW_MS) rows.delete(k);
     }
+    for (const [k, row] of imports) {
+      await flush(row, true);
+      if (at - row.createdAt > IMPORT_WINDOW_MS) imports.delete(k);
+    }
   }
 
   function start(everyMs = 60 * 1000) {
@@ -547,6 +646,7 @@ function createMeter(deps = {}) {
   }
 
   return { gate, forget, noteRead, reviewGate, reviewDone, sweep, start, ensure, rpc, leftOf, rowKey, needsUpdate,
+    importGate, noteImportRead, importReviewed, endImport, imports,
     rows, allow, opens, ensured, refunds, spent, olds, trim, counts, allowance, _endShort: endShort, _flush: flush };
 }
 
@@ -800,6 +900,87 @@ function createRouter(deps = {}) {
     res.json({ released: !!g.changed, reason: g.reason || null });
   }));
 
+  /*
+   * IMPORTED RECORDINGS (8.12, docs/claude/import.md). All three need a signed
+   * in account and fail closed: unlike a game already played, an import has
+   * not cost anything yet, so a doubt answers "not now", never "go ahead".
+   * The SQL decides the plan, the 5 and the game, under the entitlement's
+   * lock, and never by ENFORCE_CAPS: an import always needs a game.
+   *
+   * GET  /api/usage/import              -> what the import panel shows
+   * POST /api/usage/import { job_id }   -> claims the import and one game
+   * POST /api/usage/import/end { job_id, outcome }  done, cancelled or failed
+   */
+  const NOT_READY = { error: 'imports-not-ready', retry: true };
+  // Straight to the database, not m.rpc: a function the site's SQL has not
+  // added yet must not read as "accounts are not live" (resolver.noteError),
+  // which would drop every account on the server back to the key path.
+  const importRpc = async (name, args) => {
+    try {
+      const r = await db().rpc(name, args);
+      if (r && r.error) console.warn(`[usage] ${name} failed:`, r.error.code || r.error.message);
+      return { data: r && !r.error ? r.data : null, error: (r && r.error) || null };
+    } catch (e) {
+      console.warn(`[usage] ${name} failed:`, e.message);
+      return { data: null, error: { code: '', message: e.message } };
+    }
+  };
+  const importAccount = async (req, res) => {
+    const caller = await need(req, res, { via: ['session', 'key'] });
+    if (!caller) return null;
+    if (!caller.userId) { res.status(401).json({ error: 'sign-in-required' }); return null; }
+    if (!resolver.accountsLive() || !await m.ensure(caller.userId)) { res.status(503).json(NOT_READY); return null; }
+    return caller;
+  };
+  const importAnswer = (s) => ({
+    tier: s.tier || 'free',
+    allowed: s.allowed === true,
+    reason: s.reason || null,
+    monthly: typeof s.monthly === 'number' ? s.monthly : null,
+    importsLeft: typeof s.imports_left === 'number' ? s.imports_left : null,
+    gamesLeft: typeof s.games_left === 'number' ? s.games_left : null,
+    boughtGames: typeof s.bonus_pool === 'number' ? s.bonus_pool : 0,
+    periodEnd: s.period_end || null,
+  });
+
+  router.get('/usage/import', handle(async (req, res) => {
+    const caller = await importAccount(req, res);
+    if (!caller) return;
+    const { data, error } = await importRpc('import_state', { p_user: caller.userId });
+    const s = !error && one(data);
+    if (!s) return res.status(503).json(NOT_READY);
+    res.json(importAnswer(s));
+  }));
+
+  router.post('/usage/import', handle(async (req, res) => {
+    const caller = await importAccount(req, res);
+    if (!caller) return;
+    const id = clip(req.body && req.body.job_id, 64).toLowerCase();
+    if (!IMPORT_ID.test(id)) return res.status(400).json({ error: 'bad-import' });
+    const { data, error } = await importRpc('claim_import', {
+      p_user: caller.userId, p_client_match_id: importClientId(id), p_device_hash: caller.deviceHash || null,
+    });
+    const g = !error && one(data);
+    if (!g) return res.status(503).json(NOT_READY);
+    m.allow.delete(caller.accountKey);
+    if (!g.granted) {
+      const reason = g.reason === 'plan' || g.reason === 'imports' ? g.reason : 'games';
+      return res.status(reason === 'plan' ? 403 : 402).json({ error: reason, ...importAnswer({ ...g, reason }) });
+    }
+    res.json({ ok: true, ...importAnswer({ ...g, allowed: true, reason: null }) });
+  }));
+
+  router.post('/usage/import/end', handle(async (req, res) => {
+    const caller = await importAccount(req, res);
+    if (!caller) return;
+    const id = clip(req.body && req.body.job_id, 64).toLowerCase();
+    const outcome = clip(req.body && req.body.outcome, 20).toLowerCase();
+    if (!IMPORT_ID.test(id) || !IMPORT_ENDS.has(outcome)) return res.status(400).json({ error: 'bad-import' });
+    const r = await m.endImport(caller, id, outcome);
+    m.allow.delete(caller.accountKey);
+    res.json({ ok: r.found === true, status: r.status });
+  }));
+
   async function codeOf(userId) {
     const found = one(must(await db().from('referral_codes').select('code').eq('user_id', userId).limit(1), 'referral code'));
     if (found && found.code) return found.code;
@@ -907,9 +1088,10 @@ module.exports.createRouter = createRouter;
 module.exports.createMeter = createMeter;
 module.exports.meter = meter;
 module.exports.ipLimiter = ipLimiter;
+module.exports.importIdOf = importIdOf;
 module.exports.LIMITS = { MATCH_READS_COUNTED, FLUSH_MS, ALLOW_MS, MATCH_GAP_MS, SHORT_END_MS, REVIEW_WINDOW_MS,
   OPEN_MS, LATE_REVIEW_GAP_MS,
-  REFUNDS_PER_DAY, REVIEWS_PER_GAME, HANDOFF_MS, MAX_FRIENDS, MAX_EARNED, FREE_GAMES, INVITE_EXTRA_GAMES, INVITED_FREE_TOTAL };
+  REFUNDS_PER_DAY, REVIEWS_PER_GAME, IMPORT_MAX_READS, IMPORT_WINDOW_MS, HANDOFF_MS, MAX_FRIENDS, MAX_EARNED, FREE_GAMES, INVITE_EXTRA_GAMES, INVITED_FREE_TOTAL };
 module.exports.PATTERNS = { B64URL, VERIFIER, REF_CODE };
 module.exports.CODE_ALPHABET = CODE_ALPHABET;
 module.exports.INVITE_BASE = INVITE_BASE;

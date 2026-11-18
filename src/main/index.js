@@ -62,6 +62,7 @@ const activationWindow = require('./windows/activation-window');
 const onboardingWindow = require('./windows/onboarding-window');
 const splashWindow     = require('./windows/splash-window');
 const api              = require('./services/api-client');
+const importVideo      = require('./services/import-video');
 const aiLogStore       = require('./services/ai-log-store');
 const aiLogTimeline    = require('./services/ai-log-timeline');
 const retiredGames     = require('./services/retired-games');
@@ -485,6 +486,8 @@ function capNoticeSoon() {
   flushAccountWaits();
 }
 function flushAccountWaits() {
+  // An import's last word, held while the window was sealed (8.12).
+  flushImportPush();
   // The games toast's waits (8.9.1): pushed once no match is on and no seal holds.
   if (gamesWatch.pending().length) flushGamesToasts();
   if (accountPushWaiting && !matchInProgress() && !windowSealed()) {
@@ -997,6 +1000,11 @@ function buildValorantReview(snap, tracker, extra) {
   built.matchId = (tracker && tracker.matchId) || null;
   // Recording stopped mid match: the link rules above treat it as a part.
   built.stoppedLive = !!snap.stoppedLive;
+  // From a recording the player imported (8.12): the file's base name only.
+  if (snap.importRun) {
+    built.imported = true;
+    built.importedFile = snap.importRun.fileName;
+  }
   // What a later Riot link needs, kept only while Riot's record is missing:
   // a Riot ID added after this review's link gave up can still grade it
   // (riot-review.js, backfill.js).
@@ -1184,7 +1192,7 @@ async function askForensics(looks, stills, snap, source, log, matchId) {
         return { ...d, frames: order.map((i) => frames[i]), frameAt: order.map((i) => frameAt[i]), framesFrom };
       }),
     };
-    const { ok, status, data } = await api.post(API.DEATH_FORENSICS, body, authed, 60000);
+    const { ok, status, data } = await api.post(API.DEATH_FORENSICS, body, snap.importRun ? snap.importRun.auth : authed, 60000);
     if (status === 402 && data && data.error === 'cap') return { ...empty, capped: true };
     if (!ok || !data || !Array.isArray(data.deaths)) {
       console.log('[review] death forensics unavailable:', (data && data.error) || 'no answer');
@@ -1415,7 +1423,8 @@ async function cutLookClips(job, looks, stale) {
   try {
     r = await reviewClips.cutClips({
       looks: wanted, max: clips.MAX_CLIPS,
-      cut: (from, to, at) => recorder.cutClip(from, to, at),
+      // An imported recording's clips come out of its file (import-video.js).
+      cut: (from, to, at) => (job.importRun ? job.importRun.cut(from, to, at) : recorder.cutClip(from, to, at)),
       save: (name, bytes) => !stale() && reviewStore.saveClip(job.id, name, bytes) > 0,
       // Off chosen while they are cut: the ones kept stay named, no more.
       stopped: () => stale() || off(),
@@ -1570,6 +1579,7 @@ function workForId(id) {
 function noteWork(job) {
   if (!job || job.cancelled) return;
   const work = workOfJob(job);
+  if (job.importRun && work) job.importRun.step(work.step);
   const said = JSON.stringify(work);
   if (said === job.workSaid) return;
   job.workSaid = said;
@@ -1733,9 +1743,12 @@ function onValorantMatchEnded(snap) {
     reviewStore.remove(prior.id);
     breakdownCache.clear();
   }
+  // An imported recording (8.12) brings its own frames and clips, holds nothing
+  // of the live session's, and is saved quietly: its panel offers it when done.
+  const run = snap.importRun || null;
   const job = {
     id: newId('valorant', snap.endedAt || Date.now()),
-    snap, cancelled: false, timer: null, recorded: false, showing: null,
+    snap, cancelled: false, timer: null, recorded: false, showing: null, importRun: run,
     // THE ACCOUNT HAD NO GAMES LEFT (8.7, the engine's 402 cap): the review is
     // saved locked, Riot's record its only numbers, and neither the look at
     // the deaths nor the narrative is asked for (lockReview).
@@ -1747,12 +1760,12 @@ function onValorantMatchEnded(snap) {
     // Held until the review has looked (released when the link is done, and
     // after the look from the screen when Riot's rounds never came), so a
     // match linked forty minutes later still has its frames.
-    log: holdAiLogFrames(snap.startedAt, snap.endedAt),
+    log: run ? run.log.hold(snap.startedAt, snap.endedAt) : holdAiLogFrames(snap.startedAt, snap.endedAt),
     // And its recording, held the same way (8.3), for the clips cut from the
     // moments the review looks at, and through the minutes a match the watch
     // ended too early can still resume in. An hour at most, as the frames, and
     // let go once Riot's look has cut its clips (recordingCut).
-    recording: holdRecording(snap.startedAt - 5000, (snap.endedAt || Date.now()) + RECORDING_RESUME_MS),
+    recording: run ? null : holdRecording(snap.startedAt - 5000, (snap.endedAt || Date.now()) + RECORDING_RESUME_MS),
   };
   // AND KEPT WITH THE REVIEW (8.2): the session folder, and the match's stamp
   // and window, which every record of it carries. The eye on its row and its
@@ -1774,13 +1787,13 @@ function onValorantMatchEnded(snap) {
   // the review is whole: this version, the screen's, is saved now and held by
   // the page, and painted once Riot's record and the coach's look are in, or
   // at six minutes without them.
-  const live = matchInProgress() || snap.endedBy === 'next-match' || !!snap.stoppedLive;
+  const live = !!run || matchInProgress() || snap.endedBy === 'next-match' || !!snap.stoppedLive;
   const first = stampReview(job, buildValorantReview(snap, null, { history: job.history, narrativeComing: true }).built);
   job.showing = first;
   if (!live) showReview(first);
   saveReview(first, 'valorant');
   if (!live) openPage('review');
-  else if (snap.stoppedLive) {
+  else if (!run && snap.stoppedLive) {
     // That match is most likely still being played: the window stays sealed
     // until the player opens a page (syncSeal).
     sealHeld = true;
@@ -1812,7 +1825,8 @@ function onValorantMatchReview(reviewText, snap) {
   // Which way this review is finished, decided here, where the link and the
   // look from the screen start (shared/review-work.js pathOf).
   job.narrated = true;
-  job.byRiot = riotIdSet();
+  // An imported recording goes by Riot's record only when a match was picked.
+  job.byRiot = job.importRun ? !!job.importRun.match : riotIdSet();
   repaintReview(job, buildValorantReview(snap, null, { history: job.history }).built);
   if (!job.byRiot && !job.locked) screenLook(job);
   linkRiotRecord(job);
@@ -1856,10 +1870,22 @@ function linkRiotRecord(job) {
       job.finished = true;
       noteWork(job);
       if (reviewJobs.get(snap.startedAt) === job) reviewJobs.delete(snap.startedAt);
+      if (job.importRun) job.importRun.finish({ id: job.id, locked: !!job.locked, matched: !!job.riotLooked });
     });
   };
   const lastTry = {};
-  const find = () => fetchCoachedMatch(snap.startedAt, snap.endedAt, { ...mctx, exclude: linkedMatchIds(job) }, lastTry);
+  // AN IMPORTED RECORDING LINKS ONLY THE MATCH ITS PLAYER PICKED, and only if
+  // what the screen read agrees with it: the same check as any link, on a
+  // clock that starts at that match. A wrong pick is reviewed from the screen.
+  const importedMatch = () => {
+    const row = job.importRun.match;
+    if (!row || linkedMatchIds(job).has(row.matchId)) return null;
+    const v = verifyCoachedMatch(row, snap.startedAt, snap.endedAt, mctx);
+    if (!v.ok) console.log(`[import] the match picked is not this recording: ${v.why}`);
+    return v.ok ? row : null;
+  };
+  const find = async () => (job.importRun ? importedMatch()
+    : fetchCoachedMatch(snap.startedAt, snap.endedAt, { ...mctx, exclude: linkedMatchIds(job) }, lastTry));
 
   /*
    * RIOT'S RECORD OVERRIDES THE SCREEN, and the narrative is written again.
@@ -1941,7 +1967,7 @@ function linkRiotRecord(job) {
       // Riot's match id (8.5.0): the key to the match's own name set, which the
       // server holds for its review's name gate and never sends back.
       if (lm.matchId) body.matchId = lm.matchId;
-      const res = await api.post(API.MATCH_REVIEW, body, authed, 60000);
+      const res = await api.post(API.MATCH_REVIEW, body, job.importRun ? job.importRun.auth : authed, 60000);
       ai = res && res.ok ? res.data : null;
       if (res && res.status === 402 && res.data && res.data.error === 'cap') lockReview(job);
     } catch (e) {
@@ -2007,7 +2033,7 @@ function linkRiotRecord(job) {
   (async () => {
     // A fresh tracker profile, so the stats view and the next review's
     // baseline move with the match just played.
-    try {
+    if (!job.importRun) try {
       const current = await fetchTrackerStats(true);
       if (current) store.set('lastMatchStats', { ...current, _at: Date.now(), _riotId: (store.get('riotId') || '').trim() });
     } catch {}
@@ -2018,6 +2044,15 @@ function linkRiotRecord(job) {
     let lm = null;
     try { lm = await find(); } catch {}
     if (lm) { withTracker(lm); return; }
+    // An imported recording has nothing to wait for: its match was published
+    // long ago, or the player said it is not in the list.
+    if (job.importRun) {
+      job.linkMissing = 'imported';
+      repaintReview(job, buildValorantReview(snap, null, { history: job.history, linkMissing: 'imported' }).built);
+      noteWork(job);
+      done();
+      return;
+    }
     // Riot publishes a few minutes after the match. A match stopped halfway,
     // or one the watch ended on a score only swiftplay ends on, may still be
     // being played, so its review keeps trying for longer (match-link.js
@@ -2139,6 +2174,89 @@ function dataUrls(frames) {
 // ── Coaching controller ──────────────────────────────────────────────────────
 // Owns the CoachingEngine instance and forwards its events onto the IPC bus.
 let engine = null;
+
+/** What the engine asks of Settings, read live, for a session or an import. */
+function engineExperiments() {
+  return {
+    proPlaybook:  playbookMode(),
+    language:     normalizeLang(store.get('language')),
+    // Read when the match ends, so the review uses the setting as it is
+    // then, not as it was when recording started.
+    advancedTips: advancedCoaching.on(store),
+    // The rank band the review is sized to (rankBandNow), read as it ends.
+    rankBand: rankBandNow(),
+  };
+}
+
+/*
+ * IMPORT A RECORDING (8.12, docs/claude/import.md). services/import-video.js
+ * does the work; this is what it is wired to. It never reaches the live
+ * session: its own engine and log, no seal, no live status, no recorder. It is
+ * refused while a match is played or the window sealed, waits while a recording
+ * session is on its way into a match, and says nothing while sealed.
+ */
+const importLogsHeld = new Set();
+let importerOne = null;
+let importPushWaiting = null;
+const importBusy = () => matchInProgress() || windowSealed();
+
+function pushImport(status) {
+  if (importBusy()) { importPushWaiting = status; return; }
+  importPushWaiting = null;
+  registry.broadcast(C.PUSH_IMPORT, status);
+}
+function flushImportPush() {
+  if (importPushWaiting && !importBusy()) pushImport(importPushWaiting);
+}
+
+async function riotMatchesForImport() {
+  const riotId = (store.get('riotId') || '').trim();
+  if (!riotId.includes('#') || !account.hasAuth()) return [];
+  const { ok, data } = await api.get(`/api/coach/recent-matches?username=${encodeURIComponent(riotId)}`, authed, 20000);
+  if (!ok || !data || !Array.isArray(data.matches)) return [];
+  const held = new Set(reviewStore.list('valorant').map((r) => r.matchId).filter(Boolean));
+  return data.matches.filter((m) => m && m.matchId && Number.isFinite(m.startedAt))
+    .map((m) => ({ ...m, taken: held.has(m.matchId) }));
+}
+
+function reviewImport({ run, engine: reader, snap }) {
+  snap.importRun = run;
+  return new Promise((resolve, reject) => {
+    run.finish = resolve;
+    reader.on('match-ended', (s) => onValorantMatchEnded(s));
+    reader.on('match-review', (text, s) => onValorantMatchReview(text, s));
+    reader.requestMatchReview(snap).catch(reject);
+  });
+}
+
+function importer() {
+  if (importerOne) return importerOne;
+  importerOne = importVideo.createImporter({
+    ffmpeg: importVideo.ffmpegPath({ packaged: app.isPackaged, resourcesPath: process.resourcesPath }),
+    Engine: CoachingEngine,
+    READ_PATH: API.READ,
+    engineOptions: () => ({ experiments: engineExperiments, recurring: () => recurringNow(null) }),
+    logRoot: aiLogRoot(),
+    version: app.getVersion(),
+    api,
+    auth: authed,
+    busy: importBusy,
+    // Waits from Start until the match in front of it is over.
+    shouldPause: () => importBusy() || (state.isCoaching && !(engine && engine.endWatch && engine.endWatch.ended)),
+    chooseFile: async () => {
+      const r = await dialog.showOpenDialog({
+        title: 'Import a recording', properties: ['openFile'],
+        filters: [{ name: 'Video', extensions: importVideo.EXTENSIONS.slice() }],
+      });
+      return r && !r.canceled && r.filePaths && r.filePaths[0] ? r.filePaths[0] : null;
+    },
+    riotMatches: riotMatchesForImport,
+    review: reviewImport,
+    push: pushImport,
+    onLog: (id, held) => { if (held) importLogsHeld.add(id); else importLogsHeld.delete(id); aiLogDirsCache = null; },
+  });
+  return importerOne;
+}
 
 // How old an answer about the account Start still trusts (start()).
 const START_TRUST_MS = 5 * 60 * 1000;
@@ -2314,15 +2432,7 @@ const controller = {
       captureSpeed:    store.get('captureSpeed') || 'auto',
       // Experimental settings, read live so flipping them in Settings applies
       // to the very next capture without restarting the session.
-      experiments: () => ({
-        proPlaybook:  playbookMode(),
-        language:     normalizeLang(store.get('language')),
-        // Read when the match ends, so the review uses the setting as it is
-        // then, not as it was when recording started.
-        advancedTips: advancedCoaching.on(store),
-        // The rank band the review is sized to (rankBandNow), read as it ends.
-        rankBand: rankBandNow(),
-      }),
+      experiments: engineExperiments,
       // AI decision log: per-frame screenshot + parsed STATE + tip, to disk.
       diagnostics: (rec) => recordAiFrame(rec),
       // The look at the agent is sent the player's bar alone, cut out of the
@@ -2609,6 +2719,35 @@ const controller = {
     return backfill.start(riotId);
   },
   getBackfillStatus() { return backfill.getStatus(); },
+
+  // Import a recording (8.12). Nothing is answered or started mid match.
+  async importGet(withGate) {
+    if (importBusy()) return { sealed: true };
+    const imp = importer();
+    const gate = withGate ? await imp.gate() : null;
+    return { status: imp.status(), gate, card: gate ? usage.importCard(gate) : null };
+  },
+  async importPick() {
+    if (importBusy()) return { error: 'match' };
+    return importer().pick();
+  },
+  async importStart(matchId) {
+    if (importBusy()) return { error: 'match' };
+    return importer().start({ matchId });
+  },
+  async importCancel() { return importer().cancel(); },
+  async importClose() { return importer().forget(); },
+  async importAction(what, id) {
+    if (importBusy()) return { ok: false, error: 'match' };
+    if (what === 'upgrade') return profileIpc.plans();
+    if (what === 'buy') { openPage('profile'); return { ok: true }; }
+    if (what === 'open' && id && reviewStore.get(id)) { controller.openReviewById(id); return { ok: true }; }
+    if (what === 'licence' && app.isPackaged) {
+      const err = await shell.openPath(path.join(process.resourcesPath, 'ffmpeg-NOTICE.txt'));
+      return { ok: !err };
+    }
+    return { ok: false };
+  },
 
   toggleMinimizePanel() {
     // Ctrl+Shift+M and the tray menu's Show or Hide: the main window out of
@@ -4089,7 +4228,8 @@ function releaseMatchHolds(job) {
 function pruneAiLog() {
   // The live folder is named so no prune can remove the session in progress,
   // whichever order the caller happens to run in.
-  aiLogStore.prune(aiLogRoot(), AI_LOG_KEEP_SESSIONS, aiLogLiveId());
+  // And an imported recording still being read or reviewed (8.12).
+  aiLogStore.prune(aiLogRoot(), AI_LOG_KEEP_SESSIONS, [aiLogLiveId(), ...importLogsHeld]);
   aiLogDirsCache = null;
 }
 

@@ -1,5 +1,25 @@
 [
   {
+    "version": "8.12.0",
+    "date": "2026-11-17",
+    "title": "Import a recording",
+    "summary": "Pro and Max players can add a video of a match they already have and get the same review as a live one.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Import a recording from Matches: an mp4, mkv, mov or webm of up to about an hour becomes a full review, with your deaths, stills and clips."
+      },
+      {
+        "kind": "new",
+        "text": "Pick the match from Riot's recent list to check it against Riot's record. An older video is reviewed from the screen and says so."
+      },
+      {
+        "kind": "new",
+        "text": "Pro includes 5 imports a month and Max has no monthly limit. Each import uses 1 game, and is given back if it fails."
+      }
+    ]
+  },
+  {
     "version": "8.11.0",
     "date": "2026-11-10",
     "title": "Practice shows the round you are fixing",

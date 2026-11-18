@@ -349,7 +349,7 @@ function paintRecent(recent, model) {
       }
     }
     main.append(title);
-    main.append(el('span', 'r-meta', [when(m.at), m.mode,
+    main.append(el('span', 'r-meta', [when(m.at), m.mode, m.imported ? (m.matchId || m.verified ? 'imported recording' : "imported, not matched to Riot's record") : null,
       m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null].filter(Boolean).join('  ·  ')));
     b.append(main);
     // The RR the match moved, beside its grade, once the rank has answered.

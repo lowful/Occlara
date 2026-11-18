@@ -79,6 +79,28 @@
             <span id="bf-status" class="bf-status" aria-live="polite"></span>
             <button id="bf-go" class="btn sm bf-go" type="button">Grade my recent matches</button>
           </div>
+          <button id="imp-go" class="btn sm imp-go" type="button" hidden>Import a recording</button>
+        </div>
+        <!-- An imported recording (8.12): main holds the file, this only shows it. -->
+        <div id="imp" class="imp" hidden>
+          <div class="imp-text">
+            <h4 id="imp-title" class="imp-title"></h4>
+            <p id="imp-line" class="imp-line" aria-live="polite"></p>
+          </div>
+          <label id="imp-pick" class="imp-pick" hidden>
+            <span>Which match is this?</span>
+            <select id="imp-match"></select>
+          </label>
+          <div id="imp-bar" class="imp-bar" role="progressbar" aria-label="Import progress" aria-valuemin="0" aria-valuemax="100" hidden><span id="imp-fill"></span></div>
+          <div class="imp-actions">
+            <button id="imp-start" class="btn sm btn-primary" type="button" hidden>Start import</button>
+            <button id="imp-open" class="btn sm btn-primary" type="button" hidden>Open review</button>
+            <button id="imp-upgrade" class="btn sm btn-primary" type="button" hidden></button>
+            <button id="imp-buy" class="btn sm" type="button" hidden>Buy a game</button>
+            <button id="imp-cancel" class="btn sm" type="button" hidden>Cancel</button>
+            <button id="imp-close" class="btn sm" type="button" hidden>Close</button>
+            <button id="imp-licence" class="imp-licence" type="button" hidden>Video decoding by FFmpeg (GPL)</button>
+          </div>
         </div>
         <!-- PROGRESS V3: the rows beside the grade over the last matches,
              a card of its own on the list page alone (matches.js paintChart). -->

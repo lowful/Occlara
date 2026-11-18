@@ -185,6 +185,11 @@ function routeLimits(deps = {}) {
     // after every game and on Start, a minute's cache between: about ten in
     // ten minutes at the most.
     { paths: ['/api/account/me'], mw: L({ name: 'account-me', windowMs: 10 * MIN, max: 120 }) },
+    // An imported recording takes 15 to 20 minutes, so a player starts about
+    // three an hour. Only the claim is counted: the panel's read and the end
+    // report stay under the general /api/usage limit below.
+    { paths: ['/api/usage/import'], mw: L({ name: 'import', windowMs: 60 * MIN, max: 10,
+      skip: (req) => (req.method || 'POST') !== 'POST' || String(req.originalUrl || '').split('?')[0] !== '/api/usage/import' }) },
     // A Riot record run claims at most ten games (backfill.js MAX_MATCHES), a
     // League game one; a take back releases what the run claimed.
     { paths: ['/api/usage'], mw: L({ name: 'usage', windowMs: 10 * MIN, max: 60 }) },
