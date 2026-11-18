@@ -49,6 +49,15 @@ handed in; `index.js` (`importer()`, `reviewImport`) is only the wiring.
    clock starts at the picked match, so time proves nothing here. Riot's list is
    preselected only within 30 minutes of the file's own time.
 
+## Deleting one
+
+An imported row on Matches has Delete (two presses). `importDelete` removes the
+review, its clips and kept frames (`dropReview`) and its log folder
+(`review.importedLog`, `aiLogStore.removeImported`). It refuses while a match
+is played or the review is still being worked on. The player's own file is never
+touched, because Occlara never copies it, and the game stays used. Clear clips in
+Settings also takes imported clips.
+
 ## What it must never touch
 
 The global `engine`, `state.isCoaching`, `syncSeal`, `liveView`, `PUSH_LIVE`, the

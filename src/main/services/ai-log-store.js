@@ -396,4 +396,13 @@ function prune(root, keep, live) {
   } catch {}
 }
 
-module.exports = { dirs, sessions, read, served, serve, askAbout, prune, startedAt, placeOf, matchesIn, locate, scopeFor, END_GAP_MS, HOLD_MAX_MS };
+/**
+ * An imported recording's own log folder, deleted with its review (8.12). Only
+ * a folder of that name: a live session's log is never removed this way.
+ */
+function removeImported(root, id) {
+  if (!root || !/^session-import-[0-9TZ-]+$/.test(String(id || ''))) return false;
+  try { fs.rmSync(path.join(root, id), { recursive: true, force: true }); return true; } catch { return false; }
+}
+
+module.exports = { dirs, sessions, read, served, serve, askAbout, prune, removeImported, startedAt, placeOf, matchesIn, locate, scopeFor, END_GAP_MS, HOLD_MAX_MS };

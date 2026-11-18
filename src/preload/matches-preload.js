@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('occlara', {
   startImport:  (matchId) => ipcRenderer.invoke(C.IMPORT_START, typeof matchId === 'string' ? matchId : null),
   cancelImport: () => ipcRenderer.invoke(C.IMPORT_CANCEL),
   closeImport:  () => ipcRenderer.invoke(C.IMPORT_CLOSE),
+  deleteImport: (id) => ipcRenderer.invoke(C.IMPORT_DELETE, typeof id === 'string' ? id : null),
   importAction: (what, id) => ipcRenderer.invoke(C.IMPORT_ACTION, what, typeof id === 'string' ? id : null),
   onImport:     (cb) => subscribe(C.PUSH_IMPORT, cb),
   openReview:   (id) => ipcRenderer.send(C.REVIEW_OPEN, id),

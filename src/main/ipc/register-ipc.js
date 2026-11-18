@@ -130,6 +130,7 @@ function registerIpc(deps) {
   safeHandle(C.IMPORT_START, async (_e, id) => controller.importStart(typeof id === 'string' ? id : null));
   safeHandle(C.IMPORT_CANCEL, async () => controller.importCancel());
   safeHandle(C.IMPORT_CLOSE, async () => controller.importClose());
+  safeHandle(C.IMPORT_DELETE, async (_e, id) => controller.importDelete(typeof id === 'string' ? id : null));
   safeHandle(C.IMPORT_ACTION, async (_e, what, id) => controller.importAction(String(what || ''), typeof id === 'string' ? id : null));
   safeHandle(C.CLIPS_USAGE, async () => controller.clipsUsage());
   safeHandle(C.CLIPS_CLEAR, async () => controller.clearClips());

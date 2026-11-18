@@ -144,6 +144,7 @@ const CHANNELS = {
   IMPORT_START:    'import:start',       // (matchId|null) -> status
   IMPORT_CANCEL:   'import:cancel',      // () -> status
   IMPORT_CLOSE:    'import:close',       // () -> status, the choice put down
+  IMPORT_DELETE:   'import:delete',      // (reviewId) -> { ok, error? }, the review, its clips and its frames; never the player's file
   IMPORT_ACTION:   'import:action',      // ('upgrade'|'buy'|'licence'|'open', id?) -> { ok }
   // The clips kept beside the reviews (8.3, src/main/services/review-clips.js),
   // for Settings: what they take against the cap, and Clear clips.

@@ -609,6 +609,23 @@ function saveReview(review, game, frames) {
   }
 }
 
+/** A review out of the library and every window, and off the panel if it was the last grade. */
+function dropReview(id) {
+  reviewStore.remove(id);
+  breakdownCache.clear();
+  // Open from Matches, it stayed painted, and Ctrl+Shift+E opened it again.
+  if (lastReviewShown && lastReviewShown.id === id) {
+    lastReviewShown = null;
+    leaveReview();
+  }
+  if (state.lastGrade && state.lastGrade.id === id) {
+    const top = reviewStore.list().find((r) => r.grade);
+    state.lastGrade = top ? { ...top.grade, game: top.game, id: top.id } : null;
+  }
+  registry.broadcast(C.PUSH_REVIEWS, { id, game: 'valorant', removed: true });
+  registry.broadcast(C.PUSH_STATE, buildState());
+}
+
 // ── Grading recent matches from Riot's record ────────────────────────────────
 // backfill.js says what it does and why. This is only what it is wired to.
 const backfill = new Backfill({
@@ -636,21 +653,7 @@ const backfill = new Backfill({
   activeIds: () => new Set([...reviewJobs.values()].map((j) => j.id)),
   // A review a run takes back (backfill.js takeBack()): out of the library and
   // every window, and off the panel if it was the last grade.
-  remove: (id) => {
-    reviewStore.remove(id);
-    breakdownCache.clear();
-    // Open from Matches, it stayed painted, and Ctrl+Shift+E opened it again.
-    if (lastReviewShown && lastReviewShown.id === id) {
-      lastReviewShown = null;
-      leaveReview();
-    }
-    if (state.lastGrade && state.lastGrade.id === id) {
-      const top = reviewStore.list().find((r) => r.grade);
-      state.lastGrade = top ? { ...top.grade, game: top.game, id: top.id } : null;
-    }
-    registry.broadcast(C.PUSH_REVIEWS, { id, game: 'valorant', removed: true });
-    registry.broadcast(C.PUSH_STATE, buildState());
-  },
+  remove: (id) => dropReview(id),
   // What saving a new review pushes out of the full library, of any game,
   // read whole with its kept frames before the save deletes it, and saved
   // again whole when a run takes back what it did (backfill.js takeBack()).
@@ -1004,6 +1007,8 @@ function buildValorantReview(snap, tracker, extra) {
   if (snap.importRun) {
     built.imported = true;
     built.importedFile = snap.importRun.fileName;
+    // Its own log folder, so deleting the import can take its frames too.
+    built.importedLog = snap.importRun.log ? snap.importRun.log.id : null;
   }
   // What a later Riot link needs, kept only while Riot's record is missing:
   // a Riot ID added after this review's link gave up can still grade it
@@ -2782,6 +2787,29 @@ const controller = {
   },
   async importCancel() { return importer().cancel(); },
   async importClose() { return importer().forget(); },
+  /**
+   * Delete an imported recording from Occlara (8.12): its review, the clips and
+   * frames kept beside it, and its AI log folder. The player's own video file
+   * is not ours and is never touched; Occlara never copied it. The game it used
+   * stays used.
+   */
+  importDelete(id) {
+    if (importBusy()) return { ok: false, error: 'match' };
+    const e = id ? reviewStore.get(id) : null;
+    if (!e || !e.review || e.review.imported !== true) return { ok: false, error: 'not-imported' };
+    const log = e.review.importedLog || null;
+    if (workForId(id) || (log && importLogsHeld.has(log))) return { ok: false, error: 'working' };
+    dropReview(id);
+    if (log) {
+      aiLogStore.removeImported(aiLogRoot(), log);
+      aiLogDirsCache = null;
+      aiLogSpansCache.delete(log);
+    }
+    // The panel must not go on offering to open what is gone.
+    const s = importer().status();
+    if (s.state === 'done' && s.reviewId === id) importer().forget();
+    return { ok: true };
+  },
   async importAction(what, id) {
     if (importBusy()) return { ok: false, error: 'match' };
     if (what === 'upgrade') return profileIpc.plans();

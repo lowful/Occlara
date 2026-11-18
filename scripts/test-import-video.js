@@ -81,6 +81,16 @@ const quiet = async (fn) => {
       '-c:v', 'libx264', '-preset', 'ultrafast', '-bf', '3', '-g', '120', '-pix_fmt', 'yuv420p', video]);
     ok(made.status === 0, 'a 75 second test video with B frames is made', String(made.stderr).slice(0, 300));
     const info = await imp.probe(video, { ffmpeg });
+    {
+      const logs = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-import-del-'));
+      const own = 'session-import-2026-11-18T09-48-56-963Z';
+      const live = 'session-2026-11-18T09-48-56-963Z';
+      for (const d of [own, live]) { fs.mkdirSync(path.join(logs, d)); fs.writeFileSync(path.join(logs, d, 'log.json'), '[]'); }
+      ok(aiLogStore.removeImported(logs, own) && !fs.existsSync(path.join(logs, own)), 'deleting an import takes its log folder');
+      ok(!aiLogStore.removeImported(logs, live) && fs.existsSync(path.join(logs, live)), 'a live session log is never deleted that way');
+      ok(!aiLogStore.removeImported(logs, '../session-import-1') && !aiLogStore.removeImported(logs, null), 'a path or nothing is refused');
+      fs.rmSync(logs, { recursive: true, force: true });
+    }
     ok(info.ok && info.name === 'My Match.mp4' && Math.round(info.seconds) === 75 && info.width === 1920, 'probe reads the file, and keeps only its base name');
     let n = 0; let first = null;
     for await (const f of imp.videoFrames(video, { ffmpeg })) { if (!first) first = f; n++; if (n === 5) break; }

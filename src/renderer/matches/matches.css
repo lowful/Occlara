@@ -302,6 +302,17 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 /* A row with no eye, in a list where others have one, keeps the eye's room
    (its 30px in ui.css), so the grades line up down the list. */
 .m-eye-gap { flex: none; width: 30px; }
+/* Delete on an imported recording's row (8.12), armed as Clear clips is. */
+.m-del {
+  flex: none; padding: var(--space-1) var(--space-2);
+  background: transparent; border: 1px solid transparent; border-radius: 8px;
+  color: var(--text-mute); font: inherit; font-size: 12px; cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.m-del:hover { color: var(--text); background: var(--s3); }
+.m-del:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 1px; }
+.m-del:disabled { opacity: 0.5; cursor: default; }
+.m-del.armed { color: var(--bad); border-color: rgba(var(--red-rgb), 0.35); background: rgba(var(--red-rgb), 0.10); }
 .m-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .m-top { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
 .m-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

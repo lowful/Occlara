@@ -1078,7 +1078,39 @@ function row(m, gutter, marks, delta) {
     gap.setAttribute('aria-hidden', 'true');
     item.append(gap);
   }
+  if (m.imported && !checking) item.append(deleteImportButton(m.id));
   return item;
+}
+
+/*
+ * DELETE AN IMPORTED RECORDING (8.12): two presses, as Clear clips in Settings.
+ * It takes the review, its clips and its frames off this PC. The player's own
+ * video file stays where it is.
+ */
+function deleteImportButton(id) {
+  const WORD = 'Delete';
+  const b = el('button', 'm-del', WORD);
+  b.type = 'button';
+  b.title = 'Deletes this review and its clips and frames from this PC. Your video file is kept. The game it used is not given back.';
+  let armed = null;
+  const disarm = () => { clearTimeout(armed); armed = null; b.textContent = WORD; b.classList.remove('armed'); };
+  b.addEventListener('click', async () => {
+    if (!armed) {
+      b.textContent = 'Press again to delete';
+      b.classList.add('armed');
+      armed = setTimeout(disarm, 4000);
+      return;
+    }
+    disarm();
+    b.disabled = true;
+    const r = await window.occlara.deleteImport(id).catch(() => null);
+    if (r && r.ok) return; // the library repaints without it
+    b.disabled = false;
+    b.textContent = r && r.error === 'working' ? 'Still being reviewed' : 'Could not delete';
+    armed = null;
+    setTimeout(() => { if (!armed) b.textContent = WORD; }, 3000);
+  });
+  return b;
 }
 
 /*
