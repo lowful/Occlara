@@ -164,7 +164,7 @@ function rig() {
     'the import header holds its known positive and refuses the rest');
   const row = limits.routeLimits({ now: () => 0 }).find((r) => r.paths.includes('/api/usage/import'));
   ok(!!row, 'the claim has a rate limit of its own');
-  const sql = fs.readFileSync(path.join(__dirname, '..', 'docs', 'sql', '0011_imported_recordings.sql'), 'utf8');
+  const sql = fs.readFileSync(path.join(__dirname, '..', 'docs', 'sql', '0012_imported_recordings.sql'), 'utf8');
   ok(callers.IMPORTS_PER_MONTH_PRO === 5 && clientUsage.IMPORTS_PRO === 5 && (sql.match(/e\.tier = 'pro' THEN 5 ELSE NULL/g) || []).length === 2,
     'the server, the app and both SQL functions say 5');
   for (const fn of ['count_imports(uuid, timestamptz)', 'import_state(uuid)', 'claim_import(uuid, text, text)', 'entitlement_settle_stale(uuid)']) {

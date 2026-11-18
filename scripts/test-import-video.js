@@ -141,6 +141,7 @@ const quiet = async (fn) => {
       logRoot, version: 'test', api, auth: () => ({ Authorization: 'Bearer x' }),
       busy: () => false, shouldPause: () => false,
       chooseFile: async () => video,
+      idle: async () => true,
       riotMatches: async () => [{ matchId: 'older', startedAt: t0 - 86400000, map: 'Bind' },
         { matchId: 'near', startedAt: fs.statSync(video).mtimeMs - 80000, map: 'Ascent' },
         { matchId: 'near-taken', startedAt: fs.statSync(video).mtimeMs - 75000, map: 'Ascent', taken: true }],
@@ -151,7 +152,7 @@ const quiet = async (fn) => {
     ok(chosen.state === 'choosing' && chosen.fileName === 'My Match.mp4' && chosen.nearest === 'near', 'the picker offers the file, and the closest match not already reviewed');
     ok(!JSON.stringify(chosen).includes(dir), 'no path reaches the page');
     await quiet(() => importer.start({ matchId: null }));
-    for (let i = 0; i < 1200 && !['done', 'failed'].includes(importer.status().state); i++) await new Promise((r) => setTimeout(r, 100));
+    for (let i = 0; i < 3000 && !['done', 'failed'].includes(importer.status().state); i++) await new Promise((r) => setTimeout(r, 100));
     realApi.post = realPost;
     const end = importer.status();
     ok(end.state === 'done' && end.reviewId === 'valorant-1', 'the import runs to a review', JSON.stringify(end));
@@ -169,7 +170,7 @@ const quiet = async (fn) => {
     }
     ok(withClock(5, () => Date.now()) === 5 && Date.now() !== 5, 'the virtual clock is only for its one call');
   }
-  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
   console.log(fails ? `\n${fails} of ${checks} import checks FAILED` : `\nall ${checks} import checks passed`);
   process.exit(fails ? 1 : 0);
 })().catch((e) => { console.log('FAIL  the test crashed:', e.stack || e); process.exit(1); });

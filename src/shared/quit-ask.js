@@ -103,6 +103,16 @@ function matchQuestion(m) {
  * @param r.connected  that Riot ID connected (index.js connectedRiotId())
  * @param r.clips      it has a recording, or clips cut from one, at stake
  */
+function importQuestion() {
+  return {
+    kind: 'import',
+    message: 'A recording is still being imported. Quit now?',
+    detail: 'Quit now and this import stops with no review. Once its first match frames have been read it still uses 1 import and 1 game. Keep Occlara open and it finishes by itself.',
+    buttons: [STAY_OPEN, 'Quit now'],
+    quit: 1,
+  };
+}
+
 function reviewQuestion(r) {
   const left = r && r.left;
   if (!left) return null;
@@ -158,4 +168,4 @@ function clipsQuestion(c) {
   };
 }
 
-module.exports = { matchQuestion, reviewQuestion, clipsQuestion, STAY_RECORDING, STAY_OPEN };
+module.exports = { importQuestion, matchQuestion, reviewQuestion, clipsQuestion, STAY_RECORDING, STAY_OPEN };

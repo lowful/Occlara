@@ -84,6 +84,7 @@ function rowOf(r) {
     id: r.id, title: r.title || null, map: r.map || null, mode: r.mode || null,
     result: r.result || null, score: r.score || null, at: r.at || null,
     grade: r.grade || null, verified: !!r.verified, source: r.source || null,
+    imported: r.imported === true, matchId: r.matchId || null,
     // Whether the AI log still holds the match, the one word main puts on a
     // library row (index.js listReviews), for the eye on the last match:
     // 'kept', 'gone', or null when nothing was recorded (shared/log-eye.js).

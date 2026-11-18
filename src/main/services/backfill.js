@@ -304,6 +304,8 @@ function plan(rows, library, active, real) {
   return rows.map((row, i) => {
     const h = held.get(row.matchId);
     if (h) {
+      // An imported recording keeps what it was linked to, and its mark (8.12).
+      if (h.meta.imported) return { row, action: 'have' };
       const unchecked = h.meta.source !== 'riot' && !h.meta.verified && h.review && h.review.kind === 'valorant';
       if (!unchecked) return { row, action: 'have' };
       if (active && active.has(h.meta.id)) return { row, action: 'pending' };

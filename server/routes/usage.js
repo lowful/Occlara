@@ -612,10 +612,15 @@ function createMeter(deps = {}) {
     if (!row) return { found: row === null ? false : null, status: null };
     await flush(row, true);
     if (row.status === 'reserved') {
-      if (outcome === 'done') await settle(row, 'counted', 'import');
-      else if (outcome === 'failed') await settle(row, 'refunded', 'import-failed');
-      else if (row.matchReads >= MATCH_READS_COUNTED) await settle(row, 'counted', 'import-cancelled');
-      else await settle(row, 'refunded', 'import-cancelled');
+      const back = outcome === 'failed' || (outcome === 'cancelled' && row.matchReads < MATCH_READS_COUNTED);
+      const reason = outcome === 'done' ? 'import' : outcome === 'failed' ? 'import-failed' : 'import-cancelled';
+      const { data, error } = await rpc('settle_game', { p_usage: row.usageId, p_outcome: back ? 'refunded' : 'counted', p_reason: reason });
+      if (!error) {
+        // The database's word: past three give backs a day a refund is counted.
+        const said = one(data);
+        row.status = said && (said.status === 'counted' || said.status === 'refunded') ? said.status : back ? 'refunded' : 'counted';
+        allow.delete(row.accountKey);
+      }
     }
     return { found: true, status: row.status };
   }

@@ -47,7 +47,7 @@ const { Recorder, valorantInMatch, valorantKeepSince } = require('./services/rec
 const recorderWindow = require('./windows/recorder-window');
 const CoachingEngine = require('./services/coaching-engine');
 const { cropAgentBar } = require('./services/agent-crop');
-const { verifyCoachedMatch, pickCoachedMatch, linkEarly, mayGoOn, linkRetries, linkAgentOf, RIOT_ROUNDS_RETRY_MS } = require('./services/match-link');
+const { scoreAfter, verifyCoachedMatch, pickCoachedMatch, linkEarly, mayGoOn, linkRetries, linkAgentOf, RIOT_ROUNDS_RETRY_MS } = require('./services/match-link');
 const { normalize: normalizeLang } = require('../shared/i18n');
 const registry = require('./windows/registry');
 // THE ONE WINDOW (8.1): the shell and every page beside it, replacing the
@@ -1749,6 +1749,8 @@ function onValorantMatchEnded(snap) {
   const job = {
     id: newId('valorant', snap.endedAt || Date.now()),
     snap, cancelled: false, timer: null, recorded: false, showing: null, importRun: run,
+    // Its match may be long over: its loading screen counts from now (review-work.js).
+    ...(run ? { workFrom: Date.now() } : {}),
     // THE ACCOUNT HAD NO GAMES LEFT (8.7, the engine's 402 cap): the review is
     // saved locked, Riot's record its only numbers, and neither the look at
     // the deaths nor the narrative is asked for (lockReview).
@@ -1870,19 +1872,33 @@ function linkRiotRecord(job) {
       job.finished = true;
       noteWork(job);
       if (reviewJobs.get(snap.startedAt) === job) reviewJobs.delete(snap.startedAt);
-      if (job.importRun) job.importRun.finish({ id: job.id, locked: !!job.locked, matched: !!job.riotLooked });
+      if (job.importRun) job.importRun.finish({ id: job.id, locked: !!job.locked, matched: !!job.tracker });
     });
   };
   const lastTry = {};
   // AN IMPORTED RECORDING LINKS ONLY THE MATCH ITS PLAYER PICKED, and only if
-  // what the screen read agrees with it: the same check as any link, on a
-  // clock that starts at that match. A wrong pick is reviewed from the screen.
-  const importedMatch = () => {
+  // the screen agrees with it. The clock starts at that match, so time proves
+  // nothing here: Riot's own rounds must stand at the very score the video
+  // reached after that many rounds, or a Bind from last month would pass as
+  // the Bind in the list. A wrong pick is reviewed from the screen.
+  const importedMatch = async () => {
     const row = job.importRun.match;
     if (!row || linkedMatchIds(job).has(row.matchId)) return null;
     const v = verifyCoachedMatch(row, snap.startedAt, snap.endedAt, mctx);
-    if (!v.ok) console.log(`[import] the match picked is not this recording: ${v.why}`);
-    return v.ok ? row : null;
+    if (!v.ok) { console.log(`[import] the match picked is not this recording: ${v.why}`); return null; }
+    const { team, enemy } = mctx.score;
+    let riot = null;
+    for (let i = 0; i < 3 && !riot; i++) {
+      if (i) await new Promise((r) => setTimeout(r, 5000 * LINK_DELAY_SCALE));
+      riot = await riotRoundsFor(row);
+    }
+    const after = riot ? scoreAfter(riot, team + enemy) : null;
+    if (!after || after.team !== team || after.enemy !== enemy) {
+      console.log(`[import] Riot's record of the match picked never stood at ${team}-${enemy}`);
+      return null;
+    }
+    lastTry.riot = { matchId: row.matchId, record: riot };
+    return row;
   };
   const find = async () => (job.importRun ? importedMatch()
     : fetchCoachedMatch(snap.startedAt, snap.endedAt, { ...mctx, exclude: linkedMatchIds(job) }, lastTry));
@@ -2212,20 +2228,48 @@ function flushImportPush() {
 async function riotMatchesForImport() {
   const riotId = (store.get('riotId') || '').trim();
   if (!riotId.includes('#') || !account.hasAuth()) return [];
-  const { ok, data } = await api.get(`/api/coach/recent-matches?username=${encodeURIComponent(riotId)}`, authed, 20000);
-  if (!ok || !data || !Array.isArray(data.matches)) return [];
+  let data = null;
+  for (let i = 0; i < 3 && !data; i++) {
+    if (i) await new Promise((r) => setTimeout(r, 2000));
+    const res = await api.get(`/api/coach/recent-matches?username=${encodeURIComponent(riotId)}`, authed, 20000).catch(() => null);
+    if (res && res.ok && res.data && Array.isArray(res.data.matches)) data = res.data;
+  }
+  // Never an empty list: that would read as "no match to pick".
+  if (!data) throw new Error('no match list');
   const held = new Set(reviewStore.list('valorant').map((r) => r.matchId).filter(Boolean));
   return data.matches.filter((m) => m && m.matchId && Number.isFinite(m.startedAt))
     .map((m) => ({ ...m, taken: held.has(m.matchId) }));
 }
 
+/*
+ * Resolves when the review's work is done. Ten working minutes is the most it
+ * is given, not counting time a match was being played: a link that threw would
+ * otherwise leave the import running for good, and what was saved by then is
+ * the review.
+ */
+const IMPORT_REVIEW_MS = 10 * 60 * 1000;
 function reviewImport({ run, engine: reader, snap }) {
   snap.importRun = run;
   return new Promise((resolve, reject) => {
-    run.finish = resolve;
+    let worked = 0;
+    const watch = setInterval(() => {
+      if (!importBusy()) worked += 5000;
+      if (worked < IMPORT_REVIEW_MS) return;
+      const job = reviewJobs.get(snap.startedAt);
+      console.log('[import] the review ran out of time, keeping what is saved');
+      if (!job) { end(reject, new Error('the review never started')); return; }
+      job.finished = true;
+      noteWork(job);
+      releaseMatchHolds(job);
+      reviewJobs.delete(snap.startedAt);
+      end(resolve, { id: job.id, locked: !!job.locked, matched: !!job.tracker });
+    }, 5000);
+    if (watch.unref) watch.unref();
+    const end = (fn, v) => { clearInterval(watch); fn(v); };
+    run.finish = (v) => end(resolve, v);
     reader.on('match-ended', (s) => onValorantMatchEnded(s));
     reader.on('match-review', (text, s) => onValorantMatchReview(text, s));
-    reader.requestMatchReview(snap).catch(reject);
+    reader.requestMatchReview(snap).catch((e) => end(reject, e));
   });
 }
 
@@ -2251,6 +2295,7 @@ function importer() {
       return r && !r.canceled && r.filePaths && r.filePaths[0] ? r.filePaths[0] : null;
     },
     riotMatches: riotMatchesForImport,
+    idle: () => afterMatch(() => false),
     review: reviewImport,
     push: pushImport,
     onLog: (id, held) => { if (held) importLogsHeld.add(id); else importLogsHeld.delete(id); aiLogDirsCache = null; },
@@ -5014,7 +5059,7 @@ function createAppSurfaces(opts) {
   // Background update checks, and the restart question, never asked while the
   // player is playing: a session running, a stop mid match holding the seal,
   // or a review still being built (updater.js).
-  updater.init({ busy: () => !!state.isCoaching || sealHeld || reviewBeingBuilt() });
+  updater.init({ busy: () => !!state.isCoaching || sealHeld || reviewBeingBuilt() || (!!importerOne && importerOne.running()) });
 
   // Send an initial state snapshot once the shell has loaded.
   const main = mainWindow.get();
@@ -5142,7 +5187,7 @@ async function quitFromClose() {
   if (closeAsking || appQuitting) return;
   closeAsking = true;
   try {
-    for (const ask of [matchAtStake, reviewAtStake, lolClipsAtStake]) {
+    for (const ask of [matchAtStake, importAtStake, reviewAtStake, lolClipsAtStake]) {
       const q = ask();
       if (!q) continue;
       const answer = await askBeforeQuit(q);
@@ -5164,6 +5209,11 @@ async function quitFromClose() {
 /** Whether what is recorded of the match in progress would be clipped: recording on, and on disk. */
 function recordingOnDisk() {
   try { return clips.cutsClips(store) && recorder.stats().pages > 0; } catch { return false; }
+}
+
+/** The question a recording still being imported asks (8.12), or null. */
+function importAtStake() {
+  return importerOne && importerOne.running() ? quitAsk.importQuestion() : null;
 }
 
 /** The question a match being recorded asks, or null. */

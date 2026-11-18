@@ -928,13 +928,13 @@ function paintImport() {
   $('imp-title').textContent = title;
   $('imp-line').textContent = line;
   show('imp-pick', choosing && !lock && Array.isArray(s.matches) && s.matches.some((m) => !m.taken));
-  if (!$('imp-pick').hidden && $('imp-match').dataset.for !== s.fileName) {
+  if (!$('imp-pick').hidden && $('imp-match').dataset.for !== String(s.pick)) {
     const none = document.createElement('option');
     none.value = '';
     none.textContent = "Not in the list, review it from the screen";
     $('imp-match').replaceChildren(...s.matches.map(matchOption), none);
     $('imp-match').value = s.nearest || '';
-    $('imp-match').dataset.for = s.fileName || '';
+    $('imp-match').dataset.for = String(s.pick);
   }
   show('imp-bar', running && s.state !== 'starting');
   $('imp-fill').style.width = `${s.percent || 0}%`;

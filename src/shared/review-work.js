@@ -66,6 +66,8 @@ const STAGES = new Set(['deaths', 'look', 'writing']);
 
 /** When the job's match ended, or null. */
 function endOf(job) {
+  // An imported recording's review begins now, whenever its match was played.
+  if (job && Number.isFinite(job.workFrom)) return job.workFrom;
   const snap = job && job.snap;
   return snap && Number.isFinite(snap.endedAt) ? snap.endedAt : null;
 }

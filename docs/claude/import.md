@@ -44,7 +44,10 @@ handed in; `index.js` (`importer()`, `reviewImport`) is only the wiring.
 6. **Review.** The usual `onValorantMatchEnded`, `onValorantMatchReview` and
    `linkRiotRecord`, branching on `snap.importRun`: frames from the import's own
    log, clips from its file, no recording hold, nothing opened over the page.
-   The picked match must pass `verifyCoachedMatch`, or the review is screen only.
+   The picked match must pass `verifyCoachedMatch` and Riot's rounds must stand
+   at the video's exact score (`scoreAfter`), or the review is screen only. The
+   clock starts at the picked match, so time proves nothing here. Riot's list is
+   preselected only within 30 minutes of the file's own time.
 
 ## What it must never touch
 
@@ -74,7 +77,7 @@ import's `game_usage` row (`importGate`, `noteImportRead`, `importReviewed`). A
 read needs a reserved row of this account, at most 4000 reads. The review and
 looks keep `REVIEWS_PER_GAME` each. The routes fail closed.
 
-**The SQL is `docs/sql/0011_imported_recordings.sql`,** applied on the site's
+**The SQL is `docs/sql/0012_imported_recordings.sql`,** applied on the site's
 database through Lovable (`kind` check, `import_past_limit`, `count_imports`,
 `import_state`, `claim_import`, the stale settle at 12 hours). Until it runs, the
 routes answer 503 `imports-not-ready` and the panel says imports are unavailable.

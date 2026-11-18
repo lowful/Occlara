@@ -48,6 +48,10 @@ const LIMITS = Object.freeze({
   KEEP_FRAME_GAP_MS: 10000,
   KEEP_FRAMES: 1500,
   CUT_TIMEOUT_MS: 120000,
+  // No frame and no reply for this long, while not paused: the file is gone.
+  STALL_MS: 180000,
+  // A match is only offered as this recording's when it began this close.
+  NEAREST_MS: 30 * 60 * 1000,
 });
 const EXTENSIONS = Object.freeze(['mp4', 'mkv', 'mov', 'webm']);
 
@@ -64,11 +68,12 @@ function ffmpegPath({ packaged, resourcesPath, env = process.env } = {}) {
   try { return require('ffmpeg-static'); } catch { return null; }
 }
 
-function run(ffmpeg, args, { timeoutMs = 30000, spawnFn = spawn } = {}) {
+function run(ffmpeg, args, { timeoutMs = 30000, spawnFn = spawn, low = false } = {}) {
   return new Promise((resolve, reject) => {
     let err = '';
     let done = false;
     const child = spawnFn(ffmpeg, args, { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+    if (low) { try { if (child.pid) os.setPriority(child.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* normal, then */ } }
     const timer = setTimeout(() => { try { child.kill(); } catch {} finish(new Error('ffmpeg timed out')); }, timeoutMs);
     function finish(e, code) {
       if (done) return;
@@ -139,10 +144,11 @@ const EOI = Buffer.from([0xFF, 0xD9]);
  * One 1280x720 JPEG a second of the video, as { sec, jpeg }. The pipe is the
  * pace: ffmpeg waits while nothing reads, and stopping early ends it.
  */
-async function* videoFrames(file, { ffmpeg, spawnFn = spawn, setPriority = os.setPriority } = {}) {
+async function* videoFrames(file, { ffmpeg, spawnFn = spawn, setPriority = os.setPriority, onChild } = {}) {
   const child = spawnFn(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', file, '-map', '0:v:0', '-an',
     '-vf', 'fps=1,scale=1280:720', '-pix_fmt', 'yuvj420p', '-q:v', '4', '-threads', '2',
     '-f', 'image2pipe', '-c:v', 'mjpeg', 'pipe:1'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  if (onChild) onChild(child);
   let err = '';
   let exit = null;
   const closed = new Promise((resolve) => {
@@ -261,7 +267,7 @@ async function cutVideoClip(file, fromSec, toSec, { ffmpeg, tmpDir = os.tmpdir()
       '-vf', 'fps=30,scale=1280:720', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26',
       '-profile:v', 'main', '-bf', '0', '-g', '30', '-keyint_min', '30', '-sc_threshold', '0',
       '-x264-params', 'repeat-headers=1', '-threads', '2', '-cluster_time_limit', '900', '-f', 'matroska', out],
-    { timeoutMs: LIMITS.CUT_TIMEOUT_MS });
+    { timeoutMs: LIMITS.CUT_TIMEOUT_MS, low: true });
     if (r.code !== 0) throw new Error(`ffmpeg could not cut the clip: ${String(r.stderr).trim().slice(0, 200)}`);
     return toRecorderShape(await fs.promises.readFile(out));
   } finally {
@@ -416,6 +422,7 @@ async function readFrames(o) {
     }
   };
   const land = (f, r) => {
+    if (o.onAlive) o.onAlive();
     if (r.capped) { stop = stop || 'capped'; return; }
     if (r.fatal) { stop = stop || r.fatal; return; }
     if (r.dropped) return;
@@ -433,6 +440,7 @@ async function readFrames(o) {
 
   for await (const frame of frames) {
     out.lastSec = frame.sec;
+    if (o.onAlive) o.onAlive();
     if (o.onFrame) o.onFrame(frame.sec, out.reads);
     while (paused() && !cancelled()) await sleep(1000);
     if (cancelled()) { stop = 'cancelled'; break; }
@@ -467,11 +475,17 @@ async function readFrames(o) {
 // ── One import from start to finish ───────────────────────────────────────────
 
 const FAILURE_TEXT = Object.freeze({
-  'no-match': 'No full Valorant match was found in this recording. Your import and game were given back.',
+  'no-match': 'No full Valorant match was found in this recording.',
   auth: 'Your sign in was refused while reading this recording. Sign in again and retry.',
-  server: 'The coach could not read this recording right now. Your import and game were given back.',
-  file: 'This recording could not be read to the end. Your import and game were given back.',
+  server: 'The coach could not read this recording right now.',
+  file: 'This recording could not be read to the end.',
   claim: 'Imports are not available right now. Nothing was used, try again shortly.',
+});
+// What became of the import and its game, as the server settled it, and
+// nothing when it did not say.
+const SETTLED_TEXT = Object.freeze({
+  refunded: 'Your import and game were given back.',
+  counted: 'It still used 1 import and 1 game.',
 });
 const PROBE_TEXT = Object.freeze({
   missing: 'That file could not be opened.',
@@ -489,7 +503,9 @@ const PROBE_TEXT = Object.freeze({
  *   busy()                             a match is being played or the window sealed
  *   shouldPause()                      a recording session wants the PC
  *   chooseFile()                       the native picker: a path or null
- *   riotMatches()                      Riot's last matches, each { matchId, startedAt, map, ... , taken }
+ *   riotMatches()                      Riot's last matches, each { matchId, startedAt, map, ... , taken };
+ *                                      throws when the list cannot be had
+ *   idle()                             resolves once no match is being played
  *   review({ run, engine, snap })      resolves { id } when its review is whole
  *   push(status)                       what the panel shows
  */
@@ -497,6 +513,8 @@ function createImporter(deps) {
   const d = deps;
   let chosen = null;
   let active = null;
+  let starting = false;
+  let picks = 0;
   let status = { state: 'idle' };
 
   const say = (next) => { status = next; d.push(status); return status; };
@@ -519,16 +537,19 @@ function createImporter(deps) {
     const p = await probe(file, { ffmpeg: d.ffmpeg });
     if (!p.ok) { chosen = null; return say({ state: 'idle', error: p.error, message: PROBE_TEXT[p.error] }); }
     let matches = [];
-    try { matches = (await d.riotMatches()) || []; } catch { matches = []; }
+    let listFailed = false;
+    try { matches = (await d.riotMatches()) || []; } catch { matches = []; listFailed = true; }
     const guess = p.mtimeMs - p.seconds * 1000;
     let nearest = null;
     for (const m of matches) {
-      if (m.taken || !Number.isFinite(m.startedAt)) continue;
+      if (m.taken || !Number.isFinite(m.startedAt) || Math.abs(m.startedAt - guess) > LIMITS.NEAREST_MS) continue;
       if (!nearest || Math.abs(m.startedAt - guess) < Math.abs(nearest.startedAt - guess)) nearest = m;
     }
-    chosen = { file, probe: p, matches, guess };
-    return say({ state: 'choosing', fileName: p.name, seconds: p.seconds, matches: matches.map(publicMatch),
-      nearest: nearest ? nearest.matchId : null });
+    picks += 1;
+    chosen = { file, probe: p, matches, guess, id: crypto.randomUUID(), pick: picks };
+    return say({ state: 'choosing', pick: picks, fileName: p.name, seconds: p.seconds, matches: matches.map(publicMatch),
+      nearest: nearest ? nearest.matchId : null,
+      message: listFailed ? "Riot's match list could not be loaded. Close and choose the file again to match it, or start now to review it from the screen." : null });
   }
 
   function forget() {
@@ -537,26 +558,35 @@ function createImporter(deps) {
     return status;
   }
 
+  /** Says how the import ended, and answers what the server made of it, or null. */
   async function finishUsage(id, outcome) {
-    try { await d.api.post('/api/usage/import/end', { job_id: id, outcome }, d.auth, 15000); }
-    catch (e) { console.log('[import] the end was not reported, the server settles it later:', e.message); }
+    try {
+      const r = await d.api.post('/api/usage/import/end', { job_id: id, outcome }, d.auth, 15000);
+      return (r && r.ok && r.data && r.data.status) || null;
+    } catch (e) {
+      console.log('[import] the end was not reported, the server settles it later:', e.message);
+      return null;
+    }
   }
 
   async function start({ matchId } = {}) {
-    if (active) return status;
+    if (active || starting) return status;
     if (!chosen) return say({ state: 'idle', error: 'none' });
     if (d.busy()) return { ...status, error: 'match' };
-    const { file, probe: p, matches, guess } = chosen;
+    // One id for this choice until it is answered: a claim that timed out after
+    // the server took it is the same import when it is tried again.
+    const { file, probe: p, matches, guess, id, pick: pickNo } = chosen;
     const match = matchId ? matches.find((m) => m.matchId === matchId && !m.taken) || null : null;
-    if (matchId && !match) return { ...status, error: 'match-gone' };
-    const id = crypto.randomUUID();
+    if (matchId && !match) return say({ ...status, message: 'That match is already in your library. Choose another.' });
     say({ state: 'starting', fileName: p.name, seconds: p.seconds });
+    starting = true;
     let claim;
     try { claim = await d.api.post('/api/usage/import', { job_id: id }, d.auth, 15000); } catch { claim = null; }
+    starting = false;
     if (!claim || !claim.ok || !claim.data || !claim.data.ok) {
       const data = (claim && claim.data) || {};
       const blocked = data.error === 'plan' || data.error === 'imports' || data.error === 'games';
-      return say({ state: 'choosing-refused', gate: blocked ? data : null, message: blocked ? null : FAILURE_TEXT.claim,
+      return say({ state: 'choosing-refused', pick: pickNo, gate: blocked ? data : null, message: blocked ? null : FAILURE_TEXT.claim,
         fileName: p.name, seconds: p.seconds, matches: matches.map(publicMatch), nearest: match ? match.matchId : null });
     }
     chosen = null;
@@ -577,8 +607,15 @@ function createImporter(deps) {
     const failed = async (kind) => {
       log.remove();
       if (d.onLog) d.onLog(log.id, false);
-      await finishUsage(job.id, 'failed');
-      say({ state: 'failed', error: kind, message: FAILURE_TEXT[kind] || FAILURE_TEXT.server, fileName: p.name });
+      const settled = await finishUsage(job.id, 'failed');
+      say({ state: 'failed', error: kind, fileName: p.name,
+        message: [FAILURE_TEXT[kind] || FAILURE_TEXT.server, SETTLED_TEXT[settled] || ''].filter(Boolean).join(' ') });
+    };
+    const stopped = async () => {
+      log.remove();
+      if (d.onLog) d.onLog(log.id, false);
+      await finishUsage(job.id, 'cancelled');
+      say({ state: 'idle', cancelled: true });
     };
     const reading = (sec, paused) => say({ state: paused ? 'paused' : 'reading', fileName: p.name, seconds: p.seconds,
       percent: Math.min(99, Math.floor((sec / p.seconds) * 100)) });
@@ -586,13 +623,22 @@ function createImporter(deps) {
     let result;
     let lastPush = 0;
     let at = 0;
+    let alive = Date.now();
+    let stalled = false;
+    const watch = setInterval(() => {
+      if (d.shouldPause()) { alive = Date.now(); return; }
+      if (Date.now() - alive > LIMITS.STALL_MS) { stalled = true; job.kill && job.kill(); }
+    }, 5000);
+    if (watch.unref) watch.unref();
     try {
       engine = createEngine(d.Engine, t0, { ...d.engineOptions(), licenseKey: auth,
         diagnostics: (rec) => log.write(rec) });
       reading(0, false);
       result = await readFrames({
-        engine, t0, frames: videoFrames(file, { ffmpeg: d.ffmpeg }),
+        engine, t0,
+        frames: videoFrames(file, { ffmpeg: d.ffmpeg, onChild: (c) => { job.kill = () => { try { c.kill(); } catch {} }; } }),
         cancelled: () => job.cancelled,
+        onAlive: () => { alive = Date.now(); },
         paused: () => {
           const wait = d.shouldPause();
           if (wait && status.state !== 'paused') reading(at, true);
@@ -605,17 +651,15 @@ function createImporter(deps) {
         },
       });
     } catch (e) {
-      console.log('[import] reading the video failed:', e.message);
+      clearInterval(watch);
+      // Cancel ends ffmpeg, which is how a stalled drive lets go.
+      if (job.cancelled) { await stopped(); return; }
+      console.log(`[import] reading the video failed${stalled ? ' (it stalled)' : ''}:`, e.message);
       await failed('file');
       return;
     }
-    if (result.reason === 'cancelled') {
-      log.remove();
-      if (d.onLog) d.onLog(log.id, false);
-      await finishUsage(job.id, 'cancelled');
-      say({ state: 'idle', cancelled: true });
-      return;
-    }
+    clearInterval(watch);
+    if (result.reason === 'cancelled') { await stopped(); return; }
     if (result.reason === 'auth' || result.reason === 'server') { await failed(result.reason); return; }
     withClock(t0 + result.lastSec * 1000, () => engine.stop());
     const snap = firstMatch(engine);
@@ -633,6 +677,8 @@ function createImporter(deps) {
         const to = Math.min(p.seconds, (toWall - t0) / 1000);
         const m = (moment - t0) / 1000;
         if (!(to > from) || (Number.isFinite(m) && (m < -1 || m > p.seconds + 1))) return null;
+        // Encoding is real work for the PC: never while a match is played.
+        await d.idle();
         const bytes = await cutVideoClip(file, from, to, { ffmpeg: d.ffmpeg });
         return { bytes, mime: 'video/x-matroska', startWall: t0 + from * 1000 };
       },
@@ -655,12 +701,13 @@ function createImporter(deps) {
   function cancel() {
     if (active && active.phase === 'reading') {
       active.cancelled = true;
+      if (active.kill) active.kill();
       say({ ...status, state: 'cancelling' });
     }
     return status;
   }
 
-  return { gate, pick, start, cancel, forget, status: () => status, activeLog: () => (active && active.logId) || null };
+  return { gate, pick, start, cancel, forget, status: () => status, running: () => !!active || starting };
 }
 
 module.exports = { LIMITS, EXTENSIONS, FAILURE_TEXT, PROBE_TEXT, ffmpegPath, parseProbe, probe, JpegSplitter, videoFrames,
