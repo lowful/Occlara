@@ -75,6 +75,10 @@ window is sealed, waits from Start until the match in front of it is over, and
 - **The log folder is `session-import-*`,** so `dirs` and the review's eye find
   it. `pruneAiLog` passes running imports as held. Every frame stays until the
   review is done (a death only Riot knows can be anywhere), then `thin()`.
+- **The clock must be whole milliseconds.** A file's modified time has a fraction;
+  a review id built from it fails `ID_RE`, so the review was never saved while the
+  job still said done. `withClock` floors, and `reviewImport` now fails the import
+  unless the review is in the library.
 - **Import RPCs do not go through `m.rpc`.** A missing function there marks
   accounts not live for the whole server, which the SQL not being applied yet
   would otherwise do.

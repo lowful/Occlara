@@ -11,11 +11,15 @@
       },
       {
         "kind": "new",
-        "text": "Pick the match from Riot's recent list to check it against Riot's record. An older video is reviewed from the screen and says so."
+        "text": "Pick the match from Riot's recent list to check it against Riot's record. An older video is reviewed from the screen, without a grade, and says so."
       },
       {
         "kind": "new",
         "text": "Pro includes 5 imports a month and Max has no monthly limit. Each import uses 1 game, and is given back if it fails."
+      },
+      {
+        "kind": "new",
+        "text": "Delete an imported match from its row in Matches. Its review, clips and frames go, and your video file stays where it is."
       }
     ]
   },

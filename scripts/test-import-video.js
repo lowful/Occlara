@@ -91,6 +91,7 @@ const quiet = async (fn) => {
       ok(!aiLogStore.removeImported(logs, '../session-import-1') && !aiLogStore.removeImported(logs, null), 'a path or nothing is refused');
       fs.rmSync(logs, { recursive: true, force: true });
     }
+    ok(withClock(1794996745340.66, () => Date.now()) === 1794996745340, 'the virtual clock reads whole milliseconds, so a review id from it is valid');
     ok(info.ok && info.name === 'My Match.mp4' && Math.round(info.seconds) === 75 && info.width === 1920, 'probe reads the file, and keeps only its base name');
     let n = 0; let first = null;
     for await (const f of imp.videoFrames(video, { ffmpeg })) { if (!first) first = f; n++; if (n === 5) break; }

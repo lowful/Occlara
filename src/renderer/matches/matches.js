@@ -931,7 +931,7 @@ function paintImport() {
   if (!$('imp-pick').hidden && $('imp-match').dataset.for !== String(s.pick)) {
     const none = document.createElement('option');
     none.value = '';
-    none.textContent = "Not in the list, review it from the screen";
+    none.textContent = "Not in the list, review it from the screen, no grade";
     $('imp-match').replaceChildren(...s.matches.map(matchOption), none);
     $('imp-match').value = s.nearest || '';
     $('imp-match').dataset.for = String(s.pick);

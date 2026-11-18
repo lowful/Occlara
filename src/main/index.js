@@ -2267,11 +2267,14 @@ function reviewImport({ run, engine: reader, snap }) {
       noteWork(job);
       releaseMatchHolds(job);
       reviewJobs.delete(snap.startedAt);
-      end(resolve, { id: job.id, locked: !!job.locked, matched: !!job.tracker });
+      settle({ id: job.id, locked: !!job.locked, matched: !!job.tracker });
     }, 5000);
     if (watch.unref) watch.unref();
     const end = (fn, v) => { clearInterval(watch); fn(v); };
-    run.finish = (v) => end(resolve, v);
+    // Done only with a review in the library: anything else is a failed import,
+    // which gives the game back, never a "done" with nothing to open.
+    const settle = (v) => (v && reviewStore.get(v.id) ? end(resolve, v) : end(reject, new Error('the review was not saved')));
+    run.finish = settle;
     reader.on('match-ended', (s) => onValorantMatchEnded(s));
     reader.on('match-review', (text, s) => onValorantMatchReview(text, s));
     reader.requestMatchReview(snap).catch((e) => end(reject, e));

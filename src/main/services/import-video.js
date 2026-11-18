@@ -446,7 +446,7 @@ async function readFrames(o) {
     if (cancelled()) { stop = 'cancelled'; break; }
     landReady();
     if (stop) break;
-    const at = t0 + frame.sec * 1000;
+    const at = Math.round(t0 + frame.sec * 1000);
     // The first match has ended. A little more is read so that an end which was
     // not one can be taken back, and then the rest of the file is left.
     const ended = firstMatch(engine);
@@ -598,7 +598,8 @@ function createImporter(deps) {
     return status;
   }
 
-  async function runJob(job, file, p, match, t0) {
+  async function runJob(job, file, p, match, startAt) {
+    const t0 = Math.floor(startAt);
     const auth = () => ({ ...(d.auth() || {}), 'X-Occlara-Import': job.id });
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const log = new ImportLog(d.logRoot, stamp, { version: d.version });
