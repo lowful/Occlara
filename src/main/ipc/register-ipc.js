@@ -120,6 +120,8 @@ function registerIpc(deps) {
   // Riot's rank record of one review, and the RR chips of Matches (8.7.9),
   // each null or {} mid match and sealed (index.js getReviewRiot, getReviewsRR).
   safeHandle(C.REVIEW_RIOT, async (_e, id) => (controller.getReviewRiot ? controller.getReviewRiot(typeof id === 'string' ? id : null) : null));
+  safeHandle(C.REVIEW_EXPLAIN, async (_e, id, n) => controller.explainDeath(typeof id === 'string' ? id : null, Number(n)));
+  safeHandle(C.FLAG_KEY_TEST, async (_e, accel) => controller.testFlagKey(typeof accel === 'string' ? accel : ''));
   safeHandle(C.REVIEWS_RR, async (_e, game) => (controller.getReviewsRR ? controller.getReviewsRR(typeof game === 'string' ? game : null) : {}));
   safeHandle(C.BREAKDOWN_GET, async (_e, game, opts) => controller.getBreakdown(game, opts));
   safeHandle(C.MOMENTS_GET, async (_e, game) => controller.getMoments(game));
@@ -203,6 +205,8 @@ function snapshotConfig() {
     riotConnected:   store.get('riotConnected') || null,
     aiLog:           store.get('aiLog'),
     sounds:          store.get('sounds'),
+    // The key that flags a death (8.13), '' when turned off.
+    flagKey:         typeof store.get('flagKey') === 'string' ? store.get('flagKey') : 'F8',
     // The live status's four switches (Progress v3), on unless set off.
     liveMap:         store.get('liveMap') !== false,
     liveAgent:       store.get('liveAgent') !== false,

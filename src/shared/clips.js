@@ -72,8 +72,14 @@ const AFTER_MS = 4000;
 const DROP_LEAD_MS = 1000;
 // The frame picker keeps two seconds between the frame and the death.
 const LEAD_MS = 2000;
-// A review keeps at most this many. A Valorant review looks at four deaths.
+// A review keeps at most this many. A Valorant review looks at four deaths,
+// and at up to six when the player flagged them.
 const MAX_CLIPS = 6;
+// A flagged death's clip (flagWindow).
+const FLAG_BEFORE_MS = 20000;
+const FLAG_AFTER_MS = 6000;
+const FLAG_SCREEN_LEAD_MS = 12000;
+const FLAG_MAX_MS = 45000;
 
 // The seconds from the death a look's stills are taken at (see THE STILLS A
 // LOOK TAKES), in time order: Riot's moment, and the screen's.
@@ -135,6 +141,29 @@ function windowOf(moment, drop, firstStill) {
 function lookWindow(look) {
   const first = look && Number.isFinite(look.moment) ? LOOK_AT.riot[0] : LOOK_AT.screen[0];
   return windowOf(momentOf(look), look ? look.drop : null, first);
+}
+
+/**
+ * THE CLIP OF A FLAGGED DEATH (8.13): longer than a look's, so the player sees
+ * the whole fight. Around Riot's moment when there is one. From the screen the
+ * death lies somewhere between the last frame the player was alive (`start`)
+ * and the frame that read them dead (`read`), up to 29 s apart, so the clip
+ * covers all of that and runs from before it. Never from further back than a
+ * second before the barriers, unless a still needs it, and FLAG_MAX_MS at most.
+ */
+function flagWindow(t) {
+  const x = t || {};
+  const drop = Number.isFinite(x.drop) ? x.drop : null;
+  if (Number.isFinite(x.moment)) {
+    let from = x.moment - FLAG_BEFORE_MS;
+    if (drop !== null && drop <= x.moment) from = Math.max(from, Math.min(drop - DROP_LEAD_MS, x.moment + LOOK_AT.riot[0] * 1000));
+    return { from, to: x.moment + FLAG_AFTER_MS };
+  }
+  if (!Number.isFinite(x.start) || !Number.isFinite(x.read)) return null;
+  const to = x.read + AFTER_MS;
+  let from = x.start - FLAG_SCREEN_LEAD_MS;
+  if (drop !== null && drop <= x.start) from = Math.max(from, Math.min(drop - DROP_LEAD_MS, x.read + LOOK_AT.screen[0] * 1000));
+  return { from: Math.max(from, to - FLAG_MAX_MS), to };
 }
 
 /**
@@ -234,5 +263,6 @@ function pickSpread(list, max) {
 
 module.exports = {
   CLIP_RE, BEFORE_MS, AFTER_MS, LEAD_MS, DROP_LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME, LOOK_AT,
-  roundClip, deathClip, capGB, windowOf, lookWindow, momentOf, stillsMomentOf, deathInClip, stillName, cutsClips, pickSpread,
+  FLAG_BEFORE_MS, FLAG_AFTER_MS, FLAG_SCREEN_LEAD_MS, FLAG_MAX_MS,
+  roundClip, deathClip, capGB, windowOf, lookWindow, flagWindow, momentOf, stillsMomentOf, deathInClip, stillName, cutsClips, pickSpread,
 };

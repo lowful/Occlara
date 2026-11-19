@@ -945,7 +945,10 @@ function normalise(body, opts) {
     // death without them is read as before, byte for byte.
     ...(!screen ? recordOf(d, b.map) : {}),
     ...framesOf(d),
-  })).filter((d) => d.n > 0 && d.frames.length).slice(0, 4);
+    // Up to six for a client that may flag deaths (8.13, opts.maxDeaths), and
+    // none of its frames needed for Further explain (death-explain.js).
+  })).filter((d) => d.n > 0 && (d.frames.length || (opts && opts.allowNoFrames)))
+    .slice(0, opts && Number.isInteger(opts.maxDeaths) && opts.maxDeaths > 0 ? Math.min(opts.maxDeaths, 6) : 4);
   return { agent: clip(b.agent, 24) || null, map: clip(b.map, 24) || null,
     language: typeof b.language === 'string' ? clip(b.language, 8) : 'en',
     source: screen ? 'screen' : 'riot', deaths,

@@ -19,6 +19,7 @@
 const { GAMES, isComingSoon, isRetired } = require('../../shared/games');
 const { CAPS_GB } = require('../../shared/clips');
 const { LANGUAGES } = require('../../shared/i18n');
+const { check } = require('../../shared/flag-key');
 
 const bool = (v) => typeof v === 'boolean';
 const oneOf = (...vals) => (v) => vals.includes(v);
@@ -30,6 +31,8 @@ const RULES = Object.freeze({
   advancedTips:   bool,
   aiLog:          bool,
   sounds:         bool,
+  // The key that flags a death (8.13): one that may be bound, or '' for none.
+  flagKey:        (v) => v === '' || (typeof v === 'string' && check(v).ok && check(v).accel === v),
   // The live status's four switches (Progress v3), Settings and the
   // Recording screen's own Choose.
   liveMap:        bool,

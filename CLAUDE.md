@@ -36,6 +36,9 @@ positions, economy, the enemy, a read, a tip, the read cadence or anything of
 a review. Never widen it. Every sealed surface, the exception and why:
 `docs/claude/screen-silence.md`.
 
+The flag key's press plays one tick mid match, the same for every press, and
+shows nothing (`docs/claude/death-flags.md`).
+
 ## Never forget
 
 - **Do not simplify the guards.** The deterministic checks in
@@ -122,6 +125,7 @@ in `docs/claude/` to find it.
 | Changing how a death is read as a chain of mistakes, or the match's own memory (`death-chain.js`, `match-memory.js`) | `docs/claude/death-look.md`, "Chains of mistakes", and `docs/claude/match-to-review.md`, "The match's own memory" |
 | Changing the Profile page, buying games in the app or `profile.js` | `docs/claude/ui.md`, "The Profile page", and `docs/claude/accounts.md`, "Buying games, in the app" |
 | Importing a recording: `import-video.js`, its panel, `/api/usage/import`, the bundled ffmpeg | `docs/claude/import.md` |
+| Changing the flag key, flagged deaths or Further explain | `docs/claude/death-flags.md` |
 | Report a problem: its button, page, `/api/feedback`, the inbox (`npm run feedback`) or triaging a player's report | `docs/claude/feedback.md` |
 
 ## Conventions

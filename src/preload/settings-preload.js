@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
 const GAMES = require('../shared/games');
+const flagKey = require('../shared/flag-key');
 const { DISCORD_URL } = require('../shared/config');
 const { pageMotion } = require('./page-motion');
 
@@ -44,7 +45,13 @@ contextBridge.exposeInMainWorld('occlara', {
 
   getConfig:    () => ipcRenderer.invoke(C.CONFIG_GET),
   setConfig:    (partial) => ipcRenderer.invoke(C.CONFIG_SET, partial),
-  getLicense:   () => ipcRenderer.invoke(C.LICENSE_GET),
+  // The key that flags a death (8.13, shared/flag-key.js).
+  flagKey: {
+    fromEvent: (e) => flagKey.fromEvent(e),
+    label: (accel) => flagKey.label(accel),
+    test: (accel) => ipcRenderer.invoke(C.FLAG_KEY_TEST, accel),
+  },
+  getLicense:  () => ipcRenderer.invoke(C.LICENSE_GET),
   getState:     () => ipcRenderer.invoke(C.STATE_GET),
   testTracker:  () => ipcRenderer.invoke(C.STATS_TEST),
   getVersion:   () => ipcRenderer.invoke(C.APP_VERSION),

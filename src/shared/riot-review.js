@@ -200,6 +200,20 @@ function ledgerRows(review) {
  * @param saved  { id, at, review } as the library holds it
  * @returns { review, role, tracker }
  */
+function carriedFlags(old, rounds) {
+  const died = new Set(rounds.filter((r) => r.died).map((r) => r.n));
+  const out = {};
+  if (old.deathFlags) {
+    out.deathFlags = { ...old.deathFlags, rounds: (old.deathFlags.rounds || []).map((f) => {
+      const { noDeath, ...rest } = f;
+      return died.has(f.n) ? rest : { ...rest, noDeath: true };
+    }) };
+  }
+  const answers = Object.entries(old.deathExplains || {}).filter(([n]) => died.has(Number(n)));
+  if (answers.length) out.deathExplains = Object.fromEntries(answers);
+  return out;
+}
+
 function upgradeWatched({ saved, row, riot, history, account }) {
   const old = (saved && saved.review) || {};
   const { rows, legacy } = ledgerRows(old);
@@ -270,6 +284,9 @@ function upgradeWatched({ saved, row, riot, history, account }) {
     matchId: tracker.matchId,
     matchStartedAt: tracker.startedAt,
     account: account || null,
+    // The player's flags and the answers saved (8.13) stay. A flagged death
+    // Riot says never happened keeps its flag and clip, and says so.
+    ...carriedFlags(old, rounds),
     stoppedLive: !!old.stoppedLive,
     lateLinked: true,
     aiUnavailable: false,

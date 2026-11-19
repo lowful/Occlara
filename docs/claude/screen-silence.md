@@ -53,6 +53,10 @@ reversal, kept as narrow as that choice allows.
 - The public site's fair-play copy and FAQ still say nothing is shown mid
   match; they live in the website repo and must change with this.
 
+## The flag key's tick, the one sound (8.13)
+
+The owner chose it: a press of the flag key plays one quiet tick mid match, because the window is behind the game and nothing else could say the key was heard. It is the same tick for every press, a death matched or not, so it carries nothing about the match, and it follows the Sounds setting. Nothing is drawn, and no other sound plays mid match (`docs/claude/death-flags.md`).
+
 What still counts as "reaching the screen", and is sealed mid match:
 
 - The main window shows no page at all mid match, only a Recording screen, and

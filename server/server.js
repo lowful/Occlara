@@ -209,7 +209,7 @@ app.post('/api/coach/summary/round', express.raw({ type: 'image/jpeg', limit: '5
 // Whether the credentials it does carry are good is still asked after the
 // parse, by identifyFirst and the route, as before. Every app sends one of
 // the two on both routes (account-service.js auth()).
-const BIG_BODY_PATHS = ['/api/coach/death-forensics', '/api/feedback'];
+const BIG_BODY_PATHS = ['/api/coach/death-forensics', '/api/coach/death-explain', '/api/feedback'];
 app.use(BIG_BODY_PATHS, (req, res, next) => {
   if (callers.hasCredentials(req)) return next();
   res.status(401).json({ error: 'sign-in-required' });
@@ -223,6 +223,8 @@ app.use(BIG_BODY_PATHS, (req, res, next) => {
 // from the recording sends five stills, twenty a match: the real Sunset
 // match's came to 1.6 MB, 2.1 MB of base64.
 app.use('/api/coach/death-forensics', express.json({ limit: '8mb' }));
+// Further explain (8.13): one death's five stills at most.
+app.use('/api/coach/death-explain', express.json({ limit: '3mb' }));
 // A report carries up to three pictures the app already downscaled to 1600 px
 // and recompressed, 2 MB each at most (services/feedback.js), in base64.
 app.use('/api/feedback', express.json({ limit: feedbackModel.BODY_LIMIT }));

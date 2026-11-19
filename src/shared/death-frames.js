@@ -491,12 +491,22 @@ function lookAt(r, recs, moment, drop) {
  * @param window  { from, to } wall clock bounds of the match, as framesFor
  * @returns [{ round, frames: [record...], names, gap, at }]
  */
-function looksFor(records, rounds, window, source, limit = 4) {
+function looksFor(records, rounds, window, source, limit = 4, flagged = []) {
   const w = window || {};
   const inMatch = (records || []).filter((r) => r && r.frame
     && (!w.from || r.at >= w.from) && (!w.to || r.at <= w.to + 5000));
+  // THE DEATHS THE PLAYER FLAGGED COME FIRST (8.13), and the most teachable of
+  // the rest fill what is left of `limit`. Flagged past it, the flagged are
+  // all looked at. With none flagged this is the choice it always was.
+  const wanted = new Set(Array.isArray(flagged) ? flagged : []);
+  const withFlagged = (pool, pick) => {
+    const mine = pool.filter((r) => wanted.has(r.n));
+    const rest = pool.filter((r) => !wanted.has(r.n));
+    return [...mine, ...pick(rest, Math.max(0, limit - mine.length))].sort((a, b) => a.n - b.n);
+  };
   if (source !== 'screen') {
-    return teachableDeaths(rounds, limit)
+    const pool = (rounds || []).filter((r) => r && r.verified && r.died && !satOut(r));
+    return (wanted.size ? withFlagged(pool, teachableDeaths) : teachableDeaths(rounds, limit))
       .map((r) => {
         const moment = deathMoment(inMatch, r, window);
         return lookAt(r, framesFor(records, r, window), moment, dropOf(inMatch, r, window, moment));
@@ -509,12 +519,47 @@ function looksFor(records, rounds, window, source, limit = 4) {
     const recs = framesFor(records, r, window);
     if (recs.length && !recs[0].died) framed.set(r, recs);
   }
-  return teachableScreenDeaths([...framed.keys()], limit)
+  return (wanted.size ? withFlagged([...framed.keys()], teachableScreenDeaths) : teachableScreenDeaths([...framed.keys()], limit))
     .map((r) => lookAt(r, framed.get(r), null, dropOf(inMatch, r, window, null)));
 }
 
+// How long after a death with no next round on record a press still means it.
+const FLAG_LAST_ROUND_MS = 150000;
+// The buy phase, where a next round's barriers were not read.
+const FLAG_BUY_MS = 35000;
+
+/**
+ * THE MATCH'S DEATHS ON THE WALL CLOCK, for the flag key (8.13, death-flags.js):
+ * [{ n, start, read, moment, drop, until }]. `moment` is Riot's death where it
+ * is known, and `start` then the same. From the screen, `start` is the last
+ * frame before the death and `read` the frame that registered it, the death
+ * lying between. `until` is when a press stops meaning this death: the next
+ * round's barriers. A round the player sat out is no death of theirs.
+ */
+function flagDeaths(records, rounds, window) {
+  const w = window || {};
+  const inMatch = (records || []).filter((r) => r && r.frame
+    && (!w.from || r.at >= w.from) && (!w.to || r.at <= w.to + 5000));
+  const out = [];
+  for (const r of rounds || []) {
+    if (!r || !r.died || satOut(r)) continue;
+    const moment = r.verified ? deathMoment(inMatch, r, window) : null;
+    const recs = framesFor(records, r, window);
+    if (moment === null && !recs.length) continue;
+    const start = moment !== null ? moment : recs[0].at;
+    const read = moment !== null ? moment : recs[recs.length - 1].at;
+    const nextDrop = barrierDrop(inMatch, r.n + 1, { from: w.from, to: w.to });
+    const next = inMatch.find((x) => x.round > r.n && x.at > start);
+    const until = nextDrop && nextDrop.at > start ? nextDrop.at
+      : next ? next.at + FLAG_BUY_MS : start + FLAG_LAST_ROUND_MS;
+    const drop = dropOf(inMatch, r, window, moment);
+    out.push({ n: r.n, start, read, moment, until, ...(Number.isFinite(drop) ? { drop } : {}) });
+  }
+  return out;
+}
+
 module.exports = {
-  teachableDeaths, teachableScreenDeaths, framesFor, looksFor, secondsIn, barrierDrop, deathMoment, withRiotTimes, dropOf,
+  teachableDeaths, teachableScreenDeaths, framesFor, looksFor, flagDeaths, secondsIn, barrierDrop, deathMoment, withRiotTimes, dropOf,
   borrowedInto,
   BEFORE_MS, AFTER_MS, FRAME_MARGIN_MS, CLOCK_SLACK_MS,
 };

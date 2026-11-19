@@ -214,6 +214,7 @@ function paintValorant(r, verdict) {
   ver.textContent = r.verification || '';
 
   paintStats(r);
+  paintFlags(r);
 
   // The coach's read. Missing when the model was unreachable or the match was
   // too short to narrate, and each case says which. Short lines (8.7): the
@@ -567,6 +568,150 @@ function paintStats(r) {
 }
 
 /*
+ * THE DEATHS THE PLAYER FLAGGED (8.13), in yellow: the flag is the player's own
+ * mark, a thing to come back to, so it takes --warn and not a death's --bad.
+ */
+const FLAG_PATH = 'M5.5 21V4.5M5.5 4.5h11.2a.6.6 0 0 1 .5.92L15.2 8.5l2 3.08a.6.6 0 0 1-.5.92H5.5';
+function flagIcon() {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', 'v-flag-icon');
+  const p = document.createElementNS(SVG_NS, 'path');
+  p.setAttribute('d', FLAG_PATH);
+  p.setAttribute('fill', 'currentColor');
+  p.setAttribute('stroke', 'currentColor');
+  p.setAttribute('stroke-width', '2');
+  p.setAttribute('stroke-linecap', 'round');
+  p.setAttribute('stroke-linejoin', 'round');
+  svg.append(p);
+  return svg;
+}
+
+function paintFlags(r) {
+  const host = $('v-flags');
+  host.replaceChildren();
+  const f = r.deathFlags || null;
+  const rounds = f && Array.isArray(f.rounds) ? f.rounds : [];
+  const notes = [];
+  if (f && f.unmatched) notes.push(`${f.unmatched === 1 ? 'One press' : `${f.unmatched} presses`} of the flag key matched no death.`);
+  if (f && f.over) notes.push('A match keeps six flagged deaths, the first six.');
+  if (f && f.keyFailed) notes.push('Another app held your flag key for part of this match. You can change it in Settings.');
+  host.hidden = !rounds.length && !notes.length;
+  if (host.hidden) return;
+  if (rounds.length) {
+    const line = el('p', 'v-flags-line');
+    line.append(flagIcon(), el('span', null, `You flagged ${rounds.length} death${rounds.length === 1 ? '' : 's'}:`));
+    for (const x of rounds) {
+      const b = el('button', 'v-flags-round', `Round ${x.n}`);
+      b.type = 'button';
+      b.addEventListener('click', () => goRound(x.n));
+      line.append(b);
+    }
+    host.append(line);
+  }
+  for (const n of notes) host.append(el('p', 'v-flags-note', n));
+}
+
+/*
+ * FURTHER EXPLAIN (8.13): under every death, one saved answer from the coach,
+ * asked once. Which deaths are being answered is kept here, since Riot's record
+ * can repaint the page while one is out.
+ */
+const explaining = new Set();
+const explainErrors = new Map();
+const EXPLAIN_SAID = {
+  locked: 'You have used all your games. Get more in your Profile to ask the coach.',
+  later: 'The coach is busy. Try again in a minute.',
+  match: 'This opens once your match is over.',
+  gone: 'This death can no longer be explained.',
+  failed: 'The coach could not explain this death. Try again.',
+};
+
+function explainAnswer(a) {
+  const box = el('div', 'v-explain-answer');
+  for (const [label, text] of [['What happened', a.happened], ['Why it went wrong', a.why], ['What to do instead', a.instead]]) {
+    if (!text) continue;
+    const p = el('p', 'v-explain-line');
+    p.append(el('span', 'gv-fix-label', label), document.createTextNode(text));
+    box.append(p);
+  }
+  if (a.from === 'facts') box.append(el('p', 'v-moment-src', "From Riot's record of the round. No picture of this death was kept."));
+  return box;
+}
+
+function explainBlock(r, c) {
+  const box = el('div', 'v-explain');
+  if (c.explain) { box.append(explainAnswer(c.explain)); return box; }
+  const key = `${r.id}|${c.n}`;
+  const busy = explaining.has(key);
+  const b = el('button', 'btn btn-ghost sm v-explain-btn', busy ? 'Explaining' : 'Further explain');
+  b.type = 'button';
+  b.disabled = busy;
+  b.setAttribute('aria-busy', busy ? 'true' : 'false');
+  const said = explainErrors.get(key);
+  b.addEventListener('click', async () => {
+    explaining.add(key);
+    explainErrors.delete(key);
+    b.disabled = true;
+    b.textContent = 'Explaining';
+    b.setAttribute('aria-busy', 'true');
+    if (err) err.hidden = true;
+    let got = null;
+    try { got = await window.occlara.explainDeath(r.id, c.n); } catch { got = null; }
+    explaining.delete(key);
+    // The row as it stands now: Riot's record may have repainted the page.
+    const row = document.getElementById(`round-${c.n}`);
+    const live = current && current.id === r.id && row ? row.querySelector('.v-explain') : null;
+    if (got && got.ok && got.explain) {
+      c.explain = got.explain;
+      if (live) live.replaceChildren(explainAnswer(got.explain));
+      return;
+    }
+    explainErrors.set(key, EXPLAIN_SAID[(got && got.error) || 'failed'] || EXPLAIN_SAID.failed);
+    if (live) live.replaceChildren(...[...explainBlock(r, c).children]);
+  });
+  const err = el('p', 'v-explain-error', said || '');
+  err.hidden = !said;
+  err.setAttribute('role', 'status');
+  box.append(b, err);
+  return box;
+}
+
+// An answer saved, asked here or by itself for a flagged death: its row alone.
+if (window.occlara && window.occlara.onDeathExplained) {
+  window.occlara.onDeathExplained((a) => {
+    if (!a || !current || current.id !== a.id) return;
+    const card = (current.rounds || []).find((c) => c && c.n === a.n);
+    if (card) card.explain = a.explain;
+    const row = document.getElementById(`round-${a.n}`);
+    const box = row && row.querySelector('.v-explain');
+    if (box) box.replaceChildren(explainAnswer(a.explain));
+  });
+}
+
+/** What a death's row adds: a flagged death's own clip and note, and Further explain. */
+function deathExtras(r, c) {
+  const flag = c.flag || null;
+  const canExplain = !!(c.died && r.id && r.kind === 'valorant' && window.occlara && window.occlara.explainDeath && !c.tags?.some?.((t) => t && t.kind === 'afk'));
+  if (!flag && !canExplain) return null;
+  const box = el('div', 'v-death-extra');
+  const lookHasClip = c.forensics && c.forensics.clipUrl;
+  if (flag && flag.clipUrl && !lookHasClip) {
+    const player = window.ClipPlayer.create({ url: flag.clipUrl, label: `The clip of round ${c.n}`,
+      frames: flag.clipFrames, death: flag.clipDeath, screen: !c.verified, stills: [] });
+    const media = el('div', 'v-media');
+    media.append(player.el);
+    box.append(media);
+  } else if (flag && !flag.clipUrl && flag.clipGone) {
+    box.append(el('p', 'v-clip-gone', clipGoneText(flag.clipGone, 'The flag stays.')));
+  }
+  if (flag && flag.noDeath) box.append(el('p', 'v-moment-src', "You flagged this round, but Riot's record has no death for you in it."));
+  if (canExplain) box.append(explainBlock(r, c));
+  return box.children.length ? box : null;
+}
+
+/*
  * WHAT THE NUMBERS SAY ABOUT THE ROUNDS, under the strip they describe, and
  * only what the lists above have not said. A pattern is left out where an
  * entry of the lists carries the same count: on the player's latest review,
@@ -730,7 +875,9 @@ function roundRow(r, c, frames) {
   const killerOnly = !f && !why ? killerCardEl(c.killerCard) : null;
   // The death as a chain of mistakes (Nov 2026, served() from death-chain.js).
   const chain = chainEl(c.chain);
-  const row = el('article', 'v-round' + (f || why || killerOnly || chain ? '' : ' quiet'));
+  // A flagged death's clip and Further explain (8.13).
+  const extra = deathExtras(r, c);
+  const row = el('article', 'v-round' + (f || why || killerOnly || chain || extra ? '' : ' quiet'));
   row.id = `round-${c.n}`;
   const head = el('div', 'v-round-head');
   // The number is the row's anchor (8.7): a click brings the row into view
@@ -743,6 +890,12 @@ function roundRow(r, c, frames) {
   head.append(rn);
   if (c.result) head.append(el('span', 'v-chip ' + c.result, c.result === 'won' ? 'Won' : 'Lost'));
   if (c.side) head.append(el('span', 'v-side', c.side));
+  if (c.flag) {
+    const mark = el('span', 'v-flag');
+    mark.append(flagIcon(), document.createTextNode('Flagged'));
+    head.append(mark);
+    row.classList.add('flagged');
+  }
   // A round whose death holds more than one mistake says so on its line.
   const many = c.chain && Number.isInteger(c.chain.mistakes) && c.chain.mistakes > 1 ? c.chain.mistakes : 0;
   if (many) {
@@ -751,7 +904,7 @@ function roundRow(r, c, frames) {
     head.append(mark);
   }
   row.append(head);
-  if (!f && !why && !killerOnly && !chain) {
+  if (!f && !why && !killerOnly && !chain && !extra) {
     const facts = factsOf(c, 'span');
     if (facts) head.append(facts);
     return row;
@@ -768,6 +921,8 @@ function roundRow(r, c, frames) {
     said.append(chain);
     if (plain) said.append(plain);
   }
+  // The flagged clip and Further explain sit under the row's own words.
+  const parts = [said, extra].filter(Boolean);
   /*
    * A ROUND NOT OPEN IS ONE LINE UNTIL ASKED (8.7): served() opens a round
    * with a look or a why, or one of the top mistake's, and the rest of the
@@ -782,12 +937,13 @@ function roundRow(r, c, frames) {
     const body = el('div', 'v-round-body');
     body.id = `round-${c.n}-body`;
     body.hidden = true;
-    body.append(said);
+    body.append(...parts);
     const more = el('button', 'v-fold');
     more.type = 'button';
     more.setAttribute('aria-expanded', 'false');
     more.setAttribute('aria-controls', body.id);
-    more.setAttribute('aria-label', killerOnly ? `Round ${c.n}, show what killed you` : `Round ${c.n}, show what the coach said`);
+    more.setAttribute('aria-label', killerOnly ? `Round ${c.n}, show what killed you`
+      : said ? `Round ${c.n}, show what the coach said` : `Round ${c.n}, show Further explain`);
     head.append(more);
     row.classList.add('fold');
     head.addEventListener('click', (e) => {
@@ -802,7 +958,7 @@ function roundRow(r, c, frames) {
   if (eye) head.append(eye);
   const facts = factsOf(c, 'div');
   if (facts) row.append(facts);
-  row.append(said);
+  row.append(...parts);
   return row;
 }
 

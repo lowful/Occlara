@@ -7,6 +7,7 @@ const readPrompt = require('../services/read-prompt');
 const riotRounds = require('../services/riot-rounds');
 const henrikRank = require('../services/henrik-rank');
 const deathForensics = require('../services/death-forensics');
+const deathExplain = require('../services/death-explain');
 // The language list is shared with the client so both agree on what is
 // supported, and so the prompt always names the language in English (a model
 // follows "write in German" far more reliably than "write in Deutsch").
@@ -1169,6 +1170,7 @@ const V85 = [8, 5, 0];
 // The enemy team's agents in the notes and cases (8.8): the review's killers
 // and Ask Coach's comp count for a client from this release on.
 const V876 = [8, 7, 6];
+const V813 = [8, 13, 0];
 function clientAtLeast(req, from) {
   const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String((req && req.headers && req.headers['x-occlara-version']) || ''));
   if (!m) return false;
@@ -3726,7 +3728,8 @@ router.post('/death-forensics', async (req, res) => {
   // and the process logged an unhandled rejection.
   let input;
   try {
-    input = deathForensics.normalise(req.body, { variant: variant || 'a' });
+    // A client that can flag deaths (8.13) may send six, flagged ones first.
+    input = deathForensics.normalise(req.body, { variant: variant || 'a', ...(clientAtLeast(req, V813) ? { maxDeaths: 6 } : {}) });
   } catch (e) {
     console.warn('[forensics] a body it could not read:', e.message);
     return res.status(400).json({ error: 'bad-request' });
@@ -3782,6 +3785,44 @@ router.post('/death-forensics', async (req, res) => {
   } catch (e) {
     console.error('[forensics] error:', e.message);
     res.status(503).json({ error: 'forensics-unavailable' });
+  }
+});
+
+/*
+ * FURTHER EXPLAIN (8.13, services/death-explain.js): one death, once per death
+ * per review (the client saves the answer). It uses no game, and is locked with
+ * Ask Coach for an account with none left (chatLocked), so it works on an old
+ * review where the look's six hour gate would refuse it. Its limits are in
+ * rate-limits.js. Nothing is stored here.
+ */
+router.post('/death-explain', async (req, res) => {
+  const caller = await admit(req, res);
+  if (!caller) return;
+  let input;
+  try {
+    input = deathExplain.normalise(req.body);
+    input.names = riotRounds.nameSetOf(input.matchId);
+  } catch (e) {
+    console.warn('[explain] a body it could not read:', e.message);
+    return res.status(400).json({ error: 'bad-request' });
+  }
+  if (!input.death) return res.status(400).json({ error: 'bad-request' });
+  if (await chatLocked(req, res, caller)) return;
+  const model = modelFor(req, 'forensics');
+  const d = input.death;
+  const prompt = deathExplain.buildPrompt(input);
+  try {
+    const raw = d.frames.length
+      ? await withTimeout(visionInfer(d.frames, prompt, deathExplain.TOKENS, true, model, { abortMs: 36000 }), 35000, 'explain timeout')
+      : await textInfer(prompt, deathExplain.TOKENS, { json: true, timeoutMs: 30000, model, fallback: false });
+    const { explain, dropped } = deathExplain.parse(raw, input);
+    trackCall(caller.accountKey, Math.max(1, d.frames.length));
+    if (dropped.length) console.log(`[explain] R${d.n} dropped: ${dropped.map((x) => `${x.field} (${x.why})`).join(', ')}`);
+    if (!explain) return res.status(503).json({ error: 'explain-unavailable' });
+    res.json({ explain, from: d.frames.length ? (d.framesFrom === 'recording' ? 'recording' : 'reads') : 'facts', model });
+  } catch (e) {
+    console.log(`[explain] R${d.n} failed:`, e.message);
+    res.status(503).json({ error: 'explain-unavailable' });
   }
 });
 

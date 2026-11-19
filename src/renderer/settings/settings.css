@@ -80,6 +80,10 @@ header h2 { font-size: 15.5px; font-weight: 600; }
 .ctl { flex: none; display: flex; align-items: center; gap: var(--space-2); }
 
 section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; margin: 0; }
+/* The flag key (8.13, shared/flag-key.js). */
+#flagkey { flex-direction: column; align-items: flex-end; gap: 4px; }
+.flag-key { display: inline-flex; align-items: center; gap: var(--space-2); }
+.flag-key-said { max-width: 260px; text-align: right; }
 .hint { font-size: 13px; color: var(--text-dim); line-height: 1.5; margin: 0; }
 
 /* The folded explanation: a quiet line with a chevron that turns as it opens,

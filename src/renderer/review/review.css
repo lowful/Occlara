@@ -303,6 +303,29 @@ header {
 }
 .v-verified[hidden] { display: none; }
 
+/* The deaths the player flagged (8.13): the flag is yellow, --warn, wherever it
+   stands: under the stats, on its round's line. */
+.v-flags { display: flex; flex-direction: column; gap: 4px; }
+.v-flags[hidden] { display: none; }
+.v-flags-line { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; line-height: 1.45; color: var(--text); }
+.v-flags-note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-mute); }
+.v-flags-round {
+  appearance: none; border: 0; background: none; padding: 0; font: inherit; color: var(--warn); cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.v-flags-round:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; border-radius: 2px; }
+.v-flag-icon { width: 14px; height: 14px; flex: none; color: var(--warn); }
+.v-flag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--warn); }
+
+/* Further explain (8.13), under a death's own words. */
+.v-death-extra { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.v-explain-btn { align-self: flex-start; }
+.v-explain { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.v-explain-answer { display: flex; flex-direction: column; gap: 8px; padding-top: var(--space-2); border-top: 1px solid var(--line); width: 100%; }
+.v-explain-line { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text); }
+.v-explain-error { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-mute); }
+.v-explain-error[hidden] { display: none; }
+
 /* The target under the top mistake's fix (Nov 2026, review.js paintTarget):
    this match's count and the count at which the card goes away, one quiet
    line under the line to act on. */

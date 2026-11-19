@@ -72,6 +72,8 @@ contextBridge.exposeInMainWorld('occlara', {
   // switches themselves, the four keys alone (config-keys.js).
   getLive: () => ipcRenderer.invoke(C.LIVE_GET),
   onLive:  (cb) => subscribe(C.PUSH_LIVE, cb),
+  // The flag key was heard (8.13): the shell's one tick, with nothing carried.
+  onFlagTick: (cb) => subscribe(C.PUSH_FLAG_TICK, () => cb()),
   setLive: (key, on) => (['liveMap', 'liveAgent', 'liveScore', 'liveRound'].includes(key) && typeof on === 'boolean'
     ? ipcRenderer.invoke(C.CONFIG_SET, { [key]: on }) : Promise.resolve(null)),
   // The bundled art of a map and an agent, or null (agent-icons.js).

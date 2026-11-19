@@ -709,6 +709,12 @@ function applyState(s) {
   if (gameChanged || wasCoaching !== isCoaching) { paintGames(); paintAccount(); paintGamesLeft(); paintLive(); }
 }
 
+// The flag key was heard (8.13): one tick, the same for every press, and
+// nothing drawn. The one sound of a match (docs/claude/screen-silence.md).
+window.occlara.onFlagTick(() => {
+  if (soundsOn && window.occlaraSfx) window.occlaraSfx.play('flag', SFX_VOLUME);
+});
+
 window.occlara.onState(applyState);
 window.occlara.onStatus(({ status }) => {
   // Recording starts on the button alone, in every game: nothing opens over

@@ -23,6 +23,7 @@
 
 const clips = require('../../shared/clips');
 const clipFrames = require('../../shared/clip-frames');
+const { clipNames } = require('../../shared/death-flags');
 
 const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -186,6 +187,13 @@ function presentClips(review, io) {
       return extra ? { ...c, forensics: { ...c.forensics, ...extra } } : c;
     }) };
   }
+  // A flagged death's clip (8.13), on its card's flag (served()).
+  if (Array.isArray(out.rounds) && out.rounds.some((c) => c && c.flag && c.flag.clip)) {
+    out = { ...out, rounds: out.rounds.map((c) => {
+      const extra = c && c.flag ? about(c.flag.clip, c.flag.clipDeath) : null;
+      return extra ? { ...c, flag: { ...c.flag, ...extra } } : c;
+    }) };
+  }
   if (Array.isArray(review.deathList) && review.deathList.some((d) => d && d.clip)) {
     out = { ...out, deathList: review.deathList.map((d) => {
       const extra = d ? about(d.clip, d.clipDeath) : null;
@@ -200,6 +208,7 @@ function namedClips(review) {
   const names = [];
   for (const c of (review && review.rounds) || []) if (c && c.forensics && typeof c.forensics.clip === 'string') names.push(c.forensics.clip);
   for (const d of (review && review.deathList) || []) if (d && typeof d.clip === 'string') names.push(d.clip);
+  names.push(...clipNames(review && review.deathFlags));
   return names.filter((n) => clips.CLIP_RE.test(n));
 }
 

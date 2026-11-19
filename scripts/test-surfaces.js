@@ -1681,7 +1681,7 @@ async function openShell(cfg, state, opts) {
     'a round with nothing to say is one line: its number, the result, the side and its facts', classes(rc(1).children[0]).join(' | '));
     ok(rows.filter((r) => r !== rc(1)).every((r) => !r.classList.contains('quiet')), 'and only that one');
     // The look from the recording, inside its round.
-    ok(same(classes(rc(2)), ['v-round-head', 'v-facts', 'v-moment']) && rc(2).querySelector('.v-facts').textContent === base.rounds[1].facts.join('  ·  '),
+    ok(same(classes(rc(2)), ['v-round-head', 'v-facts', 'v-moment', 'v-death-extra']) && rc(2).querySelector('.v-facts').textContent === base.rounds[1].facts.join('  ·  '),
       'a death the coach looked at is its round\'s row: the round, its facts once, then the look', classes(rc(2)).join(' | '));
     const m2 = v.$('moment-2');
     // NO STRIP UNDER A CLIP (8.7, the player's ask): the clip plays every
@@ -1825,8 +1825,9 @@ async function openShell(cfg, state, opts) {
     const r8 = kq.$('round-8');
     ok(!r8.classList.contains('fold') && [...r8.children].some((x) => x.classList && x.classList.contains('v-killer')),
       'and open in its row when served open');
-    ok(kq.$('round-10').classList.contains('quiet') && !kq.$('round-10').querySelector('.v-killer, .v-fold'),
-      'a died round with no card and nothing said stays one quiet line');
+    ok(!kq.$('round-10').classList.contains('quiet') && !kq.$('round-10').querySelector('.v-killer')
+      && kq.$('round-10').querySelector('.v-round-body .v-explain-btn'),
+    'a died round with no card and nothing said still folds to Further explain (8.13)');
     ok(!v.document.querySelectorAll('.v-killer').length, 'and a round served with no card draws none');
     // A DEATH AS A CHAIN (Nov 2026, death-chain.js through served()): the
     // first mistake, what made it worse and what came before, one line each,

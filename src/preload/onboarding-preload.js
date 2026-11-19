@@ -3,6 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
+const flagKey = require('../shared/flag-key');
 
 /**
  * Onboarding bridge: dismiss the welcome tour for good, save its choices
@@ -32,6 +33,12 @@ contextBridge.exposeInMainWorld('occlara', {
   // can never disagree.
   setConfig: (patch) => ipcRenderer.invoke(C.CONFIG_SET, patch),
   getConfig: () => ipcRenderer.invoke(C.CONFIG_GET),
+  // The key that flags a death (8.13, shared/flag-key.js).
+  flagKey: {
+    fromEvent: (e) => flagKey.fromEvent(e),
+    label: (accel) => flagKey.label(accel),
+    test: (accel) => ipcRenderer.invoke(C.FLAG_KEY_TEST, accel),
+  },
   // What this PC has and the recorder's encoder asks (pc-check.js). The page
   // puts the asks to VideoEncoder itself, as the recorder's page does.
   checkPc: () => ipcRenderer.invoke(C.PC_CHECK),

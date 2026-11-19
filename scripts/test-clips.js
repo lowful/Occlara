@@ -1160,7 +1160,8 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     const fnOf = (head) => { const i = mainSrc.indexOf(head); const j = i < 0 ? -1 : mainSrc.indexOf('\n}\n', i); return j < 0 ? '' : mainSrc.slice(i, j + 3); };
     const lineOf = (head) => { const i = mainSrc.indexOf(head); return i < 0 ? '' : mainSrc.slice(i, mainSrc.indexOf('\n', i) + 1); };
     const needed = ['\nasync function forensicsFor(', '\nasync function askForensics(', '\nasync function afterMatch(', '\nasync function recordingStills(',
-      '\nfunction clipLooks(', '\nasync function cutLookClips(', '\nfunction keepLookClips('].map(fnOf);
+      '\nfunction clipLooks(', '\nasync function cutLookClips(', '\nfunction keepLookClips(',
+      '\nfunction readFlags(', '\nfunction noteFlagClips('].map(fnOf);
     ok(needed.every(Boolean) && lineOf('const AFTER_MATCH_POLL_MS'), 'the look\'s own code is found in main');
     const src = [lineOf('const AFTER_MATCH_MAX_MS'), lineOf('const AFTER_MATCH_POLL_MS'), ...needed, fnOf('\nfunction recordingCut(')].join('\n');
 
@@ -1213,10 +1214,11 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     const cutArgs = [];
     const cutGot = [];
     const sent = [];
+    let failLook = false;
     const box = vm.createContext({
       console: { log() {}, warn() {}, error() {} }, fs, path, Buffer, Map, Set, Promise, Date, Math, Number, JSON, Object, Array, String,
       setTimeout: (f, ms) => setTimeout(f, Math.min(ms, 20)),
-      deathFrames, clips, reviewClips, lookStills, reviewStore: library,
+      deathFrames, deathFlags: require('../src/shared/death-flags'), clips, reviewClips, lookStills, reviewStore: library,
       recorder: { cutClip: (...a) => { cutsAt.push(rec.holds.length); cutArgs.push(a); const got = rec.cutClip(...a); cutGot.push(got); return got; } },
       releaseRecording: (h) => rec.release(h),
       store: { get: (k) => ({ recordingMode: mode, licenseKey: 'TEST' })[k] },
@@ -1228,6 +1230,7 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       API: { DEATH_FORENSICS: '/api/coach/death-forensics' },
       api: { post: async (_p, body) => {
         sent.push(body);
+        if (failLook) return { ok: false, data: { error: 'down' } };
         return { ok: true, data: { deaths: body.deaths.map((d) => ({ n: d.n, cause: 'isolated', what: 'You held it alone.', better: 'Hold it with a teammate.' })) } };
       } },
       matchInProgress: () => { asked++; return playing; },
@@ -1302,6 +1305,18 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       `and Off chosen while it waited, its clip already cut, leaves no clip named or kept and sends the read's frames (clip ${f3 && f3.clip ? f3.clip : 'none'}, `
       + `${library.hasClip(job3.id, 'r2-clip.mkv') ? 'kept' : 'gone'}, sent from the ${d3 ? d3.framesFrom : 'nothing'})`);
     mode = 'auto';
+
+    // A FLAGGED DEATH KEEPS ITS CLIP WHATEVER THE LOOK ANSWERS (8.13), and the
+    // clip runs longer past the death than a look's.
+    const job4 = { ...reviewFor(M + 63000), flagPresses: [M + 5000] };
+    failLook = true;
+    const flaggedLook = await main.forensicsFor(riotRows, snap, { job: job4, stale: () => job4.cancelled });
+    failLook = false;
+    const flagCut = cutArgs[cutArgs.length - 1];
+    ok(!flaggedLook.byRound[2] && job4.flags.rounds[0].n === 2 && job4.flags.rounds[0].clip === 'r2-clip.mkv' && library.hasClip(job4.id, 'r2-clip.mkv'),
+      'a flagged death keeps its clip though the look failed');
+    ok(flagCut && flagCut[1] - flagCut[2] === clips.FLAG_AFTER_MS, 'and that clip runs the flagged length past the death');
+    rec.release(job4.recording);
   });
 
   await section('the words:', () => {

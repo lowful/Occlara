@@ -608,5 +608,14 @@ if (obLang && window.occlara.i18n && window.Dropdown) {
 
 if (window.initI18n) window.initI18n().catch(() => {});
 
+// The key that flags a death (8.13): saved as it is chosen, F8 until then.
+(async () => {
+  const host = document.getElementById('ob-flagkey');
+  if (!host || !window.occlara.flagKey || typeof window.occlaraFlagKeyControl !== 'function') return;
+  let cfg = null;
+  try { cfg = await window.occlara.getConfig(); } catch { cfg = null; }
+  window.occlaraFlagKeyControl(host, cfg && typeof cfg.flagKey === 'string' ? cfg.flagKey : 'F8');
+})();
+
 go(0);
 console.log('[onboarding] ready');

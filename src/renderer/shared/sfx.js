@@ -1,6 +1,6 @@
 /**
- * The four sounds the app makes: coaching armed, coaching stood down, a review
- * arriving, and a review arriving with a best in it.
+ * The sounds the app makes: coaching armed, coaching stood down, the flag key
+ * heard (8.13), a review arriving, and a review arriving with a best in it.
  *
  * The first two are played by the shell on its status transitions (shell.js
  * soundCue), and only when config.sounds is not false. The overlay played them
@@ -140,7 +140,7 @@ function latch(at, freq, level) {
 /**
  * Play one of the four sounds.
  *
- * `kind` is 'start', 'stop', 'reveal' or 'best'. Anything else is ignored rather than throwing:
+ * `kind` is 'start', 'stop', 'flag', 'reveal' or 'best'. Anything else is ignored rather than throwing:
  * this is a sound effect, and a surface that crashes because it could not
  * make a noise is a far worse bug than silence.
  */
@@ -181,6 +181,14 @@ function play(kind, volume) {
     tone(t + 0.005, HIGH, 0.08, 'triangle', level * 0.9);
     tone(t + 0.06, LOW, 0.2, 'triangle', level * 0.9);
     tone(t + 0.06, LOW / 4, 0.24, 'sine', level * 0.5);
+    return;
+  }
+
+  if (kind === 'flag') {
+    // The flag key's one tick (8.13): the same for every press, so it says the
+    // key was heard and nothing about the match. The shortest sound here.
+    latch(t, 1800, level * 0.45);
+    tone(t + 0.004, HIGH, 0.06, 'triangle', level * 0.6);
     return;
   }
 

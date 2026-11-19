@@ -15,6 +15,7 @@ const API = {
   DETECT_AGENT: '/api/coach/detect-agent', // the agent, off a read's own frame of the player's HUD
   MATCH_REVIEW: '/api/coach/match-review',
   DEATH_FORENSICS: '/api/coach/death-forensics',   // the frame before each teachable death
+  DEATH_EXPLAIN:   '/api/coach/death-explain',     // Further explain on one death (8.13)
   // The changelog (server/routes/changelog.js): public, no auth, the What's
   // new page's background refresh of the copy bundled in src/shared.
   CHANGELOG:    '/api/changelog',
@@ -156,7 +157,8 @@ const STORE_DEFAULTS = {
   liveAgent:       true,
   liveScore:       true,
   liveRound:       true,
-  sounds:          true,         // the two interface sounds: recording armed, recording stood down
+  sounds:          true,         // the interface sounds: recording armed, stood down, the flag key heard
+  flagKey:         'F8',         // the key that flags a death mid match (8.13, flag-key.js), '' for none
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,
   onboardingCompleted: false,

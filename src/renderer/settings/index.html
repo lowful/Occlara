@@ -243,7 +243,7 @@
         <div class="row">
           <div class="row-text">
             <h3>Sounds</h3>
-            <p class="hint">A short sound when recording starts and another when it stops, so you know it is on without looking away from the game.</p>
+            <p class="hint">A short sound when recording starts and another when it stops, so you know it is on without looking away from the game. The flag key ticks when pressed.</p>
           </div>
           <div class="seg ctl" id="sounds">
             <button data-val="on">On</button>
@@ -315,6 +315,15 @@
 
       <section class="group">
         <div class="row"><div class="row-text"><h3>Hotkeys</h3></div></div>
+        <!-- The one key the player chooses (8.13). It is held only during a
+             Valorant match, and the game does not receive it. -->
+        <div class="row">
+          <div class="row-text">
+            <h3>Flag a death</h3>
+            <p class="hint">Press it after a death in a Valorant match. That death keeps its clip and gets a deeper look in the review. The key only works during a match.</p>
+          </div>
+          <div class="ctl" id="flagkey"></div>
+        </div>
         <div class="kvs">
           <div class="kv"><span>Open your last review</span><kbd>Ctrl+Shift+E</kbd></div>
           <div class="kv"><span>Open Matches</span><kbd>Ctrl+Shift+H</kbd></div>
@@ -413,6 +422,7 @@
   <script src="../shared/seg.js"></script>
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/motion.js"></script>
+  <script src="../shared/flag-key.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

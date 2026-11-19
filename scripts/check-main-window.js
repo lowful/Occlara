@@ -776,6 +776,33 @@ setTimeout(async () => {
     await shot('review-locked', mainWindow, win);
     await rjs('paint(window.__unlocked); delete window.__unlocked; true');
 
+    // A FLAGGED DEATH AND FURTHER EXPLAIN (8.13), on the real page: the yellow
+    // flag on its round, the line under the stats, a saved answer and the button.
+    await rjs(`(() => {
+      window.__plain = current;
+      const died = current.rounds.filter((c) => c.died);
+      const [a, b] = died;
+      paint(Object.assign({}, current, { id: current.id + '-flagged',
+        deathFlags: { rounds: [{ n: a.n }], unmatched: 1, over: 0 },
+        rounds: current.rounds.map((c) => (c === a ? Object.assign({}, c, { open: true, flag: { n: a.n },
+          explain: { happened: 'You took the second duel with no one near.', why: 'Nobody could trade it.', instead: 'Fall back to your teammate after the first shot.', from: 'reads' } }) : c)) }));
+      document.getElementById('round-' + a.n).scrollIntoView({ block: 'start' });
+      return !!b;
+    })()`);
+    await wait(500);
+    const flaggedPage = await rjs(`(() => { const f = document.getElementById('v-flags'); return {
+      line: !f.hidden && f.textContent, flag: document.querySelectorAll('.v-round .v-flag').length,
+      answers: document.querySelectorAll('.v-explain-answer').length, buttons: document.querySelectorAll('.v-explain-btn').length,
+      colour: getComputedStyle(document.querySelector('.v-round .v-flag')).color,
+      warn: getComputedStyle(document.documentElement).getPropertyValue('--warn').trim() }; })()`);
+    lines.push(`flagged death: ${JSON.stringify(flaggedPage)}`);
+    if (!/You flagged 1 death:Round \d+/.test(flaggedPage.line || '') || !/matched no death/.test(flaggedPage.line || '')
+      || flaggedPage.flag !== 1 || flaggedPage.answers !== 1 || flaggedPage.buttons < 1) {
+      return report(false, `a flagged death is not shown as it should be: ${JSON.stringify(flaggedPage)}`);
+    }
+    await shot('review-flagged', mainWindow, win);
+    await rjs('paint(window.__plain); delete window.__plain; document.querySelector(".body").scrollTo(0, 0); true');
+
     // THE INVITE PAGE (8.7), from its button above Settings: the link main
     // gave, the progress line usage.js wrote and how it works in two lines.
     await sjs("document.getElementById('nav-invite').click(); true");

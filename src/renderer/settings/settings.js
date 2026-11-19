@@ -99,6 +99,7 @@ function paintAiLog() {
   aiLogLock.hidden = false;
 }
 const soundsSeg   = wireBoolSeg('sounds', 'sounds');
+let flagKeyControl = null;   // the key that flags a death (8.13, shared/flag-key.js)
 // Match status while recording (Progress v3): one switch each, on by default.
 const LIVE_SEGS = [['livemap', 'liveMap'], ['liveagent', 'liveAgent'], ['livescore', 'liveScore'], ['liveround', 'liveRound']]
   .map(([id, key]) => [wireBoolSeg(id, key), key]);
@@ -761,6 +762,10 @@ async function load() {
       // Default on, so an older config with no key set reads as on rather than
       // as off, which is what `=== true` would do here.
       markSeg(soundsSeg, cfg.sounds === false ? 'off' : 'on');
+      if (flagKeyControl) flagKeyControl.set(cfg.flagKey);
+      else if (typeof window.occlaraFlagKeyControl === 'function' && window.occlara.flagKey) {
+        flagKeyControl = window.occlaraFlagKeyControl(document.getElementById('flagkey'), cfg.flagKey);
+      }
       for (const [seg, key] of LIVE_SEGS) markSeg(seg, cfg[key] === false ? 'off' : 'on');
       if (typeof cfg.riotId === 'string') riotEl.value = cfg.riotId;
       // Already connected from a previous session? Show it, no reconnect

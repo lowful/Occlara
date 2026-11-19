@@ -1180,7 +1180,7 @@ function withoutEconomy(review) {
  * again, for a test that holds the rest of what is shown unchanged.
  */
 const VIEW_FIELDS = ['summaryLines', 'context'];
-const VIEW_CARD_FIELDS = ['tags', 'open', 'killerCard', 'chain'];
+const VIEW_CARD_FIELDS = ['tags', 'open', 'killerCard', 'chain', 'flag', 'explain'];
 
 /*
  * A DEATH AS A CHAIN, AND THE MATCH'S OWN MEMORY (Nov 2026, death-chain.js),
@@ -1207,6 +1207,10 @@ function withView(review) {
   const hot = new Set(top && Array.isArray(top.rounds) ? top.rounds : []);
   const { chains, memory } = review.kind === 'valorant' ? contextOf(review) : { chains: [], memory: [] };
   const chainOf = new Map(chains.map((e) => [e.n, e.chain]));
+  // The deaths the player flagged and the answers Further explain saved (8.13),
+  // kept on the review by round so a rebuilt card never loses them.
+  const flagOf = new Map(((review.deathFlags && review.deathFlags.rounds) || []).filter(Boolean).map((f) => [f.n, f]));
+  const explains = review.deathExplains && typeof review.deathExplains === 'object' ? review.deathExplains : {};
   const rounds = Array.isArray(review.rounds)
     ? review.rounds.map((c) => {
       if (!c || typeof c !== 'object') return c;
@@ -1220,10 +1224,12 @@ function withView(review) {
         if (killer) card.killerCard = killer;
         return card;
       }
-      const card = { ...c, tags: factTags(c.facts), open: !!(c.forensics || c.why || hot.has(c.n)) };
+      const card = { ...c, tags: factTags(c.facts), open: !!(c.forensics || c.why || hot.has(c.n) || flagOf.has(c.n)) };
       const killer = killerCard(c);
       if (killer) card.killerCard = killer;
       if (chainOf.has(c.n)) card.chain = chainOf.get(c.n);
+      if (flagOf.has(c.n)) card.flag = { ...flagOf.get(c.n) };
+      if (c.died && explains[c.n]) card.explain = explains[c.n];
       return card;
     })
     : review.rounds;
@@ -1769,6 +1775,6 @@ function against(tracker, role, history) {
 
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
   queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, teamAgentsOf, lookJudgement,
-  factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS, contextOf, chainsSent,
+  factTags, summaryLines, withoutView, satOutCard, VIEW_FIELDS, VIEW_CARD_FIELDS, contextOf, chainsSent,
   BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX, countsOf,
   buyDiscipline, castsNamed, recordOnCard, BUY_WORDS, BUYS_MIN, deathPlace, ECONOMY_PATTERNS, recordCausesSaved };

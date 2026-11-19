@@ -90,6 +90,9 @@ const rankBandOf = require('../shared/rank-band');
 const riotRank = require('../shared/riot-rank');
 const { rrForRows, pointForMatch, rrWaitingFor } = require('../shared/home-model');
 const deathFrames = require('../shared/death-frames');
+const deathFlags = require('../shared/death-flags');
+const flagKeys = require('../shared/flag-key');
+const { createDeathExplain } = require('./services/death-explain');
 const clips = require('../shared/clips');
 const clipScheme = require('./services/clip-scheme');
 const reviewClips = require('./services/review-clips');
@@ -447,6 +450,56 @@ function pushLive() {
 }
 {
   const t = setInterval(pushLive, LIVE_EVERY_MS);
+  if (t && typeof t.unref === 'function') t.unref();
+}
+
+/*
+ * THE FLAG KEY (8.13, the owner's idea): the player presses it after a death
+ * they want kept and explained. HELD ONLY WHILE A VALORANT MATCH IS PLAYED,
+ * because a key held here reaches nothing else on the PC, and taken again once
+ * a second if the choice changes. A press is one wall clock time kept here
+ * until the match's review reads it (readFlags) and one tick in the shell, the
+ * same whether or not a death matches, so it says nothing about the game
+ * (docs/claude/screen-silence.md). Nothing is drawn.
+ */
+const FLAG_PRESS_KEEP_MS = 4 * 60 * 60 * 1000;
+const FLAG_RETRY_MS = 30000;
+let flagPresses = [];
+let flagKeyFailedAt = 0;
+let flagRetryAt = 0;
+let flagKeyChosen;     // read once, and again when the config changes
+function flagKeyNow() {
+  if (flagKeyChosen === undefined) flagKeyChosen = flagKeys.normal(store.get('flagKey'));
+  return flagKeyChosen;
+}
+// Only once a game has been read: right after Start the reader has seen no
+// lobby yet, and the key would be taken from whatever the player is doing.
+const flagMatchLive = () => !!state.isCoaching && engine instanceof CoachingEngine && matchInProgress()
+  && (!!engine.sawGame || engine.ledger.size() > 0);
+function onFlagPress() {
+  if (!flagMatchLive()) return;
+  const now = Date.now();
+  const kept = flagPresses.filter((at) => now - at < FLAG_PRESS_KEEP_MS);
+  const next = deathFlags.addPress(kept, now);
+  const heard = next.length > kept.length;
+  flagPresses = next;
+  if (heard) registry.broadcast(C.PUSH_FLAG_TICK);
+}
+function syncFlagKey() {
+  const key = flagMatchLive() ? flagKeyNow() : '';
+  if (!key) { hotkeys.unregisterFlag(); return; }
+  if (hotkeys.flagHeld() === key) return;
+  const now = Date.now();
+  if (now < flagRetryAt) return;
+  if (hotkeys.registerFlag(key, onFlagPress)) { flagRetryAt = 0; return; }
+  // Another app holds it: tried again, and the review says so.
+  flagKeyFailedAt = now;
+  flagRetryAt = now + FLAG_RETRY_MS;
+}
+{
+  const t = setInterval(() => {
+    try { syncFlagKey(); } catch (e) { console.warn('[flag] the key:', e.message); }
+  }, LIVE_EVERY_MS);
   if (t && typeof t.unref === 'function') t.unref();
 }
 
@@ -1088,9 +1141,12 @@ async function forensicsFor(rounds, snap, opts) {
   const empty = { byRound: {}, frames: {} };
   const log = snap.log;
   if (!log || !log.dir || !log.records.length) return empty;
-  const looks = deathFrames.looksFor(log.records, rounds, { from: snap.startedAt, to: snap.endedAt }, source);
-  const cut = job ? await clipLooks(job, looks, stale) : new Map();
+  // The deaths the player flagged (8.13) are looked at and clipped first.
+  const targets = job ? readFlags(job, rounds, snap) : [];
+  const looks = deathFrames.looksFor(log.records, rounds, { from: snap.startedAt, to: snap.endedAt }, source, 4, targets.map((t) => t.n));
+  const cut = job ? await clipLooks(job, looks, stale, targets) : new Map();
   if (stale()) return empty;
+  if (job) noteFlagClips(job, targets, cut);
   // Riot's look has its clips, the review's to keep: the recording goes now,
   // never held through the wait for a match in progress (recordingCut).
   if (job && source === 'riot') recordingCut(job, cut);
@@ -1105,6 +1161,117 @@ async function forensicsFor(rounds, snap, opts) {
   if (stale()) return empty;
   if (job) keepLookClips(job, looked, cut);
   return looked;
+}
+
+/*
+ * THE DEATHS THE PLAYER FLAGGED (8.13, shared/death-flags.js). Each press is
+ * read against the deaths as they stand, the screen's first and Riot's once
+ * its record lands, so a flag follows its death. A flagged death is looked at
+ * first, its clip is the longer one (clips.flagWindow) and is cut even where
+ * no look can be taken, and it is kept whatever the look answers.
+ */
+function readFlags(job, rounds, snap) {
+  if (!job || !Array.isArray(job.flagPresses) || !job.flagPresses.length) return [];
+  const log = snap && snap.log;
+  if (!log || !Array.isArray(log.records)) return [];
+  const deaths = deathFrames.flagDeaths(log.records, rounds, { from: snap.startedAt, to: snap.endedAt });
+  job.flags = deathFlags.merge(job.flags, deathFlags.resolve(job.flagPresses, deaths));
+  const byRound = new Map(deaths.map((d) => [d.n, d]));
+  // Each flag remembers its death's times: one Riot then says never happened
+  // still gets its clip, cut from where the screen saw it.
+  const out = [];
+  for (const r of job.flags.rounds) {
+    if (byRound.has(r.n)) r.target = byRound.get(r.n);
+    if (r.target) out.push(r.target);
+  }
+  return out;
+}
+
+/** Each flagged death names the clip cut of it; none once the player chose Off. */
+function noteFlagClips(job, targets, cut) {
+  if (!job.flags) return;
+  const off = !clips.cutsClips(store);
+  const byRound = new Map((targets || []).map((t) => [t.n, t]));
+  for (const r of job.flags.rounds) {
+    if (off) { delete r.clip; delete r.clipDeath; continue; }
+    const c = cut.get(r.n);
+    if (!c) continue;
+    const t = byRound.get(r.n);
+    r.clip = c.name;
+    r.clipDeath = t ? clips.deathInClip(t.moment, c.startWall) : null;
+  }
+}
+
+/** A review the coach may not look at (no games left) still keeps what was flagged. */
+async function flagsOnly(job, rounds, snap, stale) {
+  const targets = readFlags(job, rounds, snap);
+  if (!job.flags || !job.flags.rounds.length) return false;
+  const cut = await clipLooks(job, [], stale, targets);
+  if (stale()) return false;
+  noteFlagClips(job, targets, cut);
+  const names = deathFlags.clipNames(job.flags);
+  try { reviewStore.keepClips(job.id, names); } catch (e) { console.log('[clips] keepClips:', e.message); }
+  if (names.length) applyClipCap();
+  return true;
+}
+
+/*
+ * FURTHER EXPLAIN (8.13, services/death-explain.js), asked from a death's row,
+ * and for a flagged death by itself once its review's work is done.
+ */
+let deathExplainer = null;
+function explainer() {
+  if (!deathExplainer) {
+    deathExplainer = createDeathExplain({
+      get: (id) => reviewStore.get(id),
+      frame: (id, name) => reviewStore.frame(id, name),
+      logFrames: explainLogFrames,
+      post: (body) => api.post(API.DEATH_EXPLAIN, body, authed, 45000),
+      save: saveExplain,
+      sealed: () => matchInProgress() || !!mainWindow.current().sealed,
+      language: () => store.get('language'),
+      rankBand: () => rankBandNow(),
+      now: () => Date.now(),
+    });
+  }
+  return deathExplainer;
+}
+
+/** The AI log's two frames around a death, base64, while the log still keeps them. */
+function explainLogFrames(review, card) {
+  const scope = aiLogScopeOf(reviewLogEntry(review, review.at));
+  if (!scope) return [];
+  const m = aiLogStore.matchRecords(aiLogRoot(), scope);
+  if (!m) return [];
+  const r = card.riot || {};
+  const recs = deathFrames.framesFor(m.records,
+    { n: card.n, died: true, verified: !!card.verified, deathSec: r.sec, afterPlant: !!r.afterPlant }, { from: scope.from, to: scope.to });
+  const out = [];
+  for (const rec of recs) {
+    try { out.push(fs.readFileSync(path.join(m.dir, rec.frame)).toString('base64')); } catch { /* gone */ }
+  }
+  return out;
+}
+
+function saveExplain(id, n, answer) {
+  const e = reviewStore.get(id);
+  if (!e || !e.review) return;
+  const next = { ...e.review, deathExplains: { ...(e.review.deathExplains || {}), [n]: answer } };
+  for (const job of reviewJobs.values()) if (job.id === id) job.explains = next.deathExplains;
+  saveReview(next, e.game);
+  // Only its row changes: a repaint of the page would stop a clip being watched.
+  if (lastReviewShown && lastReviewShown.id === id) lastReviewShown = { ...lastReviewShown, deathExplains: next.deathExplains };
+  registry.broadcast(C.PUSH_DEATH_EXPLAIN, { id, n, explain: require('../shared/plain-text').scrubText({ ...answer }) });
+}
+
+async function explainFlagged(job) {
+  const rounds = job.flags ? job.flags.rounds.filter((r) => !r.noDeath) : [];
+  if (job.locked || !rounds.length) return;
+  for (const r of rounds) {
+    if (!(await afterMatch(() => job.cancelled))) return;
+    const got = await explainer().explain(job.id, r.n);
+    if (got && got.error === 'locked') return;
+  }
 }
 
 /**
@@ -1332,8 +1499,17 @@ function screenLook(job) {
 }
 
 async function lookFromScreen(job) {
-  if (job.cancelled || job.riotLooked || job.locked) return;
   const snap = job.snap;
+  // Locked, nothing is asked of the model, and a flagged death keeps its clip.
+  if (job.locked && !job.cancelled && !job.riotLooked) {
+    const kept = await flagsOnly(job, snap.rounds, snap, () => job.cancelled || job.riotBusy || job.riotLooked);
+    if (kept && !job.cancelled && !job.riotBusy && !job.riotLooked) {
+      repaintReview(job, buildValorantReview(snap, job.tracker || null,
+        { history: job.history, linkMissing: job.linkMissing || false }).built);
+    }
+    return;
+  }
+  if (job.cancelled || job.riotLooked || job.locked) return;
   // Told Riot's agent once the scoreboard has linked and only its rounds never
   // came, the agent the review names (game.agent): since 8.4.4 the screen's is
   // the engine's look at the HUD, which no link holds to Riot's, and the
@@ -1347,7 +1523,9 @@ async function lookFromScreen(job) {
   // Riot's rounds landed while this look was out. Theirs is painted, and if it
   // fails after all, the link's end looks again.
   if (job.riotBusy) { job.screenLook = null; return; }
-  if (job.cancelled || job.riotLooked || !Object.keys(looked.byRound).length) return;
+  // A flagged death's clip is named on the review even when no look came back.
+  if (job.cancelled || job.riotLooked
+    || (!Object.keys(looked.byRound).length && !deathFlags.clipNames(job.flags).length)) return;
   // On the ledger's own rows, so a version built after this one (a scoreboard
   // linked late) still carries the looks. Riot's reconcile builds its rounds
   // afresh and keeps none of them.
@@ -1388,16 +1566,17 @@ async function lookFromScreen(job) {
  * Resolves Map n -> { name, startWall }: the clips cut, and where each one's
  * own 0 is on the wall clock.
  */
-function clipLooks(job, looks, stale) {
-  const run = () => cutLookClips(job, looks, stale);
+function clipLooks(job, looks, stale, targets) {
+  const run = () => cutLookClips(job, looks, stale, targets);
   const cut = (job.clipping || Promise.resolve()).then(run, run)
     .catch((e) => { console.log('[clips] the clips could not be cut:', e.message); return new Map(); });
   job.clipping = cut;
   return cut;
 }
 
-async function cutLookClips(job, looks, stale) {
+async function cutLookClips(job, looks, stale, targets) {
   const cut = new Map();
+  const flagged = new Map((targets || []).map((t) => [t.n, t]));
   if (stale()) return cut;
   // Off: nothing is cut. The look is still the review's last, so its cards
   // name no clip, and an earlier look's clips go once it answers, as they do
@@ -1407,11 +1586,18 @@ async function cutLookClips(job, looks, stale) {
     console.log(`[clips] ${job.id}: Off was chosen, no clip cut`);
     return cut;
   }
+  const looked = new Set((looks || []).map((l) => l.round.n));
   const wanted = (looks || [])
     // From no earlier than its round's barriers, its stills inside (clips.lookWindow, 8.4.1).
-    .map((l) => ({ key: l.round.n, name: clips.roundClip(l.round.n), moment: clips.momentOf(l), window: clips.lookWindow(l) }))
+    // A flagged death's is the longer one, its stills inside too (8.13).
+    .map((l) => ({ key: l.round.n, name: clips.roundClip(l.round.n), moment: clips.momentOf(l),
+      window: (flagged.has(l.round.n) && clips.flagWindow(flagged.get(l.round.n))) || clips.lookWindow(l) }))
+    // And a flagged death no look could be taken of still gets its clip.
+    .concat([...flagged.values()].filter((t) => !looked.has(t.n)).map((t) => ({ key: t.n, name: clips.roundClip(t.n),
+      moment: Number.isFinite(t.moment) ? t.moment : t.read, window: clips.flagWindow(t) })))
     .filter((l) => l.name && Number.isFinite(l.moment))
-    .sort((a, b) => a.key - b.key);
+    // Flagged first, so the limit of six can never drop one.
+    .sort((a, b) => Number(flagged.has(b.key)) - Number(flagged.has(a.key)) || a.key - b.key);
   if (!wanted.length) return cut;
   // The recording let go once Riot's look had cut its clips (recordingCut):
   // a look after it takes those clips, the rounds it wants that they are of,
@@ -1486,6 +1672,8 @@ function keepLookClips(job, looked, cut) {
     // And where in it the moment the look's frames are timed against falls, for its player (8.4.4).
     if (c && f) { f.clip = c.name; f.clipDeath = reviewClips.lookDeathInClip(f, c.startWall); names.push(c.name); }
   }
+  // A flagged death's clip stays whatever the look said of it (8.13).
+  if (!off) names.push(...deathFlags.clipNames(job.flags));
   try { reviewStore.keepClips(job.id, names); } catch (e) { console.log('[clips] keepClips:', e.message); }
   if (names.length) applyClipCap();
 }
@@ -1499,7 +1687,9 @@ function keepLookClips(job, looked, cut) {
 let clipCapSeen = clips.capGB(store.get('clipCapGB'));
 function applyClipCap() {
   let ids = [];
-  try { ids = reviewStore.capClips(clips.capGB(store.get('clipCapGB')) * clips.GB); } catch (e) {
+  // Flagged clips of a review whose next version is not saved yet (8.13).
+  const flaggedNow = new Map([...reviewJobs.values()].map((j) => [j.id, deathFlags.clipNames(j.flags)]));
+  try { ids = reviewStore.capClips(clips.capGB(store.get('clipCapGB')) * clips.GB, flaggedNow); } catch (e) {
     console.warn('[clips] the cap could not be applied:', e.message);
     return;
   }
@@ -1659,8 +1849,12 @@ function lockReview(job) {
  * the library ends up keeping.
  */
 function stampReview(job, built) {
+  const flags = deathFlags.view(job.flags, !!job.flagKeyFailed);
   return Object.assign(built, { id: job.id, at: job.snap.endedAt || Date.now(), aiLog: job.aiLog || null },
     job.locked ? { locked: true } : {},
+    // What the player flagged, and the answers saved so far (8.13).
+    flags ? { deathFlags: flags } : {},
+    job.explains ? { deathExplains: job.explains } : {},
     // Its clips taken while it was still being improved (clipsCleared): every
     // later version says why, as the saved one the cap or Settings marked did.
     job.clipsCleared ? { clipsCleared: job.clipsCleared } : {});
@@ -1780,6 +1974,14 @@ function onValorantMatchEnded(snap) {
   // Null when the log was off.
   job.aiLog = job.log ? aiLogStore.placeOf(job.log.dir, snap.startedAt, snap.endedAt) : null;
   snap.log = job.log;
+  // The flag key's presses in this match (8.13), read against its deaths now
+  // and again when Riot's record lands. An import has none.
+  if (!run) {
+    const end = (snap.endedAt || Date.now()) + 5000;
+    job.flagPresses = deathFlags.pressesIn(flagPresses, snap.startedAt, end);
+    job.flagKeyFailed = flagKeyFailedAt >= snap.startedAt && flagKeyFailedAt <= end;
+    readFlags(job, snap.rounds, snap);
+  }
   reviewJobs.set(snap.startedAt, job);
   if (job.locked) {
     console.log(`[review] ${job.id} is saved locked: the account has no games left`);
@@ -1878,6 +2080,8 @@ function linkRiotRecord(job) {
       noteWork(job);
       if (reviewJobs.get(snap.startedAt) === job) reviewJobs.delete(snap.startedAt);
       if (job.importRun) job.importRun.finish({ id: job.id, locked: !!job.locked, matched: !!job.tracker });
+      // The review is whole: the deaths the player flagged are explained (8.13).
+      else if (!job.cancelled) explainFlagged(job).catch((e) => console.log('[explain] flagged deaths:', e.message));
     });
   };
   const lastTry = {};
@@ -1959,6 +2163,7 @@ function linkRiotRecord(job) {
     job.stage = 'look';
     noteWork(job);
     // A locked review (8.7) shows Riot's record and asks the model nothing.
+    if (job.locked) await flagsOnly(job, deathFrames.withRiotTimes(rounds, riot), { ...snap, context }, () => job.cancelled);
     const looked = job.locked ? { byRound: {}, frames: {} }
       : await forensicsFor(deathFrames.withRiotTimes(rounds, riot), { ...snap, context },
         { job, stale: () => job.cancelled, matchId: lm.matchId });
@@ -2796,6 +3001,18 @@ const controller = {
    * is not ours and is never touched; Occlara never copied it. The game it used
    * stays used.
    */
+  /** Further explain on one death of a saved review (8.13). */
+  explainDeath(id, n) {
+    if (!Number.isInteger(n) || n < 1 || !id) return { error: 'gone' };
+    if (!account.hasAuth()) return { error: 'failed' };
+    return explainer().explain(id, n);
+  },
+  /** Whether a key can flag a death: allowed, and not held by another app (8.13). */
+  testFlagKey(accel) {
+    const c = flagKeys.check(accel);
+    if (!c.ok) return c;
+    return hotkeys.flagKeyFree(c.accel) ? c : { ok: false, why: 'Another app is using that key. Choose another.' };
+  },
   importDelete(id) {
     if (importBusy()) return { ok: false, error: 'match' };
     const e = id ? reviewStore.get(id) : null;
@@ -3405,6 +3622,7 @@ const controller = {
     openAppWithSplash();
   },
   onConfigChanged() {
+    flagKeyChosen = undefined;   // the flag key, read again (8.13)
     if (engine && engine.setCaptureSpeed) engine.setCaptureSpeed(store.get('captureSpeed') || 'auto');
     // Record match video turned Off, or On again (Settings' "Try again" after
     // it turned itself off): applied to the session in progress at once.

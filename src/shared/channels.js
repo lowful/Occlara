@@ -115,6 +115,8 @@ const CHANNELS = {
   // src/shared/riot-rank.js): its RR chip and Riot's accolades for it, by its
   // Riot match id. Null mid match, sealed, for League or with neither known.
   REVIEW_RIOT:     'reviews:riot',       // (id) -> { rr: { text, tone, title } | null, accolades: [{ title, detail }] } | null
+  REVIEW_EXPLAIN:  'reviews:explain',    // (id, round) -> { ok, explain } | { error }: Further explain on one death (8.13)
+  FLAG_KEY_TEST:   'flagKey:test',       // (accel) -> { ok, accel } | { ok: false, why }: can this key flag a death (8.13)
   // The RR chip of each rated row in Matches (8.7.9, home-model.js rrForRows).
   REVIEWS_RR:      'reviews:rr',         // (game) -> { [rowId]: { text, tone, title } } ({} for League or with no history)
   // The breakdown in Matches: by map and agent (champion), counted from
@@ -242,6 +244,11 @@ const CHANNELS = {
   // when nothing is recorded. Only what the player's own HUD already shows:
   // never HP, positions, economy, the enemy, advice or anything of a review.
   PUSH_LIVE:         'push:live',
+  // The flag key was pressed mid match (8.13): main to the shell, nothing
+  // carried, for its one tick. It says nothing about the game.
+  PUSH_FLAG_TICK:    'push:flagTick',
+  // A saved Further explain answer (8.13): { id, n, explain }, for its row alone.
+  PUSH_DEATH_EXPLAIN: 'push:deathExplain',
   // The account menu (8.9.1): main to the menu view, what to draw
   // ({ html, left, top, focus?, fresh? }, html '' when closed), and main to
   // the shell, what the view did ({ choose: id } | { closed: true, refocus }).
@@ -296,6 +303,8 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.ACCOUNT_CHANGED,
   CHANNELS.PUSH_CHANGELOG,
   CHANNELS.PUSH_LIVE,
+  CHANNELS.PUSH_FLAG_TICK,
+  CHANNELS.PUSH_DEATH_EXPLAIN,
   CHANNELS.PUSH_MENU,
   CHANNELS.PUSH_MENU_ACT,
   CHANNELS.PUSH_TOAST,

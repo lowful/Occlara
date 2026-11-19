@@ -261,6 +261,18 @@ function readMatch(root, id, scope) {
 }
 
 /**
+ * One match's records and the folder their frames are in, with no frame read
+ * (8.13, Further explain takes two of them), or null once they are not kept.
+ * `scope` is a review's own place in the log (scopeFor).
+ */
+function matchRecords(root, scope) {
+  const s = matchScope(scope);
+  const sid = scope && typeof scope.session === 'string' ? scope.session : '';
+  if (!s || !sid || !dirs(root).includes(sid)) return null;
+  return { dir: path.join(root, sid), records: records(root, sid).filter((r) => inMatch(r, s)) };
+}
+
+/**
  * Where one match's frames are, as its review keeps them (8.2): the session
  * folder, the match's stamp and its window, the scope readMatch() is handed
  * back. Null when the log was off and there is no folder.
@@ -405,4 +417,4 @@ function removeImported(root, id) {
   try { fs.rmSync(path.join(root, id), { recursive: true, force: true }); return true; } catch { return false; }
 }
 
-module.exports = { dirs, sessions, read, served, serve, askAbout, prune, removeImported, startedAt, placeOf, matchesIn, locate, scopeFor, END_GAP_MS, HOLD_MAX_MS };
+module.exports = { dirs, sessions, read, served, serve, askAbout, matchRecords, prune, removeImported, startedAt, placeOf, matchesIn, locate, scopeFor, END_GAP_MS, HOLD_MAX_MS };

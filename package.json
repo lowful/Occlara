@@ -1,6 +1,6 @@
 {
   "name": "occlara",
-  "version": "8.12.0",
+  "version": "8.13.0",
   "description": "Occlara, an AI coach for Valorant, with League of Legends coming soon. Reads the screen, never the game, shows nothing during a match, and grades every match when it ends.",
   "main": "src/main/index.js",
   "scripts": {
@@ -76,6 +76,7 @@
     "test:communityipc": "node scripts/test-community-ipc.js",
     "test:claimgame": "node scripts/test-claim-game.js",
     "test:clips": "node scripts/test-clips.js",
+    "test:deathflags": "node scripts/test-death-flags.js",
     "test:costrollover": "node scripts/test-cost-rollover.js",
     "test:deathchain": "node scripts/test-death-chain.js",
     "test:deathhp": "node scripts/test-death-hp.js",

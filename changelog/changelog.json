@@ -1,5 +1,25 @@
 [
   {
+    "version": "8.13.0",
+    "date": "2026-11-18",
+    "title": "Flag a death, and go deeper on any death",
+    "summary": "Press a key after a death you want to study, and ask the coach to explain any death further.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Press F8 after a death in a Valorant match to flag it. You hear one quiet tick, and you can change the key in Settings."
+      },
+      {
+        "kind": "new",
+        "text": "A flagged death gets a longer clip that the storage limit never removes, a yellow flag on its round and a line under your stats."
+      },
+      {
+        "kind": "new",
+        "text": "Further explain on any death asks the coach what happened, why it went wrong and what to do instead. Flagged deaths get this by themselves."
+      }
+    ]
+  },
+  {
     "version": "8.12.0",
     "date": "2026-11-17",
     "title": "Import a recording",

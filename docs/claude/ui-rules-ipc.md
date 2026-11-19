@@ -33,7 +33,8 @@ durations:
   (18.1, 7.7 and 5.0 to 1 on `--bg`)
 - Status: `--good`, `--warn`, `--bad`, each with an `-rgb` twin. An OUTCOME,
   never the brand: a loss, a D, a lost round, a death mark and an error line
-  are `--bad`, never the signal.
+  are `--bad`, never the signal. The yellow flag on a death the player
+  flagged (8.13) is `--warn`: their own mark, not the death's.
 - Lines: `--line` (the hairline, what `--glass-border` is), `--line-2`
   (a control's border and a keycap's), `--grid` (Home's column grid)
 - Paper, the Verdict's share image alone: `--paper`, `--paper-ink`,

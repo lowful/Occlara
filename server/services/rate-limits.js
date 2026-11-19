@@ -224,6 +224,11 @@ function routeLimits(deps = {}) {
     // Riot's). Six matches an hour is twenty four; a bench is not counted.
     { paths: ['/api/coach/match-review'], mw: L({ name: 'review', windowMs: 60 * MIN, max: 60, skip: bench }) },
     { paths: ['/api/coach/death-forensics'], mw: L({ name: 'look', windowMs: 60 * MIN, max: 60, skip: bench }) },
+    // Further explain (8.13): a paid vision call a death, saved once answered,
+    // so a whole match is about twenty. The day's ceiling is its spend cap,
+    // about 50 cents at the look's price, and holds with caps off too.
+    { paths: ['/api/coach/death-explain'], mw: L({ name: 'explain', windowMs: 60 * MIN, max: 30, skip: bench }) },
+    { paths: ['/api/coach/death-explain'], mw: L({ name: 'explain-day', windowMs: 24 * 60 * MIN, max: 60, skip: bench }) },
     // The agent look (8.11.0): a vision call too, and before this only the
     // 90 a minute of every coach route held it, 5400 an hour. The app sends
     // none since the look was turned off (AGENT_LOOKS_PER_MATCH 0), at most a

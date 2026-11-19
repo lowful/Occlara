@@ -195,6 +195,11 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
    main paragraph. */
 .keys-note { font-size: 12px; line-height: 1.5; color: var(--text-mute); margin: var(--space-3) 0 0; }
 .keys-note kbd { font-size: 10.5px; }
+.keys-note + .keys-note { margin-top: var(--space-1); }
+/* The flag key's row (8.13, shared/flag-key.js): its cap and its two buttons. */
+#ob-flagkey { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+#ob-flagkey .flag-key { display: inline-flex; align-items: center; gap: var(--space-1); }
+#ob-flagkey .flag-key-said { margin: 0; font-size: 11px; color: var(--text-mute); }
 
 /* ── The sample review ──────────────────────────────────────────────────────
    One ruled entry, drawn with the review's own type: the result, the score,

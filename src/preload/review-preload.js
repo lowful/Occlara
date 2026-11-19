@@ -56,6 +56,14 @@ contextBridge.exposeInMainWorld('occlara', {
   // Riot's rank record of this match (8.7.9, REVIEW_RIOT): its RR chip and
   // Riot's accolades for "What went well", finished words from main, or null.
   riotOf: (id) => ipcRenderer.invoke(C.REVIEW_RIOT, id),
+  // Further explain on one death (8.13): main gathers what is kept of it, asks
+  // the coach once and saves the answer on the review.
+  explainDeath: (id, n) => ipcRenderer.invoke(C.REVIEW_EXPLAIN, id, n),
+  onDeathExplained: (cb) => {
+    const h = (_e, a) => cb(a);
+    ipcRenderer.on(C.PUSH_DEATH_EXPLAIN, h);
+    return () => ipcRenderer.removeListener(C.PUSH_DEATH_EXPLAIN, h);
+  },
   // Read only: the reveal's sound asks whether sounds are on and whether a
   // match is being coached, and plays nothing while one is.
   getState: () => ipcRenderer.invoke(C.STATE_GET),

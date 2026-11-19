@@ -34,6 +34,7 @@ const fs = require('fs');
 const path = require('path');
 const { CLIP_RE } = require('../../shared/clips');
 const { isRetired } = require('../../shared/games');
+const { clipNames } = require('../../shared/death-flags');
 
 const MAX_REVIEWS = 300;          // about a season of daily play
 const ID_RE = /^[a-z]+-\d{10,}-[a-z0-9]{4,}$/;
@@ -83,6 +84,7 @@ function metaOf(id, game, review, at) {
   const g = r.game || {};
   const grade = r.grade || null;
   const top = r.insights && r.insights.mistakes && r.insights.mistakes[0];
+  const flaggedClips = clipNames(r.deathFlags).filter((n) => CLIP_RE.test(n));
   return {
     id, game, at,
     title: g.agent || g.champion || null,
@@ -114,6 +116,9 @@ function metaOf(id, game, review, at) {
     // From a recording the player imported (8.12), a live match's review in
     // every other way. Only on one, so every other row is written as it was.
     ...(r.imported === true ? { imported: true } : {}),
+    // The clips of the deaths the player flagged (8.13), which the cap spares
+    // (capClips). Only on a review that has some.
+    ...(flaggedClips.length ? { flaggedClips } : {}),
     // Where its frames are in the AI log (8.2, index.js), so the list can say
     // whether they are still kept without opening the review. Null when the
     // log was off; left out for a review saved before 8.2, which kept none
@@ -396,7 +401,9 @@ class ReviewStore {
    * gone from the library (written as it went) sorts before every review.
    */
   clipUsage() {
-    const at = new Map(this.index().filter(Boolean).map((r) => [r.id, r.at]));
+    const rows = this.index().filter(Boolean);
+    const at = new Map(rows.map((r) => [r.id, r.at]));
+    const flagged = new Map(rows.filter((r) => Array.isArray(r.flaggedClips)).map((r) => [r.id, r.flaggedClips]));
     let dirs = [];
     try { dirs = fs.readdirSync(this.root, { withFileTypes: true }); } catch { dirs = []; }
     const byReview = [];
@@ -411,6 +418,7 @@ class ReviewStore {
       byReview.push({
         id: d.name, at: listed ? at.get(d.name) : owned ? (atOfId(d.name) ?? -Infinity) : -Infinity, owned,
         bytes: list.reduce((n, c) => n + c.bytes, 0), clips: list.length,
+        ...(flagged.has(d.name) ? { flagged: flagged.get(d.name) } : {}),
       });
     }
     byReview.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -427,18 +435,31 @@ class ReviewStore {
    * oldest review first (a folder no review owns before any), until what is
    * left fits. A review that lost its clips keeps its frames, its facts and
    * its grade, and is told why (clipsCleared, 'space'), which its page says.
-   * Returns the ids cleared, oldest first.
+   * A DEATH THE PLAYER FLAGGED KEEPS ITS CLIP (8.13): the cap passes over it,
+   * and only Clear clips or deleting the review takes it. Returns the ids
+   * cleared, oldest first.
    */
-  capClips(capBytes) {
+  capClips(capBytes, flaggedNow) {
     const cap = Number(capBytes);
     if (!Number.isFinite(cap) || cap < 0) return [];
     const u = this.clipUsage();
-    let total = u.bytes;
+    // `flaggedNow`: id -> names, for a review whose flagged clips were cut and
+    // whose next version is not saved yet. Flagged clips do not count against
+    // the cap, so a pile of them never clears every other clip.
+    const spareOf = (r) => new Set([...(r.flagged || []), ...((flaggedNow && flaggedNow.get(r.id)) || [])]);
+    let total = 0;
+    for (const r of u.byReview) {
+      const spare = spareOf(r);
+      total += this.clipsOf(r.id).filter((c) => !spare.has(c.name)).reduce((n, c) => n + c.bytes, 0);
+    }
     const cleared = [];
     for (const r of u.byReview) {
       if (total <= cap) break;
-      this.dropClips(r, 'space');
-      total -= r.bytes;
+      const spare = spareOf(r);
+      const going = this.clipsOf(r.id).filter((c) => !spare.has(c.name));
+      if (!going.length) continue;
+      this.dropClips(r, 'space', spare);
+      total -= going.reduce((n, c) => n + c.bytes, 0);
       cleared.push(r.id);
     }
     return cleared;
@@ -456,12 +477,13 @@ class ReviewStore {
   }
 
   /** One review's clips deleted, and the review told why; a folder no review owns, deleted whole. */
-  dropClips(r, why) {
+  dropClips(r, why, spare) {
     if (!r.owned) {
       try { fs.rmSync(path.join(this.root, r.id), { recursive: true, force: true }); } catch {}
       return;
     }
     for (const c of this.clipsOf(r.id)) {
+      if (spare && spare.has(c.name)) continue;
       try { fs.rmSync(path.join(this.root, r.id, c.name), { force: true }); } catch {}
     }
     this.markClipsCleared(r.id, why);

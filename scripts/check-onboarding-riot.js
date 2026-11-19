@@ -308,6 +308,13 @@ setTimeout(async () => {
       const over = await js(FITS(n));
       lines.push(`page ${n} fits=${!over}${over ? ` (${over})` : ''}`);
       if (over) return report(false, `onboarding page ${n} overflows its card: ${over}`);
+      if (n === 1) {
+        // The flag key's control (8.13): its key, and the buttons that change it.
+        const flag = await js("(() => { const h = document.getElementById('ob-flagkey'); return h && h.querySelector('kbd') ? h.querySelector('kbd').textContent + '|' + h.querySelectorAll('button').length : ''; })()");
+        lines.push(`flag key control: ${flag}`);
+        if (flag !== 'F8|2') return report(false, `the tour's flag key control reads "${flag}"`);
+        await shot(win, 'onboarding-flag-key');
+      }
     }
     const picker = await js("document.getElementById('ob-language').children.length > 0");
     if (!picker) return report(false, 'the language picker was not drawn, so page 0 was measured without it');

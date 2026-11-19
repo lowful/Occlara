@@ -49,15 +49,16 @@
         <h1>Keep it out of your way</h1>
         <p class="sub">Occlara sits behind your game like any other app.</p>
       </div>
-      <p class="lead">While you play, <kbd>Ctrl+Shift+M</kbd> hides the window. Occlara keeps reading your game in the background, and the same shortcut brings it back.</p>
+      <p class="lead"><kbd>Ctrl+Shift+M</kbd> hides the window while you play, and brings it back.</p>
       <div class="keys">
         <div class="k"><span>Last review</span><kbd>Ctrl+Shift+E</kbd></div>
         <div class="k"><span>Matches</span><kbd>Ctrl+Shift+H</kbd></div>
         <div class="k"><span>Hide or show Occlara</span><kbd>Ctrl+Shift+M</kbd></div>
         <div class="k"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
+        <!-- The one key the player chooses (8.13, shared/flag-key.js). -->
+        <div class="k k-flag"><span>Flag a death</span><span id="ob-flagkey"></span></div>
       </div>
-      <p class="keys-note">During a match <kbd>Ctrl+Shift+E</kbd> does nothing, on purpose: Occlara coaches
-        nothing while you play, and everything it read is waiting in the review when the match ends.</p>
+      <p class="keys-note">Press your flag key after a death you want to study. You hear one tick, and the review keeps its clip and looks deeper. Nothing is coached while you play, so <kbd>Ctrl+Shift+E</kbd> does nothing during a match.</p>
     </section>
 
     <!-- ── 3. What arrives after the match ────────────────────────────── -->
@@ -173,6 +174,7 @@
   <!-- How Occlara watches: its rules, a file of their own so test:pccheck runs them. -->
   <script src="pc-rules.js"></script>
   <script src="../shared/motion.js"></script>
+  <script src="../shared/flag-key.js"></script>
   <script src="onboarding.js"></script>
 </body>
 </html>
