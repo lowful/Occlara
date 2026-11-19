@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none';" />
+  <title>Occlara Trainer</title>
+  <!-- Before the body: a page of the main window never paints its old window chrome. -->
+  <script src="../shared/embed.js"></script>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="trainer.css" />
+</head>
+<body>
+  <!-- THE TRAINER (docs/claude/trainer.md). An aim and movement trainer that
+       runs entirely in this page: three.js from vendor/, our own arenas, bots,
+       guns and synthesised sounds, and every number from
+       src/shared/trainer-data.json. Nothing it does leaves this PC and it
+       makes no AI call. Sealed mid match like every page, and its loop runs
+       only while a run is played with this page in front.
+
+       The page is a rail and a stage. The rail (menu only) lists the
+       scenarios, or holds the settings. The stage is the 3D view and whatever
+       lies over it: the chosen scenario's panel in the menu, the HUD in a
+       run, the pause, the report. -->
+  <div id="tr" class="tr" data-state="menu" data-tab="play">
+
+    <aside id="rail" class="tr-rail">
+      <header class="tr-rail-head">
+        <h1 class="tr-title">Trainer</h1>
+        <div class="seg tr-tabs" role="tablist" aria-label="Trainer">
+          <button id="tab-play" type="button" role="tab" aria-selected="true" aria-controls="pane-play">Scenarios</button>
+          <button id="tab-settings" type="button" role="tab" aria-selected="false" aria-controls="pane-settings">Settings</button>
+        </div>
+      </header>
+
+      <section id="pane-play" class="tr-pane" role="tabpanel" aria-labelledby="tab-play">
+        <div id="list" class="tr-list"></div>
+        <details class="tr-about">
+          <summary>How close is it to the game?</summary>
+          <div id="about-text" class="tr-about-text"></div>
+        </details>
+      </section>
+
+      <section id="pane-settings" class="tr-pane" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <div class="tr-group">
+          <h3 class="tr-h">Sensitivity</h3>
+          <label class="tr-row"><span>Sensitivity</span><input id="s-sens" class="input tr-in" type="number" min="0.01" max="10" step="0.001" inputmode="decimal" /></label>
+          <label class="tr-row"><span>Mouse DPI</span><input id="s-dpi" class="input tr-in" type="number" min="100" max="32000" step="50" inputmode="numeric" /></label>
+          <label class="tr-row"><span>Aim down sights multiplier</span><input id="s-scoped" class="input tr-in" type="number" min="0.01" max="5" step="0.01" inputmode="decimal" /></label>
+          <p class="tr-row tr-read"><span>A full turn takes</span><span id="s-cm" class="tr-mono"></span></p>
+          <p class="tr-hint">Type your game's own values. The view turns 0.07 degrees for each mouse count times your sensitivity, with raw input, as the game does.</p>
+        </div>
+
+        <div class="tr-group">
+          <h3 class="tr-h">Crosshair</h3>
+          <label class="tr-row"><span>Colour</span><input id="x-color" class="tr-color" type="color" /></label>
+          <label class="tr-row"><span>Line length</span><span class="tr-slide"><input id="x-len" type="range" min="0" max="20" step="1" /><output id="x-len-v" class="tr-mono"></output></span></label>
+          <label class="tr-row"><span>Line thickness</span><span class="tr-slide"><input id="x-thick" type="range" min="0" max="10" step="1" /><output id="x-thick-v" class="tr-mono"></output></span></label>
+          <label class="tr-row"><span>Gap</span><span class="tr-slide"><input id="x-gap" type="range" min="0" max="20" step="1" /><output id="x-gap-v" class="tr-mono"></output></span></label>
+          <div class="tr-row"><span>Centre dot</span><div id="x-dot" class="seg" role="radiogroup" aria-label="Centre dot"></div></div>
+          <div class="tr-row"><span>Outline</span><div id="x-outline" class="seg" role="radiogroup" aria-label="Outline"></div></div>
+          <div class="tr-row"><span>Opens with firing error</span><div id="x-error" class="seg" role="radiogroup" aria-label="Opens with firing error"></div></div>
+          <div class="tr-code">
+            <input id="x-code" class="input" type="text" placeholder="Paste a crosshair code" spellcheck="false" autocomplete="off" aria-label="Crosshair code" />
+            <button id="x-apply" class="btn md" type="button">Use code</button>
+          </div>
+          <p id="x-said" class="tr-hint" aria-live="polite">A code copied from your game's crosshair settings sets the colour, lines, dot and outline.</p>
+        </div>
+
+        <div class="tr-group">
+          <h3 class="tr-h">Targets and loadout</h3>
+          <div class="tr-row"><span>Target outline</span><div id="s-enemy" class="seg" role="radiogroup" aria-label="Target outline"></div></div>
+          <div class="tr-row"><span>Primary</span><div id="s-primary" class="seg" role="radiogroup" aria-label="Primary"></div></div>
+          <div class="tr-row"><span>Sidearm</span><div id="s-secondary" class="seg" role="radiogroup" aria-label="Sidearm"></div></div>
+          <p id="s-follows" class="tr-hint"></p>
+        </div>
+
+        <div class="tr-group">
+          <h3 class="tr-h">Keys</h3>
+          <div id="binds" class="tr-binds"></div>
+          <p id="binds-said" class="tr-hint" aria-live="polite">Click a key, then press the new one. Esc cancels. Left click fires, right click aims or fires the sidearm's burst.</p>
+        </div>
+
+        <div class="tr-group">
+          <h3 class="tr-h">Display and sound</h3>
+          <div class="tr-row"><span>Graphics</span><div id="s-graphics" class="seg" role="radiogroup" aria-label="Graphics"></div></div>
+          <div class="tr-row"><span>Frames per second</span><div id="s-fps" class="seg" role="radiogroup" aria-label="Frames per second"></div></div>
+          <label class="tr-row"><span>Volume</span><span class="tr-slide"><input id="s-volume" type="range" min="0" max="1" step="0.05" /><output id="s-volume-v" class="tr-mono"></output></span></label>
+          <p id="s-sounds" class="tr-hint" hidden>Sounds are off in Occlara's Settings, so the Trainer is silent.</p>
+        </div>
+
+        <div class="tr-group">
+          <h3 class="tr-h">Your runs</h3>
+          <p id="s-runs" class="tr-hint"></p>
+          <div><button id="s-clear" class="btn btn-ghost danger md" type="button">Clear every run</button></div>
+        </div>
+      </section>
+    </aside>
+
+    <div id="stage" class="tr-stage">
+      <canvas id="view" class="tr-view" tabindex="-1" aria-label="Trainer view"></canvas>
+      <canvas id="xhair" class="tr-xhair" width="128" height="128" aria-hidden="true"></canvas>
+
+      <!-- THE MENU'S PANEL: the scenario chosen, over the still of its arena. -->
+      <section id="detail" class="tr-detail" aria-live="polite">
+        <p id="d-kind" class="tr-d-kind"></p>
+        <h2 id="d-title" class="tr-d-title"></h2>
+        <div id="d-level" class="seg tr-d-level" role="radiogroup" aria-label="Level" hidden></div>
+        <p id="d-about" class="tr-d-about"></p>
+        <p id="d-asked" class="tr-d-asked" hidden></p>
+        <div id="d-stats" class="tr-d-stats"></div>
+        <div class="tr-d-go">
+          <button id="play" class="btn btn-primary" type="button">Play<kbd>Enter</kbd></button>
+          <span class="tr-d-keys"><kbd>Esc</kbd> pauses a run</span>
+        </div>
+      </section>
+      <p id="x-note" class="tr-xnote" hidden>Your crosshair, on a target 14 metres away</p>
+
+      <!-- THE HUD: only while a run is played. -->
+      <div id="hud" class="tr-hud" hidden aria-hidden="true">
+        <div class="tr-top">
+          <div class="tr-stat"><span id="h-score" class="tr-n">0</span><span class="tr-l">Score</span></div>
+          <div class="tr-stat"><span id="h-time" class="tr-n">0:00</span><span class="tr-l">Time</span></div>
+          <div class="tr-stat"><span id="h-acc" class="tr-n">0%</span><span class="tr-l">Accuracy</span></div>
+        </div>
+        <p id="h-line" class="tr-line"></p>
+        <p id="h-fps" class="tr-fps" hidden></p>
+
+        <div id="h-mark" class="tr-mark"><i></i><i></i><i></i><i></i></div>
+        <p id="h-pop" class="tr-pop"></p>
+        <div id="h-gate" class="tr-gate" hidden><span></span><b id="h-gate-t">Accurate</b></div>
+
+        <div class="tr-bottom">
+          <div id="h-hp-box" class="tr-hp">
+            <span id="h-hp" class="tr-n">100</span>
+            <span class="tr-bar"><i id="h-hp-bar"></i></span>
+            <span id="h-armour" class="tr-l" hidden></span>
+          </div>
+          <div class="tr-ammo">
+            <span id="h-weapon" class="tr-l"></span>
+            <span class="tr-bar"><i id="h-reload"></i></span>
+            <span id="h-ammo" class="tr-n">25</span><span id="h-mag" class="tr-l"></span>
+          </div>
+        </div>
+        <div id="h-hurt" class="tr-hurt"></div>
+        <p id="h-count" class="tr-count" hidden></p>
+        <div id="h-keys" class="tr-keys" hidden></div>
+      </div>
+
+      <!-- PAUSED: the pointer let go mid run. -->
+      <div id="pause" class="tr-over" hidden>
+        <div class="tr-over-col">
+          <h2 class="tr-over-title">Paused</h2>
+          <p id="p-what" class="tr-hint"></p>
+          <label class="tr-row tr-p-sens"><span>Sensitivity</span><input id="p-sens" class="input tr-in" type="number" min="0.01" max="10" step="0.001" inputmode="decimal" /></label>
+          <div class="tr-actions">
+            <button id="p-resume" class="btn btn-primary" type="button">Resume</button>
+            <button id="p-restart" class="btn" type="button">Restart</button>
+            <button id="p-menu" class="btn btn-ghost" type="button">Scenarios</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- THE REPORT after a run. -->
+      <div id="report" class="tr-over" hidden>
+        <div class="tr-over-col tr-report">
+          <p id="r-title" class="tr-r-title"></p>
+          <div class="tr-r-hero">
+            <span id="r-score" class="tr-r-score" role="img"></span>
+            <span id="r-best" class="tr-r-best"></span>
+          </div>
+          <svg id="r-chart" class="tr-chart" viewBox="0 0 400 96" preserveAspectRatio="none" role="img" aria-label="Your last scores"></svg>
+          <div id="r-stats" class="tr-r-stats"></div>
+          <p id="r-note" class="tr-hint"></p>
+          <div class="tr-actions">
+            <button id="r-retry" class="btn btn-primary" type="button">Retry<kbd>R</kbd></button>
+            <button id="r-next" class="btn" type="button">Next<kbd>Enter</kbd></button>
+            <button id="r-menu" class="btn btn-ghost" type="button">Scenarios<kbd>Esc</kbd></button>
+          </div>
+        </div>
+      </div>
+
+      <p id="tr-error" class="tr-error" hidden></p>
+    </div>
+  </div>
+
+  <script src="../shared/seg.js"></script>
+  <script src="../../shared/trainer-math.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

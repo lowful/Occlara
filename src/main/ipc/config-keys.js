@@ -20,6 +20,7 @@ const { GAMES, isComingSoon, isRetired } = require('../../shared/games');
 const { CAPS_GB } = require('../../shared/clips');
 const { LANGUAGES } = require('../../shared/i18n');
 const { check } = require('../../shared/flag-key');
+const { validSettings } = require('../../shared/trainer-math');
 
 const bool = (v) => typeof v === 'boolean';
 const oneOf = (...vals) => (v) => vals.includes(v);
@@ -49,6 +50,8 @@ const RULES = Object.freeze({
   recordingMode:  oneOf('auto', 'off'),
   recordingRes:   oneOf('480', '720', '1080'),
   clipCapGB:      (v) => CAPS_GB.includes(v),
+  // The Trainer's settings, only as the whole object normaliseSettings makes.
+  trainerSettings: (v) => validSettings(v),
 });
 
 const WRITABLE = Object.freeze(Object.keys(RULES));

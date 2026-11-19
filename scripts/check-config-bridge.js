@@ -44,6 +44,23 @@ for (const f of walk(path.join(ROOT, 'renderer'))) {
   }
 }
 
+// And keys a preload writes for its page in one fixed call,
+// ipcRenderer.invoke(C.CONFIG_SET, { key: ... }), as the Trainer's
+// saveSettings writes trainerSettings (src/preload/trainer-preload.js).
+const PRELOAD_SET = /C\.CONFIG_SET,\s*\{([^}]*)\}/g;
+if (![..."ipcRenderer.invoke(C.CONFIG_SET, { trainerSettings: s })".matchAll(PRELOAD_SET)].length) {
+  console.log('FAIL: the preload write pattern no longer matches a known write');
+  process.exit(1);
+}
+for (const f of walk(path.join(ROOT, 'preload'))) {
+  const src = fs.readFileSync(f, 'utf8');
+  for (const m of src.matchAll(PRELOAD_SET)) {
+    for (const km of m[1].matchAll(/([a-zA-Z_][\w]*)\s*:/g)) {
+      if (!written.has(km[1])) written.set(km[1], path.relative(ROOT, f));
+    }
+  }
+}
+
 // Keys snapshotConfig hands back.
 const ipcSrc = fs.readFileSync(path.join(ROOT, 'main', 'ipc', 'register-ipc.js'), 'utf8');
 const snap = ipcSrc.match(/function snapshotConfig\(\)\s*\{([\s\S]*?)\n\}/);

@@ -17,7 +17,12 @@ const BINDINGS = {
   'CommandOrControl+Shift+H': 'openHistory',
 };
 
+let bound = null;      // the actions register() was given, for resume()
+let suspended = false;
+
 function register(actions) {
+  bound = actions;
+  suspended = false;
   for (const [accel, action] of Object.entries(BINDINGS)) {
     try {
       const ok = globalShortcut.register(accel, () => {
@@ -34,6 +39,26 @@ function register(actions) {
 function unregister() {
   globalShortcut.unregisterAll();
   flagAccel = null;
+  bound = null;
+  suspended = false;
+}
+
+/*
+ * THE TRAINER HOLDS THE KEYBOARD (docs/claude/trainer.md). Ctrl is crouch and
+ * Shift is walk there, so crouch-walking back (Ctrl+Shift+S) would open
+ * Settings mid run. While the Trainer has the pointer locked the five keys are
+ * let go, and taken again the moment it does not. The flag key is not touched:
+ * it is held only mid match, when the Trainer is sealed.
+ */
+function suspend() {
+  if (!bound || suspended) return;
+  for (const accel of Object.keys(BINDINGS)) { try { globalShortcut.unregister(accel); } catch {} }
+  suspended = true;
+}
+
+function resume() {
+  if (!bound || !suspended) return;
+  register(bound);
 }
 
 /*
@@ -77,4 +102,4 @@ function flagKeyFree(accel) {
   } catch { return false; }
 }
 
-module.exports = { register, unregister, registerFlag, unregisterFlag, flagKeyFree, flagHeld: () => flagAccel, BINDINGS };
+module.exports = { register, unregister, suspend, resume, suspended: () => suspended, registerFlag, unregisterFlag, flagKeyFree, flagHeld: () => flagAccel, BINDINGS };

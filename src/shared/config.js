@@ -159,6 +159,11 @@ const STORE_DEFAULTS = {
   liveRound:       true,
   sounds:          true,         // the interface sounds: recording armed, stood down, the flag key heard
   flagKey:         'F8',         // the key that flags a death mid match (8.13, flag-key.js), '' for none
+  // The Trainer's settings (docs/claude/trainer.md): sens, DPI, the scoped
+  // multiplier, crosshair, binds, graphics, volume and the fps counter, one
+  // object kept whole by trainer-math.js normaliseSettings. null until the
+  // player first saves one: the page then shows the defaults.
+  trainerSettings: null,
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,
   onboardingCompleted: false,

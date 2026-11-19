@@ -136,6 +136,18 @@ const CHANNELS = {
   PRACTICE_TODAY:  'practice:today',     // () -> Home's line { drill, cause, title, minutes, text } | null
   PRACTICE_OPEN:   'practice:open',      // send (key, title) the page, opened on one mistake (the review's Practise this)
   PUSH_PRACTICE:   'push:practice',      // main -> pages: the plan or the log moved; ask again
+  // The Trainer (docs/claude/trainer.md, services/trainer-store.js): the runs
+  // kept on this PC and the scenario asked for. All local, no AI and no
+  // network, every one quiet mid match: null, or { ok: false, error: 'match' }.
+  TRAINER_GET:     'trainer:get',        // () -> { runs, opened } | null
+  TRAINER_SAVE:    'trainer:save',       // (run) -> { ok, run, best } | { ok: false, error }
+  TRAINER_CLEAR:   'trainer:clear',      // (scenarioId | null) -> { ok } | { ok: false, error }
+  TRAINER_OPEN:    'trainer:open',       // send (scenarioId) the page, opened on that scenario (Practice's Train this)
+  // The page has the pointer locked (true) or not (false): main holds the
+  // Ctrl+Shift keys while it is, so crouch, walk and a letter stay in the
+  // Trainer and never open a page.
+  TRAINER_PLAYING: 'trainer:playing',    // send (bool)
+  PUSH_TRAINER:    'push:trainer',       // main -> pages: the runs moved, or a scenario was asked for; ask again
   // Grading the recent matches of the Riot ID in config from Riot's record
   // (src/main/services/backfill.js).
   BACKFILL_START:  'backfill:start',     // () -> the run's status
@@ -311,6 +323,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_RECORDER,
   CHANNELS.PUSH_FRAMES,
   CHANNELS.PUSH_PRACTICE,
+  CHANNELS.PUSH_TRAINER,
 ];
 
 module.exports = CHANNELS;

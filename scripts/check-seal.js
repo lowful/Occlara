@@ -313,6 +313,31 @@ setTimeout(async () => {
       if (practicePage !== null || practiceToday !== null || !practiceMark || practiceMark.ok !== false || practiceMark.error !== 'match') {
         return report(false, `mid ${game} match, the Practice page's channels answered: ${JSON.stringify({ practicePage, practiceToday, practiceMark })}`);
       }
+      // AND THE TRAINER (docs/claude/trainer.md): asked for mid match no page
+      // shows and its tab is locked, and its channels, called as the page
+      // would, answer nothing and store nothing. Train this (TRAINER_OPEN)
+      // opens no page either.
+      send(C.SHELL_NAV, 'trainer');
+      await wait(400);
+      const trainerMid = await invoke(C.SHELL_GET);
+      const trainerLocked = await until(() => sjs("(() => { const b = document.querySelector('#nav .nav-item[data-page=\"trainer\"]'); return !!b && b.disabled; })()"), 3000);
+      const trainerShown = shownViews();
+      const trainerGet = await invoke(C.TRAINER_GET);
+      const trainerSave = await invoke(C.TRAINER_SAVE, { scenario: 'flick-grid', at: Date.now(), score: 100, kills: 1, bots: 1, shots: 1, hits: 1 });
+      const trainerClear = await invoke(C.TRAINER_CLEAR, null);
+      const trainerClearOne = await invoke(C.TRAINER_CLEAR, 'flick-grid');
+      send(C.TRAINER_OPEN, 'flick-grid');
+      await wait(300);
+      const trainerOpened = mainWindow.current().shown;
+      const trainerStored = require(path.join(REPO, 'src/main/services/store')).get('trainer');
+      lines.push(`${game} match: Trainer asked for mid match: shown=${trainerMid.shown} pages shown=${trainerShown.join(',') || 'none'} tab locked=${!!trainerLocked}`
+        + ` | get=${JSON.stringify(trainerGet)} save=${JSON.stringify(trainerSave)} clear=${JSON.stringify(trainerClear)} clear one=${JSON.stringify(trainerClearOne)} open shown=${trainerOpened}`);
+      if (trainerMid.shown !== null || trainerShown.length || !trainerLocked || trainerOpened !== null) return report(false, `mid ${game} match, the Trainer page or its tab is not sealed`);
+      const refusedMatch = (r) => !!r && r.ok === false && r.error === 'match';
+      if (trainerGet !== null || !refusedMatch(trainerSave) || !refusedMatch(trainerClear) || !refusedMatch(trainerClearOne)
+        || (trainerStored && Array.isArray(trainerStored.runs) && trainerStored.runs.length)) {
+        return report(false, `mid ${game} match, the Trainer's channels answered or stored: ${JSON.stringify({ trainerGet, trainerSave, trainerClear, trainerClearOne, trainerStored })}`);
+      }
       // AND THE PROFILE PAGE (8.8), whose buy button opens a checkout: asked
       // for mid match no page shows and its button is locked, and its three
       // channels, called as the page would, answer nothing and open nothing.

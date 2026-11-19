@@ -145,6 +145,36 @@ const GOOD_DEMO = { src: 'https://occlara.app/drills/lost-duel-counter-strafe.we
   ok(view.general[0] && view.general[0].demo && view.general[0].demo.src === GOOD_DEMO.src, 'and the page is handed it with the drill');
 }
 
+// ── Train this: a drill's Trainer scenario (docs/claude/trainer.md) ───────
+{
+  const base = { id: 'x', title: 'A drill', cause: 'lost-duel', steps: ['one'] };
+  const trainerOfDrill = (trainer) => { const l = P.normaliseLibrary([{ ...base, trainer }]); return l ? l.drills[0].trainer : 'no drill'; };
+  ok(trainerOfDrill('micro-flicks') === 'micro-flicks' && trainerOfDrill('site-preaim-hard') === 'site-preaim-hard', 'TRAIN THIS: a scenario id trainer-scenarios.json names is kept');
+  ok(trainerOfDrill(undefined) === null, 'a drill with no trainer reads as before, its trainer none');
+  const bad = [
+    ['an unknown id', 'no-such-scenario'], ['upper case', 'Micro-flicks'], ['a space', 'micro flicks'], ['a path', '../micro-flicks'],
+    ['too long', 'a'.repeat(49)], ['empty', ''], ['a number', 7], ['a list', ['micro-flicks']], ['an object', { id: 'micro-flicks' }], ['true', true], ['null', null],
+    ['padded', ' micro-flicks'],
+  ];
+  const kept = bad.filter(([, t]) => trainerOfDrill(t) !== null).map(([w]) => w);
+  ok(!kept.length, `an unknown id or a wrong type becomes null (${bad.length} kinds)`, kept.join(', '));
+  ok(bad.every(([, t]) => { const l = P.normaliseLibrary([{ ...base, trainer: t }]); return l && l.drills.length === 1; }), 'and a bad trainer never drops its drill');
+  ok(P.trainerOf('counter-strafe') === 'counter-strafe' && P.trainerOf('nope') === null, 'trainerOf both ways');
+  // The view carries it with the scenario's name as the Trainer writes it.
+  const viewOf = (list) => P.planView({ patterns: { enough: false, recorded: 0, mistakes: [] }, library: P.normaliseLibrary(list), state: P.emptyState(), now: day(0), saved: [] });
+  const view = viewOf([
+    { ...base, id: 'g1', cause: 'general', trainer: 'micro-flicks' },
+    { ...base, id: 'g2', cause: 'general', trainer: 'site-preaim-hard' },
+    { ...base, id: 'g3', cause: 'general' },
+  ]);
+  const g = (id) => view.general.find((d) => d.id === id) || {};
+  ok(g('g1').trainer === 'micro-flicks' && g('g1').trainerTitle === 'Micro flicks', 'the page is handed the scenario and its name', JSON.stringify([g('g1').trainer, g('g1').trainerTitle]));
+  const easy = viewOf([{ ...base, id: 'g4', cause: 'general', trainer: 'lane-hold-easy' }]).general[0] || {};
+  ok(g('g2').trainerTitle === 'Site retake, Hard' && easy.trainerTitle === 'Hold the main, Easy', 'a scenario with a level is named with it, as the Trainer names it', `${g('g2').trainerTitle} | ${easy.trainerTitle}`);
+  ok(g('g3').id === 'g3' && g('g3').trainer === null && g('g3').trainerTitle === null, 'a drill with none is handed none');
+  ok(!DASHES.test(JSON.stringify(view.general)), 'no dash in a scenario name');
+}
+
 // ── The plan ──────────────────────────────────────────────────────────────
 const M = (key, title, matches) => ({ key, title, matches, total: matches, fix: `Fix for ${title}.`, weight: 1 });
 const pats = (list, recorded) => ({ enough: true, recorded: recorded || 6, mistakes: list });
@@ -467,6 +497,7 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
   ok(page && page.surface === 'practice' && page.preload === 'practice-preload.js' && page.nav === true, 'Practice is a page with its own surface and preload, a tab');
   const tabs = nav.PAGES.filter((p) => p.nav).map((p) => p.id);
   ok(tabs.indexOf('practice') === tabs.indexOf('patterns') + 1, 'right after Patterns', tabs.join());
+  ok(tabs.join() === 'home,matches,patterns,practice,trainer,moments,stats,coach', 'the tabs in order, the Trainer right after Practice', tabs.join());
 
   {
     // The page on the service's own view, through its real preload.
@@ -517,6 +548,32 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     await settle(10);
     ok(!$('pc-empty').hidden && $('pc-empty-title').textContent === 'League of Legends practice' && $('pc-plan').hidden && $('pc-log-sec').hidden,
       'League: its panel and nothing else');
+  }
+
+  // ── Train this on the page ──────────────────────────────────────────────
+  {
+    // The sample library with a Trainer scenario on its first general drill
+    // alone, and no matches yet, so the general drills are on the page.
+    const tagged = fixture.drills.find((d) => d.cause === 'general').id;
+    const withTrainer = path.join(os.tmpdir(), `occlara-trainer-drills-${process.pid}.json`);
+    fs.writeFileSync(withTrainer, JSON.stringify({ ...fixture, drills: fixture.drills.map((d) => (d.id === tagged ? { ...d, trainer: 'counter-strafe' } : d)) }));
+    const s = service({ stored: undefined, saved: [], now: day(0), busy: () => false, game: () => 'valorant', library: withTrainer });
+    const q = loadSurface('practice', { handlers: { [C.STATE_GET]: () => ({ gameId: 'valorant' }), [C.PRACTICE_GET]: (g, a) => s.svc.get(g, a) } });
+    await settle(10);
+    const cards = q.document.querySelectorAll('.pc-drill');
+    const card = cards.find((c) => c.dataset.drill === tagged);
+    const btn = card && card.querySelector('.pc-train');
+    ok(btn && btn.textContent === 'Train this' && btn.className === 'btn btn-ghost sm pc-train' && btn.title === 'Opens the Trainer on Counter-strafe',
+      'TRAIN THIS: a tagged drill\'s card has it, the shared capsule at Mark as practised\'s size, its title naming the scenario', btn && `${btn.className} | ${btn.title}`);
+    const foot = card.querySelector('.pc-d-foot');
+    ok(foot.children[0].classList.contains('pc-mark') && foot.children[foot.children.length - 1] === btn, 'beside Mark as practised, last in the foot, so nothing before it moves');
+    ok(cards.filter((c) => c !== card).every((c) => !c.querySelector('.pc-train')), 'and a drill with no scenario has none', String(cards.length));
+    q.fire(btn, 'click');
+    ok(q.bridge.sent.some(([ch, id]) => ch === C.TRAINER_OPEN && id === 'counter-strafe'), 'a click asks main to open the Trainer on that scenario, by TRAINER_OPEN');
+    ok(!q.bridge.invoked.some(([ch]) => ch === C.PRACTICE_MARK), 'and marks nothing');
+    fs.rmSync(withTrainer, { force: true });
+    const pre = fs.readFileSync(path.join(ROOT, 'src', 'preload', 'practice-preload.js'), 'utf8');
+    ok(/openTrainer:\s*\(id\)\s*=>\s*ipcRenderer\.send\(C\.TRAINER_OPEN,/.test(pre), 'the bridge sends it through channels.js, never a typed string');
   }
 
   // ── The player's own clip, through main and on the page (8.11) ──────────

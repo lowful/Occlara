@@ -1,0 +1,1314 @@
+{
+  "_about": "Every number the Trainer runs on, each with its source and the patch it was read at (docs/claude/trainer.md). verified true: an official Riot source or the wiki citing a patch states it, or two independent sources agree. verified false: measured by one community source, worked out, or the trainer's own design, and listed for the owner by test:trainerphysics. Units are metres, seconds and degrees. Research of 18 Nov 2026; the weapon numbers are valorant-api.com's build 13.10.",
+  "tick": {
+    "value": 128,
+    "unit": "Hz",
+    "source": "https://www.riotgames.com/en/news/valorants-128-tick-servers ; https://playvalorant.com/en-us/news/dev/how-we-got-to-the-best-performing-valorant-servers-since-launch/",
+    "patch": "Riot tech blog 2020; Riot dev post",
+    "verified": true,
+    "note": "7.8125 ms per server frame."
+  },
+  "sens": {
+    "yawPerCount": {
+      "value": 0.07,
+      "unit": "degrees per mouse count",
+      "source": "https://hangon.live/tools/sens-converter ; https://www.reddit.com/r/VALORANT/comments/heleia/closing_the_debate_about_scoped_sensitivity/",
+      "patch": "stable since launch (2020)",
+      "verified": true,
+      "note": "Community constant used by every converter (hangon.live, mouse-sensitivity.com, reddit). Not published by Riot, but two independent sources agree. Rotation per count = 0.07 * in-game sensitivity."
+    },
+    "pitchPerCount": {
+      "value": 0.07,
+      "unit": "degrees per mouse count",
+      "source": "https://hangon.live/tools/sens-converter",
+      "patch": "stable since launch",
+      "verified": false,
+      "note": "Assumed equal to yaw: Valorant has no separate vertical sensitivity setting and converters treat pitch = yaw. No source states the pitch constant explicitly."
+    },
+    "pitchMax": {
+      "value": 89,
+      "unit": "deg",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "How far up and down the view goes is not published. Held just short of straight up and down."
+    },
+    "scopedRule": {
+      "value": "zoom",
+      "unit": "text",
+      "source": "https://jscalc.io/calc/DOdocMexdQ5fvPiS ; https://edpi-calculator.org/tools/valorant-scoped-sensitivity",
+      "patch": "community, consistent through 2026",
+      "verified": true,
+      "note": "deg per count = 0.07 x sens x multiplier / zoom. At multiplier 1.0 the game divides sensitivity by the zoom factor, which equals a 100% horizontal monitor-distance match (edge of screen), because the zoomed horizontal FOV is modelled as 103 / zoom (linear, e.g. 1.25x = 82.4 deg, 5x = 20.6 deg). The jscalc script (from the reddit thread) and edpi-calculator.org agree, and the reddit values for a 0% (crosshair) match fit exactly: 0.870 for 1.25x, 0.747 for 2.5x, 0.731 for 3.5x (https://www.reddit.com/r/VALORANT/comments/1b3z1ww/why_isnt_the_ads_and_scoped_sensitivity/). mouse-sensitivity.com thread title also says Valorant defaults to the 1.78 vertical coefficient (= 100% horizontal at 16:9). Not stated by Riot."
+    }
+  },
+  "fov": {
+    "horizontal": {
+      "value": 103,
+      "unit": "degrees horizontal",
+      "source": "https://www.mouse-sensitivity.com/forums/topic/8438-valorant-locked-fov/ ; https://www.esportstales.com/valorant/how-to-increase-fps-video-settings",
+      "patch": "locked since launch",
+      "verified": true,
+      "note": "Locked, no slider. Defined at 16:9. Esportstales cites Riot game director (Ziegler) confirming 103 horizontal based on 16:9."
+    },
+    "aspect": {
+      "value": 1.7777777777777777,
+      "unit": "aspect",
+      "source": "https://www.mouse-sensitivity.com/forums/topic/8438-valorant-locked-fov/ ; https://www.esportstales.com/valorant/how-to-increase-fps-video-settings",
+      "patch": "since launch",
+      "verified": true
+    },
+    "vertical": {
+      "value": 70.53,
+      "unit": "degrees vertical",
+      "source": "https://www.mouse-sensitivity.com/forums/topic/8438-valorant-locked-fov/",
+      "patch": "since launch",
+      "verified": true,
+      "note": "2*atan(tan(51.5deg)*9/16) = 70.53. Vertical stays fixed for narrower aspects."
+    },
+    "narrower": {
+      "value": "Hor- (vertical locked at 70.53, horizontal shrinks): 4:3 = 86.63 deg, 16:10 = 97.06 deg",
+      "unit": "behaviour",
+      "source": "https://www.mouse-sensitivity.com/forums/topic/8438-valorant-locked-fov/",
+      "patch": "forum 2022, still current",
+      "verified": true,
+      "note": "mouse-sensitivity.com gives 86.631971 for 4:3; esportstales gives 87 horizontal at 4:3 and 71 vertical at 16:9. 16:10 value computed from the same rule."
+    },
+    "wider": {
+      "value": "Capped: renders 16:9 (103 horizontal) and pillarboxes with black bars",
+      "unit": "behaviour",
+      "source": "https://support.riotgames.com/en-us/valorant/support-tools/supported-resolutions-in-valorant",
+      "patch": "Riot support page, current",
+      "verified": false,
+      "note": "Riot says unsupported extra-wide resolutions get black bars cropping to a supported resolution, and lists 21:9 resolutions as \"supported\" with full-screen issues. Community reports (tier1settings, technewstoday) say 21:9 shows black bars and gives no extra view. A third party calculator claims vertical-locked Hor+ to 131 deg; contradicted. Treat as capped at 103. The Trainer keeps 103 degrees across on a wider page and shows less height, which gives the same degrees per pixel across as the game."
+    }
+  },
+  "move": {
+    "knifeSpeed": {
+      "value": 6.75,
+      "unit": "m/s",
+      "source": "https://valorant.fandom.com/wiki/Melee ; https://www.reddit.com/r/VALORANT/comments/utc7qf/valorant_physics_derived/",
+      "patch": "wiki current; measured 2022",
+      "verified": true,
+      "note": "675 uu/s. Spike carry is also 6.75 (VALO U)."
+    },
+    "walkMult": {
+      "value": 0.6,
+      "unit": "x run speed",
+      "source": "https://www.youtube.com/watch?v=pq2EYH4MuI8",
+      "patch": "community video (date not shown, after 3.0)",
+      "verified": false,
+      "note": "Only one source. Shift is a percentage of the current weapon speed (reddit thread agrees it is a % reduction, no number). Knife walk would be 4.05 m/s, rifle walk 3.24 m/s."
+    },
+    "crouchMult": {
+      "value": 0.35,
+      "unit": "x run speed",
+      "source": "https://www.youtube.com/watch?v=pq2EYH4MuI8",
+      "patch": "community",
+      "verified": false,
+      "note": "Stark physics doc measured knife crouch-walk at 2.50 m/s (= 0.37x), close to but not equal to 0.35x (2.36 m/s). Record both."
+    },
+    "accelTime": {
+      "value": 0.288,
+      "unit": "s",
+      "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
+      "patch": "2022 measurement",
+      "verified": false,
+      "note": "Linear ground acceleration; measured with Guardian, knife (0.2928) and rifle ADS (0.296): acceleration scales with max speed so time to top speed is constant about 0.288 s. Rifle accel = 18.75 m/s^2, knife about 23.44 m/s^2. Patch 1.10 notes say acceleration was adjusted to prevent sudden direction shifts."
+    },
+    "brakingDecel": {
+      "value": 28,
+      "unit": "m/s^2",
+      "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
+      "patch": "2022 measurement",
+      "verified": false,
+      "note": "Fitted by the Trainer to the measured stop times (rifle 0.125 s, knife 0.145 s, release keys) with the measured model dv/dt = -(F + S v). The study's own two fits (F 28.6, S 3.3; F 46.5, S 7.36) give 0.147 and 0.084 s for the rifle."
+    },
+    "friction": {
+      "value": 6.5,
+      "unit": "1/s",
+      "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
+      "patch": "2022 measurement",
+      "verified": false,
+      "note": "S of the same fit."
+    },
+    "stopSpeed": {
+      "value": 0.05,
+      "unit": "m/s",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "Under this the character is stopped. A rounding floor, no game number."
+    },
+    "counterStrafe": {
+      "value": "same-as-release",
+      "unit": "text",
+      "source": "https://www.reddit.com/r/VALORANT/comments/utc7qf/valorant_physics_derived/",
+      "patch": "2022",
+      "verified": false,
+      "note": "Disputed in the same thread: another user says counter strafing saves about 4 frames. Flat friction (28.6 m/s^2) exceeds acceleration (18.75 m/s^2), so a counter key cannot stop faster than friction alone in this model. So pressing the other way brakes at the braking rate, never faster, and only accelerates the other way once stopped."
+    },
+    "airControl": {
+      "value": 0.15,
+      "unit": "x",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "Steering in the air as a share of ground acceleration. Not published."
+    },
+    "gravity": {
+      "value": 20.45,
+      "unit": "m/s^2",
+      "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
+      "patch": "2022 (updated value in doc)",
+      "verified": false,
+      "note": "First published value 21 m/s^2 (reddit summary)."
+    },
+    "jumpSpeed": {
+      "value": 6.902,
+      "unit": "m/s",
+      "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
+      "patch": "2022 (updated)",
+      "verified": false,
+      "note": "First published 7.098 m/s."
+    },
+    "accurateFrac": {
+      "value": 0.275,
+      "unit": "fraction of current max speed",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-3-0/ ; https://valorant.fandom.com/wiki/Weapons",
+      "patch": "patch 3.0 (30% >>> 27.5%), no later change found",
+      "verified": true,
+      "note": "Below 27.5% of max speed a gun gets no movement penalty. Patch 0.50: no walking-accuracy state while decelerating from a run. Settings since 10.09 also have a \"Movement Deadzone\" and \"Walk / Run Threshold\" slider, which are input (stick) settings, not this value."
+    },
+    "landingSpread": {
+      "value": 7,
+      "unit": "deg",
+      "source": "https://valorant.fandom.com/wiki/Weapons ; https://valorant.fandom.com/wiki/Patch_Notes/1.09",
+      "patch": "patch 1.09",
+      "verified": true,
+      "note": "Landing after a jump adds 7 degrees for 0.225 s."
+    },
+    "landingSec": {
+      "value": 0.225,
+      "unit": "s",
+      "source": "https://valorant.fandom.com/wiki/Weapons ; https://valorant.fandom.com/wiki/Patch_Notes/1.09",
+      "patch": "patch 1.09",
+      "verified": true
+    },
+    "tagSlow": {
+      "value": 0.725,
+      "unit": "fraction slowed (72.5% slow)",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-3-0/ ; https://valorant.fandom.com/wiki/Weapons",
+      "patch": "patch 3.0 (75% >>> 72.5%), no later change",
+      "verified": true,
+      "note": "Shotgun pellets apply only 30% slow beyond 10 m (wiki). Patch 1.02 (wiki) set tagging through walls to 25% and doubled the time to reach the slow; no later wallbang value found. Tag duration: not found."
+    },
+    "tagSec": {
+      "value": 0.3,
+      "unit": "s",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "How long the slow from being hit lasts is not published."
+    },
+    "crouchTime": {
+      "value": 0.276,
+      "unit": "s to fully crouch",
+      "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
+      "patch": "2022",
+      "verified": false
+    }
+  },
+  "player": {
+    "hp": {
+      "value": 100,
+      "unit": "HP",
+      "source": "https://valorant.fandom.com/wiki/Armor_and_Shield",
+      "patch": "current",
+      "verified": true,
+      "note": "Wiki TTK tables use 100/125/150 effective HP."
+    },
+    "armour": {
+      "value": 50,
+      "unit": "HP / fraction",
+      "source": "https://valorant.fandom.com/wiki/Armor_and_Shield",
+      "patch": "current",
+      "verified": true
+    },
+    "eyeStand": {
+      "value": 1.6,
+      "unit": "m",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "Standing eye height is not published. A standard character height."
+    },
+    "crouchDrop": {
+      "value": 0.4,
+      "unit": "m",
+      "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
+      "patch": "2022 measurement",
+      "verified": false,
+      "note": "Measured as 40 cm."
+    },
+    "height": {
+      "value": 1.8,
+      "unit": "m",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "The collision height is not published."
+    },
+    "crouchHeight": {
+      "value": 1.35,
+      "unit": "m",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "Not published."
+    },
+    "radius": {
+      "value": 0.34,
+      "unit": "m",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "Not published."
+    },
+    "stepHeight": {
+      "value": 0.45,
+      "unit": "m",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "How tall a step the character walks up. Not published."
+    }
+  },
+  "armour": {
+    "absorb": {
+      "value": 0.66,
+      "unit": "HP / fraction",
+      "source": "https://valorant.fandom.com/wiki/Armor_and_Shield",
+      "patch": "current",
+      "verified": true
+    }
+  },
+  "hitbox": {
+    "_about": "Not published anywhere found (research of 18 Nov 2026). Sized to a standard character the eye height above: a head sphere, a body capsule and a leg capsule. To compare against the game in the owner's calibration check.",
+    "head": {
+      "radius": {
+        "value": 0.12,
+        "unit": "m",
+        "source": "trainer design",
+        "patch": null,
+        "verified": false,
+        "note": "Not published."
+      },
+      "center": {
+        "value": 1.6,
+        "unit": "m",
+        "source": "trainer design",
+        "patch": null,
+        "verified": false,
+        "note": "Not published. At eye height."
+      }
+    },
+    "body": {
+      "radius": {
+        "value": 0.22,
+        "unit": "m",
+        "source": "trainer design",
+        "patch": null,
+        "verified": false,
+        "note": "Not published."
+      },
+      "bottom": {
+        "value": 0.86,
+        "unit": "m",
+        "source": "trainer design",
+        "patch": null,
+        "verified": false,
+        "note": "Not published."
+      },
+      "top": {
+        "value": 1.47,
+        "unit": "m",
+        "source": "trainer design",
+        "patch": null,
+        "verified": false,
+        "note": "Not published."
+      }
+    },
+    "legs": {
+      "radius": {
+        "value": 0.18,
+        "unit": "m",
+        "source": "trainer design",
+        "patch": null,
+        "verified": false,
+        "note": "Not published."
+      },
+      "top": {
+        "value": 0.88,
+        "unit": "m",
+        "source": "trainer design",
+        "patch": null,
+        "verified": false,
+        "note": "Not published."
+      }
+    },
+    "crouchScale": {
+      "value": 0.75,
+      "unit": "x",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "Heights crouched over standing, from the 40 cm eye drop."
+    }
+  },
+  "weapons": {
+    "heavy-rifle": {
+      "name": {
+        "value": "Heavy rifle",
+        "unit": "text",
+        "source": "trainer design",
+        "patch": null,
+        "verified": true,
+        "note": "Our own plain name. The profile follows the numbers of the weapon in `follows`."
+      },
+      "follows": {
+        "value": "Vandal",
+        "unit": "text",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": null,
+        "verified": true
+      },
+      "auto": {
+        "value": true,
+        "unit": "bool",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "fireRate": {
+        "value": 9.75,
+        "unit": "rounds/s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "patch 1.07 9.25 >>> 9.75"
+      },
+      "mag": {
+        "value": 25,
+        "unit": "rounds",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "reserve 50 (6.11)"
+      },
+      "reload": {
+        "value": 2.5,
+        "unit": "s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "equip": {
+        "value": 1,
+        "unit": "s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "Fast 0.6, instant 0.2 (ability buffs)"
+      },
+      "runSpeed": {
+        "value": 5.4,
+        "unit": "m/s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "multiplier 0.80; ADS 0.76 of that = 4.104 m/s"
+      },
+      "alt": {
+        "value": "ads",
+        "unit": "text",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": null,
+        "verified": true,
+        "note": "Right click aims down sights."
+      },
+      "zoom": {
+        "value": 1.25,
+        "unit": "x",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "ADS fire rate 90%, ADS move speed 76%."
+      },
+      "adsMoveMult": {
+        "value": 0.76,
+        "unit": "x",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "damage": {
+        "value": [
+          {
+            "to": 1000000000,
+            "head": 160,
+            "body": 40,
+            "leg": 34
+          }
+        ],
+        "unit": "damage",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "One band: the same at every range."
+      },
+      "spread": {
+        "first": {
+          "value": 0.25,
+          "unit": "deg",
+          "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+          "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+          "verified": true,
+          "note": "Crouched 0.21 (x0.85)"
+        },
+        "adsFirst": {
+          "value": 0.157,
+          "unit": "deg",
+          "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
+          "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+          "verified": true,
+          "note": "api 0.1575; crouched 0.13"
+        },
+        "max": {
+          "value": 1,
+          "unit": "deg",
+          "source": "https://valorant.fandom.com/wiki/Vandal",
+          "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
+          "verified": true,
+          "note": "Spread growth per bullet not published; recovery and tap efficiency below."
+        },
+        "crouchMult": {
+          "value": 0.85,
+          "unit": "x",
+          "source": "https://valorant.fandom.com/wiki/Vandal",
+          "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
+          "verified": true,
+          "note": "The crouched maximum over the standing one, applied to the whole cone."
+        },
+        "growth": {
+          "value": 0.125,
+          "unit": "deg per bullet",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "How fast the cone opens in a spray is not published. Set so the cone reaches its published maximum at the bullet named in the note.",
+          "reachesMaxAt": 7
+        },
+        "crouchMove": {
+          "value": 0.8,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Vandal",
+          "patch": "patch 9.10 (walk 2 >>> 3, run 5 >>> 6), crouch 2.02",
+          "verified": true,
+          "note": "Rifle class values, official in 9.10 notes."
+        },
+        "walk": {
+          "value": 3,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Vandal",
+          "patch": "patch 9.10 (walk 2 >>> 3, run 5 >>> 6), crouch 2.02",
+          "verified": true,
+          "note": "Rifle class values, official in 9.10 notes."
+        },
+        "run": {
+          "value": 6,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Vandal",
+          "patch": "patch 9.10 (walk 2 >>> 3, run 5 >>> 6), crouch 2.02",
+          "verified": true,
+          "note": "Rifle class values, official in 9.10 notes."
+        },
+        "air": {
+          "value": 10,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Vandal",
+          "patch": "patch 9.10 (walk 2 >>> 3, run 5 >>> 6), crouch 2.02",
+          "verified": true,
+          "note": "Rifle class values, official in 9.10 notes."
+        }
+      },
+      "recoil": {
+        "vertical": {
+          "value": [
+            0.9,
+            0.9,
+            0.85,
+            0.8,
+            0.7,
+            0.6,
+            0.45,
+            0.3,
+            0.2,
+            0.15
+          ],
+          "unit": "deg per bullet",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Not published by Riot or the wiki. Shaped to climb fast over the first bullets and level off, as public spray footage shows. To compare in the game's Range."
+        },
+        "tailMult": {
+          "value": 0.6,
+          "unit": "x",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Climb per bullet past the pattern, as a share of its last value."
+        },
+        "horizStart": {
+          "value": 6,
+          "unit": "bullets",
+          "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-11-08/",
+          "patch": "patch 11.08",
+          "verified": true,
+          "note": "The protected bullets before the sideways sway can begin."
+        },
+        "horiz": {
+          "value": 0.7,
+          "unit": "deg",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Size of the sideways sway after the protected bullets. Not published."
+        },
+        "recoverSec": {
+          "value": 0.375,
+          "unit": "s",
+          "source": "https://valorant.fandom.com/wiki/Vandal",
+          "patch": "patch 0.50 (.4 >>> .375)",
+          "verified": true,
+          "note": "Time without firing for spread to fully reset."
+        }
+      }
+    },
+    "silenced-rifle": {
+      "name": {
+        "value": "Silenced rifle",
+        "unit": "text",
+        "source": "trainer design",
+        "patch": null,
+        "verified": true,
+        "note": "Our own plain name. The profile follows the numbers of the weapon in `follows`."
+      },
+      "follows": {
+        "value": "Phantom",
+        "unit": "text",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+        "patch": null,
+        "verified": true
+      },
+      "auto": {
+        "value": true,
+        "unit": "bool",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "fireRate": {
+        "value": 11,
+        "unit": "rounds/s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "mag": {
+        "value": 30,
+        "unit": "rounds",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "reserve 60"
+      },
+      "reload": {
+        "value": 2.5,
+        "unit": "s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "equip": {
+        "value": 1,
+        "unit": "s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "runSpeed": {
+        "value": 5.4,
+        "unit": "m/s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "multiplier 0.80; ADS 4.104 m/s"
+      },
+      "alt": {
+        "value": "ads",
+        "unit": "text",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+        "patch": null,
+        "verified": true,
+        "note": "Right click aims down sights."
+      },
+      "zoom": {
+        "value": 1.25,
+        "unit": "x",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "adsMoveMult": {
+        "value": 0.76,
+        "unit": "x",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "damage": {
+        "value": [
+          {
+            "to": 20,
+            "head": 156,
+            "body": 39,
+            "leg": 33
+          },
+          {
+            "to": 1000000000,
+            "head": 140,
+            "body": 35,
+            "leg": 29
+          }
+        ],
+        "unit": "damage",
+        "source": "https://valorant-api.com/v1/weapons ; https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-9-10/",
+        "patch": "patch 9.10 falloff (was 0-15 / 15-30 / 30+ with 39/35/31)",
+        "verified": true,
+        "note": "Head x4, leg x0.85; api legs 33.15 and 29.75 rounded down. Silenced, tracers hidden."
+      },
+      "spread": {
+        "first": {
+          "value": 0.2,
+          "unit": "deg",
+          "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+          "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+          "verified": true,
+          "note": "crouched 0.17"
+        },
+        "adsFirst": {
+          "value": 0.11,
+          "unit": "deg",
+          "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Phantom",
+          "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+          "verified": true,
+          "note": "crouched 0.09"
+        },
+        "max": {
+          "value": 0.9,
+          "unit": "deg",
+          "source": "https://valorant.fandom.com/wiki/Phantom",
+          "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
+          "verified": true
+        },
+        "crouchMult": {
+          "value": 0.844,
+          "unit": "x",
+          "source": "https://valorant.fandom.com/wiki/Phantom",
+          "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
+          "verified": true,
+          "note": "The crouched maximum over the standing one, applied to the whole cone."
+        },
+        "growth": {
+          "value": 0.1,
+          "unit": "deg per bullet",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "How fast the cone opens in a spray is not published. Set so the cone reaches its published maximum at the bullet named in the note.",
+          "reachesMaxAt": 8
+        },
+        "crouchMove": {
+          "value": 0.8,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Phantom",
+          "patch": "patch 9.10",
+          "verified": true
+        },
+        "walk": {
+          "value": 3,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Phantom",
+          "patch": "patch 9.10",
+          "verified": true
+        },
+        "run": {
+          "value": 6,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Phantom",
+          "patch": "patch 9.10",
+          "verified": true
+        },
+        "air": {
+          "value": 10,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Phantom",
+          "patch": "patch 9.10",
+          "verified": true
+        }
+      },
+      "recoil": {
+        "vertical": {
+          "value": [
+            0.75,
+            0.75,
+            0.7,
+            0.65,
+            0.6,
+            0.55,
+            0.5,
+            0.4,
+            0.3,
+            0.2
+          ],
+          "unit": "deg per bullet",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Not published by Riot or the wiki. Shaped to climb fast over the first bullets and level off, as public spray footage shows. To compare in the game's Range."
+        },
+        "tailMult": {
+          "value": 0.6,
+          "unit": "x",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Climb per bullet past the pattern, as a share of its last value."
+        },
+        "horizStart": {
+          "value": 8,
+          "unit": "bullets",
+          "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-11-08/",
+          "patch": "patch 11.08",
+          "verified": true,
+          "note": "The protected bullets before the sideways sway can begin."
+        },
+        "horiz": {
+          "value": 0.6,
+          "unit": "deg",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Size of the sideways sway after the protected bullets. Not published."
+        },
+        "recoverSec": {
+          "value": 0.35,
+          "unit": "s",
+          "source": "https://valorant.fandom.com/wiki/Phantom",
+          "patch": "patch 0.50 (.55 >>> .35)",
+          "verified": true
+        }
+      }
+    },
+    "heavy-pistol": {
+      "name": {
+        "value": "Heavy pistol",
+        "unit": "text",
+        "source": "trainer design",
+        "patch": null,
+        "verified": true,
+        "note": "Our own plain name. The profile follows the numbers of the weapon in `follows`."
+      },
+      "follows": {
+        "value": "Sheriff",
+        "unit": "text",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": null,
+        "verified": true
+      },
+      "auto": {
+        "value": false,
+        "unit": "bool",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "fireRate": {
+        "value": 4,
+        "unit": "rounds/s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "no alt fire"
+      },
+      "mag": {
+        "value": 6,
+        "unit": "rounds",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "reserve 24"
+      },
+      "reload": {
+        "value": 2.25,
+        "unit": "s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "equip": {
+        "value": 1,
+        "unit": "s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "runSpeed": {
+        "value": 5.4,
+        "unit": "m/s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "multiplier 0.80"
+      },
+      "alt": {
+        "value": "none",
+        "unit": "text",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": null,
+        "verified": true,
+        "note": "No right click."
+      },
+      "zoom": {
+        "value": 1,
+        "unit": "x",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": null,
+        "verified": true,
+        "note": "No zoom."
+      },
+      "adsMoveMult": {
+        "value": 1,
+        "unit": "x",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": null,
+        "verified": true,
+        "note": "No aim down sights."
+      },
+      "damage": {
+        "value": [
+          {
+            "to": 30,
+            "head": 159,
+            "body": 55,
+            "leg": 46
+          },
+          {
+            "to": 1000000000,
+            "head": 145,
+            "body": 50,
+            "leg": 42
+          }
+        ],
+        "unit": "damage",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "api head 159.5, leg 46.75/42.5, rounded down. Head x2.9."
+      },
+      "spread": {
+        "first": {
+          "value": 0.25,
+          "unit": "deg",
+          "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+          "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+          "verified": true,
+          "note": "crouched 0.19 (x0.75)"
+        },
+        "adsFirst": {
+          "value": null,
+          "unit": "deg",
+          "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Sheriff",
+          "patch": null,
+          "verified": true,
+          "note": "No aim down sights."
+        },
+        "max": {
+          "value": 2.75,
+          "unit": "deg",
+          "source": "https://valorant.fandom.com/wiki/Sheriff",
+          "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
+          "verified": true
+        },
+        "crouchMult": {
+          "value": 0.749,
+          "unit": "x",
+          "source": "https://valorant.fandom.com/wiki/Sheriff",
+          "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
+          "verified": true,
+          "note": "The crouched maximum over the standing one, applied to the whole cone."
+        },
+        "growth": {
+          "value": 1.25,
+          "unit": "deg per bullet",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "How fast the cone opens in a spray is not published. Set so the cone reaches its published maximum at the bullet named in the note.",
+          "reachesMaxAt": 3
+        },
+        "crouchMove": {
+          "value": 0.5,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Sheriff",
+          "patch": "walk/run patch 3.0, crouch-move 9.10",
+          "verified": true
+        },
+        "walk": {
+          "value": 1.2,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Sheriff",
+          "patch": "walk/run patch 3.0, crouch-move 9.10",
+          "verified": true
+        },
+        "run": {
+          "value": 3,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Sheriff",
+          "patch": "walk/run patch 3.0, crouch-move 9.10",
+          "verified": true
+        },
+        "air": {
+          "value": 7,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Sheriff",
+          "patch": "walk/run patch 3.0, crouch-move 9.10",
+          "verified": true
+        }
+      },
+      "recoil": {
+        "vertical": {
+          "value": [
+            2.2,
+            2.2,
+            2
+          ],
+          "unit": "deg per bullet",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Not published by Riot or the wiki. Shaped to climb fast over the first bullets and level off, as public spray footage shows. To compare in the game's Range."
+        },
+        "tailMult": {
+          "value": 1,
+          "unit": "x",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Climb per bullet past the pattern, as a share of its last value."
+        },
+        "horizStart": {
+          "value": 2,
+          "unit": "bullets",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Not published."
+        },
+        "horiz": {
+          "value": 0.4,
+          "unit": "deg",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Size of the sideways sway after the protected bullets. Not published."
+        },
+        "recoverSec": {
+          "value": 0.5,
+          "unit": "s",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Not published for this weapon."
+        }
+      }
+    },
+    "sidearm": {
+      "name": {
+        "value": "Light pistol",
+        "unit": "text",
+        "source": "trainer design",
+        "patch": null,
+        "verified": true,
+        "note": "Our own plain name. The profile follows the numbers of the weapon in `follows`."
+      },
+      "follows": {
+        "value": "Classic",
+        "unit": "text",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": null,
+        "verified": true
+      },
+      "auto": {
+        "value": false,
+        "unit": "bool",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "fireRate": {
+        "value": 6.75,
+        "unit": "rounds/s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "mag": {
+        "value": 12,
+        "unit": "rounds",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "reserve 36"
+      },
+      "reload": {
+        "value": 1.75,
+        "unit": "s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "equip": {
+        "value": 0.75,
+        "unit": "s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true
+      },
+      "runSpeed": {
+        "value": 5.7375,
+        "unit": "m/s",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "runSpeedMultiplier 0.85 (wiki rounds to 5.73)"
+      },
+      "alt": {
+        "value": "burst",
+        "unit": "text",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": null,
+        "verified": true,
+        "note": "Right click fires a three round burst."
+      },
+      "zoom": {
+        "value": 1,
+        "unit": "x",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": null,
+        "verified": true,
+        "note": "No zoom."
+      },
+      "adsMoveMult": {
+        "value": 1,
+        "unit": "x",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": null,
+        "verified": true,
+        "note": "No aim down sights."
+      },
+      "damage": {
+        "value": [
+          {
+            "to": 30,
+            "head": 78,
+            "body": 26,
+            "leg": 22
+          },
+          {
+            "to": 1000000000,
+            "head": 66,
+            "body": 22,
+            "leg": 18
+          }
+        ],
+        "unit": "damage",
+        "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "Head x3, leg x0.85"
+      },
+      "spread": {
+        "first": {
+          "value": 0.4,
+          "unit": "deg",
+          "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+          "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+          "verified": true,
+          "note": "crouched 0.3"
+        },
+        "adsFirst": {
+          "value": null,
+          "unit": "deg",
+          "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+          "patch": null,
+          "verified": true,
+          "note": "No aim down sights."
+        },
+        "max": {
+          "value": 1.8,
+          "unit": "deg",
+          "source": "https://valorant.fandom.com/wiki/Classic",
+          "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
+          "verified": true
+        },
+        "crouchMult": {
+          "value": 0.75,
+          "unit": "x",
+          "source": "https://valorant.fandom.com/wiki/Classic",
+          "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
+          "verified": true,
+          "note": "The crouched maximum over the standing one, applied to the whole cone."
+        },
+        "growth": {
+          "value": 0.35,
+          "unit": "deg per bullet",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "How fast the cone opens in a spray is not published. Set so the cone reaches its published maximum at the bullet named in the note.",
+          "reachesMaxAt": 5
+        },
+        "crouchMove": {
+          "value": 0.5,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Classic",
+          "patch": "patch 9.10",
+          "verified": true
+        },
+        "walk": {
+          "value": 1.1,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Classic",
+          "patch": "patch 9.10",
+          "verified": true
+        },
+        "run": {
+          "value": 2.3,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Classic",
+          "patch": "patch 9.10",
+          "verified": true
+        },
+        "air": {
+          "value": 7,
+          "unit": "degrees added to spread",
+          "source": "https://valorant.fandom.com/wiki/Classic",
+          "patch": "patch 9.10",
+          "verified": true
+        }
+      },
+      "recoil": {
+        "vertical": {
+          "value": [
+            0.6,
+            0.6,
+            0.55,
+            0.5
+          ],
+          "unit": "deg per bullet",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Not published by Riot or the wiki. Shaped to climb fast over the first bullets and level off, as public spray footage shows. To compare in the game's Range."
+        },
+        "tailMult": {
+          "value": 1,
+          "unit": "x",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Climb per bullet past the pattern, as a share of its last value."
+        },
+        "horizStart": {
+          "value": 3,
+          "unit": "bullets",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Not published."
+        },
+        "horiz": {
+          "value": 0.3,
+          "unit": "deg",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Size of the sideways sway after the protected bullets. Not published."
+        },
+        "recoverSec": {
+          "value": 0.3,
+          "unit": "s",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Not published for this weapon."
+        }
+      },
+      "burst": {
+        "count": {
+          "value": 3,
+          "unit": "rounds",
+          "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+          "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+          "verified": true,
+          "note": "The alt fire: three rounds at once."
+        },
+        "rate": {
+          "value": 20,
+          "unit": "rounds/s",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "The spacing inside one burst. Not published."
+        },
+        "cooldown": {
+          "value": 0.45,
+          "unit": "s",
+          "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Classic",
+          "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+          "verified": true,
+          "note": "2.22 bursts a second."
+        },
+        "spreadAdd": {
+          "value": 1.5,
+          "unit": "deg",
+          "source": "https://valorant.fandom.com/wiki/Classic",
+          "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
+          "verified": true,
+          "note": "The burst cone over the hip cone."
+        },
+        "recoilMult": {
+          "value": 0.5,
+          "unit": "x",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Not published."
+        }
+      }
+    }
+  }
+}

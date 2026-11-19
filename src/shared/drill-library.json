@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Solo drills for the Practice page, one habit each, keyed by the cause or repeated mistake a review names (death-causes.js CAUSES, insights.js keys without their cause: prefix) or general, and optionally by more of them in also (low-headshots on the aim drills). Researched 10 Nov 2026 (docs/claude/playbook.md, 'The drill library and the research of 10 Nov'). Checked by npm run test:drilllibrary. Every mode feature named here exists in the game as of patch 13.09: the Range F3 settings (Speed, Streak, Bots Strafe, Bot Armor, Infinite Ammo), the accuracy target, the Range's Change Agent in its Escape menu, custom games with Allow Cheats (Ghost on a key set in the Cheats tab, Pause Match Timer, Infinite Abilities, Infinite Ammo, End Game Phase), Deathmatch with no abilities, the crosshair's Movement Error lines and the Shooting Error graph. A drill may carry demo: { src, poster, secs }, the owner's own 6 to 12 second recording of it as https://occlara.app/drills/<id>.webm and <id>.webp, made by scripts/make-drill-demo.js (docs/drill-demo-guide.md), and kept by the app only under that address; none is filled in until the site hosts them.",
+  "note": "Solo drills for the Practice page, one habit each, keyed by the cause or repeated mistake a review names (death-causes.js CAUSES, insights.js keys without their cause: prefix) or general, and optionally by more of them in also (low-headshots on the aim drills). Researched 10 Nov 2026 (docs/claude/playbook.md, 'The drill library and the research of 10 Nov'). Checked by npm run test:drilllibrary. Every mode feature named here exists in the game as of patch 13.09: the Range F3 settings (Speed, Streak, Bots Strafe, Bot Armor, Infinite Ammo), the accuracy target, the Range's Change Agent in its Escape menu, custom games with Allow Cheats (Ghost on a key set in the Cheats tab, Pause Match Timer, Infinite Abilities, Infinite Ammo, End Game Phase), Deathmatch with no abilities, the crosshair's Movement Error lines and the Shooting Error graph. A drill may carry demo: { src, poster, secs }, the owner's own 6 to 12 second recording of it as https://occlara.app/drills/<id>.webm and <id>.webp, made by scripts/make-drill-demo.js (docs/drill-demo-guide.md), and kept by the app only under that address; none is filled in until the site hosts them. A drill may carry trainer: the id of a Trainer scenario (src/shared/trainer-scenarios.json, docs/claude/trainer.md) that truly trains what the drill asks, only on aim and pre-aim drills; the Practice page then shows Train this on its card.",
   "drills": [
     {
       "id": "dry-peek-ability-first",
@@ -181,6 +181,7 @@
       "title": "One angle at a time",
       "cause": "crossfire",
       "where": "deathmatch",
+      "trainer": "site-preaim-easy",
       "minutes": 10,
       "bands": ["iron_bronze", "silver_gold", "plat_diamond"],
       "steps": [
@@ -234,6 +235,7 @@
       "title": "Crosshair up while you move",
       "cause": "rotating",
       "where": "deathmatch",
+      "trainer": "site-preaim-easy",
       "minutes": 10,
       "bands": ["iron_bronze", "silver_gold"],
       "steps": [
@@ -423,6 +425,7 @@
       "cause": "lost-duel",
       "also": ["low-headshots"],
       "where": "range",
+      "trainer": "counter-strafe",
       "minutes": 10,
       "bands": ["iron_bronze", "silver_gold", "plat_diamond"],
       "steps": [
@@ -442,6 +445,7 @@
       "cause": "lost-duel",
       "also": ["low-headshots"],
       "where": "deathmatch",
+      "trainer": "micro-flicks",
       "minutes": 10,
       "bands": [],
       "steps": [
@@ -460,6 +464,7 @@
       "cause": "lost-duel",
       "also": ["low-headshots"],
       "where": "custom",
+      "trainer": "site-preaim-easy",
       "minutes": 10,
       "bands": ["iron_bronze", "silver_gold"],
       "steps": [
@@ -478,6 +483,7 @@
       "cause": "lost-duel",
       "also": ["low-headshots"],
       "where": "range",
+      "trainer": "counter-strafe",
       "minutes": 10,
       "bands": ["silver_gold", "plat_diamond", "asc_plus"],
       "steps": [
@@ -959,6 +965,7 @@
       "title": "Ten minute warm up",
       "cause": "general",
       "where": "range",
+      "trainer": "flick-grid",
       "minutes": 10,
       "bands": [],
       "steps": [
@@ -1045,6 +1052,7 @@
       "cause": "general",
       "also": ["low-headshots"],
       "where": "deathmatch",
+      "trainer": "counter-strafe",
       "minutes": 10,
       "bands": ["iron_bronze", "silver_gold"],
       "steps": [
@@ -1062,6 +1070,7 @@
       "title": "First five bullets on the dummy",
       "cause": "general",
       "where": "range",
+      "trainer": "spray-wall",
       "minutes": 10,
       "bands": ["silver_gold", "plat_diamond"],
       "steps": [

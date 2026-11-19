@@ -801,9 +801,29 @@ sent anywhere; the page says so at its foot.
   `PRACTICE_MARK` and `PRACTICE_REMOVE` `{ ok: false, error: 'match' }` mid
   match or sealed, and Practise this opens nothing (`check:seal`).
   `PUSH_PRACTICE` tells the pages to ask again after a mark or a removal.
-- **The bar at 960**: seven tabs, Start and the window's buttons fit at the
-  window's least width (`shell.css`, below 1040 the tabs and the bar draw in;
-  `check:mainwindow` measures it on a page with Start in the bar).
+- **Train this** (trainer.md): a drill may carry `trainer: "<scenario id>"`,
+  the Trainer scenario that truly trains what it asks (the drill library tags
+  only aim, peeking and pre-aim drills). `practice.js normDrill` keeps it only
+  when it is a string matching `/^[a-z0-9-]{1,48}$/` that
+  `src/shared/trainer-scenarios.json` names, else null; `drillView` hands the
+  page `trainer` and `trainerTitle`, the scenario's name as the Trainer writes
+  it ("Micro flicks", "Site retake, Hard"). The card's foot then ends with
+  Train this (`btn btn-ghost sm pc-train`, the same capsule and size as Mark
+  as practised, appended last so nothing before it moves), titled "Opens the
+  Trainer on <trainerTitle>"; a click is `practice-preload.js openTrainer(id)`,
+  `TRAINER_OPEN`, and main opens the Trainer page on that scenario
+  (`trainer-store.js open`, refused mid match or sealed and for an unknown id).
+  It writes nothing.
+- **The bar at 960**: eight tabs (Home, Matches, Patterns, Practice, Trainer,
+  Moments, Stats, Coach), Start and the window's buttons fit at the
+  window's least width. `shell.css` draws the tabs in at three widths, from
+  14 px a side with 4 px between them: at 1280 px and under, 10 px a side
+  and 2 px between; at 1100 px and under, 9 px a side, the brand keeps its
+  crescent alone and the bar's gap is 12 px; at 1040 px and under, 7 px a
+  side with no gap between them, the bar's gap 8 px and its left padding
+  20 px, which leaves the last tab clear of the game switch.
+  `check:mainwindow` measures it at 960 on the Trainer page, with Start in
+  the bar: eight tabs, none cut, the last one ending before what follows it.
 - Tests: `test:practice` (the library, the plan, no churn, the refresh after
   three marks, the wording at each threshold, the store's tolerance, Home's line
   once a day and never mid match, the page's dom hooks and its bridge; since
@@ -815,9 +835,27 @@ sent anywhere; the page says so at its foot.
   `check:mainwindow` (the plan on the sample library, a mark and its removal
   moving the log and Home's line, the review's Practise this, the bar at 960;
   `OCCLARA_SHOTS=1` writes `main-practice.png`, `main-practice-working.png`,
-  `main-practice-marked.png`, `main-practice-960.png`,
-  `main-practice-1280.png`, `main-practice-opened.png`,
-  `main-home-practice.png` and `main-review-practise.png`).
+  `main-practice-marked.png`, `main-bar-960.png`,
+  `main-bar-1280.png`, `main-practice-opened.png`,
+  `main-home-practice.png` and `main-review-practise.png`). Train this:
+  `test:practice` (the tag kept only when valid, the view's name for it, the
+  button on a tagged card alone and its `TRAINER_OPEN`) and
+  `test:drilllibrary` (every tag a known scenario, only on aim drills).
+
+### The Trainer page
+
+An aim and movement trainer that runs entirely in the page, the tab right
+after Practice (`shell-nav.js` `trainer`, `src/renderer/trainer/`,
+`trainer-preload.js`, `src/main/services/trainer-store.js`). No AI and no
+network. The page is a rail (the scenario list or the settings) and a stage
+(the 3D view, with the selected scenario's panel over one still frame in the
+menu); a click on a row selects it, and Play, Enter or a double click starts
+it. Its numbers, the loop, input, scoring, storage, the seal and the
+Ctrl+Shift keys it holds while it has the mouse are all in
+`docs/claude/trainer.md`. Practice's drills link into it with Train this
+(above). `check:mainwindow` opens it from its tab, holds it to its menu with
+a row for every scenario and no loop running, and with `OCCLARA_SHOTS=1`
+writes `main-trainer.png`.
 
 ### Report a problem
 

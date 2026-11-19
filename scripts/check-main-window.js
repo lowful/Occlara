@@ -158,7 +158,7 @@ setTimeout(async () => {
     const nav = await sjs("[...document.querySelectorAll('#nav .nav-item')].map((b) => b.textContent.trim()).join(',')");
     const start = await sjs("document.querySelector('#toggle .t-label').textContent");
     lines.push(`sidebar: ${nav} | Start reads "${start}"`);
-    if (nav !== 'Home,Matches,Patterns,Practice,Moments,Stats,Ask Coach') return report(false, `the sidebar lists ${nav}`);
+    if (nav !== 'Home,Matches,Patterns,Practice,Trainer,Moments,Stats,Ask Coach') return report(false, `the sidebar lists ${nav}`);
     if (start !== 'Start') return report(false, `the record button reads ${start}`);
 
     // 2. Home, the page the window opens on.
@@ -217,7 +217,7 @@ setTimeout(async () => {
     })()`);
     const bar = await barNow();
     lines.push(`top bar on Home: ${JSON.stringify(bar)} errs=${errs.join(" | ")}`);
-    if (bar.h !== mainWindow.TOP_H || bar.tabs !== 7 || bar.rec || bar.pause || bar.drawer || !bar.inDrawer) {
+    if (bar.h !== mainWindow.TOP_H || bar.tabs !== 8 || bar.rec || bar.pause || bar.drawer || !bar.inDrawer) {
       return report(false, `the top bar on Home is not the tabs without a Start of its own: ${JSON.stringify(bar)}`);
     }
     if (bar.kids !== 'profile,invite,settings,feedback,discord') return report(false, `the drawer does not hold every page the sidebar's foot did: ${bar.kids}`);
@@ -1062,34 +1062,79 @@ setTimeout(async () => {
     lines.push(`home's line once practised today: gone=${!!lineGone} | the entry deleted: ${!!unmarked} | the line back=${!!lineBack}`);
     if (!lineGone || !unmarked || !lineBack) return report(false, 'marking or deleting a drill did not move the log and Home\'s line');
     await pcjs("document.querySelector('.body').scrollTop = 0; true");
-    // THE BAR AT 960 (the window's least width) with Practice in it: the tabs
-    // end before the game switch and Start, nothing cut.
+    // THE TRAINER PAGE (docs/claude/trainer.md), right after Practice: it
+    // comes in from its tab in the bar, on its menu with every scenario
+    // listed. Its run, the pointer lock and its loop are check:trainer's.
+    {
+      await sjs("document.querySelector('#nav .nav-item[data-page=\"trainer\"]').click(); true");
+      if (!await until(settled('trainer'), 6000)) return report(false, 'the Trainer page never came in from its tab');
+      const tv = mainWindow.pageViews().get('trainer');
+      watch(tv.webContents, 'trainer');
+      const tjs = (s) => tv.webContents.executeJavaScript(s);
+      const want = require(path.join(REPO, 'src/shared/trainer-scenarios.json')).scenarios.map((s) => s.id);
+      // The list is painted once the page has its runs from main: one row a
+      // scenario, an Easy and Hard pair one row carrying the Easy id.
+      const trainer = await until(() => tjs(`(() => {
+        const root = document.getElementById('tr');
+        const err = document.getElementById('tr-error');
+        if (!root || !window.occlaraTrainer) return null;
+        const rows = [...document.querySelectorAll('.tr-item[data-id]')].map((b) => b.dataset.id);
+        if (!rows.length && !(err && !err.hidden)) return null;
+        return { state: root.dataset.state || null, rows,
+          ids: window.occlaraTrainer.scenarios(), error: err && !err.hidden ? err.textContent : null, playing: window.occlaraTrainer.playing };
+      })()`), 6000);
+      lines.push(`trainer page from its tab: ${JSON.stringify(trainer && { ...trainer, ids: trainer.ids && trainer.ids.length, rows: trainer.rows && trainer.rows.length })}`);
+      if (!trainer) return report(false, 'the Trainer page never drew its scenario list');
+      // A Hard id is found by its Easy row: the pattern held to that here, as
+      // every Hard id of the JSON must find its row below.
+      const rowOf = (id) => (trainer.rows.includes(id) ? id : trainer.rows.includes(id.replace(/-hard$/, '-easy')) ? id.replace(/-hard$/, '-easy') : null);
+      if (!trainer || trainer.state !== 'menu' || trainer.error || trainer.playing || JSON.stringify(trainer.ids) !== JSON.stringify(want)
+        || !trainer.rows.every((r) => want.includes(r)) || !want.every((id) => rowOf(id))) {
+        return report(false, `the Trainer page did not come in on its menu with every scenario, and no loop: ${JSON.stringify(trainer)}`);
+      }
+      await shot('trainer', mainWindow, win);
+    }
+    // THE BAR AT 960 (the window's least width) with the Trainer in it: the
+    // eight tabs end before what follows them (the notice line when it says
+    // something, the game switch and Start), nothing cut.
     {
       const [w0, h0] = win.getContentSize();
       // On a page other than Home, where the bar carries Start too.
-      mainWindow.show('practice');
-      await until(settled('practice'), 4000);
+      mainWindow.show('trainer');
+      await until(settled('trainer'), 4000);
       win.setContentSize(960, h0);
       await wait(600);
       const bar = await sjs(`(() => {
         const nav = document.getElementById('nav').getBoundingClientRect();
         const end = document.querySelector('.bar-end').getBoundingClientRect();
         const tabs = [...document.querySelectorAll('#nav .nav-item')];
+        const lastTab = tabs.length ? tabs[tabs.length - 1].getBoundingClientRect() : null;
+        // The next thing drawn after the tabs: the first element after the
+        // nav with a width, or the first such inside .bar-end.
+        const seen = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden' ? r : null; };
+        let next = null;
+        for (let el = document.getElementById('nav').nextElementSibling; el && !next; el = el.nextElementSibling) {
+          if (el.classList.contains('bar-end')) { for (const c of el.children) { const r = seen(c); if (r) { next = { id: c.id || c.className, left: r.left }; break; } } }
+          else { const r = seen(el); if (r) next = { id: el.id || el.className, left: r.left }; }
+        }
         const start = document.getElementById('toggle');
-        return { width: window.innerWidth, navRight: Math.round(nav.right), endLeft: Math.round(end.left), endRight: Math.round(end.right),
+        return { width: window.innerWidth, navRight: Math.round(nav.right), lastTabRight: lastTab ? Math.round(lastTab.right) : null,
+          next: next ? next.id : null, nextLeft: next ? Math.round(next.left) : null, endLeft: Math.round(end.left), endRight: Math.round(end.right),
           tabs: tabs.length, cut: tabs.some((t) => t.scrollWidth > t.clientWidth + 1), start: !!start && start.offsetParent !== null };
       })()`);
-      lines.push(`the bar at 960 with Practice, Start in it: ${JSON.stringify(bar)}`);
-      await shot('practice-960', mainWindow, win);
+      lines.push(`the bar at 960 with the Trainer, Start in it: ${JSON.stringify(bar)}`
+        + ` | the last tab ends ${bar.nextLeft != null && bar.lastTabRight != null ? bar.nextLeft - bar.lastTabRight : '?'} px before ${bar.next}`);
+      await shot('bar-960', mainWindow, win);
       if (process.env.OCCLARA_SHOTS === '1') {
         win.setContentSize(1280, h0);
         await wait(600);
-        await shot('practice-1280', mainWindow, win);
+        await shot('bar-1280', mainWindow, win);
       }
       win.setContentSize(w0, h0);
       await wait(400);
-      if (bar.tabs !== 7 || bar.cut || !bar.start || bar.navRight > bar.endLeft || bar.endRight > bar.width) {
-        return report(false, `at 960 the bar does not fit its seven tabs: ${JSON.stringify(bar)}`);
+      if (bar.tabs !== 8 || bar.cut || !bar.start || bar.navRight > bar.endLeft || bar.endRight > bar.width
+        || bar.lastTabRight == null || bar.nextLeft == null || bar.lastTabRight > bar.nextLeft) {
+        return report(false, `at 960 the bar does not fit its eight tabs: ${JSON.stringify(bar)}`);
       }
     }
     // The review's Practise this, under its fix: the Practice page, opened on

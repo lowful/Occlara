@@ -235,18 +235,26 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .account::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
 .account.on::before { background: var(--good); }
 
+/* Eight tabs at the window's default width: drawn in a little, so the notice
+   line beside them keeps room to say its line. */
+@media (max-width: 1280px) {
+  .nav { gap: 2px; }
+  .nav .nav-item { padding: 0 10px; }
+}
 /* A narrow window: the brand keeps its crescent alone. */
 @media (max-width: 1100px) {
   .brand .name { display: none; }
   .bar { gap: var(--space-3); }
-  .nav .nav-item { padding: 0 11px; }
+  .nav .nav-item { padding: 0 9px; }
 }
-/* Seven tabs (Practice) beside the game switch, Start and the window's
-   buttons at the window's least width (960): the tabs and the bar draw in. */
+/* Eight tabs (Practice, then the Trainer) beside the game switch, Start and
+   the window's buttons at the window's least width (960): the tabs and the
+   bar draw in, the tabs to 7px a side with no gap between them, which leaves
+   the last one clear of the game switch. */
 @media (max-width: 1040px) {
   .bar { gap: var(--space-2); padding-left: var(--space-5); }
-  .nav { gap: 2px; }
-  .nav .nav-item { padding: 0 9px; }
+  .nav { gap: 0; }
+  .nav .nav-item { padding: 0 7px; }
 }
 
 /* ── The Recording screen: what the window shows during a match ────────── */

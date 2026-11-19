@@ -1,5 +1,45 @@
 [
   {
+    "version": "8.14.0",
+    "date": "2026-11-18",
+    "title": "The Trainer",
+    "summary": "An aim and movement trainer inside Occlara, with your own sensitivity and the game's movement and accuracy rules.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "A new Trainer tab with aim drills on a range and three arenas: retaking a site, holding a long main and peeking on two levels."
+      },
+      {
+        "kind": "new",
+        "text": "Type your sensitivity and DPI and the view turns as it does in the game, with raw mouse input. The Calibration drill lets you check it against the game's own Range."
+      },
+      {
+        "kind": "new",
+        "text": "Run speeds, the accuracy rule for moving, first shot accuracy, fire rates, reloads, armour and damage use the game's own numbers. Recoil and a few movement values are measured or estimated, and the Trainer says how many."
+      },
+      {
+        "kind": "new",
+        "text": "Hard levels have bots that shoot back, armour and a time limit. On Easy they never shoot."
+      },
+      {
+        "kind": "new",
+        "text": "Every run ends on a report with your score, accuracy, headshots, first bullet hits, reaction, time to kill and stop time, a chart of your last runs and your best."
+      },
+      {
+        "kind": "new",
+        "text": "Use your own crosshair from a pasted crosshair code or the sliders, and set your keys, the target outline colour and the volume."
+      },
+      {
+        "kind": "new",
+        "text": "Some Practice drills have a Train this button that opens the matching drill in the Trainer."
+      },
+      {
+        "kind": "new",
+        "text": "The Trainer is free and uses no games. It runs on your PC, sends nothing anywhere and is locked during a match like every page."
+      }
+    ]
+  },
+  {
     "version": "8.13.0",
     "date": "2026-11-18",
     "title": "Flag a death, and go deeper on any death",

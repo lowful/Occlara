@@ -10,7 +10,9 @@
  *
  * Its two writes are a drill marked practised and a log entry taken out,
  * both kept on this PC, and both refused by main mid match (the page is
- * locked by the seal then anyway).
+ * locked by the seal then anyway). A drill tagged with a Trainer scenario
+ * (main's `trainer`, `trainerTitle`) has Train this, which asks main to open
+ * the Trainer page on it (TRAINER_OPEN); it writes nothing.
  *
  * MOTION: the page's sections rise once per visit (shared/motion.js), only
  * on screen and never under reduced motion; a repaint draws them as they are.
@@ -264,6 +266,16 @@ function drillCard(d) {
   btn.addEventListener('click', () => markDrill(d.id, btn));
   foot.append(btn);
   if (d.doneLine) foot.append(el('span', 'pc-done' + (d.finished ? ' finished' : ''), d.doneLine));
+  // TRAIN THIS (docs/claude/trainer.md): a drill a Trainer scenario trains
+  // opens the Trainer on it. Last in the foot, so nothing before it moves.
+  if (d.trainer && typeof api.openTrainer === 'function') {
+    const train = el('button', 'btn btn-ghost sm pc-train', 'Train this');
+    train.type = 'button';
+    train.title = `Opens the Trainer on ${d.trainerTitle || 'this drill'}`;
+    train.setAttribute('aria-label', `Train ${d.title} in the Trainer, on ${d.trainerTitle || 'its scenario'}`);
+    train.addEventListener('click', () => api.openTrainer(d.trainer));
+    foot.append(train);
+  }
   card.append(foot);
   return card;
 }

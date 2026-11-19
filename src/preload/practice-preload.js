@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('occlara', {
   mark:        (id) => ipcRenderer.invoke(C.PRACTICE_MARK, String(id || '')),
   /** An entry taken out of the log. */
   remove:      (id) => ipcRenderer.invoke(C.PRACTICE_REMOVE, String(id || '')),
+  /** A drill's Train this: the Trainer page, opened on that scenario (main checks the id, and opens nothing mid match). */
+  openTrainer: (id) => ipcRenderer.send(C.TRAINER_OPEN, String(id || '')),
   onPractice:  (cb) => subscribe(C.PUSH_PRACTICE, cb),
   onReviews:   (cb) => subscribe(C.PUSH_REVIEWS, cb),
   onGame:      (cb) => subscribe(C.PUSH_GAME, cb),

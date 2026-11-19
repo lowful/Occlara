@@ -27,6 +27,9 @@ const PAGES = [
   // Practice (docs/claude/ui.md, "The Practice page"): a plan from the
   // repeated mistakes Patterns lists, right after it, and its drills.
   { id: 'practice', label: 'Practice', surface: 'practice', query: {}, preload: 'practice-preload.js', nav: true },
+  // The Trainer (docs/claude/trainer.md): an aim and movement trainer in the
+  // page, right after the drills that link into it. Sealed like every page.
+  { id: 'trainer', label: 'Trainer', surface: 'trainer', query: {}, preload: 'trainer-preload.js', nav: true },
   // Moments (8.7) took the Breakdown tab's place: the player's deaths and
   // highlights, compiled. The breakdown's numbers fold into Patterns.
   { id: 'moments', label: 'Moments', surface: 'moments', query: {}, preload: 'moments-preload.js', nav: true },

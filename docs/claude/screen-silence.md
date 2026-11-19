@@ -144,3 +144,23 @@ What still counts as "reaching the screen", and is sealed mid match:
   one on screen as the seal comes on goes in the same tick and is shown whole
   later. A click opens Profile only while unsealed (`check:seal`,
   `test:shellnav`, `test:gamestoast`).
+- The Trainer (trainer.md), the aim and movement trainer: a page like the
+  others, locked by `syncSeal`, so it is never shown mid match and its loop,
+  which runs only while the page is on screen with the pointer locked, cannot
+  run then. Main answers its channels with nothing mid match or sealed
+  (`trainer-store.js busy`: no runs, no save, no clear, and Practice's Train
+  this opens nothing).
+- The Trainer's hold on the Ctrl+Shift keys can never happen mid match. While
+  the Trainer has the pointer locked, main lets go of Ctrl+Shift+P, M, S, E
+  and H (`hotkeys.js suspend`), because Ctrl is crouch and Shift is walk in
+  the Trainer and crouch-walking back with S would open Settings. Main lets
+  them go only when the page says it locked (`TRAINER_PLAYING`, from the
+  Trainer's own view), no match is in progress, the window is not sealed and
+  the Trainer is the page in front of a focused, unminimised window
+  (`index.js trainerInFront`); and a 1 s tick takes them back whenever any of
+  that stops being true. A match starting seals the window, so the keys are
+  back within a second at most whatever the page said, and the Trainer
+  itself pauses whenever its window loses focus, its page is left or hidden,
+  or it loses the pointer; in its menu it draws one still frame and runs no
+  loop at all. The flag key is never touched: it is held only mid match,
+  when the Trainer is sealed.

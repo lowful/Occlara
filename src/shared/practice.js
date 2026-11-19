@@ -125,6 +125,29 @@ function whereOf(raw) {
   return null;
 }
 
+/*
+ * A DRILL'S TRAINER SCENARIO (docs/claude/trainer.md): an optional
+ * `trainer: "<scenario id>"` on a drill a scenario of the Trainer page truly
+ * trains (the aim and pre-aim drills). Kept only when it is a plain id that
+ * trainer-scenarios.json names, else null, so a typo never shows a Train this
+ * that opens nothing. The page is handed the id and the scenario's name as
+ * the Trainer itself writes it ("Site retake, Hard").
+ */
+const TRAINER_ID = /^[a-z0-9-]{1,48}$/;
+const TRAINER_SCENARIOS = (() => {
+  try {
+    const raw = require('./trainer-scenarios.json');
+    return new Map((Array.isArray(raw && raw.scenarios) ? raw.scenarios : [])
+      .filter((s) => isObj(s) && typeof s.id === 'string' && TRAINER_ID.test(s.id) && typeof s.title === 'string' && s.title)
+      .map((s) => [s.id, clean(s.level ? `${s.title}, ${s.level === 'hard' ? 'Hard' : 'Easy'}` : s.title, 90)]));
+  } catch { return new Map(); }
+})();
+
+/** A drill's Trainer scenario id, or null. */
+function trainerOf(raw) {
+  return typeof raw === 'string' && TRAINER_ID.test(raw) && TRAINER_SCENARIOS.has(raw) ? raw : null;
+}
+
 /** One drill as the page shows it, or null when it lacks what a drill needs. */
 function normDrill(d) {
   if (!isObj(d)) return null;
@@ -146,6 +169,7 @@ function normDrill(d) {
     where: whereOf(d.where || d.mode || d.place),
     minutes: Number.isFinite(m) && m >= 1 && m <= 90 ? Math.round(m) : null,
     demo: demoOf(d.demo),
+    trainer: trainerOf(d.trainer),
   };
 }
 
@@ -442,6 +466,9 @@ function drillView(d, log, now) {
   return {
     id: d.id, title: d.title, where: d.where, minutes: d.minutes, steps: d.steps, goal: d.goal, check: d.check, why: d.why,
     demo: d.demo || null,
+    // Train this (docs/claude/trainer.md): the scenario and its name, or none.
+    trainer: d.trainer || null,
+    trainerTitle: d.trainer ? TRAINER_SCENARIOS.get(d.trainer) || null : null,
     done, finish: FINISH, finished: done >= FINISH, today: doneToday(log, d.id, now),
     doneLine: done >= FINISH ? `Done ${done} times, finished` : done ? `Done ${done} of ${FINISH} times` : null,
   };
@@ -573,5 +600,5 @@ function unmark(state, id) {
 module.exports = {
   SCHEMA, FOCUS_N, DRILLS_N, FINISH, WINDOW, ENOUGH, GENERAL, WHERE, BAND_LABEL, DEMO_BASE,
   normaliseLibrary, normaliseState, emptyState, choosePlan, planView, progressOf, streakOf,
-  todayOf, drillsFor, carries, mark, unmark, dayKey, causeKey, clipFor, demoOf,
+  todayOf, drillsFor, carries, mark, unmark, dayKey, causeKey, clipFor, demoOf, trainerOf,
 };

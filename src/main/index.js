@@ -5103,6 +5103,49 @@ const practiceIpc = createPractice({
   // The drill library, or a stand in for it in a dev run (check:mainwindow).
   ...(!app.isPackaged && process.env.OCCLARA_DRILLS ? { library: process.env.OCCLARA_DRILLS } : {}),
 });
+/*
+ * THE TRAINER (docs/claude/trainer.md, services/trainer-store.js): the runs
+ * kept in the store's `trainer` key, and the scenario Practice asked for.
+ * Local, no AI and no network, and quiet mid match or sealed.
+ */
+const { createTrainer } = require('./services/trainer-store');
+const trainerIpc = createTrainer({
+  store,
+  busy: () => matchInProgress() || windowSealed(),
+  open: (page) => openPage(page),
+  changed: () => registry.broadcast(C.PUSH_TRAINER, null),
+});
+/*
+ * While the Trainer has the pointer locked, the Ctrl+Shift keys are let go
+ * (hotkeys.js suspend), so crouch and walk with a letter stay in the Trainer.
+ * Taken back the moment the page says it let go, and on the 1 s tick whenever
+ * the Trainer is not what the player is looking at (another page, the seal,
+ * the window minimised or out of focus), so a page that died locked cannot
+ * keep them.
+ */
+trainerIpc.playing = (on) => {
+  if (on && !matchInProgress() && !windowSealed() && trainerInFront()) hotkeys.suspend();
+  else hotkeys.resume();
+};
+function trainerInFront() {
+  try {
+    const w = mainWindow.get();
+    const s = mainWindow.current();
+    if (!(w && !w.isDestroyed() && w.isFocused() && !w.isMinimized() && !s.sealed && s.shown === 'trainer')) return false;
+    // And its page is there to say when it lets the pointer go: a view that
+    // crashed or is loading again cannot.
+    const v = mainWindow.pageViews().get('trainer');
+    const wc = v && v.webContents;
+    return !!(wc && !wc.isDestroyed() && !wc.isCrashed() && !wc.isLoading());
+  } catch { return false; }
+}
+{
+  const t = setInterval(() => {
+    try { if (hotkeys.suspended() && (!trainerInFront() || matchInProgress() || windowSealed())) hotkeys.resume(); }
+    catch (e) { console.warn('[trainer] the keys:', e.message); }
+  }, 1000);
+  if (t && typeof t.unref === 'function') t.unref();
+}
 const changelogIpc = {
   /** At launch: what this launch says, if anything. */
   start() {
@@ -5603,7 +5646,7 @@ if (!app.requestSingleInstanceLock()) {
     // a clip and applying the cap left the clips past it.
     applyClipCap();
 
-    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc, practice: practiceIpc });
+    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc, practice: practiceIpc, trainer: trainerIpc });
     changelogIpc.start();
     // occlara:// for the sign in's fallback link (8.7), on an installed build
     // only: a dev run would point Windows at electron.exe.

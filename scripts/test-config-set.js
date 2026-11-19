@@ -86,6 +86,34 @@ const set = handlers.get(C.CONFIG_SET);
   ok(changed === 3 && JSON.stringify(pageWritable(null)) === '{}' && JSON.stringify(pageWritable([1])) === '{}',
     'nothing and a list write nothing');
 
+  // THE TRAINER'S SETTINGS (docs/claude/trainer.md): one key, written only as
+  // the whole object trainer-math.js normaliseSettings makes; anything else
+  // (out of range, two actions on one key, a field it does not know) dropped.
+  {
+    const T = require('../src/shared/trainer-math');
+    const good = T.normaliseSettings({ sens: 0.35, dpi: 1600, crosshair: { color: '#00FFFF' } });
+    await set({}, { trainerSettings: good });
+    ok(JSON.stringify(data.trainerSettings) === JSON.stringify(good), 'a whole, valid trainerSettings is written', JSON.stringify(data.trainerSettings));
+    const bads = [
+      { ...good, sens: 50 },
+      { ...good, binds: { ...good.binds, back: good.binds.forward } },
+      { ...good, extra: true },
+      { sens: 0.5 },
+      'fast', null, [good],
+    ];
+    for (const bad of bads) await set({}, { trainerSettings: bad });
+    ok(JSON.stringify(data.trainerSettings) === JSON.stringify(good), 'an invalid trainerSettings (out of range, two actions on one key, an unknown field, a part, not an object) is dropped', JSON.stringify(data.trainerSettings));
+    ok(bads.every((b) => !('trainerSettings' in pageWritable({ trainerSettings: b }))) && 'trainerSettings' in pageWritable({ trainerSettings: T.normaliseSettings(null) }),
+      'pageWritable keeps only a whole valid trainerSettings, the defaults among them');
+    const get = handlers.get(C.CONFIG_GET);
+    if (typeof get === 'function') {
+      data.trainerSettings = { sens: 99 };
+      const cfg = await get({});
+      ok(cfg && T.validSettings(cfg.trainerSettings) && cfg.trainerSettings.sens === 10, 'CONFIG_GET hands the page its settings made whole', JSON.stringify(cfg && cfg.trainerSettings));
+      data.trainerSettings = good;
+    }
+  }
+
   // Every key a page writes is on the list (the same reading as check:config).
   const written = new Set();
   const walk = (dir) => {

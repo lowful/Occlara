@@ -6,6 +6,7 @@ const { PURCHASE_URL, SIGNUP_URL } = require('../../shared/config');
 const { capGB } = require('../../shared/clips');
 const { UPGRADE_URL, ACCOUNT_URL } = require('../../shared/usage');
 const { pageWritable } = require('./config-keys');
+const { normaliseSettings: normaliseTrainerSettings } = require('../../shared/trainer-math');
 const store = require('../services/store');
 const advancedCoaching = require('../services/advanced-coaching');
 const updater = require('../updater');
@@ -27,10 +28,11 @@ const { isOwnPage } = require('../windows/web-guard');
  *   changelog:  { notice(), seen(version) } (Home's update line, index.js)
  *   feedback:   { info(), prepare(file), drop(token), send(report) } (services/feedback-service.js, built in index.js)
  *   practice:   { get(game), mark(id), remove(id), today(), open(key, title) } (services/practice-store.js, built in index.js)
+ *   trainer:    { get(), save(run), clear(id), open(id), playing(on) } (services/trainer-store.js, built in index.js)
  * }
  */
 function registerIpc(deps) {
-  const { controller, license, account, profile, community, changelog, feedback, practice } = deps;
+  const { controller, license, account, profile, community, changelog, feedback, practice, trainer } = deps;
 
   // ── the account (8.7) ─────────────────────────────────────────────────────
   if (account) {
@@ -78,6 +80,19 @@ function registerIpc(deps) {
     safeHandle(C.PRACTICE_REMOVE, async (_e, id) => practice.remove(typeof id === 'string' ? id : null));
     safeHandle(C.PRACTICE_TODAY, async () => practice.today());
     ipcMain.on(C.PRACTICE_OPEN, (_e, key, title) => guard('practiceOpen', () => practice.open(typeof key === 'string' ? key : null, typeof title === 'string' ? title : null)));
+  }
+  // ── the Trainer (docs/claude/trainer.md) ──────────────────────────────────
+  // All local, and every one quiet mid match or sealed (trainer-store.js busy()).
+  if (trainer) {
+    safeHandle(C.TRAINER_GET, async () => trainer.get());
+    safeHandle(C.TRAINER_SAVE, async (_e, run) => trainer.save(run && typeof run === 'object' ? run : null));
+    safeHandle(C.TRAINER_CLEAR, async (_e, id) => trainer.clear(typeof id === 'string' ? id : null));
+    ipcMain.on(C.TRAINER_OPEN, (_e, id) => guard('trainerOpen', () => trainer.open(typeof id === 'string' ? id : null)));
+    ipcMain.on(C.TRAINER_PLAYING, (e, on) => guard('trainerPlaying', () => {
+      // Only the Trainer's own page may let the keys go.
+      if (on === true && !/[\\/]renderer[\\/]trainer[\\/]index\.html/.test(decodeURIComponent(String((e && e.sender && e.sender.getURL && e.sender.getURL()) || '')))) return;
+      trainer.playing(on === true);
+    }));
   }
   if (changelog) {
     safeHandle(C.CHANGELOG_NOTICE, async () => changelog.notice());
@@ -207,6 +222,8 @@ function snapshotConfig() {
     sounds:          store.get('sounds'),
     // The key that flags a death (8.13), '' when turned off.
     flagKey:         typeof store.get('flagKey') === 'string' ? store.get('flagKey') : 'F8',
+    // The Trainer's settings, whole (trainer-math.js), the defaults until saved.
+    trainerSettings: normaliseTrainerSettings(store.get('trainerSettings')),
     // The live status's four switches (Progress v3), on unless set off.
     liveMap:         store.get('liveMap') !== false,
     liveAgent:       store.get('liveAgent') !== false,

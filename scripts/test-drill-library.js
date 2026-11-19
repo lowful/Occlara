@@ -25,6 +25,10 @@
  * 4. SERVED: the research notes reach the situations they were written for,
  *    in the review's retrieve() and study() and in Ask Coach, and none of
  *    them trips a gate of the coach's replies.
+ * 5. TRAIN THIS: every optional `trainer` tag is a scenario id in
+ *    trainer-scenarios.json, kept by practice.js, and only on a drill whose
+ *    cause is about aim, peeking or pre-aim (AIM_CAUSES), or a general drill
+ *    played on the Range or in Deathmatch.
  */
 const path = require('path');
 
@@ -58,8 +62,9 @@ ok(drills.length >= 40, `at least 40 drills (${drills.length})`);
 const ids = new Set();
 const KEYS = ['id', 'title', 'cause', 'where', 'minutes', 'bands', 'steps', 'goal', 'why', 'check'];
 // Optional: `also`, the further causes a drill serves (Nov 2026, low-headshots on the aim drills),
-// and `demo` (8.11), the owner's short video of the drill on the website.
-const OPTIONAL = ['also', 'demo'];
+// `demo` (8.11), the owner's short video of the drill on the website, and
+// `trainer`, the Trainer scenario that trains it (docs/claude/trainer.md).
+const OPTIONAL = ['also', 'demo', 'trainer'];
 // A DEMO (8.11) is what scripts/make-drill-demo.js writes and the site hosts:
 // <id>.webm and <id>.webp under occlara.app/drills/, 6 to 12 seconds, and
 // practice.js keeps it as it is (a demo it would drop is a typo here).
@@ -148,6 +153,35 @@ for (const c of [...named, 'general']) {
   ok(['lost-duel-counter-strafe', 'lost-duel-first-bullet', 'lost-duel-head-height-walk', 'lost-duel-shooting-error', 'general-stop-to-shoot'].every((id) => hs.includes(id)),
     `the Practice page offers the aim drills for low-headshots (${hs.join(', ')})`);
   ok(practice.drillsFor(norm, 'lost-duel', null, []).length === 4, 'and lost-duel keeps its own four');
+}
+
+// ── TRAIN THIS (docs/claude/trainer.md): a drill's Trainer scenario ─────────
+// A tag is a scenario id trainer-scenarios.json names, and only an aim,
+// peeking or pre-aim drill carries one. A drill about calls, spacing with
+// teammates, utility, map study or decisions never does.
+console.log('train this:');
+{
+  const scenarios = require(path.join(ROOT, 'src', 'shared', 'trainer-scenarios.json')).scenarios || [];
+  const known = new Set(scenarios.map((s) => s.id));
+  // The causes about aim, peeking or pre-aim.
+  const AIM_CAUSES = new Set(['lost-duel', 'low-headshots', 'first-death', 'dry-peek', 'rotating', 'crossfire']);
+  // A general drill may carry one only when it is played alone on the Range or in Deathmatch, where aim is all there is.
+  const AIM_PLACES = new Set(['range', 'deathmatch']);
+  const aimDrill = (d) => causesOf(d).some((c) => AIM_CAUSES.has(c)) || (d.cause === 'general' && AIM_PLACES.has(d.where));
+  const practice = require(path.join(ROOT, 'src', 'shared', 'practice.js'));
+  const norm = practice.normaliseLibrary(lib);
+  const tagged = drills.filter((d) => 'trainer' in d);
+  ok(tagged.length >= 8 && tagged.length <= 16, `between 8 and 16 drills carry a Trainer scenario (${tagged.length})`);
+  for (const d of tagged) {
+    ok(typeof d.trainer === 'string' && known.has(d.trainer), `drill ${d.id}: its trainer "${d.trainer}" is a scenario trainer-scenarios.json names`);
+    ok(d.trainer !== 'calibration', `drill ${d.id}: never the calibration, which trains nothing`);
+    ok(aimDrill(d), `drill ${d.id}: carries a trainer only as an aim, peeking or pre-aim drill (its cause "${d.cause}")`);
+    const kept = norm && norm.drills.find((x) => x.id === d.id);
+    ok(kept && kept.trainer === d.trainer, `drill ${d.id}: practice.js keeps its trainer as written`);
+  }
+  // The planted negatives: the rule catches a drill about calls or spacing, and a general one in a match.
+  ok(!aimDrill({ cause: 'untraded', where: 'unrated' }) && !aimDrill({ cause: 'general', where: 'unrated' }) && !aimDrill({ cause: 'ult-held', where: 'custom' })
+    && aimDrill({ cause: 'lost-duel', where: 'custom' }) && aimDrill({ cause: 'general', also: ['low-headshots'], where: 'unrated' }), 'the aim rule both ways');
 }
 
 // ── 3. The words ────────────────────────────────────────────────────────────
