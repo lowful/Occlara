@@ -683,9 +683,11 @@ function buyOf(round, n, halfLength, isOurs, opts) {
  * location): the nearest teammate alive, flat distance in the map's own
  * units, within MATE_CLOSE_UNITS 'close', else 'far'. Null where the record
  * places no teammate or not the player, so nobody alive to trade is no
- * distance. The unit is the engine's and no source states it, so no metres
- * are ever said: if it is Unreal's centimetre, the line is 15 m, two seconds
- * of running, inside the five second trade window (TRADE_MS).
+ * distance. The unit is the engine's and no source states it, so this fact
+ * says no metres, only close or far: if it is Unreal's centimetre, the line
+ * is 15 m, two seconds of running, inside the five second trade window
+ * (TRADE_MS). killDistOf, below, does take the unit as a centimetre, for the
+ * Trainer alone, and says so.
  */
 const MATE_CLOSE_UNITS = 1500;
 function mateNearOf(death, isMate) {
@@ -705,6 +707,40 @@ function mateNearOf(death, isMate) {
     if (best === null || d < best) best = d;
   }
   return best === null ? null : best <= MATE_CLOSE_UNITS ? 'close' : 'far';
+}
+
+/*
+ * HOW FAR THE KILLER STOOD FROM THE PLAYER AT THE DEATH (Nov 2026, the
+ * Trainer's Fight it again): the killer's own place in the kill's
+ * player_locations against where the player fell (the kill's location), flat
+ * distance, in metres, to one decimal. Riot's positions are the engine's
+ * world units, and the Trainer takes 1 unit as 1 cm (Unreal's unit, the one
+ * the Trainer's numbers are read in, trainer-data.json), so 100 units are a
+ * metre. One number only, never a position: nothing of where anyone stood
+ * leaves the server. Null, and no key, where the record places not the
+ * player or not the killer (a killer dead or out of the list, a v2 record
+ * without player_locations_on_kill), or the distance is past KILL_DIST_MAX_M,
+ * which no map is across.
+ */
+const UNITS_PER_METRE = 100;
+const KILL_DIST_MAX_M = 250;
+function killDistOf(death) {
+  if (!death || !death.loc || !death.killer || !Array.isArray(death.around)) return null;
+  const ax = num(death.loc.x);
+  const ay = num(death.loc.y);
+  const kid = idOf(death.killer);
+  if (ax === null || ay === null || !kid) return null;
+  for (const p of death.around) {
+    const who = p && (p.player && typeof p.player === 'object' ? p.player
+      : p && p.player_puuid ? { puuid: p.player_puuid, team: p.player_team } : null);
+    if (!who || idOf(who) !== kid) continue;
+    const x = num(p.location && p.location.x);
+    const y = num(p.location && p.location.y);
+    if (x === null || y === null) return null;
+    const m = Math.round((Math.hypot(x - ax, y - ay) / UNITS_PER_METRE) * 10) / 10;
+    return m >= 0 && m <= KILL_DIST_MAX_M ? m : null;
+  }
+  return null;
 }
 
 /*
@@ -824,6 +860,8 @@ function parse(d, name, tag) {
     const afterPistolWin = !!econHalf && (n === 2 || n === econHalf + 2) && winnerOf(rounds[i - 1]) === myTeam;
     const buy = econHalf ? buyOf(r, n, econHalf, isOurs, { afterPistolWin }) : null;
     const mateNear = death ? mateNearOf(death, isMate) : null;
+    // A teammate who killed the player is no enemy to fight again.
+    const killDist = death && whoIs(death.killer) === 'enemy' ? killDistOf(death) : null;
     const casts = castsOf(myStat);
     const winner = winnerOf(r);
     const attackers = attackersOf(n, halfLength);
@@ -869,6 +907,8 @@ function parse(d, name, tag) {
       ...(killsAt.length ? { killsAt } : {}),
       ...(buy ? { buy } : {}),
       ...(mateNear ? { mateNear } : {}),
+      // How far the killer stood, in metres (killDistOf), one number only.
+      ...(killDist !== null ? { killDist } : {}),
       ...(casts ? { casts } : {}),
       ...(myStat && myStat.was_afk === true ? { afk: true } : {}),
       ...(myStat && myStat.stayed_in_spawn === true ? { inSpawn: true } : {}),
@@ -918,4 +958,4 @@ function parse(d, name, tag) {
 
 module.exports = { parse, attackersOf, killsOf, playersOf, teamworkOf, plantSiteOf, weaponOf, killerDamageOf, NOT_A_WEAPON, TRADE_MS,
   compsOf, roleOf, noteNames, nameSetOf, nameSetCounts, COACH_VOCAB, SUBJECT_VERBS, isCapital, isVocabWord, namesTheSubject, NAME_SET_MS, NAME_SETS_MAX,
-  spotOf, buyOf, mateNearOf, castsOf, BUY, BUY_KINDS, MATE_CLOSE_UNITS };
+  spotOf, buyOf, mateNearOf, castsOf, BUY, BUY_KINDS, MATE_CLOSE_UNITS, killDistOf, UNITS_PER_METRE, KILL_DIST_MAX_M };

@@ -313,7 +313,8 @@ documented schemas with their nulls (`test:trackerroutes`, `test:rank-band`,
 ### The round record beyond the feed (8.8)
 
 HenrikDev's `/valorant/v4/match` reply already carried what the 8.5.0 shape
-log only named, and `riot-rounds.js parse` now reads five things from it,
+log only named, and `riot-rounds.js parse` now reads five things from it
+(and since Nov 2026 a sixth, the killer's distance, below),
 each by a rule written in the code, each a key of `perRound` ONLY where the
 record had it. A record without the data, and nulls where it is read, add no
 key at all: the parse is byte for byte the one before (held against HEAD's
@@ -392,8 +393,26 @@ before reads none of them.
 - **The nearest teammate at the death** (`mateNear`, `mateNearOf`): the
   kill's `player_locations`, teammates only, flat distance in the map's own
   units, within `MATE_CLOSE_UNITS` (1500) `close` else `far`. No source states
-  the unit, so no metres are ever said. Never for the last one alive. On the
+  the unit, so this fact says no metres. Never for the last one alive. On the
   card it is the trade chip's own words ("Not traded, nobody close").
+- **The killer's distance at the death** (Nov 2026, the Trainer's Fight it
+  again; `killDist`, `riot-rounds.js killDistOf`): ONE NUMBER, in metres,
+  never a position. The killer's own place in the kill's `player_locations`
+  against where the player fell (the kill's `location`), flat distance, to one
+  decimal. It does say metres: the unit is taken as Unreal's centimetre, 100
+  units a metre (`UNITS_PER_METRE`), the unit the Trainer's numbers are read
+  in, which is the same unit `mateNear` above declines to name. Only for a
+  death to an enemy; null, and no key, where the record places not the
+  player or not the killer (a killer dead or out of the list, a v2 record
+  without `player_locations_on_kill`) or the distance is past 250 m
+  (`KILL_DIST_MAX_M`), which no map is across. Nothing of where anyone stood
+  leaves the server. The client keeps it only as a finite number from 0 to
+  250, to one decimal, in a round the player died (`valorant-verify.js
+  recordExtras`, its own `KILL_DIST_MAX_M`), and `valorant-review.js
+  recordOnCard` puts it on the death's card as `riot.dist`. A review made
+  before carries none. `trainer-replay.js` is the only code that reads it by
+  name (trainer.md, "Fight it again"), and it draws no chip.
+  `test:riotrecord` holds it from the record to the card.
 - **Ability casts** (`casts`, `castsOf`): the player's round by kit key, C the
   grenade slot, Q ability 1, E ability 2, X the ultimate (v4 `ability_1`...,
   v2 `c_cast`...), named by the player's kit on the card

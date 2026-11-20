@@ -7,28 +7,35 @@
 // Spots are where bots may stand; the route is the pre-aim path the floor
 // chevrons draw; view is the camera the menu shows the arena from.
 //
-// THE LOOK is one small shader (no lights, no shadow maps, no post): a fixed
-// sun and sky light each face by the way it looks, walls darken toward the
-// floor they stand on and carry a skirting band, every face has a fine metre
-// grid and a lit edge so volumes read at a glance, and distance fades to the
-// horizon's colour. Contact shadows are flat quads laid on the floor round
-// whatever stands on it. The sky is a dome with the same horizon.
+// THE LOOK is a night range under stars, drawn by one small shader (no lights,
+// no shadow maps, no post): slate volumes lit by a cool sky and a high moon,
+// each with a bright edge so it reads at a glance, a dark floor ruled by a
+// glowing metre grid, accents that glow in their own colour (a crate's lid, a
+// doorway's frame, the paint on the floor), and distance fading into the
+// horizon's teal. Contact shadows are flat quads laid on the floor round
+// whatever stands on it. The sky is a dome: stars, and the same horizon.
 import * as THREE from './vendor/three.module.min.js';
 
 // ── Colours, as three.js numbers ───────────────────────────────────────────
+// Slate for everything built, near black for floors, and three accents that
+// glow (GLOW): teal for what to look at, amber for what to follow, white for
+// measures.
+const ACCENT = 0x4fd6c2, AMBER = 0xf2b441, WHITE = 0xd4dbe6;
 const C = {
-  concrete: 0xb6bcc6, concrete2: 0xa4abb6, concrete3: 0x8c94a1, dark: 0x3b414c,
-  floor: 0x6f7682, floor2: 0x646b77, floorWarm: 0x7d7972, floorWarm2: 0x716d66,
-  sand: 0xd2bb96, sand2: 0xc2a981, sand3: 0xae946c,
-  plaster: 0xdcd5c7, plaster2: 0xcbc3b3,
-  teal: 0x3f828a, teal2: 0x2f666d, green: 0x4a6e5f,
-  wood: 0x94714c, wood2: 0x7d5e3e, brick: 0xb26d52, brick2: 0x9c5b43,
-  amber: 0xe3aa3c, white: 0xe8ebf0,
+  concrete: 0x6b707d, concrete2: 0x606572, concrete3: 0x555a67, dark: 0x8e98a9,
+  floor: 0x15171d, floor2: 0x1c1f27, floorWarm: 0x15171d, floorWarm2: 0x1c1f27,
+  sand: 0x676c79, sand2: 0x5d626f, sand3: 0x535865,
+  plaster: 0x6f7481, plaster2: 0x636875,
+  teal: 0x747a88, teal2: ACCENT, green: 0x8e98a9,
+  wood: 0x61666f, wood2: ACCENT, brick: 0x6c6672, brick2: 0x8e98a9,
+  amber: AMBER, white: WHITE,
 };
+const GLOW = new Set([ACCENT, AMBER, WHITE]);
 
 const SKY = {
-  zenith: 0x1f2a42, horizon: 0x8e9fba, fog: 0x8494ad, fogNear: 55, fogFar: 230,
-  sun: [0.42, 0.82, 0.38], skyLight: 0x9aa9c4, groundLight: 0x5a5650, sunLight: 0xfff1dc,
+  zenith: 0x060a13, horizon: 0x1f5a66, fog: 0x1b4853, fogNear: 45, fogFar: 240,
+  sun: [0.35, 0.8, 0.45], skyLight: 0x8a93a8, groundLight: 0x2c2f38, sunLight: 0xdde7ff,
+  grid: 0x9fd8e0, edge: 0xc9d6e6,
 };
 
 /** A box: its two corners, colour, and whether it blocks (decor does not). */
@@ -58,9 +65,14 @@ function wall(axis, at, t, from, to, y0, y1, gaps, color, cap) {
   if (to > s) piece(s, to);
   return out;
 }
-/** A crate with a darker lid line, so a stack of them reads as crates. */
+/** Cover: a block whose top edge glows in the accent, so what can be stood behind is seen at once. */
 function crate(x0, y0, z0, x1, y1, z1, color, band) {
-  return [box(x0, y0, z0, x1, y1, z1, color), box(x0 - 0.02, y1 - 0.14, z0 - 0.02, x1 + 0.02, y1 - 0.08, z1 + 0.02, band, { decor: true })];
+  const w = 0.028, o = 0.008, t = { decor: true };
+  return [
+    box(x0, y0, z0, x1, y1, z1, color),
+    box(x0 - o, y1 - w, z0 - o, x1 + o, y1 + o, z0 + w, band, t), box(x0 - o, y1 - w, z1 - w, x1 + o, y1 + o, z1 + o, band, t),
+    box(x0 - o, y1 - w, z0 + w, x0 + w, y1 + o, z1 - w, band, t), box(x1 - w, y1 - w, z0 + w, x1 + o, y1 + o, z1 - w, band, t),
+  ];
 }
 
 // ── The arenas ─────────────────────────────────────────────────────────────
@@ -114,8 +126,8 @@ function site() {
   b.push(...wall('z', -14.5, 0.5, -18, 8, 0, H, [], C.sand2, C.sand3));
   b.push(...wall('z', 14, 0.5, -18, 8, 0, H, [[-10, -6]], C.sand2, C.sand3));
   // The mouth's frame and the link's, in the trim colour: where to look first.
-  b.push(box(-3.3, 0, 7.9, -2.94, H, 8.6, C.teal2, { decor: true }), box(2.94, 0, 7.9, 3.3, H, 8.6, C.teal2, { decor: true }));
-  b.push(box(13.9, 0, -10.3, 14.6, H, -9.94, C.teal2, { decor: true }), box(13.9, 0, -6.06, 14.6, H, -5.7, C.teal2, { decor: true }));
+  b.push(box(-3.3, 0, 7.9, -2.94, H, 8.6, C.dark, { decor: true }), box(2.94, 0, 7.9, 3.3, H, 8.6, C.dark, { decor: true }));
+  b.push(box(13.9, 0, -10.3, 14.6, H, -9.94, C.dark, { decor: true }), box(13.9, 0, -6.06, 14.6, H, -5.7, C.dark, { decor: true }));
   // The link: a short corridor off the east wall.
   b.push(...wall('x', -10.5, 0.5, 14.5, 24, 0, H, [], C.concrete, C.dark));
   b.push(...wall('x', -6, 0.5, 14.5, 24, 0, H, [], C.concrete, C.dark));
@@ -164,7 +176,7 @@ function lane() {
     b.push(box(x0, 0, z0 - 0.5, x1, H, z0, C.concrete3), box(x0, 0, z1, x1, H, z1 + 0.5, C.concrete3));
     // Its frame in the trim colour, and a patch of floor: an angle to check.
     const fx = side < 0 ? -4.56 : 3.94;
-    b.push(box(fx, 0, z0 - 0.14, fx + 0.62, H, z0 + 0.05, C.teal2, { decor: true }), box(fx, 0, z1 - 0.05, fx + 0.62, H, z1 + 0.14, C.teal2, { decor: true }));
+    b.push(box(fx, 0, z0 - 0.14, fx + 0.62, H, z0 + 0.05, C.dark, { decor: true }), box(fx, 0, z1 - 0.05, fx + 0.62, H, z1 + 0.14, C.dark, { decor: true }));
     b.push(paint(x0, z0, x1, z1, C.floor2));
   };
   cubby(-1, -17, -14); cubby(1, -27, -24); cubby(-1, -37, -34);
@@ -246,7 +258,152 @@ function stack() {
   };
 }
 
-const ARENAS = { range, site, lane, stack };
+/** A close corner: a corridor into a T, with someone round either side. */
+function corner() {
+  const b = [];
+  const H = 5;
+  b.push(box(-14, -0.5, -15, 14, 0, 9, C.floor));
+  // The corridor the player comes up, and the T it meets.
+  b.push(...wall('z', -2.5, 0.5, -7.5, 7, 0, H, [], C.concrete, C.dark));
+  b.push(...wall('z', 2, 0.5, -7.5, 7, 0, H, [], C.concrete, C.dark));
+  b.push(...wall('x', 7, 0.5, -2.5, 2.5, 0, H, [], C.concrete2, C.dark));
+  b.push(...wall('x', -8, 0.5, -12.5, -2.5, 0, H, [], C.sand2, C.dark));
+  b.push(...wall('x', -8, 0.5, 2.5, 12.5, 0, H, [], C.sand2, C.dark));
+  b.push(...wall('x', -13.5, 0.5, -12.5, 12.5, 0, H, [], C.sand, C.dark));
+  b.push(...wall('z', -13, 0.5, -13.5, -7.5, 0, H, [], C.sand2, C.dark));
+  b.push(...wall('z', 12.5, 0.5, -13.5, -7.5, 0, H, [], C.sand2, C.dark));
+  // Something to hide behind down each arm, and a box at the mouth.
+  b.push(...crate(-9.5, 0, -12.6, -7.5, 1.2, -11.2, C.teal, C.teal2));
+  b.push(...crate(7, 0, -9.6, 9, 1.2, -8.4, C.teal, C.teal2));
+  b.push(...crate(-0.9, 0, -13, 0.9, 1.05, -12, C.wood, C.wood2));
+  b.push(paint(-2, -7.6, 2, -7.46, C.amber));
+  const face = (x, z) => Math.atan2(-(0 - x), -(-4 - z));
+  const spot = (id, x, z, more) => ({ id, x, y: 0, z, yaw: face(x, z), stance: 'stand', ...more });
+  return {
+    id: 'corner', boxes: b, start: { x: 0, y: 0, z: 5, yaw: 0 },
+    bounds: { min: [-12.5, -1, -13], max: [12.5, 30, 7] },
+    spots: [
+      spot('left-tight', -3.6, -8.7), spot('left-deep', -11.5, -10), spot('left-box', -8.5, -10.6, { stance: 'crouch' }),
+      spot('right-tight', 3.6, -8.7), spot('right-deep', 11.5, -11.5), spot('right-box', 8, -10.3, { stance: 'crouch' }),
+      spot('ahead-box', 0, -11.4, { stance: 'crouch' }), spot('ahead-left', -1.6, -12.6),
+    ],
+    route: [[0, 5], [0, -6.5]],
+    view: { pos: [9, 9.5, 8], look: [-1, 0.5, -9], fov: 52 },
+    sample: [[-3.6, 0, -8.7], [8, 0, -10.3, 1], [-11.5, 0, -10], [0, 0, -11.4, 1]],
+  };
+}
+
+/** After the plant: an open site with the charge down, two ways in, and the player holding it. */
+function plant() {
+  const b = [];
+  const H = 5.5;
+  b.push(box(-17, -0.5, -22, 17, 0, 12, C.floor));
+  b.push(...wall('x', 10, 0.5, -14.5, 14.5, 0, H, [], C.concrete2, C.dark));
+  b.push(...wall('z', -14.5, 0.5, -16, 10, 0, H, [[-9, -5]], C.sand2, C.dark));
+  b.push(...wall('z', 14, 0.5, -16, 10, 0, H, [], C.sand2, C.dark));
+  b.push(...wall('x', -16.5, 0.5, -14.5, 14.5, 0, H, [[4, 8]], C.sand, C.dark));
+  // The two ways in: a room off the far wall and a room off the left one.
+  b.push(...wall('x', -21.5, 0.5, 2, 10, 0, H, [], C.concrete, C.dark));
+  b.push(...wall('z', 2, 0.5, -21.5, -16, 0, H, [], C.concrete, C.dark), ...wall('z', 9.5, 0.5, -21.5, -16, 0, H, [], C.concrete, C.dark));
+  b.push(...wall('z', -17, 0.5, -11, -3, 0, H, [], C.concrete, C.dark));
+  b.push(...wall('x', -11, 0.5, -17, -14.5, 0, H, [], C.concrete, C.dark), ...wall('x', -3.5, 0.5, -17, -14.5, 0, H, [], C.concrete, C.dark));
+  // Cover: the player's at the near end, and what the site gives a pusher.
+  b.push(...crate(-2.5, 0, 5, 0.5, 1.1, 6.2, C.teal, C.teal2));
+  b.push(...crate(5, 0, 2, 7, 1.9, 4, C.wood, C.wood2));
+  b.push(...crate(-8, 0, -11, -5.5, 1.3, -9, C.wood, C.wood2));
+  b.push(...crate(8, 0, -9, 10, 1.3, -6.5, C.teal, C.teal2));
+  // The charge: a marker of our own, lit, in a painted square.
+  b.push(box(-0.16, 0, -3.16, 0.16, 0.34, -2.84, C.amber, { decor: true }));
+  for (const [x0, z0, x1, z1] of [[-1.5, -4.5, 1.5, -4.4], [-1.5, -1.6, 1.5, -1.5], [-1.5, -4.5, -1.4, -1.5], [1.4, -4.5, 1.5, -1.5]]) b.push(paint(x0, z0, x1, z1, C.amber));
+  return {
+    id: 'plant', boxes: b, start: { x: -1, y: 0, z: 7.6, yaw: 0 },
+    bounds: { min: [-14, -1, -16], max: [14, 30, 10] },
+    // Each bot walks its path in, holding each point for its seconds; one left alive at the end got away.
+    spots: [
+      { id: 'far-door', x: 6, y: 0, z: -19.5, path: [[6, -16.2, 0], [6, -12, 1.2], [3, -7, 2.5]] },
+      { id: 'far-door-wide', x: 6.6, y: 0, z: -20, path: [[6.6, -16.2, 0], [10.6, -10.6, 2.8]] },
+      { id: 'left-door', x: -16, y: 0, z: -7, path: [[-14.2, -7, 0], [-10.5, -7, 1.2], [-6.5, -6, 2.5]] },
+      { id: 'left-door-tight', x: -16, y: 0, z: -6.4, path: [[-14.2, -6.4, 0], [-12.5, -3, 3]] },
+    ],
+    route: [],
+    view: { pos: [-11, 11, 13], look: [1, 0.4, -5], fov: 50 },
+    sample: [[6, 0, -12], [-10.5, 0, -7], [10.6, 0, -10.6, 1]],
+  };
+}
+
+/**
+ * One fight, laid out from a death (trainer-replay.js spec): the player at one
+ * end, the enemy `dist` metres off, and cover that makes it the kind of fight
+ * it was. peek: the player starts behind a corner and has to come round it
+ * onto someone already holding. hold: the player holds from cover and someone
+ * swings out. rotate: the player is in the open and it comes from the side.
+ * duel: face to face across the yard. Nothing here is a place in any map.
+ */
+function duel(spec) {
+  const sp = spec || {};
+  const judged = { close: 6, mid: 15, long: 34 }[sp.range] || 15;
+  const d = Math.max(4, Math.min(45, Number.isFinite(sp.dist) ? sp.dist : judged));
+  const kind = sp.situation || 'duel';
+  const b = [];
+  const H = 5;
+  const W = Math.max(12, Math.min(18, d * 0.7));
+  const far = -(d + 9);
+  b.push(box(-W - 1, -0.5, far - 1, W + 1, 0, 9, C.floor));
+  b.push(...wall('x', 8, 0.5, -W, W, 0, H, [], C.concrete2, C.dark));
+  b.push(...wall('x', far - 0.5, 0.5, -W, W, 0, H, [], C.sand, C.dark));
+  b.push(...wall('z', -W - 0.5, 0.5, far, 8, 0, H, [], C.concrete, C.dark));
+  b.push(...wall('z', W, 0.5, far, 8, 0, H, [], C.concrete, C.dark));
+  const start = { x: 0, y: 0, z: 0, yaw: 0 };
+  const enemy = [];      // where each enemy waits, and where it steps out to
+  if (kind === 'peek') {
+    // A wall across the player's front with its end just right of them.
+    b.push(...wall('x', -3.2, 0.6, -W, 1.2, 0, H, [], C.sand2, C.dark));
+    start.x = -1.6; start.z = 0.6;
+    // Each enemy stands its distance from the corner's end, fanned out past it.
+    const at = (deg, r) => { const a = deg * Math.PI / 180; const x = Math.min(W - 1.5, 1.2 + Math.sin(a) * r), z = -2.9 - Math.cos(a) * r; return { from: [x, z], to: [x, z], holds: true }; };
+    enemy.push(at(22, d), at(40, Math.max(3, d - 1.5)), at(9, d + 2));
+  } else if (kind === 'hold') {
+    b.push(...crate(-1.4, 0, -2.4, 1.4, 1.1, -1.4, C.teal, C.teal2));
+    // What they come out from behind.
+    b.push(...wall('x', -d - 0.3, 0.6, -5, -0.6, 0, H, [], C.sand2, C.dark));
+    b.push(...wall('x', -d - 0.3, 0.6, 3.4, 8, 0, H, [], C.sand2, C.dark));
+    enemy.push({ from: [-2.4, -d - 2], to: [1.2, -d + 1.2] }, { from: [5.4, -d - 2], to: [2.2, -d + 0.4] }, { from: [-3, -d - 2.2], to: [-6.5, -d + 1] });
+  } else if (kind === 'rotate') {
+    // In the open, and it comes from the side: pillars to come out from.
+    const a = 68 * Math.PI / 180;
+    const ex = Math.sin(a) * d, ez = -Math.cos(a) * d;
+    const cx = Math.min(W - 2.5, ex);
+    b.push(box(cx - 0.9, 0, ez - 0.9, cx + 0.9, H, ez + 0.9, C.sand3));
+    b.push(box(-cx - 0.9, 0, ez - 3.9, -cx + 0.9, H, ez - 2.1, C.sand3));
+    b.push(...crate(-1.2, 0, -7, 1.2, 1.1, -6, C.teal, C.teal2));
+    // Behind a pillar is its far side from the player; out is a step sideways from there, clear of the pillar.
+    const round = (px, pz, side) => {
+      const l = Math.hypot(px, pz) || 1, ux = px / l, uz = pz / l;
+      const fx = Math.max(-W + 0.8, Math.min(W - 0.8, px + ux * 1.7)), fz = pz + uz * 1.7;
+      return { from: [fx, fz], to: [Math.max(-W + 0.8, Math.min(W - 0.8, fx - uz * 2.4 * side)), fz + ux * 2.4 * side] };
+    };
+    enemy.push(round(cx, ez, 1), round(-cx, ez - 3, 1), round(cx, ez, -1));
+  } else {
+    b.push(...crate(-3.6, 0, -1.6, -1.6, 1.1, -0.6, C.teal, C.teal2));
+    b.push(...crate(1.4, 0, -d + 0.8, 3.4, 1.1, -d + 1.8, C.teal, C.teal2));
+    enemy.push({ from: [0, -d], to: [0, -d], holds: true }, { from: [-4.5, -d - 1], to: [-4.5, -d - 1], holds: true }, { from: [4.8, -d + 1.5], to: [4.8, -d + 1.5], holds: true });
+  }
+  if (sp.afterPlant) {
+    // The charge, beside the player: it is what the fight was over.
+    b.push(box(start.x + 2.2, 0, start.z + 1.6, start.x + 2.52, 0.34, start.z + 1.92, C.amber, { decor: true }));
+  }
+  // A line every 5 m from the player to the enemy, to see the range it happened at.
+  for (let m = 5; m < d; m += 5) b.push(paint(-1, -m - 0.04, 1, -m + 0.04, C.white));
+  return {
+    id: 'duel', boxes: b, start,
+    bounds: { min: [-W + 0.1, -1, far + 0.1], max: [W - 0.1, 30, 7.9] },
+    spots: [], route: [], enemy, kind, dist: d,
+    view: { pos: [W * 0.75, 7 + d * 0.18, 9], look: [0, 0.6, -d * 0.55], fov: 50 },
+    sample: enemy.slice(0, Math.max(1, Math.min(3, sp.enemies || 1))).map((e) => [e.to[0], 0, e.to[1]]),
+  };
+}
+
+const ARENAS = { range, site, lane, stack, corner, plant, duel };
 export const ARENA_IDS = Object.keys(ARENAS);
 
 // ── The shader ─────────────────────────────────────────────────────────────
@@ -256,9 +413,10 @@ const lin = (hex) => new THREE.Color(hex);
 const WORLD_VERT = /* glsl */`
 attribute vec2 aUv;
 attribute vec3 aSize;
-varying vec3 vCol; varying vec3 vN; varying vec3 vW; varying vec2 vUv; varying vec3 vSize; varying float vDist;
+attribute float aGlow;
+varying vec3 vCol; varying vec3 vN; varying vec3 vW; varying vec2 vUv; varying vec3 vSize; varying float vDist; varying float vGlow;
 void main() {
-  vCol = color; vN = normal; vUv = aUv; vSize = aSize;
+  vCol = color; vN = normal; vUv = aUv; vSize = aSize; vGlow = aGlow;
   vec4 w = modelMatrix * vec4(position, 1.0);
   vW = w.xyz;
   vec4 mv = viewMatrix * w;
@@ -269,7 +427,8 @@ void main() {
 const WORLD_FRAG = /* glsl */`
 uniform vec3 uSun; uniform vec3 uSunLight; uniform vec3 uSkyLight; uniform vec3 uGroundLight;
 uniform vec3 uFog; uniform float uFogNear; uniform float uFogFar; uniform float uDetail;
-varying vec3 vCol; varying vec3 vN; varying vec3 vW; varying vec2 vUv; varying vec3 vSize; varying float vDist;
+uniform vec3 uGrid; uniform vec3 uEdge;
+varying vec3 vCol; varying vec3 vN; varying vec3 vW; varying vec2 vUv; varying vec3 vSize; varying float vDist; varying float vGlow;
 
 float grid(vec2 p, float cell) {
   vec2 q = p / cell;
@@ -287,26 +446,30 @@ void main() {
   vec3 light = mix(uGroundLight, uSkyLight, up * 0.5 + 0.5) + uSunLight * max(dot(n, uSun), 0.0);
   vec3 col = vCol * light;
 
-  // Where it stands on a floor, a wall darkens toward it and wears a skirting band.
+  // Where it stands on a floor, a wall darkens toward it, and lifts a little toward its top.
   float grounded = vSize.z;
   float h = vUv.y;
-  col *= mix(1.0, mix(0.72, 1.0, smoothstep(0.0, 1.7, h)), wallish * grounded);
-  float fwH = fwidth(h);
-  float band = (1.0 - smoothstep(0.10, 0.10 + fwH, h)) * wallish * grounded * step(1.9, vSize.y);
-  col *= 1.0 - 0.22 * band;
+  col *= mix(1.0, mix(0.7, 1.0, smoothstep(0.0, 1.8, h)), wallish * grounded);
+  col *= 1.0 + 0.10 * wallish * smoothstep(0.0, 5.0, h);
 
-  // The metre grid, fine, and a stronger line every four.
+  // The grid: it glows on floors, a metre fine and every four stronger, and is
+  // only hinted on walls.
   vec2 p = abs(up) > 0.5 ? vW.xz : (abs(n.x) > 0.5 ? vec2(vW.z, vW.y) : vec2(vW.x, vW.y));
-  float g = grid(p, 1.0) * 0.07 + grid(p, 4.0) * 0.07;
-  col *= 1.0 - g * uDetail;
+  float floorish = step(0.5, up);
+  float g1 = grid(p, 1.0), g4 = grid(p, 4.0);
+  col += uGrid * (g1 * 0.07 + g4 * 0.20) * floorish * uDetail;
+  col += uGrid * g1 * 0.018 * (1.0 - floorish) * uDetail;
 
-  // A lit edge on every face, so a box reads as a box against a like wall.
+  // A bright edge on every face, so a block reads as a block against a like wall.
   vec2 e2 = min(vUv, vSize.xy - vUv);
   float e = min(e2.x, e2.y);
-  float edge = 1.0 - smoothstep(0.014, 0.014 + fwidth(e) * 1.5, e);
-  col = mix(col, col * 1.22 + 0.012, edge * 0.55 * uDetail);
+  float edge = 1.0 - smoothstep(0.010, 0.010 + fwidth(e) * 1.5, e);
+  col = mix(col, uEdge, edge * 0.55 * uDetail * (1.0 - floorish * 0.6));
 
-  col = mix(col, uFog, smoothstep(uFogNear, uFogFar, vDist));
+  // Accents glow in their own colour, whatever the light.
+  col = mix(col, vCol * 1.15, vGlow);
+
+  col = mix(col, uFog, smoothstep(uFogNear, uFogFar, vDist) * 0.92);
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -318,10 +481,11 @@ function worldMaterial() {
     vertexShader: WORLD_VERT, fragmentShader: WORLD_FRAG, vertexColors: true,
     uniforms: {
       uSun: { value: new THREE.Vector3(...SKY.sun).normalize() },
-      uSunLight: { value: lin(SKY.sunLight).multiplyScalar(0.62) },
-      uSkyLight: { value: lin(SKY.skyLight).multiplyScalar(1.25) },
-      uGroundLight: { value: lin(SKY.groundLight).multiplyScalar(1.35) },
+      uSunLight: { value: lin(SKY.sunLight).multiplyScalar(0.55) },
+      uSkyLight: { value: lin(SKY.skyLight).multiplyScalar(0.95) },
+      uGroundLight: { value: lin(SKY.groundLight).multiplyScalar(1.1) },
       uFog: { value: lin(SKY.fog) }, uFogNear: { value: SKY.fogNear }, uFogFar: { value: SKY.fogFar },
+      uGrid: { value: lin(SKY.grid) }, uEdge: { value: lin(SKY.edge) },
       uDetail: { value: 1 },
     },
   });
@@ -329,13 +493,22 @@ function worldMaterial() {
 }
 
 const SKY_FRAG = /* glsl */`
-uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uSun; uniform vec3 uSunLight;
+uniform vec3 uZenith; uniform vec3 uHorizon;
 varying vec3 vDir;
+float hash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 void main() {
   vec3 d = normalize(vDir);
-  float t = smoothstep(-0.02, 0.62, d.y);
-  vec3 col = mix(uHorizon, uZenith, t);
-  col += uSunLight * 0.10 * pow(max(dot(d, uSun), 0.0), 24.0);
+  // The horizon's glow, falling away to the dark above.
+  float t = smoothstep(-0.02, 0.5, d.y);
+  vec3 col = mix(uHorizon, uZenith, pow(t, 0.62));
+  col += uHorizon * 0.5 * exp(-max(d.y, 0.0) * 9.0);
+  // Stars: one cell in a few hundred holds one, brighter or fainter, none near the horizon.
+  vec3 p = d * 190.0;
+  vec3 cell = floor(p);
+  float h = hash(cell);
+  float size = 0.18 + 0.22 * hash(cell + 7.1);
+  float star = step(0.9945, h) * smoothstep(size, 0.0, length(fract(p) - 0.5));
+  col += vec3(0.85, 0.92, 1.0) * star * (0.35 + 0.65 * hash(cell + 3.7)) * smoothstep(0.04, 0.3, d.y);
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -346,15 +519,17 @@ export function buildSky() {
     side: THREE.BackSide, depthWrite: false, depthTest: false,
     vertexShader: 'varying vec3 vDir; void main() { vDir = position; gl_Position = projectionMatrix * viewMatrix * vec4(position + cameraPosition, 1.0); }',
     fragmentShader: SKY_FRAG,
-    uniforms: { uZenith: { value: lin(SKY.zenith) }, uHorizon: { value: lin(SKY.fog) }, uSun: { value: new THREE.Vector3(...SKY.sun).normalize() }, uSunLight: { value: lin(SKY.sunLight) } },
+    uniforms: { uZenith: { value: lin(SKY.zenith) }, uHorizon: { value: lin(SKY.horizon) } },
   });
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), m);
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), m);
   mesh.frustumCulled = false;
   mesh.renderOrder = -10;
   return mesh;
 }
 
 export const SUN = SKY.sun;
+/** The colour distance fades to, for whatever else is drawn in the scene. */
+export const HAZE = SKY.fog;
 /** How much surface detail (grid and edges) the world draws: 1, or 0.6 on Low. */
 export function setDetail(v) { worldMaterial().uniforms.uDetail.value = v; }
 
@@ -377,13 +552,14 @@ function groundedOn(b, boxes) {
 
 /** One merged mesh for the arena's boxes. */
 function buildMesh(boxes) {
-  const pos = [], nor = [], uv = [], size = [], col = [], idx = [];
+  const pos = [], nor = [], uv = [], size = [], col = [], glow = [], idx = [];
   const c = new THREE.Color();
   let v = 0;
   for (const bx of boxes) {
     const [x0, y0, z0] = bx.min, [x1, y1, z1] = bx.max;
     c.setHex(bx.color);
     const g = groundedOn(bx, boxes) ? 1 : 0;
+    const gl = GLOW.has(bx.color) ? 1 : 0;
     for (const [nx, ny, nz] of FACES) {
       if (ny < 0 && y0 <= 0.02) continue;          // never seen: against the ground
       if (bx.flat && ny <= 0) continue;            // paint: its top alone
@@ -401,6 +577,7 @@ function buildMesh(boxes) {
         uv.push(p[3] * w, p[4] * h);
         size.push(w, h, g);
         col.push(c.r, c.g, c.b);
+        glow.push(gl);
       }
       idx.push(v, v + 1, v + 2, v, v + 2, v + 3);
       v += 4;
@@ -412,6 +589,7 @@ function buildMesh(boxes) {
   geo.setAttribute('aUv', new THREE.Float32BufferAttribute(uv, 2));
   geo.setAttribute('aSize', new THREE.Float32BufferAttribute(size, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setAttribute('aGlow', new THREE.Float32BufferAttribute(glow, 1));
   geo.setIndex(idx);
   geo.computeBoundingSphere();
   const mesh = new THREE.Mesh(geo, worldMaterial());
@@ -492,10 +670,10 @@ function buildChevrons(route) {
 }
 
 /** The arena: its meshes added to `scene`, and what the simulation needs. */
-export function buildArena(id, scene, extra) {
-  const a = (ARENAS[id] || ARENAS.range)();
+export function buildArena(id, scene, extra, spec) {
+  const a = (ARENAS[id] || ARENAS.range)(spec);
   // A scenario's own boxes (the spray wall), each [x0, y0, z0, x1, y1, z1].
-  for (const x of extra || []) a.boxes.push(...wall('x', Math.min(x[2], x[5]), Math.abs(x[5] - x[2]), x[0], x[3], x[1], x[4], [], C.white, C.dark));
+  for (const x of extra || []) a.boxes.push(...wall('x', Math.min(x[2], x[5]), Math.abs(x[5] - x[2]), x[0], x[3], x[1], x[4], [], C.plaster, C.dark));
   const group = new THREE.Group();
   group.add(buildMesh(a.boxes), buildContact(a.boxes));
   const chev = buildChevrons(a.route);
@@ -513,8 +691,8 @@ export function disposeArena(a, scene) {
 }
 
 /** The arena seen from above, for the menu's thumbnail: footprints of what stands on its floor, in its bounds. */
-export function arenaPlan(id) {
-  const a = (ARENAS[id] || ARENAS.range)();
+export function arenaPlan(id, spec) {
+  const a = (ARENAS[id] || ARENAS.range)(spec);
   const solids = a.boxes.filter((b) => b.solid && b.max[1] - b.min[1] > 0.3 && b.min[1] < 3);
   return {
     bounds: a.bounds, start: a.start, route: a.route,

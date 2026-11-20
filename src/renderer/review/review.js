@@ -690,11 +690,28 @@ if (window.occlara && window.occlara.onDeathExplained) {
   });
 }
 
-/** What a death's row adds: a flagged death's own clip and note, and Further explain. */
+/*
+ * FIGHT IT AGAIN (Nov 2026, shared/trainer-replay.js): a death main says the
+ * Trainer can replay carries that replay's id (`c.replay`, index.js present),
+ * and its row has the button beside Further explain. A click asks main to open
+ * the Trainer on it; main checks the id again and opens nothing mid match.
+ */
+const REPLAY_ID = /^[a-z]+-\d{10,}-[a-z0-9]{4,}:\d{1,3}$/;
+function replayButton(c) {
+  const b = el('button', 'btn btn-ghost sm v-replay-btn', 'Fight it again');
+  b.type = 'button';
+  b.setAttribute('aria-label', `Round ${c.n}, fight it again in the Trainer`);
+  b.addEventListener('click', () => { window.occlara.openReplay(c.replay); });
+  return b;
+}
+
+/** What a death's row adds: a flagged death's own clip and note, Further explain, and Fight it again. */
 function deathExtras(r, c) {
   const flag = c.flag || null;
   const canExplain = !!(c.died && r.id && r.kind === 'valorant' && window.occlara && window.occlara.explainDeath && !c.tags?.some?.((t) => t && t.kind === 'afk'));
-  if (!flag && !canExplain) return null;
+  const canReplay = !!(c.died && r.kind === 'valorant' && typeof c.replay === 'string' && REPLAY_ID.test(c.replay)
+    && window.occlara && window.occlara.openReplay);
+  if (!flag && !canExplain && !canReplay) return null;
   const box = el('div', 'v-death-extra');
   const lookHasClip = c.forensics && c.forensics.clipUrl;
   if (flag && flag.clipUrl && !lookHasClip) {
@@ -707,7 +724,16 @@ function deathExtras(r, c) {
     box.append(el('p', 'v-clip-gone', clipGoneText(flag.clipGone, 'The flag stays.')));
   }
   if (flag && flag.noDeath) box.append(el('p', 'v-moment-src', "You flagged this round, but Riot's record has no death for you in it."));
-  if (canExplain) box.append(explainBlock(r, c));
+  if (canReplay) {
+    // One row: Further explain, then Fight it again beside it; an answer
+    // already given drops below the button (review.css .v-death-actions).
+    const actions = el('div', 'v-death-actions');
+    if (canExplain) actions.append(explainBlock(r, c));
+    actions.append(replayButton(c));
+    box.append(actions);
+  } else if (canExplain) {
+    box.append(explainBlock(r, c));
+  }
   return box.children.length ? box : null;
 }
 
@@ -1072,12 +1098,13 @@ function whyWithKiller(c, why) {
  * review, a death not to an enemy) draws nothing.
  */
 const ASSETS = '../../../assets/';
-function iconImg(path, cls) {
-  if (typeof path !== 'string' || !/^valorant\/(agents|weapons)\/[A-Za-z0-9]+\.png$/.test(path)) return null;
+function iconImg(path, cls, name) {
+  if (typeof path !== 'string' || !/^valorant\/((agents|weapons)\/[A-Za-z0-9]+|abilities\/[A-Za-z0-9]+-[A-Za-z0-9]+)\.png$/.test(path)) return null;
   const img = document.createElement('img');
   img.className = cls;
   img.src = ASSETS + path;
-  img.alt = '';
+  img.alt = name || '';
+  if (name) img.title = name;
   img.loading = 'lazy';
   img.addEventListener('error', () => img.remove());
   return img;
@@ -1093,7 +1120,8 @@ function killerCardEl(k) {
   who.append(el('span', 'v-killer-label', k.label || 'Killed by'), el('span', 'v-killer-agent', k.agent));
   if (k.weapon) {
     const gun = el('span', 'v-killer-gun');
-    const icon = iconImg(k.weaponIcon, 'v-killer-gun-icon');
+    // The gun's kill feed icon, or the ability's (kit-icons.js), named by main.
+    const icon = iconImg(k.weaponIcon, k.weaponKind === 'ability' ? 'v-killer-gun-icon ability' : 'v-killer-gun-icon', k.weapon);
     if (icon) gun.append(icon);
     gun.append(el('span', null, k.weapon));
     who.append(gun);

@@ -126,7 +126,13 @@ order. A DEATH is every round card with `died`, except in a round Riot says
 the player sat out (8.8, `sat-out.js cardSatOut`, its AFK or stayed in spawn
 flag on the card: listed before as "first to die, nobody traded it"): its title the look's cause
 from the closed list in the singular (`death-causes.js causeTitle`), else
-"Killed by <agent> with a <gun>" from Riot's record ("an" before a vowel, "with an Operator", since 8.7.2), else "Died"; its line what
+"Killed by <agent> with a <gun>" from Riot's record ("an" before a vowel, "with an Operator", since 8.7.2), else "Died"; beside
+the title, what killed the player as its bundled icon (Nov 2026,
+`killIcon`, `kit-icons.js`: the gun's kill feed icon, or the killer's
+ability when the kill was one, `{ kind, file, label }`, null for a word the
+index does not know; `moments.js killIconImg` draws only a file of the
+index's shape, the label as alt and title, and takes away one that fails to
+load; a highlight has none); its line what
 the look saw, else where and what Riot says (first to die, nobody traded it,
 after the plant); its time Riot's `sec` into the round; its marks every
 counted mistake of its review whose rounds hold it (`insights.mistakes`),
@@ -404,10 +410,46 @@ the killer card: the killer's agent icon and name, the gun's name and kill
 feed icon, and the damage that killer dealt the player that round with head,
 body and legs, from Riot's record only (`valorant-review.js killerCard`,
 served() as view data; `review.js killerCardEl`; docs/claude/death-look.md,
-"The killer card"). The icons are bundled under `assets/valorant/`
-(`sync:agenticons`, `sync:weaponicons`), loaded as 'self', and one that fails
-to load is taken away with its words kept. No card is a box: it opens on a
-hairline, the agent's face the one framed image.
+"The killer card"). When the kill was an agent's ability (Riot's record
+names it as the weapon, "Headhunter", "Blade Storm"), the card shows that
+ability's icon beside its name in place of a gun's (`weaponKind: 'ability'`).
+The icons are bundled under `assets/valorant/`, loaded as 'self', and one
+that fails to load is taken away with its words kept. No card is a box: it
+opens on a hairline, the agent's face the one framed image.
+
+**The weapon and ability icons (Nov 2026).** `npm run sync:kiticons`
+(`scripts/sync-kit-icons.js`; `npm run sync:weaponicons` still runs the same
+script) pulls from valorant-api.com each gun's kill feed icon into
+`assets/valorant/weapons/<Name>.png` (the knife is Melee) and each playable
+agent's four ability icons into `assets/valorant/abilities/<Agent>-<Slot>.png`
+(Ability1, Ability2, Grenade, Ultimate; the passive is left out), and writes
+their index, `src/shared/valorant-kit-icons.generated.json` (`{ weapons:
+{ name: file }, abilities: { agent: [{ slot, key, name, file }] } }`). The
+agents' icons stay `sync:agenticons`. Run `sync:valorant` first: only an agent
+the game data knows is written, and the sync fails closed (fewer than 15
+guns or 20 agents, an agent missing an icon, a download that fails, and
+nothing is written). `src/shared/kit-icons.js killIcon(name, agent)` turns
+the weapon as Riot's record names it into `{ kind: 'weapon' | 'ability',
+file, label }` or null: a gun by its name, an ability in the killer's own kit
+alone when the index knows that agent (another agent's ability shows no
+icon), and without the agent only a name one kit holds. MAIN PICKS THE FILE:
+`file` is always one the index names, never a path built from the word handed
+in, and a page never builds a path from text; it only checks that the path
+main served is of the index's shape before drawing it. Three places draw
+them: the review's killer card (`valorant-review.js killerCard`, `weaponIcon`
+and `weaponKind`), the Moments page's death rows (above) and the Profile's
+Most used weapon (below). `npm run test:kiticons`.
+
+**Fight it again (Nov 2026).** A death the Trainer can replay has a Fight it
+again button beside Further explain in its row (`review.js deathExtras`,
+`replayButton`, the shared `btn btn-ghost sm`, the two in one
+`.v-death-actions` row, an answer already given dropping below). Main decides:
+index.js `present` marks each such card with its replay id
+(`trainer-replay.js markRounds`), never mid match or sealed, and the page
+draws the button only on a died round whose id has the shape. A click is
+`review-preload.js openReplay(id)`, `TRAINER_OPEN` with `replay:<id>`, and
+main checks it again before it opens the Trainer on that death. What a replay
+is: `docs/claude/trainer.md`, "Fight it again".
 
 Separate windows, because they are not pages:
 
@@ -658,7 +700,11 @@ answers null mid match or sealed; the page counts nothing and names no URL
 3. **Your play in Valorant**: three figures, label, value and its sample.
    Most used weapon: the player's own kills by gun in Riot's kill feed kept on
    linked reviews (`rounds[].riot.feed`, `by: 'me'`, `w` a gun the game data
-   knows or Melee, never an ability). Most played agent: by matches, Riot's
+   knows or Melee, never an ability), with the gun's kill feed icon beside its
+   name (Nov 2026, `profile.js weaponFigure` sets `icon` from
+   `kit-icons.js killIcon` only for a weapon; `profile/profile.js` draws only a
+   `valorant/weapons/<Name>.png` path, the name as alt and title, and takes
+   away one that fails to load). Most played agent: by matches, Riot's
    agent or one the engine confirmed off the HUD (`ledger.context
    .agentConfirmed`), never a detection alone. Peak rank: Riot's highest rank
    on the account (the tracker profile's `peakRank`: HenrikDev MMR v3's
@@ -847,13 +893,16 @@ sent anywhere; the page says so at its foot.
 An aim and movement trainer that runs entirely in the page, the tab right
 after Practice (`shell-nav.js` `trainer`, `src/renderer/trainer/`,
 `trainer-preload.js`, `src/main/services/trainer-store.js`). No AI and no
-network. The page is a rail (the scenario list or the settings) and a stage
-(the 3D view, with the selected scenario's panel over one still frame in the
-menu); a click on a row selects it, and Play, Enter or a double click starts
-it. Its numbers, the loop, input, scoring, storage, the seal and the
-Ctrl+Shift keys it holds while it has the mouse are all in
+network. The page is a rail (the player's own deaths to fight again, then
+the 16 scenarios in 11 rows, or the settings) and a stage (the 3D view, a
+night scene of our own arenas with generic CC0 models, with the selected
+scenario's panel over one still frame in the menu); a click on a row selects
+it, and Play, Enter or a double click starts it. Its numbers, the look and
+the models, the loop, input, scoring, storage, Fight it again, the seal and
+the Ctrl+Shift keys it holds while it has the mouse are all in
 `docs/claude/trainer.md`. Practice's drills link into it with Train this
-(above). `check:mainwindow` opens it from its tab, holds it to its menu with
+(above), and a review's deaths with Fight it again (the review's paragraph
+"Fight it again", above). `check:mainwindow` opens it from its tab, holds it to its menu with
 a row for every scenario and no loop running, and with `OCCLARA_SHOTS=1`
 writes `main-trainer.png`.
 

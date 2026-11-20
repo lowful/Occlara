@@ -1812,6 +1812,20 @@ async function openShell(cfg, state, opts) {
     const k9 = kp.$('moment-9').querySelector('.v-killer');
     ok(k9 && !imgOf(k9, 'v-killer-face') && k9.querySelector('.v-killer-agent').textContent === 'Viper',
       'an icon path that is not one of the bundled ones is never loaded, and the words stay');
+    // The gun's icon carries its name, and an ability kill draws the ability's
+    // icon (kit-icons.js), never a path outside the bundled shape.
+    ok(imgOf(k2, 'v-killer-gun-icon').alt === 'Marshal' && imgOf(k2, 'v-killer-gun-icon').title === 'Marshal' && imgOf(k2, 'v-killer-face').alt === '',
+      'the gun\'s icon has the gun\'s name as its alt and title, the face stays decorative');
+    const ka = await open({ ...base, rounds: [{ ...base.rounds[1], killerCard: { ...KC, agent: 'Chamber', agentIcon: 'valorant/agents/Chamber.png',
+      weapon: 'Headhunter', weaponIcon: 'valorant/abilities/Chamber-Ability1.png', weaponKind: 'ability', damage: null, damageLabel: null, hits: null } },
+    { ...base.rounds[2], killerCard: { ...KC, weapon: 'Headhunter', weaponIcon: 'valorant/abilities/../../x.png', weaponKind: 'ability' } }] });
+    const ka2 = ka.$('moment-2').querySelector('.v-killer');
+    const ka5 = ka.$('round-5').querySelector('.v-killer');
+    ok(ka2 && imgOf(ka2, 'v-killer-gun-icon') && imgOf(ka2, 'v-killer-gun-icon').src === '../../../assets/valorant/abilities/Chamber-Ability1.png'
+      && imgOf(ka2, 'v-killer-gun-icon').alt === 'Headhunter' && ka2.querySelector('.v-killer-gun').textContent === 'Headhunter',
+    'an ability kill has the ability\'s icon beside its name', ka2 && ka2.textContent);
+    ok(ka5 && !imgOf(ka5, 'v-killer-gun-icon') && ka5.querySelector('.v-killer-gun').textContent === 'Headhunter',
+      'and an ability path out of the bundled shape is never loaded, its name stays');
     // 8.8: a died round with neither a look nor a why still has Riot's card,
     // folded as served() says, or open; with no card it stays one quiet line.
     const kq = await open({ ...base, rounds: [row(7, 'lost', 'Attack', ['Died at A Site'], { killerCard: KC, open: false }),
@@ -1829,6 +1843,25 @@ async function openShell(cfg, state, opts) {
       && kq.$('round-10').querySelector('.v-round-body .v-explain-btn'),
     'a died round with no card and nothing said still folds to Further explain (8.13)');
     ok(!v.document.querySelectorAll('.v-killer').length, 'and a round served with no card draws none');
+    // FIGHT IT AGAIN (Nov 2026, trainer-replay.js through index.js present):
+    // a death main marked with its replay's id has the button beside Further
+    // explain, in the shared ghost button, and a click sends that id to the
+    // Trainer; a forged id, a round survived and a review with none draw none.
+    const RID = `${base.id}:9`;
+    const kr = await open({ ...base, rounds: [{ ...base.rounds[3], replay: RID },
+      row(10, 'lost', 'Attack', ['Died at Mid'], { replay: 'Brindlecap#EU1:10', open: true }),
+      row(12, 'won', 'Attack', ['Survived'], { replay: `${base.id}:12`, open: true })] });
+    const rp9 = kr.$('round-9').querySelector('.v-replay-btn');
+    const acts9 = kr.$('round-9').querySelector('.v-death-actions');
+    ok(rp9 && rp9.textContent === 'Fight it again' && rp9.className === 'btn btn-ghost sm v-replay-btn' && rp9.type === 'button'
+      && acts9 && acts9.querySelector('.v-explain-btn') && acts9.children[acts9.children.length - 1] === rp9,
+    'a death main marked has Fight it again, the shared ghost button, beside Further explain', rp9 && rp9.className);
+    rp9.click();
+    ok(same(kr.bridge.sent.filter((s) => s[0] === C.TRAINER_OPEN), [[C.TRAINER_OPEN, `replay:${RID}`]]),
+      'pressed, it sends that replay\'s id to open the Trainer, nothing else', JSON.stringify(kr.bridge.sent.filter((s) => s[0] === C.TRAINER_OPEN)));
+    ok(!kr.$('round-10').querySelector('.v-replay-btn') && !kr.$('round-12').querySelector('.v-replay-btn'),
+      'a replay id that is not one, and a round survived, draw no button');
+    ok(!v.document.querySelectorAll('.v-replay-btn').length, 'and a review main marked nothing in draws none');
     // A DEATH AS A CHAIN (Nov 2026, death-chain.js through served()): the
     // first mistake, what made it worse and what came before, one line each,
     // under a look or alone; a round with more than one mistake says how many
@@ -6142,6 +6175,10 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
       ['Most played agent', 'Jett', '1 of your 1 match'],
       ['Peak rank', 'Diamond 2', 'Riot\'s highest rank on your account'],
     ]), 'the three figures with their samples, Valorant\'s', JSON.stringify(figs));
+    const gunImg = q.document.querySelector('.pr-fig-gun');
+    ok(gunImg && gunImg.src === '../../../assets/valorant/weapons/Vandal.png' && gunImg.alt === 'Vandal' && gunImg.title === 'Vandal'
+      && q.document.querySelectorAll('.pr-fig-gun').length === 1,
+    'the most used weapon has its kill feed icon beside its name, and only it', gunImg && gunImg.src);
     const rows = () => q.document.querySelectorAll('.pr-plan-row').map((r) => [r.querySelector('.pr-plan-name').textContent, r.querySelector('.pr-amount').textContent,
       r.querySelector('.pr-per').textContent, r.querySelector('.pr-plan-games').textContent, r.querySelector('button') ? r.querySelector('button').textContent : null]);
     ok(same(rows(), [['Free', '$0', '', '4 games for life', 'See Free'], ['ProYour plan', '$24.99', 'a month', '25 games a month', null], ['Max', '$69.99', 'a month', '70 games a month', 'See Max']]),
@@ -6251,6 +6288,14 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(r2 && r2.querySelector('.mo-kind').classList.contains('death') && r2.querySelector('.mo-mtitle').textContent === ISOLATED
       && r2.querySelector('.mo-mline').textContent === 'You swung the angle alone.' && /^\d+ s in$/.test(r2.querySelector('.mo-time').textContent),
       'a death the coach looked at: its cause, what it saw, its time', r2 && r2.textContent);
+    // What killed the player: the icon main named (moments.js killIcon), beside the title.
+    const x2 = data.matches[0].moments.find((x) => x.key === `${saved[0].id}:r2`);
+    const g2 = r2 && r2.querySelector('.mo-gun');
+    ok(x2 && x2.killIcon && x2.killIcon.kind === 'weapon' && g2 && g2.src === `../../../assets/${x2.killIcon.file}`
+      && g2.alt === x2.killIcon.label && g2.title === x2.killIcon.label && g2.parentNode.classList.contains('mo-titlerow'),
+    'a death Riot\'s record names the gun for has its kill feed icon beside the title, its name as alt and title', x2 && JSON.stringify(x2.killIcon));
+    ok(!q.document.querySelector('#mo-list .mo-kind.highlight') || !q.document.querySelector('#mo-list .mo-kind.highlight').parentNode.querySelector('.mo-gun'),
+      'a highlight has no gun icon');
     ok(r2 && r2.querySelector('.mo-mark.across') && [...r2.querySelectorAll('.mo-mark')].some((m) => m.textContent === ISOLATED),
       'marked with the repeated mistakes it belongs to, across matches', r2 && [...r2.querySelectorAll('.mo-mark')].map((m) => m.textContent).join('|'));
     ok(r2 && r2.querySelector('.mo-play') && r2.querySelector('.mo-play').getAttribute('aria-label') === 'Play the clip of round 2', 'and a play button for its clip');

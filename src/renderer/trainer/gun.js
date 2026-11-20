@@ -1,8 +1,11 @@
 // THE GUNS (docs/claude/trainer.md, "Weapons"). Four profiles with plain names
 // whose numbers follow four Valorant weapons (trainer-data.json says which and
-// where each number comes from), and a knife to run with. The models are our
-// own, put together in code from boxes and cylinders (kit.js): no shape here
-// is taken from any game's gun.
+// where each number comes from), and a knife to run with. The view models are
+// generic firearms, none of them any game's: a battle rifle, a carbine with a
+// suppressor, a revolver, a compact pistol and a combat knife, each held by a
+// gloved hand or two. They are made ahead of time from CC0 models
+// (scripts/trainer-models/build.js, native/trainer-models-NOTICE.txt) and
+// load from models/guns.js, one mesh per weapon with its hands in it.
 //
 // The rules a shot follows, in order: the weapon must be up and not
 // reloading, the fire interval must have passed, there must be a round. The
@@ -11,7 +14,9 @@
 // (trainer-math.js spread: first shot, spray growth, moving, crouched, in the
 // air, just landed). Recoil settles when the trigger rests.
 import * as THREE from './vendor/three.module.min.js';
-import { at, between, dist, box, cyl, capsule, merge } from './kit.js';
+import { unpack, LIT, litUniforms } from './kit.js';
+import { SUN } from './world.js';
+import { GUNS } from './models/guns.js';
 
 const M = window.OcclaraTrainerMath;
 
@@ -21,87 +26,70 @@ export function rng(seed) {
   return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 4294967296; };
 }
 
-const METAL = 0x424854, METAL2 = 0x2a2e37, METAL3 = 0x565d6b, GLOVE = 0x23262d, SLEEVE = 0x343a45;
-const ACCENT = { 'heavy-rifle': 0x3f8f98, 'silenced-rifle': 0xd9dde4, 'heavy-pistol': 0xe3aa3c, sidearm: 0x7f8a9c, knife: 0xd9dde4 };
-const tube = (r, len, seg) => { const g = cyl(r, r, len, seg || 12); g.rotateX(Math.PI / 2); return g; };
+// Where each view model is held: at rest (`hip`, with its turn in radians),
+// and aimed (`ads`, how far ahead of the eye; how far below is worked out
+// from the mesh, so its highest point stays CLEAR degrees under the middle of
+// the screen and the crosshair is never covered). `kick` is how hard a shot
+// throws it, `flash` the muzzle flash's size.
+const CLEAR = 3.0;
+const VIEW = {
+  'heavy-rifle': { hip: [0.118, -0.128, -0.43], turn: [0.035, 0.075, 0], ads: -0.42, kick: 9, flash: 0.26 },
+  'silenced-rifle': { hip: [0.118, -0.122, -0.43], turn: [0.035, 0.075, 0], ads: -0.42, kick: 9, flash: 0 },
+  'heavy-pistol': { hip: [0.092, -0.096, -0.4], turn: [0.02, 0.05, 0], ads: -0.46, kick: 13, flash: 0.24 },
+  sidearm: { hip: [0.088, -0.088, -0.38], turn: [0.02, 0.05, 0], ads: -0.44, kick: 13, flash: 0.18 },
+  knife: { hip: [0.115, -0.135, -0.36], turn: [0.0, 0.3, 0.28], ads: -0.4, kick: 10, flash: 0 },
+};
 
-/** The hands: the one on the grip, and for a long gun the one under the barrel. */
-function hands(parts, grip, support) {
-  // Each forearm runs down and back out of the frame, so only a wrist shows.
-  const arm = (from, to) => parts.push([capsule(0.038, dist(...from, ...to), 8), SLEEVE, between(...from, ...to)]);
-  parts.push([box(0.056, 0.074, 0.068), GLOVE, at(grip[0], grip[1], grip[2], 16)]);
-  arm([grip[0] + 0.005, grip[1] - 0.04, grip[2] + 0.03], [grip[0] + 0.05, grip[1] - 0.42, grip[2] + 0.08]);
-  if (support) {
-    parts.push([box(0.066, 0.046, 0.085), GLOVE, at(support[0], support[1], support[2])]);
-    arm([support[0] - 0.01, support[1] - 0.03, support[2] + 0.02], [support[0] - 0.1, support[1] - 0.42, support[2] + 0.05]);
+// Each mesh is unpacked once and kept: a run's guns are made again on every
+// load, and the meshes never change.
+const made = new Map();
+function model(id) {
+  let m = made.get(id);
+  if (m) return m;
+  const src = GUNS[id] || GUNS.knife;
+  const view = VIEW[id] || VIEW.knife;
+  const geo = unpack(src);
+  // How far the aimed model must drop: the least that puts every point ahead
+  // of the eye at least CLEAR degrees under the line of sight.
+  const p = geo.attributes.position;
+  const t = Math.tan(CLEAR * Math.PI / 180);
+  let drop = 0;
+  for (let i = 0; i < p.count; i++) {
+    const z = p.getZ(i) + view.ads;
+    if (z > -0.03) continue;
+    drop = Math.min(drop, t * z - p.getY(i));
   }
+  m = { geo, muzzle: src.muzzle, view, adsY: drop };
+  made.set(id, m);
+  return m;
 }
 
-function rifle(silenced, accent) {
-  const p = [];
-  p.push([box(0.056, 0.086, 0.34), METAL, at(0, 0, -0.02)]);                           // receiver
-  p.push([box(0.058, 0.02, 0.2), accent, at(0, 0.018, -0.05)]);                        // its painted band
-  p.push([box(0.03, 0.014, 0.4), METAL2, at(0, 0.05, -0.1)]);                          // top rail
-  p.push([box(0.03, 0.024, 0.014), METAL2, at(0, 0.068, 0.07)]);                       // rear sight
-  p.push([box(0.008, 0.03, 0.01), METAL2, at(0, 0.07, -0.29)]);                        // front sight
-  p.push([box(0.05, 0.062, silenced ? 0.2 : 0.26), METAL3, at(0, 0.002, silenced ? -0.29 : -0.32)]);   // handguard
-  p.push([box(0.052, 0.01, silenced ? 0.16 : 0.22), METAL2, at(0, -0.024, silenced ? -0.29 : -0.32)]);
-  if (silenced) {
-    p.push([tube(0.012, 0.08), METAL2, at(0, 0.012, -0.43)]);
-    p.push([tube(0.026, 0.27, 14), METAL2, at(0, 0.012, -0.6)]);                       // the silencer
-    p.push([tube(0.027, 0.02, 14), accent, at(0, 0.012, -0.5)]);
-  } else {
-    p.push([tube(0.011, 0.2), METAL2, at(0, 0.012, -0.55)]);                           // barrel
-    p.push([tube(0.018, 0.055), METAL3, at(0, 0.012, -0.665)]);                        // muzzle
-  }
-  p.push([box(0.034, 0.13, 0.06), METAL2, at(0, -0.1, -0.085, silenced ? -16 : -8)]);  // magazine
-  p.push([box(0.034, 0.1, 0.046), METAL3, at(0, -0.085, 0.07, 16)]);                   // grip
-  p.push([box(0.01, 0.008, 0.075), METAL2, at(0, -0.052, 0.0)]);                       // trigger guard
-  p.push([box(0.05, 0.07, 0.03), METAL2, at(0, -0.004, 0.16)]);                        // end cap: a carbine, no stock
-  hands(p, [0, -0.09, 0.075], [0, -0.05, -0.3]);
-  return { geo: merge(p), muzzle: [0, 0.012, silenced ? -0.74 : -0.7] };
-}
-
-function pistol(heavy, accent) {
-  const p = [];
-  if (heavy) {
-    p.push([box(0.034, 0.05, 0.15), METAL, at(0, 0.008, -0.03)]);                      // frame
-    p.push([box(0.03, 0.046, 0.17), METAL3, at(0, 0.016, -0.19)]);                     // slab barrel
-    p.push([box(0.012, 0.012, 0.16), accent, at(0, 0.044, -0.19)]);                    // its rib
-    p.push([tube(0.03, 0.058, 8), METAL2, at(0, 0.012, -0.075)]);                      // cylinder
-    p.push([box(0.008, 0.022, 0.01), METAL2, at(0, 0.058, -0.265)]);
-    p.push([box(0.026, 0.018, 0.012), METAL2, at(0, 0.045, 0.035)]);
-    p.push([box(0.033, 0.11, 0.05), METAL2, at(0, -0.062, 0.03, 20)]);                 // grip
-    hands(p, [0, -0.062, 0.035], null);
-    return { geo: merge(p), muzzle: [0, 0.016, -0.3] };
-  }
-  p.push([box(0.03, 0.042, 0.2), METAL3, at(0, 0.02, -0.08)]);                         // slide
-  p.push([box(0.031, 0.008, 0.12), accent, at(0, 0.036, -0.05)]);
-  p.push([box(0.028, 0.026, 0.16), METAL, at(0, -0.012, -0.07)]);                      // frame
-  p.push([box(0.007, 0.012, 0.008), METAL2, at(0, 0.046, -0.17)]);
-  p.push([box(0.022, 0.012, 0.008), METAL2, at(0, 0.045, 0.012)]);
-  p.push([box(0.03, 0.1, 0.046), METAL2, at(0, -0.066, 0.0, 14)]);                     // grip
-  hands(p, [0, -0.066, 0.004], null);
-  return { geo: merge(p), muzzle: [0, 0.02, -0.2] };
-}
-
-function knife(accent) {
-  const p = [];
-  p.push([box(0.028, 0.03, 0.11), METAL2, at(0, 0, 0.02)]);
-  p.push([box(0.05, 0.012, 0.014), METAL3, at(0, 0, -0.04)]);
-  p.push([box(0.006, 0.034, 0.19), accent, at(0, 0.004, -0.14)]);
-  p.push([box(0.007, 0.012, 0.19), METAL3, at(0, 0.024, -0.14)]);
-  hands(p, [0, -0.01, 0.03], null);
-  return { geo: merge(p), muzzle: [0, 0, -0.24] };
-}
-
-function build(kind) {
-  const accent = ACCENT[kind] || ACCENT.knife;
-  if (kind === 'knife') return knife(accent);
-  if (kind === 'heavy-pistol') return pistol(true, accent);
-  if (kind === 'sidearm') return pistol(false, accent);
-  return rifle(kind === 'silenced-rifle', accent);
-}
+const GUN_VERT = /* glsl */`
+attribute vec4 aCol;
+varying vec3 vCol; varying float vGloss; varying vec3 vN; varying vec3 vP;
+void main() {
+  vCol = pow(aCol.rgb, vec3(2.2)); vGloss = aCol.a;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vN = normalMatrix * normal;
+  vP = mv.xyz;
+  gl_Position = projectionMatrix * mv;
+}`;
+// The view model's own camera never turns, so its space is the eye's: the
+// sun and the sky's way up are turned into it each frame (pose).
+const GUN_FRAG = /* glsl */`
+${LIT}
+uniform vec3 uFlashAt; uniform float uFlash;
+varying vec3 vCol; varying float vGloss; varying vec3 vN; varying vec3 vP;
+void main() {
+  vec3 n = normalize(vN);
+  vec3 col = lit(vCol, vGloss, n, normalize(-vP));
+  // A shot lights the gun from its own muzzle for a moment.
+  vec3 d = uFlashAt - vP;
+  float fall = 1.0 / (1.0 + dot(d, d) * 26.0);
+  col += (vCol * 2.0 + 0.02) * vec3(1.0, 0.72, 0.4) * uFlash * fall * max(dot(n, normalize(d)), 0.0);
+  gl_FragColor = vec4(col, 1.0);
+  #include <colorspace_fragment>
+}`;
 
 const FLASH_FRAG = /* glsl */`
 uniform float uSeed; varying vec2 vUv;
@@ -121,13 +109,14 @@ void main() {
 export function createGuns(N, loadout, seed) {
   const rand = rng(seed || 1);
   const scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight(0xd6e0f0, 0x4a4640, 2.4));
-  const sun = new THREE.DirectionalLight(0xfff3e0, 2.2);
-  sun.position.set(-1.2, 2.2, 1.4);
-  scene.add(sun);
   const holder = new THREE.Group();
   scene.add(holder);
-  const mat = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 28, specular: 0x30343c });
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: GUN_VERT, fragmentShader: GUN_FRAG,
+    uniforms: { ...litUniforms(), uFlashAt: { value: new THREE.Vector3() }, uFlash: { value: 0 } },
+  });
+  const sunWorld = new THREE.Vector3(SUN[0], SUN[1], SUN[2]).normalize();
+  const eyeTurn = new THREE.Quaternion(), eyeEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   const flashMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
     uniforms: { uSeed: { value: 0 } },
@@ -135,6 +124,7 @@ export function createGuns(N, loadout, seed) {
     fragmentShader: FLASH_FRAG,
   });
 
+  const flashGeo = new THREE.PlaneGeometry(1, 1);
   const slots = {
     primary: { id: loadout.primary, w: N.weapons[loadout.primary] },
     secondary: { id: loadout.secondary, w: N.weapons[loadout.secondary] },
@@ -143,11 +133,15 @@ export function createGuns(N, loadout, seed) {
   for (const k of Object.keys(slots)) {
     const s = slots[k];
     s.ammo = s.w ? s.w.mag : 0;
-    const b = build(s.id);
+    const b = model(s.id);
+    s.view = b.view; s.adsY = b.adsY;
     s.model = new THREE.Group();
-    s.model.add(new THREE.Mesh(b.geo, mat));
-    s.flash = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), flashMat);
-    s.flash.position.set(b.muzzle[0], b.muzzle[1], b.muzzle[2] - 0.03);
+    const mesh = new THREE.Mesh(b.geo, mat);
+    mesh.frustumCulled = false;       // always before the eye, its near end behind it
+    s.model.add(mesh);
+    s.flash = new THREE.Mesh(flashGeo, flashMat);
+    s.flash.scale.setScalar(b.view.flash || 0.2);
+    s.flash.position.set(b.muzzle[0], b.muzzle[1], b.muzzle[2] - 0.02);
     s.flash.visible = false;
     s.model.add(s.flash);
     s.long = s.id === 'heavy-rifle' || s.id === 'silenced-rifle';
@@ -222,7 +216,7 @@ export function createGuns(N, loadout, seed) {
     st.nextShot = now + 1 / rate;
     if (burst) { st.burstLeft -= 1; if (st.burstLeft <= 0) st.nextShot = now + w.burst.cooldown; }
     else if (!w.auto) st.trigger = false;
-    st.kickV += s.long ? 9 : 13;
+    st.kickV += s.view.kick;
     st.flashUntil = now + 0.03;
     flashMat.uniforms.uSeed.value = rand() * 6.28;
     const last = s.ammo <= 0;
@@ -273,15 +267,25 @@ export function createGuns(N, loadout, seed) {
     const land = move.landing != null && move.landing < 0.25 ? Math.sin((move.landing / 0.25) * Math.PI) * 0.012 : 0;
     const a = st.ads, hip = 1 - a;
     const bx = Math.sin(st.bob) * 0.004 * bobA * hip, by = -Math.abs(Math.cos(st.bob)) * 0.005 * bobA * hip;
-    const baseX = s.long ? 0.155 : 0.13, baseY = s.long ? -0.17 : -0.125, baseZ = s.long ? -0.48 : -0.42;
+    const v = s.view;
     m.position.set(
-      baseX * hip + bx + st.swayX * 0.6,
-      baseY * hip + (s.long ? -0.13 : -0.1) * a + by - dip * 0.14 - rise * 0.3 - land - st.swayY * 0.5,
-      baseZ * hip + (s.long ? -0.62 : -0.54) * a + st.kick * 0.012,
+      v.hip[0] * hip + bx + st.swayX * 0.6,
+      v.hip[1] * hip + s.adsY * a + by - dip * 0.16 - rise * 0.3 - land - st.swayY * 0.5,
+      v.hip[2] * hip + v.ads * a + st.kick * 0.012,
     );
-    m.rotation.set((s.long ? 0.05 : 0.02) * hip + st.kick * 0.022 * (0.4 + 0.6 * hip) - dip * 0.55 + rise * 0.9 + st.swayY * 0.8, 0.055 * hip + st.swayX * 1.4, -dip * 0.35 - st.swayX * 1.2);
-    s.flash.visible = now < st.flashUntil && !s.silenced;
+    m.rotation.set(v.turn[0] * hip + st.kick * 0.022 * (0.4 + 0.6 * hip) - dip * 0.5 + rise * 0.9 + st.swayY * 0.8, v.turn[1] * hip + st.swayX * 1.4, v.turn[2] * hip - dip * 0.4 - st.swayX * 1.2);
+    const lit = now < st.flashUntil && !s.silenced && !!s.w;
+    s.flash.visible = lit;
     s.flash.rotation.z = flashMat.uniforms.uSeed.value;
+    // Aimed, the muzzle sits just under the crosshair: the flash is kept small there.
+    s.flash.scale.setScalar((v.flash || 0.2) * (1 - 0.5 * a));
+    // The light: the world's sun and its sky, turned into the eye's space, so
+    // the gun is lit from where the arena is; and the shot's own flash.
+    eyeTurn.setFromEuler(eyeEuler.set(pitch, yaw, 0, 'YXZ')).invert();
+    mat.uniforms.uSun.value.copy(sunWorld).applyQuaternion(eyeTurn);
+    mat.uniforms.uUp.value.set(0, 1, 0).applyQuaternion(eyeTurn);
+    mat.uniforms.uFlash.value = lit ? 1 : 0;
+    if (lit) { m.updateMatrix(); mat.uniforms.uFlashAt.value.copy(s.flash.position).applyMatrix4(m.matrix); }
   }
 
   return {
@@ -316,8 +320,8 @@ export function createGuns(N, loadout, seed) {
       st.equipUntil = now;
     },
     dispose() {
-      for (const k of Object.keys(slots)) slots[k].model.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
-      mat.dispose(); flashMat.dispose();
+      // The meshes are kept for the next run (model); what was made here goes.
+      flashGeo.dispose(); mat.dispose(); flashMat.dispose();
     },
   };
 }

@@ -1,0 +1,12 @@
+{
+  "_about": "Every model the Trainer is built from. Each was read on its own page on poly.pizza on 19 Nov 2026, where its licence is stated as Public Domain (CC0). fetch.js downloads them; build.js reads them. None is committed.",
+  "sources": [
+    { "name": "swat", "title": "SWAT", "author": "Quaternius", "page": "https://poly.pizza/m/Btfn3G5Xv4", "file": "https://static.poly.pizza/713f6535-f4f3-4367-a4c6-ced126ae0936.glb", "licence": "CC0 1.0", "bytes": 1560900 },
+    { "name": "p-rifle-west", "title": "Rifle West", "author": "Pichuliru", "page": "https://poly.pizza/m/wED1MSx2SK", "file": "https://static.poly.pizza/585d665e-1e7a-4357-aec3-6f5b0216eb50.glb", "licence": "CC0 1.0", "bytes": 366748 },
+    { "name": "p-ar-west", "title": "Assault Rifle West", "author": "Pichuliru", "page": "https://poly.pizza/m/ss1nz3gJnx", "file": "https://static.poly.pizza/a380d523-5633-410b-88f5-558bc1a7af60.glb", "licence": "CC0 1.0", "bytes": 498844 },
+    { "name": "p-supp-a", "title": "Suppressor", "author": "Pichuliru", "page": "https://poly.pizza/m/QWfBIqy0VW", "file": "https://static.poly.pizza/a8a463fb-3a5e-45e7-9847-1352fefe881a.glb", "licence": "CC0 1.0", "bytes": 18608 },
+    { "name": "p-pistol-west-b", "title": "Pistol West", "author": "Pichuliru", "page": "https://poly.pizza/m/r8RjoAwN5A", "file": "https://static.poly.pizza/823493ed-73d8-41ae-91e4-d0b396959756.glb", "licence": "CC0 1.0", "bytes": 156948 },
+    { "name": "p-kabar", "title": "Kabar", "author": "Pichuliru", "page": "https://poly.pizza/m/bAaO335d6A", "file": "https://static.poly.pizza/5c773011-7274-42c2-b39e-3e613923a0f7.glb", "licence": "CC0 1.0", "bytes": 43112 },
+    { "name": "revolver", "title": "Revolver", "author": "Quaternius", "page": "https://poly.pizza/m/9C26wSpMS0", "file": "https://static.poly.pizza/9e728565-67a3-44db-9567-982320abff09.glb", "licence": "CC0 1.0", "bytes": 79988 }
+  ]
+}

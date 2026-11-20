@@ -122,7 +122,7 @@ in `docs/claude/` to find it.
 | Touching accounts, sign in, tiers, game caps, `game_usage`, the read gate, referral, `ENFORCE_CAPS` or a rate limit | `docs/claude/accounts.md` |
 | The changelog, What's new, Home's update line, `/api/changelog`, the Discord button or post | `docs/claude/changelog.md` |
 | Changing the Practice page, the drill library (`drill-library.json`) or `practice.js` | `docs/claude/ui.md`, "The Practice page", and `docs/claude/playbook.md`, "The drill library" |
-| Changing the Trainer page, its numbers (`trainer-data.json`, `trainer-math.js`), arenas, scenarios or `trainer-store.js` | `docs/claude/trainer.md` |
+| Changing the Trainer page, its numbers (`trainer-data.json`, `trainer-math.js`), arenas, models, scenarios, Fight it again (`trainer-replay.js`) or `trainer-store.js` | `docs/claude/trainer.md` |
 | Changing how a death is read as a chain of mistakes, or the match's own memory (`death-chain.js`, `match-memory.js`) | `docs/claude/death-look.md`, "Chains of mistakes", and `docs/claude/match-to-review.md`, "The match's own memory" |
 | Changing the Profile page, buying games in the app or `profile.js` | `docs/claude/ui.md`, "The Profile page", and `docs/claude/accounts.md`, "Buying games, in the app" |
 | Importing a recording: `import-video.js`, its panel, `/api/usage/import`, the bundled ffmpeg | `docs/claude/import.md` |

@@ -112,6 +112,25 @@ function matchHead(m) {
   return head;
 }
 
+/*
+ * What killed the player, as the bundled icon main named (moments.js
+ * killIcon, kit-icons.js): the gun's kill feed silhouette or the killer's
+ * ability, white on transparent. Only a file under assets/valorant/ of the
+ * index's shape is drawn; one that does not load is taken away.
+ */
+const ICON_FILE = /^valorant\/(weapons\/[A-Za-z0-9]+|abilities\/[A-Za-z0-9]+-[A-Za-z0-9]+)\.png$/;
+function killIconImg(k) {
+  if (!k || typeof k.file !== 'string' || !ICON_FILE.test(k.file)) return null;
+  const img = document.createElement('img');
+  img.className = 'mo-gun' + (k.kind === 'ability' ? ' ability' : '');
+  img.src = '../../../assets/' + k.file;
+  img.alt = typeof k.label === 'string' ? k.label : '';
+  if (img.alt) img.title = img.alt;
+  img.loading = 'lazy';
+  img.addEventListener('error', () => img.remove());
+  return img;
+}
+
 function momentRow(m, x) {
   const row = el('div', 'mo-row');
   row.dataset.key = x.key;
@@ -121,7 +140,14 @@ function momentRow(m, x) {
   open.append(el('span', 'mo-round', `R${x.round}`));
   open.append(el('span', `mo-kind ${x.kind}`, x.kind === 'death' ? 'Death' : 'Highlight'));
   const main = el('div', 'mo-main');
-  main.append(el('span', 'mo-mtitle', x.title));
+  const gun = x.kind === 'death' ? killIconImg(x.killIcon) : null;
+  if (gun) {
+    const head = el('span', 'mo-titlerow');
+    head.append(el('span', 'mo-mtitle', x.title), gun);
+    main.append(head);
+  } else {
+    main.append(el('span', 'mo-mtitle', x.title));
+  }
   if (x.line) main.append(el('span', 'mo-mline', x.line));
   if (x.repeats && x.repeats.length) {
     const marks = el('div', 'mo-marks');

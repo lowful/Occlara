@@ -1,0 +1,81 @@
+The Trainer's models (src/renderer/trainer/models/guns.js and figure.js)
+
+Every model the Trainer shows is made from the seven sources below by
+scripts/trainer-models/build.js. Each source's own page on poly.pizza was read
+on 19 Nov 2026 and states its licence as Public Domain (CC0). CC0 asks for no
+credit; the authors are named here because they did the work. The downloads
+themselves are not in this repository: scripts/trainer-models/fetch.js gets
+them again from the addresses in scripts/trainer-models/sources.json.
+
+Nothing here is taken from, named after or made to look like anything of
+VALORANT's or any other game's: no agent, no weapon, no knife, no glove. The
+sources are generic low poly models of real world kit, each published by the
+person who made it.
+
+1. SWAT, by Quaternius
+   https://poly.pizza/m/Btfn3G5Xv4
+   Licence: CC0 1.0 (Public Domain)
+   Used for: the bots' figure (mesh, skeleton, and its Idle_Neutral, Run,
+   Run_Back, Run_Left, Run_Right and Death clips), and the forearms and
+   gloved hands of the five first person view models.
+   Changed: recoloured (dark fatigues, black kit and gloves; the bare skin of
+   the fingers and round the eyes painted as glove and mask, so no skin
+   shows); normals smoothed by angle; scaled to 95% so the helmet stands at
+   the head hitbox's height; turned to face -z. The upper body of every clip
+   is posed again by the build to aim a rifle (spine, head, both arms reached
+   onto the rifle, upper arms lengthened by 30%); the standing and crouched
+   stances are built from the level stance with the hips lowered and the
+   feet moved; the fingers are curled once and baked into the mesh, so the
+   skeleton that ships has 22 bones. Each clip is sampled to a few frames
+   (10, 6, 16 a run, 14 for the fall). For the view models the forearm and
+   hand are cut from the figure, posed onto each weapon, scaled to 80% and
+   the sleeve stretched so its cut end is out of the frame.
+
+2. Rifle West, by Pichuliru
+   https://poly.pizza/m/wED1MSx2SK
+   Licence: CC0 1.0 (Public Domain)
+   Used for: the Heavy rifle's view model.
+   Changed: recoloured, each material given a gloss (polymer or metal);
+   normals smoothed by angle; hands added.
+
+3. Assault Rifle West, by Pichuliru
+   https://poly.pizza/m/ss1nz3gJnx
+   Licence: CC0 1.0 (Public Domain)
+   Used for: the Silenced rifle's view model (with source 4 on its muzzle),
+   and, at 90% of its size and with no suppressor, the rifle the bots hold.
+   Changed: recoloured, glossed, normals smoothed by angle; hands added.
+
+4. Suppressor, by Pichuliru
+   https://poly.pizza/m/QWfBIqy0VW
+   Licence: CC0 1.0 (Public Domain)
+   Used for: the Silenced rifle's suppressor, set on the rifle's own muzzle
+   attachment point.
+   Changed: recoloured, glossed, normals smoothed by angle.
+
+5. Pistol West, by Pichuliru
+   https://poly.pizza/m/r8RjoAwN5A
+   Licence: CC0 1.0 (Public Domain)
+   Used for: the Light pistol's view model.
+   Changed: recoloured, glossed, normals smoothed by angle; hand added.
+
+6. Kabar, by Pichuliru
+   https://poly.pizza/m/bAaO335d6A
+   Licence: CC0 1.0 (Public Domain)
+   Used for: the knife's view model.
+   Changed: recoloured (the grip dark), glossed, normals smoothed by angle;
+   turned to stand in a fist, blade up and ahead; hand added.
+
+7. Revolver, by Quaternius
+   https://poly.pizza/m/9C26wSpMS0
+   Licence: CC0 1.0 (Public Domain)
+   Used for: the Heavy pistol's view model.
+   Changed: recoloured (dark grip, steel frame, bright cylinder), glossed,
+   normals smoothed by angle; scaled to 0.32 m long and turned to point down
+   -z; hand added.
+
+CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/
+
+No texture ships: every colour is a vertex colour set by the build. No loader
+ships either: the meshes are packed into plain JavaScript modules that
+src/renderer/trainer/kit.js unpacks, so three.js stays the one vendored file
+(native/three-NOTICE.txt).

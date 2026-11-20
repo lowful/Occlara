@@ -109,7 +109,7 @@ const hist = { points: [
 ] };
 const p = sayAll(profile.play(lib, { riotId: 'Player#EUW', peak: null, history: hist }, U));
 eq(p.title, 'Your play in Valorant', 'the section is named for its game');
-eq(p.figures[0], { label: 'Most used weapon', value: 'Vandal', sample: '3 of your 7 kills, from 3 matches', empty: false },
+eq(p.figures[0], { label: 'Most used weapon', value: 'Vandal', icon: 'valorant/weapons/Vandal.png', sample: '3 of your 7 kills, from 3 matches', empty: false },
   'most used weapon: the player\'s own kills by gun, an ability kill and a teammate\'s never counted');
 eq(p.figures[1], { label: 'Most played agent', value: 'Jett', sample: '2 of your 4 matches', empty: false },
   'most played agent: by matches, Riot\'s or confirmed, a detection alone and League never');

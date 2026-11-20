@@ -212,6 +212,8 @@ try { GEOMETRY = require('./valorant-data.generated.json').mapGeometry || {}; } 
 const BUY_KINDS = ['pistol', 'eco', 'force', 'half', 'full'];
 const NEAR_WORDS = ['close', 'far'];
 const CAST_SLOTS = ['C', 'Q', 'E', 'X'];
+// No map is this many metres across (server/services/riot-rounds.js's own).
+const KILL_DIST_MAX_M = 250;
 const placesCache = new Map();
 function placesOf(map) {
   const key = String(map || '').toLowerCase().trim();
@@ -252,6 +254,12 @@ function recordExtras(rr, map) {
   if (kills.length) out.killSpots = kills;
   if (BUY_KINDS.includes(rr.buy)) out.buy = rr.buy;
   if (rr.died && NEAR_WORDS.includes(rr.mateNear)) out.mateNear = rr.mateNear;
+  // How far the killer stood at the death, in metres (Nov 2026,
+  // riot-rounds.js killDistOf): one number, kept only as a finite one inside
+  // KILL_DIST_MAX_M, to one decimal. Nothing of any position is kept.
+  if (rr.died && typeof rr.killDist === 'number' && Number.isFinite(rr.killDist) && rr.killDist >= 0 && rr.killDist <= KILL_DIST_MAX_M) {
+    out.killDist = Math.round(rr.killDist * 10) / 10;
+  }
   const casts = castsKept(rr.casts);
   if (casts) out.casts = casts;
   if (rr.afk === true) out.afk = true;

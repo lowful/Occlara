@@ -86,6 +86,9 @@ contextBridge.exposeInMainWorld('occlara', {
   openSettings: () => ipcRenderer.send(C.SHELL_NAV, 'settings'),
   // The Fix card's Practise this: the Practice page, opened on that mistake.
   openPractice: (key, title) => ipcRenderer.send(C.PRACTICE_OPEN, String(key || ''), typeof title === 'string' ? title : null),
+  // A death's Fight it again: the Trainer, opened on that death's replay by
+  // the id main put on its row (shared/trainer-replay.js). Main checks it.
+  openReplay:   (id) => ipcRenderer.send(C.TRAINER_OPEN, `replay:${String(id || '')}`),
   getConfig:    () => ipcRenderer.invoke(C.CONFIG_GET),
   close:     () => window.close(),
 });

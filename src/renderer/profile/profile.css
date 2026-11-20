@@ -93,6 +93,10 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   margin: 0; font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: var(--track-display); color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Most used weapon: its name, then the gun's kill feed silhouette. */
+.pr-fig-v.has-icon { display: flex; align-items: center; gap: var(--space-3); }
+.pr-fig-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pr-fig-gun { flex: 0 0 auto; height: 20px; width: auto; max-width: 88px; object-fit: contain; opacity: 0.8; }
 .pr-fig-s { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
 .pr-fig.empty .pr-fig-s { font-size: 14px; color: var(--text-dim); padding-top: var(--space-1); }
 

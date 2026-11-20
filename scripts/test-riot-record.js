@@ -223,6 +223,26 @@ ok(riotRounds.MATE_CLOSE_UNITS === 1500, 'the line is 1500 of the map\'s units, 
 ok(!('mateNear' in pr(5)), 'a kill with no player_locations says no distance');
 ok(!('mateNear' in pr(9)), 'the last one alive, with no teammate in player_locations, has no distance');
 
+// (3b) How far the killer stood (Nov 2026, the Trainer's Fight it again), in metres from Riot's units (1 = 1 cm).
+{
+  const want = (a, b) => Math.round((Math.hypot(a.x - b.x, a.y - b.y) / 100) * 10) / 10;
+  const w2 = want(at('B Main'), at('A Main'));
+  ok(pr(2).killDist === w2 && w2 > 0, `the killer's place in player_locations against the death's, in metres to one decimal (${pr(2).killDist}, want ${w2})`);
+  ok(pr(9).killDist === want(at('B Site'), at('B Lobby')), `and the last one alive's killer too (${pr(9).killDist})`);
+  ok(!('killDist' in pr(3)), 'a killer not in player_locations gives no distance, never a guess');
+  ok(!('killDist' in pr(5)), 'a kill with no player_locations gives no distance');
+  ok(!('killDist' in pr(1)) && !('killDist' in pr(4)), 'a round the player survived has no distance');
+  ok(riotRounds.UNITS_PER_METRE === 100 && riotRounds.killDistOf({ loc: { x: 0, y: 0 }, killer: { puuid: 'k' }, around: [{ player: { puuid: 'k' }, location: { x: 300, y: 400 } }] }) === 5,
+    'the unit is written down: 500 units are 5 metres');
+  ok(riotRounds.killDistOf({ loc: { x: 0, y: 0 }, killer: { puuid: 'k' }, around: [{ player_puuid: 'k', location: { x: 1000, y: 0 } }] }) === 10,
+    'v2\'s player_puuid places the killer the same way');
+  ok(riotRounds.killDistOf({ loc: { x: 0, y: 0 }, killer: { puuid: 'k' }, around: [{ player: { puuid: 'k' }, location: { x: 9e6, y: 0 } }] }) === null,
+    'a distance no map is across is no distance');
+  ok(riotRounds.killDistOf({ loc: { x: 0, y: 0 }, killer: { puuid: 'k' }, around: [{ player: { puuid: 'k' }, location: { x: 'a', y: 0 } }] }) === null
+    && riotRounds.killDistOf({ loc: null, killer: { puuid: 'k' }, around: [] }) === null && riotRounds.killDistOf(null) === null,
+  'a position that is not a number, or none, gives no distance and never throws');
+}
+
 // (4) Casts and the AFK flags.
 ok(JSON.stringify(pr(1).casts) === '{"C":1,"Q":0,"E":2}', `casts by the kit's key, the ultimate's null left out (${JSON.stringify(pr(1).casts)})`);
 ok(JSON.stringify(riotRounds.castsOf({ ability_casts: { c_cast: 2, q_cast: 1, e_cast: 0, x_cast: 1 } })) === '{"C":2,"Q":1,"E":0,"X":1}',
@@ -242,7 +262,7 @@ ok(pr(7).afk === true && !('afk' in pr(6)) && pr(8).inSpawn === true && !('inSpa
 
 // A record without the data: exactly today's round, no key added.
 {
-  const NEW = ['deathAt', 'killsAt', 'buy', 'mateNear', 'casts', 'afk', 'inSpawn'];
+  const NEW = ['deathAt', 'killsAt', 'buy', 'mateNear', 'killDist', 'casts', 'afk', 'inSpawn'];
   const bare = riotRounds.parse(payload({ strip: true }), ME.name, ME.tag);
   const added = bare.perRound.flatMap((r) => NEW.filter((k) => k in r));
   ok(!added.length, `a record without locations, economy, casts or flags adds no key to any round (${added.join(', ') || 'none'})`);
@@ -262,9 +282,14 @@ const mr = (n) => merged.find((r) => r.n === n);
 ok(mr(2).riotSpot === 'B Main' && mr(2).mateNear === 'close' && mr(2).buy === 'eco', 'reconcile keeps Riot\'s place, the distance and the buy');
 ok(JSON.stringify(mr(4).killSpots) === '["Mid Courtyard"]' && JSON.stringify(mr(1).casts) === '{"C":1,"Q":0,"E":2}', 'and the kill places and the casts');
 ok(mr(7).afk === true && mr(8).inSpawn === true, 'and Riot\'s AFK flags');
+ok(mr(2).killDist === pr(2).killDist && !('killDist' in mr(3)), `and the killer's distance in metres, only where the record had it (${mr(2).killDist})`);
 {
   const forged = verify.reconcile([], { map: 'Ascent', perRound: [{ n: 1, died: true, deathMs: 1000, won: false, deathAt: 'Hookah', killsAt: ['Lowfulwyrm', 'A Main'],
-    buy: 'yolo', mateNear: 'Brindlecap1', casts: { C: 1.5, Q: -1, E: 'two', X: 1, Z: 3 }, afk: 'yes' }] }).rounds[0];
+    buy: 'yolo', mateNear: 'Brindlecap1', killDist: 'Brindlecap1', casts: { C: 1.5, Q: -1, E: 'two', X: 1, Z: 3 }, afk: 'yes' }] }).rounds[0];
+  ok(!('killDist' in forged), 'a distance that is not a number is no key');
+  const far = verify.reconcile([], { map: 'Ascent', perRound: [{ n: 1, died: true, deathMs: 1000, won: false, killDist: 9000 }, { n: 2, died: false, won: true, killDist: 12 },
+    { n: 3, died: true, deathMs: 1000, won: false, killDist: 12.345 }] }).rounds;
+  ok(!('killDist' in far[0]) && !('killDist' in far[1]) && far[2].killDist === 12.3, 'nor one past any map, nor one in a round survived; a real one is kept to one decimal');
   ok(!('riotSpot' in forged), 'a place of another map (Hookah is Bind\'s) is no place on Ascent');
   ok(JSON.stringify(forged.killSpots) === '["A Main"]', 'a name sent as a place is dropped, a real callout kept');
   ok(!('buy' in forged) && !('mateNear' in forged) && !('afk' in forged), 'a buy, a distance or a flag that is not one of the words is no key');
@@ -272,7 +297,7 @@ ok(mr(7).afk === true && mr(8).inSpawn === true, 'and Riot\'s AFK flags');
   ok(verify.placeName('Bind', 'hookah') === 'Hookah' && verify.placeName('Ascent', 'b site') === 'B site' && verify.placeName('Ascent', 'B') === null
     && verify.placeName('Atlantis', 'A Main') === null, 'a place is a callout, its common name or an area of that map, never a bare letter or an unknown map');
   const old = verify.reconcile([], { map: 'Ascent', perRound: [{ n: 1, died: true, deathMs: 1000, won: false }] }).rounds[0];
-  const NEW = ['riotSpot', 'killSpots', 'buy', 'mateNear', 'casts', 'afk', 'inSpawn'];
+  const NEW = ['riotSpot', 'killSpots', 'buy', 'mateNear', 'killDist', 'casts', 'afk', 'inSpawn'];
   ok(!NEW.some((k) => k in old), 'a server from before adds no key to the reconciled round');
 }
 
@@ -282,6 +307,7 @@ const built = riotReview.fromRiot({ row: { matchId: 'm-synthetic-1', map: 'Ascen
 const served = review.served(built);
 const card = (n) => served.rounds.find((c) => c.n === n);
 ok(card(2).riot.place === 'B Main' && card(2).riot.buy === 'eco' && card(2).riot.mate === 'close', 'the card carries Riot\'s place, the buy and the distance');
+ok(card(2).riot.dist === pr(2).killDist && !('dist' in card(3).riot) && !('dist' in card(1).riot), 'and the killer\'s distance in metres, only on a death the record measured');
 ok(card(2).facts[0] === 'Died at B Main, 20s in, to Reyna with a Vandal', `the death chip says where, from Riot (${card(2).facts[0]})`);
 ok(card(3).facts.includes('Not traded, nobody close'), `an untraded death with the nearest teammate far says so in one chip (${card(3).facts.join(' | ')})`);
 ok(card(9).facts.includes('Not traded') && !card(9).facts.some((f) => /close/.test(f)), 'the last one alive gets no distance on its trade chip');

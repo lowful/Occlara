@@ -2218,6 +2218,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(odd && odd.agent === 'KAY/O' && odd.agentIcon === 'valorant/agents/KAYO.png' && odd.weapon === 'Headhunter'
     && odd.weaponIcon === null && odd.damage === null,
   `an ability Riot names keeps its name with no gun icon, and no damage is no number (${JSON.stringify(odd)})`);
+  const hh = card({ killer: 'Chamber', weapon: 'Headhunter' });
+  ok(hh && hh.weapon === 'Headhunter' && hh.weaponIcon === 'valorant/abilities/Chamber-Ability1.png' && hh.weaponKind === 'ability',
+    `an ability in the killer's own kit carries that ability's icon (${JSON.stringify(hh)})`);
+  ok(odd.weaponKind === null && k2.weaponKind === 'weapon', 'and another agent\'s ability carries none, a gun is a weapon');
   ok(card({ killer: 'Fade', weapon: 'Phantom' }, { died: false }) === null, 'a round survived has no card');
 }
 

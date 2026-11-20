@@ -366,6 +366,63 @@
       "note": "Heights crouched over standing, from the 40 cm eye drop."
     }
   },
+  "replay": {
+    "fights": {
+      "value": 5,
+      "unit": "fights",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "How many times a replayed death is fought in one run."
+    },
+    "guns": {
+      "value": {
+        "rifle": {
+          "dmg": 40,
+          "rate": 2.2,
+          "chance": 0.24,
+          "reaction": 0.4
+        },
+        "sniper": {
+          "dmg": 150,
+          "rate": 0.6,
+          "chance": 0.45,
+          "reaction": 0.6
+        },
+        "smg": {
+          "dmg": 26,
+          "rate": 3,
+          "chance": 0.22,
+          "reaction": 0.38
+        },
+        "shotgun": {
+          "dmg": 66,
+          "dmgFar": 12,
+          "farFrom": 8,
+          "rate": 1.1,
+          "chance": 0.45,
+          "reaction": 0.42
+        },
+        "pistol": {
+          "dmg": 26,
+          "rate": 1.8,
+          "chance": 0.24,
+          "reaction": 0.4
+        },
+        "heavy": {
+          "dmg": 30,
+          "rate": 3.5,
+          "chance": 0.18,
+          "reaction": 0.45
+        }
+      },
+      "unit": "by weapon class",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "What the enemy of a replayed death hits with, by the class of weapon that killed the player: its body damage a hit (after that class in the game: a rifle 40, a sniper 150, a shotgun 66 close and 12 past farFrom metres), its taps a second, the share that land once it has settled, and its reaction in seconds. The damage follows the game; the rest is tuned so the fight can be won."
+    }
+  },
   "weapons": {
     "heavy-rifle": {
       "name": {

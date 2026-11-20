@@ -139,10 +139,14 @@ const CHANNELS = {
   // The Trainer (docs/claude/trainer.md, services/trainer-store.js): the runs
   // kept on this PC and the scenario asked for. All local, no AI and no
   // network, every one quiet mid match: null, or { ok: false, error: 'match' }.
-  TRAINER_GET:     'trainer:get',        // () -> { runs, opened } | null
+  TRAINER_GET:     'trainer:get',        // () -> { runs, opened, replay } | null
   TRAINER_SAVE:    'trainer:save',       // (run) -> { ok, run, best } | { ok: false, error }
   TRAINER_CLEAR:   'trainer:clear',      // (scenarioId | null) -> { ok } | { ok: false, error }
-  TRAINER_OPEN:    'trainer:open',       // send (scenarioId) the page, opened on that scenario (Practice's Train this)
+  TRAINER_OPEN:    'trainer:open',       // send (scenarioId | 'replay:<reviewId>:<round>') the page, opened on that scenario (Practice's Train this) or that death (the review's Fight it again)
+  // Fight it again (shared/trainer-replay.js): the player's own deaths from
+  // recent saved Valorant reviews, and the ones new since last shown.
+  TRAINER_REPLAYS: 'trainer:replays',    // () -> { list, fresh } | null
+  TRAINER_REPLAYS_SEEN: 'trainer:replays-seen', // () -> { ok, seenAt } | { ok: false, error: 'match' }
   // The page has the pointer locked (true) or not (false): main holds the
   // Ctrl+Shift keys while it is, so crouch, walk and a letter stay in the
   // Trainer and never open a page.

@@ -117,6 +117,11 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .mo-kind.highlight::before { background: currentColor; }
 .mo-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mo-mtitle { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* A death's title with what killed the player beside it (the gun's kill feed icon, or the ability's). */
+.mo-titlerow { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.mo-titlerow > .mo-mtitle { min-width: 0; }
+.mo-gun { flex: 0 0 auto; height: 14px; width: auto; max-width: 64px; object-fit: contain; opacity: 0.7; }
+.mo-gun.ability { height: 18px; opacity: 0.9; }
 .mo-mline { font-size: 13px; color: var(--text-dim); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* A repeated mistake's mark: a dot, then its title, quiet; one across matches in the ink. */
 .mo-marks { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin-top: 2px; }

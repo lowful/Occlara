@@ -327,16 +327,26 @@ setTimeout(async () => {
       const trainerClear = await invoke(C.TRAINER_CLEAR, null);
       const trainerClearOne = await invoke(C.TRAINER_CLEAR, 'flick-grid');
       send(C.TRAINER_OPEN, 'flick-grid');
+      // Fight it again (shared/trainer-replay.js): the replays and their
+      // seen stamp answer nothing, a replay run is refused, and a review's
+      // Fight it again opens nothing.
+      const replaysMid = await invoke(C.TRAINER_REPLAYS);
+      const replaysSeenMid = await invoke(C.TRAINER_REPLAYS_SEEN);
+      const replaySave = await invoke(C.TRAINER_SAVE, { scenario: 'replay', at: Date.now(), score: 100, kills: 1, bots: 1, shots: 1, hits: 1 });
+      send(C.TRAINER_OPEN, 'replay:valorant-1763500000000-abcd12:2');
       await wait(300);
       const trainerOpened = mainWindow.current().shown;
       const trainerStored = require(path.join(REPO, 'src/main/services/store')).get('trainer');
       lines.push(`${game} match: Trainer asked for mid match: shown=${trainerMid.shown} pages shown=${trainerShown.join(',') || 'none'} tab locked=${!!trainerLocked}`
-        + ` | get=${JSON.stringify(trainerGet)} save=${JSON.stringify(trainerSave)} clear=${JSON.stringify(trainerClear)} clear one=${JSON.stringify(trainerClearOne)} open shown=${trainerOpened}`);
+        + ` | get=${JSON.stringify(trainerGet)} save=${JSON.stringify(trainerSave)} clear=${JSON.stringify(trainerClear)} clear one=${JSON.stringify(trainerClearOne)} open shown=${trainerOpened}`
+        + ` replays=${JSON.stringify(replaysMid)} seen=${JSON.stringify(replaysSeenMid)} replay save=${JSON.stringify(replaySave)}`);
       if (trainerMid.shown !== null || trainerShown.length || !trainerLocked || trainerOpened !== null) return report(false, `mid ${game} match, the Trainer page or its tab is not sealed`);
       const refusedMatch = (r) => !!r && r.ok === false && r.error === 'match';
       if (trainerGet !== null || !refusedMatch(trainerSave) || !refusedMatch(trainerClear) || !refusedMatch(trainerClearOne)
-        || (trainerStored && Array.isArray(trainerStored.runs) && trainerStored.runs.length)) {
-        return report(false, `mid ${game} match, the Trainer's channels answered or stored: ${JSON.stringify({ trainerGet, trainerSave, trainerClear, trainerClearOne, trainerStored })}`);
+        || replaysMid !== null || !refusedMatch(replaysSeenMid) || !refusedMatch(replaySave)
+        || (trainerStored && Array.isArray(trainerStored.runs) && trainerStored.runs.length)
+        || (trainerStored && trainerStored.seenAt != null)) {
+        return report(false, `mid ${game} match, the Trainer's channels answered or stored: ${JSON.stringify({ trainerGet, trainerSave, trainerClear, trainerClearOne, replaysMid, replaysSeenMid, replaySave, trainerStored })}`);
       }
       // AND THE PROFILE PAGE (8.8), whose buy button opens a checkout: asked
       // for mid match no page shows and its button is locked, and its three

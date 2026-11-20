@@ -158,6 +158,21 @@ function paintPlay(play) {
     dd.className = 'pr-fig-v';
     dd.textContent = f.value || '';
     dd.hidden = !f.value;
+    // Most used weapon: the gun's kill feed icon main named (profile.js
+    // weaponFigure, kit-icons.js), bundled under assets/, beside its name.
+    if (f.value && typeof f.icon === 'string' && /^valorant\/weapons\/[A-Za-z0-9]+\.png$/.test(f.icon)) {
+      const name = document.createElement('span');
+      name.className = 'pr-fig-name';
+      name.textContent = f.value;
+      const img = document.createElement('img');
+      img.className = 'pr-fig-gun';
+      img.src = '../../../assets/' + f.icon;
+      img.alt = f.value;
+      img.title = f.value;
+      img.addEventListener('error', () => img.remove());
+      dd.classList.add('has-icon');
+      dd.replaceChildren(name, img);
+    }
     const sample = document.createElement('dd');
     sample.className = 'pr-fig-s';
     sample.textContent = f.sample || '';

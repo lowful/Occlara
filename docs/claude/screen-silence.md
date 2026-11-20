@@ -150,6 +150,16 @@ What still counts as "reaching the screen", and is sealed mid match:
   run then. Main answers its channels with nothing mid match or sealed
   (`trainer-store.js busy`: no runs, no save, no clear, and Practice's Train
   this opens nothing).
+- Fight it again (trainer.md, "Fight it again"), the review's button that
+  opens a death in the Trainer, never shows or runs mid match. index.js
+  `present` marks no card with a replay id while a match is in progress or the
+  window is sealed, so no button is drawn, and the review page is sealed like
+  the rest. Main refuses every way in through `trainer-store.js busy`:
+  `TRAINER_REPLAYS` answers null, `TRAINER_REPLAYS_SEEN` and a replay run's
+  `TRAINER_SAVE` answer `{ ok: false, error: 'match' }`, `TRAINER_OPEN` with a
+  `replay:` id opens nothing, and nothing is stored (no run, no `seenAt`).
+  The Trainer's `begin` asks `TRAINER_GET` first and starts no fight on a
+  null. `check:seal` holds each of those mid match.
 - The Trainer's hold on the Ctrl+Shift keys can never happen mid match. While
   the Trainer has the pointer locked, main lets go of Ctrl+Shift+P, M, S, E
   and H (`hotkeys.js suspend`), because Ctrl is crouch and Shift is walk in

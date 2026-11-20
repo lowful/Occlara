@@ -142,7 +142,11 @@ export function controllerFor(sc, eng, run) {
     const spawnOne = (now) => {
       const s = pick(arena.spots);
       let plan;
-      if (s.id === 'choke') {
+      if (s.path) {
+        // It walks its path in and holds each point for that point's seconds.
+        const j = () => rnd(-0.5, 0.5);
+        plan = { legs: s.path.map(([x, z, hold]) => ({ to: [x + j(), z + j()], hold: hold || 0 })), done: away };
+      } else if (s.id === 'choke') {
         const ox = rnd(-2.6, 2.6), oz = rnd(-36, -28);
         plan = { legs: [{ to: [rnd(-0.8, 0.8), -44], hold: 0 }, { to: [ox, oz], hold: rnd(0.6, 1.4) }, { to: [ox + rnd(-1.2, 1.2), oz + rnd(2, 5)], hold: 2.5 }], done: away };
       } else {
@@ -187,6 +191,45 @@ export function controllerFor(sc, eng, run) {
     };
     c.killed = () => { resolved++; };
     c.line = () => `${run.kills} of ${sc.bots}${run.missed ? `, ${run.missed} got away` : ''}`;
+    return c;
+  }
+
+  // ── A death, fought again (trainer-replay.js spec, world.js duel) ───────
+  if (sc.kind === 'replay') {
+    const spec = sc.spec || {};
+    const gun = N.replay.guns[spec.killerWeapon] || N.replay.guns.rifle;
+    const n = Math.max(1, Math.min(3, spec.enemies || 1, arena.enemy.length));
+    const FIGHTS = N.replay.fights;
+    // wait: the beat before they appear. fight: until one side is down.
+    // over: the beat after, then the next fight or the end.
+    let fight = 0, wins = 0, state = 'wait', until = 0.9, alive = 0;
+    const spawnAll = (now) => {
+      alive = 0;
+      for (let i = 0; i < n; i++) {
+        const e = arena.enemy[i];
+        // One that holds is there already; one that swings waits its moment, each a little after the last.
+        const plan = e.holds ? null : { legs: [{ to: e.from, hold: rnd(0.5, 2.0) + i * 0.9 }, { to: e.to, hold: 60 }] };
+        const b = eng.bots.spawn({ x: e.from[0], y: 0, z: e.from[1], plan, hp: N.player.hp, armour: N.player.armour, shoot: true, reaction: gun.reaction, hitChance: gun.chance, rate: gun.rate, dmg: gun.dmg, dmgFar: gun.dmgFar, farFrom: gun.farFrom }, now);
+        if (b) alive++;
+      }
+    };
+    c.start = () => { run.bots = FIGHTS * n; run.fights = FIGHTS; run.wins = 0; run.losses = 0; };
+    c.tick = (now) => {
+      if (state === 'wait' && now >= until) { spawnAll(now); state = 'fight'; }
+      else if (state === 'over' && now >= until) {
+        fight++;
+        if (fight >= FIGHTS) { c.done = true; return; }
+        eng.respawn();
+        state = 'wait'; until = now + 0.9;
+      }
+    };
+    c.killed = () => {
+      alive--;
+      if (alive <= 0 && state === 'fight') { wins++; run.wins = wins; state = 'over'; until = eng.now + 1.0; }
+    };
+    // The player went down: that fight is lost, and the next one is set up.
+    c.died = (now) => { if (state !== 'fight') return; run.losses++; state = 'over'; until = now + 1.3; };
+    c.line = () => (state === 'over' && fight + 1 >= FIGHTS ? `Won ${wins} of ${FIGHTS}` : `Fight ${Math.min(fight + 1, FIGHTS)} of ${FIGHTS}, won ${wins}`);
     return c;
   }
 

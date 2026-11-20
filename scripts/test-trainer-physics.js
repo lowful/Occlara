@@ -286,6 +286,14 @@ const EMPTY = JSON.stringify(T.emptyState());
 for (const g of [null, undefined, 'x', 7, [], {}, { schema: 2, runs: [] }, { schema: 1, runs: 'x' }, { schema: 1 }]) {
   ok(JSON.stringify(T.normaliseState(g)) === EMPTY, `normaliseState of ${JSON.stringify(g)} is empty`);
 }
+// Fight it again's seenAt (trainer-store.js replays): kept beside the runs, still schema 1.
+ok(T.emptyState().seenAt === null && T.emptyState().schema === 1, 'an empty state has seenAt null, schema 1');
+ok(T.normaliseState({ schema: 1, runs: [] }).seenAt === null, 'a schema 1 value saved before seenAt reads it as null');
+ok(T.normaliseState({ schema: 1, runs: [], seenAt: 1763500000000 }).seenAt === 1763500000000, 'a seenAt that is a time survives');
+for (const g of ['x', -5, 0, 1.5, NaN, Infinity, null, {}, [7]]) {
+  ok(T.normaliseState({ schema: 1, runs: [], seenAt: g }).seenAt === null, `a seenAt of ${JSON.stringify(g)} is dropped`);
+}
+ok(T.addRun({ schema: 1, runs: [], seenAt: 99 }, { scenario: 'replay', at: 5 }).seenAt === 99, 'addRun keeps seenAt');
 {
   const run = (i, score) => ({ scenario: 'flick-grid', at: 1000 + i, score, kills: 1, bots: 1, shots: 2, hits: 1 });
   let s = T.emptyState();
@@ -367,14 +375,14 @@ for (const g of [null, undefined, 'x', 7, [], {}, { schema: 2, runs: [] }, { sch
   const ID_RE = /^[a-z0-9-]{1,48}$/;
   ok(ID_RE.test('site-preaim-hard') && !ID_RE.test('Site Preaim') && !ID_RE.test(''), 'the id pattern matches a known id and refuses a bad one');
   const list = SCEN.scenarios;
-  ok(Array.isArray(list) && list.length === 12, `the scenarios file holds 12 scenarios (${list && list.length})`);
+  ok(Array.isArray(list) && list.length === 16, `the scenarios file holds 16 scenarios (${list && list.length})`);
   const ids = list.map((s) => s.id);
   ok(new Set(ids).size === ids.length, 'the scenario ids are unique');
   const drills = JSON.parse(fs.readFileSync(DRILL_FILE, 'utf8'));
   const known = new Set((drills.drills || []).map((d) => d.cause).filter((c) => typeof c === 'string'));
   ok(known.size > 5 && known.has('lost-duel'), `the drill library names its causes (${known.size})`);
   known.add('low-headshots');
-  const ARENAS = ['range', 'site', 'lane', 'stack'];
+  const ARENAS = ['range', 'site', 'lane', 'stack', 'corner', 'plant'];
   for (const s of list) {
     ok(ID_RE.test(s.id), `${s.id}: the id is lower case letters, digits and hyphens`);
     ok(ARENAS.includes(s.arena), `${s.id}: the arena ${s.arena} is one of ${ARENAS.join(', ')}`);

@@ -18,8 +18,9 @@ import { createGuns } from './gun.js';
 
 const M = window.OcclaraTrainerMath;
 const DEG = Math.PI / 180;
-// What a bot that shoots back hits with: the light pistol's damage, so a
-// player caught in the open is hurt and slowed, not deleted.
+// What a bot that shoots back hits with on a Hard level: the light pistol's
+// damage, so a player caught in the open is hurt and slowed, not deleted. A
+// replayed death's enemy brings its own (b.dmg, trainer-data.json replay.guns).
 const BOT_GUN = 'sidearm';
 const HURT_GAP = 0.6;
 
@@ -31,7 +32,7 @@ export function createEngine({ canvas, N, audio, hooks }) {
   const renderer = new THREE.WebGLRenderer({ canvas, context: gl, antialias: true });
   renderer.autoClear = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.setClearColor(0x8494ad, 1);
+  renderer.setClearColor(0x1b4853, 1);
   const scene = new THREE.Scene();
   scene.add(buildSky());
   const camera = new THREE.PerspectiveCamera(70.53, 16 / 9, 0.03, 600);
@@ -196,12 +197,13 @@ export function createEngine({ canvas, N, audio, hooks }) {
     const cstep = TICK / N.move.crouchTime;
     P.crouch = wantCrouch ? Math.min(1, P.crouch + cstep) : Math.max(0, P.crouch - cstep);
     if (!wantCrouch && P.crouch > 0 && overlaps(P.x, P.y, P.z, height() + 0.02)) P.crouch = Math.min(1, P.crouch + cstep);
+    const down = P.dead;
     const mode = P.crouch > 0.5 ? 'crouch' : keys.has('walk') ? 'walk' : 'run';
     let top = M.topSpeed(N, w, mode, ads);
     if (now < P.tagUntil) top *= 1 - N.move.tagSlow;
     // The wished direction in the world, from the keys and the yaw.
-    const f = (keys.has('forward') ? 1 : 0) - (keys.has('back') ? 1 : 0);
-    const r = (keys.has('right') ? 1 : 0) - (keys.has('left') ? 1 : 0);
+    const f = down ? 0 : (keys.has('forward') ? 1 : 0) - (keys.has('back') ? 1 : 0);
+    const r = down ? 0 : (keys.has('right') ? 1 : 0) - (keys.has('left') ? 1 : 0);
     const sy = Math.sin(P.yaw), cy = Math.cos(P.yaw);
     wish.x = -sy * f + cy * r;
     wish.z = -cy * f - sy * r;
@@ -247,7 +249,8 @@ export function createEngine({ canvas, N, audio, hooks }) {
     move.speed = speed; move.air = !P.ground; move.crouch = P.crouch > 0.5; move.walk = mode === 'walk'; move.ads = ads;
     move.landing = now - P.landedAt;
     // The gun.
-    const shot = guns.fire(now, move);
+    if (down) guns.setTrigger(false, now);
+    const shot = down ? null : guns.fire(now, move);
     if (shot && shot.dry) audio.play('dry', 0, 0.6);
     else if (shot) shoot(shot, w);
     const rl = guns.reloading();
@@ -375,6 +378,7 @@ export function createEngine({ canvas, N, audio, hooks }) {
     return false;
   }
   const hurtT = { hp: 0, armour: 0 };
+  let armour0 = 0;
   let hurtNext = 0;
   function botShot(b, lands) {
     const dx = b.x - P.x, dz = b.z - P.z;
@@ -389,7 +393,7 @@ export function createEngine({ canvas, N, audio, hooks }) {
     // Always the body: a bot is no aimbot, and one lucky head would be half the run.
     const zone = 'body';
     hurtT.hp = P.hp; hurtT.armour = P.armour;
-    M.applyDamage(N, hurtT, M.rawDamage(N.weapons[BOT_GUN], zone, dist));
+    M.applyDamage(N, hurtT, b.dmg ? (b.farFrom && dist > b.farFrom ? b.dmgFar : b.dmg) : M.rawDamage(N.weapons[BOT_GUN], zone, dist));
     P.hp = hurtT.hp; P.armour = hurtT.armour;
     P.tagUntil = state.now + N.move.tagSec;
     audio.play('hurt', pan, 0.8);
@@ -452,11 +456,11 @@ export function createEngine({ canvas, N, audio, hooks }) {
     if (hooks.frame) hooks.frame(dt);
   }
 
-  function setArena(arenaId, extra) {
-    const key = arenaId + (extra ? `+${JSON.stringify(extra)}` : '');
+  function setArena(arenaId, extra, spec) {
+    const key = arenaId + (extra ? `+${JSON.stringify(extra)}` : '') + (spec ? `+${JSON.stringify(spec)}` : '');
     if (arena && arenaKey === key) return;
     if (arena) disposeArena(arena, scene);
-    arena = buildArena(arenaId, scene, extra);
+    arena = buildArena(arenaId, scene, extra, spec);
     arenaKey = key;
   }
   function clearField() {
@@ -482,9 +486,9 @@ export function createEngine({ canvas, N, audio, hooks }) {
       resize();
     },
     /** A fresh run in `arenaId`: the arena, the player at its start, the loadout in hand. */
-    load(arenaId, extra) {
+    load(arenaId, extra, spec) {
       previewing = null;
-      setArena(arenaId, extra);
+      setArena(arenaId, extra, spec);
       clearField();
       const s = arena.start;
       Object.assign(P, { x: s.x, y: s.y, z: s.z, px: s.x, py: s.y, pz: s.z, vy: 0, ground: true, crouch: 0, pcrouch: 0, yaw: s.yaw, pitch: 0, hp: N.player.hp, armour: 0, landedAt: -10, tagUntil: 0, dead: false, stopFrom: -1, stepAcc: 1.4 });
@@ -506,10 +510,10 @@ export function createEngine({ canvas, N, audio, hooks }) {
      * in it, or (first) from the player's eye with one bot ahead, for the
      * crosshair preview.
      */
-    preview(arenaId, first) {
+    preview(arenaId, first, spec) {
       state.playing = false;
       cancelAnimationFrame(state.frame);
-      setArena(arenaId, null);
+      setArena(arenaId, null, spec);
       clearField();
       const s = arena.start;
       const v = first
@@ -524,6 +528,25 @@ export function createEngine({ canvas, N, audio, hooks }) {
       resize();
       draw(1, 0);
     },
+    /**
+     * The player back at the arena's start, whole, with the field cleared and
+     * every magazine full: between the fights of one run, where the clock and
+     * the counts carry on.
+     */
+    respawn() {
+      const s = arena.start;
+      bots.clear();
+      Object.assign(P, { x: s.x, y: s.y, z: s.z, px: s.x, py: s.y, pz: s.z, vy: 0, ground: true, crouch: 0, pcrouch: 0, yaw: s.yaw, pitch: 0, hp: N.player.hp, armour: armour0, landedAt: -10, tagUntil: 0, dead: false, stopFrom: -1 });
+      P.v.x = 0; P.v.z = 0;
+      jumpQueued = false;
+      hurtNext = 0;
+      const now = state.now;
+      for (const k in guns.slots) if (guns.slots[k].w) guns.slots[k].ammo = guns.slots[k].w.mag;
+      guns.st.reloadUntil = 0; guns.st.recoilPitch = 0; guns.st.recoilYaw = 0; guns.st.shot = 0; guns.st.burstLeft = 0;
+      guns.setTrigger(false, now); guns.setAlt(false);
+    },
+    /** The armour the player wears this run, and wears again after a respawn. */
+    setArmour(v) { armour0 = v; P.armour = v; },
     start() {
       if (state.playing || previewing) return;
       state.playing = true;

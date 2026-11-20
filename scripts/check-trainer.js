@@ -6,7 +6,7 @@
  * licence.
  *
  * - The page loads with no console error and no Content Security Policy
- *   violation, on its menu, listing the twelve scenarios of
+ *   violation, on its menu, listing the sixteen scenarios of
  *   src/shared/trainer-scenarios.json, with a WebGL2 context on #view.
  * - NOTHING LEAVES THE PC: every request the page's webContents makes is seen
  *   by session.webRequest.onBeforeRequest, hooked before any window exists,
@@ -238,7 +238,7 @@ setTimeout(async () => {
     if (!boot) return report(false, 'the Trainer page never exposed window.occlaraTrainer');
     if (boot.error) return report(false, `the Trainer page shows its error: ${boot.error}`);
     if (boot.state !== 'menu' || boot.phase !== 'menu') return report(false, `the Trainer page did not open on its menu: ${boot.state}`);
-    if (JSON.stringify(boot.ids) !== JSON.stringify(want) || want.length !== 12) return report(false, `the Trainer lists ${JSON.stringify(boot.ids)}, the JSON ${JSON.stringify(want)}`);
+    if (JSON.stringify(boot.ids) !== JSON.stringify(want) || want.length !== 16) return report(false, `the Trainer lists ${JSON.stringify(boot.ids)}, the JSON ${JSON.stringify(want)}`);
     if (!boot.items.length || !boot.items.every((r) => want.includes(r)) || !want.every((id) => boot.items.includes(id) || boot.items.includes(id.replace(RE_HARD, '-easy')))) {
       return report(false, `the menu does not draw a row for every scenario: ${JSON.stringify(boot.items)}`);
     }

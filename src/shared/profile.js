@@ -30,6 +30,7 @@
  */
 
 const usage = require('./usage');
+const { killIcon } = require('./kit-icons');
 
 const GAME_PRICE_CENTS = 200;
 const MAX_GAMES_PER_PURCHASE = 500;
@@ -258,7 +259,9 @@ function weaponFigure(entries, riotId) {
   }
   const best = top(kills);
   if (best) {
-    return { label: 'Most used weapon', value: best[0], sample: `${best[1]} of your ${plural(total, 'kill')}, from ${plural(matches, 'match', 'matches')}`, empty: false };
+    // The gun's kill feed icon beside its name, a file the bundled index names.
+    const icon = killIcon(best[0]);
+    return { label: 'Most used weapon', value: best[0], ...(icon && icon.kind === 'weapon' ? { icon: icon.file } : {}), sample:`${best[1]} of your ${plural(total, 'kill')}, from ${plural(matches, 'match', 'matches')}`, empty: false };
   }
   if (!linked) return { label: 'Most used weapon', value: '', sample: riotId ? 'Play a match to see this' : 'Connect your Riot ID to see this', empty: true };
   return { label: 'Most used weapon', value: '', sample: 'Riot\'s record of your matches names no gun yet', empty: true };

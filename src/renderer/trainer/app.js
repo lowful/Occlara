@@ -34,7 +34,19 @@ try {
   fail('The Trainer could not read its numbers.');
   throw e;
 }
-const byId = (id) => SCENARIOS.find((s) => s.id === id) || null;
+// The player's deaths that can be fought again (main's list, trainer-replay.js).
+let replays = [];
+let fresh = [];
+let allDeaths = false;
+const REPLAY = 'replay:';
+/** One of those deaths as a scenario: every replay saves under the one id `replay`. */
+function replayScenario(id) {
+  const r = replays.find((x) => REPLAY + x.id === id);
+  if (!r) return null;
+  const n = Math.max(1, Math.min(3, (r.spec && r.spec.enemies) || 1));
+  return { id: 'replay', pick: id, title: [r.title, r.map].filter(Boolean).join(', '), arena: 'duel', kind: 'replay', level: null, limit: 0, bots: N.replay.fights * n, botShoot: true, about: r.line, spec: r.spec, causes: [] };
+}
+const byId = (id) => (typeof id === 'string' && id.startsWith(REPLAY) ? replayScenario(id) : SCENARIOS.find((s) => s.id === id) || null);
 // The rows: a scenario, or an Easy and Hard pair of one.
 const ENTRIES = [];
 for (const sc of SCENARIOS) {
@@ -43,7 +55,9 @@ for (const sc of SCENARIOS) {
   if (!e) { e = { key, arena: sc.arena, kind: sc.kind, title: sc.title, list: [] }; ENTRIES.push(e); }
   e.list.push(sc);
 }
-const entryOf = (id) => ENTRIES.find((e) => e.list.some((s) => s.id === id));
+const entryOf = (id) => (typeof id === 'string' && id.startsWith(REPLAY) ? { key: id, arena: 'duel', kind: 'replay', title: '', list: [byId(id)].filter(Boolean), pick: id } : ENTRIES.find((e) => e.list.some((s) => s.id === id)));
+/** What the player has chosen, as the row and the panel know it: a scenario's id, or a replay's. */
+const pickOf = (sc) => sc.pick || sc.id;
 
 let settings = M.normaliseSettings(null);
 let soundsOn = true;
@@ -86,7 +100,7 @@ try {
   throw e;
 }
 /** What a scenario's controller sees of the engine. */
-const view = { N, bots: eng.bots, get P() { return eng.P; }, get arena() { return eng.arena; }, get guns() { return eng.guns; }, get now() { return eng.now; } };
+const view = { N, bots: eng.bots, respawn: () => eng.respawn(), get P() { return eng.P; }, get arena() { return eng.arena; }, get guns() { return eng.guns; }, get now() { return eng.now; } };
 
 const newRun = () => ({ shots: 0, hits: 0, heads: 0, kills: 0, bots: 0, firstShots: 0, firstHits: 0, ttk: [], headKills: [], reactions: [], stops: [], damageTaken: 0, died: false, seconds: 0, limit: 0, early: 0, missed: 0, start: 0 });
 
@@ -123,7 +137,12 @@ function onHurt(pan) {
   clearTimeout(hurtTimer);
   hurtTimer = setTimeout(() => h.classList.remove('on'), 70);
 }
-function onDied() { if (run) { run.died = true; finish(); } }
+function onDied() {
+  if (!run) return;
+  // A scenario of several fights stands the player up again; any other ends here.
+  if (ctl && ctl.died) ctl.died(eng.now);
+  else { run.died = true; finish(); }
+}
 
 function onTick(now) {
   if (!run) return;
@@ -134,7 +153,7 @@ function onTick(now) {
     const hy = b.y + N.hitbox.head.center * eng.bots.scaleY(b);
     if (eng.inView(b.x, hy, b.z) && eng.canSee(b.x, hy, b.z)) b.seenAt = now;
   }
-  run.damageTaken = Math.round(run.start - eng.P.hp - eng.P.armour);
+  if (current.kind !== 'replay') run.damageTaken = Math.round(run.start - eng.P.hp - eng.P.armour);
   if (ctl && ctl.tick) ctl.tick(now);
   run.seconds = now;
   if ((ctl && ctl.done) || (run.limit > 0 && now >= run.limit)) finish();
@@ -256,6 +275,7 @@ function paintKeys() {
 async function free() {
   if (document.visibilityState !== 'visible' || !document.hasFocus()) return false;
   const got = await bridge.getRuns().catch(() => null);
+  if (got && got.replay && got.replay.id && !replays.some((r) => r.id === got.replay.id)) replays.unshift(got.replay);
   if (got && got.opened && byId(got.opened)) asked = got.opened;
   return !!got;
 }
@@ -269,13 +289,14 @@ async function begin(sc) {
   starting = false;
   if (!ok) return;
   letGo();
+  if (sc.kind === 'replay') seenReplays();
   clearInterval(countTimer);
   current = sc;
-  selected = sc.id;
+  selected = pickOf(sc);
   run = newRun();
   run.limit = sc.limit || 0;
-  eng.load(sc.arena, EXTRA[sc.kind] || null);
-  eng.P.armour = sc.botShoot ? N.player.armour : 0;
+  eng.load(sc.arena, EXTRA[sc.kind] || null, sc.spec || null);
+  eng.setArmour(sc.botShoot ? N.player.armour : 0);
   run.start = eng.P.hp + eng.P.armour;
   ctl = controllerFor(sc, view, run);
   $('h-gate').hidden = sc.kind !== 'strafe';
@@ -374,7 +395,7 @@ async function finish() {
   if (document.pointerLockElement) document.exitPointerLock();
   audio.play('finish');
   const sc = current, done = run, c = ctl;
-  done.damageTaken = Math.round(done.start - Math.max(0, eng.P.hp) - eng.P.armour);
+  if (sc.kind !== 'replay') done.damageTaken = Math.round(done.start - Math.max(0, eng.P.hp) - eng.P.armour);
   const rep = M.report(done);
   const ft = eng.frameTimes().sort((a, b) => a - b);
   window.occlaraTrainer.lastFrames = ft.length ? { n: ft.length, p50: ft[Math.floor(ft.length / 2)], p99: ft[Math.floor(ft.length * 0.99)] } : null;
@@ -399,8 +420,9 @@ function paintReport(sc, rep, done, c, before, best, kept) {
   s.style.transition = '';
   s.style.setProperty('--tr-n', String(rep.score));
   const b = $('r-best');
+  if (sc.kind === 'replay') { best = false; before = { ...before, best: null }; }
   b.classList.toggle('new', best && !!before.best);
-  b.textContent = best && before.best ? `New best, ${fmt(rep.score - before.best.score)} more than before` : before.best && before.best.score ? `Best ${fmt(before.best.score)}` : before.best ? '' : 'First run';
+  b.textContent = sc.kind === 'replay' ? '' : best && before.best ? `New best, ${fmt(rep.score - before.best.score)} more than before` : before.best && before.best.score ? `Best ${fmt(before.best.score)}` : before.best ? '' : 'First run';
 
   // The chart: the last 20 scores, oldest first, with the best as a dashed line.
   const svg = $('r-chart');
@@ -427,14 +449,14 @@ function paintReport(sc, rep, done, c, before, best, kept) {
   };
   const show = (v, unit) => (v == null ? 'None' : `${v}${unit || ''}`);
   const stats = [
-    [sc.kind === 'spray' ? 'Sprays' : 'Kills', sc.kind === 'spray' ? String(rep.kills) : `${rep.kills} of ${rep.bots}`, null],
+    sc.kind === 'replay' ? ['Fights won', `${done.wins || 0} of ${done.fights || 0}`, null] : [sc.kind === 'spray' ? 'Sprays' : 'Kills', sc.kind === 'spray' ? String(rep.kills) : `${rep.kills} of ${rep.bots}`, null],
     ['Accuracy', show(rep.accuracy, '%'), delta('accuracy', '%')],
     ['Headshots', show(rep.headshots, '%'), delta('headshots', '%')],
     ['First bullet hit', show(rep.firstShot, '%'), delta('firstShot', '%')],
     ['Reaction', show(rep.reaction, ' ms'), delta('reaction', ' ms', true)],
     ['Time to kill', show(rep.ttk, ' ms'), delta('ttk', ' ms', true)],
     ['Stop time', show(rep.stop, ' ms'), delta('stop', ' ms', true)],
-    sc.botShoot ? ['Damage taken', String(rep.damageTaken), delta('damageTaken', '', true)] : ['Time', `${rep.seconds.toFixed(1)} s`, null],
+    sc.kind === 'replay' ? ['Kills', `${rep.kills} of ${rep.bots}`, null] : sc.botShoot ? ['Damage taken', String(rep.damageTaken), delta('damageTaken', '', true)] : ['Time', `${rep.seconds.toFixed(1)} s`, null],
   ];
   const box = $('r-stats');
   box.textContent = '';
@@ -447,6 +469,7 @@ function paintReport(sc, rep, done, c, before, best, kept) {
     box.append(cell);
   }
   const notes = [];
+  if (sc.kind === 'replay') notes.push(done.wins >= done.fights ? 'You won every one of them. That fight is yours now.' : done.wins ? `You lost this fight in your match and won it ${done.wins} time${done.wins === 1 ? '' : 's'} out of ${done.fights} here.` : 'Not yet. Try it slower: get your crosshair where their head will be before you can see them.');
   if (sc.kind === 'strafe' && done.early) notes.push(`${done.early} of your shots left while you were still moving, so they could not count. Come under the accuracy gate first, then fire.`);
   if (sc.kind === 'spray' && c && c.sprays) notes.push(`Bullets on the target in each spray: ${c.sprays.map((x) => `${x.hits} of ${x.shots}`).join(', ')}.`);
   if (done.missed) notes.push(`${done.missed} got away alive.`);
@@ -455,7 +478,7 @@ function paintReport(sc, rep, done, c, before, best, kept) {
   $('r-note').textContent = notes.join(' ');
   $('r-next').hidden = !nextOf(sc);
 }
-function nextOf(sc) { const i = SCENARIOS.findIndex((x) => x.id === sc.id); return i >= 0 && i < SCENARIOS.length - 1 ? SCENARIOS[i + 1] : null; }
+function nextOf(sc) { if (sc.kind === 'replay') { const i = replays.findIndex((x) => REPLAY + x.id === sc.pick); return i >= 0 && i < replays.length - 1 ? byId(REPLAY + replays[i + 1].id) : null; } const i = SCENARIOS.findIndex((x) => x.id === sc.id); return i >= 0 && i < SCENARIOS.length - 1 ? SCENARIOS[i + 1] : null; }
 
 // ── The rail: scenarios ─────────────────────────────────────────────────────
 const nameOf = (sc) => `${sc.title}${sc.level ? `, ${sc.level === 'hard' ? 'Hard' : 'Easy'}` : ''}`;
@@ -475,6 +498,7 @@ const GLYPH = {
   micro: '<circle cx="12" cy="12" r="8.2"/><circle cx="11" cy="12.4" r="1.3"/><circle cx="14.6" cy="10.6" r="1.3"/><circle cx="8.4" cy="10.2" r="1.3"/>',
   track: '<path d="M3.5 12h17"/><path d="M7 8.5L3.5 12 7 15.5M17 8.5l3.5 3.5-3.5 3.5"/>',
   strafe: '<path d="M12 5v14"/><path d="M4 12h5M20 12h-5"/><path d="M6.5 9.5L4 12l2.5 2.5M17.5 9.5L20 12l-2.5 2.5"/>',
+  replay: '<path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5"/><path d="M4 4.5v4h4"/><circle cx="12" cy="12" r="1.6"/>',
   spray: '<path d="M11.5 20.5c0-5 .2-7.5 1-10.5s1.6-4 1.6-6.5"/><circle cx="11.5" cy="20" r="1"/><circle cx="11.8" cy="15" r="1"/><circle cx="12.6" cy="10.4" r="1"/><circle cx="13.8" cy="6.6" r="1"/>',
 };
 function planIcon(arena) {
@@ -503,6 +527,42 @@ function paintList() {
   const list = $('list');
   list.textContent = '';
   const hist = { schema: M.SCHEMA, runs };
+  const note = $('fresh');
+  note.hidden = !fresh.length;
+  if (fresh.length) {
+    // The newest match alone is counted: the list is newest first.
+    const last = replays.find((r) => fresh.includes(r.id));
+    const n = last ? replays.filter((r) => r.reviewId === last.reviewId && fresh.includes(r.id)).length : 0;
+    $('fresh-text').textContent = `Your last match${last && last.map ? ` on ${last.map}` : ''} has ${n} death${n === 1 ? '' : 's'} you can fight again. Pick one under Your deaths.`;
+  }
+  if (replays.length) {
+    list.append(el('p', 'tr-sub', 'Your deaths'));
+    // The newest few, the chosen one always among them, and the rest behind one line.
+    const shown = allDeaths ? replays : replays.filter((r, i) => i < 5 || REPLAY + r.id === selected || REPLAY + r.id === asked);
+    for (const r of shown) {
+      const id = REPLAY + r.id;
+      const b = el('button', `tr-item${fresh.includes(r.id) ? ' fresh' : ''}${r.spec && r.spec.flagged ? ' flagged' : ''}`);
+      b.type = 'button';
+      b.dataset.id = id;
+      b.setAttribute('aria-current', String(selected === id));
+      if (asked === id) b.classList.add('asked', 'from-review');
+      const ico = el('span', 'tr-item-ico');
+      ico.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GLYPH.replay}</svg>`;
+      const text = el('span', 'tr-item-text');
+      text.append(el('span', 'tr-item-name', [r.title, r.map].filter(Boolean).join(', ')), el('span', 'tr-item-sub', r.line));
+      b.append(ico, text, el('span', 'tr-item-best', ''));
+      b.title = r.line;
+      b.addEventListener('click', () => select(id));
+      b.addEventListener('dblclick', () => begin(byId(selected)));
+      list.append(b);
+    }
+    if (replays.length > shown.length || allDeaths) {
+      const more = el('button', 'btn btn-link sm tr-more', allDeaths ? 'Show fewer' : `Show all ${replays.length}`);
+      more.type = 'button';
+      more.addEventListener('click', () => { allDeaths = !allDeaths; paintList(); });
+      list.append(more);
+    }
+  }
   for (const [name, items] of [['Range', ENTRIES.filter((e) => e.arena === 'range')], ['Arenas', ENTRIES.filter((e) => e.arena !== 'range')]]) {
     list.append(el('p', 'tr-sub', name));
     for (const e of items) {
@@ -528,9 +588,11 @@ function paintList() {
 }
 
 function paintDetail() {
+  // A choice that is gone (a review deleted, a death no longer listed) falls back to the first drill.
+  if (!byId(selected)) selected = 'flick-grid';
   const sc = byId(selected);
   const e = entryOf(selected);
-  $('d-kind').textContent = [sc.arena === 'range' ? 'Range' : 'Arena'].concat(factsOf(sc)).join(', ');
+  $('d-kind').textContent = sc.kind === 'replay' ? `Your death, ${N.replay.fights} fights, they shoot back` : [sc.arena === 'range' ? 'Range' : 'Arena'].concat(factsOf(sc)).join(', ');
   $('d-title').textContent = sc.title;
   $('d-about').textContent = sc.about;
   const lv = $('d-level');
@@ -538,8 +600,8 @@ function paintDetail() {
   if (e.list.length > 1) segOf(lv, e.list.map((s) => [s.id, s.level === 'hard' ? 'Hard' : 'Easy']), selected, (id) => select(id));
   const a = $('d-asked');
   a.hidden = asked !== selected;
-  a.textContent = asked === selected ? 'Practice sent you here for this one.' : '';
-  const h = M.historyOf({ schema: M.SCHEMA, runs }, selected, 5);
+  a.textContent = asked !== selected ? '' : sc.kind === 'replay' ? 'Your review sent you here to fight this one again.' : 'Practice sent you here for this one.';
+  const h = M.historyOf({ schema: M.SCHEMA, runs }, sc.id, 5);
   const accs = h.last.map((r) => r.accuracy).filter((v) => v != null);
   const stats = sc.kind === 'calibration'
     ? [['Turn', '360°'], ['Lane', '20 m'], ['Sensitivity', String(settings.sens)]]
@@ -547,6 +609,9 @@ function paintDetail() {
   const box = $('d-stats');
   box.textContent = '';
   box.className = sc.kind !== 'calibration' && !h.plays ? 'tr-d-none' : 'tr-d-stats';
+  if (sc.kind === 'replay') { box.className = 'tr-d-none'; box.textContent = sc.spec && sc.spec.dist != null
+    ? `Laid out from Riot's record of this death: ${Math.round(sc.spec.dist)} metres away, what they held and how it began. It is not the place it happened.`
+    : `Laid out from Riot's record of this death: what they held and how it began. This match was reviewed before distances were kept, so the range is judged from the weapon. It is not the place it happened.`; return; }
   if (sc.kind !== 'calibration' && !h.plays) { box.textContent = 'You have not played this one yet.'; return; }
   for (const [label, value] of stats) { const c = el('div', 'tr-d-stat'); c.append(el('b', null, value), el('span', null, label)); box.append(c); }
 }
@@ -555,14 +620,14 @@ function preview() {
   if (phase !== 'menu') return;
   $('x-note').hidden = tabNow !== 'settings';
   if (tabNow === 'settings') { eng.preview('range', true); drawCrosshair($('xhair'), settings.crosshair, 0); $('xhair').style.transform = ''; }
-  else eng.preview(byId(selected).arena, false);
+  else { const sc = byId(selected) || byId('flick-grid'); eng.preview(sc.arena, false, sc.spec || null); }
 }
 
 function select(id) {
   if (!byId(id)) return;
   selected = id;
   if (phase !== 'menu') return;
-  for (const b of document.querySelectorAll('.tr-item')) { const e = entryOf(b.dataset.id); b.setAttribute('aria-current', String(e.list.some((s) => s.id === id))); }
+  for (const b of document.querySelectorAll('.tr-item')) { const e = entryOf(b.dataset.id); b.setAttribute('aria-current', String(b.dataset.id === id || (!!e && !e.pick && e.list.some((s) => s.id === id)))); }
   paintDetail();
   if (tabNow === 'play') preview();
 }
@@ -605,7 +670,8 @@ let listening = null;
 function segOf(box, options, value, set) {
   // Built once, then only its state moves, so the thumb slides.
   if (box.dataset.opts !== options.map((o) => o[0]).join('|')) {
-    box.textContent = '';
+    // Its buttons alone: the sliding thumb seg.js put in the row stays.
+    for (const old of [...box.querySelectorAll('button')]) old.remove();
     box.dataset.opts = options.map((o) => o[0]).join('|');
     for (const [v, label] of options) {
       const b = el('button', null, label);
@@ -716,6 +782,8 @@ $('tab-settings').addEventListener('click', () => tab('settings'));
 if (window.occlaraSeg) window.occlaraSeg(document.querySelector('.tr-tabs'));
 
 $('play').addEventListener('click', () => begin(byId(selected)));
+function seenReplays() { if (!fresh.length) return; fresh = []; if (typeof bridge.replaysSeen === 'function') bridge.replaysSeen(); }
+$('fresh-ok').addEventListener('click', () => { seenReplays(); paintList(); });
 $('p-resume').addEventListener('click', resume);
 $('p-restart').addEventListener('click', () => begin(current));
 $('p-menu').addEventListener('click', toMenu);
@@ -765,6 +833,12 @@ async function load() {
   const got = await bridge.getRuns().catch(() => null);
   if (!got) return;
   runs = got.runs || [];
+  if (typeof bridge.getReplays === 'function') {
+    const rp = await bridge.getReplays().catch(() => null);
+    if (rp) { const had = replays; replays = Array.isArray(rp.list) ? rp.list : []; for (const r of had) if (!replays.some((x) => x.id === r.id) && [selected, asked, current && current.pick].includes(REPLAY + r.id)) replays.unshift(r); fresh = Array.isArray(rp.fresh) ? rp.fresh.filter((id) => replays.some((r) => r.id === id)) : []; }
+  }
+  if (got.replay && got.replay.id && !replays.some((r) => r.id === got.replay.id)) replays.unshift(got.replay);
+  if (!byId(selected)) selected = 'flick-grid';
   if (got.opened && byId(got.opened)) {
     asked = got.opened;
     if (phase !== 'menu') toMenu();
@@ -784,11 +858,15 @@ window.occlaraTrainer = {
   get playing() { return eng.playing; },
   get raw() { return rawInput; },
   get selected() { return selected; },
+  /** The ids of the deaths that can be fought again. */
+  get replays() { return replays.map((r) => REPLAY + r.id); },
   /** How many sounds are drawn, of how many. */
   get sounds() { return [audio.ready(), audio.names().length]; },
   /** Where the player stands and how fast, read only. */
   get player() { const P = eng.P; return { x: P.x, y: P.y, z: P.z, speed: Math.hypot(P.v.x, P.v.z), ground: P.ground, crouch: P.crouch, hp: P.hp, armour: P.armour }; },
   select,
+  /** For the checks: the deaths list as main would give it, painted. */
+  setReplays(list) { replays = Array.isArray(list) ? list : []; fresh = []; if (phase === 'menu') paintList(); },
   lastFrames: null,
   frameTimes: () => eng.frameTimes(),
   scenarios: () => SCENARIOS.map((s) => s.id),

@@ -26,6 +26,7 @@ const { roleOf } = require('./agent-roles');
 const { weaponName } = require('./valorant-verify');
 const { FIGHTS, CHANGES, CAUSES, recordCause } = require('./death-causes');
 const icons = require('./valorant-icons');
+const { killIcon } = require('./kit-icons');
 const { satOut, cardSatOut } = require('./sat-out');
 
 let DATA = {};
@@ -731,6 +732,9 @@ function recordOnCard(r, agent) {
   if (Array.isArray(r.killSpots) && r.killSpots.length) out.killPlaces = r.killSpots.slice(0, 5);
   if (BUY_WORDS[r.buy]) out.buy = r.buy;
   if (r.mateNear === 'close' || r.mateNear === 'far') out.mate = r.mateNear;
+  // How far the killer stood, in metres (valorant-verify.js recordExtras), for
+  // the Trainer's Fight it again (trainer-replay.js). Only where it was kept.
+  if (r.died && typeof r.killDist === 'number' && Number.isFinite(r.killDist)) out.dist = r.killDist;
   const casts = castsNamed(r.casts, agent);
   if (casts) out.casts = casts;
   if (r.afk === true) out.afk = true;
@@ -1271,12 +1275,16 @@ function killerCard(c) {
   const dealt = d && whole(d.damage) ? d.damage : null;
   const parts = dealt ? [['Head', whole(d.head)], ['Body', whole(d.body)], ['Legs', whole(d.legs)]] : [];
   const hits = parts.some(([, n]) => n) ? parts.map(([label, n]) => ({ label, value: String(n || 0) })) : null;
+  // The gun's kill feed icon, or the ability's when the kill was one (in the
+  // killer's own kit first, kit-icons.js), only a file the icon index names.
+  const kill = gun ? killIcon(gun, agent) : null;
   return {
     label: 'Killed by',
     agent,
     agentIcon: icons.agentIcon(agent),
     weapon: gun,
-    weaponIcon: gun ? icons.weaponIcon(gun) : null,
+    weaponIcon: kill ? kill.file : null,
+    weaponKind: kill ? kill.kind : null,
     damage: dealt ? String(dealt) : null,
     damageLabel: dealt ? 'damage to you this round' : null,
     hits,

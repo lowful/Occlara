@@ -35,8 +35,12 @@ contextBridge.exposeInMainWorld('occlara', {
   getConfig:   () => ipcRenderer.invoke(C.CONFIG_GET),
   /** The whole settings object, as normaliseSettings makes it; main drops anything else. */
   saveSettings: (s) => ipcRenderer.invoke(C.CONFIG_SET, { trainerSettings: s }),
-  /** { runs, opened } or null mid match. */
+  /** { runs, opened, replay } or null mid match: `replay` is the death a review's Fight it again opened, else null. */
   getRuns:     () => ipcRenderer.invoke(C.TRAINER_GET),
+  /** Fight it again: { list, fresh } (shared/trainer-replay.js) or null mid match. A replay run saves as scenario 'replay'. */
+  getReplays:  () => ipcRenderer.invoke(C.TRAINER_REPLAYS),
+  /** The replays were shown: the ones from matches so far are no longer fresh. */
+  replaysSeen: () => ipcRenderer.invoke(C.TRAINER_REPLAYS_SEEN),
   saveRun:     (run) => ipcRenderer.invoke(C.TRAINER_SAVE, run),
   clearRuns:   (id) => ipcRenderer.invoke(C.TRAINER_CLEAR, typeof id === 'string' ? id : null),
   /** The pointer is locked (true) or not (false). */

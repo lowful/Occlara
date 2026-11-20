@@ -348,23 +348,35 @@ All local, no AI and no network, wired in `register-ipc.js` to
 `trainer-store.js` (`trainerIpc` in index.js), and every one quiet mid match
 or sealed (`deps.busy`).
 
-- `TRAINER_GET` (invoke): `{ runs, opened }`, every kept run and the scenario
-  a Train this asked for (answered once, then null), or null mid match.
+- `TRAINER_GET` (invoke): `{ runs, opened, replay }`, every kept run, the
+  scenario a Train this asked for or the `replay:<reviewId>:<round>` id a
+  review's Fight it again asked for (`opened`), and that replay itself
+  (`replay`), each answered once, then null; or null mid match.
 - `TRAINER_SAVE` (invoke, a run): `{ ok, run, best }`, the run kept with
   main's own time, or `{ ok: false, error: 'match' | 'run' | 'save' }`; a run
-  of a scenario `trainer-scenarios.json` does not name is refused.
+  of a scenario `trainer-scenarios.json` does not name is refused, except
+  `replay`, the one id every replay run saves under.
+- `TRAINER_REPLAYS` (invoke, Nov 2026, Fight it again): `{ list, fresh }`,
+  the replayable deaths of the last ten saved Valorant reviews
+  (`trainer-replay.js replaysOf`) and the ids of those from matches newer
+  than the stored `seenAt`, or null mid match (`trainer-preload.js
+  getReplays`).
+- `TRAINER_REPLAYS_SEEN` (invoke, Nov 2026): the player was shown them,
+  `seenAt` set to main's now, `{ ok, seenAt }`, or `{ ok: false, error:
+  'match' | 'save' }` (`trainer-preload.js replaysSeen`).
 - `TRAINER_CLEAR` (invoke, a scenario id or null): one scenario's runs or all
   of them taken away, `{ ok }` or `{ ok: false, error }`.
-- `TRAINER_OPEN` (send, a scenario id): Practice's Train this
-  (`practice-preload.js openTrainer`). Main opens the Trainer page and keeps
-  the id for the next `TRAINER_GET`; an unknown id, or mid match, opens
-  nothing.
+- `TRAINER_OPEN` (send, a scenario id or `replay:<reviewId>:<round>`):
+  Practice's Train this (`practice-preload.js openTrainer`) or a review's
+  Fight it again (`review-preload.js openReplay`). Main opens the Trainer page
+  and keeps the id for the next `TRAINER_GET`; an unknown id, a replay
+  `trainer-replay.js replayOf` does not make, or mid match, opens nothing.
 - `TRAINER_PLAYING` (send, a boolean): the page has the pointer locked or
   not. A true is taken only from the Trainer's own page (the sender's URL is
   `renderer/trainer/index.html`), and main then lets go of its Ctrl+Shift
   keys (`hotkeys.suspend`); a false from anyone takes them back.
-- `PUSH_TRAINER` (push, in `PUSH_LIST`): the runs moved, or a scenario was
-  asked for: ask again.
+- `PUSH_TRAINER` (push, in `PUSH_LIST`): the runs moved, or a scenario or a
+  replay was asked for: ask again.
 - The settings are one config key, `trainerSettings`, page writable only as
   the whole object `trainer-math.js normaliseSettings` makes
   (`config-keys.js`, `validSettings`), read back through `CONFIG_GET`

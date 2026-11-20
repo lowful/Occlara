@@ -953,6 +953,12 @@ function present(review) {
   }
   out.aiLog = aiLogStateOf(reviewLogEntry(review, review.at));
   out.work = review.id ? workForId(review.id) : null;
+  // FIGHT IT AGAIN (shared/trainer-replay.js): a death the Trainer can replay
+  // carries its replay's id, so its row draws the button; main decides, the
+  // page only paints. Never mid match or sealed, when the Trainer is shut.
+  if (review.id && review.kind === 'valorant' && Array.isArray(out.rounds) && !(matchInProgress() || windowSealed())) {
+    out.rounds = require('../shared/trainer-replay').markRounds(review, out.rounds);
+  }
   if (!review.id) return out;
   return reviewClips.presentClips(out, {
     has: (name) => reviewStore.hasClip(review.id, name),
@@ -5109,11 +5115,16 @@ const practiceIpc = createPractice({
  * Local, no AI and no network, and quiet mid match or sealed.
  */
 const { createTrainer } = require('./services/trainer-store');
+const TRAINER_REPLAY_MATCHES = 10;
 const trainerIpc = createTrainer({
   store,
   busy: () => matchInProgress() || windowSealed(),
   open: (page) => openPage(page),
   changed: () => registry.broadcast(C.PUSH_TRAINER, null),
+  // Fight it again (shared/trainer-replay.js): the deaths of the last ten
+  // saved Valorant reviews, and one review by id for a row's own replay.
+  recent: () => reviewStore.recent('valorant', TRAINER_REPLAY_MATCHES),
+  review: (id) => reviewStore.get(id),
 });
 /*
  * While the Trainer has the pointer locked, the Ctrl+Shift keys are let go

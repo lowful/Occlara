@@ -40,6 +40,8 @@ const { deathClip, CLIP_RE } = require('./clips');
 // (re-exported below, and main reads it through here), so the compilation
 // and its `across` marks count over exactly the matches the Patterns page does.
 const { LOOK_BACK, WINDOW } = require('./patterns');
+// The icon of what killed the player, a file the bundled index names (kit-icons.js).
+const { killIcon } = require('./kit-icons');
 
 // A highlight needs this many kills in one round (2K, 3K, 4K or 5K); five is an ace.
 const MULTI_KILLS = 2;
@@ -152,6 +154,9 @@ function valorantDeaths(saved, have, io, patternKeys) {
       time: riot ? secText(riot.sec) : null,
       lost: c.result === 'lost',
       repeats, clip, clipGone, clipGoneText: clipGone ? GONE[clipGone] : null,
+      // Riot's gun, or the killer's ability, as its bundled icon beside the
+      // title ({ kind, file, label }), or null: never a path from free text.
+      killIcon: riot && riot.weapon ? killIcon(riot.weapon, riot.killer) : null,
     });
   }
   return out;

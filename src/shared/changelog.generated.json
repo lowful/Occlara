@@ -1,5 +1,37 @@
 [
   {
+    "version": "8.15.0",
+    "date": "2026-11-19",
+    "title": "Fight your deaths again",
+    "summary": "Replay a death from your review in the Trainer, which has a new look, real models and two new arenas.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Fight it again: a death in your review gets a button that rebuilds that fight in the Trainer, from what Riot recorded of it. You get five tries at it."
+      },
+      {
+        "kind": "new",
+        "text": "The Trainer lists your recent deaths under Your deaths and tells you when your last match has new ones to fight."
+      },
+      {
+        "kind": "new",
+        "text": "Matches reviewed from now on keep how far away your killer was, so the fight is set at the real range. Older reviews judge the range from the weapon."
+      },
+      {
+        "kind": "improved",
+        "text": "The Trainer has a new night look, with a real rifle, pistols, a knife and hands, and bots that aim, run and fall."
+      },
+      {
+        "kind": "new",
+        "text": "Two new arenas: clearing a close corner, and holding a site after the plant."
+      },
+      {
+        "kind": "new",
+        "text": "Weapon and ability icons beside what killed you in reviews and Moments, and beside your most used weapon on your Profile."
+      }
+    ]
+  },
+  {
     "version": "8.14.0",
     "date": "2026-11-18",
     "title": "The Trainer",

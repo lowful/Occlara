@@ -544,7 +544,14 @@
   const RUNS_MAX = 500;
   const ID_RE = /^[a-z0-9-]{1,48}$/;
 
-  function emptyState() { return { schema: SCHEMA, runs: [] }; }
+  /*
+   * THE STATE: the runs, and `seenAt` (Fight it again, trainer-store.js
+   * replays): main's time the player was last shown the deaths they can
+   * replay, so the ones from matches since are new, or null for never. Still
+   * schema 1: a value saved before it has no seenAt and reads as null.
+   */
+  function emptyState() { return { schema: SCHEMA, runs: [], seenAt: null }; }
+  const cleanSeenAt = (v) => (Number.isInteger(v) && v > 0 ? v : null);
 
   function cleanRun(x) {
     if (!x || typeof x !== 'object') return null;
@@ -579,7 +586,7 @@
   function normaliseState(v) {
     if (!v || typeof v !== 'object' || v.schema !== SCHEMA || !Array.isArray(v.runs)) return emptyState();
     const runs = v.runs.map(cleanRun).filter(Boolean).sort((a, b) => a.at - b.at);
-    return { schema: SCHEMA, runs: runs.slice(-RUNS_MAX) };
+    return { schema: SCHEMA, runs: runs.slice(-RUNS_MAX), seenAt: cleanSeenAt(v.seenAt) };
   }
 
   /** The state with one more run, the oldest dropped past RUNS_MAX; null for a run that is not one. */

@@ -1,6 +1,6 @@
 {
   "name": "occlara",
-  "version": "8.14.0",
+  "version": "8.15.0",
   "description": "Occlara, an AI coach for Valorant, with League of Legends coming soon. Reads the screen, never the game, shows nothing during a match, and grades every match when it ends.",
   "main": "src/main/index.js",
   "scripts": {
@@ -50,7 +50,8 @@
     "sync:mapart": "node scripts/sync-map-art.js",
     "sync:patch": "node scripts/sync-patch-notes.js",
     "sync:valorant": "node scripts/sync-valorant-data.js",
-    "sync:weaponicons": "node scripts/sync-weapon-icons.js",
+    "sync:kiticons": "node scripts/sync-kit-icons.js",
+    "sync:weaponicons": "node scripts/sync-kit-icons.js",
     "export:siteproof": "node scripts/export-site-proof.js --out dist-site-proof",
     "test": "node scripts/run-all.js",
     "test:accountservice": "node scripts/test-account-service.js",
@@ -85,6 +86,7 @@
     "test:facttags": "node scripts/test-fact-tags.js",
     "test:forensics": "node scripts/test-forensics.js",
     "test:games": "node scripts/test-games.js",
+    "test:kiticons": "node scripts/test-kit-icons.js",
     "test:grade": "node scripts/test-grade.js",
     "test:lol": "node scripts/test-lol.js",
     "test:lolgrader": "node scripts/test-lol-grader.js",
@@ -97,6 +99,7 @@
     "test:moments": "node scripts/test-moments.js",
     "test:practice": "node scripts/test-practice.js",
     "test:trainerphysics": "node scripts/test-trainer-physics.js",
+    "test:trainerreplay": "node scripts/test-trainer-replay.js",
     "test:plaintext": "node scripts/test-plain-text.js",
     "test:newmatch": "node scripts/test-new-match-reset.js",
     "test:pccheck": "node scripts/test-pc-check.js",

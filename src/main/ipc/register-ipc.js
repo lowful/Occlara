@@ -87,6 +87,9 @@ function registerIpc(deps) {
     safeHandle(C.TRAINER_GET, async () => trainer.get());
     safeHandle(C.TRAINER_SAVE, async (_e, run) => trainer.save(run && typeof run === 'object' ? run : null));
     safeHandle(C.TRAINER_CLEAR, async (_e, id) => trainer.clear(typeof id === 'string' ? id : null));
+    // Fight it again (shared/trainer-replay.js): null, and { ok: false, error: 'match' }, mid match or sealed.
+    safeHandle(C.TRAINER_REPLAYS, async () => trainer.replays());
+    safeHandle(C.TRAINER_REPLAYS_SEEN, async () => trainer.seen());
     ipcMain.on(C.TRAINER_OPEN, (_e, id) => guard('trainerOpen', () => trainer.open(typeof id === 'string' ? id : null)));
     ipcMain.on(C.TRAINER_PLAYING, (e, on) => guard('trainerPlaying', () => {
       // Only the Trainer's own page may let the keys go.

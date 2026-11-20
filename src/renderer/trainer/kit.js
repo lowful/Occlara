@@ -1,69 +1,88 @@
-// A small modelling kit: primitives merged into one geometry with a colour
-// per part, so a figure or a gun is one draw. Everything the Trainer shows is
-// built from these few shapes in code; no model file ships.
+// What the Trainer's models are made of at run time. The guns and the bots'
+// figure are not built here: they are made ahead of time by
+// scripts/trainer-models/build.js from CC0 sources
+// (native/trainer-models-NOTICE.txt) and ship as plain modules under models/,
+// each mesh packed as base64. `unpack` turns one into a geometry, and `LIT`
+// is how every model is lit.
 import * as THREE from './vendor/three.module.min.js';
 
-const m4 = new THREE.Matrix4();
-const q = new THREE.Quaternion();
-const e = new THREE.Euler();
-const v3 = new THREE.Vector3();
-const s3 = new THREE.Vector3();
-const n3 = new THREE.Matrix3();
-const col = new THREE.Color();
-
-/** A matrix from a position, rotation in degrees and scale. */
-export function at(x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
-  e.set(rx * Math.PI / 180, ry * Math.PI / 180, rz * Math.PI / 180, 'XYZ');
-  q.setFromEuler(e);
-  return new THREE.Matrix4().compose(v3.set(x, y, z), q, s3.set(sx, sy, sz));
+// A packed array is base64, or a few pieces of it to be joined (mesh.js b64 says why).
+function bytes(b64, Type) {
+  const s = atob(Array.isArray(b64) ? b64.join('') : b64);
+  const u = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  return new Type(u.buffer);
 }
-
-/** A matrix that lays a shape made along y (a capsule, a cylinder) from one point to another. */
-export function between(ax, ay, az, bx, by, bz) {
-  const d = new THREE.Vector3(bx - ax, by - ay, bz - az).normalize();
-  const rot = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
-  return new THREE.Matrix4().compose(new THREE.Vector3((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2), rot, new THREE.Vector3(1, 1, 1));
-}
-export const dist = (ax, ay, az, bx, by, bz) => Math.hypot(bx - ax, by - ay, bz - az);
-
-export const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-export const cyl = (rTop, rBottom, h, seg = 12) => new THREE.CylinderGeometry(rTop, rBottom, h, seg);
-export const capsule = (r, len, seg = 10) => new THREE.CapsuleGeometry(r, len, 4, seg);
-export const sphere = (r, w = 16, h = 12) => new THREE.SphereGeometry(r, w, h);
+/** A base64 string of 32 bit floats. */
+export const floats = (b64) => bytes(b64, Float32Array);
 
 /**
- * One geometry from parts: [geometry, colour hex, matrix]. Positions and
- * normals are baked through each part's matrix; the colour goes to a vertex
- * colour. The part geometries are disposed.
+ * A packed mesh (build.js, mesh.js pack) as a geometry: `position`, `normal`,
+ * `aCol` (the colour in sRGB and, in its fourth part, the gloss), and for a
+ * figure `aJoint`, `aWeight` and `aSmooth` (the outline's normal).
  */
-export function merge(parts) {
-  let nv = 0, ni = 0;
-  for (const [g] of parts) { nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
-  const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), colr = new Float32Array(nv * 3);
-  const idx = new (nv > 65535 ? Uint32Array : Uint16Array)(ni);
-  let vo = 0, io = 0;
-  for (const [g, hex, mat] of parts) {
-    const p = g.attributes.position, n = g.attributes.normal;
-    m4.copy(mat || m4.identity());
-    n3.getNormalMatrix(m4);
-    col.setHex(hex);
-    for (let i = 0; i < p.count; i++) {
-      v3.fromBufferAttribute(p, i).applyMatrix4(m4);
-      pos[(vo + i) * 3] = v3.x; pos[(vo + i) * 3 + 1] = v3.y; pos[(vo + i) * 3 + 2] = v3.z;
-      v3.fromBufferAttribute(n, i).applyMatrix3(n3).normalize();
-      nor[(vo + i) * 3] = v3.x; nor[(vo + i) * 3 + 1] = v3.y; nor[(vo + i) * 3 + 2] = v3.z;
-      colr[(vo + i) * 3] = col.r; colr[(vo + i) * 3 + 1] = col.g; colr[(vo + i) * 3 + 2] = col.b;
-    }
-    if (g.index) for (let i = 0; i < g.index.count; i++) idx[io++] = g.index.getX(i) + vo;
-    else for (let i = 0; i < p.count; i++) idx[io++] = vo + i;
-    vo += p.count;
-    g.dispose();
+export function unpack(m) {
+  const g = new THREE.BufferGeometry();
+  const P = bytes(m.pos, Uint16Array);
+  const pos = new Float32Array(m.n * 3);
+  const k = m.span / 65535;
+  for (let i = 0; i < pos.length; i++) pos[i] = P[i] * k + m.lo[i % 3];
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(bytes(m.nrm, Int8Array), 3, true));
+  g.setAttribute('aCol', new THREE.BufferAttribute(bytes(m.col, Uint8Array), 4, true));
+  g.setIndex(new THREE.BufferAttribute(bytes(m.idx, Uint16Array), 1));
+  if (m.joints) {
+    g.setAttribute('aJoint', new THREE.BufferAttribute(bytes(m.joints, Uint8Array), 4, false));
+    g.setAttribute('aWeight', new THREE.BufferAttribute(bytes(m.weights, Uint8Array), 4, true));
   }
-  const out = new THREE.BufferGeometry();
-  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-  out.setAttribute('color', new THREE.BufferAttribute(colr, 3));
-  out.setIndex(new THREE.BufferAttribute(idx, 1));
-  out.computeBoundingSphere();
-  return out;
+  if (m.smooth) g.setAttribute('aSmooth', new THREE.BufferAttribute(bytes(m.smooth, Int8Array), 3, true));
+  g.computeBoundingSphere();
+  return g;
+}
+
+// ── How a model is lit ─────────────────────────────────────────────────────
+// One function for the guns and the bots, no lights in the scene and no
+// shadow maps: a sky above and the ground's bounce below, one key light (the
+// world's SUN), a highlight, and a mirror of the sky that is all a dark metal
+// has to be read by at night. `gloss` says what a face is made of: 0 cloth
+// (it wraps the light and catches a sheen at its edges), about 0.3 polymer,
+// 0.7 and up metal (a tight highlight and the sky in it).
+// The colours are world.js SKY's, kept in step by hand.
+export const LIGHT = { sky: 0x8a93a8, ground: 0x2c2f38, sun: 0xdde7ff, glow: 0x1f5a66, haze: 0x1b4853, hazeNear: 45, hazeFar: 240 };
+
+export const LIT = /* glsl */`
+uniform vec3 uSun; uniform vec3 uUp;
+uniform vec3 uSunLight; uniform vec3 uSkyLight; uniform vec3 uGroundLight; uniform vec3 uGlow;
+vec3 lit(vec3 base, float gloss, vec3 n, vec3 v) {
+  float metal = smoothstep(0.55, 0.8, gloss);
+  float up = dot(n, uUp);
+  vec3 ambient = mix(uGroundLight, uSkyLight, up * 0.5 + 0.5);
+  float nl = dot(n, uSun);
+  float wrap = max((nl + 0.4) / 1.4, 0.0);
+  float hard = max(nl, 0.0);
+  float soft = 1.0 - smoothstep(0.08, 0.5, gloss);
+  vec3 col = base * (ambient + uSunLight * mix(hard, wrap, soft)) * (1.0 - 0.45 * metal);
+  // The highlight: broad and faint on polymer, tight and tinted on metal.
+  vec3 h = normalize(uSun + v);
+  float shine = mix(8.0, 120.0, gloss * gloss);
+  float spec = pow(max(dot(n, h), 0.0), shine) * (shine + 8.0) / 40.0 * hard;
+  col += uSunLight * spec * gloss * mix(vec3(0.05), base * 3.0 + 0.12, metal);
+  // The sky mirrored: the dome above, the dark ground below, the horizon's glow between.
+  vec3 r = reflect(-v, n);
+  float ru = dot(r, uUp);
+  vec3 env = mix(uGroundLight * 0.55, uSkyLight, smoothstep(-0.25, 0.45, ru)) + uGlow * exp(-abs(ru) * 4.0) * 0.9;
+  float edge = pow(1.0 - max(dot(n, v), 0.0), 4.0);
+  col += env * mix(vec3(0.03 + 0.35 * edge) * smoothstep(0.1, 0.4, gloss), base * 2.6 + 0.06 + 0.5 * edge, metal);
+  // Cloth catches the sky along its edges.
+  col += base * uSkyLight * pow(1.0 - max(dot(n, v), 0.0), 2.5) * soft * 1.1;
+  return col;
+}`;
+
+/** The uniforms LIT reads, with the night's colours; `uSun` and `uUp` are the caller's to point. */
+export function litUniforms() {
+  const c = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
+  return {
+    uSun: { value: new THREE.Vector3(0.35, 0.8, 0.45).normalize() }, uUp: { value: new THREE.Vector3(0, 1, 0) },
+    uSunLight: { value: c(LIGHT.sun, 0.95) }, uSkyLight: { value: c(LIGHT.sky, 0.95) }, uGroundLight: { value: c(LIGHT.ground, 1.1) }, uGlow: { value: c(LIGHT.glow, 1) },
+  };
 }
