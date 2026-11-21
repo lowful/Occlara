@@ -1,5 +1,37 @@
 [
   {
+    "version": "8.16.0",
+    "date": "2026-11-20",
+    "title": "A Trainer closer to the game",
+    "summary": "The Trainer was checked number by number against another Valorant trainer and the game, and now aims, sprays and stops closer to it.",
+    "items": [
+      {
+        "kind": "improved",
+        "text": "Aiming down sights now zooms the view the way the game does, and rifles fire a little slower while aimed, as in the game."
+      },
+      {
+        "kind": "improved",
+        "text": "Each gun's spray opens bullet by bullet the way the game does, climbs and levels off, and rifles drift to one side before they can switch."
+      },
+      {
+        "kind": "improved",
+        "text": "Stopping takes the time Riot measured for every weapon, and walking or running error now applies in full as soon as you move that fast."
+      },
+      {
+        "kind": "improved",
+        "text": "Shots land closer to the middle of the crosshair when you stand still or walk, and spread evenly when you run or jump."
+      },
+      {
+        "kind": "new",
+        "text": "After a run, a graph shows every shot you fired, split into firing error and movement error."
+      },
+      {
+        "kind": "new",
+        "text": "Bots slow down when you hit them, and the strafing targets now move left and right unpredictably, with short taps."
+      }
+    ]
+  },
+  {
     "version": "8.15.0",
     "date": "2026-11-19",
     "title": "Fight your deaths again",

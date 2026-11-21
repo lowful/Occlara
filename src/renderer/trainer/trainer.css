@@ -199,6 +199,22 @@ html, body { width: 100%; height: 100%; margin: 0; background: var(--bg); overfl
 .tr-chart .pt.last { stroke: var(--text); stroke-width: 9; }
 .tr-chart .best { stroke: var(--line-2); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
 .tr-chart .base { stroke: var(--line); vector-effect: non-scaling-stroke; }
+/* The shooting error graph (shot-graph.js): one bar a shot, the firing error
+   in the quiet text colour at the foot, the movement error in the caution
+   colour on top. The legend and the sentence say it too, so the colour is
+   never the only signal. */
+.tr-err { display: flex; flex-direction: column; gap: var(--space-2); }
+.tr-err-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); margin: 0; font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.tr-err-key { display: flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
+.tr-err-key i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+.tr-err-key i:not(:first-child) { margin-left: var(--space-2); }
+.tr-err-key i.fire, .tr-err-bars .fire { background: var(--text-dim); fill: var(--text-dim); }
+.tr-err-key i.move, .tr-err-bars .move { background: var(--warn); fill: var(--warn); }
+.tr-err-plot { position: relative; padding-left: 36px; }
+.tr-err-bars { display: block; width: 100%; height: 48px; overflow: visible; }
+.tr-err-bars .base { stroke: var(--line); vector-effect: non-scaling-stroke; }
+.tr-err-bars .top { stroke: var(--line); stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.tr-err-top { position: absolute; left: 0; top: -6px; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--text-mute); font-variant-numeric: tabular-nums; }
 .tr-r-stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); }
 .tr-r-stat { display: flex; flex-direction: column; gap: 4px; padding: var(--space-4) var(--space-3) var(--space-4) 0; border-bottom: 1px solid var(--line); }
 .tr-r-stat b { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: var(--track-display); }

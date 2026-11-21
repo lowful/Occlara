@@ -184,7 +184,7 @@ export function createEngine({ canvas, N, audio, hooks }) {
 
   // ── One tick ─────────────────────────────────────────────────────────────
   const hitOut = { bot: null, t: 0, zone: null };
-  const res = { hit: false, zone: null, bot: null, first: false, accurate: false, shot: 0, dist: 0, counted: true, kill: false, emptied: false };
+  const res = { hit: false, zone: null, bot: null, first: false, accurate: false, shot: 0, dist: 0, counted: true, kill: false, emptied: false, fireErr: 0, moveErr: 0 };
   let wasReloading = false;
 
   function tick() {
@@ -200,7 +200,10 @@ export function createEngine({ canvas, N, audio, hooks }) {
     const down = P.dead;
     const mode = P.crouch > 0.5 ? 'crouch' : keys.has('walk') ? 'walk' : 'run';
     let top = M.topSpeed(N, w, mode, ads);
-    if (now < P.tagUntil) top *= 1 - N.move.tagSlow;
+    top = M.taggedTop(N, top, now, P.tagUntil);
+    // The braking is the weapon's run's (aimed when aimed): walk, crouch and
+    // a tag lower the cap, never how fast a stop is (trainer-math.js stepGround).
+    const runTop = M.topSpeed(N, w, 'run', ads);
     // The wished direction in the world, from the keys and the yaw.
     const f = down ? 0 : (keys.has('forward') ? 1 : 0) - (keys.has('back') ? 1 : 0);
     const r = down ? 0 : (keys.has('right') ? 1 : 0) - (keys.has('left') ? 1 : 0);
@@ -210,11 +213,10 @@ export function createEngine({ canvas, N, audio, hooks }) {
     const wl = Math.hypot(wish.x, wish.z);
     if (wl > 0) { wish.x /= wl; wish.z /= wl; }
     const before = Math.hypot(P.v.x, P.v.z);
-    if (P.ground) M.stepGround(P.v, wish, top, N.move, TICK); else M.stepAir(P.v, wish, top, N.move, TICK);
+    if (P.ground) M.stepGround(P.v, wish, top, N.move, TICK, runTop); else M.stepAir(P.v, wish, top, N.move, TICK);
     const speed = Math.hypot(P.v.x, P.v.z);
     // The stop: from letting go, or pressing against the motion, near full
     // speed, to under the accuracy gate.
-    const runTop = M.topSpeed(N, w, 'run', ads);
     const gate = runTop * N.move.accurateFrac;
     if (P.stopFrom < 0 && P.ground && before >= runTop * 0.9 && (wl === 0 || P.v.x * wish.x + P.v.z * wish.z < 0)) P.stopFrom = now;
     if (P.stopFrom >= 0 && speed <= gate) { if (hooks.stopped) hooks.stopped((now - P.stopFrom + TICK) * 1000); P.stopFrom = -1; }
@@ -275,6 +277,8 @@ export function createEngine({ canvas, N, audio, hooks }) {
     addTracer(hit ? hit.t : wallD);
     res.hit = false; res.zone = null; res.bot = null; res.kill = false; res.counted = true; res.dist = 0;
     res.first = shot.first; res.shot = shot.shot; res.emptied = shot.emptied;
+    // The cone's two parts in degrees (trainer-math.js spreadParts), for the report's graph.
+    res.fireErr = shot.fireErr; res.moveErr = shot.moveErr;
     res.accurate = !move.air && M.accurate(N, move.speed, w, move.crouch ? 'crouch' : move.walk ? 'walk' : 'run', move.ads);
     if (hit) {
       const b = hit.bot;
@@ -288,6 +292,9 @@ export function createEngine({ canvas, N, audio, hooks }) {
         if (b.seenAt < 0) b.seenAt = state.now;
         audio.play(hit.zone === 'head' ? 'hit-head' : 'hit-body', 0, 0.7);
         addPuff(eye.x + dir.x * hit.t, eye.y + dir.y * hit.t, eye.z + dir.z * hit.t, hit.zone === 'head' ? 2 : 1);
+        // Hit and still standing: tagged as the player is, its top speed
+        // slowed for a moment (bots.js tick), so a strafing bot stops.
+        if (b.hp > 0) b.tagUntil = state.now + N.move.tagSec;
         if (b.hp <= 0 && b.alive) {
           b.alive = false; b.downAt = state.now; res.kill = true;
           audio.play('kill', 0, 0.6);
@@ -427,7 +434,7 @@ export function createEngine({ canvas, N, audio, hooks }) {
       camera.rotation.set(P.pitch, P.yaw, 0);
       const w = guns && guns.weapon();
       const zoom = w && w.zoom > 1 ? 1 + (w.zoom - 1) * guns.adsAmount() : 1;
-      fov = M.zoomedFov(M.verticalFov(N, camera.aspect), zoom);
+      fov = M.zoomedFov(N, camera.aspect, zoom);
     }
     if (Math.abs(camera.fov - fov) > 1e-6) { camera.fov = fov; camera.updateProjectionMatrix(); }
     bots.draw(f);

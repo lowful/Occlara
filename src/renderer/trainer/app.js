@@ -14,6 +14,7 @@ import { createEngine } from './engine.js';
 import { createAudio } from './audio.js';
 import { controllerFor, EXTRA } from './scenarios.js';
 import { arenaPlan } from './world.js';
+import { paintShotGraph } from './shot-graph.js';
 
 const M = window.OcclaraTrainerMath;
 const bridge = window.occlara;
@@ -102,12 +103,21 @@ try {
 /** What a scenario's controller sees of the engine. */
 const view = { N, bots: eng.bots, respawn: () => eng.respawn(), get P() { return eng.P; }, get arena() { return eng.arena; }, get guns() { return eng.guns; }, get now() { return eng.now; } };
 
-const newRun = () => ({ shots: 0, hits: 0, heads: 0, kills: 0, bots: 0, firstShots: 0, firstHits: 0, ttk: [], headKills: [], reactions: [], stops: [], damageTaken: 0, died: false, seconds: 0, limit: 0, early: 0, missed: 0, start: 0 });
+// `seed`: the run's own seed, which the range's targets are laid out from
+// (scenarios.js). `errs`: every shot's cone in its two parts, degrees, for
+// the report's shooting error graph (shot-graph.js).
+const newRun = () => ({ shots: 0, hits: 0, heads: 0, kills: 0, bots: 0, firstShots: 0, firstHits: 0, ttk: [], headKills: [], reactions: [], stops: [], damageTaken: 0, died: false, seconds: 0, limit: 0, early: 0, missed: 0, start: 0, seed: ((Math.random() * 4294967296) >>> 0) || 1, errs: [] });
+// The most shots the report's graph draws: the last of them.
+const GRAPH_SHOTS = 120;
+// The last run's seed, and one asked for the next run (the debug handle's
+// seed and seedNext), so a range run can be laid out again.
+let lastSeed = null, seedNext = 0;
 
 function onShot(res) {
   if (!run || phase !== 'playing') return;
   if (ctl && ctl.shot) ctl.shot(res);
   run.shots++;
+  run.errs.push({ fire: res.fireErr, move: res.moveErr });
   if (res.first) run.firstShots++;
   if (!res.accurate) run.early++;
   if (res.hit && res.counted) {
@@ -177,7 +187,7 @@ function onFrame(dt) {
   if (rp !== lastRecoil) { lastRecoil = rp; $('xhair').style.transform = `translateY(${-rp}px)`; $('h-mark').style.transform = `translateY(${-rp}px)`; }
   if (settings.crosshair.firingError) {
     const w = g.weapon();
-    const cone = w ? M.spread(N, w, { shot: Math.max(1, M.sprayAfter(w, g.st.shot, eng.now - g.st.lastShot) + 1), ads: eng.move.ads, speed: eng.move.speed, air: eng.move.air, crouch: eng.move.crouch, walk: eng.move.walk, landing: eng.move.landing }) - w.spread.first : 0;
+    const cone = w ? M.spread(N, w, { shot: Math.max(1, M.sprayAfter(w, g.st.shot, eng.now - g.st.lastShot, eng.move.ads) + 1), ads: eng.move.ads, speed: eng.move.speed, air: eng.move.air, crouch: eng.move.crouch, walk: eng.move.walk, landing: eng.move.landing }) - w.spread.first : 0;
     const px = Math.max(0, Math.min(40, Math.round(eng.conePx(cone))));
     if (px !== lastErr) { lastErr = px; drawCrosshair($('xhair'), settings.crosshair, px); }
   }
@@ -294,6 +304,8 @@ async function begin(sc) {
   current = sc;
   selected = pickOf(sc);
   run = newRun();
+  if (seedNext) { run.seed = seedNext; seedNext = 0; }
+  lastSeed = run.seed;
   run.limit = sc.limit || 0;
   eng.load(sc.arena, EXTRA[sc.kind] || null, sc.spec || null);
   eng.setArmour(sc.botShoot ? N.player.armour : 0);
@@ -438,6 +450,11 @@ function paintReport(sc, rep, done, c, before, best, kept) {
     if (xy.length > 1) { const pl = document.createElementNS(NS, 'polyline'); pl.setAttribute('class', 'ln'); pl.setAttribute('points', xy.map((p) => p.map((n) => n.toFixed(1)).join(',')).join(' ')); svg.append(pl); }
     xy.forEach(([x, y], i) => line(i === xy.length - 1 ? 'pt last' : 'pt', x, y, x, y));
   }
+
+  // The shooting error graph, under it: only where shots were fired (never
+  // Calibration), built once here.
+  paintShotGraph({ root: $('r-err'), title: $('r-err-t'), svg: $('r-err-bars'), top: $('r-err-top'), said: $('r-err-said') },
+    M.errorGraph(sc.kind === 'calibration' ? [] : done.errs, GRAPH_SHOTS), GRAPH_SHOTS);
 
   // The stats, each with its change from the run before.
   const prev = before.last.length ? before.last[before.last.length - 1] : null;
@@ -868,6 +885,9 @@ window.occlaraTrainer = {
   /** For the checks: the deaths list as main would give it, painted. */
   setReplays(list) { replays = Array.isArray(list) ? list : []; fresh = []; if (phase === 'menu') paintList(); },
   lastFrames: null,
+  /** The seed of the run on screen or the last one; seedNext(n) plays the next run from n. */
+  get seed() { return lastSeed; },
+  seedNext(n) { seedNext = Number.isInteger(n) && n > 0 ? n >>> 0 : 0; },
   frameTimes: () => eng.frameTimes(),
   scenarios: () => SCENARIOS.map((s) => s.id),
 };

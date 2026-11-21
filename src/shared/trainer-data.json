@@ -26,12 +26,12 @@
       "note": "Assumed equal to yaw: Valorant has no separate vertical sensitivity setting and converters treat pitch = yaw. No source states the pitch constant explicitly."
     },
     "pitchMax": {
-      "value": 89,
+      "value": 89.9,
       "unit": "deg",
-      "source": "trainer design",
+      "source": "Unreal Engine 4 APlayerCameraManager default view pitch limit (ViewPitchMin -89.9, ViewPitchMax 89.9); VALORANT is built on Unreal Engine 4",
       "patch": null,
       "verified": false,
-      "note": "How far up and down the view goes is not published. Held just short of straight up and down."
+      "note": "Riot does not publish the limit, and nothing confirms that VALORANT keeps the engine default. The engine default is used because it is the likeliest value, not because it was measured in the game."
     },
     "scopedRule": {
       "value": "zoom",
@@ -114,15 +114,15 @@
       "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
       "patch": "2022 measurement",
       "verified": false,
-      "note": "Linear ground acceleration; measured with Guardian, knife (0.2928) and rifle ADS (0.296): acceleration scales with max speed so time to top speed is constant about 0.288 s. Rifle accel = 18.75 m/s^2, knife about 23.44 m/s^2. Patch 1.10 notes say acceleration was adjusted to prevent sudden direction shifts."
+      "note": "Linear ground acceleration; measured with Guardian, knife (0.2928) and rifle ADS (0.296): acceleration scales with max speed so time to top speed is constant about 0.288 s. Rifle accel = 18.75 m/s^2, knife about 23.44 m/s^2. Patch 1.10 notes say acceleration was adjusted to prevent sudden direction shifts. The 0.288 s was solved from one distance over time crossing that assumes a linear ramp, so it pins only the distance lost (top x 0.144 s), not the ramp's shape. An exponential approach with the same lag (openVaim 1.4.1 (community copy, numbers only): accel 36.75, friction max(4.75 v, 9), lag 0.147 s, about 0.294 s linear equivalent) fits the measurement equally well and reaches 95% only at 0.375 s."
     },
     "brakingDecel": {
-      "value": 28,
-      "unit": "m/s^2",
-      "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
-      "patch": "2022 measurement",
+      "value": 24,
+      "unit": "m/s^2 at the knife's run speed (6.75 m/s), scaled by top / 6.75",
+      "source": "https://devtrackers.gg/valorant/p/f29d0021-walking-running-accuracy-too-high ; https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
+      "patch": "Riot_Classick 2020 (Phantom table); 2022 measurement",
       "verified": false,
-      "note": "Fitted by the Trainer to the measured stop times (rifle 0.125 s, knife 0.145 s, release keys) with the measured model dv/dt = -(F + S v). The study's own two fits (F 28.6, S 3.3; F 46.5, S 7.36) give 0.147 and 0.084 s for the rifle."
+      "note": "The flat part of braking, scaled with the run top speed of the weapon held, aimed when aimed (trainer-math.js brakeFlat; stepGround's brakeTop), so a stop from a run takes the same time with every weapon. Walk, crouch and a tag lower only the top speed (the cap), never this, so holding walk or crouch while stopping, or being tagged, never makes a stop slower: Riot_Classick says letting go or counter-strafing is faster than walking, and the same table reaches the dead zone in 0.110 s with walk held, which this gives as 0.102 s. Fitted by the Trainer with friction 6.5 to Riot_Classick's 2020 Phantom table (Riot dev reply, counter-strafed, human inputs, frame rate not fixed): 61% of run speed at 0.055 s, 25% at 0.104 s, a full stop at 0.160 s. At 128 Hz it gives 0.047, 0.102 and 0.156 s for every weapon (test:trainerphysics holds it to the table). The second source, the 2022 frame by frame study, measured the knife stopping in 0.145 s (11 ms faster than this) and the Guardian in 0.125 s to a different cue (returned to standing). Before, 28 m/s^2 for every weapon was fitted to those two study times and stopped the rifle 16 to 35 ms faster than Riot's table at every point."
     },
     "friction": {
       "value": 6.5,
@@ -130,7 +130,7 @@
       "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
       "patch": "2022 measurement",
       "verified": false,
-      "note": "S of the same fit."
+      "note": "S of the 2022 study's model, dv/dt = -(F + S v), refitted with brakingDecel: together they give Riot_Classick's 2020 Phantom table (move.brakingDecel)."
     },
     "stopSpeed": {
       "value": 0.05,
@@ -146,7 +146,7 @@
       "source": "https://www.reddit.com/r/VALORANT/comments/utc7qf/valorant_physics_derived/",
       "patch": "2022",
       "verified": false,
-      "note": "Disputed in the same thread: another user says counter strafing saves about 4 frames. Flat friction (28.6 m/s^2) exceeds acceleration (18.75 m/s^2), so a counter key cannot stop faster than friction alone in this model. So pressing the other way brakes at the braking rate, never faster, and only accelerates the other way once stopped."
+      "note": "Disputed in the same thread: another user says counter strafing saves about 4 frames. Riot_Classick (Riot, Apr 2020, Phantom, counter-strafed: 61% at 0.055 s, 25% at 0.104 s, stop at 0.160 s, https://devtrackers.gg/valorant/p/f29d0021-walking-running-accuracy-too-high) says letting off the keys or counter-strafing is faster than walk, and measures no release-only time. openVaim 1.4.1 (community copy, numbers only) brakes with no flat part while a key is held and adds the key's acceleration on top of friction, which makes the counter key about 2 ticks faster. Neither is measured against letting go. So pressing the other way brakes at the braking rate, never faster, and only accelerates the other way once stopped."
     },
     "airControl": {
       "value": 0.15,
@@ -154,7 +154,7 @@
       "source": "trainer design",
       "patch": null,
       "verified": false,
-      "note": "Steering in the air as a share of ground acceleration. Not published."
+      "note": "Steering in the air as a share of ground acceleration. Not published, and the 2022 frame by frame study measures nothing in the air. openVaim 1.4.1 (community copy, numbers only) instead uses a capped air model: speed along the wished direction may only be raised to 0.75 m/s, steering about 66 m/s^2 with the knife, pressing against the motion brakes at about half that, air top speed 1.1x run, excess removed at 13 m/s^2. Community posts (an Unreal forum thread, guides) describe Valorant air strafing that bends the velocity without losing speed and a decay toward run speed, which fits that kind of model better than this nudge, but no source gives numbers."
     },
     "gravity": {
       "value": 20.45,
@@ -174,11 +174,11 @@
     },
     "accurateFrac": {
       "value": 0.275,
-      "unit": "fraction of current max speed",
-      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-3-0/ ; https://valorant.fandom.com/wiki/Weapons",
+      "unit": "fraction of the weapon's running top speed, walk held or not (crouched: of the crouch top speed)",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-3-0/ ; https://valorant.fandom.com/wiki/Weapons ; https://old.reddit.com/r/VALORANT/comments/g7ql8r/walkingrunning_accuracy_too_high/fol6esn/ (Riot_Classick 2020, read through https://devtrackers.gg/valorant/p/f29d0021-walking-running-accuracy-too-high)",
       "patch": "patch 3.0 (30% >>> 27.5%), no later change found",
       "verified": true,
-      "note": "Below 27.5% of max speed a gun gets no movement penalty. Patch 0.50: no walking-accuracy state while decelerating from a run. Settings since 10.09 also have a \"Movement Deadzone\" and \"Walk / Run Threshold\" slider, which are input (stick) settings, not this value."
+      "note": "Below 27.5% of the weapon's run top speed a gun gets no movement penalty, whether walk is held or not: Riot_Classick's 2020 table puts the dead zone (25% then) and walk (61%) on one scale, the run speed's, and with the walk key held the dead zone is still reached in 0.110 s. Crouched, the Trainer takes 27.5% of the crouch top speed (not published; openVaim 1.4.1 (community copy, numbers only) uses 0.29 of the crouch top), and aimed, of the aimed top speed (not published). Patch 0.50: no walking-accuracy state while decelerating from a run. Settings since 10.09 also have a \"Movement Deadzone\" and \"Walk / Run Threshold\" slider, which are input (stick) settings, not this value."
     },
     "landingSpread": {
       "value": 7,
@@ -209,7 +209,7 @@
       "source": "trainer design",
       "patch": null,
       "verified": false,
-      "note": "How long the slow from being hit lasts is not published."
+      "note": "How long the slow from being hit lasts is not published. Here the full slow holds for this long, then lets go. openVaim 1.4.1 (community copy, numbers only) has it ease back instead: from a body tag over 0.75 s (speed from 0.275 of the top back to all of it, slowly at first), through a wall over 0.35 s and from a far shotgun tag over 0.5 s. Not adopted; to compare in the game's Range."
     },
     "crouchTime": {
       "value": 0.276,
@@ -241,7 +241,7 @@
       "source": "trainer design",
       "patch": null,
       "verified": false,
-      "note": "Standing eye height is not published. A standard character height."
+      "note": "Standing eye height is not published. A standard character height. openVaim 1.4.1 (community copy, numbers only) uses 1.75 m (crouched 1.35 m), unsourced; the 2022 community physics study gives the player as 200 units tall with a 40 unit crouch drop, but no eye height. If this changes, hitbox.head.center moves with it."
     },
     "crouchDrop": {
       "value": 0.4,
@@ -257,7 +257,7 @@
       "source": "trainer design",
       "patch": null,
       "verified": false,
-      "note": "The collision height is not published."
+      "note": "The collision height is not published. Community figures put the in-game agent at 1.96 to 2.0 m (the wiki's Agents trivia, uncited, says 1.96 m; the 2022 physics study, https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub, assumes 200 units; openVaim 1.4.1 (community copy, numbers only) has a 1.96 m capsule). Kept at 1.8 until the arenas are checked for a taller player."
     },
     "crouchHeight": {
       "value": 1.35,
@@ -293,6 +293,25 @@
       "verified": true
     }
   },
+  "errorPower": {
+    "_about": "How a shot is placed inside its cone: radius = cone x rand ^ p, where 0.5 is even over the disc and more is biased toward the middle (trainer-math.js errorPower, coneRadius). Riot 6.11 states the bias exists (Error Power, or centre biasing) and that moving shots are near even; the exponents are one community copy's.",
+    "steady": {
+      "value": 0.75,
+      "unit": "exponent (0.5 is even over the disc)",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-6-11/ ; openVaim 1.4.1 (community copy, numbers only)",
+      "patch": "patch 6.11",
+      "verified": false,
+      "note": "Standing, walking (up to the walk top speed) or crouched. Riot 6.11: Error Power rewards accuracy by biasing shots toward the center of the crosshair, as intended for stationary firing; community write-ups add that walking keeps it. Riot states the bias, not its number; the exponent is the community copy's."
+    },
+    "moving": {
+      "value": 0.52,
+      "unit": "exponent (0.5 is even over the disc)",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-6-11/ ; openVaim 1.4.1 (community copy, numbers only)",
+      "patch": "patch 6.11",
+      "verified": false,
+      "note": "Running (over the walk top speed) or in the air. Riot 6.11: shots fired while moving are now almost uniformly random within their spread cone. The exponent is the community copy's."
+    }
+  },
   "hitbox": {
     "_about": "Not published anywhere found (research of 18 Nov 2026). Sized to a standard character the eye height above: a head sphere, a body capsule and a leg capsule. To compare against the game in the owner's calibration check.",
     "head": {
@@ -320,7 +339,7 @@
         "source": "trainer design",
         "patch": null,
         "verified": false,
-        "note": "Not published."
+        "note": "Not published. Trainer design. openVaim 1.4.1 (community copy, numbers only) uses posed capsules on the spine bones, r 0.15 to 0.195 m (at most 0.39 m wide), plus arm capsules r 0.08 to 0.10 m in the body zone; its source is unknown and none of it is verified."
       },
       "bottom": {
         "value": 0.86,
@@ -346,7 +365,7 @@
         "source": "trainer design",
         "patch": null,
         "verified": false,
-        "note": "Not published."
+        "note": "Not published. openVaim 1.4.1 (community copy, numbers only), possibly taken from game files, uses separate pieces for each leg: a thigh capsule r 0.136 m, a shin capsule r 0.115 m and a foot box. Ours is one capsule covering both legs and the gap between them, so it overstates the leg area at shin height. Unverified; to change only after the owner's calibration check in the game."
       },
       "top": {
         "value": 0.88,
@@ -360,10 +379,65 @@
     "crouchScale": {
       "value": 0.75,
       "unit": "x",
+      "source": "https://docs.google.com/document/u/2/d/e/2PACX-1vTsGYzGYiO78fcr_frhhBmzDaMvEqgBRd3b5u7TNzXRAhKflvFOovleWmavebIfFywh3DHppT75xHAk/pub",
+      "patch": "2022 measurement",
+      "verified": false,
+      "note": "The game's player is 200 units tall and crouching multiplies the height by 0.8 (160), the crosshair dropping 40 units. Our model is shorter (head centre 1.6 m), so 0.75 keeps the measured 40 cm head drop; 0.8 here would drop the head only 32 cm. In the game the hitboxes follow the crouch animation, so the legs fold and the upper body moves down almost whole (one community copy puts the pelvis at x0.69 and the head at x0.79), which a single scale only approximates."
+    }
+  },
+  "strafe": {
+    "_about": "How a target strafes in the Strafing targets drill (scenarios.js, trainer-math.js strafer): an ADAD where every leg reverses the last, with a random travel, a random hold at each turn and now and then a short tap. Nothing here is published for the game, so every value is the Trainer's own design, shaped after one community trainer's unpredictable strafer (openVaim 1.4.1, community copy, numbers only), whose figure each note gives. The ranges are drawn from a seeded random, so a run is laid out again from its seed. The target walks each leg on stepGround, so its starts and stops take a real start's and stop's time.",
+    "lane": {
+      "value": [
+        2.5,
+        4.5
+      ],
+      "unit": "m each side of the target's middle, least and most",
       "source": "trainer design",
       "patch": null,
       "verified": false,
-      "note": "Heights crouched over standing, from the 40 cm eye drop."
+      "note": "Half the width a target strafes across, picked once for each target. Kept from the drill's earlier fixed pattern (a lane 5 to 9 m wide), which leaves room for a leg at full speed: about 0.78 m to reach the run speed and 0.4 m to stop. openVaim 1.4.1 (community copy, numbers only) defaults to a lane 3 m wide."
+    },
+    "travel": {
+      "value": [
+        0.45,
+        1.0
+      ],
+      "unit": "share of the lane's full width, least and most",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "How far a long leg goes, cut at the lane's edge. openVaim 1.4.1 (community copy, numbers only): 45 to 100% of the width in its unpredictable mode."
+    },
+    "dwell": {
+      "value": [
+        0.03,
+        0.25
+      ],
+      "unit": "s, least and most",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "How long the target stands still at each turn before the next leg, counted from the moment it has stopped, so the stop (about 0.16 s from a run) comes on top (a strafing leg's still, trainer-math.js walkLeg). openVaim 1.4.1 (community copy, numbers only): 0.03 to 0.25 s in its unpredictable mode, which it says it matched to a recorded player. The earlier fixed pattern held 0.2 to 0.55 s."
+    },
+    "tapChance": {
+      "value": 0.35,
+      "unit": "chance a leg is a tap",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "The chance a leg is a short tap instead of a long leg; the leg after it reverses it, as every leg does. openVaim 1.4.1 (community copy, numbers only): 0.35."
+    },
+    "tap": {
+      "value": [
+        0.5,
+        1.2
+      ],
+      "unit": "m, least and most",
+      "source": "trainer design",
+      "patch": null,
+      "verified": false,
+      "note": "How far a tap goes, never more than the lane's full width. A target with less room than the shortest tap ahead turns back the other way. openVaim 1.4.1 (community copy, numbers only): 0.5 to 1.2 m, each held to the width of its lane."
     }
   },
   "replay": {
@@ -420,7 +494,7 @@
       "source": "trainer design",
       "patch": null,
       "verified": false,
-      "note": "What the enemy of a replayed death hits with, by the class of weapon that killed the player: its body damage a hit (after that class in the game: a rifle 40, a sniper 150, a shotgun 66 close and 12 past farFrom metres), its taps a second, the share that land once it has settled, and its reaction in seconds. The damage follows the game; the rest is tuned so the fight can be won."
+      "note": "What the enemy of a replayed death hits with, by the class of weapon that killed the player: its body damage a hit (after that class in the game: a rifle 40, a sniper 150, a shotgun 66 close and 12 past farFrom metres), its taps a second, the share that land once it has settled, and its reaction in seconds. The damage follows the game; the rest is tuned so the fight can be won. The taps a second are not the weapon's fire rate (the game's: Vandal 9.75, Operator 0.6, Bucky 1.1, Judge 3.5, Odin 12); a tap is one hit attempt, tuned with its chance."
     }
   },
   "weapons": {
@@ -500,7 +574,7 @@
         "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
         "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
         "verified": true,
-        "note": "ADS fire rate 90%, ADS move speed 76%."
+        "note": "ADS move speed 76%."
       },
       "adsMoveMult": {
         "value": 0.76,
@@ -508,6 +582,14 @@
         "source": "https://valorant-api.com/v1/weapons ; https://valorant.fandom.com/wiki/Vandal",
         "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
         "verified": true
+      },
+      "adsFireRateMult": {
+        "value": 0.9,
+        "unit": "x",
+        "source": "https://valorant-api.com/v1/weapons (weaponStats.adsStats.fireRate / weaponStats.fireRate)",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "Vandal 8.775 / 9.75 rounds a second aimed."
       },
       "damage": {
         "value": [
@@ -547,7 +629,15 @@
           "source": "https://valorant.fandom.com/wiki/Vandal",
           "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
           "verified": true,
-          "note": "Spread growth per bullet not published; recovery and tap efficiency below."
+          "note": "How the cone opens bullet by bullet is the curve below."
+        },
+        "adsMax": {
+          "value": 1.02,
+          "unit": "deg",
+          "source": "https://valorant.fandom.com/wiki/Vandal",
+          "patch": "wiki page current as of 2026-11-20",
+          "verified": true,
+          "note": "Spread values table, Alternate Fire max; crouched 0.87 (crouchMult gives 0.867). Equals hip x1.15 less 0.13, the same map that turns the api's 0.25 first bullet into 0.1575."
         },
         "crouchMult": {
           "value": 0.85,
@@ -557,13 +647,28 @@
           "verified": true,
           "note": "The crouched maximum over the standing one, applied to the whole cone."
         },
+        "curve": {
+          "value": [
+            0.25,
+            0.3,
+            0.35,
+            0.567,
+            0.783,
+            1
+          ],
+          "unit": "deg by bullet (1 the first), the last held",
+          "source": "openVaim 1.4.1 (community copy, numbers only); its first and last match valorant-api.com's first bullet and the wiki's maximum",
+          "patch": "unconfirmed; the same copy matches patch 11.08",
+          "verified": false,
+          "note": "Not published by Riot. The first three bullets stay near the first shot's cone and it opens fast after, reaching the published maximum at bullet 6 (uncertain by one). Aimed it is mapped onto adsFirst to adsMax, crouched it is smaller by crouchMult. To compare in the game's Range."
+        },
         "growth": {
           "value": 0.125,
           "unit": "deg per bullet",
           "source": "trainer design",
           "patch": null,
           "verified": false,
-          "note": "How fast the cone opens in a spray is not published. Set so the cone reaches its published maximum at the bullet named in the note.",
+          "note": "The fallback when no curve is given: a straight line set so the cone reaches its published maximum at the bullet named in reachesMaxAt. Not published.",
           "reachesMaxAt": 7
         },
         "crouchMove": {
@@ -580,7 +685,7 @@
           "source": "https://valorant.fandom.com/wiki/Vandal",
           "patch": "patch 9.10 (walk 2 >>> 3, run 5 >>> 6), crouch 2.02",
           "verified": true,
-          "note": "Rifle class values, official in 9.10 notes."
+          "note": "Rifle class values, official in 9.10 notes. Applied as a state: the full value from the accuracy gate up to the walk top speed. Riot calls it the walking state (3.0, 9.10); no source states a ramp."
         },
         "run": {
           "value": 6,
@@ -588,7 +693,7 @@
           "source": "https://valorant.fandom.com/wiki/Vandal",
           "patch": "patch 9.10 (walk 2 >>> 3, run 5 >>> 6), crouch 2.02",
           "verified": true,
-          "note": "Rifle class values, official in 9.10 notes."
+          "note": "Rifle class values, official in 9.10 notes. Applied in full over the walk top speed (0.6 x run), a state not a ramp: Riot_Classick 2020 (Run to Walk at 61%, the running state, https://devtrackers.gg/valorant/p/f29d0021-walking-running-accuracy-too-high), 9.10 (shot players are slowed down into the walking state)."
         },
         "air": {
           "value": 10,
@@ -602,54 +707,75 @@
       "recoil": {
         "vertical": {
           "value": [
-            0.9,
-            0.9,
-            0.85,
-            0.8,
-            0.7,
-            0.6,
-            0.45,
-            0.3,
-            0.2,
-            0.15
+            0.4,
+            0.5,
+            1.34,
+            1.34,
+            1.34,
+            1.34,
+            1.34
           ],
           "unit": "deg per bullet",
-          "source": "trainer design",
+          "source": "openVaim 1.4.1 (community copy, numbers only)",
           "patch": null,
           "verified": false,
-          "note": "Not published by Riot or the wiki. Shaped to climb fast over the first bullets and level off, as public spray footage shows. To compare in the game's Range."
+          "note": "Not published by Riot. The bullets climb 0.4, 0.9, 2.24, 3.58, 4.92, 6.26 and 7.6 degrees at bullets 2 to 8 (pitch curve keys 0, 0.4, 0.9 and 7.6 degrees at 0, 1, 2 and 7 bullets fired, straight between), then the copy's curve sways between 7.46 and 8.36 degrees; held here at 7.6. The same copy's neighbouring values match Riot's notes (protected 6, switch 0.6 s, 10%, recovery 0.375 s, running pitch x1.8). Standing hip fire. To compare in the game's Range."
         },
         "tailMult": {
-          "value": 0.6,
+          "value": 0,
           "unit": "x",
-          "source": "trainer design",
+          "source": "openVaim 1.4.1 (community copy, numbers only)",
           "patch": null,
           "verified": false,
-          "note": "Climb per bullet past the pattern, as a share of its last value."
+          "note": "No climb past the pattern: the copy's curve plateaus at about 7.6 to 8.4 degrees."
         },
         "horizStart": {
           "value": 6,
           "unit": "bullets",
           "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-11-08/",
-          "patch": "patch 11.08",
+          "patch": "patch 11.08 (PC 4 >>> 6)",
           "verified": true,
-          "note": "The protected bullets before the sideways sway can begin."
+          "note": "Protected bullets: how many bullets of a spray fire before the gun has a chance of yaw switch, its sideways recoil swapping side (patch 11.08). The sideways drift itself begins before this, on one side."
+        },
+        "yawSwitchChance": {
+          "value": 0.1,
+          "unit": "chance per bullet",
+          "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-11-08/",
+          "patch": "patch 11.08 (PC 6% >>> 10%)",
+          "verified": true,
+          "note": "The chance for the sideways recoil to swap side, each bullet past the protected ones (PC)."
+        },
+        "yawSwitchSec": {
+          "value": 0.6,
+          "unit": "s",
+          "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-11-08/",
+          "patch": "patch 11.08 (PC 0.37 >>> 0.6)",
+          "verified": true,
+          "note": "How quickly the gun swaps its sideways recoil from one side to the other (PC)."
         },
         "horiz": {
-          "value": 0.7,
-          "unit": "deg",
+          "value": 2.0,
+          "unit": "deg, the drift's full size",
           "source": "trainer design",
           "patch": null,
           "verified": false,
-          "note": "Size of the sideways sway after the protected bullets. Not published."
+          "note": "The full size of the one sided sideways drift once grown (horizRamp). Not published. Shaped to about what one community copy shows for this weapon standing (openVaim 1.4.1 (community copy, numbers only): its yaw curve reaches 2.0 degrees at 12.35 bullets fired, about bullet 13, then sways between 1.92 and 2.12; held here at 2.0). Read raw, on the same scale as this weapon's vertical climb and the silenced rifle's 1.8 (an earlier 1.1 was the curve times the 0.55 that copy's simple model scales every recoil curve by, so it was the only number here on that scale). That copy's game model takes the curves raw and its simple model at 0.55, so the size is uncertain by that factor. To compare in the game's Range."
+        },
+        "horizRamp": {
+          "value": 12,
+          "unit": "bullets",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Bullets after the first over which the drift grows in a straight line to its full size (full at bullet 13). Not published."
         },
         "recoverSec": {
           "value": 0.375,
           "unit": "s",
-          "source": "https://valorant.fandom.com/wiki/Vandal",
-          "patch": "patch 0.50 (.4 >>> .375)",
+          "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-0-50/ ; https://valorant.fandom.com/wiki/Vandal",
+          "patch": "patch 0.50 (Gun Recovery Time .4s >> .375s)",
           "verified": true,
-          "note": "Time without firing for spread to fully reset."
+          "note": "Riot's Gun Recovery Time: refiring before it has fully passed accrues inaccuracy, at a rate set by Tap Efficiency (6 since 0.50). Here, the time without firing for the spray to fully reset. Whether a short burst resets sooner is not published; openVaim 1.4.1 (community copy, numbers only) scales the reset from 0.025 s to 0.375 s over 6 bullets."
         }
       }
     },
@@ -735,6 +861,14 @@
         "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
         "verified": true
       },
+      "adsFireRateMult": {
+        "value": 0.9,
+        "unit": "x",
+        "source": "https://valorant-api.com/v1/weapons (weaponStats.adsStats.fireRate / weaponStats.fireRate)",
+        "patch": "valorant-api.com build release-13.10 (13.10.00.5893614, built 2026-11-07)",
+        "verified": true,
+        "note": "Phantom 9.9 / 11 rounds a second aimed."
+      },
       "damage": {
         "value": [
           {
@@ -778,7 +912,16 @@
           "unit": "deg",
           "source": "https://valorant.fandom.com/wiki/Phantom",
           "patch": "wiki page current as of 2026-11-18 (latest stat change cited on page shown in note)",
-          "verified": true
+          "verified": true,
+          "note": "How the cone opens bullet by bullet is the curve below."
+        },
+        "adsMax": {
+          "value": 0.91,
+          "unit": "deg",
+          "source": "https://valorant.fandom.com/wiki/Phantom",
+          "patch": "wiki page current as of 2026-11-20",
+          "verified": true,
+          "note": "Spread values table, Alternate Fire max; crouched 0.78 (crouchMult gives 0.768). 0.9 x1.15 less 0.12 is 0.915, which the wiki rounds."
         },
         "crouchMult": {
           "value": 0.844,
@@ -788,13 +931,27 @@
           "verified": true,
           "note": "The crouched maximum over the standing one, applied to the whole cone."
         },
+        "curve": {
+          "value": [
+            0.2,
+            0.28,
+            0.36,
+            0.63,
+            0.9
+          ],
+          "unit": "deg by bullet (1 the first), the last held",
+          "source": "openVaim 1.4.1 (community copy, numbers only); its first and last match valorant-api.com's first bullet and the wiki's maximum",
+          "patch": "unconfirmed; the same copy matches patch 11.08",
+          "verified": false,
+          "note": "Not published by Riot. The cone rises slowly over bullets 2 and 3, then steeply, reaching the published maximum at bullet 5. Aimed it is mapped onto adsFirst to adsMax, crouched it is smaller by crouchMult. To compare in the game's Range."
+        },
         "growth": {
           "value": 0.1,
           "unit": "deg per bullet",
           "source": "trainer design",
           "patch": null,
           "verified": false,
-          "note": "How fast the cone opens in a spray is not published. Set so the cone reaches its published maximum at the bullet named in the note.",
+          "note": "The fallback when no curve is given: a straight line set so the cone reaches its published maximum at the bullet named in reachesMaxAt. Not published.",
           "reachesMaxAt": 8
         },
         "crouchMove": {
@@ -809,14 +966,16 @@
           "unit": "degrees added to spread",
           "source": "https://valorant.fandom.com/wiki/Phantom",
           "patch": "patch 9.10",
-          "verified": true
+          "verified": true,
+          "note": "Applied as a state: the full value from the accuracy gate up to the walk top speed. Riot calls it the walking state (3.0, 9.10); no source states a ramp."
         },
         "run": {
           "value": 6,
           "unit": "degrees added to spread",
           "source": "https://valorant.fandom.com/wiki/Phantom",
           "patch": "patch 9.10",
-          "verified": true
+          "verified": true,
+          "note": "Applied in full over the walk top speed (0.6 x run), a state not a ramp: Riot_Classick 2020 (Run to Walk at 61%, the running state, https://devtrackers.gg/valorant/p/f29d0021-walking-running-accuracy-too-high), 9.10 (shot players are slowed down into the walking state)."
         },
         "air": {
           "value": 10,
@@ -829,53 +988,78 @@
       "recoil": {
         "vertical": {
           "value": [
-            0.75,
-            0.75,
-            0.7,
-            0.65,
-            0.6,
-            0.55,
-            0.5,
-            0.4,
             0.3,
-            0.2
+            0.4,
+            1.14,
+            1.14,
+            1.14,
+            1.14,
+            1.14,
+            0.18,
+            0.18,
+            0.05
           ],
           "unit": "deg per bullet",
-          "source": "trainer design",
+          "source": "openVaim 1.4.1 (community copy, numbers only)",
           "patch": null,
           "verified": false,
-          "note": "Not published by Riot or the wiki. Shaped to climb fast over the first bullets and level off, as public spray footage shows. To compare in the game's Range."
+          "note": "Not published by Riot. The bullets climb 0.3, 0.7, then 1.14 a bullet to 6.4 degrees at bullet 8, then level off at about 6.8 (the copy's curve sways between 6.47 and 7.12 through the rest of the magazine). The same copy's neighbouring values match Riot's notes (protected 8, switch 0.6 s, 10%, recovery 0.35 s, first shot 0.2). Standing hip fire; its aimed x0.7 and walking x1.8 are not modelled here. To compare in the game's Range."
         },
         "tailMult": {
-          "value": 0.6,
+          "value": 0,
           "unit": "x",
-          "source": "trainer design",
+          "source": "openVaim 1.4.1 (community copy, numbers only)",
           "patch": null,
           "verified": false,
-          "note": "Climb per bullet past the pattern, as a share of its last value."
+          "note": "No climb past the pattern: the copy's curve plateaus at about 6.5 to 7.1 degrees."
         },
         "horizStart": {
           "value": 8,
           "unit": "bullets",
           "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-11-08/",
-          "patch": "patch 11.08",
+          "patch": "patch 11.08 (PC 6 >>> 8)",
           "verified": true,
-          "note": "The protected bullets before the sideways sway can begin."
+          "note": "Protected bullets: how many bullets of a spray fire before the gun has a chance of yaw switch, its sideways recoil swapping side (patch 11.08). The sideways drift itself begins before this, on one side."
+        },
+        "yawSwitchChance": {
+          "value": 0.1,
+          "unit": "chance per bullet",
+          "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-11-08/",
+          "patch": "patch 11.08 (PC 6% >>> 10%)",
+          "verified": true,
+          "note": "The chance for the sideways recoil to swap side, each bullet past the protected ones (PC)."
+        },
+        "yawSwitchSec": {
+          "value": 0.6,
+          "unit": "s",
+          "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-11-08/",
+          "patch": "patch 11.08 (PC 0.37 >>> 0.6)",
+          "verified": true,
+          "note": "How quickly the gun swaps its sideways recoil from one side to the other (PC)."
         },
         "horiz": {
-          "value": 0.6,
-          "unit": "deg",
+          "value": 1.8,
+          "unit": "deg, the drift's full size",
           "source": "trainer design",
           "patch": null,
           "verified": false,
-          "note": "Size of the sideways sway after the protected bullets. Not published."
+          "note": "The full size of the one sided sideways drift once grown (horizRamp). Not published. Shaped to about what one community copy shows for this weapon standing (openVaim 1.4.1 (community copy, numbers only): its yaw curve reaches 1.8 degrees at 13 bullets fired, then sways between 1.74 and 1.84; held here at 1.8). Read raw, on the same scale as the vertical climb and the heavy rifle's 2.0. That copy's game model takes the curves raw and its simple model scales every recoil curve by 0.55, so the size is uncertain by that factor. To compare in the game's Range."
+        },
+        "horizRamp": {
+          "value": 12,
+          "unit": "bullets",
+          "source": "trainer design",
+          "patch": null,
+          "verified": false,
+          "note": "Bullets after the first over which the drift grows in a straight line to its full size (full at bullet 13). Not published."
         },
         "recoverSec": {
           "value": 0.35,
           "unit": "s",
-          "source": "https://valorant.fandom.com/wiki/Phantom",
-          "patch": "patch 0.50 (.55 >>> .35)",
-          "verified": true
+          "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-0-50/ ; https://valorant.fandom.com/wiki/Phantom",
+          "patch": "patch 0.50 (Gun Recovery Time .55s >> .35s)",
+          "verified": true,
+          "note": "Riot's Gun Recovery Time: refiring before it has fully passed accrues inaccuracy, at a rate set by Tap Efficiency (4 since 0.50). Here, the time without firing for the spray to fully reset. Whether a short burst resets sooner is not published; openVaim 1.4.1 (community copy, numbers only) scales the reset from 0.02 s to 0.35 s over 4 bullets."
         }
       }
     },
@@ -1017,13 +1201,25 @@
           "verified": true,
           "note": "The crouched maximum over the standing one, applied to the whole cone."
         },
+        "curve": {
+          "value": [
+            0.25,
+            1.1,
+            2.75
+          ],
+          "unit": "deg by bullet (1 the first), the last held",
+          "source": "https://valorant.gs (RevolverPrimaryAsset, live build 13.10.00.5893614, updated 2026-11-10) ; openVaim 1.4.1 (community copy, numbers only)",
+          "patch": "build 13.10",
+          "verified": false,
+          "note": "Two community datamine copies agree; the first and last match valorant-api.com's 0.25 and the wiki's 2.75, the middle is not published by Riot. Kept unverified until checked in the game's Range, since neither copy states its units. Crouched it is smaller by crouchMult."
+        },
         "growth": {
           "value": 1.25,
           "unit": "deg per bullet",
           "source": "trainer design",
           "patch": null,
           "verified": false,
-          "note": "How fast the cone opens in a spray is not published. Set so the cone reaches its published maximum at the bullet named in the note.",
+          "note": "The fallback when no curve is given: a straight line set so the cone reaches its published maximum at the bullet named in reachesMaxAt. Not published.",
           "reachesMaxAt": 3
         },
         "crouchMove": {
@@ -1038,14 +1234,16 @@
           "unit": "degrees added to spread",
           "source": "https://valorant.fandom.com/wiki/Sheriff",
           "patch": "walk/run patch 3.0, crouch-move 9.10",
-          "verified": true
+          "verified": true,
+          "note": "Applied as a state: the full value from the accuracy gate up to the walk top speed. Riot calls it the walking state (3.0, 9.10); no source states a ramp."
         },
         "run": {
           "value": 3,
           "unit": "degrees added to spread",
           "source": "https://valorant.fandom.com/wiki/Sheriff",
           "patch": "walk/run patch 3.0, crouch-move 9.10",
-          "verified": true
+          "verified": true,
+          "note": "Applied in full over the walk top speed (0.6 x run), a state not a ramp: Riot_Classick 2020 (Run to Walk at 61%, the running state, https://devtrackers.gg/valorant/p/f29d0021-walking-running-accuracy-too-high), 9.10 (shot players are slowed down into the walking state)."
         },
         "air": {
           "value": 7,
@@ -1058,23 +1256,22 @@
       "recoil": {
         "vertical": {
           "value": [
-            2.2,
-            2.2,
-            2
+            1,
+            1
           ],
           "unit": "deg per bullet",
-          "source": "trainer design",
-          "patch": null,
+          "source": "https://valorant.gs (RevolverPrimaryAsset, live build 13.10.00.5893614, updated 2026-11-10) ; openVaim 1.4.1 (community copy, numbers only)",
+          "patch": "build 13.10",
           "verified": false,
-          "note": "Not published by Riot or the wiki. Shaped to climb fast over the first bullets and level off, as public spray footage shows. To compare in the game's Range."
+          "note": "The bullets climb 1 degree after the first and the second shot, then hold at 2 degrees while spamming at 4 a second (pitch curve 0, 1, 2 by shot, held). The Sheriff's recoil has never been patched. Kept unverified until checked in the game's Range, since neither copy states its units."
         },
         "tailMult": {
-          "value": 1,
+          "value": 0,
           "unit": "x",
-          "source": "trainer design",
-          "patch": null,
+          "source": "https://valorant.gs (RevolverPrimaryAsset, live build 13.10.00.5893614, updated 2026-11-10) ; openVaim 1.4.1 (community copy, numbers only)",
+          "patch": "build 13.10",
           "verified": false,
-          "note": "Climb per bullet past the pattern, as a share of its last value."
+          "note": "No climb past the pattern: held at 2 degrees."
         },
         "horizStart": {
           "value": 2,
@@ -1082,15 +1279,15 @@
           "source": "trainer design",
           "patch": null,
           "verified": false,
-          "note": "Not published."
+          "note": "Not published. Does nothing while horiz is 0."
         },
         "horiz": {
-          "value": 0.4,
+          "value": 0,
           "unit": "deg",
-          "source": "trainer design",
-          "patch": null,
+          "source": "https://valorant.gs (RevolverPrimaryAsset, live build 13.10.00.5893614, updated 2026-11-10) ; openVaim 1.4.1 (community copy, numbers only)",
+          "patch": "build 13.10",
           "verified": false,
-          "note": "Size of the sideways sway after the protected bullets. Not published."
+          "note": "No sideways (yaw) recoil: the yaw curve is flat 0 in both copies; the sideways scatter is the spread cone's. Riot publishes yaw switch only for rifles and SMGs (patch 11.08). To confirm in the game's Range."
         },
         "recoverSec": {
           "value": 0.5,
@@ -1098,7 +1295,7 @@
           "source": "trainer design",
           "patch": null,
           "verified": false,
-          "note": "Not published for this weapon."
+          "note": "Not published by Riot for this weapon. valorant.gs (build 13.10) lists 0.5 s too, as does openVaim 1.4.1 (community copy, numbers only), whose reset grows with the spray's depth (about 0.14 s after 1 bullet, 0.25 s after 2, 0.5 s after 3 or more)."
         }
       }
     },
@@ -1239,13 +1436,26 @@
           "verified": true,
           "note": "The crouched maximum over the standing one, applied to the whole cone."
         },
+        "curve": {
+          "value": [
+            0.4,
+            0.8,
+            1.31,
+            1.8
+          ],
+          "unit": "deg by bullet (1 the first), the last held",
+          "source": "openVaim 1.4.1 (community copy, numbers only); its first and last match valorant-api.com's 0.4 and the wiki's 1.8",
+          "patch": null,
+          "verified": false,
+          "note": "Not published by Riot. Curve keys 0.4, 0.8 and 1.8 at 0, 1 and 3 bullets fired; 1.31 at bullet 3 is the curve between them. Crouched it is smaller by crouchMult. To compare in the game's Range."
+        },
         "growth": {
           "value": 0.35,
           "unit": "deg per bullet",
           "source": "trainer design",
           "patch": null,
           "verified": false,
-          "note": "How fast the cone opens in a spray is not published. Set so the cone reaches its published maximum at the bullet named in the note.",
+          "note": "The fallback when no curve is given: a straight line set so the cone reaches its published maximum at the bullet named in reachesMaxAt. Not published.",
           "reachesMaxAt": 5
         },
         "crouchMove": {
@@ -1260,14 +1470,16 @@
           "unit": "degrees added to spread",
           "source": "https://valorant.fandom.com/wiki/Classic",
           "patch": "patch 9.10",
-          "verified": true
+          "verified": true,
+          "note": "Applied as a state: the full value from the accuracy gate up to the walk top speed. Riot calls it the walking state (3.0, 9.10); no source states a ramp."
         },
         "run": {
           "value": 2.3,
           "unit": "degrees added to spread",
           "source": "https://valorant.fandom.com/wiki/Classic",
           "patch": "patch 9.10",
-          "verified": true
+          "verified": true,
+          "note": "Applied in full over the walk top speed (0.6 x run), a state not a ramp: Riot_Classick 2020 (Run to Walk at 61%, the running state, https://devtrackers.gg/valorant/p/f29d0021-walking-running-accuracy-too-high), 9.10 (shot players are slowed down into the walking state)."
         },
         "air": {
           "value": 7,
@@ -1280,24 +1492,23 @@
       "recoil": {
         "vertical": {
           "value": [
-            0.6,
-            0.6,
-            0.55,
-            0.5
+            0.333,
+            0.333,
+            0.334
           ],
           "unit": "deg per bullet",
-          "source": "trainer design",
+          "source": "openVaim 1.4.1 (community copy, numbers only)",
           "patch": null,
           "verified": false,
-          "note": "Not published by Riot or the wiki. Shaped to climb fast over the first bullets and level off, as public spray footage shows. To compare in the game's Range."
+          "note": "Not published by Riot. The bullets climb 0.33, 0.67 and 1.0 degree at bullets 2 to 4 (pitch curve 0 to 1 degree over 3 bullets fired), then hold at 1.0. The same copy's spread and moving numbers match the wiki. Guides describe the Classic as having almost no recoil. To compare in the game's Range."
         },
         "tailMult": {
-          "value": 1,
+          "value": 0,
           "unit": "x",
-          "source": "trainer design",
+          "source": "openVaim 1.4.1 (community copy, numbers only)",
           "patch": null,
           "verified": false,
-          "note": "Climb per bullet past the pattern, as a share of its last value."
+          "note": "No climb past the pattern: held at 1.0 degree."
         },
         "horizStart": {
           "value": 3,
@@ -1305,15 +1516,15 @@
           "source": "trainer design",
           "patch": null,
           "verified": false,
-          "note": "Not published."
+          "note": "Not published. Does nothing while horiz is 0."
         },
         "horiz": {
-          "value": 0.3,
+          "value": 0,
           "unit": "deg",
-          "source": "trainer design",
+          "source": "openVaim 1.4.1 (community copy, numbers only)",
           "patch": null,
           "verified": false,
-          "note": "Size of the sideways sway after the protected bullets. Not published."
+          "note": "No sideways (yaw) recoil: the copy's yaw curve is flat 0; the sideways scatter is the spread cone's. Riot publishes yaw switch only for rifles and SMGs (patch 11.08). To confirm in the game's Range."
         },
         "recoverSec": {
           "value": 0.3,
@@ -1321,7 +1532,7 @@
           "source": "trainer design",
           "patch": null,
           "verified": false,
-          "note": "Not published for this weapon."
+          "note": "Not published by Riot for this weapon. openVaim 1.4.1 (community copy, numbers only), whose Vandal and Phantom Gun Recovery Times match Riot's 0.50 notes, also gives 0.3 s, reached from 4 bullets, with a shorter reset after fewer."
         }
       },
       "burst": {

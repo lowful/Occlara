@@ -20,7 +20,8 @@
 //
 // They move the way the player does (trainer-math.js stepGround, the same
 // acceleration and braking), so a strafing bot's stop takes the time a real
-// stop takes. Shooting back (hard levels): a bot that has seen the player for
+// stop takes, and a bot hit and still standing is tagged as the player is
+// (trainer-math.js taggedTop). Shooting back (hard levels): a bot that has seen the player for
 // its reaction time fires taps at its rate, each landing with its hit chance
 // as it stands then: lower at first and further off, and only FIRING_MAX of
 // them fire at once (scenarios.js says how it was tuned).
@@ -176,7 +177,7 @@ export function createBots(N, scene) {
       i, active: false, alive: false, x: 0, y: 0, z: 0, px: 0, pz: 0, yaw: 0, crouch: 0,
       v: { x: 0, z: 0 }, wish: { x: 0, z: 0 }, hp: 100, armour: 0, god: false,
       plan: null, t: 0, seenAt: -1, firstHitAt: -1, visFor: 0, nextShot: 0, flash: 0, downAt: -1, dying: 0, pdying: 0,
-      spawnedAt: 0, shoot: false, reaction: 0.35, hitChance: 0.3, rate: 3,
+      spawnedAt: 0, shoot: false, reaction: 0.35, hitChance: 0.3, rate: 3, tagUntil: 0,
       run: new Float32Array(4), phase: 0, pphase: 0,      // how much of each run clip, and where in its turn
       pitch: 0,                                           // how far up or down it aims, radians
     });
@@ -195,7 +196,7 @@ export function createBots(N, scene) {
       active: true, alive: true, x: a.x, y: a.y || 0, z: a.z, px: a.x, pz: a.z, yaw: a.yaw || 0,
       crouch: a.stance === 'crouch' ? 1 : 0, hp: a.hp || N.player.hp, armour: a.armour || 0, god: !!a.god,
       plan: a.plan || null, t: 0, seenAt: -1, firstHitAt: -1, visFor: 0, nextShot: 0, flash: 0, downAt: -1, dying: 0, pdying: 0, firing: false,
-      spawnedAt: now, shoot: !!a.shoot, reaction: a.reaction || 0.35, hitChance: a.hitChance || 0.3, rate: a.rate || 3,
+      spawnedAt: now, shoot: !!a.shoot, reaction: a.reaction || 0.35, hitChance: a.hitChance || 0.3, rate: a.rate || 3, tagUntil: 0,
       phase: 0, pphase: 0, pitch: 0,
       dmg: a.dmg || 0, dmgFar: a.dmgFar || 0, farFrom: a.farFrom || 0,
     });
@@ -208,29 +209,26 @@ export function createBots(N, scene) {
 
   /**
    * The bot's movement for this tick. A plan is a list of legs, each
-   * { to: [x, z], hold: seconds }, walked at the run speed with the player's
-   * own acceleration and braking; `loop` repeats it, `done` is called when
-   * the last leg is held.
+   * { to: [x, z], hold: seconds, still }, walked at the run speed with the
+   * player's own acceleration and braking (trainer-math.js walkLeg: `hold`
+   * counts from letting go of the keys, or with `still` from standing
+   * still); `more` (a function) gives the legs after the last, `loop`
+   * repeats it, `done` is called when the last leg is held. `brakeTop` is
+   * the bot's untagged run top speed, which its braking is scaled by.
    */
-  function steer(b, dt) {
+  function steer(b, dt, brakeTop) {
     const pl = b.plan;
     b.wish.x = 0; b.wish.z = 0;
     if (!pl || !pl.legs || !pl.legs.length) return;
     const leg = pl.legs[pl.i || 0];
     if (!leg) return;
-    const dx = leg.to[0] - b.x, dz = leg.to[1] - b.z;
-    const d = Math.hypot(dx, dz);
-    const speed = Math.hypot(b.v.x, b.v.z);
-    // The keys are let go early enough that braking stops on the mark.
-    const brakeDist = (speed * speed) / (2 * Math.max(1, N.move.brakingDecel + N.move.friction * speed * 0.5));
-    if (!pl.holding && d > Math.max(0.05, brakeDist)) { b.wish.x = dx / d; b.wish.z = dz / d; return; }
-    if (!pl.holding) { pl.holding = true; pl.heldFor = 0; }
-    pl.heldFor += dt;
-    if (speed < 0.05 && pl.heldFor >= (leg.hold || 0)) {
-      pl.holding = false;
+    if (M.walkLeg(pl, leg, b.x, b.z, b.v, brakeTop, N.move, dt, b.wish)) {
       pl.i = (pl.i || 0) + 1;
       if (pl.i >= pl.legs.length) {
-        if (pl.loop) pl.i = 0;
+        // `more` hands the next legs (a strafing target's, never repeating).
+        const more = pl.more ? pl.more() : null;
+        if (more && more.length) { pl.legs = more; pl.i = 0; }
+        else if (pl.loop) pl.i = 0;
         else { const done = pl.done; pl.legs = null; if (done) done(b); }
       }
     }
@@ -270,9 +268,14 @@ export function createBots(N, scene) {
         continue;
       }
       b.t += dt;
-      steer(b, dt);
+      // Hit and still standing, it is tagged as the player is (engine.js
+      // shoot sets tagUntil): its top speed slowed for move.tagSec, so a
+      // strafing bot that is hit is held near still while the slow lasts.
+      // The tag lowers only the cap; the braking stays the untagged run's.
+      const bt = M.taggedTop(N, top, now, b.tagUntil);
+      steer(b, dt, top);
       if (!b.active) continue;      // it walked its plan out and was taken away
-      M.stepGround(b.v, b.wish, top, N.move, dt);
+      M.stepGround(b.v, b.wish, bt, N.move, dt, top);
       b.x += b.v.x * dt; b.z += b.v.z * dt;
       b.yaw = Math.atan2(-(player.x - b.x), -(player.z - b.z));
       stride(b, dt);

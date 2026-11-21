@@ -101,10 +101,18 @@
     return 2 * Math.atan(Math.tan(v / 2) * aspect) / DEG;
   }
 
-  /** The vertical field of view zoomed by `zoom` (a scope or aim down sights). */
-  function zoomedFov(vfovDeg, zoom) {
-    if (!(zoom > 1)) return vfovDeg;
-    return 2 * Math.atan(Math.tan(vfovDeg * DEG / 2) / zoom) / DEG;
+  /**
+   * The camera's vertical field of view in degrees zoomed by `zoom` (a scope
+   * or aim down sights) for a viewport's aspect. Valorant divides the 16:9
+   * horizontal view by the zoom, linearly (data: sens.scopedRule's note:
+   * 1.25x shows 82.4 degrees across, 5x 20.6), and the screen then takes it
+   * by the same aspect rule as unzoomed (verticalFov).
+   */
+  function zoomedFov(n, aspect, zoom) {
+    const z = zoom > 1 ? zoom : 1;
+    const h = (n.fov.horizontal / z) * DEG;
+    const a = Math.max(aspect, n.fov.aspect);
+    return 2 * Math.atan(Math.tan(h / 2) / a) / DEG;
   }
 
   // ── Movement ─────────────────────────────────────────────────────────────
@@ -119,21 +127,38 @@
   }
 
   /**
+   * A top speed while tagged: slowed by tagSlow until `tagUntil` (seconds of
+   * the run's clock), then whole again (data: move.tagSlow, move.tagSec).
+   * The player and the bots alike.
+   */
+  function taggedTop(n, top, now, tagUntil) {
+    return now < tagUntil ? top * (1 - n.move.tagSlow) : top;
+  }
+
+  /**
    * One step of ground velocity. `v` is { x, z } in m/s, changed in place;
-   * `wish` is { x, z }, a unit vector or zero; `top` the top speed now.
+   * `wish` is { x, z }, a unit vector or zero; `top` the top speed now (the
+   * cap and the acceleration's target: walking, crouched and tagged lower
+   * it); `brakeTop` the weapon's run top speed (aimed when aimed) that the
+   * braking is scaled by, `top` when not given.
    *
    * As measured (data: move): with input the speed rises in a straight line
    * and reaches the top in accelTime whatever the top is (so the rate is
-   * top / accelTime); with none it brakes as dv/dt = -(brakingDecel +
-   * friction * speed). Pressing against the motion brakes at that same rate
-   * and no faster (move.counterStrafe: measured as no quicker than letting
-   * go), and only then accelerates the other way. The part of the motion
-   * across the wished line is braked the same way, so a turn is not a skate.
+   * top / accelTime); with none it brakes as dv/dt = -(brakingDecel x
+   * (brakeTop / knifeSpeed) + friction * speed), so the flat part scales
+   * with the weapon's run speed and a stop from a run takes the same time
+   * with every weapon (move.brakingDecel: Riot's Phantom table). Walk,
+   * crouch and a tag lower only the cap, never the braking, so a stop is
+   * no slower for them. Pressing against the motion brakes at that same
+   * rate and no faster (move.counterStrafe), and only then accelerates the
+   * other way. The part of the motion across the wished line is braked the
+   * same way, so a turn is not a skate.
    */
-  function stepGround(v, wish, top, m, dt) {
+  function stepGround(v, wish, top, m, dt, brakeTop) {
     const wl = Math.hypot(wish.x, wish.z);
     const speed = Math.hypot(v.x, v.z);
-    const brake = (s) => (m.brakingDecel + m.friction * s) * dt;
+    const flat = brakeFlat(m, brakeTop > 0 ? brakeTop : top);
+    const brake = (s) => (flat + m.friction * s) * dt;
     if (wl < 1e-6) {
       if (speed < 1e-9) { v.x = 0; v.z = 0; return v; }
       const next = speed - brake(speed);
@@ -164,6 +189,45 @@
     v.x = dx * along + sx;
     v.z = dz * along + sz;
     return v;
+  }
+
+  /** The flat part of braking in m/s2 for a weapon's run top speed: brakingDecel is stated at the knife's run speed and scales with it. */
+  function brakeFlat(m, top) {
+    return m.brakingDecel * (top > 0 ? top : m.knifeSpeed) / m.knifeSpeed;
+  }
+
+  /**
+   * About how far a ground stop from `speed` takes in metres, letting go,
+   * with the braking scaled by `brakeTop` (stepGround's). The friction is
+   * taken at half the speed, which errs a little long, so a walker that
+   * lets go at this distance stops on its mark or just short of it.
+   */
+  function stopDistance(m, speed, brakeTop) {
+    return (speed * speed) / (2 * Math.max(1, brakeFlat(m, brakeTop) + m.friction * speed * 0.5));
+  }
+
+  /**
+   * One tick of a bot walking a leg of its plan (bots.js steer). `pl` is the
+   * plan (its `holding` and `heldFor` are kept on it), `leg` is
+   * { to: [x, z], hold, still }, `x` and `z` where the bot stands, `v` its
+   * velocity, `brakeTop` its untagged run top speed; `wish` is set to the
+   * way to press, or zero. The keys are let go once the mark is within a
+   * stop. `hold` counts from letting go, so it includes the stop (a peek's
+   * holds); with `still` it counts only the time stood still, after the
+   * stop (a strafing target's dwell, data: strafe.dwell). Returns true on
+   * the tick the hold is over and the leg is done.
+   */
+  function walkLeg(pl, leg, x, z, v, brakeTop, m, dt, wish) {
+    wish.x = 0; wish.z = 0;
+    const dx = leg.to[0] - x, dz = leg.to[1] - z;
+    const d = Math.hypot(dx, dz);
+    const speed = Math.hypot(v.x, v.z);
+    if (!pl.holding && d > Math.max(m.stopSpeed, stopDistance(m, speed, brakeTop))) { wish.x = dx / d; wish.z = dz / d; return false; }
+    if (!pl.holding) { pl.holding = true; pl.heldFor = 0; }
+    const stopped = speed < m.stopSpeed;
+    if (stopped || !leg.still) pl.heldFor += dt;
+    if (stopped && pl.heldFor >= (leg.hold || 0)) { pl.holding = false; return true; }
+    return false;
   }
 
   /** Air: a little steering, no braking (data: move.airControl). */
@@ -203,9 +267,20 @@
     return null;
   }
 
-  /** Whether a shot at this speed is accurate: at or under the gate's share of the top speed of how the player moves now. */
+  /**
+   * The accuracy gate in m/s: the gate's share (27.5%) of the weapon's RUN
+   * top speed whether walk is held or not, and crouched of the crouch top
+   * speed (data: move.accurateFrac; Riot_Classick 2020 gives the 25% dead
+   * zone and the 61% walk on one scale, the run speed's). Aimed, of the
+   * aimed top speed.
+   */
+  function gateSpeed(n, weapon, mode, ads) {
+    return topSpeed(n, weapon, mode === 'crouch' ? 'crouch' : 'run', ads) * n.move.accurateFrac;
+  }
+
+  /** Whether a shot at this speed is accurate: at or under the accuracy gate. */
   function accurate(n, speed, weapon, mode, ads) {
-    return speed <= topSpeed(n, weapon, mode || 'run', ads) * n.move.accurateFrac + 1e-9;
+    return speed <= gateSpeed(n, weapon, mode, ads) + 1e-9;
   }
 
   /** Metres per second of upward speed a jump starts with. */
@@ -228,62 +303,193 @@
    * @param s.speed  ground speed m/s; s.air in the air; s.crouch crouched;
    *                 s.walk walk held; s.landing seconds since landing
    *
-   * The cone: the first shot's (aimed or not), growing by `growth` a bullet
-   * of the spray up to the maximum, smaller crouched. Moving over the gate
-   * (27.5% of the top speed of how the player moves now) adds the weapon's
-   * moving error, scaled from the gate up to that top speed: crouched to the
-   * crouch-walking error, walking to the walking error, running through the
-   * walking error at walk speed to the running error at full speed. In the
-   * air the airborne error; just landed, the landing error.
+   * The cone: the first shot's, opening bullet by bullet along the
+   * weapon's `curve` (the last value held past its end) or, with no curve,
+   * by `growth` a bullet up to the maximum. Aimed, the hip cone is mapped
+   * straight across from [first, max] onto [adsFirst, adsMax], or with no
+   * adsMax starts from adsFirst and opens as the hip cone does. Crouched the
+   * whole cone is smaller by crouchMult.
+   *
+   * Moving over the accuracy gate (gateSpeed) adds the weapon's moving
+   * error as a state, never a ramp: up to the walk top speed the full
+   * walking error, over it the full running error; crouched, the crouch
+   * moving error from the crouch gate up to the crouch top speed. In the air
+   * the airborne error; just landed, the landing error.
    */
   function spread(n, w, s) {
+    const p = spreadParts(n, w, s);
+    return p.fire + p.move;
+  }
+
+  /**
+   * The same cone as spread(), in its two parts, degrees: `fire`, the firing
+   * error (the first shot's cone opened by the spray, aimed or not, the
+   * crouch's share) and `move`, the movement error added on top (walking,
+   * running, crouch moving, in the air, just landed), 0 when steady.
+   * spread() is their sum; the run's report draws them shot by shot
+   * (errorGraph).
+   */
+  function spreadParts(n, w, s) {
     const sp = w.spread;
-    let base = s.ads && sp.adsFirst != null ? sp.adsFirst : sp.first;
     const k = Math.max(0, (s.shot || 1) - 1);
-    base = Math.min(Math.max(sp.max, base), base + sp.growth * k);
+    const hip = Array.isArray(sp.curve) && sp.curve.length
+      ? sp.curve[Math.min(k, sp.curve.length - 1)]
+      : Math.min(Math.max(sp.max, sp.first), sp.first + sp.growth * k);
+    let base = hip;
+    if (s.ads && sp.adsFirst != null) {
+      base = sp.adsMax != null && sp.max > sp.first
+        ? sp.adsFirst + (hip - sp.first) * (sp.adsMax - sp.adsFirst) / (sp.max - sp.first)
+        : Math.min(Math.max(sp.max, sp.adsFirst), sp.adsFirst + (hip - sp.first));
+    }
     if (s.crouch && !s.air) base *= sp.crouchMult;
-    if (s.air) return base + sp.air;
-    if (s.landing != null && s.landing < n.move.landingSec) return base + n.move.landingSpread;
+    if (s.air) return { fire: base, move: sp.air };
+    if (s.landing != null && s.landing < n.move.landingSec) return { fire: base, move: n.move.landingSpread };
     const speed = s.speed || 0;
     const mode = s.crouch ? 'crouch' : s.walk ? 'walk' : 'run';
-    if (accurate(n, speed, w, mode, s.ads)) return base;
-    const run = topSpeed(n, w, 'run', s.ads);
-    const gateOf = (top) => top * n.move.accurateFrac;
+    if (accurate(n, speed, w, mode, s.ads)) return { fire: base, move: 0 };
     let add;
     if (mode === 'crouch') {
       const top = topSpeed(n, w, 'crouch', s.ads);
-      add = sp.crouchMove * clamp((speed - gateOf(top)) / Math.max(1e-6, top - gateOf(top)), 0, 1);
+      const g = gateSpeed(n, w, 'crouch', s.ads);
+      add = sp.crouchMove * clamp((speed - g) / Math.max(1e-6, top - g), 0, 1);
     } else {
-      const walk = topSpeed(n, w, 'walk', s.ads);
-      const g = gateOf(mode === 'walk' ? walk : run);
-      add = speed <= walk
-        ? sp.walk * clamp((speed - g) / Math.max(1e-6, walk - g), 0, 1)
-        : sp.walk + (sp.run - sp.walk) * clamp((speed - walk) / Math.max(1e-6, run - walk), 0, 1);
+      add = speed <= topSpeed(n, w, 'walk', s.ads) + 1e-9 ? sp.walk : sp.run;
     }
-    return base + add;
+    return { fire: base, move: add };
+  }
+
+  /**
+   * The exponent on a random in [0, 1) that places a shot inside its cone,
+   * radius = cone x rand ^ p (0.5 is even over the disc, more is biased to
+   * the middle). Riot 6.11: biased standing and walking, near even moving;
+   * data errorPower: `steady` standing, walking or crouched, `moving`
+   * running (over the walk top speed) or in the air.
+   */
+  function errorPower(n, w, s) {
+    const e = n.errorPower;
+    if (s.air) return e.moving;
+    if (!s.crouch && (s.speed || 0) > topSpeed(n, w, 'walk', s.ads) + 1e-9) return e.moving;
+    return e.steady;
+  }
+
+  /** How far from the middle of a cone of `cone` degrees a shot lands, for a random `u` in [0, 1) and an exponent `p`. */
+  function coneRadius(cone, u, p) {
+    return cone * Math.pow(Math.max(0, u), p);
+  }
+
+  /** Rounds a second the weapon fires: aimed down sights times its adsFireRateMult (data), when it has one. */
+  function fireRateOf(w, ads) {
+    return ads && w.adsFireRateMult > 0 ? w.fireRate * w.adsFireRateMult : w.fireRate;
   }
 
   /** The shot's place in the spray after `idleSec` without firing: the spray resets over the weapon's recovery time. */
-  function sprayAfter(w, shot, idleSec) {
+  function sprayAfter(w, shot, idleSec, ads) {
     // Holding the trigger is no rest: nothing comes back within one fire
-    // interval. From there it falls away to nothing at the recovery time.
-    const held = 1.05 / w.fireRate;
+    // interval (the aimed one when aimed). From there it falls away to
+    // nothing at the recovery time.
+    const held = 1.05 / fireRateOf(w, ads);
     if (idleSec <= held) return shot;
     if (idleSec >= w.recoil.recoverSec) return 0;
     return Math.max(0, Math.round(shot * (1 - (idleSec - held) / Math.max(1e-6, w.recoil.recoverSec - held))));
   }
 
   /**
-   * The recoil offset in degrees ({ pitch up, yaw }) the next bullet leaves
-   * with, for the `shot`-th bullet of a spray. Vertical climbs by the
-   * pattern; past `horizStart` it sways side to side by `rand` in [-1, 1].
+   * The upward kick in degrees the `shot`-th bullet of a spray adds for the
+   * next one: the vertical pattern, then its last value times tailMult.
    */
-  function recoilKick(w, shot, rand) {
+  function recoilKick(w, shot) {
     const r = w.recoil;
     const i = Math.max(0, shot - 1);
     const up = i < r.vertical.length ? r.vertical[i] : r.vertical[r.vertical.length - 1] * r.tailMult;
-    const side = shot > r.horizStart ? r.horiz * rand : 0;
-    return { up, side };
+    return { up };
+  }
+
+  /**
+   * The size in degrees of the sideways drift the `shot`-th bullet leaves
+   * with: none on the first, growing in a straight line to `horiz` over
+   * `horizRamp` bullets, then held. Its side is yawSide's.
+   */
+  function yawDrift(w, shot) {
+    const r = w.recoil;
+    if (!(r.horiz > 0)) return 0;
+    const i = Math.max(0, (shot || 1) - 1);
+    const ramp = r.horizRamp > 0 ? r.horizRamp : 1;
+    return r.horiz * Math.min(1, i / ramp);
+  }
+
+  /**
+   * The sideways drift's side as a factor in [-1, 1] for the `shot`-th
+   * bullet, fired at `now` seconds (Riot 11.08's yaw switch). The first
+   * bullet of a spray picks a side and the spray holds it; past the
+   * protected bullets (`horizStart`) each bullet may switch it with
+   * `yawSwitchChance`, and a switch eases from one side to the other over
+   * `yawSwitchSec`, no other starting while it does. `side` is the caller's
+   * { dir, from, at }, changed in place; `rand` gives [0, 1).
+   */
+  function yawSide(w, side, shot, now, rand) {
+    const r = w.recoil;
+    const sec = r.yawSwitchSec > 0 ? r.yawSwitchSec : 0;
+    if ((shot || 1) <= 1 || !side.dir) {
+      side.dir = rand() < 0.5 ? -1 : 1;
+      side.from = side.dir;
+      side.at = -Infinity;
+      return side.dir;
+    }
+    const easing = now - side.at < sec;
+    if (!easing && shot > r.horizStart && r.yawSwitchChance > 0 && rand() < r.yawSwitchChance) {
+      side.from = yawFactor(side, now, sec);
+      side.dir = -side.dir;
+      side.at = now;
+    }
+    return yawFactor(side, now, sec);
+  }
+
+  /** Where a side switch stands at `now`: from `from` to `dir`, eased in and out over `sec`. */
+  function yawFactor(side, now, sec) {
+    if (!(sec > 0) || !(now - side.at < sec)) return side.dir;
+    const t = clamp((now - side.at) / sec, 0, 1);
+    const e = t * t * (3 - 2 * t);
+    return side.from + (side.dir - side.from) * e;
+  }
+
+  // ── Seeded randomness and the strafing targets ───────────────────────────
+
+  /** A seeded random in [0, 1) (xorshift32): the same seed gives the same run. */
+  function rng(seed) {
+    let s = seed >>> 0 || 0x9e3779b9;
+    return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 4294967296; };
+  }
+
+  /**
+   * A strafing target's ADAD, leg by leg (data: strafe, all the Trainer's
+   * own design). `st` is numbers().strafe, `rand` a seeded random. The lane's
+   * half width is picked once; then each `next()` is one leg, `{ off, hold,
+   * tap }`: where it ends in metres from the lane's middle (where the target
+   * stood at first), how long the target stands there, and whether it was a
+   * tap. Every leg reverses the one before. A long leg covers a random share
+   * of the lane's full width (`travel`), a tap (`tapChance`) a short random
+   * distance (`tap`); either is cut at the lane's edge, and a target with
+   * less than the shortest tap of room ahead turns back the other way. The
+   * bot walks each leg on stepGround, so the starts and stops are real ones.
+   */
+  function strafer(st, rand) {
+    const pickIn = (r) => r[0] + (r[1] - r[0]) * rand();
+    const half = pickIn(st.lane);
+    let pos = 0;
+    let dir = rand() < 0.5 ? -1 : 1;
+    const roomAhead = () => (dir > 0 ? half - pos : pos + half);
+    return {
+      half,
+      next() {
+        const tap = rand() < st.tapChance;
+        const want = tap ? Math.min(pickIn(st.tap), 2 * half) : pickIn(st.travel) * 2 * half;
+        if (roomAhead() < st.tap[0]) dir = -dir;
+        pos += dir * Math.min(want, roomAhead());
+        const leg = { off: pos, hold: pickIn(st.dwell), tap };
+        dir = -dir;
+        return leg;
+      },
+    };
   }
 
   /** Damage of one bullet: by zone and range band, before armour. */
@@ -513,6 +719,29 @@
   }
 
   /**
+   * The report's shooting error graph, from every shot of a run as `{ fire,
+   * move }` in degrees (spreadParts, oldest first). `bars`: the last `cap`
+   * of them (all when no cap), oldest first. `top`: the graph's height in
+   * degrees, the tallest bar rounded up to 1, 1.5, 2, 3, 5 or 7.5 times a
+   * power of ten, never under 0.5. `shots`: how many in the run; `moving`: how many of
+   * them carried any movement error.
+   */
+  function errorGraph(shots, cap) {
+    const all = Array.isArray(shots) ? shots.filter((s) => s && Number.isFinite(s.fire) && Number.isFinite(s.move)) : [];
+    const bars = cap > 0 ? all.slice(-cap) : all.slice();
+    let tallest = 0;
+    for (const b of bars) tallest = Math.max(tallest, b.fire + b.move);
+    let top = 0.5;
+    if (tallest > top) {
+      const p = Math.pow(10, Math.floor(Math.log10(tallest)));
+      top = [1, 1.5, 2, 3, 5, 7.5, 10].map((m) => m * p).find((v) => v >= tallest - 1e-9);
+    }
+    let moving = 0;
+    for (const s of all) if (s.move > 0) moving++;
+    return { bars, top, shots: all.length, moving };
+  }
+
+  /**
    * One kill's points before the accuracy factor: 100, 50 more for a head
    * kill, up to 100 more for its speed (a kill in 300 ms or less earns it
    * all, 1500 ms or more none).
@@ -611,8 +840,9 @@
   return {
     DEG, numbers, unverified,
     degPerCount, cm360, verticalFov, zoomedFov,
-    topSpeed, stepGround, stepAir, timeToSpeed, timeToStop, accurate, jumpSpeed, jumpHeight, horizontalFov,
-    spread, sprayAfter, recoilKick, rawDamage, applyDamage, shotsToKill,
+    topSpeed, taggedTop, stepGround, stepAir, brakeFlat, stopDistance, walkLeg, timeToSpeed, timeToStop, gateSpeed, accurate, jumpSpeed, jumpHeight, horizontalFov,
+    spread, spreadParts, errorPower, coneRadius, fireRateOf, sprayAfter, recoilKick, yawDrift, yawSide, rawDamage, applyDamage, shotsToKill,
+    rng, strafer, errorGraph,
     PRIMARIES, SECONDARIES, ENEMY_COLOURS, validKey, BIND_ACTIONS, DEFAULT_BINDS, DEFAULT_CROSSHAIR, DEFAULT_SETTINGS, normaliseSettings, validSettings, normaliseCrosshair, parseCrosshairCode,
     report, score, killPoints, SCHEMA, RUNS_MAX, emptyState, normaliseState, addRun, historyOf, cleanRun,
   };

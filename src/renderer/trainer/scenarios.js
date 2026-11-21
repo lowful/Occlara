@@ -39,25 +39,34 @@ export function controllerFor(sc, eng, run) {
   if (sc.arena === 'range' && sc.kind !== 'calibration') {
     let left = sc.bots;
     let lastYaw = 0;
+    // The range's targets come from the run's seed (app.js begin), so a run
+    // is laid out again from it: where each target stands, and how each
+    // strafing target moves.
+    const rand = M.rng(run.seed);
+    const rr = (a, b) => a + rand() * (b - a);
     function place(now) {
       if (left <= 0) { c.done = true; return; }
       let yaw, dist, plan = null;
-      if (sc.kind === 'flick') { yaw = rnd(-55, 55) * M.DEG; dist = rnd(8, 22); }
-      else if (sc.kind === 'micro') { yaw = lastYaw + (Math.random() < 0.5 ? -1 : 1) * rnd(1.2, 4) * M.DEG; if (Math.abs(yaw) > 25 * M.DEG) yaw = rnd(-5, 5) * M.DEG; dist = rnd(13, 16); }
+      if (sc.kind === 'flick') { yaw = rr(-55, 55) * M.DEG; dist = rr(8, 22); }
+      else if (sc.kind === 'micro') { yaw = lastYaw + (rand() < 0.5 ? -1 : 1) * rr(1.2, 4) * M.DEG; if (Math.abs(yaw) > 25 * M.DEG) yaw = rr(-5, 5) * M.DEG; dist = rr(13, 16); }
       else if (sc.kind === 'spray') { yaw = 0; dist = 10; }
-      else { yaw = rnd(-35, 35) * M.DEG; dist = rnd(11, 18); }
+      else { yaw = rr(-35, 35) * M.DEG; dist = rr(11, 18); }
       lastYaw = yaw;
       const x = -Math.sin(yaw) * dist, z = -Math.cos(yaw) * dist;
       if (sc.kind === 'track') {
-        // It strafes across the player's view and stops, as a player does.
+        // It strafes across the player's view as a player does, never the
+        // same twice: an ADAD with a random travel, a random hold at each
+        // turn and short taps (trainer-math.js strafer, data: strafe), from
+        // its own seed drawn off the run's. The legs come a few at a time
+        // and never run out.
         const ax = Math.cos(yaw), az = -Math.sin(yaw);
-        const span = rnd(2.5, 4.5);
-        const legs = [];
-        for (let i = 0; i < 6; i++) {
-          const s = (i % 2 ? -1 : 1) * span * rnd(0.6, 1);
-          legs.push({ to: [x + ax * s, z + az * s], hold: rnd(0.2, 0.55) });
-        }
-        plan = { legs, loop: true };
+        const legsOf = M.strafer(N.strafe, M.rng((rand() * 4294967296) >>> 0));
+        const more = () => {
+          const legs = [];
+          for (let i = 0; i < 8; i++) { const l = legsOf.next(); legs.push({ to: [x + ax * l.off, z + az * l.off], hold: l.hold, still: true }); }
+          return legs;
+        };
+        plan = { legs: more(), more };
       }
       eng.bots.spawn({ x, y: 0, z, plan, hp: N.player.hp, god: sc.kind === 'spray' }, now);
       if (sc.kind !== 'spray') left -= 1;

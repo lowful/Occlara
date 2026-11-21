@@ -20,10 +20,9 @@ import { GUNS } from './models/guns.js';
 
 const M = window.OcclaraTrainerMath;
 
-/** A seeded random in [0, 1). */
+/** A seeded random in [0, 1) (trainer-math.js rng, the one the strafing targets use). */
 export function rng(seed) {
-  let s = seed >>> 0 || 0x9e3779b9;
-  return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 4294967296; };
+  return M.rng(seed);
 }
 
 // Where each view model is held: at rest (`hip`, with its turn in radians),
@@ -155,6 +154,7 @@ export function createGuns(N, loadout, seed) {
     equipUntil: 0, equipFrom: 0, reloadUntil: 0, reloadFrom: 0,
     nextShot: 0, lastShot: -10, shot: 0,          // the spray: the last bullet's place in it
     recoilPitch: 0, recoilYaw: 0,                  // degrees, what the spray has built
+    yawSide: { dir: 0, from: 0, at: -Infinity },   // the sideways drift's side (trainer-math.js yawSide)
     trigger: false, alt: false, burstLeft: 0,
     kick: 0, kickV: 0, flashUntil: 0, bob: 0, ads: 0, swayX: 0, swayY: 0, lastYaw: 0, lastPitch: 0, swing: 0,
   };
@@ -197,19 +197,28 @@ export function createGuns(N, loadout, seed) {
     if (!st.trigger && !burst) return null;
     if (now < st.nextShot) return null;
     if (s.ammo <= 0) { st.trigger = false; st.burstLeft = 0; return { dry: true }; }
-    const rate = burst ? w.burst.rate : w.fireRate;
-    // Where the spray stands: put back by the rest since the last bullet.
-    st.shot = M.sprayAfter(w, st.shot, now - st.lastShot) + 1;
     const ads = st.alt && w.alt === 'ads';
-    const cone = M.spread(N, w, { shot: st.shot, ads, speed: move.speed, air: move.air, crouch: move.crouch, walk: move.walk, landing: move.landing })
-      + (burst ? w.burst.spreadAdd : 0);
-    const k = M.recoilKick(w, st.shot, rand() * 2 - 1);
+    // Aimed, the rifles fire slower (data: adsFireRateMult).
+    const rate = burst ? w.burst.rate : M.fireRateOf(w, ads);
+    // Where the spray stands: put back by the rest since the last bullet.
+    st.shot = M.sprayAfter(w, st.shot, now - st.lastShot, ads) + 1;
+    const shotAt = { shot: st.shot, ads, speed: move.speed, air: move.air, crouch: move.crouch, walk: move.walk, landing: move.landing };
+    // The cone in its two parts: the firing error (the burst's added error
+    // with it) and the movement error, kept apart for the report's graph.
+    const parts = M.spreadParts(N, w, shotAt);
+    const fireErr = parts.fire + (burst ? w.burst.spreadAdd : 0);
+    const cone = fireErr + parts.move;
+    const k = M.recoilKick(w, st.shot);
+    // The sideways drift: one side a spray, which may switch past the
+    // protected bullets (trainer-math.js yawSide), set for this bullet.
+    st.recoilYaw = M.yawSide(w, st.yawSide, st.shot, now, rand) * M.yawDrift(w, st.shot);
     // The bullet leaves along the recoil built before this shot; this shot's
     // kick moves the crosshair for the next one.
     const pitch = st.recoilPitch, yaw = st.recoilYaw;
     st.recoilPitch += k.up * (burst ? w.burst.recoilMult : 1);
-    st.recoilYaw += k.side;
-    const r = cone * Math.sqrt(rand());       // a point evenly in the cone's disc
+    // A point in the cone, biased to the middle when steady and near even
+    // when running or in the air (trainer-math.js errorPower).
+    const r = M.coneRadius(cone, rand(), M.errorPower(N, w, shotAt));
     const a = rand() * Math.PI * 2;
     s.ammo -= 1;
     st.lastShot = now;
@@ -221,14 +230,14 @@ export function createGuns(N, loadout, seed) {
     flashMat.uniforms.uSeed.value = rand() * 6.28;
     const last = s.ammo <= 0;
     if (last) reload(now);
-    return { pitch: pitch + r * Math.sin(a), yaw: yaw + r * Math.cos(a), first: st.shot === 1, shot: st.shot, cone, weapon: s.id, emptied: last };
+    return { pitch: pitch + r * Math.sin(a), yaw: yaw + r * Math.cos(a), first: st.shot === 1, shot: st.shot, cone, fireErr, moveErr: parts.move, weapon: s.id, emptied: last };
   }
 
   /** The crosshair settles back as the trigger rests. */
   function recover(now, dt) {
     const w = cur().w;
     if (!w) { st.recoilPitch = 0; st.recoilYaw = 0; return; }
-    if (now - st.lastShot < 1 / w.fireRate + 0.012) return;
+    if (now - st.lastShot < 1 / M.fireRateOf(w, st.alt && w.alt === 'ads') + 0.012) return;
     const k = Math.min(1, (dt / Math.max(0.05, w.recoil.recoverSec)) * 3.2);
     st.recoilPitch -= st.recoilPitch * k;
     st.recoilYaw -= st.recoilYaw * k;

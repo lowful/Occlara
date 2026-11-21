@@ -172,6 +172,19 @@
             <span id="r-best" class="tr-r-best"></span>
           </div>
           <svg id="r-chart" class="tr-chart" viewBox="0 0 400 96" preserveAspectRatio="none" role="img" aria-label="Your last scores"></svg>
+          <!-- The shooting error graph (shot-graph.js): one bar a shot, the
+               firing error under the movement error. -->
+          <div id="r-err" class="tr-err" hidden>
+            <p class="tr-err-head">
+              <span id="r-err-t">Shooting error, shot by shot</span>
+              <span class="tr-err-key"><i class="fire"></i>Firing error<i class="move"></i>Movement error</span>
+            </p>
+            <div class="tr-err-plot">
+              <svg id="r-err-bars" class="tr-err-bars" viewBox="0 0 400 48" preserveAspectRatio="none" role="img"></svg>
+              <span id="r-err-top" class="tr-err-top"></span>
+            </div>
+            <p id="r-err-said" class="tr-hint"></p>
+          </div>
           <div id="r-stats" class="tr-r-stats"></div>
           <p id="r-note" class="tr-hint"></p>
           <div class="tr-actions">
