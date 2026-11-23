@@ -7,7 +7,7 @@ Every claim below points at the file that shows it, so you can check it yourself
 - **No game memory is read.** Nothing in this app opens the game's process or reads its memory. Search the source for `ReadProcessMemory` or `OpenProcess`: there is none.
 - **No game files are read or changed.**
 - **No input is sent.** The app never presses keys or moves the mouse for you. There is no `SendInput`, `keybd_event`, `robotjs` or anything like it.
-- **It sees the screen the way OBS does.** Frames come from a plain screen capture: [`native/OcclaraCapture.cs`](native/OcclaraCapture.cs) (the small helper, using GDI `CopyFromScreen`) and [`src/main/services/capture.js`](src/main/services/capture.js), or from the match recording while one runs ([`src/main/services/recorder.js`](src/main/services/recorder.js)).
+- **It sees the screen the way OBS does.** Frames come from a plain screen capture: the ffmpeg that ships with the app grabs one frame of the desktop with its `gdigrab` input, a GDI copy of the screen ([`src/main/services/gdi-grab.js`](src/main/services/gdi-grab.js) holds the exact arguments, [`src/main/services/capture.js`](src/main/services/capture.js) runs it), or from the match recording while one runs ([`src/main/services/recorder.js`](src/main/services/recorder.js)).
 
 ## Nothing coaches you during a match
 

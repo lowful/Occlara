@@ -3,13 +3,14 @@
 /**
  * Screen capture in a Worker Thread + child process, entirely OFF the main and
  * render threads and off the game's render path, so it never causes an in-game
- * hitch. The capture itself is the fast GDI CopyFromScreen primitive, run from
- * a small compiled helper exe (OcclaraCapture.exe) rather than powershell.
- * That is deliberate: the identical PowerShell script matched Windows Defender's
- * PowerShell Empire "Get-Screenshot" signature and got flagged as a HackTool on
- * users' machines. The compiled exe is the same speed with none of that. The
- * PowerShell path survives only as a fallback for the (unexpected) case where
- * the exe is missing from the package.
+ * hitch. The capture itself is a GDI copy of the screen, taken by the ffmpeg
+ * that ships with the app (gdigrab, 8.16.1; gdi-grab.js). It was a PowerShell
+ * script first, which matched Windows Defender's PowerShell Empire
+ * "Get-Screenshot" signature, then a small helper exe of our own
+ * (OcclaraCapture.exe), which Bitdefender quarantined as Trojan.GenericKD: a
+ * tiny unsigned file whose whole job is copying the screen. The helper is no
+ * longer in the installer and is used only where it still exists; PowerShell
+ * only when neither file does (capture-worker.js).
  *
  * WHILE THE MATCH IS RECORDED (8.3) the frame comes from the recording
  * instead: the recorder (services/recorder.js) hands its stream in through
@@ -25,6 +26,7 @@ const { Worker } = require('worker_threads');
 const path = require('path');
 const fs   = require('fs');
 const { CAPTURE } = require('../../shared/config');
+const { geometry } = require('./gdi-grab');
 
 let worker  = null;
 // Every capture the helper is asked for, by id: the read's and the
@@ -33,10 +35,11 @@ const waiting = new Map();
 let nextId = 1;
 let stream = null;        // the recorder's { grab(profile) }, while it serves the read
 let lastSource = null;    // 'stream' | 'gdi', where the last frame served came from
+let lastVia = null;       // 'ffmpeg' | 'helper' | 'powershell', who took the last GDI frame
 let fake = false;         // unpackaged checks only: no screen is ever captured
 
-// Packaged: shipped to resources/ via electron-builder extraResources.
-// Dev: the compiled exe sits in the repo's native/ folder.
+// The old helper, where it still exists: not shipped since 8.16.1, so in an
+// install only what an interrupted update left behind. Dev: native/.
 function resolveHelperExe() {
   const candidates = [
     path.join(process.resourcesPath || '', 'OcclaraCapture.exe'),
@@ -51,6 +54,23 @@ function resolveHelperExe() {
   return null;
 }
 
+// The ffmpeg beside the app when installed, the dev dependency in the repo
+// (import-video.js ffmpegPath, the same file the importer and the clips use).
+function resolveFfmpegExe() {
+  let p = null;
+  try {
+    const { app } = require('electron');
+    p = require('./import-video').ffmpegPath({ packaged: !!(app && app.isPackaged), resourcesPath: process.resourcesPath || '' });
+  } catch { p = null; }
+  try { return p && fs.existsSync(p) ? p : null; } catch { return null; }
+}
+
+// The primary display in physical pixels, asked for each frame: a monitor
+// plugged in mid session changes what "desktop" is to gdigrab.
+function primaryGeometry() {
+  try { return geometry(require('electron').screen); } catch { return null; }
+}
+
 function failAll(err) {
   for (const [id, p] of [...waiting]) { waiting.delete(id); clearTimeout(p.timer); p.reject(err); }
 }
@@ -58,10 +78,16 @@ function failAll(err) {
 function getWorker() {
   if (worker) return worker;
   worker = new Worker(path.join(__dirname, 'capture-worker.js'), {
-    workerData: { helperExe: resolveHelperExe() },
+    workerData: { helperExe: resolveHelperExe(), ffmpegExe: resolveFfmpegExe() },
   });
 
   worker.on('message', (msg) => {
+    // Who took the frame, to the debug log whenever it changes (never to the
+    // screen): ffmpeg, or the old helper or PowerShell with what ffmpeg said.
+    if (msg && msg.success && msg.via && msg.via !== lastVia) {
+      lastVia = msg.via;
+      console.log(`[capture] the GDI frame is taken by ${msg.via}${msg.why ? `, ffmpeg failed: ${String(msg.why).slice(0, 200)}` : ''}`);
+    }
     const p = msg && waiting.get(msg.id);
     if (!p) return;   // timed out already
     waiting.delete(msg.id);
@@ -114,7 +140,7 @@ function captureGdi(quality) {
       if (waiting.delete(id)) reject(new Error('Capture timeout'));
     }, CAPTURE.timeoutMs);
     waiting.set(id, { resolve, reject, timer });
-    w.postMessage({ id, quality: quality || 'standard' });
+    w.postMessage({ id, quality: quality || 'standard', geom: primaryGeometry() });
   });
 }
 

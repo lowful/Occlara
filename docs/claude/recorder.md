@@ -9,6 +9,7 @@ src/main/services/recorder.js        pages, holds, the sweep, the disk guard, he
 src/main/windows/recorder-window.js  a window nobody sees, the primary display's source, the CPU sample
 src/renderer/recorder/               the page: the gate, MediaRecorder fed 30 frames a second, 15 at 480p (grid.js), the read's frame, health each second
 src/main/services/capture.js         the read's frame: from the stream while it serves one, else the GDI helper
+src/main/services/gdi-grab.js        the GDI frame's ffmpeg arguments (gdigrab) and the primary display's rectangle
 src/shared/webm.js                   the chunks read as they come, whole Clusters out, clips cut by them
 src/shared/clips.js                  a clip's name, its seconds, when a look's death was, the cap's choices
 src/main/services/review-clips.js    the clips of a review's moments cut, and shown or said to be gone
@@ -261,6 +262,29 @@ PC coped, never what was on it.
   (`SetProcessDPIAware`, native/OcclaraCapture.cs, rebuilt): unaware, at 125%
   it copied only the top left 1536x864 of a 1920x1080 screen, and the read
   changed framing whenever it fell back to GDI.
+- **The GDI frame is taken by ffmpeg (8.16.1), no longer by a helper of our
+  own.** Bitdefender quarantined `OcclaraCapture.exe` as Trojan.GenericKD on
+  players' machines: 5 KB, unsigned, windowless, and all it did was copy the
+  screen and print it, the shape of a screenshot stealer to an engine that has
+  never seen the file. The same GDI copy now comes from the ffmpeg already
+  shipped for clips and imports, one frame of `-f gdigrab -i desktop` to
+  stdout (`gdi-grab.js` builds the arguments, `capture-worker.js` runs them),
+  about 105 ms a frame against the helper's 80. "The GDI helper" in these docs
+  and in the code's comments now means that. With one display the desktop is
+  the primary; with more, the primary's rectangle in physical pixels is asked
+  for (`geometry`, Electron's `dipToScreenRect`, sent with every frame), and a
+  desktop gdigrab refuses that of is taken whole and cropped. The helper is out
+  of the installer (`extraResources`) and is run only where the file still
+  exists (the repo, an install an update left it in), for a frame ffmpeg could
+  not give. The PowerShell script, which Defender flags as a HackTool, runs
+  only when neither file is there, never because ffmpeg failed. Never ship a
+  small exe of our own that touches the screen again: sign it first, or let
+  ffmpeg or Electron do it. Quality 70 and 50 are `-q:v` 2 and 3, matched by
+  size and rounded sharper. `npm run test:gdigrab` holds all of it. Who took
+  the frame goes to the debug log whenever it changes (`[capture] the GDI frame
+  is taken by ffmpeg`, or the helper or PowerShell with what ffmpeg said):
+  in the repo the helper is a silent backup, so a match played with `npm
+  start` proves ffmpeg only by that line.
 - **What is kept.** One minute pages beside one `init.mkv` under
   `userData/recording/rec-<stamp>/`, whole Clusters only, so the init segment
   and the pages joined are the recording byte for byte. A page two minutes old

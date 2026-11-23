@@ -1,6 +1,6 @@
 {
   "name": "occlara",
-  "version": "8.16.0",
+  "version": "8.16.1",
   "description": "Occlara, an AI coach for Valorant, with League of Legends coming soon. Reads the screen, never the game, shows nothing during a match, and grades every match when it ends.",
   "main": "src/main/index.js",
   "scripts": {
@@ -165,6 +165,7 @@
     "make:drilldemo": "node scripts/make-drill-demo.js",
     "check:publicmirror": "node scripts/check-public-mirror.js",
     "publish:public": "node scripts/publish-public.js --push",
+    "test:gdigrab": "node scripts/test-gdigrab.js",
     "test:importvideo": "node scripts/test-import-video.js",
     "test:importserver": "node scripts/test-import-server.js",
     "check:importclip": "node scripts/check-import-clip.js"
@@ -189,10 +190,6 @@
       "package.json"
     ],
     "extraResources": [
-      {
-        "from": "native/OcclaraCapture.exe",
-        "to": "OcclaraCapture.exe"
-      },
       {
         "from": "node_modules/ffmpeg-static/ffmpeg.exe",
         "to": "ffmpeg.exe"

@@ -1,5 +1,21 @@
 [
   {
+    "version": "8.16.1",
+    "date": "2026-11-22",
+    "title": "No more antivirus alert on the capture helper",
+    "summary": "Bitdefender flagged a small Occlara file by mistake, and that file is no longer part of the app.",
+    "items": [
+      {
+        "kind": "fixed",
+        "text": "Bitdefender and NETGEAR Armor quarantined OcclaraCapture.exe as a trojan. It was a false alarm on a tiny helper that took the screenshot Occlara reads, and the app no longer ships that file."
+      },
+      {
+        "kind": "improved",
+        "text": "The screenshot is now taken by ffmpeg, the open source video tool Occlara already includes, in the same way as before. Nothing reads game memory or touches game files."
+      }
+    ]
+  },
+  {
     "version": "8.16.0",
     "date": "2026-11-20",
     "title": "A Trainer closer to the game",

@@ -4,15 +4,19 @@
  * Screen capture, runs entirely inside a Worker Thread so the main process (and
  * therefore the game) never stalls on the capture spawn or the JPEG encode.
  *
- * Primary path: OcclaraCapture.exe, a tiny compiled helper that does the
- * fast GDI CopyFromScreen, downscales, JPEG-encodes, and writes base64 to
- * stdout, no temp files. It replaces the old powershell.exe screenshot script,
- * which was structurally identical to PowerShell Empire's Get-Screenshot and so
- * tripped Windows Defender's HackTool signature on users' machines.
+ * Primary path (8.16.1): the ffmpeg that ships with the app, grabbing one GDI
+ * frame (gdi-grab.js says why and builds the arguments). No file of ours
+ * copies the screen: OcclaraCapture.exe, the tiny helper that did, was
+ * quarantined by Bitdefender as Trojan.GenericKD on players' machines, and is
+ * no longer in the installer.
  *
- * Fallback path: the PowerShell script, used only when the exe is missing (a
- * broken package). It keeps the app working but may itself be AV-flagged, which
- * is exactly why it is no longer the default.
+ * Second: OcclaraCapture.exe where it still exists (the repo, an install an
+ * update left it in), the same GDI copy, for a frame ffmpeg could not give.
+ *
+ * Last: the PowerShell script, only when neither file is there (a broken
+ * package). It is structurally PowerShell Empire's Get-Screenshot and trips
+ * Windows Defender's HackTool signature, which is why it is never run while
+ * ffmpeg is there, even when ffmpeg fails.
  */
 const { parentPort, workerData } = require('worker_threads');
 const { execFile }   = require('child_process');
@@ -21,13 +25,47 @@ const os   = require('os');
 const fs   = require('fs');
 const { CAPTURE } = require('../../shared/config');
 
+const { ffmpegArgs, isJpeg } = require('./gdi-grab');
+
 const HELPER_EXE = (workerData && workerData.helperExe) || null;
+const FFMPEG_EXE = (workerData && workerData.ffmpegExe) || null;
 
 function profileFor(quality) {
   return (CAPTURE.profiles && CAPTURE.profiles[quality]) || CAPTURE.profiles.standard;
 }
 
-// Primary: the compiled helper. base64 JPEG straight off stdout, no disk I/O.
+// Primary: ffmpeg's gdigrab. The JPEG straight off stdout, no disk I/O.
+function runFfmpeg(prof, geom, mode) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      FFMPEG_EXE,
+      ffmpegArgs(prof, geom, mode),
+      { timeout: CAPTURE.timeoutMs - 1000, windowsHide: true, maxBuffer: 16 * 1024 * 1024, encoding: 'buffer' },
+      (err, stdout, stderr) => {
+        if (err) { reject(new Error((stderr && String(stderr).trim().slice(0, 300)) || err.message)); return; }
+        if (!isJpeg(stdout)) { reject(new Error('ffmpeg returned no frame')); return; }
+        resolve(stdout.toString('base64'));
+      }
+    );
+  });
+}
+
+// With more than one display the primary is asked for by its rectangle; a
+// desktop gdigrab refuses that of gets the whole desktop cut down instead,
+// and stays on it, so a refusal is not paid for on every frame.
+let multiMode = 'area';
+async function captureViaFfmpeg(prof, geom) {
+  if (!geom || !geom.multi) return runFfmpeg(prof, null, 'area');
+  try { return await runFfmpeg(prof, geom, multiMode); }
+  catch (e) {
+    if (multiMode !== 'area') throw e;
+    const shot = await runFfmpeg(prof, geom, 'crop');
+    multiMode = 'crop';
+    return shot;
+  }
+}
+
+// Second: the compiled helper. base64 JPEG straight off stdout, no disk I/O.
 function captureViaHelper(prof) {
   return new Promise((resolve, reject) => {
     execFile(
@@ -84,9 +122,19 @@ function captureViaPowershell(prof) {
   });
 }
 
-function capture(quality) {
+async function capture(quality, geom) {
   const prof = profileFor(quality);
-  return HELPER_EXE ? captureViaHelper(prof) : captureViaPowershell(prof);
+  // `via` names who took the frame, and `why` what ffmpeg said when it was
+  // not ffmpeg: capture.js writes both to the debug log, since the fall to
+  // the old helper is otherwise silent wherever that file still exists.
+  let why = null;
+  if (FFMPEG_EXE) {
+    try { return { data: await captureViaFfmpeg(prof, geom), via: 'ffmpeg' }; }
+    catch (e) { if (!HELPER_EXE) throw e; why = e.message; }
+  }
+  return HELPER_EXE
+    ? { data: await captureViaHelper(prof), via: 'helper', why }
+    : { data: await captureViaPowershell(prof), via: 'powershell', why };
 }
 
 // Each answer carries the id it was asked with: the read and the recorder's
@@ -94,8 +142,8 @@ function capture(quality) {
 parentPort.on('message', async (msg) => {
   const id = msg && msg.id;
   try {
-    const data = await capture(msg && msg.quality);
-    parentPort.postMessage({ id, success: true, data });
+    const r = await capture(msg && msg.quality, msg && msg.geom);
+    parentPort.postMessage({ id, success: true, data: r.data, via: r.via, why: r.why });
   } catch (e) {
     parentPort.postMessage({ id, success: false, error: e.message });
   }

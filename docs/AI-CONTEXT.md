@@ -58,7 +58,8 @@ existing user: no updates, no licence, no history.
 
 Also renamed: the contextBridge is **`window.occlara`** (was `window.ghost`,
 127 call sites and 12 preloads), env vars are `OCCLARA_DEV_*`, and the capture
-helper is `OcclaraCapture.exe`. **"Ghost" is also a Valorant pistol** and
+helper was `OcclaraCapture.exe` (not shipped since 8.16.1: ffmpeg's gdigrab
+takes the GDI frame, `docs/claude/recorder.md`). **"Ghost" is also a Valorant pistol** and
 appears in the coach knowledge, the analyze prompt and the tests; never sweep a
 bare "ghost". `btn-ghost` is standard CSS naming for a transparent button and
 stays.
