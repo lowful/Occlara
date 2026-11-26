@@ -28,7 +28,10 @@ ok(errs.length === 0, 'changelog/changelog.json keeps every rule', errs.join('\n
 const want = sync.render(entries);
 for (const p of sync.COPIES) {
   let have = null;
-  try { have = fs.readFileSync(p, 'utf8'); } catch { /* missing */ }
+  // Compared by content, not by line ending: a Windows checkout hands the
+  // copies over with CRLF, and the copy on disk is then no byte different in
+  // the repo from the one the sync writes.
+  try { have = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n'); } catch { /* missing */ }
   ok(have === want, `${path.relative(ROOT, p)} is the synced copy (npm run sync:changelog)`);
 }
 

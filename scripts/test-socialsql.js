@@ -59,8 +59,10 @@ async function privacy(db, say) {
 }
 
 (async () => {
-  const sqlText = fs.readFileSync(pg.SQL_FILE, 'utf8');
-  const undo = fs.readFileSync(pg.UNDO_FILE, 'utf8');
+  // Line endings as committed: a Windows checkout hands these files over with
+  // CRLF, and the mutants below are cut out of the text by its line breaks.
+  const sqlText = fs.readFileSync(pg.SQL_FILE, 'utf8').replace(/\r\n/g, '\n');
+  const undo = fs.readFileSync(pg.UNDO_FILE, 'utf8').replace(/\r\n/g, '\n');
   const db = await pg.makeDb();
   ok(true, 'the migration runs twice on Postgres, over Supabase\'s default privileges');
   const q = async (s, p) => (await db.query(s, p)).rows;
