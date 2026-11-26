@@ -45,7 +45,8 @@ body { display: flex; align-items: flex-start; justify-content: flex-start; padd
 .compact .w-num { font-size: 56px; }
 .compact .w-delta { font-size: 20px; }
 .compact .w-state { font-size: 11px; }
-.compact .w-label { font-size: 15px; }
+.compact .w-label { font-size: 15px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.w.final .w-line { visibility: hidden; }
 .compact .w-line { width: 110px; height: 22px; }
 .compact .w-brand { display: none; }
 
