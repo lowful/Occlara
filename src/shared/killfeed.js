@@ -62,7 +62,9 @@ const YELLOW = 3;
 /** A pixel's class: the rows' fills lean far enough to tell over a translucent ground. */
 function classOf(r, g, b) {
   if (r > 160 && g > 165 && b < 175 && g - b > 50 && r - b > 45 && Math.abs(r - g) < 40) return YELLOW;
-  if (g - r > 38 && b - r > 18 && g > 110) return TEAL;
+  // Teal leans green over blue (the owner's rows: 98/170/143, 109/186/146);
+  // a sky blue ground (140/180/220) leans blue and is no row (round 4).
+  if (g - r > 38 && b - r > 18 && g > 110 && g - b > -15) return TEAL;
   if (r - g > 65 && r - b > 55 && r > 150) return RED;
   return NONE;
 }
@@ -93,6 +95,11 @@ function detect(img, frameH) {
   const px = (x, y) => {
     const i = (y * W + x) * ch;
     return bgr ? classOf(d[i + 2], d[i + 1], d[i]) : classOf(d[i], d[i + 1], d[i + 2]);
+  };
+  // A name's white letter (or its pale edge) on a block.
+  const bright = (x, y) => {
+    const i = (y * W + x) * ch;
+    return Math.min(d[i], d[i + 1], d[i + 2]) > 165;
   };
   const minRun = Math.max(3, Math.round(H * 0.03));     // a block: a short name at least
   const bridge = Math.max(2, Math.round(H * 0.012));    // the gun's white icon, a letter's gap
@@ -170,15 +177,22 @@ function detect(img, frameH) {
      *     half the lines, or the frame says nothing and no row is the player's.
      * The live feed then wants it on two frames, for a kill and a death alike.
      */
-    const colYellow = (x, y0, y1) => {
-      let n = 0;
-      for (let y = y0; y <= y1; y++) if (y >= 0 && y < Hr && px(x, y) === YELLOW) n++;
-      return n;
-    };
     const runMin = Math.max(2, Math.round(H * 0.0035));
     const runMax = Math.max(runMin + 2, Math.round(H * 0.02));
-    const gapA = Math.max(0, c - Math.round(H * 0.019));
-    const gapB = Math.min(Hr - 1, c + Math.round(H * 0.019));
+    // The row's own top and bottom, from its victim's block (round 4): the
+    // lines where most of the block's columns are its colour. Real rows sit up
+    // to 7 px off their place at 1080p, and the lines checked for the gaps
+    // above and below must be outside this row's plate, not at a fixed place.
+    // A wall of the block's own colour behind the feed runs the plate on
+    // into it: a plate taller than a row is no plate, the killer's block is
+    // asked, then the row's own place.
+    const fits = (p) => p.bottom - p.top + 1 <= H * 0.04;
+    let plate = plateOf(px, bright, vb, c, H, Hr);
+    if (!fits(plate)) plate = plateOf(px, bright, kb, c, H, Hr);
+    if (!fits(plate)) plate = { top: c - Math.round(H * 0.0155), bottom: c + Math.round(H * 0.0155) };
+    const gapOut = Math.max(2, Math.round(H * 0.0028));
+    const gapA = Math.max(0, plate.top - gapOut);
+    const gapB = Math.min(Hr - 1, plate.bottom + gapOut);
     // The runs in a strip that are an edge of this row's plate.
     const runsIn = (lo, hi, least) => {
       const out2 = [];
@@ -218,20 +232,71 @@ function detect(img, frameH) {
     const tealLeft = (x) => { const t = big.filter((q) => q.c === TEAL && q.x1 < x).pop(); let p = Infinity; for (let i = x - 1; i >= 0; i--) if (col[i] === TEAL) { p = x - i; break; } return [t ? x - t.x1 : Infinity, p]; };
     const inBand = (ds, lo, hi) => ds.some((d) => d >= H * lo && d <= H * hi);
     const clear = Math.round(H * 0.02);
+    /*
+     * THE HIGHLIGHT'S OWN SHAPE (round 4, measured on the owner's 1080p and
+     * 720p rows): a yellow box's edge or a solid yellow blob beside a
+     * teammate's row (Valorant's yellow enemy highlight on a distant enemy,
+     * standing still, so two frames do not help) is as tall at its outer
+     * column as anywhere, and the player's highlight is not: the chevron's
+     * tip holds at most about half the yellow of its tallest column (p90 0.41
+     * at 1080p, 0.52 at 720p on kills). Where the tip is blurred full, the
+     * portrait's own frame says it: its top and bottom edges yellowish across
+     * the portrait (a thin line blended into the plate, 127/187/124 at 1080p,
+     * seen on 35 to 65 percent of the highlighted frames, so never required
+     * alone). One of the two, or the row is not the player's.
+     */
+    const ext = (x) => { let n = 0; for (let y = plate.top - 3; y <= plate.bottom + 3; y++) if (y >= 0 && y < Hr && px(x, y) === YELLOW) n++; return n; };
+    const mid = Math.round((plate.top + plate.bottom) / 2);
+    const midYellow = (x) => px(x, mid) === YELLOW || px(x, mid - 1) === YELLOW || px(x, mid + 1) === YELLOW;
+    // The tip: at the run's outer column or just past it (on a death the run
+    // is the frame's full edge and the chevron's tail comes after it, 32 then
+    // 10, 8, 6, 4, 2 lines at 1080p), a column yellow on part of the lines
+    // only and across the plate's middle, as a chevron's point is. A box's
+    // inside is yellow at its top and bottom, never across the middle.
+    const narrows = (run, dir) => {
+      let most = 0;
+      for (let x = run.x0; x <= run.x1; x++) most = Math.max(most, ext(x));
+      if (!most) return false;
+      const from = dir < 0 ? run.x0 : run.x1;
+      const reach = Math.max(3, Math.round(H * 0.012));
+      for (let s = 0; s <= reach; s++) {
+        const x = from + dir * s;
+        if (x < 0 || x >= W) break;
+        const e = ext(x);
+        if (s > 0 && e === 0) break;
+        if (e > 0 && e <= most * TIP_SHARE && midYellow(x)) {
+          // The point is the outermost yellow: past it the yellow only
+          // falls away to nothing (a narrow box's inside, between its two
+          // full height edges, is partial too, and a full edge comes after).
+          for (let u = 1; u <= reach * 2; u++) {
+            const xx = x + dir * u;
+            if (xx < 0 || xx >= W) return true;
+            const ee = ext(xx);
+            if (ee === 0) return true;
+            if (ee > most * TIP_SHARE) return false;
+          }
+          return false;
+        }
+      }
+      return false;
+    };
+    const framed = (x0, x1) => portraitFramed(img, x0, x1, plate, Hr);
     if (row.killer === 'ally') {
       // The chevron: the rightmost edge run left of the killer's block that
       // has the killer's own teal within a portrait to its right, and no other
       // yellow left of it on these lines.
       const runs = runsIn(0, kb.x1 - minRun).filter((r) => inBand(tealRight(r.x1), 0.045, 0.125));
       const k = runs[runs.length - 1];
-      if (k && !stray(0, k.x0 - clear)) row.mine = 'kill';
+      if (k && !stray(0, k.x0 - clear)
+        && (narrows(k, -1) || framed(Math.max(k.x1 + 1, kb.x0 - Math.round(H * 0.035)), kb.x0 - 2))) row.mine = 'kill';
     }
     if (!row.mine && row.victim === 'ally') {
       // The death: an edge run right of the victim's teal block, within a
       // portrait of it, and no yellow in the open scene left of the row.
       const runs = runsIn(vb.x1 + 1, W - 1, Math.max(2, Math.round(H * 0.0018))).filter((r) => inBand(tealLeft(r.x0), 0.025, 0.07));
       const left = big[0].x0;
-      if (runs.length && !stray(0, left - clear)) row.mine = 'death';
+      const ok = runs.some((r) => narrows(r, 1) || framed(vb.x1 + 2, Math.min(r.x0 - 1, vb.x1 + Math.round(H * 0.035))));
+      if (ok && !stray(0, left - clear)) row.mine = 'death';
     }
     row.span = [kb.x0, vb.x1];
     out.list.push(row);
@@ -239,6 +304,62 @@ function detect(img, frameH) {
     if (row.mine === 'death') out.deaths.push({ slot: s });
   }
   return out;
+}
+
+const TIP_SHARE = 0.65;          // the chevron's tip holds at most this share of its tallest column's yellow
+
+/**
+ * A row's plate, its top and bottom lines, from a block of it: the line
+ * nearest the row's place where most of the block's columns are its colour
+ * or the name's white letters on it (a name's lines are more letter than
+ * colour; at least a fifth colour, so a bright scene is not a plate), grown
+ * up and down while they stay so (one line of a letter's edge may dip).
+ * Where the block says nothing, the place's own lines.
+ */
+function plateOf(px, bright, blk, c, H, Hr) {
+  const share = (y) => {
+    if (y < 0 || y >= Hr) return 0;
+    let n = 0; let w = 0; let t = 0;
+    for (let x = blk.x0; x <= blk.x1; x++) { t++; if (px(x, y) === blk.c) n++; else if (bright(x, y)) w++; }
+    return t && n >= t * 0.2 && n + w >= t * 0.6 ? 1 : 0;
+  };
+  const fallback = { top: c - Math.round(H * 0.0155), bottom: c + Math.round(H * 0.0155) };
+  const reach = Math.round(H * 0.008);
+  let seed = null;
+  for (let d = 0; d <= reach && seed === null; d++) {
+    if (share(c - d) >= 0.5) seed = c - d; else if (share(c + d) >= 0.5) seed = c + d;
+  }
+  if (seed === null) return fallback;
+  const lim = Math.round(H * 0.022);
+  let top = seed; let bottom = seed;
+  while (top > c - lim && (share(top - 1) >= 0.5 || share(top - 2) >= 0.5 && top - 2 >= c - lim)) top -= share(top - 1) >= 0.5 ? 1 : 2;
+  while (bottom < c + lim && (share(bottom + 1) >= 0.5 || share(bottom + 2) >= 0.5 && bottom + 2 <= c + lim)) bottom += share(bottom + 1) >= 0.5 ? 1 : 2;
+  return bottom - top + 1 >= H * 0.015 ? { top, bottom } : fallback;
+}
+
+/** A portrait's own yellow frame: a line yellowish across it at the plate's top edge and one at its bottom. */
+function portraitFramed(img, x0, x1, plate, Hr) {
+  const W = img.width | 0;
+  const ch = img.channels === 4 ? 4 : 3;
+  const bgr = img.order === 'bgr';
+  const d = img.data;
+  if (!(x1 - x0 >= 3)) return false;
+  const line = (y) => {
+    if (y < 0 || y >= Hr) return 0;
+    let n = 0; let t = 0;
+    for (let x = Math.max(0, x0); x <= Math.min(W - 1, x1); x++) {
+      const i = (y * W + x) * ch;
+      const r = bgr ? d[i + 2] : d[i]; const g = d[i + 1]; const b = bgr ? d[i] : d[i + 2];
+      t++;
+      // The frame's thin line, blended into the plate and the portrait: green and red over blue.
+      if (r - b >= -5 && g - b >= 35 && g > 130) n++;
+    }
+    return t ? n / t : 0;
+  };
+  let topOk = false; let botOk = false;
+  for (let y = plate.top - 3; y <= plate.top + 2 && !topOk; y++) if (line(y) >= 0.5) topOk = true;
+  for (let y = plate.bottom - 2; y <= plate.bottom + 3 && !botOk; y++) if (line(y) >= 0.5) botOk = true;
+  return topOk && botOk;
 }
 
 /** The victim's block length (share of H) and the portrait right of it, its mean colour. */

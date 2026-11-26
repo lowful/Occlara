@@ -11,7 +11,8 @@
  * the killer's end (a kill) or the victim's (a death). No frame of a real
  * match is in the repo: every pixel here is drawn.
  *
- *   drawFrame({ W, H, rows, ground, wall, card, order }) -> { width, height, data, channels }
+ *   drawFrame({ W, H, rows, ground, wall, card, order, dy, dh }) -> { width, height, data, channels }
+ *     dy, dh every row moved down dy pixels from its place, and dh pixels taller
  *     rows   [{ slot, killer: 'ally'|'enemy', victim, mine: 'kill'|'death'|null,
  *              klen, vlen (shares of H), portraitYellow: true for a yellow-ish
  *              agent portrait with no highlight }]
@@ -59,8 +60,8 @@ function drawFrame(o) {
     for (let k = 0; k < 12; k++) rect(W - H * 0.6 + k * H * 0.045, y0 + H * 0.01, H * 0.02, H * 0.05, k % 3 === 0 ? YELLOW : k % 3 === 1 ? RED : TEAL);
   }
   for (const r of o.rows || []) {
-    const cy = H * (FIRST + PITCH * r.slot);
-    const h = H * 0.03;
+    const cy = H * (FIRST + PITCH * r.slot) + (o.dy || 0);
+    const h = H * 0.03 + (o.dh || 0);
     const y0 = cy - h / 2;
     const port = H * 0.035;
     const right = W - H * 0.016;
@@ -96,10 +97,21 @@ function drawFrame(o) {
       // The chevron and the frame's left edge: a run 0.007 of the height wide,
       // 0.105 of it left of the killer's block (measured on the owner's rows).
       rect(kBlock - H * 0.105, y0, H * 0.007, h, YELLOW);
+      // The chevron's point, narrowing outward across the row's middle (the
+      // owner's rows: the outer column a third to a half as tall).
+      tip(kBlock - H * 0.105, -1);
     } else if (r.mine === 'death') {
       rect(vPort, y0, port, edge, YELLOW); rect(vPort, y0 + h - edge, port, edge, YELLOW);
       rect(vPort, y0, edge, h, YELLOW); rect(vPort + port - edge, y0, edge, h, YELLOW);
       rect(right + H * 0.002, y0, H * 0.007, h, YELLOW);
+      tip(right + H * 0.009, 1);
+    }
+    function tip(from, dir) {
+      const step = Math.max(1, Math.round(H * 0.002));
+      [0.6, 0.4, 0.2].forEach((share, i) => {
+        const x = dir < 0 ? from - (i + 1) * step : from + i * step;
+        rect(x, cy - (h * share) / 2, step, h * share, YELLOW);
+      });
     }
   }
   return { width: W, height: H, data, channels: ch, order: bgra ? 'bgr' : 'rgb' };
