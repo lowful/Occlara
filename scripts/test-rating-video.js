@@ -39,7 +39,7 @@ const { woff2ToTtf, triplet } = require('./rating-video/woff2');
 const { createOfflineReader, checkEvents, sideOf, GAP_S } = require('./rating-video/events');
 const { planOf, planOfRecord, alignRounds } = require('./rating-video/plan');
 const A = require('./rating-video/ass');
-const { parseArgs, probe, readFeed } = require('./rating-video');
+const { parseArgs, probe, readFeed, renderArgs, asFile } = require('./rating-video');
 
 const REPO = path.join(__dirname, '..');
 let pass = 0;
@@ -253,6 +253,11 @@ const brief = (evs) => evs.map((e) => (e.kind === 'kill' ? `${e.round}:${e.kille
   ok(/which video/.test(refuse([]) || '') && /\.mp4/.test(refuse(['m.mp4', '--out', 'x.gif']) || '') && /--to/.test(refuse(['m.mp4', '--from', '9', '--to', '3']) || ''),
     'options: no video, an output that is no mp4, --to before --from');
   ok(/review id/.test(refuse(['m.mp4', '--review', '../x']) || '') && /agent/.test(refuse(['m.mp4', '--agent', 'a;b']) || ''), 'options: a review id or agent with path or odd characters is refused');
+  // Round 4: ffmpeg is handed every path as a file, so a name like a protocol is read as a file.
+  const args = renderArgs(parseArgs(['concat,a.mkv', '--out', 'http,x.mp4']), { W: 1280, H: 720, fps: 30, audio: true }, 1280, 720, 0);
+  const at = args.indexOf('-i');
+  ok(at > 0 && args[at + 1] === asFile('concat,a.mkv') && /^file:/.test(args[at + 1]) && /^file:/.test(args[args.length - 1]) && args[args.length - 1].endsWith('http,x.mp4'),
+    `options: the input and the output reach ffmpeg as file: paths (${args[at + 1].slice(0, 12)}...)`);
 }
 
 // ---------- end to end, on a drawn video ----------

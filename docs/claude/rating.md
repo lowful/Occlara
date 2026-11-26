@@ -955,7 +955,8 @@ right left of the weapon list.
 **The output**: libx264 (`-profile:v high`, `yuv420p`, CRF 18, medium), the
 source's sound as AAC 192k (padded with silence through Full time), the
 source's frame rate rounded, `+faststart`: what phones, TikTok, Shorts and X
-take. `--vertical` puts the whole picture full width across the middle over a
+take. Every path reaches ffmpeg as `file:` and the full path (`asFile`), so
+a video named like a protocol (`concat:`, `http:`) is read as a file. `--vertical` puts the whole picture full width across the middle over a
 blurred, darkened copy of itself and the badge at twice the size under it.
 
 **A pro player's VOD, step by step**:

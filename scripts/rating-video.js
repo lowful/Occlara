@@ -99,13 +99,20 @@ function parseArgs(argv) {
 /** What ffmpeg says of the file: size, frame rate, length, audio. */
 function probe(file) {
   let info = '';
-  try { execFileSync(FF, ['-hide_banner', '-i', file], { stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { info = String(e.stderr || ''); }
+  try { execFileSync(FF, ['-hide_banner', '-i', asFile(file)], { stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { info = String(e.stderr || ''); }
   const v = /Stream #[^\n]*Video:[^\n]*?, (\d{2,5})x(\d{2,5})[^\n]*?(?:, ([\d.]+) fps)?/.exec(info);
   const d = /Duration: (\d+):(\d+):([\d.]+)/.exec(info);
   if (!v || !d) throw new Error('ffmpeg cannot read a video in that file');
   const fpsM = /, ([\d.]+) fps/.exec(info);
   return { W: Number(v[1]), H: Number(v[2]), fps: fpsM ? Number(fpsM[1]) : 30, duration: Number(d[1]) * 3600 + Number(d[2]) * 60 + Number(d[3]), audio: /Stream #[^\n]*Audio:/.test(info) };
 }
+
+/**
+ * A path as ffmpeg must take it: a file, always. A name ffmpeg would read as a
+ * protocol (concat:, http:, subfile, or anything with a colon before a slash)
+ * is otherwise opened as that protocol.
+ */
+const asFile = (p) => 'file:' + path.resolve(String(p));
 
 const range = (o) => [...(o.from !== undefined ? ['-ss', String(o.from)] : []), ...(o.to !== undefined ? ['-to', String(o.to)] : [])];
 
@@ -114,7 +121,7 @@ function readFeed(o, info, reader, onProgress) {
   return new Promise((resolve, reject) => {
     const r = kf.regionOf(info.W, info.H);
     const size = r.width * r.height * 3;
-    const p = spawn(FF, ['-loglevel', 'error', ...range(o), '-i', o.input, '-vf', `fps=${o.fps},crop=${r.width}:${r.height}:${r.x}:${r.y}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const p = spawn(FF, ['-loglevel', 'error', ...range(o), '-i', asFile(o.input), '-vf', `fps=${o.fps},crop=${r.width}:${r.height}:${r.x}:${r.y}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
     let buf = Buffer.alloc(0);
     let k = 0;
     let err = '';
@@ -183,8 +190,8 @@ function renderArgs(o, info, outW, outH, ft) {
       + `[b]scale=${outW}:-2[fg];[bg][fg]overlay=0:(H-h)/2-${Math.round(outH * 0.08)},setsar=1${hold},${draw},format=yuv420p[v]`
     : `[0:v]fps=${fps},scale=${outW}:${outH}${hold},${draw},format=yuv420p[v]`;
   const audio = info.audio ? ['-map', '0:a:0?', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', ...(ft > 0 ? ['-af', `apad=pad_dur=${ft}`] : [])] : [];
-  return ['-hide_banner', '-loglevel', 'error', '-y', ...range(o), '-i', path.resolve(o.input), '-filter_complex', graph, '-map', '[v]', ...audio,
-    '-c:v', 'libx264', '-preset', o.preset, '-crf', String(o.crf), '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', path.resolve(o.out)];
+  return ['-hide_banner', '-loglevel', 'error', '-y', ...range(o), '-i', asFile(o.input), '-filter_complex', graph, '-map', '[v]', ...audio,
+    '-c:v', 'libx264', '-preset', o.preset, '-crf', String(o.crf), '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', asFile(o.out)];
 }
 
 async function main() {
@@ -266,4 +273,4 @@ if (require.main === module) {
   main().catch((e) => { console.error(`rating:video: ${e.message}`); process.exit(1); });
 }
 
-module.exports = { parseArgs, probe, renderArgs, clipOffsets, readFeed };
+module.exports = { parseArgs, probe, renderArgs, clipOffsets, readFeed, asFile };
