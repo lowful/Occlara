@@ -13,7 +13,12 @@ name: CI (Windows, the whole suite)
 # The log and every screenshot the checks wrote are kept as artifacts for 7
 # days, so a failing surface can be looked at without running it anywhere.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Run only these scripts, space separated (for example: check:recorder check:clips). Empty runs the whole suite."
+        required: false
+        default: ""
   push:
     branches:
       - main
@@ -29,6 +34,12 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
+      # Line endings as they are in the repo, as on the Linux job: with the
+      # runner's default every file is checked out with CRLF, and the checks
+      # that compare a generated file byte for byte then fail on a clean tree.
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -47,6 +58,12 @@ jobs:
         run: npm ci
         working-directory: server
 
+      # The runner's desktop is 1024x768, smaller than the app's own window.
+      - name: A 1920x1080 desktop
+        shell: pwsh
+        run: |
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force } catch { Write-Host "could not set the resolution: $_" }
+
       - name: The machine
         shell: bash
         run: |
@@ -59,9 +76,19 @@ jobs:
         shell: bash
         env:
           OCCLARA_SHOTS: '1'
+          ONLY: ${{ github.event.inputs.only }}
         run: |
           set -o pipefail
-          npm test 2>&1 | tee test.log
+          if [ -n "$ONLY" ]; then
+            status=0
+            for s in $ONLY; do
+              echo "===== $s" | tee -a test.log
+              npm run "$s" 2>&1 | tee -a test.log || status=1
+            done
+            exit $status
+          else
+            npm test 2>&1 | tee test.log
+          fi
 
       - name: Keep the log and the screenshots
         if: always()
