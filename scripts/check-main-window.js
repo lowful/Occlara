@@ -226,7 +226,9 @@ setTimeout(async () => {
     // graded match, oldest first, the newest the match's own grade, inside
     // its card; and the card carries its map behind it and its agent's
     // portrait, both bundled files that loaded.
-    const fill = await hjs(`(() => {
+    // Asked until both pictures have loaded (3 s at most): asked once, a cold
+    // runner caught them still loading and failed a page that was right.
+    const FILL = `(() => {
       const last = document.getElementById('last');
       const svg = last.querySelector('.grade-line');
       const nums = svg ? [...svg.querySelectorAll('.gl-num')].map((t) => t.textContent) : [];
@@ -237,7 +239,8 @@ setTimeout(async () => {
       return { dots: svg ? svg.querySelectorAll('.gl-dot').length : 0, nums, inside: !!lb && lb.bottom <= box.bottom && lb.right <= box.right,
         map: !!(map && map.complete && map.naturalWidth > 0 && /maps\\/Abyss\\.jpg$/.test(map.src)),
         face: !!(face && face.complete && face.naturalWidth > 0 && /agents\\/Jett\\.png$/.test(face.src)) };
-    })()`);
+    })()`;
+    const fill = await until(async () => { const f = await hjs(FILL); return f.map && f.face ? f : null; }, 3000) || await hjs(FILL);
     lines.push(`home grade line and art: ${JSON.stringify(fill)} for a grade of ${built.grade.score}`);
     if (fill.dots !== SEEDED || fill.nums[fill.nums.length - 1] !== String(built.grade.score) || !fill.inside || !fill.map || !fill.face) {
       return report(false, `the last match's grade line or its art is wrong: ${JSON.stringify(fill)}`);
