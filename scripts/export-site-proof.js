@@ -76,7 +76,10 @@ if (!process.versions.electron) {
     // The site shows what a player has today: public profiles and Players are
     // off until the owner's switch is set (docs/claude/social.md), so the proof
     // boots with the feature not live. Set OCCLARA_PROOF_SOCIAL=on once it is.
-    OCCLARA_PROOF_SOCIAL: process.env.OCCLARA_PROOF_SOCIAL === 'on' ? 'on' : 'off' });
+    OCCLARA_PROOF_SOCIAL: process.env.OCCLARA_PROOF_SOCIAL === 'on' ? 'on' : 'off',
+    // Occlara Duos (docs/claude/duos.md) is off until the owner's switch too:
+    // the site shows no trace of it. OCCLARA_PROOF_DUOS=on once it is live.
+    OCCLARA_PROOF_DUOS: process.env.OCCLARA_PROOF_DUOS === 'on' ? 'on' : 'off' });
   delete env.ELECTRON_RUN_AS_NODE;
   const r = spawnSync(electron, [__filename], { env, timeout: 240000 });
   let rec = null;

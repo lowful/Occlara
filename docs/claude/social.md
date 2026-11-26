@@ -202,7 +202,7 @@ often has a `public.profiles` of its own.
 
 ## The routes (server/routes/social.js, /api/social)
 
-`GET /status` (`{ live, riotProof }`), `GET /me`, `GET|POST /username`, `POST
+`GET /status` (`{ live, riotProof, duos }`, duos.md), `GET /me`, `GET|POST /username`, `POST
 /flags`, `POST /stats`, `GET /profile?name=`, `GET /search?q=`, `POST
 /block`, `POST /report`, `POST /riot/start`, `POST /riot/check`.
 
@@ -323,8 +323,13 @@ to hide the feature again at once, with no SQL undone.
 7. Support: to clear a Riot ID by hand, `SELECT public.social_unverify('<public id from the report>', riot_puuid_hash) FROM public.social_profiles WHERE public_id = '<id>';`
 8. To take it all away: `docs/sql/social-001-profiles-undo.sql`.
 
-## What Duos adds next
+## What Duos adds
 
-`discoverable` is already stored and the block list keeps a pair apart. Duos
-adds friends (a request and an accept, both ends' blocks respected), a shared
-match page and clips, a Max plan to start one.
+Built 2026-11-25, off until `SOCIAL_DUOS_ON=1` (docs/claude/duos.md):
+`discoverable` now finds teammates who also use Occlara after a match played
+together (both on, one team, mutual), but only once turned on again under
+Duos' words (a flag set under "Nothing is shared yet" reads off: duos.md,
+"Consent"); the block list ends a duo and hides it both ways by a trigger on
+`social_blocks`, and `/status` answers `duos` too. An invite by username adds
+nothing to "What search can still reveal": it is answered `sent` whoever the
+name is, and reaches only a public profile.

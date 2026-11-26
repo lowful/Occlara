@@ -571,6 +571,8 @@ function flushAccountWaits() {
     accountPushWaiting = false;
     // Another account, or none: nothing of the last one's public profile is kept.
     try { socialIpc.forget(); } catch { /* not built yet at launch */ }
+    // Nor of its duos: the queue and the partner's clips in the duo cache go.
+    try { duosIpc.forget(); } catch { /* not built yet at launch */ }
     registry.broadcast(C.ACCOUNT_CHANGED, account.view());
   }
   if (capNoticeWaiting && !state.isCoaching && !windowSealed()) {
@@ -5259,9 +5261,38 @@ const socialIpc = createSocial({
     return { current: d.rank || null, peak: d.peakRank || null };
   },
   riotId: () => store.get('riotId') || '',
+  // Discoverable turned on under Duos' words: the duos service may report now (duos.md).
+  onDiscoverable: (on) => { try { duosIpc.noteDiscoverable(on); } catch { /* built below */ } },
   agentArt: (name) => require('../shared/agent-icons').iconOf('valorant', name),
   // Signed in to an account (an app session), not a licence key alone.
   signedIn: async () => { const v = await accountIpc.view(); return !!(v && v.via === 'session'); },
+  log: (...a) => console.log(...a),
+});
+/*
+ * OCCLARA DUOS (docs/claude/duos.md, services/duos-service.js): the Duos page
+ * through /api/social/duos with the account's own auth, and the files
+ * straight to and from the private bucket through signed URLs. Nothing asked,
+ * shown, uploaded or downloaded mid match or sealed: an upload in flight is
+ * aborted the moment a match starts and sent again after it.
+ */
+const { createDuos } = require('./services/duos-service');
+const duosIpc = createDuos({
+  api,
+  auth: authed,
+  busy: () => matchInProgress() || windowSealed(),
+  reviews: {
+    list: (game) => reviewStore.list(game),
+    get: (id) => reviewStore.get(id),
+    hasClip: (id, name) => reviewStore.hasClip(id, name),
+    clipFile: (id, name) => reviewStore.clipFile(id, name),
+  },
+  clipUrl: (id, name) => clipScheme.urlFor(id, name),
+  store,
+  cacheDir: path.join(app.getPath('userData'), 'duo-cache'),
+  broadcast: (payload) => registry.broadcast(C.PUSH_DUOS, payload),
+  openPlans: () => profileIpc.plans(),
+  // 8.19's status answer, reused: Duos asks /api/social/status no more often than it did.
+  peekStatus: () => socialIpc.peekStatus(),
   log: (...a) => console.log(...a),
 });
 /*
@@ -5924,17 +5955,22 @@ if (!app.requestSingleInstanceLock()) {
     // The clips a review's page plays (8.3): served from the reviews' own
     // folders and nowhere else (clip-scheme.js, review-store.js clipFile).
     try {
-      protocol.handle(clipScheme.SCHEME, clipScheme.createHandler({ fileOf: (id, name) => reviewStore.clipFile(id, name) }));
+      protocol.handle(clipScheme.SCHEME, clipScheme.createHandler({ fileOf: (id, name) => reviewStore.clipFile(id, name),
+        // A duo partner's clip, from the duo cache (docs/claude/duos.md).
+        duoFileOf: (ref, name) => duosIpc.cacheFile(ref, name) }));
     } catch (e) { console.warn('[clips] the clip scheme could not be handled:', e.message); }
     // And the cap on them, once at launch too: a run that quit between keeping
     // a clip and applying the cap left the clips past it.
     applyClipCap();
 
-    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc, practice: practiceIpc, trainer: trainerIpc, wrapped: wrappedIpc, social: socialIpc });
+    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc, practice: practiceIpc, trainer: trainerIpc, wrapped: wrappedIpc, social: socialIpc, duos: duosIpc });
     changelogIpc.start();
     // The public profile's snapshot: at launch (at most once every 3 hours), and
     // after a review is saved, never mid match (social-service.js sync).
     socialIpc.start();
+    // Duos: after a match, its report, then the sheet and the clips one at a
+    // time; nothing while a match is live (duos-service.js tick).
+    duosIpc.start();
     // occlara:// for the sign in's fallback link (8.7), on an installed build
     // only: a dev run would point Windows at electron.exe.
     if (app.isPackaged) {

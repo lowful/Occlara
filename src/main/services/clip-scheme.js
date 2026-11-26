@@ -42,6 +42,26 @@ function urlFor(id, name) {
   return `${SCHEME}://${HOST}/${id}/${name}`;
 }
 
+/*
+ * OCCLARA DUOS (docs/claude/duos.md): a duo partner's clip, downloaded when
+ * it was opened into the duo cache (duos-service.js), is played the same way:
+ * occlara-clip://duo/<clip ref>/<name>, the ref 16 hex the server gave it,
+ * the name a clip's. The cache decides whether it is one of its files.
+ */
+const DUO_HOST = 'duo';
+const DUO_REF = /^[0-9a-f]{16}$/;
+function duoUrlFor(ref, name) {
+  return `${SCHEME}://${DUO_HOST}/${ref}/${name}`;
+}
+function parseDuo(url) {
+  let u;
+  try { u = new URL(String(url)); } catch { return null; }
+  if (u.protocol !== `${SCHEME}:` || u.hostname !== DUO_HOST || u.port || u.username || u.password || u.search || u.hash) return null;
+  const parts = u.pathname.split('/');
+  if (parts.length !== 3 || parts[0] !== '' || !DUO_REF.test(parts[1]) || !clips.CLIP_RE.test(parts[2])) return null;
+  return { ref: parts[1], name: parts[2] };
+}
+
 /**
  * The review id and clip name a URL names, or null for anything else. The
  * id is only split off here; the store decides whether it is one.
@@ -106,6 +126,8 @@ async function readSlice(fsp, file, start, length) {
  */
 function createHandler(opts) {
   const fileOf = opts && opts.fileOf;
+  // A duo partner's clip in the duo cache (duos-service.js cacheFile), or none.
+  const duoFileOf = opts && opts.duoFileOf;
   const fsp = (opts && opts.fs) || fs.promises;
   return async function handle(request) {
     const method = String((request && request.method) || 'GET').toUpperCase();
@@ -113,6 +135,10 @@ function createHandler(opts) {
     const where = parse(request && request.url);
     let file = null;
     try { file = where && typeof fileOf === 'function' ? fileOf(where.id, where.name) : null; } catch { file = null; }
+    if (!where) {
+      const duo = parseDuo(request && request.url);
+      try { file = duo && typeof duoFileOf === 'function' ? duoFileOf(duo.ref, duo.name) : null; } catch { file = null; }
+    }
     if (!file) return nothing(404);
     let st;
     try { st = await fsp.stat(file); } catch { return nothing(404); }
@@ -140,4 +166,4 @@ function createHandler(opts) {
   };
 }
 
-module.exports = { SCHEME, HOST, PRIVILEGED, urlFor, parse, rangeOf, createHandler };
+module.exports = { SCHEME, HOST, DUO_HOST, PRIVILEGED, urlFor, parse, duoUrlFor, parseDuo, rangeOf, createHandler };

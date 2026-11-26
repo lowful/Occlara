@@ -167,9 +167,24 @@ Module._load = function patched(request, parent, isMain) {
     if (request === './services/coaching-engine') return StandInValorant;
     if (request === './services/lol-recorder') return { LolRecorder: StandInLeague };
     if (request === './tray') return StandInTray;
+    // Occlara Duos (docs/claude/duos.md): its server a live stand-in that
+    // counts every request, so a match is seen to make none.
+    if (request === './services/duos-service') {
+      const real = realLoad(request, parent, isMain);
+      const standIn = require('./fixtures/duos-stand-in');
+      return { ...real, createDuos: (deps) => {
+        const api = standIn.createApi({ live: true });
+        const svc = real.createDuos({ ...deps, api, fetch: async () => { duoNet.fetches++; throw new Error('no network in a check'); } });
+        duoNet.api = api;
+        duoNet.svc = svc;
+        return svc;
+      } };
+    }
   }
   return realLoad(request, parent, isMain);
 };
+// What the Duos stand-in was asked, and the service itself (its tick).
+const duoNet = { api: null, svc: null, fetches: 0 };
 
 // ── A throwaway profile, and the real match the snaps are made of ───────────
 const ud = path.join(os.tmpdir(), 'occlara-check-seal');
@@ -429,6 +444,32 @@ setTimeout(async () => {
       if (playersMid.shown !== null || playersShown.length || !playersLocked) return report(false, `mid ${game} match, the Players page or its row is not sealed`);
       if (socialMid.some((r) => r !== null) || !socialOpen || socialOpen.ok !== false || socialOpen.error !== 'match') {
         return report(false, `mid ${game} match, a social channel answered: ${JSON.stringify({ socialMid, socialOpen })}`);
+      }
+      // AND DUOS (docs/claude/duos.md): asked for mid match the page does not
+      // show, its row is locked, every duo channel answers nothing, and the
+      // uploader's tick asks the server nothing and moves no file (an upload in
+      // flight is aborted then: test:duos holds that on a real PUT).
+      send(C.SHELL_NAV, 'duos');
+      await wait(400);
+      const duosMid = await invoke(C.SHELL_GET);
+      const duosShown = shownViews();
+      const duosLocked = await until(() => sjs("document.getElementById('nav-duos').disabled"), 3000);
+      const askedBefore = duoNet.api ? duoNet.api.calls.length : 0;
+      const fetchesBefore = duoNet.fetches;
+      const duoMid = await Promise.all([
+        invoke(C.DUOS_STATE), invoke(C.DUOS_STATE, { only: 'live' }), invoke(C.DUOS_INVITE, 'Harrier'), invoke(C.DUOS_CODE), invoke(C.DUOS_ACCEPT, { code: 'K7M2Q-9XH4P' }),
+        invoke(C.DUOS_ACCEPT, { from: 'Harrier' }), invoke(C.DUOS_DECLINE, 'Harrier'), invoke(C.DUOS_CANCEL, 'a1b2c3d4e5f60718'), invoke(C.DUOS_REMOVE, 'Harrier'),
+        invoke(C.DUOS_FLAG, { name: 'Harrier', reason: 'pins' }), invoke(C.DUOS_UPLOAD, true), invoke(C.DUOS_PLANS), invoke(C.DUOS_MATCH, 'c1c2c3c4c5c6c7c8'),
+        invoke(C.DUOS_CLIP, { ref: 'f1f2f3f4f5f6f7f8', name: 'r2-clip.mkv', match: 'c1c2c3c4c5c6c7c8' }), invoke(C.DUOS_PIN, { clip: 'f1f2f3f4f5f6f7f8', at: 100, label: 'nice-shot' }),
+        invoke(C.DUOS_UNPIN, 'aa11bb22cc33dd44'),
+      ]);
+      const tickMid = duoNet.svc ? await duoNet.svc.tick() : 'no service';
+      const askedMid = (duoNet.api ? duoNet.api.calls.length : 0) - askedBefore;
+      lines.push(`${game} match: Duos asked for mid match: shown=${duosMid.shown} pages shown=${duosShown.join(',') || 'none'} row locked=${!!duosLocked}`
+        + ` | duo answers=${JSON.stringify(duoMid)} tick=${tickMid} requests=${askedMid} fetches=${duoNet.fetches - fetchesBefore}`);
+      if (duosMid.shown !== null || duosShown.length || !duosLocked) return report(false, `mid ${game} match, the Duos page or its row is not sealed`);
+      if (duoMid.some((r) => r !== null) || tickMid !== null || askedMid !== 0 || duoNet.fetches !== fetchesBefore) {
+        return report(false, `mid ${game} match, Duos answered, asked or moved something: ${JSON.stringify({ duoMid, tickMid, askedMid })}`);
       }
       send(C.SHELL_NAV, 'matches');
       e.live = false;

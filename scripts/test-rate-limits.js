@@ -125,7 +125,7 @@ const under = (p, url) => url === p || url.startsWith(p.endsWith('/') ? p : `${p
   for (const { paths, mw } of table) {
     const { name, windowMs, max } = mw.limits;
     const p = paths[0];
-    const byAddress = ['licence', 'licence-network', 'dashboard', 'billing', 'public', 'anonymous', 'gift-peek', 'social-search-network', 'social-profile-network', 'social-riot-start-network', 'social-riot-check-network'].includes(name);
+    const byAddress = ['licence', 'licence-network', 'dashboard', 'billing', 'public', 'anonymous', 'gift-peek', 'social-search-network', 'social-profile-network', 'social-riot-start-network', 'social-riot-check-network', 'social-duos-accept-network'].includes(name);
     const base = { path: p, body: { key: 'GC-AAAA-BBBB-CCCC-DDDD' } };
     const one = (who) => (byAddress ? reqOf({ ...base, ip: who }) : reqOf({ ...base, account: who }));
     const me = byAddress ? '198.51.100.20' : 'u:me';

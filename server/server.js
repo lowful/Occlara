@@ -41,6 +41,8 @@ const usageRoutes   = require('./routes/usage');
 const giftRoutes    = require('./routes/gifts');
 // Public profiles and player search (docs/claude/social.md).
 const socialRoutes  = require('./routes/social');
+// Occlara Duos (docs/claude/duos.md), under /api/social/duos.
+const duosRoutes    = require('./routes/duos');
 const callers       = require('./services/caller');
 const retiredRoutes = require('./routes/retired');
 const adminRoutes   = require('./routes/admin');
@@ -338,7 +340,11 @@ app.use('/api',          usageRoutes);
 app.use('/api/gifts',    giftRoutes);
 // Public profiles and player search: /api/social/* (routes/social.js). The
 // rank is the server's own, through the coach router's HenrikDev code.
-app.use('/api/social',   socialRoutes.createRouter({ rank: (name, tag) => coachRoutes.socialRank(name, tag), riot: coachRoutes.socialRiot }));
+// Occlara Duos first, so its paths are its own: off unless SOCIAL_DUOS_ON and
+// SOCIAL_ON are both 1 (routes/duos.js), and /api/social/status says so.
+const duosRouter = duosRoutes.createRouter();
+app.use('/api/social/duos', duosRouter);
+app.use('/api/social',   socialRoutes.createRouter({ rank: (name, tag) => coachRoutes.socialRank(name, tag), riot: coachRoutes.socialRiot, duos: duosRouter }));
 app.use('/api/coach',    coachRoutes);
 // A game Occlara no longer coaches: an older install still calling its routes
 // is answered 410 on every path, and nothing is looked up or called. See
@@ -434,6 +440,13 @@ app.listen(PORT, () => {
     console.warn('[server] the primer live check could not start:', e.message);
   }
 });
+
+// ─── Occlara Duos' sweep (docs/claude/duos.md), every 10 minutes ────────────
+// Expired shared matches and their files, ended duos, the trash of removed
+// clips, uploads never finished. Whether or not Duos is switched on, so
+// expiry holds while it is hidden too; nothing at all until its SQL has run.
+const duosSweep = setInterval(() => { duosRouter.sweep().catch(() => {}); }, 10 * 60 * 1000);
+if (typeof duosSweep.unref === 'function') duosSweep.unref();
 
 // ─── Memory logging, every 60s so we can spot leaks early ───────────────────
 setInterval(() => {

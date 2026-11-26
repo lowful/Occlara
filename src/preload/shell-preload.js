@@ -70,6 +70,9 @@ contextBridge.exposeInMainWorld('occlara', {
   // way in shows only then; null mid match.
   socialLive: () => ipcRenderer.invoke(C.SOCIAL_STATE, { only: 'live' }),
   onSocial:   (cb) => subscribe(C.PUSH_SOCIAL, cb),
+  // Duos (docs/claude/duos.md): whether Duos is open, so its row shows only
+  // then; null mid match.
+  duosLive:   () => ipcRenderer.invoke(C.DUOS_STATE, { only: 'live' }),
 
   // THE LIVE STATUS (Progress v3): main's four facts while a match is
   // recorded (PUSH_LIVE), each only while its switch is on, and the

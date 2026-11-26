@@ -58,7 +58,9 @@ shows nothing (`docs/claude/death-flags.md`).
   share images, everything. The one exception (the owner, 2026-11-25): an
   Occlara user's own Riot ID, once they proved control of it in the game, on their own public profile
   and in player search, because that user turned it on
-  (`docs/claude/social.md`).
+  (`docs/claude/social.md`). Occlara Duos names a partner only by username;
+  the one place a name can show there is a partner's own clip, their screen as
+  it was, shared by their choice (`docs/claude/duos.md`).
 - **A refund must take the licence away.** A full `charge.refunded` or any
   `charge.dispute.created` revokes the licence and cancels the subscription
   first, a partial refund must not revoke, and every licence write in the
@@ -134,6 +136,7 @@ in `docs/claude/` to find it.
 | Changing the flag key, flagged deaths or Further explain | `docs/claude/death-flags.md` |
 | Report a problem: its button, page, `/api/feedback`, the inbox (`npm run feedback`) or triaging a player's report | `docs/claude/feedback.md` |
 | Public profiles, usernames, player search, the Players page, proving a Riot ID (named agents, off until SOCIAL_RIOT_PROOF=1), `/api/social`, `social-001-profiles.sql` | `docs/claude/social.md` |
+| Occlara Duos: invites and codes, the Max rule, teammates found, the sheet, clip uploads to the `duo-clips` bucket, the duo cache, pins, the Duos page, `/api/social/duos`, `social-002-duos.sql`, `SOCIAL_DUOS_ON` | `docs/claude/duos.md` |
 | Occlara Wrapped: the year record (`year-record.js`), the story (`wrapped.js`), its view, its look, sound and closing card, when it opens | `docs/claude/wrapped.md` |
 
 ## Conventions

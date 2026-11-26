@@ -1,0 +1,131 @@
+/* palette: tokens only */
+/* Occlara Duos (docs/claude/duos.md), Players' family: the page's question as
+   its one hero, sections on a hairline, people and matches as ruled rows
+   (players.css). What is new here: a round as two cells side by side with one
+   time axis under them, both players on it, and the stage, two clips side by
+   side. Form before hue on the axis: a kill a tick, a death a cross, the
+   player's own lane above and the partner's below. No card and no box in a
+   box: the framed things are the field, the portraits, the map art and the
+   clips, which are pictures. */
+
+.du-col { max-width: 860px; }
+.du-wide { max-width: 1180px; }
+.du-stack { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.du-stack[hidden], .du-state[hidden] { display: none; }
+.du-join { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--line); align-self: stretch; }
+.du-sub { font-size: 12.5px; line-height: 1.4; color: var(--text-dim); }
+.du-warn { color: var(--text); }
+.du-none { display: block; background: var(--bg-2); }
+.du-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+
+/* A partner, an invite: who, a middle line, the actions (no picture: a
+   player is known by a username, never a face). A teammate found has the
+   agent they played. */
+.du-partner, .du-invite { grid-template-columns: minmax(0, 1fr) auto; }
+.du-found { grid-template-columns: 36px minmax(0, 1fr) auto; }
+.du-partner { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; }
+.du-mid { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.du-state-word { font-size: 13px; line-height: 1.4; color: var(--text-dim); }
+.du-state-word.active { color: var(--text); }
+.du-pins-new { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text); }
+.du-pins-new::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--text); }
+.du-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-1) var(--space-2); }
+.du-report { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-2) 0 var(--space-1); }
+
+.du-code-box { display: flex; flex-direction: column; gap: var(--space-1); margin-top: var(--space-2); }
+.du-code-box[hidden] { display: none; }
+.du-code { font: 500 26px var(--font-mono); letter-spacing: 0.08em; color: var(--text); user-select: all; }
+.du-code-in.input { max-width: 260px; font-family: var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* A shared match in the list: the map, the title, both players. */
+.du-match-btn { grid-template-columns: 56px minmax(0, 1fr) auto; }
+.du-pair { display: flex; flex-direction: column; gap: var(--space-1); align-items: flex-start; }
+.du-one { display: inline-flex; align-items: center; gap: var(--space-2); }
+.du-g { font: 500 12.5px var(--font-mono); color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ── One shared match ───────────────────────────────────────────────────── */
+.du-grades { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.du-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-size: 12px; color: var(--text-mute); }
+.du-key { display: inline-flex; align-items: center; gap: 6px; }
+/* Each key drawn with the axis's own mark, in a box of its own. */
+.du-sw { position: relative; display: inline-block; width: 12px; height: 12px; }
+.du-sw .du-mark { top: 1px; left: 6px; }
+.du-sw.lane-me { border-bottom: 1px solid var(--text-dim); height: 8px; }
+.du-sw.lane-them { border-bottom: 1px dashed var(--text-dim); height: 8px; }
+.du-sw.plant { width: 0; border-left: 1px dashed var(--text-dim); margin: 0 5px; }
+
+.du-rounds { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.du-round { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.du-round-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.du-round-n { font-size: 14px; font-weight: 600; color: var(--text); min-width: 72px; }
+.du-watch { margin-left: auto; }
+.du-cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.du-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding-left: var(--space-3); border-left: 2px solid var(--text); }
+.du-cell + .du-cell { border-left: 2px dashed var(--text-dim); }
+.du-cell.none { opacity: 0.6; }
+.du-who { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.du-line { font-size: 13.5px; line-height: 1.4; color: var(--text); }
+.du-line.died { color: var(--text); }
+.du-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: 2px; }
+.du-chip { font-size: 11.5px; font-weight: 500; line-height: 20px; padding: 0 8px; border-radius: var(--r-pill); border: 1px solid var(--line-2); color: var(--text-dim); }
+.du-chip.good { color: var(--text); border-color: rgba(var(--good-rgb), 0.55); }
+.du-chip.bad { color: var(--text); border-color: rgba(var(--bad-rgb), 0.55); }
+
+/* The time axis of a round: two lanes, each named at its left, the ticks of
+   the clock under them. */
+.du-axis-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--space-3); align-items: start; margin-top: var(--space-1); }
+.du-lane-names { display: flex; flex-direction: column; padding-top: 1px; }
+.du-lane-names span { height: 16px; font-size: 11.5px; line-height: 14px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.du-axis { position: relative; height: 46px; margin-right: var(--space-4); }
+.du-lane { position: absolute; left: 0; right: 0; height: 14px; border-bottom: 1px solid var(--line); }
+.du-lane.me { top: 0; }
+.du-lane.them { top: 16px; border-bottom-style: dashed; }
+.du-mark { position: absolute; top: 2px; width: 10px; height: 10px; margin-left: -5px; }
+.du-mark.kill { width: 2px; margin-left: -1px; background: var(--good); }
+.du-lane.them .du-mark.kill { background: transparent; border-left: 2px dotted var(--good); }
+/* A death, a cross of two bars in --bad. */
+.du-mark.death::before, .du-mark.death::after { content: ''; position: absolute; left: -1px; top: 4px; width: 12px; height: 2px; background: var(--bad); }
+.du-mark.death::before { transform: rotate(45deg); }
+.du-mark.death::after { transform: rotate(-45deg); }
+.du-plant { position: absolute; top: 0; height: 30px; border-left: 1px dashed var(--text-dim); }
+.du-ticks { position: absolute; left: 0; right: 0; top: 32px; height: 14px; }
+.du-tick { position: absolute; transform: translateX(-50%); font: 400 10.5px var(--font-mono); color: var(--text-mute); }
+.du-tick:first-child { transform: none; }
+.du-tick:last-child { transform: translateX(-100%); }
+
+/* ── The stage ──────────────────────────────────────────────────────────── */
+.du-stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+.du-stage.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.du-slot { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.du-slot-cap { font-size: 12.5px; font-weight: 500; color: var(--text-dim); }
+.du-sync { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.du-sync[hidden], .du-pin[hidden] { display: none; }
+.du-seek { flex: 1 1 200px; accent-color: var(--text); }
+.du-time { font: 500 13px var(--font-mono); color: var(--text); min-width: 140px; font-variant-numeric: tabular-nums; }
+.du-pin { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.du-pins { list-style: none; margin: 0; padding: 0; }
+.du-pin-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); min-height: 36px; border-top: 1px solid var(--line); }
+.du-pin-row:last-child { border-bottom: 1px solid var(--line); }
+.du-pin-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text); }
+.du-pin-row .btn:first-of-type { margin-left: auto; }
+.du-pin-t { font: 500 12.5px var(--font-mono); color: var(--text-dim); min-width: 52px; }
+.du-pin-w { font-size: 13.5px; color: var(--text); }
+/* A pin on a clip's own track, a white dot above the track, apart from the
+   kills in --good and the death in --bad. */
+.cp-mark.pin { top: -9px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--text); }
+
+@media (max-width: 900px) {
+  .du-partner { grid-template-columns: 36px minmax(0, 1fr) auto; }
+  .du-partner .du-mid { grid-column: 2 / -1; grid-row: 2; }
+}
+@media (max-width: 720px) {
+  .du-stage.two, .du-cells { grid-template-columns: minmax(0, 1fr); }
+  .du-match-btn { grid-template-columns: 56px minmax(0, 1fr); }
+  .du-match-btn .du-pair { grid-column: 2; }
+}
+
+/* A line that has nothing to say takes no room. */
+#du-partner-said:empty, #du-invite-said:empty, #du-found-said:empty, #dm-stage-said:empty, #du-ended:empty { display: none; }
+/* The switch is as wide as its two words, as Profile's are. */
+#du-upload, #dm-pin-labels, #dm-pin-reactions { align-self: flex-start; }

@@ -220,7 +220,7 @@ setTimeout(async () => {
     if (bar.h !== mainWindow.TOP_H || bar.tabs !== 8 || bar.rec || bar.pause || bar.drawer || !bar.inDrawer) {
       return report(false, `the top bar on Home is not the tabs without a Start of its own: ${JSON.stringify(bar)}`);
     }
-    if (bar.kids !== 'profile,players,invite,settings,feedback,discord') return report(false, `the drawer does not hold every page the sidebar's foot did: ${bar.kids}`);
+    if (bar.kids !== 'profile,players,duos,invite,settings,feedback,discord') return report(false, `the drawer does not hold every page the sidebar's foot did: ${bar.kids}`);
     const card = { height: 0 };
     // THE GRADE LINE (Progress v3) at the foot of the last match: one dot a
     // graded match, oldest first, the newest the match's own grade, inside
@@ -281,7 +281,7 @@ setTimeout(async () => {
     if (kids[kids.length - 1] !== ms.view || ms.bounds.y !== mainWindow.TOP_H || ms.bounds.x + ms.bounds.width !== cw || drawn.w !== 280) {
       return report(false, `the menu's view is not on top under the bar at the window's right: ${JSON.stringify(ms.bounds)} of ${cw}`);
     }
-    if (drawn.rows !== 'profile,players,invite,settings,feedback,discord' || drawn.games !== SEEDED_VIEW.gamesLeft || drawn.focus !== 'account') {
+    if (drawn.rows !== 'profile,players,duos,invite,settings,feedback,discord' || drawn.games !== SEEDED_VIEW.gamesLeft || drawn.focus !== 'account') {
       return report(false, `the menu's view does not draw the shell's rows with the first focused: ${JSON.stringify(drawn)}`);
     }
     await shot('drawer', mainWindow, win);
@@ -894,6 +894,43 @@ setTimeout(async () => {
     }
     await shot('players-profile', mainWindow, win);
     await pljs("document.getElementById('pv-back').click(); true");
+
+    // DUOS (docs/claude/duos.md), from its row under Players, on the duos
+    // stand-in server (fixtures/duos-stand-in.js, no network): the duos, the
+    // invites, a teammate found, the shared matches; one opened, round by
+    // round with both players on each round's axis; its round 2 watched,
+    // both clips side by side on one clock (the repo's fixture recording, as
+    // both players' clips, downloaded through the stand-in into the cache).
+    await sjs("document.getElementById('nav-duos').click(); true");
+    if (!await until(settled('duos'), 4000)) return report(false, 'the Duos row did not bring its page in');
+    const dujs = (s) => mainWindow.pageViews().get('duos').webContents.executeJavaScript(s);
+    const duHome = await until(() => dujs(`(() => {
+      const names = [...document.querySelectorAll('#du-partners .pl-name')].map((n) => n.textContent);
+      return names.length ? { names, matches: document.querySelectorAll('#du-matches .pl-result').length, found: document.querySelectorAll('#du-found .pl-name').length,
+        invite: !document.getElementById('du-can-invite').hidden } : null;
+    })()`), 5000);
+    const duosMark = await sjs("(() => { const b = document.querySelector('.foot [aria-current=page]'); return b ? b.id : null; })()");
+    lines.push(`duos home: ${JSON.stringify(duHome)} | marked ${duosMark}`);
+    if (!duHome || duHome.names.join() !== 'Harrier,Wren_PC' || duHome.matches !== 2 || duHome.found !== 1 || !duHome.invite || duosMark !== 'nav-duos') {
+      return report(false, `the Duos page did not paint the stand-in's duos: ${JSON.stringify(duHome)} marked ${duosMark}`);
+    }
+    await shot('duos', mainWindow, win);
+    await dujs("document.querySelector('#du-matches .pl-result-btn').click(); true");
+    const duMatch = await until(() => dujs(`(() => document.getElementById('du-match').hidden ? null : ({ title: document.getElementById('dm-title').textContent,
+      rounds: document.querySelectorAll('#dm-rounds .du-round').length, marks: document.querySelectorAll('#dm-rounds .du-mark').length }))()`), 5000);
+    lines.push(`duos match: ${JSON.stringify(duMatch)}`);
+    if (!duMatch || duMatch.title !== 'Ascent, 13-9' || duMatch.rounds !== 4 || duMatch.marks < 10) return report(false, `a shared match did not paint: ${JSON.stringify(duMatch)}`);
+    await shot('duos-match', mainWindow, win);
+    await dujs("document.querySelectorAll('#dm-rounds .du-watch')[0].click(); true");
+    const duStage = await until(() => dujs(`(() => {
+      const v = [...document.querySelectorAll('#dm-stage video')];
+      return v.length === 2 && v.every((x) => x.readyState >= 1) && !document.getElementById('dm-sync').hidden ? { videos: v.length, src: v.map((x) => x.getAttribute('src').split('/')[2]) } : null;
+    })()`), 8000);
+    lines.push(`duos stage: ${JSON.stringify(duStage)}`);
+    if (!duStage || duStage.src.join() !== 'duo,duo') return report(false, `round 2's two clips did not load side by side from the duo cache: ${JSON.stringify(duStage)}`);
+    await dujs("document.getElementById('dm-stage-sec').scrollIntoView(); true");
+    await shot('duos-stage', mainWindow, win);
+    await dujs("document.getElementById('dm-back').click(); true");
 
     // THE PROFILE PAGE (8.8), from its button between Invite and Settings: the
     // games left as profile.js wrote them from main's account view, the buy
