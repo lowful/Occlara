@@ -3,10 +3,11 @@
 /**
  * THE LIVE RATING (build 2 of the match rating, docs/claude/rating.md "Live").
  *
- * Pure: no Electron, no clock of its own, no network. Main hands it, for every
- * frame the reader applied, what the reader's GUARDED context says (round,
- * side, phase, the score, the spike, a death the engine registered or took
- * back) and what the kill feed detector saw on that frame (killfeed.js). It
+ * Pure: no Electron, no clock of its own, no network. Main hands it the
+ * reader's GUARDED context with every read it applies (round, side, phase, the
+ * score, the spike, a death the engine registered or took back), and five
+ * times a second the kill feed rows the detector read off the recorder's own
+ * frames (killfeed.js), with the last context. It
  * turns them into the rating engine's events (rating.js, "The event shape"),
  * each with an id, pushes them, and keeps the view the Recording screen and
  * the stream widget may show: the number, its tier, its last move with the
@@ -51,8 +52,10 @@ const END_HOLD_MS = 2500;        // the score moved: the round's last rows still
 const OPEN_WAIT_MS = 25000;      // the ledger moved and nothing closed the round: closed unknown after this
 const TOL_LEN = 0.01;            // a block's length may wobble this much (a share of H)
 const TOL_RGB = 75;              // and the portrait's colour this much (the three summed)
-const LOOSE_LEN = Number(process.env.LR_LL || 0.025);
-const LOOSE_RGB = Number(process.env.LR_LR || 135);
+const ALLY_DOWN_MS = 1500;       // after a teammate's death row, no yellow kill is the player's this long
+const SIDE_CAP = 5;              // deaths a side can have in a round (a revive's second death is dropped)
+const BLIND_ROUNDS = 2;
+const FLOOD_ROWS = 3;             // rows new on one frame at once: noise, not kills          // rounds closed with no kill feed row seen: not reading the feed
 const LINE_MAX = 60;             // points kept on the small line
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -70,13 +73,6 @@ function sameRow(a, b) {
   if (!a.sig || !b.sig) return false;
   if (Math.abs(a.sig.v - b.sig.v) > TOL_LEN) return false;
   return Math.abs(a.sig.r - b.sig.r) + Math.abs(a.sig.g - b.sig.g) + Math.abs(a.sig.b - b.sig.b) <= TOL_RGB;
-}
-
-/** Two rows that may be one row seen twice: the same sides, the signature roughly alike. */
-function mayBe(a, b) {
-  if (!a || !b || a.killer !== b.killer || a.victim !== b.victim || !a.sig || !b.sig) return false;
-  if (Math.abs(a.sig.v - b.sig.v) > LOOSE_LEN) return false;
-  return Math.abs(a.sig.r - b.sig.r) + Math.abs(a.sig.g - b.sig.g) + Math.abs(a.sig.b - b.sig.b) <= LOOSE_RGB;
 }
 
 /*
@@ -117,6 +113,9 @@ function align(known, now, t) {
       const k = K[jj];
       const d = now[i];
       if (k.killer !== d.killer || k.victim !== d.victim || k.slot < d.slot) continue;
+      // A row already counted without the player's highlight never takes a
+      // frame row that has it (a phantom once absorbed a real yellow row).
+      if (d.mine && !k.pending && !(k.kills > 0) && !(k.deaths > 0)) continue;
       const c = sigCost(k, d) * 0.2 + (t - k.firstAt > OLD_MS ? 0.8 : 0);
       const rest = best(i + 1, jj + 1);
       if (c + rest.cost < out.cost) out = { cost: c + rest.cost, pick: [k, ...rest.pick] };
@@ -146,7 +145,8 @@ function createLiveRating(opts) {
   let skipped = [];            // rounds the score jumped over: [{ n, won }]
   let seq = 0;
   let rows = [];
-  let prev = { at: null, list: [] };   // the rows of the last frame that had the feed read
+  let roundsBlind = 0;         // rounds closed since a kill feed row was last seen
+  let everRow = false;
   let last = null;             // the player's own last move: { delta, label, value }
   let line = [];
   let events = [];             // what was pushed, for the tests and the field log
@@ -155,7 +155,7 @@ function createLiveRating(opts) {
 
   function reset() {
     r = rating.createRating({ subject: 'me', queue, meAgent: o.meAgent || null });
-    lastScore = null; cur = null; nextN = null; nextSince = null; skipped = []; rows = []; prev = { at: null, list: [] };
+    lastScore = null; cur = null; nextN = null; nextSince = null; skipped = []; rows = []; roundsBlind = 0; everRow = false;
     last = null; line = [rating.D.START]; events = []; changed = true;
   }
   reset();
@@ -175,7 +175,7 @@ function createLiveRating(opts) {
 
   function openRound(n, side, at) {
     cur = { n, side: side === 'attacking' || side === 'defending' ? side : null, openedAt: at, base: null,
-      ended: false, endPending: null, died: false, engineDeath: null, planted: false };
+      ended: false, endPending: null, died: false, engineDeath: null, planted: false, down: { us: 0, them: 0 }, allyDownAt: null, rowsSeen: 0 };
     push({ kind: 'round', id: `${n}:round`, round: n, side: cur.side });
   }
 
@@ -186,8 +186,13 @@ function createLiveRating(opts) {
     let killer = row.killer === 'ally' ? 'us' : row.killer === 'enemy' ? 'them' : null;
     let victim = row.victim === 'ally' ? 'us' : row.victim === 'enemy' ? 'them' : null;
     if (!killer || !victim) return;
+    // A side has five players: a row that would take a sixth of a side in one
+    // round is no kill (colours crossing the feed, a row counted twice).
+    const side = victim === 'them' ? 'them' : 'us';
+    if (cur.down[side] >= SIDE_CAP) return;
+    cur.down[side]++;
     if (row.mine === 'kill' && killer === 'us' && row.kills >= mineSeen) killer = 'me';
-    if (row.mine === 'death' && victim === 'us' && !cur.died) { victim = 'me'; cur.died = true; }
+    if (row.mine === 'death' && victim === 'us' && !cur.died && row.deaths >= mineSeen) { victim = 'me'; cur.died = true; }
     const id = `${cur.n}:k:${killer}:${victim}:${row.sig ? row.sig.v : 0}:${seq++}`;
     push({ kind: 'kill', id, round: cur.n, ms: msOf(row.firstAt), killer, victim });
   }
@@ -197,7 +202,8 @@ function createLiveRating(opts) {
   function flushRows(at, all) {
     const waiting = rows.filter((x) => x.pending).sort((a, b) => a.firstAt - b.firstAt || a.slot - b.slot);
     for (const x of waiting) {
-      const sure = x.mine === 'death' || (x.mine === 'kill' && x.kills >= mineSeen);
+      // The player's kill and death alike want the highlight on two frames.
+      const sure = (x.mine === 'death' && x.deaths >= mineSeen) || (x.mine === 'kill' && x.kills >= mineSeen);
       // Gone from this frame's feed: it has had its chance to show the yellow.
       const gone = x.lastAt < at;
       if (!all && !sure && !gone && x.seen < HOLD_SEEN && at - x.firstAt < HOLD_ROW_MS) break;
@@ -214,6 +220,8 @@ function createLiveRating(opts) {
       cur.died = true;
       push({ kind: 'kill', id: `${cur.n}:death`, round: cur.n, ms: msOf(cur.engineDeath.at), killer: 'them', victim: 'me' });
     }
+    // Rounds closed with no kill feed row seen at all: the feed is not being read.
+    roundsBlind = cur.rowsSeen ? 0 : roundsBlind + 1;
     cur.ended = true;
     cur.endPending = null;
     push({ kind: 'end', id: `${cur.n}:end`, round: cur.n, won: won === true || won === false ? won : null });
@@ -238,12 +246,24 @@ function createLiveRating(opts) {
     if (f.mode === 'swiftplay' && queue !== 'swiftplay' && !events.some((e) => e.kind === 'kill')) { queue = 'swiftplay'; reset(); }
     // A new match: the engine's match id moved and the score read lower (a
     // match that resumes keeps a score at least as high, and its rating).
+    // Any other match id is another match, whatever its first score reads (a
+    // stale or empty score once carried a match's rating into the next). A
+    // match the reader resumes is the service's to take back to its own
+    // rating (live-rating-service.js keeps one a match id).
     if (f.match !== undefined && f.match !== null && f.match !== match) {
-      const lower = !lastScore || (team !== null && enemy !== null && (team < lastScore.team || enemy < lastScore.enemy));
-      if (match !== null && lower) reset();
+      if (match !== null) reset();
       match = f.match;
     }
 
+    // A new match's first read can carry the last match's score: read lower
+    // before anything of this match was counted, it starts this one again
+    // from the lower score (never once a kill or a plant was counted).
+    if (lastScore && team !== null && enemy !== null && (team < lastScore.team || enemy < lastScore.enemy)
+      && !events.some((e) => (e.kind === 'kill' || e.kind === 'plant') && e.out && !e.out.ignored)) {
+      const keep = match;
+      reset();
+      match = keep;
+    }
     // The score moved: the round being played is over (and any it jumped).
     if (team !== null && enemy !== null) {
       const sum = team + enemy;
@@ -286,7 +306,13 @@ function createLiveRating(opts) {
 
     // The kill feed. Up means the guarded context does not hold the player
     // dead this frame and no death of theirs was counted this round.
-    const up = !cur.died && f.alive !== false && f.phase !== 'dead';
+    // And neither for a while after a teammate's death row (the player's own
+    // death may have been missed, and dead the highlight follows the
+    // teammate being watched), nor outside the live round (a menu, the
+    // buy phase, the HUD of another player).
+    const playing = f.phase === null || f.phase === undefined || f.phase === 'active' || f.phase === 'postplant';
+    const up = !cur.died && f.alive !== false && f.phase !== 'dead' && playing
+      && !(cur.allyDownAt !== null && at - cur.allyDownAt < ALLY_DOWN_MS);
     const read = f.det && Array.isArray(f.det.list);
     const list = read ? f.det.list.filter((d) => d && d.killer && d.victim && d.sig).sort((a, b) => a.slot - b.slot) : [];
     // Every row still in its life, in the order it came (oldest first).
@@ -295,31 +321,44 @@ function createLiveRating(opts) {
     // The player's own death row on this frame, where one is (rows stack in time order).
     const deathRow = cur.died ? null : list.find((d) => d.mine === 'death');
     const deathSlot = deathRow ? deathRow.slot : null;
-    const nowRows = [];
+    if (list.length) { cur.rowsSeen += 1; everRow = true; roundsBlind = 0; }
+    // A teammate's death row new on this frame: no yellow kill under it, and
+    // none for a while after.
+    const newCount = list.filter((d, i) => !same[i]).length;
+    const allyDown = newCount < FLOOD_ROWS ? list.find((d, i) => !same[i] && d.victim === 'ally') : null;
+    const allySlot = allyDown ? allyDown.slot : null;
+    if (allyDown && !cur.ended) cur.allyDownAt = at;
     for (let i = 0; i < list.length; i++) {
       const d = list[i];
       // A row under the player's own death row came after it: the player was
       // down, and its yellow is the spectated teammate's.
-      const afterDeath = deathSlot !== null && d.slot > deathSlot;
-      const mine = d.mine === 'kill' ? (up && !afterDeath ? 'kill' : null) : d.mine === 'death' ? (cur.died ? null : 'death') : null;
+      const afterDeath = (deathSlot !== null && d.slot > deathSlot) || (allySlot !== null && d.slot > allySlot);
       const known = same[i] || null;
+      // Three or more rows new on one frame are colours crossing the corner,
+      // not kills (a multi kill's rows come a frame or more apart): known,
+      // never counted.
+      const flood = newCount >= FLOOD_ROWS;
+      // A kill row already on the feed before a teammate's death row came (a
+      // trade, the two a moment apart) keeps taking its yellow: only rows that
+      // came after it are held back.
+      const earlier = known && cur.allyDownAt !== null && known.firstAt <= cur.allyDownAt;
+      const upHere = up || (earlier && !cur.died && f.alive !== false && f.phase !== 'dead' && playing);
+      const mine = d.mine === 'kill' ? (upHere && !afterDeath ? 'kill' : null) : d.mine === 'death' ? (cur.died ? null : 'death') : null;
       if (known) {
-        nowRows.push(known);
         known.lastAt = at;
         known.slot = d.slot;
         known.seen++;
         if (known.pending && !known.mine && mine) known.mine = mine;
         if (known.pending && mine === 'kill') known.kills = (known.kills || 0) + 1;
+        if (known.pending && mine === 'death') known.deaths = (known.deaths || 0) + 1;
         continue;
       }
       // A row first seen once the round is over, or before the next opened, is
       // the last round's tail: known, never counted.
-      const live = !cur.ended && nextN === null;
-      const row = { ...d, mine, kills: mine === 'kill' ? 1 : 0, firstAt: at, lastAt: at, seen: 1, pending: live };
+      const live = !cur.ended && nextN === null && !flood;
+      const row = { ...d, mine, kills: mine === 'kill' ? 1 : 0, deaths: mine === 'death' ? 1 : 0, firstAt: at, lastAt: at, seen: 1, pending: live };
       rows.push(row);
-      nowRows.push(row);
     }
-    if (read) prev = { at, list: nowRows };
     rows = rows.filter((x) => x.pending || at - x.lastAt <= MATCH_ROW_MS * 2);
     if (read) flushRows(at, false);
 
@@ -351,9 +390,15 @@ function createLiveRating(opts) {
     };
   }
 
+  /** Whether the feed is being read: false once rounds close with no row seen. */
+  function reading() {
+    return roundsBlind < BLIND_ROUNDS;
+  }
+
   return {
     frame,
     view,
+    reading,
     value: () => r.value(),
     snapshot: () => r.snapshot(),
     events: () => events.slice(),

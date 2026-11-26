@@ -98,6 +98,7 @@ ok(clockLeft('1:39') === 99 && clockLeft('0:05') === 5 && clockLeft('buy') === n
   m.f(11, { rows: [ROW.mateDeath()] });
   m.f(12, { rows: [ROW.mateDeath()] });
   m.f(13, { rows: [{ ...ROW.myDeath(0.081), slot: 1 }] });
+  m.f(13.2, { rows: [{ ...ROW.myDeath(0.081), slot: 1 }] });
   ok(myDeaths(m.kills()) === 1, 'a frame that missed the top row: the player\'s death under it is still the player\'s (Split round 6)');
   // A row first seen more than a row's life ago has left: one alike in its place is new.
   const n = play();
@@ -166,21 +167,78 @@ ok(clockLeft('1:39') === 99 && clockLeft('0:05') === 5 && clockLeft('buy') === n
   ok(ids.every(Boolean) && new Set(ids).size === ids.length, 'every event has its own id');
 }
 
-// A false match end and its resume keep the rating; a new match starts again.
+// Another match id is another match, whatever its first score reads (the
+// service keeps one rating a match id, so a resume goes back to its own:
+// test-live-rating-wiring.js).
 {
-  const g = play();
-  g.f(10);
-  g.f(12, { rows: [ROW.myKill()] });
-  g.f(13, { rows: [ROW.myKill()] });
-  g.f(20, { team: 1, enemy: 0 });
-  g.f(25, { team: 1, enemy: 0 });
-  const before = g.live.value();
-  // The watch ended the match and it resumed: the engine's match id moved, the score did not go down.
-  g.f(40, { match: T0 + 5, round: 2, team: 1, enemy: 0, phase: 'active', clock: '1:20' });
-  ok(g.live.value() === before && me(g.kills()) === 1, `a match that resumes keeps its rating (${before})`);
-  // A new match: another id and the score back at 0 : 0.
-  g.f(4000, { match: T0 + 9, round: 1, team: 0, enemy: 0, phase: 'buy', clock: '0:40' });
-  ok(g.live.value() === 6 && g.live.events().length <= 2 && g.live.view().last === null, 'a new match starts at 6.0 with nothing of the last');
+  for (const [what, first] of [['the last match\'s stale score', { team: 1, enemy: 0, round: 2 }], ['no score at all', { team: null, enemy: null, round: null }]]) {
+    const g = play();
+    g.f(10);
+    g.f(12, { rows: [ROW.myKill()] });
+    g.f(13, { rows: [ROW.myKill()] });
+    g.f(20, { team: 1, enemy: 0 });
+    g.f(25, { team: 1, enemy: 0 });
+    ok(g.live.value() > 6, 'the first match is rated');
+    g.f(4000, { match: T0 + 9, phase: 'buy', clock: '0:40', ...first });
+    ok(g.live.value() === 6 && g.live.view().last === null, `a new match id whose first read carries ${what} starts at 6.0 with nothing of the last`);
+    g.f(4001, { match: T0 + 9, round: 1, team: 0, enemy: 0, phase: 'active', clock: '1:39' });
+    g.f(4010, { match: T0 + 9, round: 1, rows: [ROW.myDeath()] });
+    g.f(4010.2, { match: T0 + 9, round: 1, rows: [ROW.myDeath()] });
+    const d = g.live.events().filter((e) => e.kind === 'kill' && e.victim === 'me' && !e.out.ignored);
+    ok(d.length === 1 && d[0].round === 1, `and its first death is filed under its own round 1 (${d.map((e) => e.round).join()})`);
+  }
+}
+
+// Round 3's guards: two frames for a death, the spectating window, the caps,
+// a flood of rows, a counted row never taking a yellow one, the feed unread.
+{
+  const one = play();
+  one.f(10);
+  one.f(11, { rows: [ROW.myDeath()] });
+  one.f(11.2, { rows: [ROW.mateDeath(0.06)] });
+  for (let s = 0; s < 10; s++) one.f(11.4 + s * 0.2, { rows: [ROW.mateDeath(0.06)] });
+  ok(myDeaths(one.kills()) === 0, 'one frame of yellow at the victim\'s end is no death of the player\'s');
+  const spec = play();
+  spec.f(10);
+  spec.f(11, { rows: [ROW.mateDeath()] });
+  for (let s = 1; s <= 5; s++) spec.f(11 + s * 0.2, { rows: [ROW.mateDeath(), ROW.myKill()] });
+  spec.f(20, { rows: [] });
+  ok(me(spec.kills()) === 0, 'a yellow kill row coming within 1.5 s of a teammate\'s death row is not the player\'s (the death may have been missed)');
+  const trade = play();
+  trade.f(10);
+  for (let s = 0; s < 5; s++) trade.f(11 + s * 0.2, { rows: [ROW.myKill(), ROW.mateDeath()] });
+  trade.f(20, { rows: [] });
+  ok(me(trade.kills()) === 1, 'a kill already on the feed above a teammate\'s death row still counts (a trade)');
+  const buy = play();
+  buy.f(10, { phase: 'buy' });
+  for (let s = 0; s < 5; s++) buy.f(11 + s * 0.2, { rows: [ROW.myKill()], phase: 'buy' });
+  buy.f(20, { rows: [] });
+  ok(me(buy.kills()) === 0, 'outside the live round no yellow kill is the player\'s');
+  const cap = play();
+  cap.f(10);
+  for (let k = 0; k < 7; k++) { const t = 11 + k * 7; for (let s = 0; s < 9; s++) cap.f(t + s * 0.2, { rows: [ROW.mateKill(0.03 + k * 0.02)] }); cap.f(t + 5.5, { rows: [] }); }
+  ok(cap.kills().filter((e) => e.victim === 'them').length === 5, `a side loses five players a round at most (${cap.kills().filter((e) => e.victim === 'them').length})`);
+  const flood = play();
+  flood.f(10);
+  flood.f(11, { rows: [ROW.mateKill(0.03), ROW.mateDeath(0.05), ROW.mateKill(0.09)] });
+  for (let s = 1; s <= 10; s++) flood.f(11 + s * 0.2, { rows: [ROW.mateKill(0.03), ROW.mateDeath(0.05), ROW.mateKill(0.09)] });
+  flood.f(20, { rows: [] });
+  ok(flood.kills().length === 0, 'three rows new on one frame are colours crossing the corner: none counted');
+  const absorb = play();
+  absorb.f(10);
+  for (let s = 0; s < 9; s++) absorb.f(11 + s * 0.2, { rows: [ROW.mateKill(0.05)] });
+  absorb.f(13, { rows: [{ ...ROW.myKill(0.05), slot: 0 }] });
+  absorb.f(13.2, { rows: [{ ...ROW.myKill(0.05), slot: 0 }] });
+  absorb.f(20, { rows: [] });
+  ok(me(absorb.kills()) === 1, 'a row counted as a teammate\'s never takes a later yellow row');
+  const blind = play();
+  blind.f(10);
+  blind.f(20, { team: 1, enemy: 0, rows: [] }); blind.f(24, { rows: [] });
+  blind.f(30, { round: 2, rows: [] }); blind.f(60, { round: 2, team: 1, enemy: 1, rows: [] }); blind.f(64, { round: 2, rows: [] });
+  blind.f(70, { round: 3, rows: [] });
+  ok(blind.live.reading() === false, 'two rounds closed with no kill feed row seen: not reading the feed');
+  blind.f(80, { round: 3, rows: [ROW.mateKill()] });
+  ok(blind.live.reading() === true, 'a row seen again: reading');
 }
 
 // A death a guard took back never reaches the rating.
