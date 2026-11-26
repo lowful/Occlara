@@ -38,15 +38,18 @@ const VERSION = 1;
  * Riot's record (940 states, both teams of every round: the repo's two
  * fixtures with a kill feed and the owner's five saved reviews with one):
  *
- *   logit P = B0 + B_MAN * (a - d) + B_SPIKE * planted
+ *   logit P = B0 + B_MAN * (a - d) + B_RATIO * ln(a / d) + B_SPIKE * planted
  *
- * A difference fitted better than a ratio (log loss 0.495 against 0.501). B0
+ * The difference and the ratio together fitted best (log loss 0.494, the
+ * difference alone 0.495, the ratio alone 0.501), and the ratio is what makes
+ * a man up in a two against two worth more than one in a five against five,
+ * as the record has it (2v1 won 75 percent, 5v4 62 percent). B0
  * is the defenders' edge at equal numbers with the spike up, which the clock
  * gives them. With no attacker left and the spike down the defenders still
  * have to defuse: half the time against one defender, then 0.3 times as
  * likely for each more (26 such states; rating.md, "The table").
  */
-const WP = Object.freeze({ B0: -0.44, B_MAN: 1.04, B_SPIKE: 0.99, ZERO_ATT_ONE: 0.5, ZERO_ATT_DECAY: 0.3 });
+const WP = Object.freeze({ B0: -0.43, B_MAN: 0.82, B_RATIO: 0.60, B_SPIKE: 0.98, ZERO_ATT_ONE: 0.5, ZERO_ATT_DECAY: 0.3 });
 
 /*
  * THE WEIGHTS, set on the calibration (rating.md, "Calibration"):
@@ -55,7 +58,7 @@ const WP = Object.freeze({ B0: -0.44, B_MAN: 1.04, B_SPIKE: 0.99, ZERO_ATT_ONE: 
  *               duel lost is partly the killer's doing, and a football rating
  *               averages above its start for the same reason. With the trades
  *               given back it puts the calibration lobby's mean at 6.6 where
- *               an even 1.0 put it at 6.3 (0.75 gave 7.0).
+ *               an even 1.0 put it at 6.3 (0.75 gave 6.9).
  * TRADE_BACK    a death a teammate traded gives this share of its cost back,
  *               at the trade: the trade recovered the chance.
  * TRADE_MS      the trade window, riot-rounds.js TRADE_MS.
@@ -71,13 +74,13 @@ const WP = Object.freeze({ B0: -0.44, B_MAN: 1.04, B_SPIKE: 0.99, ZERO_ATT_ONE: 
  *               is already inside the swings, which sum to it.
  * DECIDED       a swing under this is "after the round was decided".
  * NEUTRAL_SWING a kill whose numbers standing cannot be known (a side
- *               missing) is worth the mean swing of a kill or death in calibration (0.18,
+ *               missing) is worth the mean swing of a kill or death in calibration (0.17,
  *               over the player's 209 on the seven matches).
  */
 const W = Object.freeze({
   LOSS_WEIGHT: 0.9, TRADE_BACK: 0.5, TRADE_MS: 5000, REVIVE_MS: 2000,
   ASSIST_SHARE: 0.15, ASSIST_MAX: 0.5, PLANTER_SHARE: 0.5, RESULT: 0.02, DECIDED: 0.01,
-  NEUTRAL_SWING: 0.18, SPIKE_MS: 45000,
+  NEUTRAL_SWING: 0.17, SPIKE_MS: 45000,
 });
 
 /*
@@ -108,7 +111,7 @@ function winChance(a, d, planted) {
   if (d <= 0 && a <= 0) return planted ? 1 : 0.5;
   if (d <= 0) return 1;
   if (a <= 0) return planted ? WP.ZERO_ATT_ONE * Math.pow(WP.ZERO_ATT_DECAY, d - 1) : 0;
-  return sigmoid(WP.B0 + WP.B_MAN * (a - d) + (planted ? WP.B_SPIKE : 0));
+  return sigmoid(WP.B0 + WP.B_MAN * (a - d) + WP.B_RATIO * Math.log(a / d) + (planted ? WP.B_SPIKE : 0));
 }
 
 /** The usual longest match of a queue, in rounds. */
@@ -207,7 +210,7 @@ function createRating(opts) {
     // No side known: the spike cannot be placed, the man advantage alone.
     if (us <= 0) return 0;
     if (them <= 0) return 1;
-    return sigmoid(WP.B_MAN * (us - them));
+    return sigmoid(WP.B_MAN * (us - them) + WP.B_RATIO * Math.log(us / them));
   }
 
   // Credit a key. A move against it counts LOSS_WEIGHT of itself, and the
@@ -590,7 +593,12 @@ function ratingOfReview(review) {
   const s = review.rating;
   if (s && typeof s === 'object' && typeof s.version === 'number' && typeof s.value === 'number') return { rating: s, why: null, note: null };
   const rounds = roundsOfReview(review);
-  if (!rounds.length || !rounds.some((r) => r.feed)) return { rating: null, why: 'no-record', note: WHY['no-record'] };
+  if (!rounds.length || !rounds.some((r) => r.feed)) {
+    // Riot's record laid over it, but saved before the feed was kept (8.5.0).
+    const linked = (review.rounds || []).some((c) => c && c.riot && typeof c.riot === 'object');
+    const why = linked ? 'no-feed' : 'no-record';
+    return { rating: null, why, note: WHY[why] };
+  }
   const g = review.game && typeof review.game === 'object' ? review.game : {};
   const tops = typeof g.score === 'string' ? g.score.split('-').map(Number) : [];
   const out = fromRecord({
