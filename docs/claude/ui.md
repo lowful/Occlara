@@ -464,6 +464,13 @@ draws the button only on a died round whose id has the shape. A click is
 main checks it again before it opens the Trainer on that death. What a replay
 is: `docs/claude/trainer.md`, "Fight it again".
 
+**Occlara Wrapped** (`src/renderer/wrapped/`, wrapped.md) is no page: the
+year's story is a view of its own over the WHOLE window, the bar included
+(`main-window.js openWrapped`, the games toast's pattern), made fresh for each
+showing and closed with its page after it, under the games reveal and the
+menu, closed by the seal in the tick it comes on. It is the one surface with
+a look of its own (ui-rules-ipc.md, "Wrapped's own look").
+
 Separate windows, because they are not pages:
 
 ```
@@ -606,6 +613,14 @@ label, with no frame around any:
   that round as before. A repaint keeps the same clip playing, and any other
   paint releases it (`stopClip`). `test:homemodel` holds the K/D.
 
+- **Occlara Wrapped's invitation** (wrapped.md), from 15 December to 31
+  January only: one strip under the title in the app's own look (`#h-wrapped`,
+  the Start strip's shape: the crescent, main's line from `WRAPPED_ENTRY`,
+  "Play your 2026 Wrapped" as a dark capsule, `WRAPPED_OPEN`), or the line
+  alone when the year has fewer than 5 reviewed matches of one game. Asked on
+  Home's one review listener and as Home arms; hidden mid match (main answers
+  null). `check:wrapped` reads it and presses it.
+
 `test:surfaces` holds Home's and Stats' answers to the same history equal,
 and `check:mainwindow` measures the trend on the real layout.
 
@@ -726,7 +741,12 @@ answers null mid match or sealed; the page counts nothing and names no URL
    rated game in the rank history main keeps, with its day. Each says its sample or an honest empty
    state (Play a match, Connect your Riot ID, no gun named yet, could not be
    fetched). League is never counted.
-4. **Plans**: Free, Pro and Max as ruled rows (prices in `profile.js PLANS`,
+4. **Your year** (wrapped.md): Occlara Wrapped's entry, main's line and its
+   button (`#pr-wrapped`, `WRAPPED_ENTRY`, `WRAPPED_OPEN`), inside the window
+   ("Play your 2026 Wrapped") and after it for the latest year begun ("Play
+   2026 again"); a year without enough matches says so with no button.
+   Hidden with nothing to say.
+5. **Plans**: Free, Pro and Max as ruled rows (prices in `profile.js PLANS`,
    games from `usage.js`), a Monthly and Yearly capsule, the current plan
    marked "Your plan" in a ringed capsule, the others a ghost capsule that asks
    main for `occlara.app/#pricing` (`PROFILE_PLANS`).

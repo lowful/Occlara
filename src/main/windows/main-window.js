@@ -106,6 +106,14 @@ let toastQueue = [];       // toasts waiting, oldest first
 let toastNow = null;       // the toast on screen
 let toastSent = null;      // what to send once the toast's document has loaded
 let onToastOpen = null;    // index.js: a toast clicked opens Profile
+// OCCLARA WRAPPED (docs/claude/wrapped.md): the year's story, a view of its own
+// over the WHOLE window, the bar included, made fresh on each opening and
+// closed (its page with it) on each closing, so a story never plays on in a
+// view nobody sees. THE SEAL CLOSES IT in the same tick it comes on
+// (setSealed): nothing of it is shown or heard during a match. Hidden or
+// minimised, it is told to pause. Opaque: it draws its own ground.
+let wrappedView = null;
+const WRAPPED_GROUND = '#05060A';
 const DEFAULT_W = 1200;
 const DEFAULT_H = 780;
 const MIN_W = 960;
@@ -307,9 +315,11 @@ function create(opts) {
   // minimised, the one on screen waits for the next time.
   self.on('show', () => { if (win === self) pumpToast(); });
   self.on('restore', () => { if (win === self) pumpToast(); });
-  self.on('hide', () => { if (win === self) withdrawToast(); });
-  self.on('minimize', () => { if (win === self) withdrawToast(); });
+  self.on('hide', () => { if (win === self) { withdrawToast(); pauseWrapped(); } });
+  self.on('minimize', () => { if (win === self) { withdrawToast(); pauseWrapped(); } });
   self.on('focus', seen);
+  self.on('focus', () => { if (win === self) { resumeWrapped(); changed('focus'); } });
+  self.on('blur', () => { if (win === self) pauseWrapped(); });
   // The account menu shuts as the window loses the focus (another app, the
   // game), as an open list does.
   self.on('blur', () => { if (win === self) closeMenu(); });
@@ -342,6 +352,8 @@ function closeViews() {
   menuQueued = null;
   try { if (alive(toastView)) toastView.webContents.close(); } catch { /* already gone */ }
   toastView = null;
+  try { if (alive(wrappedView)) wrappedView.webContents.close(); } catch { /* already gone */ }
+  wrappedView = null;
   // A toast on screen as its window goes is shown again in the next one.
   if (toastNow) toastQueue.unshift(toastNow);
   toastNow = null;
@@ -437,6 +449,7 @@ function layout() {
     v.setBounds(id === staged ? { ...rect, x: w - STAGE_PX } : rect);
   }
   if (alive(toastView)) toastView.setBounds(toastBounds(w, h));
+  if (alive(wrappedView)) wrappedView.setBounds(toastBounds(w, h));
 }
 
 // ── The account menu (8.9.1), over the page ───────────────────────────────
@@ -485,6 +498,8 @@ function sendMenu(msg) {
 
 /** The menu over every page: re-adding a child view moves it to the top. */
 function raiseMenu() {
+  // Wrapped over every page; the games reveal and the menu over it.
+  if (alive(wrappedView) && win && !win.isDestroyed()) win.contentView.addChildView(wrappedView);
   if (toastNow && alive(toastView) && win && !win.isDestroyed()) win.contentView.addChildView(toastView);
   if (menuOpen && alive(menuView) && win && !win.isDestroyed()) win.contentView.addChildView(menuView);
 }
@@ -661,8 +676,12 @@ function toastDone(id) {
   if (!pumpToast()) {
     const v = toastView;
     if (alive(v)) v.setVisible(false);
-    // The keyboard goes back to the window's own page.
-    try { if (win && !win.isDestroyed() && win.webContents && typeof win.webContents.focus === 'function') win.webContents.focus(); } catch { /* gone */ }
+    // The keyboard goes back to Wrapped when it is up under the reveal, else
+    // to the window's own page.
+    try {
+      if (alive(wrappedView) && wrappedView.getVisible()) wrappedView.webContents.focus();
+      else if (win && !win.isDestroyed() && win.webContents && typeof win.webContents.focus === 'function') win.webContents.focus();
+    } catch { /* gone */ }
   }
 }
 
@@ -704,7 +723,102 @@ function toastState() {
   return { shown: !!(toastNow && v && v.getVisible()), now: toastNow, queued: toastQueue.map((t) => t.id), view: v, bounds: v ? v.getBounds() : null };
 }
 
+// ── Occlara Wrapped (docs/claude/wrapped.md), over the whole window ───────
+
+/** Whether Wrapped may come on screen now: the window shown, not minimised, and not sealed. */
+function wrappedMayShow() {
+  const w = get();
+  return !!(w && w.isVisible() && !w.isMinimized() && !nav.state().sealed);
+}
+
+/**
+ * Wrapped up, over everything but the games reveal and the menu: a view made
+ * fresh, its page loaded, the keyboard given to it. Refused while sealed,
+ * hidden or minimised (nothing may show mid match, and a view in a window
+ * nobody sees would play to no one). True once it is up.
+ */
+function openWrapped() {
+  if (!wrappedMayShow()) return false;
+  if (alive(wrappedView)) {
+    win.contentView.addChildView(wrappedView);
+    raiseMenu();
+    try { wrappedView.webContents.focus(); } catch { /* not focusable */ }
+    return true;
+  }
+  closeMenu();
+  const v = new WebContentsView({
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      preload: path.join(__dirname, '../../preload/wrapped-preload.js'),
+    },
+  });
+  v.setBackgroundColor(WRAPPED_GROUND);
+  wrappedView = v;
+  const [w, h] = win.getContentSize();
+  v.setBounds(toastBounds(w, h));
+  win.contentView.addChildView(v);
+  raiseMenu();
+  v.setVisible(true);
+  const wc = v.webContents;
+  if (typeof wc.once === 'function') wc.once('destroyed', () => { if (wrappedView === v) wrappedView = null; });
+  wc.loadFile(path.join(__dirname, '../../renderer/wrapped/index.html'));
+  registry.register('wrapped', v);
+  try { if (typeof wc.focus === 'function') wc.focus(); } catch { /* a test window has nothing to focus */ }
+  return true;
+}
+
+/**
+ * Wrapped closed: its view taken off the window and its page closed with it,
+ * so not a frame of it draws and not a note of it plays after. The keyboard
+ * goes back to the page on screen, else the shell.
+ */
+function closeWrapped(opts) {
+  const refocus = !(opts && opts.refocus === false);
+  const v = wrappedView;
+  if (!v) return false;
+  wrappedView = null;
+  try { v.setVisible(false); } catch { /* gone */ }
+  try { if (win && !win.isDestroyed()) win.contentView.removeChildView(v); } catch { /* not laid on this window */ }
+  // Silent at once: closing a page takes a moment, and not a note may play in it.
+  try { if (alive(v) && typeof v.webContents.setAudioMuted === 'function') v.webContents.setAudioMuted(true); } catch { /* gone */ }
+  try { if (alive(v)) v.webContents.close(); } catch { /* already gone */ }
+  // THE SEAL NEVER REFOCUSES: on Windows focusing web contents focuses its
+  // window, which would pull the app over the game in the tick a match starts.
+  if (!refocus) return true;
+  try {
+    const page = views.get(nav.state().shown);
+    if (alive(page) && !nav.state().sealed) page.webContents.focus();
+    else if (win && !win.isDestroyed() && win.webContents && typeof win.webContents.focus === 'function') win.webContents.focus();
+  } catch { /* gone */ }
+  return true;
+}
+
+/**
+ * Hidden, minimised or out of focus (the game in front on another monitor):
+ * the story and its sound pause where they are. The window's focus coming
+ * back resumes it, and the page plays on only if it was this that paused it.
+ */
+function pauseWrapped() {
+  if (alive(wrappedView)) { try { wrappedView.webContents.send(C.PUSH_WRAPPED, { pause: true }); } catch { /* gone */ } }
+}
+function resumeWrapped() {
+  if (alive(wrappedView) && wrappedView.getVisible()) { try { wrappedView.webContents.send(C.PUSH_WRAPPED, { resume: true }); } catch { /* gone */ } }
+}
+
+/** Whether Wrapped is up and where, for the checks and the pictures. */
+function wrappedState() {
+  const v = alive(wrappedView) ? wrappedView : null;
+  return { open: !!(v && v.getVisible()), view: v, bounds: v ? v.getBounds() : null };
+}
+
 if (ipcMain && typeof ipcMain.on === 'function') {
+  // From Wrapped's own view alone: the player closed it (its X, Escape, the end).
+  ipcMain.on(C.WRAPPED_ACT, (e, m) => {
+    if (!wrappedView || !alive(wrappedView) || !e || e.sender !== wrappedView.webContents || !m) return;
+    if (m.close === true) closeWrapped();
+  });
   // From the toast's view alone: one done (its time up, its X), or clicked.
   ipcMain.on(C.TOAST_ACT, (e, m) => {
     if (!alive(toastView) || !e || e.sender !== toastView.webContents || !m) return;
@@ -741,8 +855,12 @@ function state() {
   return { ...s, held: s.sealed && held, maximized: !!(win && !win.isDestroyed() && win.isMaximized()) };
 }
 
+let lastShown = null;
 function push() {
   registry.sendTo('main', C.PUSH_SHELL, state());
+  // A new page asked on screen (index.js: Home shown is Wrapped's chance to open by itself).
+  const shown = nav.state().shown;
+  if (shown !== lastShown) { lastShown = shown; changed('page'); }
 }
 
 /**
@@ -825,6 +943,8 @@ function setSealed(on, opts) {
   const h = !!on && !!(opts && opts.held);
   protect(!!on);
   shutMenuForSeal(!!on);
+  // Wrapped goes in this tick, its page closed: nothing of it mid match.
+  if (on) closeWrapped({ refocus: false });
   if (nav.state().sealed === !!on && held === h) return;
   held = h;
   nav.seal(!!on);
@@ -945,4 +1065,5 @@ module.exports = {
   create, get, reveal, show, setSealed, current, shellState, minimize, hide, close, toggleMaximize, isHidden, toggleHidden,
   onWindowChange, onSessionEnd, onCloseAsk, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, setDrawer, menuState, STAGE_PX,
   toast, toastState, onToastClick,
+  openWrapped, closeWrapped, wrappedState,
 };

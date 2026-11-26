@@ -687,6 +687,36 @@ function paintNews(n) {
   const seen = () => { if (typeof window.occlara.newsSeen === 'function') window.occlara.newsSeen(line.version); };
   if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(seen); else seen();
 }
+/*
+ * OCCLARA WRAPPED (docs/claude/wrapped.md): from 15 December to 31 January,
+ * main's line and its button ("Play your 2026 Wrapped"), or, without enough
+ * matches, the line alone saying so. Out of the window, mid match (main
+ * answers null) or with nothing to say, the strip is hidden.
+ */
+let wrappedAsk = 0;
+async function paintWrapped() {
+  const mine = ++wrappedAsk;
+  const host = document.getElementById('h-wrapped');
+  let e = null;
+  try { e = typeof window.occlara.getWrapped === 'function' ? await window.occlara.getWrapped() : null; } catch { e = null; }
+  if (mine !== wrappedAsk || !host) return;
+  if (!e || !e.open || typeof e.line !== 'string') { host.hidden = true; return; }
+  document.getElementById('h-wrapped-text').textContent = e.line;
+  const b = document.getElementById('h-wrapped-open');
+  b.hidden = !e.button;
+  b.textContent = e.button || '';
+  b.dataset.year = String(e.year);
+  host.classList.toggle('thin', !e.enough);
+  host.hidden = false;
+}
+document.getElementById('h-wrapped-open').addEventListener('click', () => {
+  const y = Number(document.getElementById('h-wrapped-open').dataset.year);
+  if (typeof window.occlara.openWrapped === 'function') window.occlara.openWrapped(Number.isInteger(y) ? y : null);
+});
+// Asked again on a review saved (Home's one review listener, below) and as Home arms.
+paintWrapped();
+if (typeof window.occlara.onPage === 'function') window.occlara.onPage((m) => { if (m && m.phase === 'arm') paintWrapped(); });
+
 document.getElementById('h-news-open').addEventListener('click', () => {
   if (typeof window.occlara.openWhatsNew === 'function') window.occlara.openWhatsNew();
 });
@@ -720,7 +750,7 @@ function paintStrip(s) {
   // A review saved or improved (Riot's record landing after the match, a match
   // graded from it) repaints Home, and so does a change of game, whose cards
   // arrive again.
-  window.occlara.onReviews(() => load());
+  window.occlara.onReviews(() => { load(); paintWrapped(); });
   // A review still being built moving on, or whole at last (8.4.1): its last
   // match card and its row say so, or show its grade.
   if (typeof window.occlara.onReviewWork === 'function') window.occlara.onReviewWork(() => load());

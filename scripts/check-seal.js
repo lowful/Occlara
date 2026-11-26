@@ -77,7 +77,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: a held seal is taken over by a League recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts, the Profile page and its checkout sealed mid match, the games toast held mid match and shown once it ends, the tray icon brings the window up, the Recording screen mid match, and closing quits by the tray\'s path, asking first, once each, when a match is being recorded (counting only the rounds a stop keeps) and when a review is still being built');
+  console.log('PASS: a held seal is taken over by a League recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts, the Profile page and its checkout sealed mid match, the games toast held mid match and shown once it ends, Wrapped closed and silent in the tick a match resumes and refused every way mid match, the tray icon brings the window up, the Recording screen mid match, and closing quits by the tray\'s path, asking first, once each, when a match is being recorded (counting only the rounds a stop keeps) and when a review is still being built');
   process.exit(0);
 }
 
@@ -468,6 +468,17 @@ setTimeout(async () => {
     v.emit('match-ended', snap);
     if (!await until(settled('review'), 6000)) return report(false, 'the review of the match that ended never came in');
     const before = (await invoke(C.REVIEWS_LIST, 'valorant')).length;
+    // OCCLARA WRAPPED (docs/claude/wrapped.md) is up between the matches, the
+    // player's own choice; the match resuming must close it in the same tick.
+    const wrappedUp = mainWindow.openWrapped();
+    const wrappedPage = wrappedUp ? mainWindow.wrappedState().view.webContents : null;
+    // The seal closing it must give the keyboard to nothing: focusing a page on
+    // Windows raises the window over the game in the tick the match starts.
+    let focusedOnSeal = 0;
+    for (const c of [...[...mainWindow.pageViews().values()].map((pv) => pv.webContents), win.webContents]) {
+      const f = c.focus.bind(c);
+      c.focus = (...a) => { focusedOnSeal += 1; return f(...a); };
+    }
     // Play carries on from the ended score: the engine puts the match back, then says so.
     v.endWatch.ended = false;
     v.inLobby = false;
@@ -481,6 +492,23 @@ setTimeout(async () => {
     if (!now.sealed) return report(false, 'a review withdrawn because its match resumed left the window unsealed mid match');
     if (onScreen.length || m.onScreen || m.coming) return report(false, `mid match, a page is on screen: ${onScreen.join(',')}`);
     if (now.page !== 'home') return report(false, `the window kept ${now.page}, not Home, for when the match ends`);
+    // Wrapped: gone in that same tick, its page closed, and nothing of it to be had mid match.
+    const wrappedMid = mainWindow.wrappedState().open;
+    const wrappedFocused = focusedOnSeal;
+    const wrappedOffWindow = !!wrappedPage && !win.contentView.children.some((c) => c.webContents === wrappedPage);
+    const wrappedSilent = !!wrappedPage && (wrappedPage.isDestroyed() || wrappedPage.isAudioMuted());
+    const wrappedClosed = !!wrappedPage && await until(() => wrappedPage.isDestroyed(), 3000);
+    const wrappedGet = await invoke(C.WRAPPED_GET);
+    const wrappedEntry = await invoke(C.WRAPPED_ENTRY);
+    const wrappedAsk = await invoke(C.WRAPPED_OPEN, 2026);
+    const wrappedAgain = mainWindow.openWrapped();
+    lines.push(`resumed: Wrapped was up=${wrappedUp} in the same tick: open=${wrappedMid} off the window=${wrappedOffWindow} silent=${wrappedSilent} focused anything=${wrappedFocused}, its page closed=${!!wrappedClosed} | get=${JSON.stringify(wrappedGet)} entry=${JSON.stringify(wrappedEntry)} ask=${JSON.stringify(wrappedAsk)} opened by main=${wrappedAgain}`);
+    if (!wrappedUp) return report(false, 'between matches, Wrapped would not open');
+    if (wrappedMid || !wrappedOffWindow || !wrappedSilent || !wrappedClosed) return report(false, 'mid match, Wrapped stayed up, or could still be heard');
+    if (wrappedFocused) return report(false, `the seal closing Wrapped focused a page or the shell ${wrappedFocused} times, raising the window over the game`);
+    if (wrappedGet !== null || wrappedEntry !== null || !wrappedAsk || wrappedAsk.ok !== false || wrappedAsk.error !== 'match' || wrappedAgain) {
+      return report(false, 'mid match, Wrapped could still be asked for or opened');
+    }
     // THE GAMES TOAST WAITS (8.9.1, ui.md "The games toast"): games that came
     // mid match (a gift redeemed, an invite paid off) are never said over it.
     // index.js holds them while a match is on or the window is sealed

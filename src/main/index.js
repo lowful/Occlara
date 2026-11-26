@@ -121,8 +121,32 @@ const account = createAccountService({
 /** The auth every request to the server sends (api-client.js authHeaders). */
 const authed = () => account.auth();
 
+// THE YEAR RECORD (docs/claude/wrapped.md): one compact row per reviewed match,
+// never trimmed, written on every save of a review and taken back only by a
+// removal on purpose. Each row is given the rank tier the history main keeps
+// on disk knows for its Riot match, when it knows one (rank-history.js keeps
+// no name: numbers, tiers and match ids).
+const { YearRecord } = require('./services/year-record');
+const yearRecord = new YearRecord(path.join(app.getPath('userData'), 'wrapped'), { log: (...a) => console.log(...a) });
+let rankPointsCache = { at: -1, points: null };
+function rankPointFor(matchId) {
+  if (typeof matchId !== 'string' || !matchId) return null;
+  const file = path.join(app.getPath('userData'), 'rank-history.json');
+  let mtime = 0;
+  try { mtime = fs.statSync(file).mtimeMs; } catch { return null; }
+  if (rankPointsCache.at !== mtime) {
+    let points = [];
+    try { const rec = JSON.parse(fs.readFileSync(file, 'utf8')); points = rec && rec.data && Array.isArray(rec.data.points) ? rec.data.points : []; } catch { points = []; }
+    rankPointsCache = { at: mtime, points };
+  }
+  return rankPointsCache.points.find((p) => p && p.matchId === matchId) || null;
+}
+
 // Every post-match review, for every game. See services/review-store.js.
-const reviewStore = new ReviewStore(path.join(app.getPath('userData'), 'reviews'));
+const reviewStore = new ReviewStore(path.join(app.getPath('userData'), 'reviews'), {
+  year: yearRecord,
+  yearExtra: (_id, review) => ({ rank: rankPointFor(review && review.matchId) }),
+});
 
 // THE CLIPS OF A REVIEW'S MOMENTS (8.3) play in its page's <video> through
 // occlara-clip://, served by main alone (services/clip-scheme.js says why, and
@@ -895,6 +919,11 @@ function showMark() {
 }
 function onMainWindow(kind) {
   if (appQuitting) return;
+  // Wrapped may open by itself the first time the window is shown in its
+  // window (wrapped-service.js maybeAuto): asked a beat after it comes up.
+  // And as a page comes on screen: Home shown again is its next chance.
+  if (kind === 'show' || kind === 'restore' || kind === 'focus' || kind === 'page') wrappedSoon();
+  if (kind === 'focus' || kind === 'page') return;
   if (kind === 'hide' || kind === 'show') {
     markFor = kind === 'hide' ? mainWindow.get() : null;
     placeMark(mainWindow.current().sealed);
@@ -5268,6 +5297,91 @@ function trainerInFront() {
   }, 1000);
   if (t && typeof t.unref === 'function') t.unref();
 }
+/*
+ * OCCLARA WRAPPED (docs/claude/wrapped.md, services/wrapped-service.js): the
+ * year's story from the year record, its own view over the whole window.
+ * Never mid match or sealed (the seal closes the view, main-window.js), and it
+ * opens by itself once a year, the first time the window is shown inside its
+ * window with enough matches. Nothing of it leaves this PC.
+ *
+ * THE DEV SWITCHES, a run from the repo only (!app.isPackaged):
+ *   OCCLARA_DEV_WRAPPED=sample   opens Wrapped on a sample year built from the
+ *                                repo's fixtures (scripts/fixtures/wrapped-sample.js)
+ *   OCCLARA_DEV_WRAPPED=open     opens it on this PC's own record, any day
+ *   OCCLARA_DEV_WRAPPED_NOW=<ms> the clock its calendar reads (check:wrapped)
+ */
+const { createWrapped, mayOpenNow: mayOpenWrapped } = require('./services/wrapped-service');
+const WRAPPED_DEV = !app.isPackaged ? String(process.env.OCCLARA_DEV_WRAPPED || '') : '';
+const WRAPPED_NOW = !app.isPackaged && Number(process.env.OCCLARA_DEV_WRAPPED_NOW) > 0 ? Number(process.env.OCCLARA_DEV_WRAPPED_NOW) : 0;
+let wrappedSampleRows = null;
+function wrappedSample() {
+  if (WRAPPED_DEV !== 'sample') return null;
+  if (!wrappedSampleRows) {
+    // A dev run's own file, never shipped (scripts/ is not in the installer).
+    wrappedSampleRows = require(path.join(__dirname, '..', '..', 'scripts', 'fixtures', 'wrapped-sample.js')).rows();
+  }
+  return wrappedSampleRows;
+}
+const PROCESS_STARTED_AT = Date.now();
+const inYear = (at, y) => Number.isFinite(at) && new Date(at).getFullYear() === y;
+const wrappedIpc = createWrapped({
+  year: yearRecord,
+  store,
+  now: () => (WRAPPED_NOW ? WRAPPED_NOW + (Date.now() - PROCESS_STARTED_AT) : Date.now()),
+  busy: () => matchInProgress() || windowSealed(),
+  // Only over Home settled on screen with nothing over it (wrapped-service.js
+  // mayOpenNow): never over a review, the Trainer, a clip in Moments, Settings
+  // or Profile. Otherwise it waits for Home to be shown again (onMainWindow 'page').
+  free: () => {
+    const w = mainWindow.get();
+    const nav = mainWindow.current();
+    const m = mainWindow.motionState();
+    return mayOpenWrapped({
+      surfacesUp, onboarded: !!store.get('onboardingCompleted'),
+      visible: !!(w && w.isVisible()), minimized: !!(w && w.isMinimized()), focused: !!(w && w.isFocused()),
+      match: matchInProgress(), sealed: windowSealed(),
+      shown: nav.shown, onScreen: m.onScreen, coming: !!m.coming,
+      toast: mainWindow.toastState().shown, menu: mainWindow.menuState().open, wrapped: mainWindow.wrappedState().open,
+    });
+  },
+  hasClip: (id, name) => reviewStore.hasClip(id, name),
+  clipUrl: (id, name) => clipScheme.urlFor(id, name),
+  extras: (y) => {
+    let trainer = 0;
+    let drills = 0;
+    try { const t = store.get('trainer'); trainer = (t && Array.isArray(t.runs) ? t.runs : []).filter((r) => r && inYear(r.at, y)).length; } catch { trainer = 0; }
+    try { const p = store.get('practice'); drills = (p && Array.isArray(p.log) ? p.log : []).filter((e) => e && inYear(e.at, y)).length; } catch { drills = 0; }
+    return { trainer, drills };
+  },
+  sounds: () => store.get('sounds') !== false,
+  // The panel's refresh rate, so the ground steps down only when the GPU cannot keep up (gl.js tooSlow).
+  hz: () => { const w = mainWindow.get(); return w ? screen.getDisplayMatching(w.getBounds()).displayFrequency : null; },
+  show: () => mainWindow.openWrapped(),
+  sample: () => wrappedSample(),
+  log: (...a) => console.log(...a),
+});
+let wrappedTimer = null;
+let wrappedDevShown = false;
+/** A beat after the window comes up: the dev switch's one opening, else the one time auto open. */
+function wrappedSoon() {
+  if (wrappedTimer) return;
+  wrappedTimer = setTimeout(() => {
+    wrappedTimer = null;
+    try {
+      if (WRAPPED_DEV && !wrappedDevShown) {
+        const w = mainWindow.get();
+        if (surfacesUp && w && w.isVisible() && !matchInProgress() && !windowSealed()) {
+          wrappedDevShown = true;
+          console.log('[wrapped] dev switch:', WRAPPED_DEV, JSON.stringify(wrappedIpc.open()));
+        }
+        return;
+      }
+      wrappedIpc.maybeAuto();
+    } catch (e) { console.warn('[wrapped] auto:', e.message); }
+  }, 900);
+  if (wrappedTimer && typeof wrappedTimer.unref === 'function') wrappedTimer.unref();
+}
+
 const changelogIpc = {
   /** At launch: what this launch says, if anything. */
   start() {
@@ -5741,6 +5855,14 @@ if (!app.requestSingleInstanceLock()) {
     // their folders and rows, none of which can be opened any more. After the
     // first launch there is nothing left to do, and nothing is said.
     retiredGames.putAway({ store, reviewStore });
+    // THE YEAR RECORD'S ONE TIME FILL (docs/claude/wrapped.md): every review on
+    // disk the first time this version runs, so the year under way is not
+    // empty; then the ranks the history has learned since, on rows without one.
+    try {
+      const n = yearRecord.backfill(reviewStore, (e) => ({ rank: rankPointFor(e.review && e.review.matchId) }));
+      if (n) console.log(`[wrapped] the year record was filled from ${n} saved reviews`);
+      yearRecord.fillRanks(rankPointFor);
+    } catch (e) { console.warn('[wrapped] the year record:', e.message); }
     // A game that is coming soon (League for now) cannot stay chosen: an
     // install that had it picked goes back to Valorant. Its reviews are kept.
     if (gameRegistry.isComingSoon(store.get('game'))) store.set('game', gameRegistry.DEFAULT_GAME);
@@ -5768,7 +5890,7 @@ if (!app.requestSingleInstanceLock()) {
     // a clip and applying the cap left the clips past it.
     applyClipCap();
 
-    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc, practice: practiceIpc, trainer: trainerIpc });
+    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc, practice: practiceIpc, trainer: trainerIpc, wrapped: wrappedIpc });
     changelogIpc.start();
     // occlara:// for the sign in's fallback link (8.7), on an installed build
     // only: a dev run would point Windows at electron.exe.

@@ -139,8 +139,27 @@ function listed(row) {
 }
 
 class ReviewStore {
-  constructor(root) {
+  /**
+   * @param opts.year  the year record (year-record.js), which every save
+   *   writes its row to and a removal on purpose takes it from; the library's
+   *   own trim never does (docs/claude/wrapped.md)
+   * @param opts.yearExtra  (id, review) => { rank } for the row, optional
+   */
+  constructor(root, opts) {
     this.root = root;
+    this.year = (opts && opts.year) || null;
+    this.yearExtra = (opts && typeof opts.yearExtra === 'function') ? opts.yearExtra : null;
+  }
+
+  /** The year record told of a save (by id, so a save again replaces): never a throw out of a save. */
+  recordYear(id, game, at, review) {
+    if (!this.year) return;
+    try {
+      const extra = this.yearExtra ? this.yearExtra(id, review) : null;
+      this.year.put(id, game, at, review, extra);
+    } catch (e) {
+      console.warn('[reviews] the year record:', e && e.message);
+    }
   }
 
   ensure() {
@@ -223,9 +242,21 @@ class ReviewStore {
     const rows = this.index().filter((r) => r && r.id !== id);
     rows.push(metaOf(id, game, review, when));
     rows.sort((a, b) => b.at - a.at);
-    for (const old of rows.splice(MAX_REVIEWS)) this.remove(old.id, true);
+    // THE TRIM: the oldest reviews past the cap go, files and folders. Their
+    // rows in the year record STAY (trim() never tells it), so Wrapped keeps
+    // a heavy player's January.
+    for (const old of rows.splice(MAX_REVIEWS)) this.trim(old.id);
     writeJson(path.join(this.root, 'index.json'), rows);
+    this.recordYear(id, game, when, review);
     return rows[0] && rows.find((r) => r.id === id);
+  }
+
+  /** A review pushed out by the cap: its files go, its index row is the caller's, its year row stays. */
+  trim(id) {
+    if (!ID_RE.test(String(id || ''))) return false;
+    try { fs.rmSync(path.join(this.root, `${id}.json`), { force: true }); } catch {}
+    try { fs.rmSync(path.join(this.root, id), { recursive: true, force: true }); } catch {}
+    return true;
   }
 
   /** The list, newest first, optionally one game's. Never a retired game's. */
@@ -277,11 +308,20 @@ class ReviewStore {
     return rows.slice(MAX_REVIEWS).map((r) => r.id).filter((x) => x !== id);
   }
 
+  /**
+   * A review taken out ON PURPOSE (the player deleting an imported recording,
+   * a match that resumed, a stop folded into the whole match, a backfill taken
+   * back): its files, its index row and its year record row go, so the year
+   * never counts a match that was deleted. The cap's trim is trim() above,
+   * and removeRetired's is a game Occlara no longer coaches, which never had
+   * a row; `skipIndex` is that one's.
+   */
   remove(id, skipIndex = false) {
-    if (!ID_RE.test(String(id || ''))) return false;
-    try { fs.rmSync(path.join(this.root, `${id}.json`), { force: true }); } catch {}
-    try { fs.rmSync(path.join(this.root, id), { recursive: true, force: true }); } catch {}
-    if (!skipIndex) writeJson(path.join(this.root, 'index.json'), this.index().filter((r) => r.id !== id));
+    if (!this.trim(id)) return false;
+    if (!skipIndex) {
+      writeJson(path.join(this.root, 'index.json'), this.index().filter((r) => r.id !== id));
+      if (this.year) { try { this.year.drop(id); } catch (e) { console.warn('[reviews] the year record:', e && e.message); } }
+    }
     return true;
   }
 

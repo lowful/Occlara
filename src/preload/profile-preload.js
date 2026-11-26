@@ -39,4 +39,7 @@ contextBridge.exposeInMainWorld('occlara', {
   onAccount:   (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
   onReviews:   (cb) => subscribe(C.PUSH_REVIEWS, cb),
   go:          (page) => ipcRenderer.send(C.SHELL_NAV, page),
+  // Occlara Wrapped (docs/claude/wrapped.md): main's words, or null; opened by main, never mid match.
+  getWrapped:  () => ipcRenderer.invoke(C.WRAPPED_ENTRY),
+  openWrapped: (year) => ipcRenderer.invoke(C.WRAPPED_OPEN, Number.isInteger(year) ? year : null),
 });

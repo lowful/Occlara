@@ -187,6 +187,13 @@ const CHANNELS = {
   // right (main-window.js toast), showing one "You got 2 games" at a time,
   // never while sealed. The view says when one is done or was clicked.
   TOAST_ACT:       'toast:act',          // toast view -> main: { done: id } | { open: id }
+  // OCCLARA WRAPPED (docs/claude/wrapped.md): the year's story, a view of its
+  // own over the whole window (main-window.js openWrapped), closed by the seal.
+  // Every one answers null, or opens nothing, mid match or sealed.
+  WRAPPED_GET:     'wrapped:get',        // wrapped view -> main: () -> { year, story, sounds, sample } | null
+  WRAPPED_ENTRY:   'wrapped:entry',      // Home, Profile: () -> { year, open, enough, count, min, line, button } | null
+  WRAPPED_OPEN:    'wrapped:open',       // Home, Profile: (year?) -> { ok, year } | { ok: false, error: 'match' | 'thin' | 'window' }
+  WRAPPED_ACT:     'wrapped:act',        // wrapped view -> main: { close: true }
   // The live status as it stands (PUSH_LIVE's shape), for a shell loaded mid match.
   LIVE_GET:        'shell:liveGet',
   SHELL_GET:       'shell:get',          // () -> { page, shown, sealed, maximized }
@@ -273,6 +280,9 @@ const CHANNELS = {
   // The games toast (8.9.1): main to the toast view, one toast to show
   // ({ toast: { id, kind, pre, n, post, line } }) or { clear: true }.
   PUSH_TOAST:        'push:toast',
+  // main -> the Wrapped view alone: { pause: true } (the window hidden or
+  // minimised). The seal closes the view outright, it is never told to wait.
+  PUSH_WRAPPED:      'push:wrapped',
 
   // ── the match recorder (8.3, src/main/services/recorder.js) ───────────────
   // Between main and the recorder's hidden page (src/renderer/recorder) and
@@ -324,6 +334,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_MENU,
   CHANNELS.PUSH_MENU_ACT,
   CHANNELS.PUSH_TOAST,
+  CHANNELS.PUSH_WRAPPED,
   CHANNELS.PUSH_RECORDER,
   CHANNELS.PUSH_FRAMES,
   CHANNELS.PUSH_PRACTICE,

@@ -140,5 +140,9 @@ contextBridge.exposeInMainWorld('occlara', {
   // Today's practice (the Practice page): main's line { text, ... } or null,
   // null with no plan, once practised today, for League and mid match.
   getPracticeToday: () => ipcRenderer.invoke(C.PRACTICE_TODAY),
+  // Occlara Wrapped (docs/claude/wrapped.md): main's words, or null (out of its
+  // window Home shows nothing, and mid match main says nothing); main opens it.
+  getWrapped:   () => ipcRenderer.invoke(C.WRAPPED_ENTRY),
+  openWrapped:  (year) => ipcRenderer.invoke(C.WRAPPED_OPEN, Number.isInteger(year) ? year : null),
   onPractice:   (cb) => subscribe(C.PUSH_PRACTICE, cb),
 });

@@ -32,7 +32,15 @@ const { isOwnPage } = require('../windows/web-guard');
  * }
  */
 function registerIpc(deps) {
-  const { controller, license, account, profile, community, changelog, feedback, practice, trainer } = deps;
+  const { controller, license, account, profile, community, changelog, feedback, practice, trainer, wrapped } = deps;
+
+  // ── Occlara Wrapped (docs/claude/wrapped.md) ──────────────────────────────
+  // All local, and every one null or refused mid match or sealed (wrapped-service.js busy()).
+  if (wrapped) {
+    safeHandle(C.WRAPPED_GET, async () => wrapped.get());
+    safeHandle(C.WRAPPED_ENTRY, async () => wrapped.entry());
+    safeHandle(C.WRAPPED_OPEN, async (_e, year) => wrapped.open(Number.isInteger(year) ? year : null));
+  }
 
   // ── the account (8.7) ─────────────────────────────────────────────────────
   if (account) {

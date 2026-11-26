@@ -1,5 +1,29 @@
 [
   {
+    "version": "8.18.0",
+    "date": "2026-11-25",
+    "title": "Occlara Wrapped is coming",
+    "summary": "Occlara now keeps a record of your whole year, and from 15 December it plays it back as an animated story.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Occlara Wrapped: an animated story of your year. Your matches and hours, main agent and map, how your grade moved, your best match, your highlights, the mistake you beat and a player title."
+      },
+      {
+        "kind": "new",
+        "text": "Wrapped ends on a card you can save or copy as an image. It opens from 15 December to 31 January, from Home and from Profile."
+      },
+      {
+        "kind": "new",
+        "text": "Occlara now keeps one small record per reviewed match for the whole year, so your January still counts in December. It is filled in from the reviews already on your PC, stays on your PC, and holds no names."
+      },
+      {
+        "kind": "improved",
+        "text": "Wrapped never opens or plays during a match, and it has a mute button and a calmer version when Windows is set to reduce motion."
+      }
+    ]
+  },
+  {
     "version": "8.17.0",
     "date": "2026-11-25",
     "title": "Your highlights are clipped now",

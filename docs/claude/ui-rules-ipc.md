@@ -142,7 +142,7 @@ heavier Mono means bundling its file with an `@font-face` in `theme.css`.
 
 Settled decisions that keep getting reintroduced by accident:
 
-- **No decorative gradients anywhere.** Solid fills and hairline borders. The
+- **No decorative gradients anywhere** (Wrapped excepted, below, "Wrapped's own look"). Solid fills and hairline borders. The
   one that remains is functional and deliberate: Stats' skeleton shimmer in
   `stats.css`, where the gradient IS the animation. (`ui.css`'s was never a
   shimmer: it was the primary button's hover sweep, and it went in 8.6 with
@@ -174,9 +174,27 @@ Settled decisions that keep getting reintroduced by accident:
   140 to 220ms, the one authored moment on a page 420ms, rows rising 6px with a
   40ms stagger capped at eight, once, when a list first appears and never on a
   repaint; numbers count up through CSS (`@property --n` over `counter()`),
-  never JS arithmetic. Nothing loops, and nothing moves, shows or plays mid
+  never JS arithmetic. Nothing loops (Wrapped alone excepted, below), and nothing moves, shows or plays mid
   match. `prefers-reduced-motion` collapses every duration in `theme.css`, and
   a surface zeroes its delays, so every state is still seen.
+
+### Wrapped's own look (the one exception, the owner's choice)
+
+**Occlara Wrapped** (wrapped.md), the year's story, is the ONE surface allowed
+to break the rules above: its own colours outside the tokens, gradients
+(CSS, SVG and canvas), continuous and looping motion, depth, glows and framed
+objects, counted numbers in JS, an uppercase kicker. The owner chose it so the
+year's story could be something a player would screen record and post. What it
+keeps: the fonts (Geist 400 to 800, Geist Mono 400 and 500), the signal's
+places (it never names `--red` or `--signal`), no brand literal of the old
+palette, every string set as text, `prefers-reduced-motion`, and nothing mid
+match. The exception lives in its own files and nowhere else:
+`src/renderer/wrapped/` (`wrapped.css`, `wrapped.js`, `gl.js`, `card.js`,
+`index.html`), and `wrapped.css` says so on its first line,
+`/* palette: Wrapped's own ...`. `check:palette` lets exactly those files draw
+gradients (`OWN_LOOK_FILES`) and fails if that first line goes, if a named file
+is no longer read, or if the list reaches another surface's file. Home's
+invitation and Profile's "Your year" stay in the app's own look.
 
 **Every surface must stay visually synchronised.** A change to a shared
 component or a token is not done until Settings, onboarding, the review and the
@@ -327,6 +345,26 @@ webview. A link out of the app goes through main with a URL main holds
   (its time up, its X) or `{ open: id }` (pressed: main opens Profile, never
   sealed). Anything from another sender, or for a toast not on screen, is
   ignored.
+
+### Wrapped's channels (wrapped.md)
+
+All local, no AI and no network, wired in `register-ipc.js` to
+`wrapped-service.js` (`wrappedIpc` in index.js), every one quiet mid match or
+sealed (`deps.busy`).
+
+- `WRAPPED_GET` (invoke, Wrapped's own view): `{ year, story, sounds, sample }`,
+  the story `wrapped.js story` builds with each clip's `occlara-clip://` URL
+  only while its file is on disk, or null.
+- `WRAPPED_ENTRY` (invoke, Home and Profile): `wrapped.js entryOf`'s `{ year,
+  open, enough, count, min, line, button }`, or null.
+- `WRAPPED_OPEN` (invoke, Home and Profile, a year or null): `{ ok, year }`, or
+  `{ ok: false, error: 'match' | 'thin' | 'window' }`.
+- `WRAPPED_ACT` (send, Wrapped's own view alone): `{ close: true }`; anything
+  from another sender is ignored (`main-window.js`).
+- `PUSH_WRAPPED` (push, main to Wrapped's view alone): `{ pause: true }` as the
+  window is hidden, minimised or loses the focus, `{ resume: true }` as the
+  focus comes back (the page resumes only a pause this made). The seal closes
+  the view outright.
 
 ### The live status's channels (Progress v3, screen-silence.md)
 

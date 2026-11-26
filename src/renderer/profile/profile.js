@@ -382,7 +382,33 @@ async function load() {
     return;
   }
   paint(m);
+  paintWrapped();
 }
+
+/*
+ * YOUR YEAR (docs/claude/wrapped.md): Occlara Wrapped's entry, main's words
+ * as they are (wrapped.js entryOf), shown in its window and after it; a year
+ * without enough matches says so with no button. Null hides the section.
+ */
+let wrappedAsk = 0;
+async function paintWrapped() {
+  const mine = ++wrappedAsk;
+  const e = typeof api.getWrapped === 'function' ? await Promise.resolve(api.getWrapped()).catch(() => null) : null;
+  if (mine !== wrappedAsk) return;
+  const sec = $('pr-wrapped');
+  if (!e || typeof e.line !== 'string') { sec.hidden = true; return; }
+  $('pr-wrapped-line').textContent = e.line;
+  const b = $('pr-wrapped-open');
+  b.hidden = !e.button;
+  b.textContent = e.button || '';
+  b.dataset.year = String(e.year);
+  sec.hidden = false;
+}
+$('pr-wrapped-open').addEventListener('click', async () => {
+  const y = Number($('pr-wrapped-open').dataset.year);
+  const r = await Promise.resolve(api.openWrapped(Number.isInteger(y) ? y : null)).catch(() => null);
+  $('pr-wrapped-said').textContent = r && r.ok ? '' : r && r.error === 'thin' ? 'Not enough matches for this year yet.' : 'Wrapped could not open. Try again in a moment.';
+});
 
 $('pr-games').addEventListener('input', paintBuy);
 $('pr-games').addEventListener('change', settleField);

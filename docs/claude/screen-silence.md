@@ -150,6 +150,18 @@ What still counts as "reaching the screen", and is sealed mid match:
   run then. Main answers its channels with nothing mid match or sealed
   (`trainer-store.js busy`: no runs, no save, no clear, and Practice's Train
   this opens nothing).
+- Occlara Wrapped (wrapped.md), the year's story, is a view of its own over
+  the whole window, and THE SEAL CLOSES IT in the tick it comes on
+  (`main-window.js setSealed`, `closeWrapped`): taken off the window, its
+  audio muted at once and its page closed, so nothing of it is seen or heard
+  mid match, and the keyboard is given to nothing as it goes, since on
+  Windows focusing a page raises the window over the game
+  (`closeWrapped({ refocus: false })`). It never opens while sealed, hidden or minimised
+  (`openWrapped`), main answers `WRAPPED_GET` and `WRAPPED_ENTRY` with null
+  and `WRAPPED_OPEN` with `{ ok: false, error: 'match' }` mid match or sealed
+  (`wrapped-service.js busy`), Home's invitation is hidden then, and its one
+  time auto open waits for a show or a focus after the seal lifts, never at
+  the lift itself (`check:seal`, `check:wrapped`, `test:shellnav`).
 - Fight it again (trainer.md, "Fight it again"), the review's button that
   opens a death in the Trainer, never shows or runs mid match. index.js
   `present` marks no card with a replay id while a match is in progress or the

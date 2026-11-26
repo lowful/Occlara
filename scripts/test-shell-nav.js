@@ -760,6 +760,70 @@ function rig() {
       mw.show('review');
     }
 
+    // OCCLARA WRAPPED (docs/claude/wrapped.md): a view of its own over the
+    // WHOLE window, the bar included, made for one showing and closed after
+    // it. Never while sealed, hidden or minimised; the seal closes it in the
+    // same tick, its page with it; hidden or minimised it is told to pause;
+    // only its own view may close it from inside.
+    {
+      const CH = require('../src/shared/channels');
+      mw.setSealed(false);
+      third.show();
+      third.minimized = false;
+      mw.setSealed(true);
+      ok(!mw.openWrapped() && !mw.wrappedState().open, 'sealed (a match on): Wrapped does not open');
+      mw.setSealed(false);
+      third.hide();
+      ok(!mw.openWrapped(), 'the window hidden: Wrapped does not open to nobody');
+      third.show();
+      third.minimize();
+      ok(!mw.openWrapped(), 'minimised: nor then');
+      third.restore();
+      const page = viewOf('review');
+      const before = JSON.stringify(page.bounds);
+      ok(mw.openWrapped(), 'shown and unsealed: it opens');
+      let ws = mw.wrappedState();
+      const kids = third.contentView.children;
+      ok(ws.open && kids[kids.length - 1] === ws.view && JSON.stringify(page.bounds) === before, 'on top of every page, which keeps its bounds');
+      ok(ws.bounds.x === 0 && ws.bounds.y === 0 && ws.bounds.width === 1200 && ws.bounds.height === 780, 'over the whole window, the bar included', JSON.stringify(ws.bounds));
+      const T = { id: 'w1', kind: 'invite', pre: 'You got ', n: 2, post: ' games', line: 'Your invite paid off.' };
+      mw.toast(T);
+      ok(mw.toastState().shown && kids.indexOf(mw.toastState().view) > kids.indexOf(ws.view), 'a games reveal comes over it, not under');
+      let wrappedFocused = 0;
+      ws.view.webContents.focus = () => { wrappedFocused += 1; };
+      ipc.emit(CH.TOAST_ACT, { sender: mw.toastState().view.webContents }, { done: 'w1' });
+      ok(wrappedFocused === 1, 'the reveal done, the keyboard goes back to Wrapped, not the shell');
+      // Out of focus (the game in front on another monitor): paused; the focus back: resumed.
+      const sentNow = () => ws.view.webContents.sent.filter((x) => x.ch === CH.PUSH_WRAPPED).map((x) => x.msg);
+      third.emit('blur');
+      ok(sentNow().slice(-1)[0].pause === true, 'the window losing the focus pauses it, story and sound');
+      third.emit('focus');
+      ok(sentNow().slice(-1)[0].resume === true, 'and the focus back resumes it (the page plays on only if this paused it)');
+      third.hide();
+      ok(ws.view.webContents.sent.some((x) => x.ch === CH.PUSH_WRAPPED && x.msg.pause), 'hidden: it is told to pause');
+      third.show();
+      ipc.emit(CH.WRAPPED_ACT, { sender: page.webContents }, { close: true });
+      ok(mw.wrappedState().open, 'a page cannot close it: only its own view');
+      const wcOne = ws.view.webContents;
+      // THE SEAL NEVER REFOCUSES: no page, no shell given the keyboard as it
+      // closes Wrapped (focusing web contents on Windows raises its window).
+      let focusedOnSeal = 0;
+      const views0 = [...mw.pageViews().values()].map((v) => v.webContents);
+      for (const c of [...views0, third.webContents]) { const f = c.focus; c.focus = () => { focusedOnSeal += 1; f.call(c); }; }
+      mw.setSealed(true);
+      ok(focusedOnSeal === 0, 'the seal closes Wrapped and focuses nothing', String(focusedOnSeal));
+      ws = mw.wrappedState();
+      ok(!ws.open && wcOne.dead && !third.contentView.children.includes(ws.view || {}), 'the seal coming on: gone in the same tick, its page closed, nothing left to play');
+      mw.setSealed(false);
+      ok(!mw.wrappedState().open, 'and the seal lifting brings nothing back by itself');
+      ok(mw.openWrapped(), 'opened again: a new view');
+      const wcTwo = mw.wrappedState().view.webContents;
+      ok(wcTwo !== wcOne, 'never the old page');
+      ipc.emit(CH.WRAPPED_ACT, { sender: wcTwo }, { close: true });
+      ok(!mw.wrappedState().open && wcTwo.dead, 'closed from inside (Escape, its X): its view goes and its page is closed');
+      mw.show('review');
+    }
+
     // CLOSING QUITS (8.4.1). Its X, Alt+F4 and the taskbar's Close are the
     // window's 'close': held, and handed to index.js, which quits by the
     // tray's own path, asking first when that would lose something. Never

@@ -74,6 +74,19 @@
           <dl id="pr-figs" class="pr-figs"></dl>
         </section>
 
+        <!-- YOUR YEAR (docs/claude/wrapped.md): Occlara Wrapped, the year's
+             story, from 15 December to 31 January and after it, with main's
+             words (wrapped.js entryOf) and its one button; a year without
+             enough matches says so plainly. Main answers null mid match. -->
+        <section id="pr-wrapped" class="pr-sec" aria-labelledby="pr-wrapped-title" hidden>
+          <h3 id="pr-wrapped-title" class="pr-title">Your year</h3>
+          <p id="pr-wrapped-line" class="pr-line"></p>
+          <div class="pr-act">
+            <button id="pr-wrapped-open" class="btn btn-ghost md" type="button" hidden></button>
+            <p id="pr-wrapped-said" class="pr-note" aria-live="polite"></p>
+          </div>
+        </section>
+
         <!-- PLANS: all three, the current one marked, monthly or yearly. -->
         <section class="pr-sec" aria-labelledby="pr-plans-title">
           <div class="pr-head row">

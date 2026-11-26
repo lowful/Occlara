@@ -128,6 +128,7 @@ in `docs/claude/` to find it.
 | Importing a recording: `import-video.js`, its panel, `/api/usage/import`, the bundled ffmpeg | `docs/claude/import.md` |
 | Changing the flag key, flagged deaths or Further explain | `docs/claude/death-flags.md` |
 | Report a problem: its button, page, `/api/feedback`, the inbox (`npm run feedback`) or triaging a player's report | `docs/claude/feedback.md` |
+| Occlara Wrapped: the year record (`year-record.js`), the story (`wrapped.js`), its view, its look, sound and closing card, when it opens | `docs/claude/wrapped.md` |
 
 ## Conventions
 

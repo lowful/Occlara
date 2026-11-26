@@ -78,6 +78,29 @@ const GRADIENT_ALLOWED = {
   'stats/stats.css': { css: 1 },      // the overview cards' skeleton shimmer: the gradient IS the animation
 };
 
+// OCCLARA WRAPPED'S OWN LOOK (docs/claude/wrapped.md, ui-rules-ipc.md
+// "Wrapped's own look"): the owner chose a bold look for the year's story
+// alone, its own colours and gradients and continuous motion. Its files, and
+// only these, may draw gradients of any kind; the brand literals, the signal
+// and the mono weights are held there as everywhere. Its stylesheet must say
+// so on its first line, so the exception is written where it is used, and a
+// file of it that the scan no longer reads fails rather than passing.
+const OWN_LOOK_FILES = ['wrapped/wrapped.css', 'wrapped/wrapped.js', 'wrapped/gl.js', 'wrapped/card.js', 'wrapped/index.html'];
+const OWN_LOOK_MARK = "/* palette: Wrapped's own";
+const ownLook = (rel) => OWN_LOOK_FILES.includes(rel);
+/** The gradients a file draws past what it is allowed, [{ kind, n, allowed }]: none for Wrapped's own files. */
+function gradientFails(rel, src) {
+  if (ownLook(rel)) return [];   // Wrapped's own look, written down above and on its stylesheet's first line
+  const out = [];
+  for (const [kind, re] of GRADIENTS) {
+    re.lastIndex = 0;
+    const n = (src.match(re) || []).length;
+    const allowed = ((GRADIENT_ALLOWED[rel] || {})[kind]) || 0;
+    if (n > allowed) out.push({ kind, n, allowed });
+  }
+  return out;
+}
+
 // Stylesheets cleaned to tokens: no hex colour and no rgb() of a colour, only
 // tokens and the neutral black and white of the glass, rgba(0,0,0,a) and
 // rgba(255,255,255,a). A stylesheet joins by its own first line,
@@ -236,13 +259,9 @@ for (const f of files) {
     console.log(`${String(n).padStart(3)}x literal ${label}  in ${r}`);
     console.log(`     use ${fix} instead, or a palette swap will not reach it`);
   }
-  for (const [kind, re] of GRADIENTS) {
-    const n = (src.match(re) || []).length;
-    const allowed = ((GRADIENT_ALLOWED[r] || {})[kind]) || 0;
-    if (n > allowed) {
-      fail(`${String(n).padStart(3)}x ${kind} gradient  in ${r}${allowed ? `, where ${allowed} ${allowed === 1 ? 'is' : 'are'} allowed` : ''}`);
-      console.log('     no decorative gradients: a solid fill and the tokens');
-    }
+  for (const g of gradientFails(r, src)) {
+    fail(`${String(g.n).padStart(3)}x ${g.kind} gradient  in ${r}${g.allowed ? `, where ${g.allowed} ${g.allowed === 1 ? 'is' : 'are'} allowed` : ''}`);
+    console.log('     no decorative gradients: a solid fill and the tokens');
   }
   const css = f.endsWith('.css');
   if (css && (TOKENS_ONLY.includes(r) || marked(src))) {
@@ -273,6 +292,26 @@ for (const f of files) {
   }
 }
 for (const f of TOKENS_ONLY) if (!held.includes(f)) fail(`SCAN BROKEN  ${f} is held to tokens, and the scan did not hold it`);
+// Wrapped's exception: every file of it read, its stylesheet saying so on its
+// first line, and no other surface's file let off (a gradient in Home's
+// stylesheet is still one too many).
+for (const f of OWN_LOOK_FILES) if (!files.some((x) => rel(x) === f)) fail(`SCAN BROKEN  ${f} is Wrapped's own look, and the scan does not read it`);
+{
+  const css = files.find((x) => rel(x) === 'wrapped/wrapped.css');
+  if (css && !fs.readFileSync(css, 'utf8').split(/\r?\n/)[0].startsWith(OWN_LOOK_MARK)) {
+    fail(`MARK MISSING  wrapped/wrapped.css is Wrapped's own look, and its first line no longer says ${OWN_LOOK_MARK} ...`);
+  }
+  // The exception run through the very rule the scan applies, on known positives
+  // and negatives: a gradient in Home's stylesheet, ui.css or a Wrapped-looking
+  // name outside the folder still fails; the same in Wrapped's own files does not.
+  const G = '.a { background: linear-gradient(90deg, #000, #fff); }\nctx.createLinearGradient(0, 0, 1, 1);';
+  for (const other of ['home/home.css', 'shared/ui.css', 'shell/wrapped.css', 'wrapped-copy/wrapped.css', 'stats/stats.css']) {
+    if (!gradientFails(other, G).length) fail(`RULE BROKEN  a gradient in ${other} passes: Wrapped's exception reaches a file that is not Wrapped's`);
+  }
+  for (const own of ['wrapped/wrapped.css', 'wrapped/gl.js', 'wrapped/card.js']) {
+    if (gradientFails(own, G).length) fail(`RULE BROKEN  a gradient in ${own} fails: Wrapped's own look is not let through`);
+  }
+}
 for (const f of ['shared/ui.css', 'shared/grade-view.css', 'shared/dropdown.css']) {
   if (!held.includes(f)) fail(`MARK MISSING  ${f} is held to tokens since 8.6, and its first line no longer says ${TOKENS_MARK}`);
 }
