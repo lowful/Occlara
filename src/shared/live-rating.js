@@ -207,6 +207,9 @@ function createLiveRating(opts) {
    */
   function frame(f) {
     if (!f || num(f.at) === null) return;
+    // A read handed over late (the reader logs a death on trial a read later)
+    // is older than one already applied: the feed only moves forward.
+    if (nowAt !== null && f.at < nowAt) return;
     const at = f.at;
     nowAt = at;
     const team = int(f.team);

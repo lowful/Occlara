@@ -2215,6 +2215,9 @@ function retireStopStubs(job, lm) {
  */
 function onValorantMatchEnded(snap) {
   if (!snap) return;
+  // The live rating's final of this match, kept for its review's confirmed
+  // rating to be logged against (logLiveFinal). An import has none.
+  if (!snap.importRun) { try { liveRating.end(snap.startedAt); } catch { /* nothing kept */ } }
   // Two reviews of one match only happen when it resumed: the newer one is the
   // whole match, and the older one goes, from the library too.
   const prior = reviewJobs.get(snap.startedAt);

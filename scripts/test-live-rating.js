@@ -227,6 +227,14 @@ ok(clockLeft('1:39') === 99 && clockLeft('0:05') === 5 && clockLeft('buy') === n
   sp.f(12, { rows: [ROW.myKill()], mode: 'swiftplay' });
   sp.f(13, { rows: [ROW.myKill()], mode: 'swiftplay' });
   ok(sp.live.value() > v.value, `a Swiftplay kill moves the number more (${sp.live.value()} against ${v.value})`);
+  // A read handed over late (a death on trial is logged a read later) is older: skipped.
+  const late = play();
+  late.f(10);
+  late.f(12, { rows: [ROW.mateKill()] });
+  late.f(11, { rows: [ROW.myKill(0.03)] });
+  late.f(13, { rows: [ROW.mateKill()] });
+  late.f(20, { rows: [] });
+  ok(late.kills().length === 1 && me(late.kills()) === 0, 'a read older than one already applied changes nothing');
   // No detector this frame (switched on mid frame, a frame not read): nothing invented.
   const none = play();
   none.f(10, { rows: null });
