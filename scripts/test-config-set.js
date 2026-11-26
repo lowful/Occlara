@@ -133,6 +133,19 @@ const set = handlers.get(C.CONFIG_SET);
   ok(written.has('aiLog') && written.has('recordingRes') && [...written].every((k) => WRITABLE.includes(k)),
     'every key a page writes is one it may write', [...written].filter((k) => !WRITABLE.includes(k)).join(', '));
 
+  // THE LIVE RATING turns on only from Settings' own page (its warning and
+  // confirm are there); any page may turn it off.
+  const frameOf = (page) => ({ senderFrame: { url: require('url').pathToFileURL(path.join(__dirname, '..', 'src', 'renderer', page, 'index.html')).href + '?embed=1' } });
+  data.liveRating = false; data.liveRatingStream = false;
+  await set({}, { liveRating: true, liveRatingStream: true });
+  await set(frameOf('shell'), { liveRating: true, liveRatingStream: true });
+  await set(frameOf('home'), { liveRating: true });
+  ok(data.liveRating === false && data.liveRatingStream === false, 'the live rating is not turned on by a write from no page, the Recording screen or Home', JSON.stringify({ r: data.liveRating, s: data.liveRatingStream }));
+  await set(frameOf('settings'), { liveRating: true, liveRatingStream: true });
+  ok(data.liveRating === true && data.liveRatingStream === true, 'Settings turns it on');
+  await set(frameOf('shell'), { liveRating: false, liveRatingStream: false });
+  ok(data.liveRating === false && data.liveRatingStream === false, 'and any page may turn it off');
+
   console.log(failed ? `FAIL: ${failed} of ${passed + failed} config write checks failed` : `PASS: all ${passed} config write checks passed`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log('FAIL: the test threw: ' + ((e && e.stack) || e)); process.exit(1); });

@@ -148,6 +148,16 @@ function messages(res, n, ms) {
   const back = await s.start();
   ok(back.ok && back.port === port, 'started again, on the same port');
   await s.stop();
+  // A stop while a start is still listening: the server is closed again, never left running.
+  const racing = s.start();
+  const stopped = s.stop();
+  const raced = await racing;
+  await stopped;
+  const afterRace = await get(port, `/${token}/`);
+  ok(!raced.ok && !s.running() && s.url() === null && afterRace.error === 'ECONNREFUSED', `a stop during a start leaves nothing running (${raced.error || 'ok'}, ${afterRace.error || afterRace.status})`);
+  const again2 = await s.start();
+  ok(again2.ok && s.running(), 'and a start after it serves again');
+  await s.stop();
   if (blocked) blocker.close();
 
   console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' stream widget server checks passed'}`);

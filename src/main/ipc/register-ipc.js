@@ -162,7 +162,13 @@ function registerIpc(deps) {
     // Only the settings a page owns, each with a value it can hold
     // (config-keys.js): the sign in, the licence fields, the key and every
     // other key main alone writes are never a page's to set.
-    for (const [k, v] of Object.entries(pageWritable(partial))) store.set(k, v);
+    const keep = pageWritable(partial);
+    // THE LIVE RATING turns ON only from Settings' own page, past its warning
+    // and its confirm (settings.js): from any other page the switch can only
+    // go off. Turning it off is anyone's.
+    if (keep.liveRating === true && !fromSettings(_e)) delete keep.liveRating;
+    if (keep.liveRatingStream === true && !fromSettings(_e)) delete keep.liveRatingStream;
+    for (const [k, v] of Object.entries(keep)) store.set(k, v);
     controller.onConfigChanged?.();
     return { ok: true, config: snapshotConfig() };
   });
@@ -257,6 +263,12 @@ function registerIpc(deps) {
   ipcMain.on(C.LICENSE_LOGOUT, () => guard('logout',   () => controller.logout()));
   ipcMain.on(C.ONBOARDING_DONE,() => guard('onboarding', () => controller.finishOnboarding()));
   ipcMain.on(C.APP_QUIT,       () => guard('quit',     () => controller.quit()));
+}
+
+/** A write that came from Settings' own page (its frame's file under renderer/settings). */
+function fromSettings(e) {
+  const url = e && e.senderFrame && typeof e.senderFrame.url === 'string' ? e.senderFrame.url : '';
+  return /^file:\/\/.*\/renderer\/settings\/index\.html(?:[?#].*)?$/i.test(url.replace(/\\/g, '/'));
 }
 
 function snapshotConfig() {

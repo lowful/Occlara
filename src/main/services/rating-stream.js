@@ -64,6 +64,7 @@ function createRatingStream(o) {
   let last = null;               // the last payload, for a client that joins
   let beat = null;
   let starting = null;
+  let gen = 0;                   // every stop() moves it: a start in flight then stands down
 
   const hostOk = (host) => {
     const h = String(host || '').toLowerCase();
@@ -130,11 +131,15 @@ function createRatingStream(o) {
   async function start() {
     if (server) return { ok: true, port, url: url() };
     if (starting) return starting;
+    const mine = gen;
     starting = (async () => {
       const first = Number.isInteger(opts.port) && opts.port >= 1024 && opts.port <= 65535 ? opts.port : DEFAULT_PORT;
       const tries = [first, ...Array.from({ length: FALLBACKS + 1 }, (_, i) => DEFAULT_PORT + i).filter((x) => x !== first), 0];
       for (const p of tries) {
+        if (mine !== gen) return { ok: false, error: 'stopped' };
         const got = await listen(p);
+        // Stopped while it was listening: closed again, never left running.
+        if (got.ok && mine !== gen) { await new Promise((r) => got.server.close(() => r())); return { ok: false, error: 'stopped' }; }
         if (got.ok) {
           server = got.server;
           port = server.address().port;
@@ -152,6 +157,7 @@ function createRatingStream(o) {
 
   /** Stop: the server closed and every connection cut, SSE ones included. */
   function stop() {
+    gen += 1;
     if (beat) { clearInterval(beat); beat = null; }
     for (const c of clients) { try { c.end(); } catch { /* gone */ } }
     clients.clear();
