@@ -3,9 +3,10 @@
 A football style player rating (FotMob, SofaScore) for a Valorant match: a
 number from 0.0 to 10.0 that starts at 6.0 and moves by tenths with what the
 player does. Build 1 (this file) is the engine and the post-match surface.
-Build 2 will feed the same engine live from the screen reader for the
-Recording screen and an OBS browser source; build 3 will draw it onto a
-video. Neither is written yet, and nothing of build 1 shows mid match.
+Build 2 feeds the same engine live from the screen for the Recording screen
+and an OBS browser source, behind a switch that is off by default ("Live",
+below, the owner's second exception to the silence rule); build 3 will draw
+it onto a video and is not written. Nothing of build 1 shows mid match.
 
 Files: `src/shared/rating.js` (the engine, pure), `src/shared/valorant-review.js`
 (`ratingField` in `build`, `withRating` in `served`, the planter, defuse and
@@ -412,7 +413,175 @@ more number beside the grade and the RR chip.
 
 The rating rides the review, served through the review's own channels,
 which are sealed mid match; it adds no channel (`test:ratingwiring`). The
-replay stops when its page is hidden.
+replay stops when its page is hidden. The one way a rating reaches the
+screen mid match is the live rating below, off by default.
+
+## Live (build 2, the owner's second exception, 2026-11-26)
+
+The owner asked for the rating moving in real time, like a football
+player's live rating, for players and for streams, and chose, told that it
+widens the silence rule: **the Recording screen plus a stream widget, opt
+in**. The rule and its limits are screen-silence.md, "The live rating, the
+second exception". This section is how it is fed and how well.
+
+Files: `src/shared/killfeed.js` (the detector, pure), `src/shared/live-rating.js`
+(the feed, pure), `src/main/services/live-rating-service.js` (main's gates),
+`src/main/services/rating-stream.js` (the widget's loopback server),
+`src/main/services/rating-widget-page.js` and `src/renderer/rating-widget/`
+(the widget's page), `src/renderer/shared/rating-badge.js` and `.css` (the
+badge, shared with the review's replay), index.js (`feedLiveRating`,
+`syncLiveRating`, `liveView`'s `rating`, `logLiveFinal`), and
+`scripts/live-rating-measure.js` (`npm run measure:liverating`).
+
+### Where live events come from
+
+The read's STATE has no field saying whose a kill is, and the read prompt,
+the model and the guards were not to change (a prompt change needs
+`verify:ai`, which spends money). So the sources were measured first:
+
+- **The reads alone.** `mates` and `foes` are no use: on the owner's
+  Swiftplay of 23 Nov they read 5 against 5 through a round of three kills
+  by the player. `killFeed` is free text ("SPIKE KILLED", "Reyna killed by
+  Iso"): 388 of 1,501 reads carry one and not one of the player's 31 kills
+  can be told from it ("player got" or "you killed"). Deaths: the reader's
+  own registrations, one a round, find 26 of 31 (83.9%) with 26 of 32 right
+  (81.3%): its weak tells register deaths that never happened and the trial
+  takes back only some.
+- **The kill feed's own highlight, read locally** (`killfeed.js`). Valorant
+  marks the rows the player is in with a pale yellow chevron and an edge on
+  the player's portrait: at the killer's end for the player's kill, at the
+  victim's end for the player's death. The rows hang from the right edge
+  under the score bar, 0.0362 of the screen's height apart from 0.104; an
+  ally's block is teal and an enemy's red. The detector reads the six rows'
+  middle lines of the frame the reader already captured, classes each pixel
+  teal, red or yellow, finds each row's killer and victim blocks, and calls
+  a row the player's only where the yellow covers most of the row's lines
+  within a portrait of the block's outer end (an agent portrait yellow in
+  patches is not an edge). A yellow wall in the corner makes it abstain. It
+  reads no name. It costs 0.15 ms a frame (p50, 0.5 ms p99) once the corner
+  is cut; main's nativeImage decode of the frame comes on top, not measured
+  here (no Electron on the owner's PC).
+- **The trap: the highlight follows the player being watched.** Dead and
+  spectating, Valorant marks the spectated teammate's rows the same way.
+  So the yellow is the player's only while the guarded context does not
+  hold the player dead and no death of theirs was counted this round.
+- **The combination is what ships**: every row counted once as a kill by
+  side (teal killer `us`, red `them`, so the numbers standing are the
+  feed's), the player's own kill only where the yellow was seen on **two**
+  frames, the player's death from the row, plants from the guarded spike and
+  its side lock, round results from the guarded scoreboard. The engine's own
+  death registration is not used (`engineDeaths`): measured, adding it found
+  no death the rows missed and added three that never happened (28 of 32
+  right).
+
+Rows are counted once by their place: the feed only moves up (the oldest
+leaves from the top, a new row comes in under), so a frame's rows are laid
+on the last frame's at the smallest move up that fits, and a row under the
+last frame's lowest is new (`overlap`). A signature alone (the victim's
+block length and portrait colour) wobbles as a row slides and counted some
+kills twice; and a row first seen more than a row's life ago (6 s, measured)
+has left. A plain row waits for its yellow up to four sightings or 4 s, and
+is counted at once when it leaves the feed. The round closes 2.5 s after the
+score moves (its last kill is often first seen on the banner) and the next
+opens when the reader's ledger moves on and its barriers drop.
+
+### Measured (`npm run measure:liverating`)
+
+On the owner's sessions with their frames kept beside Riot's record: the
+Split bench session (720p, a read every 2 s, thinned), three saved reviews
+whose AI log kept its frames (two at 720p, one at 480p) and the Abyss bench
+(a read every 10 s: one frame in a row's life at most, so it is printed and
+kept out of the totals). Riot's rounds laid on the frames' clock by
+read-score.js's barrier drops; a kill matched from 1.5 s before Riot's moment
+to 8 s after, a death from 6 s before to 10 s after.
+
+| session | frames | kills found, counted | deaths found, counted | live final, confirmed |
+| --- | --- | --- | --- | --- |
+| Split, 19 rounds | 720p | 4 of 14, 4 | 15 of 16, 15 | 4.7, 6.0 |
+| review q3bntd, 6 rounds | 720p | 3 of 4, 3 | 4 of 5, 4 | 4.8, 7.2 |
+| review loi6yi, 5 rounds | 720p | 0 of 2, 0 | 4 of 5, 4 | 5.4, 5.6 |
+| review x9fzkd, 7 rounds | 480p | 5 of 11, 5 | 5 of 5, 6 | 6.1, 8.5 |
+
+- **The player's kills: recall 12 of 31 (38.7%), precision 12 of 12
+  (100%)**, lag from Riot's moment to the frame that counted it p50 3.6 s,
+  p90 5.1 s. With the yellow on one frame enough (`mineSeen: 1`): recall 22
+  of 31 (71.0%), precision 22 of 29 (75.9%), lag p50 2.1 s.
+- **The player's deaths: recall 28 of 31 (90.3%), precision 28 of 29
+  (96.6%)**, lag p50 1.2 s, p90 3.7 s. The three missed have no kept frame
+  in the death row's life (the AI log thins); the one wrong is a death row
+  in a 480p round Riot records no death in, the player killing again two
+  seconds later (a revive, by the look of it).
+- **The live final against the confirmed rating** of the same rounds: -1.3,
+  -2.4, -0.2 and -2.4, mean absolute 1.58 (0.75 with one frame of yellow).
+  The live number runs low: it misses kills, assists, the defuse and the
+  trades a kill it did not see would have given.
+- **The bar was not met** (the player's kills 85% recall and 95% precision,
+  deaths 95% both). So the live number moves only on what is known for
+  sure: a kill of the player's only on the yellow seen twice (no kill shown
+  in these sessions was wrong), a death only on Valorant's own row, plants
+  and results from the guards. It is marked "Live, provisional" everywhere,
+  the review's confirmed rating replaces it, and every live final is logged
+  against the confirmed one (below) so the gap can be measured in the field.
+
+Why recall is low here and may be higher live: the kept frames are thinned
+(the Split's every 2 s with gaps, a row's life is about 5 s), and the live
+reader reads every second in a live round. At 480p the edge is two pixels
+and blurs. Not seen yet, so not claimed: Valorant's colour blind modes
+(other ally and enemy colours), a screen other than 16:9, a kill banner
+skin's effect on the corner (none expected, the banner sits lower).
+
+### What would close the gap, not done
+
+A read prompt field, read off the same highlight the detector reads:
+`"mine": {"kills": <rows in the kill feed whose killer portrait has the
+yellow edge>, "death": <a row with the yellow edge on the victim>}` in the
+STATE line, the counts of rows visible on this frame, null when the feed is
+not on screen, nothing else (no name, no agent). mapState would keep it as
+integers 0 to 5 and a boolean, the engine would hand it to the live feed
+only, never to a guard. Verifying it: `npm run verify:ai` plain and at
+`--lag 4` (about 480 reads, under $0.20 at the read's price), then a bench
+of the new field against Riot's kills on the four bench sessions
+(`bench:sessions --go`, three runs of each prompt: about $1.15 to $3.16 and
+3 to 6 hours at the two prices seen), and a read that writes a few more
+tokens (about 1% more a read, which is 97 to 99% of the AI bill). Whether a
+model reads a two pixel edge at 720p any better than the detector is the
+open question that bench answers.
+
+### Main decides it
+
+- **Off by default** (`liveRating`, config.js). Settings turns it on past a
+  plain warning and a confirm (settings.js). Off: no frame is decoded for
+  it (`liveRating.feed` with the switch off resets and returns), nothing is
+  kept, PUSH_LIVE has no `rating` key, the widget's server is stopped.
+- **On**: each read the live Valorant reader applies hands its own frame
+  (the engine's diagnostics record, the AI log's) to `feedLiveRating`; the
+  corner is cut and decoded with nativeImage (`decodeFeed`, BGRA). An import
+  runs a reader of its own with no such hook; League has no reader here.
+- **What leaves main** (`live-rating-service.js pick`): `{ value, shown,
+  tier, last: { delta, up, down, label } | null, line }` and nothing else, on
+  PUSH_LIVE's `rating` mid match, and on the widget's events with the second
+  switch: `{ state: 'idle' }`, `{ state: 'live', rating }`, or for two minutes
+  after the review's confirmed rating lands, `{ state: 'final', rating:
+  { value, shown, tier } }` ("Full time").
+- **The field log**: when a review is saved with its confirmed rating
+  (`saveReview`, `logLiveFinal`), the live final of its match (kept at the
+  match's end, `liveRating.end`) is written beside its AI log as
+  `live-rating.json`: `{ match, live, confirmed, gap, liveRounds,
+  confirmedRounds, liveKills, liveDeaths, version }`, never shown, and a
+  debug log line.
+
+### The surfaces
+
+- **The Recording screen** (shell.js `paintRating`): one ruled row under the
+  score, the number in the replay's own badge (shared/rating-badge), its last
+  move rising in green or falling in red with the engine's label ("First
+  kill, 5v5", "Died first, 5v5"), the small line, "Live, provisional". The
+  count and the move run once on a change, nothing else moves.
+- **The stream widget** (rating-widget/): a broadcast plate for a stream's
+  corner, the badge, the move, the label, the line and "Live, provisional",
+  or "Full time" with the confirmed number; nothing between matches.
+  Standard 520 by 190 in OBS, compact (`?size=compact`) 360 by 130. Served
+  self contained (the fonts as data, no request but its own events).
 
 ## Tests
 
@@ -461,6 +630,23 @@ replay stops when its page is hidden.
   and place, and pictures it as `main-review-rating.png`.
 - `node scripts/rating-fit.js --library` and `node scripts/rating-calibrate.js
   --library` rerun the table and the weights.
+- The live rating: `npm run test:killfeed` (the detector on drawn frames,
+  every size, walls, a yellow portrait, a player card, BGRA, its cost),
+  `test:liverating` (the feed: a row seen many times once, the yellow twice,
+  rows moving up, the spectated teammate's highlight, late rows, a missed
+  round, a false match end and its resume, a new match, a death a guard took
+  back, the view's fields, drawn pixels end to end), `test:liveratingwiring`
+  (main's gates: off reads and keeps nothing, on sends only the rating's own
+  fields, the widget's states, the field log, index.js read as text, the
+  switches off by default, the token no page's), `test:ratingstream` (the
+  widget's server: loopback only, the token, the Host check, nothing else
+  served, no CORS, the events' shape, stopped), `check:ratingwidget` (a
+  window, on GitHub's machine: the widget in Chromium, its states and sizes,
+  `widget-*.png`), and `check:mainwindow` (the Recording screen with the
+  switch off and on, Settings' warning, confirm and widget address,
+  `main-recording-rating.png`, `main-settings-live-rating-*.png`).
+  `npm run measure:liverating` reruns the measurement on this PC's sessions
+  (read only, counts only).
 
 ## Open questions
 

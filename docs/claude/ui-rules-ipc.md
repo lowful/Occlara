@@ -379,6 +379,18 @@ sealed (`deps.busy`).
 - The four switches are page writable booleans (`config-keys.js`), written by
   Settings and the Recording screen's Choose (`shell-preload.js setLive`,
   which takes those four keys alone).
+- THE LIVE RATING (the owner's second exception, screen-silence.md "The live
+  rating"): with `liveRating` on, PUSH_LIVE also carries `rating`: `{ value,
+  shown, tier, last: { delta, up, down, label } | null, line }` and nothing
+  else (`live-rating-service.js pick`); off, there is no such key. The two
+  switches `liveRating` and `liveRatingStream` are page writable booleans
+  written by Settings alone (never `setLive`); the widget's
+  `ratingWidgetToken` and `ratingWidgetPort` are main's and no page's. The
+  state (`PUSH_STATE`) carries `live.liveRating`, `live.liveRatingStream`
+  and `ratingWidget: { on, running, url, compactUrl, error }`, the address
+  only while it is served.
+- `STREAM_WIDGET_COPY` (invoke, 'standard' | 'compact'): main writes the
+  widget's address to the clipboard, only while it is served; `{ ok }`.
 
 ### The Trainer's channels (trainer.md)
 

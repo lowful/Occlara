@@ -27,8 +27,9 @@
  *            which only moves up (overlap, below).
  *   deaths   the player's own row (yellow at the victim's end), once a round.
  *            The engine's own registration is NOT used by default
- *            (opts.engineDeaths): measured, it added one death in 31 and six
- *            that never happened (weak tells the trial did not take back);
+ *            (opts.engineDeaths): measured, it found no death the rows
+ *            missed and added three that never happened (weak tells the
+ *            trial did not take back);
  *            the row is Valorant's own word. Used, it counts at the round's
  *            end and only when no guard took it back (judgeTrial).
  *   plants   the guarded context's planted spike, the side from its side lock.
