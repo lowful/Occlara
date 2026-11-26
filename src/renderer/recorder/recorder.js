@@ -366,6 +366,8 @@
       lagMs: Math.max(0, Date.now() - r.state.lastChunkAt - r.timeslice),
       framesOpen: open,
       firstWall,
+      // The live rating's corner reads this second, when main asked for them.
+      ...feedCost(),
       track: trackSettings(r),
     });
   }
@@ -419,6 +421,7 @@
     }
     rec = null;
     clearInterval(r.healthTimer);
+    feed(null);
     try { if (r.recorder.state !== 'inactive') r.recorder.stop(); } catch { /* stopped already */ }
     await Promise.race([r.stopped, sleep(5000)]);
     await r.state.queue;
@@ -439,9 +442,64 @@
     bridge.reply({ id: cmd.id, ok: true, supported: await hardwareGate(cmd) });
   }
 
+  /*
+   * THE LIVE RATING'S FEED (docs/claude/rating.md "Live"): only while main
+   * asks (`feed` with on), every `everyMs` (200, five a second) the kill feed's
+   * corner of the newest frame is drawn into a canvas of that corner's size
+   * alone (never the whole frame), read back, and read by the detector
+   * (shared/killfeed.js, loaded by index.html); only its rows go to main. The
+   * recording and the read's frame are untouched: a clone is drawn and closed
+   * at once, as the read's own grab does. What it costs is counted, the
+   * milliseconds of each second, and goes with the health line (`feedMs`).
+   * Off, no timer runs and nothing is drawn.
+   */
+  let feedTimer = null;
+  let feedCanvas = null;
+  let feedSpent = 0;      // ms spent reading the corner since the last health line
+  let feedReads = 0;
+  const kfApi = (typeof self !== 'undefined' && self.OcclaraKillfeed) || (typeof window !== 'undefined' && window.OcclaraKillfeed) || null;
+  function feedTick() {
+    if (!newest || !kfApi || performance.now() - newestAt > 1000) return;
+    const t0 = performance.now();
+    const f = hold(newest.clone());
+    let H = 0;
+    let r = null;
+    try {
+      const W = f.displayWidth;
+      H = f.displayHeight;
+      r = kfApi.regionOf(W, H);
+      if (!r) return;
+      if (!feedCanvas || feedCanvas.c.width !== r.width || feedCanvas.c.height !== r.height) {
+        const c = new OffscreenCanvas(r.width, r.height);
+        feedCanvas = { c, ctx: c.getContext('2d', { willReadFrequently: true }) };
+      }
+      feedCanvas.ctx.drawImage(f, r.x, r.y, r.width, r.height, 0, 0, r.width, r.height);
+    } finally { release(f); }
+    const px = feedCanvas.ctx.getImageData(0, 0, r.width, r.height);
+    const det = kfApi.detect({ width: r.width, height: r.height, data: px.data, channels: 4 }, H);
+    const ms = performance.now() - t0;
+    feedSpent += ms;
+    feedReads += 1;
+    bridge.status({ type: 'feed', at: Date.now(), H, list: det.list, ms: r1(ms) });
+  }
+  function feed(cmd) {
+    if (feedTimer) { clearInterval(feedTimer); feedTimer = null; }
+    feedCanvas = null;
+    if (!cmd || cmd.on !== true || !kfApi) return;
+    const every = Number(cmd.everyMs) >= 100 && Number(cmd.everyMs) <= 1000 ? Number(cmd.everyMs) : 200;
+    feedTimer = setInterval(() => { try { feedTick(); } catch (e) { /* one corner missed, the next is read */ } }, every);
+  }
+  /** What the feed cost since the last health line: ms in that second, and how many corners. */
+  function feedCost() {
+    const out = feedReads ? { feedMs: r1(feedSpent), feedReads } : {};
+    feedSpent = 0;
+    feedReads = 0;
+    return out;
+  }
+
   // A read or a comparison that fails answers no, and the recording goes on.
   const answering = (fn) => (cmd) => fn(cmd).catch((e) => bridge.reply({ id: cmd.id, ok: false, why: errText(e) }));
-  const handlers = { start, stop, grab: answering(grab), compare: answering(compare), gate: answering(gate) };
+  const handlers = { start, stop, grab: answering(grab), compare: answering(compare), gate: answering(gate), feed: async (cmd) => feed(cmd) };
   bridge.onCommand((cmd) => {
     const h = cmd && handlers[cmd.type];
     if (!h) return;

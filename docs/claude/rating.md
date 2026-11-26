@@ -530,6 +530,95 @@ and blurs. Not seen yet, so not claimed: Valorant's colour blind modes
 (other ally and enemy colours), a screen other than 16:9, a kill banner
 skin's effect on the corner (none expected, the banner sits lower).
 
+### Round 2: the recorder's frames, five a second (what ships)
+
+The round 1 numbers above are the reads' frames: one a second at best, the
+AI log's kept ones thinned to one in 2 s with gaps, against a row that lives
+about 5 s, with the yellow wanted on two frames. Counted kill by kill on the
+same frames, 26 of the 28 kills that had any frame in their row's life showed
+the yellow on at least one, 0.73 of the frames: the detector saw them, the
+supply was too thin to see them twice. So the supply changed:
+
+- **The recorder's own frames.** The recorder's page already keeps the
+  capture's newest VideoFrame (recorder.md). With the switch on main asks it
+  (`recorder.setFeed`, the page's `feed` command): every 200 ms it clones the
+  newest frame, draws **the kill feed's corner alone** (`drawImage` with the
+  corner as the source rectangle, into a canvas the corner's size), reads
+  that back (`getImageData` of the corner, never the whole frame), closes the
+  clone, runs the detector there (`killfeed.js`, loaded by the page) and
+  sends only the rows. The recording, its encoder and the read's own frame
+  are untouched. Off, no timer runs. What it costs is counted in the page
+  (`feedMs` on the health line) and written to the debug log once a minute
+  (`[live-rating] the kill feed's corner: ... ms a second`). `check:feedcost`
+  measures the same draw and read back in Chromium on GitHub's machine (no
+  GPU there, so the CPU cost; a game PC's GPU readback is the field log's).
+- **The reads' frames are no longer read for kills in main** (the nativeImage
+  decode is gone): they give the rating its context alone (round, side,
+  score, spike, the guarded alive).
+- **Only at 720p and 1080p recording.** Recording off or at 480p, the rating
+  stays off (`index.js liveRatingSupported`, the recorder's track 700 rows
+  or more) and Settings says why under the switch: no full rate 480p video
+  exists on this PC to measure, and the 480p reads were the weakest.
+- **Counting each row once at five a second** needed three changes found on
+  the clips: rows are aligned as an ordered match against every row seen in
+  the last row's life (`align`; the last frame alone counted a row again after
+  one frame missed it, and the signature wobbles as a semi transparent row
+  crosses a changing wall); a victim block longer than 0.14 of the height is
+  no row (an ability's colour in the corner); a plain row waits for 8
+  sightings or 4 s for its yellow (1.6 s at five a second). The player's own
+  death now needs an upright yellow edge, two neighbouring columns on 0.6 of
+  the lines (a yellow haired agent's portrait made one false death: its
+  columns reach 0.47 at most, the real frame 0.67 to 1). A kill row under
+  the player's own death row on the same frame came after the death and is
+  never the player's (the spectating trap within one frame).
+
+**Measured on full rate video** (`npm run measure:liveratingclips`): every
+death clip on this PC, 20 of them (15 at 1080p, 5 at 720p, none at 480p),
+each about 16 s around a death, 30 a second, sampled at 2, 5, 10 and 30 a
+second. 13 have Riot's feed on the review (9 with the clip's own death mark,
+4 placed 4.45 s before the clip's end); 7 older ones have no feed, so they
+count for deaths (their time placed) and for the spectating trap only. **There
+are no highlight clips on this PC** (the owner's saved reviews predate 8.17),
+so the player's kills inside these clips are few: **3**.
+
+| rate | own kills found, counted wrong | own deaths found, counted wrong | lag kills p50, p90 | lag deaths p50, p90 | others' kills counted (Riot 20) |
+| --- | --- | --- | --- | --- | --- |
+| 2 a second | 3 of 3, 0 | 19 of 20, 0 | 0.35, 0.67 s | 0.14, 2.24 s | 16 |
+| **5 a second** | **3 of 3, 0** | **20 of 20, 0** | **0.25, 0.37 s** | **0.12, 1.35 s** | **17** |
+| 10 a second | 3 of 3, 0 | 19 of 20, 0 | 0.15, 0.37 s | 0.11, 0.65 s | 22 |
+| 30 a second | 3 of 3, 0 | 20 of 20, 0 | 0.08, 0.27 s | 0.15, 1.23 s | 25 |
+
+By height at 5 a second: 1080p kills 2 of 2, deaths 15 of 15; 720p kills 1
+of 1, deaths 5 of 5. The detector costs 0.38 ms a corner in node (p50, 1.7
+ms p99) at these heights, about 2 ms a second at five a second, before the
+draw and read back. In the clips with no feed the player's kills counted were
+1, 1, 1, 0, 4, 0 and 0 against Riot's 2, 1, 2, 0, 3, 2 and 0 kills in those
+rounds (some before the clip began); the 4 is one more than Riot has for that
+round and is not explained (a row first seen 0.8 s before the death).
+
+What this does and does not show. The deaths clear the bar on this sample
+(20 of 20, none wrong). The player's kills cannot be said to clear 85% and 95%
+on 3 kills: they are 3 of 3 with none wrong, and the per kill visibility on
+the reads' frames (26 of 28 kills show the yellow on some frame, 0.73 of
+frames) says two sightings in a row's 5 s at five a second should be the
+rule, but **the bar is not measured as met for kills** until full rate video
+with many of the player's kills is measured (a match recorded with highlight
+clips, or a whole recording kept). Multi kills: none of the player's are in
+these clips; three of a teammate's rows stacking in one clip (q3bntd round 1)
+were counted once each. The live final against the confirmed rating can only
+be reconstructed from the reads' frames (round 1 above), not from the
+recorder's, since no whole match was recorded on this PC.
+
+**Assists.** The feed shows the assisters as small agent portraits left of
+the killer's portrait (seen on the owner's frames), with no yellow on the
+player's that was seen; reading them would mean matching the player's own
+agent portrait, which is not built. Not read. What it costs could not be
+measured here: no saved match carries Riot's assisters yet (the server sends
+them from the November 2026 deploy). By the engine's weights an assist is
+`ASSIST_SHARE` 0.15 of the kill's swing, about 0.03 of a round on a typical
+kill, so 4 to 6 assists over a match are roughly 0.1 to 0.2 of the shown
+value that the live number will not have.
+
 ### What would close the gap, not done
 
 A read prompt field, read off the same highlight the detector reads:
@@ -553,10 +642,12 @@ open question that bench answers.
   plain warning and a confirm (settings.js). Off: no frame is decoded for
   it (`liveRating.feed` with the switch off resets and returns), nothing is
   kept, PUSH_LIVE has no `rating` key, the widget's server is stopped.
-- **On**: each read the live Valorant reader applies hands its own frame
-  (the engine's diagnostics record, the AI log's) to `feedLiveRating`; the
-  corner is cut and decoded with nativeImage (`decodeFeed`, BGRA). An import
-  runs a reader of its own with no such hook; League has no reader here.
+- **On**: each read the live Valorant reader applies hands its record (the
+  engine's diagnostics, the AI log's) to `feedLiveRating` as the context, and
+  the recorder's page sends the kill feed's rows five times a second
+  (`recorder.on('feed')`, `liveRating.feedTap`), only while recording at 720p
+  or 1080p (`liveRatingSupported`). An import runs a reader of its own with no
+  such hook; League has no reader here.
 - **What leaves main** (`live-rating-service.js pick`): `{ value, shown,
   tier, last: { delta, up, down, label } | null, line }` and nothing else, on
   PUSH_LIVE's `rating` mid match, and on the widget's events with the second

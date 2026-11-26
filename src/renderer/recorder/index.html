@@ -16,6 +16,10 @@
        records, files of their own so test:recorder runs them. -->
   <script src="health.js"></script>
   <script src="grid.js"></script>
+  <!-- The live rating's kill feed reader (src/shared/killfeed.js), run here on
+       the corner of the newest frame only while main asks (`feed`), so only
+       its rows cross to main. Off, it is loaded and never called. -->
+  <script src="../../shared/killfeed.js"></script>
   <script src="recorder.js"></script>
 </body>
 </html>

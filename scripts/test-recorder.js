@@ -1061,7 +1061,7 @@ function readerAfter(frames, menus) {
 
   await section('the real recorder page, run with stand ins for Chromium: thirty frames a second of the capture recorded, and nothing left open:', async () => {
     const pg = recorderPage();
-    ok(pg.scripts.join() === 'health.js,grid.js,recorder.js', `its scripts, as its index.html loads them: ${pg.scripts.join(', ')}`);
+    ok(pg.scripts.join() === 'health.js,grid.js,../../shared/killfeed.js,recorder.js', `its scripts, as its index.html loads them: ${pg.scripts.join(', ')}`);
     pg.send({
       type: 'start', fake: null, sourceId: 'screen:0:0', width: 1920, height: 1080, fps: SPEC.askFps, recordFps: SPEC.recordFps,
       bitrate: SPEC.res1080.bitrate, codec: 'avc1.42E028', mimeTypes: R.MIME_TYPES, keyframeMs: SPEC.keyframeMs, timesliceMs: SPEC.timesliceMs,

@@ -94,6 +94,35 @@ console.log('\nOn: the view, and only its fields');
   ok(s.view() === null && !s.active(), 'switched off: what was kept is gone');
 }
 
+console.log('\nThe recorder\'s corner reads (five a second), and the reads\' frames then left alone');
+{
+  const s = createLiveRatingService({ decode });
+  decoded = 0;
+  const now = Date.now();
+  const r0 = { at: now, image: 'empty', round: 1, died: false, match: T0 };
+  ok(s.feedTap({ at: now, H: 720, list: [] }, { on: false }) === false && !s.active(), 'off: a corner the recorder sent is dropped');
+  s.feed(r0, ctx, { on: true });
+  ok(decoded === 1, 'on, before the recorder sends anything: the read\'s own frame is read');
+  const kill = { slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill', sig: { v: 0.06, r: 150, g: 110, b: 120 } };
+  for (let i = 1; i <= 3; i++) s.feedTap({ at: now + i * 200, H: 1080, list: [kill] }, { on: true });
+  const f = s.field({ on: true, inMatch: true });
+  ok(f && f.last && f.last.label === 'First kill, 5v5', `the recorder's rows count with the read's last context (${f && f.last && f.last.label})`);
+  s.feed({ at: now + 700, image: 'kill', round: 1, died: false, match: T0 }, ctx, { on: true });
+  ok(decoded === 1, 'while the recorder sends the feed, a read\'s frame is not decoded for it');
+  ok(s.feedTap({ at: now + 900, H: 1080, list: [{ slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill', sig: { v: 0.06, r: 150, g: 110, b: 120 }, name: 'x', hp: 87 }] }, { on: true }) === true,
+    'a row with fields of its own is taken');
+  ok(JSON.stringify(s.field({ on: true, inMatch: true })).indexOf('87') < 0, 'and nothing it carried beyond its place, sides, highlight and signature rides along');
+  const rec = read('src/renderer/recorder/recorder.js');
+  const tick = rec.slice(rec.indexOf('function feedTick'), rec.indexOf('function feed(cmd)'));
+  ok(/drawImage\(f, r\.x, r\.y, r\.width, r\.height, 0, 0, r\.width, r\.height\)/.test(tick) && /getImageData\(0, 0, r\.width, r\.height\)/.test(tick) && /release\(f\)/.test(tick),
+    'the page draws the corner alone (never the whole frame), reads back only that, and closes its clone at once');
+  ok(/if \(!cmd \|\| cmd\.on !== true \|\| !kfApi\) return;/.test(rec) && /feed: async \(cmd\) => feed\(cmd\)/.test(rec) && /feed\(null\);/.test(rec),
+    'it reads nothing until main asks, and stops with the recording');
+  const mainRec = read('src/main/services/recorder.js');
+  ok(/if \(this\.feedOn && this\.state === 'recording'\) this\.emit\('feed', m\);/.test(mainRec), 'main takes the rows only while it asked for them');
+  ok(/recorder\.setFeed\(on\)/.test(read('src/main/index.js')), 'and asks only while the switch is on');
+}
+
 console.log('\npick: only the view\'s own fields, whatever is handed in');
 {
   const p = pick({ value: 6.4, shown: '6.4', tier: 'fair', last: { delta: '+0.4', up: true, down: false, label: 'Kill, 4v5', hp: 87 }, line: [6, 6.4], map: 'Abyss', hp: 87 });
@@ -107,7 +136,10 @@ console.log('\nindex.js decides it, read as text');
   ok(/diagnostics: \(rec\) => \{ recordAiFrame\(rec\); feedLiveRating\(rec\); \}/.test(idx), 'the live reader\'s applied reads reach the rating through feedLiveRating');
   ok(/liveRating\.feed\(rec, engine\.matchContext, \{ on: liveRatingSwitch\.on \}\)/.test(idx) && /engine instanceof CoachingEngine\) \|\| !state\.isCoaching\) return;/.test(idx),
     'only the live Valorant reader\'s, and only through the switch');
-  ok(/const rated = liveRating\.field\(\{ on: all\.liveRating === true, inMatch: true \}\);\s*if \(rated\) out\.rating = rated;/.test(idx), 'liveView adds `rating` only through the gate, with the switch on');
+  ok(/const rated = liveRating\.field\(\{ on: all\.liveRating === true, inMatch: liveRatingSupported\(\) \}\);\s*if \(rated\) out\.rating = rated;/.test(idx),
+    'liveView adds `rating` only through the gate, with the switch on and a recording at 720p or more');
+  ok(/return !!\(v && Number\(v\.height\) >= 700\);/.test(idx) && !/function decodeFeed/.test(idx) && /createLiveRatingService\(\{\}\)/.test(idx),
+    'the reads\' own frames are never read for kills in main: only the recorder\'s, at 720p or 1080p');
   ok((idx.match(/out\.rating\s*=/g) || []).length === 1, 'and nowhere else');
   ok(/if \(!on\) liveRating\.reset\(\);/.test(idx), 'the switch off: what was kept goes, every tick');
   ok(/liveRating: all\.liveRating === true, liveRatingStream: all\.liveRating === true && all\.liveRatingStream === true/.test(idx), 'the state says both switches, the widget only with the rating on');

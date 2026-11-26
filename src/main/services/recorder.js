@@ -224,6 +224,8 @@ const COMPARE_TIMEOUT_MS = 4000;
 // ── Talking to the page ─────────────────────────────────────────────────────
 const START_TIMEOUT_MS = 20 * 1000;
 const STOP_TIMEOUT_MS = 10 * 1000;
+// The live rating reads the kill feed's corner this often while its switch is on.
+const FEED_EVERY_MS = 200;
 const GRAB_TIMEOUT_MS = 1500;
 // A page that answers none of this many reads in a row is broken, whatever the
 // match is doing, and the reads go back to the GDI helper.
@@ -1503,6 +1505,8 @@ class Recorder extends EventEmitter {
     seg.startWall = Number.isFinite(started.startWall) ? started.startWall : this.now();
     seg.startedAt = this.now();
     this.state = 'recording';
+    // The live rating's feed, asked again of every new page (setFeed).
+    if (this.feedOn) { try { page.send({ type: 'feed', on: true, everyMs: FEED_EVERY_MS }); } catch { /* the next setFeed asks again */ } }
     this.lastChunkAt = this.now();
     this.lastDiskAt = this.now();
     this.lastStatusAt = this.now();
@@ -1619,6 +1623,21 @@ class Recorder extends EventEmitter {
     }
   }
 
+  /**
+   * THE LIVE RATING'S FEED (docs/claude/rating.md "Live"): with the switch on,
+   * the page reads the kill feed's corner of its newest frame five times a
+   * second and sends the rows ('feed' events); off, it reads nothing. The
+   * recording and the read's frame are never touched by it.
+   */
+  setFeed(on) {
+    const want = on === true;
+    if (want === !!this.feedOn) return;
+    this.feedOn = want;
+    if (this.page && this.state === 'recording') {
+      try { this.page.send({ type: 'feed', on: want, everyMs: FEED_EVERY_MS }); } catch { /* the page is going */ }
+    }
+  }
+
   // ── The page ──────────────────────────────────────────────────────────────
 
   fromPage(page, kind, m) {
@@ -1639,6 +1658,11 @@ class Recorder extends EventEmitter {
       if (this.seg && this.seg.firstWall === null && Number.isFinite(m.firstWall)) this.seg.firstWall = m.firstWall;
       // The wall clock against the page's monotonic one (Segment AND IT DRIFTS).
       if (this.seg) this.seg.clockAt(Number(m.at), Number(m.mono));
+      return;
+    }
+    // The live rating's kill feed rows (the page reads them only while asked, setFeed).
+    if (m.type === 'feed') {
+      if (this.feedOn && this.state === 'recording') this.emit('feed', m);
       return;
     }
     if (m.type === 'error') {

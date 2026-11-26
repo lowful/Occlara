@@ -78,7 +78,7 @@ ok(clockLeft('1:39') === 99 && clockLeft('0:05') === 5 && clockLeft('buy') === n
   ok(hk.length === 1 && me(hk) === 0 && hk[0].killer === 'us', 'one frame of yellow is not enough: the kill is counted as a teammate\'s, never the player\'s');
   const t = play();
   t.f(10);
-  for (let s = 0; s < 4; s++) t.f(12 + s, { rows: [ROW.mateKill()] });
+  for (let s = 0; s < 9; s++) t.f(12 + s * 0.2, { rows: [ROW.mateKill()] });
   ok(t.kills().length === 1 && t.kills()[0].killer === 'us' && t.live.view().last === null, 'a teammate\'s kill counts once, as theirs, and is no move of the player\'s');
 }
 

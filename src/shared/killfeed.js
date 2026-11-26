@@ -33,6 +33,7 @@
  * Cost: one pass over the six rows' middle lines (about 0.08 H tall by 0.62 H
  * wide, under 40,000 pixels at 720p). Well under a millisecond in node.
  */
+(function () {
 
 // The rows' centres, as shares of the frame's height: the first at 0.104,
 // then every 0.0362 (measured at 480p, 720p and 1080p).
@@ -131,6 +132,9 @@ function detect(img, frameH) {
     if (big.length < 2) continue;
     const vb = big[big.length - 1];
     if (vb.x1 < W - edgeIn) continue;             // a row hangs from the right edge
+    // A victim's block is a name: measured 0.03 to 0.11 of the height. A block
+    // far longer is a wall or an ability's colour in the corner, no row.
+    if (vb.x1 - vb.x0 + 1 > H * 0.14) continue;
     // The killer's block: the nearest block of the other colour before the
     // victim's (a wall of one colour may run into either).
     let k = -1;
@@ -158,6 +162,17 @@ function detect(img, frameH) {
       }
       return n / lines;
     };
+    // The most neighbouring columns in a strip yellow on 0.6 of the lines or more.
+    const solid = (lo, hi) => {
+      let run = 0; let most = 0;
+      for (let x = Math.max(0, lo); x <= Math.min(W - 1, hi); x++) {
+        let n = 0;
+        for (let y = 0; y < lines; y++) if (cls[y * W + x] === YELLOW) n++;
+        run = n >= lines * 0.6 ? run + 1 : 0;
+        if (run > most) most = run;
+      }
+      return most;
+    };
     const inset = Math.round(H * 0.012);
     // A yellow wall in the corner (sand in the sun) would be yellow beside
     // every block: with the corner's own far left yellow on these lines, the
@@ -169,7 +184,12 @@ function detect(img, frameH) {
     const s1 = kb.x0 <= minRun ? Math.max(0, kb.x1 - minRun) : kb.x0 + inset;
     if (wall) row.mine = null;
     else if (row.killer === 'ally' && covered(s0, s1) >= 0.6) row.mine = 'kill';
-    else if (row.victim === 'ally' && covered(vb.x1 - inset, W - 1) >= 0.6) row.mine = 'death';
+    // The player's death: the portrait's frame is upright, so it is two or
+    // more neighbouring columns yellow on most lines. A yellow haired agent's
+    // portrait is yellow in scattered pixels, no column of it (measured on
+    // the owner's clips: the frame's columns 0.67 to 1 of the lines, a
+    // portrait's at most 0.47).
+    else if (row.victim === 'ally' && solid(vb.x1 - inset, W - 1) >= 2) row.mine = 'death';
     out.list.push(row);
     if (row.mine === 'kill') out.kills.push({ slot: s, sig: row.sig });
     if (row.mine === 'death') out.deaths.push({ slot: s });
@@ -195,4 +215,11 @@ function sigOf(img, block, a, b, H) {
   return n ? { v, r: Math.round(r / n), g: Math.round(g / n), b: Math.round(bl / n) } : { v, r: 0, g: 0, b: 0 };
 }
 
-module.exports = { regionOf, detect, classOf, FIRST, PITCH, SLOTS, CLASSES: { NONE, TEAL, RED, YELLOW } };
+const api = { regionOf, detect, classOf, FIRST, PITCH, SLOTS, CLASSES: { NONE, TEAL, RED, YELLOW } };
+// Main and the tests require it; the recorder's page loads it as a script
+// (recorder/index.html) and reads it off the window, so it runs beside the
+// frames it reads and only the rows cross to main.
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+else if (typeof self !== 'undefined') self.OcclaraKillfeed = api;
+
+}());

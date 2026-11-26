@@ -45,12 +45,14 @@ const rating = require('./rating');
 const MATCH_ROW_MS = 9000;       // a row unseen this long is gone from the feed
 const ROW_LIFE_MS = 6000;        // a row stays on the feed about five seconds (measured): one first seen longer ago is gone
 const HOLD_ROW_MS = 4000;        // a plain row waits this long for its yellow
-const HOLD_SEEN = 4;             // or this many sightings
+const HOLD_SEEN = 8;             // or this many sightings (1.6 s at five frames a second)
 const MINE_SEEN = 2;             // the player's kill: the yellow seen on this many frames
 const END_HOLD_MS = 2500;        // the score moved: the round's last rows still count this long
 const OPEN_WAIT_MS = 25000;      // the ledger moved and nothing closed the round: closed unknown after this
 const TOL_LEN = 0.01;            // a block's length may wobble this much (a share of H)
 const TOL_RGB = 75;              // and the portrait's colour this much (the three summed)
+const LOOSE_LEN = Number(process.env.LR_LL || 0.025);
+const LOOSE_RGB = Number(process.env.LR_LR || 135);
 const LINE_MAX = 60;             // points kept on the small line
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -73,37 +75,56 @@ function sameRow(a, b) {
 /** Two rows that may be one row seen twice: the same sides, the signature roughly alike. */
 function mayBe(a, b) {
   if (!a || !b || a.killer !== b.killer || a.victim !== b.victim || !a.sig || !b.sig) return false;
-  if (Math.abs(a.sig.v - b.sig.v) > TOL_LEN * 2.5) return false;
-  return Math.abs(a.sig.r - b.sig.r) + Math.abs(a.sig.g - b.sig.g) + Math.abs(a.sig.b - b.sig.b) <= TOL_RGB * 1.8;
+  if (Math.abs(a.sig.v - b.sig.v) > LOOSE_LEN) return false;
+  return Math.abs(a.sig.r - b.sig.r) + Math.abs(a.sig.g - b.sig.g) + Math.abs(a.sig.b - b.sig.b) <= LOOSE_RGB;
 }
 
 /*
- * THE FEED ONLY MOVES UP. A new row is added under the others and the oldest
- * leaves from the top, so between two frames a row still there keeps its
- * order and moves up by as many places (slots) as rows left above it. The
- * rows of this frame are laid on the last frame's at the smallest move up
- * that fits (each pair the same sides, the signature roughly alike); a row
- * under the last frame's lowest is new. Measured, this is what counts each
- * kill once where a signature alone, which wobbles as a row slides, counted
- * some twice, and what keeps a row from taking the place of one above it
- * that a frame missed (Split round 6: a teammate's death at the top, the
- * player's own under it, the top one missed on the next frame).
+ * THE FEED ONLY MOVES UP. Rows come in under the others and leave from the
+ * top, so the rows on screen are always the newest few in the order they came,
+ * and a row never moves down. A frame's rows (top to bottom) are lined up
+ * against every row seen in the last row's life (oldest first) as an ordered
+ * match: a row may be one already known only in that order, of the same
+ * sides, at its place or above it, never one a row above it in this frame
+ * came after; a known row may be skipped (gone, or missed by this frame); a
+ * frame row matched to none is new, and new rows only come under the matched
+ * ones. Of the alignments that fit, the one whose pairs' signatures are the
+ * most alike wins, a known row near the end of its life costing more, and a
+ * new row costing more than any fair match. Measured on the owner's clips at
+ * 5 frames a second: the signature alone wobbles as a semi transparent row
+ * crosses a changing wall and counted rows twice; the last frame alone
+ * counted a row again after a frame missed it; this does neither.
  *
- * Answers, for each row of `now`, the last frame's row it is, or null.
+ * Answers, for each row of `now`, the known row it is, or null for a new one.
  */
-function overlap(prev, now, t) {
-  // A row seen first more than a row's life ago has left the feed.
-  const at = new Map(prev.filter((p) => !(t - p.firstAt > ROW_LIFE_MS)).map((p) => [p.slot, p]));
-  const bottom = [...at.keys()].reduce((m, k) => Math.max(m, k), -1);
-  for (let k = 0; k <= bottom + 1; k++) {
-    let fits = true;
-    for (const d of now) {
-      const p = at.get(d.slot + k);
-      if (p && !mayBe(p, d)) { fits = false; break; }
+const NEW_COST = 1.5;
+const OLD_MS = 4500;
+function sigCost(k, d) {
+  if (!k.sig || !d.sig) return 1;
+  return Math.abs(k.sig.v - d.sig.v) / 0.02 + (Math.abs(k.sig.r - d.sig.r) + Math.abs(k.sig.g - d.sig.g) + Math.abs(k.sig.b - d.sig.b)) / 150;
+}
+function align(known, now, t) {
+  const K = known;
+  const n = now.length;
+  const memo = new Map();
+  function best(i, j) {
+    if (i >= n) return { cost: 0, pick: [] };
+    const key = i * 64 + j;
+    if (memo.has(key)) return memo.get(key);
+    // The rest are new.
+    let out = { cost: NEW_COST * (n - i), pick: now.slice(i).map(() => null) };
+    for (let jj = j; jj < K.length; jj++) {
+      const k = K[jj];
+      const d = now[i];
+      if (k.killer !== d.killer || k.victim !== d.victim || k.slot < d.slot) continue;
+      const c = sigCost(k, d) * 0.2 + (t - k.firstAt > OLD_MS ? 0.8 : 0);
+      const rest = best(i + 1, jj + 1);
+      if (c + rest.cost < out.cost) out = { cost: c + rest.cost, pick: [k, ...rest.pick] };
     }
-    if (fits) return now.map((d) => at.get(d.slot + k) || null);
+    memo.set(key, out);
+    return out;
   }
-  return now.map(() => null);
+  return best(0, 0).pick;
 }
 
 /**
@@ -268,15 +289,20 @@ function createLiveRating(opts) {
     const up = !cur.died && f.alive !== false && f.phase !== 'dead';
     const read = f.det && Array.isArray(f.det.list);
     const list = read ? f.det.list.filter((d) => d && d.killer && d.victim && d.sig).sort((a, b) => a.slot - b.slot) : [];
-    const fresh = prev.at !== null && at - prev.at <= ROW_LIFE_MS;
-    const same = fresh ? overlap(prev.list, list, at) : list.map(() => null);
+    // Every row still in its life, in the order it came (oldest first).
+    const recent = rows.filter((x) => at - x.firstAt <= ROW_LIFE_MS).sort((p, q) => p.firstAt - q.firstAt || p.slot - q.slot);
+    const same = read ? align(recent, list, at) : [];
+    // The player's own death row on this frame, where one is (rows stack in time order).
+    const deathRow = cur.died ? null : list.find((d) => d.mine === 'death');
+    const deathSlot = deathRow ? deathRow.slot : null;
     const nowRows = [];
     for (let i = 0; i < list.length; i++) {
       const d = list[i];
-      const mine = d.mine === 'kill' ? (up ? 'kill' : null) : d.mine === 'death' ? (cur.died ? null : 'death') : null;
-      // The same row as the last frame's at its place, else one seen a little
-      // earlier (a frame that missed it) by its signature.
-      const known = same[i] || rows.find((x) => at - x.firstAt <= ROW_LIFE_MS && x.slot >= d.slot && sameRow(x, d) && !same.includes(x));
+      // A row under the player's own death row came after it: the player was
+      // down, and its yellow is the spectated teammate's.
+      const afterDeath = deathSlot !== null && d.slot > deathSlot;
+      const mine = d.mine === 'kill' ? (up && !afterDeath ? 'kill' : null) : d.mine === 'death' ? (cur.died ? null : 'death') : null;
+      const known = same[i] || null;
       if (known) {
         nowRows.push(known);
         known.lastAt = at;

@@ -135,6 +135,13 @@ function paintLiveRating() {
   for (const b of lrsSeg.querySelectorAll('button')) b.disabled = !lrOn;
   lrsSeg.classList.toggle('locked', !lrOn);
   if (lrOn) lrsSeg.removeAttribute('aria-disabled'); else lrsSeg.setAttribute('aria-disabled', 'true');
+  // Recording off or at 480p: main keeps the rating off (index.js
+  // liveRatingSupported), and this says why.
+  const recBtn = recSeg.querySelector('button.active');
+  const resBtn = recResSeg.querySelector('button.active');
+  const recOff = !!(recBtn && recBtn.dataset.val === 'off');
+  const low = !!(resBtn && resBtn.dataset.val === '480');
+  document.getElementById('lr-needs').hidden = !(lrOn && (recOff || low));
   const w = lrWidgetState || {};
   lrWidget.hidden = !(lrOn && lrStream);
   markSeg(lrSize, lrSizeNow);
@@ -193,7 +200,7 @@ function takeLiveRating(live, widget) {
   if (widget && typeof widget === 'object') lrWidgetState = widget;
   paintLiveRating();
 }
-paintLiveRating();
+queueMicrotask(paintLiveRating);   // once the recording segments below exist
 // Capture quality is a VALUE segment, not a boolean: 'standard' or
 // 'performance'. Naming the values rather than on/off keeps the meaning in the
 // stored config, where a future third profile would slot in without a migration.
@@ -216,6 +223,8 @@ wireSeg(captureSeg, 'captureQuality');
  */
 const recSeg = document.getElementById('recording');
 const recResSeg = document.getElementById('recordingres');
+// The live rating says when recording off or at 480p keeps it off.
+for (const seg of [recSeg, recResSeg]) seg.addEventListener('click', () => setTimeout(paintLiveRating, 0));
 const recHint = document.getElementById('rec-hint');
 const recNote = document.getElementById('rec-note');
 const recRetry = document.getElementById('rec-retry');

@@ -48,29 +48,22 @@ function createLiveRatingService(deps) {
   let match = null;
   const finals = new Map();      // match id -> { value, at, kills, deaths, events }
 
-  function reset() { live = null; match = null; }
+  function reset() { live = null; match = null; last = null; lastAt = 0; tapAt = 0; }
 
   /**
    * One applied read.
    * @param rec  the reader's AI log record: { at, image, round, died, match }
    * @param ctx  the reader's guarded context as it stands (matchContext)
    */
-  function frame(rec, ctx) {
-    if (!rec || !Number.isFinite(rec.at)) return;
-    const c = ctx || {};
-    // A new match is the live rating's own to tell (the reader's match id and
-    // a lower score); a match that resumes keeps its rating.
-    if (!live) live = createLiveRating({ queue: c.gameMode === 'swiftplay' ? 'swiftplay' : null, meAgent: c.agentConfirmed ? c.agent : null });
-    match = rec.match || match;
-    let det = null;
-    if (typeof rec.image === 'string' && rec.image && typeof d.decode === 'function') {
-      try {
-        const got = d.decode(rec.image);
-        if (got && got.img) det = killfeed.detect(got.img, got.H);
-      } catch { det = null; }
-    }
-    live.frame({
-      at: rec.at, match: rec.match || null, round: Number.isInteger(rec.round) ? rec.round : null,
+  // The reader's last context, for the recorder's corner reads between reads.
+  let last = null;           // { rec, ctx }
+  let lastAt = 0;            // the newest time handed to the live rating
+  let tapAt = 0;             // when the recorder's page last sent rows
+  const TAP_FRESH_MS = 1500;
+
+  function fields(rec, c, at, det) {
+    return {
+      at, match: rec.match || null, round: Number.isInteger(rec.round) ? rec.round : null,
       side: c.side === 'attacking' || c.side === 'defending' ? c.side : null,
       phase: typeof c.phase === 'string' ? c.phase : null,
       alive: c.playerAlive === false ? false : c.playerAlive === true ? true : null,
@@ -81,7 +74,52 @@ function createLiveRatingService(deps) {
       clock: typeof c.clock === 'string' ? c.clock : null,
       mode: c.gameMode === 'swiftplay' || c.gameMode === 'standard' ? c.gameMode : null,
       det,
-    });
+    };
+  }
+
+  /**
+   * One applied read of the reader: its context, and its own frame's kill
+   * feed unless the recorder's page is sending the feed itself (tap), five
+   * times a second, in which case the read's frame is not even decoded.
+   */
+  function frame(rec, ctx) {
+    if (!rec || !Number.isFinite(rec.at)) return;
+    const c = ctx || {};
+    // A new match is the live rating's own to tell (the reader's match id and
+    // a lower score); a match that resumes keeps its rating.
+    if (!live) live = createLiveRating({ queue: c.gameMode === 'swiftplay' ? 'swiftplay' : null, meAgent: c.agentConfirmed ? c.agent : null });
+    match = rec.match || match;
+    last = { rec, ctx: { ...c } };
+    let det = null;
+    const tapping = rec.at - tapAt < TAP_FRESH_MS || Date.now() - tapAt < TAP_FRESH_MS;
+    if (!tapping && typeof rec.image === 'string' && rec.image && typeof d.decode === 'function') {
+      try {
+        const got = d.decode(rec.image);
+        if (got && got.img) det = killfeed.detect(got.img, got.H);
+      } catch { det = null; }
+    }
+    // A read is applied a second or so after its frame was taken: its time
+    // never goes back past a corner the recorder already sent.
+    lastAt = Math.max(lastAt, rec.at);
+    live.frame(fields(rec, c, lastAt, det));
+  }
+
+  /**
+   * The recorder page's read of the kill feed's corner (recorder.js setFeed),
+   * five times a second: its rows with the reader's last context.
+   * @param m { at, H, list }
+   */
+  function tap(m) {
+    if (!m || !Number.isFinite(m.at) || !Array.isArray(m.list) || !last || !live) return false;
+    tapAt = m.at;
+    lastAt = Math.max(lastAt, m.at);
+    const list = m.list.filter((r) => r && (r.killer === 'ally' || r.killer === 'enemy') && (r.victim === 'ally' || r.victim === 'enemy')
+      && Number.isInteger(r.slot) && r.sig && typeof r.sig === 'object')
+      .map((r) => ({ slot: r.slot, killer: r.killer, victim: r.victim, mine: r.mine === 'kill' || r.mine === 'death' ? r.mine : null,
+        sig: { v: Number(r.sig.v) || 0, r: Number(r.sig.r) || 0, g: Number(r.sig.g) || 0, b: Number(r.sig.b) || 0 } }));
+    // The read's own died flag belongs to its read alone.
+    live.frame(fields({ ...last.rec, died: false }, last.ctx, lastAt, { list }));
+    return true;
   }
 
   /** What a window may show, or null with nothing rated yet. */
@@ -99,6 +137,11 @@ function createLiveRatingService(deps) {
     if (!gate || gate.on !== true) { reset(); return false; }
     frame(rec, ctx);
     return true;
+  }
+  /** The recorder's corner rows, only while the switch is on. */
+  function feedTap(m, gate) {
+    if (!gate || gate.on !== true) { reset(); return false; }
+    return tap(m);
   }
   /** PUSH_LIVE's `rating`: only with the switch on and a match under way, else undefined (no key). */
   function field(gate) {
@@ -143,7 +186,7 @@ function createLiveRatingService(deps) {
       liveRounds: f.rounds, confirmedRounds: confirmed.rounds || null, liveKills: f.kills, liveDeaths: f.deaths, version: confirmed.version || null };
   }
 
-  return { frame, feed, field, widget, view, end, compare, reset, finalOf: (id) => finals.get(id) || null, active: () => !!live };
+  return { frame, tap, feed, feedTap, field, widget, view, end, compare, reset, finalOf: (id) => finals.get(id) || null, active: () => !!live };
 }
 
 module.exports = { createLiveRatingService, pick };

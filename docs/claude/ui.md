@@ -236,7 +236,9 @@ run once when the value changes; a repaint of the same value moves nothing.
 Settings' "Match status while recording" group ends with the two switches:
 Live rating, its warning beside it (a `--warn` rule, never the signal) and a
 confirm panel in the recording toggle's shape ("Show your rating while you
-play?", Keep it off the primary); Stream widget, locked like the AI log's
+play?", three factual sentences, Keep it off the primary), and under the
+switch, with it on and recording off or at 480p, the line saying the rating
+needs recording at 720p or 1080p and stays off (`#lr-needs`); Stream widget, locked like the AI log's
 while the rating is off; with both on, the widget's address on 127.0.0.1 in
 Mono with Copy (main copies, `STREAM_WIDGET_COPY`), a Standard and Compact
 choice and the one OBS line with the size to use. `check:mainwindow`

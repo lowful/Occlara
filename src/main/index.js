@@ -475,7 +475,7 @@ function liveView() {
   if (on('liveRound') && Number.isInteger(c.roundNumber) && c.roundNumber > 0) out.round = c.roundNumber;
   // THE LIVE RATING (the owner's second exception, 2026-11-26): only with its
   // switch on, and only its own fields (live-rating-service.js field, pick).
-  const rated = liveRating.field({ on: all.liveRating === true, inMatch: true });
+  const rated = liveRating.field({ on: all.liveRating === true, inMatch: liveRatingSupported() });
   if (rated) out.rating = rated;
   return out;
 }
@@ -500,29 +500,31 @@ function pushLive() {
  * exception to "nothing reaches the screen", 2026-11-26, docs/claude/
  * screen-silence.md "The live rating"). OFF by default (liveRating). On, every
  * read the live Valorant reader applies hands its own frame here (the AI log's
- * record, engine diagnostics): the kill feed's corner is cut and decoded with
- * nativeImage, read by shared/killfeed.js, and fed with the reader's guarded
- * context to shared/live-rating.js (live-rating-service.js). Only its view
+ * record, engine diagnostics) as context, and the recorder's page reads the
+ * kill feed's corner of its own frames five times a second
+ * (shared/killfeed.js) and sends the rows, fed with that context to
+ * shared/live-rating.js (live-rating-service.js). Only its view
  * leaves main: on PUSH_LIVE for the Recording screen (liveView), and with the
  * second switch (liveRatingStream) on the stream widget's loopback server
  * (rating-stream.js). Off, no frame is read for it, nothing is kept, no field
  * exists and the server is stopped. An import runs a reader of its own with no
  * such hook; League has no reader here. Nothing is drawn over the game.
  */
-function decodeFeed(shot) {
-  const { nativeImage } = require('electron');
-  const img = nativeImage.createFromBuffer(Buffer.from(shot, 'base64'));
-  if (!img || img.isEmpty()) return null;
-  const { width, height } = img.getSize();
-  const r = killfeed.regionOf(width, height);
-  if (!r) return null;
-  const part = img.crop(r);
-  const got = part && !part.isEmpty() ? part.getSize() : null;
-  if (!got || got.width !== r.width || got.height !== r.height) return null;
-  // toBitmap is BGRA on Windows.
-  return { img: { width: r.width, height: r.height, data: part.toBitmap(), channels: 4, order: 'bgr' }, H: height };
+/*
+ * WHERE THE KILL FEED IS READ (round 2, measured): only from the recorder's
+ * own frames, five a second, at 720p or 1080p (setFeed, below). The reads'
+ * frames, once a second, at the read's size, missed too many of the player's
+ * kills to show a number (rating.md "Live"), so they give the rating its
+ * context (round, side, score, spike, the guarded alive) and never its kills.
+ * Recording off, or at 480p, the rating stays off and says why in Settings.
+ */
+function liveRatingSupported() {
+  try {
+    const v = recorder.liveView();
+    return !!(v && Number(v.height) >= 700);
+  } catch { return false; }
 }
-const liveRating = createLiveRatingService({ decode: decodeFeed });
+const liveRating = createLiveRatingService({});
 let liveRatingSwitch = { on: false, stream: false };   // read once a tick and on a config change
 let ratingStream = null;
 let widgetStarting = false;
@@ -540,6 +542,33 @@ function feedLiveRating(rec) {
   } catch (e) { /* the rating is never worth a read */ }
 }
 
+/*
+ * THE RECORDER'S CORNER READS (round 2): while the switch is on and a match is
+ * recorded, the recorder's page reads the kill feed's corner of its newest
+ * frame five times a second and sends only the rows (recorder.js setFeed,
+ * renderer/recorder feedTick); the read's own frame is then not decoded at
+ * all (live-rating-service.js frame). What the page spends on it is counted
+ * and written to the debug log once a minute, never shown.
+ */
+let feedCostAt = 0;
+let feedCost = { ms: 0, reads: 0 };
+recorder.on('feed', (m) => {
+  try {
+    if (!(engine instanceof CoachingEngine) || !state.isCoaching || !liveRatingSwitch.on) return;
+    liveRating.feedTap(m, { on: liveRatingSwitch.on });
+    feedCost.ms += Number(m && m.ms) || 0;
+    feedCost.reads += 1;
+    const now = Date.now();
+    if (!feedCostAt) feedCostAt = now;
+    if (now - feedCostAt >= 60000) {
+      const secs = (now - feedCostAt) / 1000;
+      console.log(`[live-rating] the kill feed's corner: ${feedCost.reads} reads in ${Math.round(secs)} s, ${(feedCost.ms / secs).toFixed(1)} ms a second in the recorder's page, ${(feedCost.ms / Math.max(1, feedCost.reads)).toFixed(2)} ms a read`);
+      feedCostAt = now;
+      feedCost = { ms: 0, reads: 0 };
+    }
+  } catch (e) { /* the rating is never worth a frame */ }
+});
+
 /** The two switches, read once; off, what was kept goes; the widget follows both. */
 function syncLiveRating() {
   const all = store.store || {};
@@ -547,6 +576,8 @@ function syncLiveRating() {
   const stream = on && all.liveRatingStream === true;
   const was = liveRatingSwitch;
   liveRatingSwitch = { on, stream };
+  // The recorder reads the corner only while the switch is on.
+  try { recorder.setFeed(on); } catch { /* no recorder: the reads' own frames serve */ }
   if (!on) liveRating.reset();
   if (!on || !stream) widgetFullTime = null;
   if (stream && (!ratingStream || !ratingStream.running()) && !widgetStarting) startWidget();
@@ -554,7 +585,7 @@ function syncLiveRating() {
     ratingStream.stop().then(() => registry.broadcast(C.PUSH_STATE, buildState())).catch(() => {});
   }
   if (stream && ratingStream && ratingStream.running()) {
-    const inMatch = engine instanceof CoachingEngine && state.isCoaching && matchInProgress();
+    const inMatch = engine instanceof CoachingEngine && state.isCoaching && matchInProgress() && liveRatingSupported();
     ratingStream.send(liveRating.widget({ on, stream, inMatch, fullTime: widgetFullTime, now: Date.now() }));
   }
   if (was.on !== on || was.stream !== stream) registry.broadcast(C.PUSH_STATE, buildState());

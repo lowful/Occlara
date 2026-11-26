@@ -247,6 +247,7 @@
             <h4>Live rating</h4>
             <p class="hint">Your match rating, 0.0 to 10.0, on the Recording screen while you play, moving as the kill feed shows your kills and deaths. Marked provisional: the confirmed one is in your review.</p>
             <p class="hint lr-warn" id="lr-warn">It shows a number about your play while you play. Riot does not approve apps that show real-time data that changes how you play. Occlara shows a number and what happened, never what to do. Your choice.</p>
+            <p class="hint lr-needs" id="lr-needs" hidden>Needs Record match video on, at 720p or 1080p: the kill feed is read from the recording five times a second there. At 480p or with recording off too few of your kills were found to show a number, so the live rating stays off.</p>
           </div>
           <div class="seg ctl" id="liverating">
             <button data-val="on">On</button>
@@ -257,7 +258,7 @@
           <div class="rec-confirm-clip">
             <div class="rec-confirm-box">
               <p class="rec-confirm-title" id="lr-confirm-title">Show your rating while you play?</p>
-              <p class="hint rec-confirm-body" id="lr-confirm-body">The Recording screen will show your rating and its last move during the match. That is a number about your play, shown while you play. Riot does not approve apps that show real-time data that changes how you play, and a player who used an app that gave tips mid match had a one week ban. Occlara never says what to do, only the number and what happened. You can turn it off here at any time.</p>
+              <p class="hint rec-confirm-body" id="lr-confirm-body">Riot does not approve apps that show real-time data that changes how you play. Occlara shows a number and what happened, never what to do. Turning it on is your choice.</p>
               <div class="rec-confirm-actions">
                 <button id="lr-keep-off" class="btn btn-primary sm" type="button">Keep it off</button>
                 <button id="lr-turn-on" class="btn btn-ghost sm" type="button">Turn it on</button>

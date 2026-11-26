@@ -1423,13 +1423,22 @@ setTimeout(async () => {
     // put the rating on the screen and in PUSH_LIVE, with only its own
     // fields; turned off again, all of it goes.
     {
-      const { nativeImage } = require('electron');
-      const { drawFrame } = require('./fixtures/killfeed-frames');
-      const jpeg = (rows) => {
-        const f = drawFrame({ W: 1280, H: 720, rows, order: 'bgra' });
-        return nativeImage.createFromBitmap(f.data, { width: 1280, height: 720 }).toJPEG(92).toString('base64');
+      const { drawFrame, cut } = require('./fixtures/killfeed-frames');
+      const killfeed = require(path.join(REPO, 'src/shared/killfeed'));
+      // The recorder as a 1080p recording (GitHub's machine has no encoder to
+      // record with): its page's corner reads stood in for by the detector on
+      // drawn frames, handed to main as the page hands them (its 'feed'
+      // event), and the reader's applied reads as their context.
+      const rec = require(path.join(REPO, 'src/main/services/recorder')).current();
+      if (!rec) return report(false, 'no recorder to stand in for');
+      const realLiveView = rec.liveView;
+      rec.liveView = () => ({ res: '1080', width: 1920, height: 1080, fps: 30 });
+      const feed = (rows) => {
+        reader.opts.diagnostics({ at: Date.now(), image: null, round: 7, died: false, match: 1, state: {} });
+        const fr = drawFrame({ W: 1920, H: 1080, rows });
+        const det = killfeed.detect(cut(fr, killfeed.regionOf(1920, 1080)), 1080);
+        rec.emit('feed', { at: Date.now(), H: 1080, list: det.list, ms: 0.4 });
       };
-      const feed = (rows) => reader.opts.diagnostics({ at: Date.now(), image: jpeg(rows), round: 7, died: false, match: 1 });
       const KILL = [{ slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill', vlen: 0.06 }];
       Object.assign(reader.matchContext, { side: 'attacking', phase: 'active', playerAlive: true, clock: '1:30' });
       const RATING_NOW = `window.occlara.getLive().then((v) => {
@@ -1473,6 +1482,18 @@ setTimeout(async () => {
       const gone = await until(async () => { const s = await sjs(RATING_NOW); return !s.shown && !s.rating ? s : null; }, 4000) || await sjs(RATING_NOW);
       lines.push(`live rating, switched off again: ${JSON.stringify({ keys: gone.keys, shown: gone.shown })}`);
       if (gone.shown || gone.rating) return report(false, `switched off, the live rating stayed: ${JSON.stringify(gone)}`);
+      // On again, but recording at 480p (or not at all): the rating stays off.
+      rec.liveView = () => ({ res: '480', width: 854, height: 480, fps: 15 });
+      await setjs2('window.occlara.setConfig({ liveRating: true }).then(() => true)');
+      feed([]);
+      feed(KILL);
+      feed(KILL);
+      await wait(1300);
+      const low = await sjs(RATING_NOW);
+      lines.push(`live rating on, recording at 480p: ${JSON.stringify({ keys: low.keys, shown: low.shown })}`);
+      await setjs2('window.occlara.setConfig({ liveRating: false, liveRatingStream: false }).then(() => true)');
+      rec.liveView = realLiveView;
+      if (low.shown || low.rating) return report(false, `recording at 480p, the live rating showed: ${JSON.stringify(low)}`);
     }
     reader.matchContext = null;
     reader.inLobby = true;

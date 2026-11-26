@@ -78,6 +78,11 @@ exactly as narrow as that choice:
   **Never** advice, a tip, a read, HP, positions, economy, the enemy, who is
   alive, or anything of a review. The label says what happened, never what
   to do.
+- **Only where it was measured to count right**: the kill feed is read off
+  the recorder's own frames five times a second, only while recording at 720p
+  or 1080p; recording off or at 480p it stays off and Settings says why
+  (rating.md, "Live", round 2). The read prompt, the model and every guard
+  are unchanged.
 - **Never a window over the game, never an overlay, never a sound.** The
   Recording screen is the main window behind the game, as before. The widget
   is a page OBS fetches from a loopback server and lays on the stream;
