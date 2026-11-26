@@ -754,6 +754,11 @@ function recordOnCard(r, agent) {
   if (casts) out.casts = casts;
   if (r.afk === true) out.afk = true;
   if (r.inSpawn === true) out.inSpawn = true;
+  // For the match rating (rating.md): who planted, the defuse and who made
+  // it, as sides and agents, only where Riot's record named them.
+  if (r.plantBy && typeof r.plantBy === 'object') out.plantBy = { ...r.plantBy };
+  if (typeof r.defuseMs === 'number') out.defuseSec = Math.round(r.defuseMs / 100) / 10;
+  if (r.defuseBy && typeof r.defuseBy === 'object') out.defuseBy = { ...r.defuseBy };
   return out;
 }
 

@@ -826,6 +826,11 @@ function parse(d, name, tag) {
       || (k.victim_death_location && typeof k.victim_death_location === 'object' ? k.victim_death_location : null),
     around: Array.isArray(k.player_locations) ? k.player_locations
       : Array.isArray(k.player_locations_on_kill) ? k.player_locations_on_kill : null,
+    // Who assisted (Nov 2026, the match rating): v4 names them as players,
+    // v2 by assistant_puuid and assistant_team. Read here, sent by side and
+    // agent only (feed below).
+    assist: (Array.isArray(k.assistants) ? k.assistants : []).filter((x) => x && typeof x === 'object')
+      .map((x) => (x.assistant_puuid || x.assistant_team ? { puuid: x.assistant_puuid, team: x.assistant_team } : x)),
   })).filter((k) => k.n);
 
   // Which side a player in the kill feed is on, relative to the player. Kill
@@ -846,6 +851,17 @@ function parse(d, name, tag) {
   const mapName = (d.metadata && d.metadata.map && (typeof d.metadata.map === 'string' ? d.metadata.map : d.metadata.map.name)) || null;
   const econHalf = halfLength && !/spike ?rush|replication|onefa/.test(queue) ? halfLength : null;
   const isOurs = (x) => { const w = whoIs(x); return w === 'me' || w === 'mate'; };
+  // One player as the client may see them (Nov 2026, the match rating): the
+  // side relative to the player and the agent, never a name, tag or id; null
+  // when the side cannot be placed.
+  const endOf = (x) => {
+    if (!x || typeof x !== 'object') return null;
+    const by = whoIs(x);
+    if (!by) return null;
+    const a = agentOf(x);
+    return a ? { by, a } : { by };
+  };
+  const endsOf = (list) => (Array.isArray(list) ? list : []).map(endOf).filter(Boolean).slice(0, 4);
   const isMate = (x) => whoIs(x) === 'mate';
 
   const perRound = rounds.map((r, i) => {
@@ -868,8 +884,14 @@ function parse(d, name, tag) {
     const plant = r.plant || r.plant_events || null;
     const plantMs = plant && (typeof plant.round_time_in_ms === 'number' ? plant.round_time_in_ms
       : typeof plant.plant_time_in_round === 'number' ? plant.plant_time_in_round : null);
+    const planter = plant ? endOf(plant.player || plant.planted_by) : null;
+    const defuse = r.defuse || r.defuse_events || null;
+    const defuseMs = defuse && typeof defuse.round_time_in_ms === 'number' ? defuse.round_time_in_ms
+      : defuse && typeof defuse.defuse_time_in_round === 'number' ? defuse.defuse_time_in_round : null;
+    const defuser = defuse ? endOf(defuse.player || defuse.defused_by) : null;
     const feed = inRound.map((k) => ({ ms: k.ms, by: whoIs(k.killer), on: whoIs(k.victim),
-      killer: idOf(k.killer), victim: idOf(k.victim), ka: agentOf(k.killer), va: agentOf(k.victim), w: k.weapon }));
+      killer: idOf(k.killer), victim: idOf(k.victim), ka: agentOf(k.killer), va: agentOf(k.victim), w: k.weapon,
+      as: endsOf(k.assist) }));
     const teamwork = teamworkOf(feed, death ? death.ms : null);
     return {
       n,
@@ -898,7 +920,10 @@ function parse(d, name, tag) {
       // identifies the other nine players. Since 8.5.0 each kill also says
       // both ends by agent and its gun by name (ka, va, w: weaponOf, never its
       // type), so Ask Coach can tell a round in order; still no name, tag or id.
-      feed: feed.map((k) => ({ ms: k.ms, by: k.by, on: k.on, ka: k.ka, va: k.va, w: k.w })),
+      // Since Nov 2026 a kill with assisters carries them as `as`, each a
+      // side and an agent ({ by, a }), never a name; a kill with none has no
+      // key, as before.
+      feed: feed.map((k) => ({ ms: k.ms, by: k.by, on: k.on, ka: k.ka, va: k.va, w: k.w, ...(k.as.length ? { as: k.as } : {}) })),
       // The round record beyond the feed (8.8), each only where the record
       // had it: the callout the player died at and those of the enemies they
       // killed, the team's buy, the nearest teammate's distance at the death
@@ -912,6 +937,12 @@ function parse(d, name, tag) {
       ...(casts ? { casts } : {}),
       ...(myStat && myStat.was_afk === true ? { afk: true } : {}),
       ...(myStat && myStat.stayed_in_spawn === true ? { inSpawn: true } : {}),
+      // Who planted, and the defuse's moment and who made it (Nov 2026, the
+      // match rating): a side and an agent each, never a name, and only
+      // where the record names them.
+      ...(planter ? { plantBy: planter } : {}),
+      ...(defuseMs !== null ? { defuseMs } : {}),
+      ...(defuser ? { defuseBy: defuser } : {}),
     };
   });
 
