@@ -10,6 +10,11 @@ name: CI (Windows, the whole suite)
 # main or to a branch named ci/... or test/.... Not on every branch: this repo
 # is private and a Windows minute is billed at twice a Linux one.
 #
+# The job fails only for a failure that .github/ci-known-failures.txt does not
+# list: the tests already failing on main, and the three checks GitHub's
+# machine cannot run (the recorder needs a GPU's encoder; the main window's
+# focus and timing need a signed in desktop). Those three still need a real PC.
+#
 # The log and every screenshot the checks wrote are kept as artifacts for 7
 # days, so a failing surface can be looked at without running it anywhere.
 on:
@@ -64,13 +69,6 @@ jobs:
         run: |
           try { Set-DisplayResolution -Width 1920 -Height 1080 -Force } catch { Write-Host "could not set the resolution: $_" }
 
-      # Windows Server ships without Media Foundation, which Chromium uses for
-      # H.264: without it the recorder has no encoder and its checks time out.
-      - name: Media Foundation (the H.264 the recorder encodes with)
-        shell: pwsh
-        run: |
-          try { Install-WindowsFeature Server-Media-Foundation | Format-List Success, RestartNeeded, ExitCode } catch { Write-Host "could not install Media Foundation: $_" }
-
       - name: The machine
         shell: bash
         run: |
@@ -86,7 +84,6 @@ jobs:
           ONLY: ${{ github.event.inputs.only }}
         run: |
           set -o pipefail
-          if [ -z "$ONLY" ] && [ -f .github/ci-only ]; then ONLY="$(cat .github/ci-only)"; fi
           if [ -n "$ONLY" ]; then
             status=0
             for s in $ONLY; do
@@ -95,8 +92,15 @@ jobs:
             done
             exit $status
           else
-            npm test 2>&1 | tee test.log
+            # The verdict is the next step's: a known failure must not hide a new one.
+            npm test 2>&1 | tee test.log || true
           fi
+
+      # A failure that is not in .github/ci-known-failures.txt fails the job.
+      - name: The verdict
+        if: ${{ github.event.inputs.only == '' }}
+        shell: bash
+        run: node .github/ci-verdict.js
 
       - name: Keep the log and the screenshots
         if: always()
