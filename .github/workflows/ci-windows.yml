@@ -1,0 +1,75 @@
+name: CI (Windows, the whole suite)
+
+# The whole suite on Windows, with the real Electron, on GitHub's machine and
+# not on the owner's PC. ci.yml runs on Linux without the Electron binary, so
+# every check that boots the app's window fails there by construction; those
+# checks, the recorder and the clip playback need a Windows desktop, and until
+# this existed the only one was the PC the owner plays on.
+#
+# It runs when asked for (the Actions tab, or the API) and on every push to
+# main or to a branch named ci/... or test/.... Not on every branch: this repo
+# is private and a Windows minute is billed at twice a Linux one.
+#
+# The log and every screenshot the checks wrote are kept as artifacts for 7
+# days, so a failing surface can be looked at without running it anywhere.
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+      - 'ci/**'
+      - 'test/**'
+
+concurrency:
+  group: ci-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suite:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+
+      # With the Electron binary this time: the window checks boot the real app.
+      - name: Install client dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: The machine
+        shell: bash
+        run: |
+          node -v
+          npx electron --version
+          powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object Name, CurrentHorizontalResolution, CurrentVerticalResolution | Format-List"
+
+      # OCCLARA_SHOTS=1 makes check:mainwindow write its pictures of every page.
+      - name: Run checks and tests
+        shell: bash
+        env:
+          OCCLARA_SHOTS: '1'
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test.log
+
+      - name: Keep the log and the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            test.log
+            dist-surface-shots/**
