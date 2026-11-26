@@ -4,62 +4,92 @@
  * THE LIVE RATING IN MAIN (docs/claude/rating.md "Live", the owner's second
  * exception, docs/claude/screen-silence.md "The live rating").
  *
- * index.js hands every applied read of the live Valorant reader here (the AI
- * log's record, the read's own frame among it, and the reader's guarded
- * context), and only while the Settings switch `liveRating` is on: switched
- * off, nothing is read, decoded or kept, and what was kept goes (reset). The
- * frame's kill feed corner is decoded by the injected `decode` (nativeImage in
- * index.js), read by src/shared/killfeed.js and fed with the context to
- * src/shared/live-rating.js. Nothing of it leaves main but `view()`, which
- * index.js puts on PUSH_LIVE for the Recording screen and, with the second
- * switch, on the stream widget's events.
+ * Two inputs, only while the Settings switch `liveRating` is on (off, nothing
+ * is kept and what was kept goes, reset):
+ *   - every read the live Valorant reader applies (its AI log record and its
+ *     guarded context): the CONTEXT alone (round, side, score, spike, alive);
+ *     the read's own frame is never read here for kills;
+ *   - the recorder page's kill feed rows, five times a second (`tap`), read
+ *     off the recorder's own frames by src/shared/killfeed.js.
+ * They feed src/shared/live-rating.js, ONE RATING PER MATCH ID: a new id is a
+ * new rating, and a match the reader resumes (resumeMatch restores its id)
+ * goes back to its own. Nothing of it leaves main but `field` (PUSH_LIVE's
+ * `rating`) and `widget` (the stream widget's payload), both built by `pick`:
+ * the number, its tier, the last move with a label that says what happened and
+ * no numbers standing ("Kill", "Opening kill", "Died first"), the line; or, when
+ * the feed is not being read, `{ reading: false }` and no number at all.
  *
- * An import never reaches here: it runs a reader of its own (import-video.js)
- * that has no such hook. League has no reader here at all.
- *
- * It also keeps each match's live final (`end`, at the match's end), so the
- * review's confirmed rating, once Riot's record is laid over, can be logged
- * against it in the match's AI log folder (`compare`), never shown.
+ * An import never reaches here (its reader has no hook); League has no reader.
+ * Each match's live final is kept at its end (`end`) so the review's confirmed
+ * rating can be logged against it (`compare`), never shown.
  */
 
-const killfeed = require('../../shared/killfeed');
 const { createLiveRating } = require('../../shared/live-rating');
-
 const rating = require('../../shared/rating');
 
-const KEEP_FINALS = 4;
+const KEEP_MATCHES = 4;
 const LINE_OUT = 40;             // points of the line a window is sent
+const TAP_STALE_MS = 3000;       // the recorder's rows stopped arriving this long: not reading
+const BUDGET_MS = 15;            // a corner read slower than this, three in a row: the page stops
+const LAG_LIMIT_MS = 1500;       // the recorder's chunks this late: the feed is let go
+
+/*
+ * THE LIVE LABEL says what happened and nothing of the numbers standing (the
+ * coordinator's ruling: the exception never says who is alive, and a feed read
+ * wrong would make them wrong). The review's labels keep theirs.
+ */
+function liveLabel(label) {
+  let t = String(label || '').replace(/,\s*\d+v\d+/g, '').trim();
+  if (/^First kill\b/.test(t)) t = 'Opening kill';
+  else if (/^Traded a teammate\b/.test(t)) t = 'Trade kill';
+  else if (/^Kill as the last one up\b/.test(t)) t = 'Kill';
+  else if (/^Died last\b/.test(t)) t = 'Died';
+  return t;
+}
 
 /** Only the view's own fields, a fresh object: nothing else can ride along. */
 function pick(v) {
   if (!v || typeof v.value !== 'number') return null;
   const last = v.last && typeof v.last === 'object'
-    ? { delta: String(v.last.delta), up: !!v.last.up, down: !!v.last.down, label: String(v.last.label || '') } : null;
+    ? { delta: String(v.last.delta), up: !!v.last.up, down: !!v.last.down, label: liveLabel(v.last.label) } : null;
   return { value: v.value, shown: String(v.shown), tier: String(v.tier), last, line: (Array.isArray(v.line) ? v.line : []).slice(-LINE_OUT).filter((x) => typeof x === 'number') };
 }
 
 /**
- * @param deps.decode (shotBase64) -> { img, H } | null: the kill feed region's
- *                    pixels (killfeed.regionOf) and the frame's height
+ * WHETHER THE RECORDER SHOULD READ THE CORNER: only with the switch on, a
+ * Valorant session recording at 700 rows or more, and the page not stopped
+ * for its cost (a read over BUDGET_MS three times running) or a recorder
+ * falling behind (its chunks over LAG_LIMIT_MS late). Answers { on, why }.
  */
-function createLiveRatingService(deps) {
-  const d = deps || {};
-  let live = null;
-  let match = null;
-  const finals = new Map();      // match id -> { value, at, kills, deaths, events }
+function wantFeed(s) {
+  const o = s || {};
+  if (o.on !== true) return { on: false, why: 'off' };
+  if (o.game !== 'valorant' || o.valorantSession !== true) return { on: false, why: 'game' };
+  if (!(Number(o.height) >= 700)) return { on: false, why: 'height' };
+  if (o.slow === true) return { on: false, why: 'slow' };
+  if (Number(o.lagMs) > LAG_LIMIT_MS) return { on: false, why: 'lag' };
+  return { on: true, why: null };
+}
 
-  function reset() { live = null; match = null; last = null; lastAt = 0; tapAt = 0; }
+function createLiveRatingService() {
+  const matches = new Map();     // match id -> { live, last: { rec, ctx }, lastAt, tapAt }
+  let current = null;            // the id rated now
+  const finals = new Map();      // match id -> { value, at, rounds, kills, deaths, events }
+  let halted = null;             // why the feed stopped ('slow', 'lag', ...) or null
 
-  /**
-   * One applied read.
-   * @param rec  the reader's AI log record: { at, image, round, died, match }
-   * @param ctx  the reader's guarded context as it stands (matchContext)
-   */
-  // The reader's last context, for the recorder's corner reads between reads.
-  let last = null;           // { rec, ctx }
-  let lastAt = 0;            // the newest time handed to the live rating
-  let tapAt = 0;             // when the recorder's page last sent rows
-  const TAP_FRESH_MS = 1500;
+  function reset() { matches.clear(); current = null; halted = null; }
+
+  function entry(id, ctx) {
+    const key = id === undefined || id === null ? 'none' : String(id);
+    if (!matches.has(key)) {
+      const c = ctx || {};
+      matches.set(key, { live: createLiveRating({ queue: c.gameMode === 'swiftplay' ? 'swiftplay' : null, meAgent: c.agentConfirmed ? c.agent : null }),
+        last: null, lastAt: 0, tapAt: 0 });
+      while (matches.size > KEEP_MATCHES) matches.delete(matches.keys().next().value);
+    }
+    current = key;
+    return matches.get(key);
+  }
 
   function fields(rec, c, at, det) {
     return {
@@ -77,86 +107,91 @@ function createLiveRatingService(deps) {
     };
   }
 
-  /**
-   * One applied read of the reader: its context, and its own frame's kill
-   * feed unless the recorder's page is sending the feed itself (tap), five
-   * times a second, in which case the read's frame is not even decoded.
-   */
+  /** One applied read of the reader: the context alone, for its match's rating. */
   function frame(rec, ctx) {
     if (!rec || !Number.isFinite(rec.at)) return;
     const c = ctx || {};
-    // A new match is the live rating's own to tell (the reader's match id and
-    // a lower score); a match that resumes keeps its rating.
-    if (!live) live = createLiveRating({ queue: c.gameMode === 'swiftplay' ? 'swiftplay' : null, meAgent: c.agentConfirmed ? c.agent : null });
-    match = rec.match || match;
-    last = { rec, ctx: { ...c } };
-    let det = null;
-    const tapping = rec.at - tapAt < TAP_FRESH_MS || Date.now() - tapAt < TAP_FRESH_MS;
-    if (!tapping && typeof rec.image === 'string' && rec.image && typeof d.decode === 'function') {
-      try {
-        const got = d.decode(rec.image);
-        if (got && got.img) det = killfeed.detect(got.img, got.H);
-      } catch { det = null; }
-    }
+    const e = entry(rec.match, c);
+    e.last = { rec, ctx: { ...c } };
     // A read is applied a second or so after its frame was taken: its time
     // never goes back past a corner the recorder already sent.
-    lastAt = Math.max(lastAt, rec.at);
-    live.frame(fields(rec, c, lastAt, det));
+    e.lastAt = Math.max(e.lastAt, rec.at);
+    e.live.frame(fields(rec, c, e.lastAt, null));
   }
 
   /**
-   * The recorder page's read of the kill feed's corner (recorder.js setFeed),
-   * five times a second: its rows with the reader's last context.
+   * The recorder page's rows (five a second), with the reader's last context
+   * for the match being rated.
    * @param m { at, H, list }
    */
   function tap(m) {
-    if (!m || !Number.isFinite(m.at) || !Array.isArray(m.list) || !last || !live) return false;
-    tapAt = m.at;
-    lastAt = Math.max(lastAt, m.at);
+    const e = current !== null ? matches.get(current) : null;
+    if (!m || !Number.isFinite(m.at) || !Array.isArray(m.list) || !e || !e.last) return false;
+    e.tapAt = m.at;
+    e.lastAt = Math.max(e.lastAt, m.at);
     const list = m.list.filter((r) => r && (r.killer === 'ally' || r.killer === 'enemy') && (r.victim === 'ally' || r.victim === 'enemy')
       && Number.isInteger(r.slot) && r.sig && typeof r.sig === 'object')
       .map((r) => ({ slot: r.slot, killer: r.killer, victim: r.victim, mine: r.mine === 'kill' || r.mine === 'death' ? r.mine : null,
         sig: { v: Number(r.sig.v) || 0, r: Number(r.sig.r) || 0, g: Number(r.sig.g) || 0, b: Number(r.sig.b) || 0 } }));
     // The read's own died flag belongs to its read alone.
-    live.frame(fields({ ...last.rec, died: false }, last.ctx, lastAt, { list }));
+    e.live.frame(fields({ ...e.last.rec, died: false }, e.last.ctx, e.lastAt, { list }));
     return true;
   }
 
+  /** Whether the feed is being read for the match rated now, and if not why. */
+  function readingNow(now) {
+    const e = current !== null ? matches.get(current) : null;
+    if (halted) return { reading: false, why: halted };
+    if (!e) return { reading: false, why: 'waiting' };
+    if (!e.tapAt || (Number.isFinite(now) && now - e.tapAt > TAP_STALE_MS)) return { reading: false, why: 'stopped' };
+    if (!e.live.reading()) return { reading: false, why: 'rows' };
+    return { reading: true, why: null };
+  }
+
   /** What a window may show, or null with nothing rated yet. */
-  function view() {
-    return live ? pick(live.view()) : null;
+  function view(now) {
+    const e = current !== null ? matches.get(current) : null;
+    if (!e) return null;
+    const r = readingNow(Number.isFinite(now) ? now : Date.now());
+    if (!r.reading) return { reading: false };
+    return pick(e.live.view());
   }
 
   /*
    * THE GATES, main's whole decision in one place (index.js calls these and
-   * nothing else): with the switch off a frame is not read, what was kept
-   * goes, and no field and no widget payload exist.
+   * nothing else): with the switch off nothing is read, what was kept goes,
+   * and no field and no widget payload exist.
    */
-  /** One applied read, only while the switch is on; off, everything kept goes. */
   function feed(rec, ctx, gate) {
     if (!gate || gate.on !== true) { reset(); return false; }
     frame(rec, ctx);
     return true;
   }
-  /** The recorder's corner rows, only while the switch is on. */
   function feedTap(m, gate) {
     if (!gate || gate.on !== true) { reset(); return false; }
     return tap(m);
   }
+  /** The page stopped reading (its budget), or main let the feed go: the "not reading" state. */
+  function halt(why) { halted = why ? String(why) : null; }
   /** PUSH_LIVE's `rating`: only with the switch on and a match under way, else undefined (no key). */
   function field(gate) {
     if (!gate || gate.on !== true || gate.inMatch !== true) return undefined;
-    return view() || undefined;
+    return view(gate.now) || undefined;
   }
   /**
    * The widget's payload, or null with either switch off (the server is
-   * stopped then). Mid match the live view; between matches nothing, but for
-   * a short while after one whose confirmed rating came in, "Full time".
+   * stopped then). Mid match the live view (or "not reading"); between
+   * matches nothing, but for a short while after one whose confirmed rating
+   * came in, "Full time".
    */
   function widget(gate) {
     const g = gate || {};
     if (g.on !== true || g.stream !== true) return null;
-    if (g.inMatch === true) { const v = view(); return v ? { state: 'live', rating: v } : { state: 'idle' }; }
+    if (g.inMatch === true) {
+      const v = view(g.now);
+      if (!v) return { state: 'idle' };
+      return v.reading === false ? { state: 'blind' } : { state: 'live', rating: v };
+    }
     const ft = g.fullTime;
     if (ft && typeof ft.value === 'number' && Number.isFinite(g.now) && g.now < ft.until) {
       return { state: 'final', rating: { value: ft.value, shown: ft.value.toFixed(1), tier: rating.tierOf(ft.value) } };
@@ -166,27 +201,32 @@ function createLiveRatingService(deps) {
 
   /** The match ended (the reader's watch): its live final kept for the review to be logged against. */
   function end(id) {
-    if (!live || !id) return null;
-    const evs = live.events().filter((e) => e.kind === 'kill' && e.out && !e.out.ignored);
+    const e = matches.get(String(id));
+    if (!e || !id) return null;
+    const live = e.live;
+    const evs = live.events().filter((x) => x.kind === 'kill' && x.out && !x.out.ignored);
     const kept = { value: live.value(), at: Date.now(), rounds: live.snapshot().rounds,
-      kills: evs.filter((e) => e.killer === 'me').length, deaths: evs.filter((e) => e.victim === 'me').length, events: live.events().length };
-    finals.set(id, kept);
-    while (finals.size > KEEP_FINALS) finals.delete(finals.keys().next().value);
+      kills: evs.filter((x) => x.killer === 'me').length, deaths: evs.filter((x) => x.victim === 'me').length, events: live.events().length,
+      reading: live.reading() };
+    finals.set(String(id), kept);
+    while (finals.size > KEEP_MATCHES) finals.delete(finals.keys().next().value);
     return kept;
   }
 
   /**
    * The review's confirmed rating against the live final of its match, the
-   * line the AI log keeps: { match, live, confirmed, gap, rounds, kills, deaths, version } or null.
+   * line the AI log keeps, or null.
    */
   function compare(id, confirmed) {
-    const f = finals.get(id);
+    const f = finals.get(String(id));
     if (!f || !confirmed || typeof confirmed.value !== 'number') return null;
     return { match: id, live: f.value, confirmed: confirmed.value, gap: Math.round((f.value - confirmed.value) * 10) / 10,
-      liveRounds: f.rounds, confirmedRounds: confirmed.rounds || null, liveKills: f.kills, liveDeaths: f.deaths, version: confirmed.version || null };
+      liveRounds: f.rounds, confirmedRounds: confirmed.rounds || null, liveKills: f.kills, liveDeaths: f.deaths, reading: f.reading,
+      version: confirmed.version || null };
   }
 
-  return { frame, tap, feed, feedTap, field, widget, view, end, compare, reset, finalOf: (id) => finals.get(id) || null, active: () => !!live };
+  return { frame, tap, feed, feedTap, halt, field, widget, view, readingNow, end, compare, reset,
+    finalOf: (id) => finals.get(String(id)) || null, active: () => matches.size > 0, current: () => current };
 }
 
-module.exports = { createLiveRatingService, pick };
+module.exports = { createLiveRatingService, pick, liveLabel, wantFeed, BUDGET_MS, LAG_LIMIT_MS, TAP_STALE_MS };

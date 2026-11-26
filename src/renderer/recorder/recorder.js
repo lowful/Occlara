@@ -457,6 +457,8 @@
   let feedCanvas = null;
   let feedSpent = 0;      // ms spent reading the corner since the last health line
   let feedReads = 0;
+  let feedSlowRun = 0;
+  const FEED_BUDGET_MS = 15;
   const kfApi = (typeof self !== 'undefined' && self.OcclaraKillfeed) || (typeof window !== 'undefined' && window.OcclaraKillfeed) || null;
   function feedTick() {
     if (!newest || !kfApi || performance.now() - newestAt > 1000) return;
@@ -480,11 +482,16 @@
     const ms = performance.now() - t0;
     feedSpent += ms;
     feedReads += 1;
+    // Over its budget three reads running (a busy PC, a GPU readback that
+    // costs the game): the page stops reading by itself and says so.
+    feedSlowRun = ms > FEED_BUDGET_MS ? feedSlowRun + 1 : 0;
+    if (feedSlowRun >= 3) { feed(null); bridge.status({ type: 'feed-off', why: 'slow', ms: r1(ms) }); return; }
     bridge.status({ type: 'feed', at: Date.now(), H, list: det.list, ms: r1(ms) });
   }
   function feed(cmd) {
     if (feedTimer) { clearInterval(feedTimer); feedTimer = null; }
     feedCanvas = null;
+    feedSlowRun = 0;
     if (!cmd || cmd.on !== true || !kfApi) return;
     const every = Number(cmd.everyMs) >= 100 && Number(cmd.everyMs) <= 1000 ? Number(cmd.everyMs) : 200;
     feedTimer = setInterval(() => { try { feedTick(); } catch (e) { /* one corner missed, the next is read */ } }, every);

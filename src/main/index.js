@@ -66,9 +66,9 @@ const importVideo      = require('./services/import-video');
 const aiLogStore       = require('./services/ai-log-store');
 const aiLogTimeline    = require('./services/ai-log-timeline');
 // The live rating (the owner's second exception, docs/claude/screen-silence.md):
-// the kill feed read off the read's own frame, the rating kept in main, the
+// the kill feed read off the recorder's own frames, the rating kept in main, the
 // stream widget's loopback server.
-const { createLiveRatingService } = require('./services/live-rating-service');
+const { createLiveRatingService, wantFeed } = require('./services/live-rating-service');
 const { createRatingStream, newToken: newWidgetToken } = require('./services/rating-stream');
 const ratingWidgetPage = require('./services/rating-widget-page');
 const killfeed         = require('../shared/killfeed');
@@ -446,7 +446,7 @@ let liveSent = 'null';
 let liveNow = null;
 let liveTape = [];
 let liveLast = null;
-function liveView() {
+function liveView(snapshot) {
   if (!state.isCoaching || !(engine instanceof CoachingEngine)) { liveTape = []; liveLast = null; return null; }
   // A match the end watch closed may resume (coaching-engine.js resumeMatch):
   // its tape is kept until a new match reads a lower score, so a false end
@@ -464,8 +464,9 @@ function liveView() {
   else if (dt > 0 || de > 0) for (let i = 0; i < dt + de; i++) liveTape.push('?');
   liveLast = { team, enemy };
   // One read of the store a tick, not four: conf reads and parses the whole
-  // file on every get, in the process that hosts the capturer (8.10.3).
-  const all = store.store || {};
+  // file on every get, in the process that hosts the capturer (8.10.3);
+  // pushLive hands over the one it read for the live rating too.
+  const all = snapshot || store.store || {};
   const on = (k) => all[k] !== false;
   const out = { state: 'live', startedAt: state.sessionStartedAt || null,
     mode: c.gameMode === 'swiftplay' || c.gameMode === 'standard' ? c.gameMode : null };
@@ -475,20 +476,22 @@ function liveView() {
   if (on('liveRound') && Number.isInteger(c.roundNumber) && c.roundNumber > 0) out.round = c.roundNumber;
   // THE LIVE RATING (the owner's second exception, 2026-11-26): only with its
   // switch on, and only its own fields (live-rating-service.js field, pick).
-  const rated = liveRating.field({ on: all.liveRating === true, inMatch: liveRatingSupported() });
+  const rated = liveRating.field({ on: all.liveRating === true, inMatch: liveRatingSupported(), now: Date.now() });
   if (rated) out.rating = rated;
   return out;
 }
 function pushLive() {
+  const all = store.store || {};
   // The rating's switch off: whatever was kept goes, and the widget stops.
-  try { syncLiveRating(); } catch (e) { console.log('[live-rating] sync error:', e.message); }
+  try { syncLiveRating(all); } catch (e) { console.log('[live-rating] sync error:', e.message); }
   let view = null;
-  try { view = liveView(); } catch (e) { view = null; }
+  try { view = liveView(all); } catch (e) { view = null; }
   const text = JSON.stringify(view);
   if (text === liveSent) return;
   liveSent = text;
   liveNow = view;
-  registry.broadcast(C.PUSH_LIVE, view);
+  // The shell alone draws it (shell-preload onLive): no other window is sent it.
+  registry.sendTo('main', C.PUSH_LIVE, view);
 }
 {
   const t = setInterval(pushLive, LIVE_EVERY_MS);
@@ -499,8 +502,8 @@ function pushLive() {
  * THE LIVE RATING (build 2 of the match rating; the owner's second deliberate
  * exception to "nothing reaches the screen", 2026-11-26, docs/claude/
  * screen-silence.md "The live rating"). OFF by default (liveRating). On, every
- * read the live Valorant reader applies hands its own frame here (the AI log's
- * record, engine diagnostics) as context, and the recorder's page reads the
+ * read the live Valorant reader applies hands its record here (the AI log's,
+ * engine diagnostics) as the context alone, and the recorder's page reads the
  * kill feed's corner of its own frames five times a second
  * (shared/killfeed.js) and sends the rows, fed with that context to
  * shared/live-rating.js (live-rating-service.js). Only its view
@@ -546,8 +549,8 @@ function feedLiveRating(rec) {
  * THE RECORDER'S CORNER READS (round 2): while the switch is on and a match is
  * recorded, the recorder's page reads the kill feed's corner of its newest
  * frame five times a second and sends only the rows (recorder.js setFeed,
- * renderer/recorder feedTick); the read's own frame is then not decoded at
- * all (live-rating-service.js frame). What the page spends on it is counted
+ * renderer/recorder feedTick); the read's own frame is never decoded for it.
+ * What the page spends on it is counted
  * and written to the debug log once a minute, never shown.
  */
 let feedCostAt = 0;
@@ -570,14 +573,32 @@ recorder.on('feed', (m) => {
 });
 
 /** The two switches, read once; off, what was kept goes; the widget follows both. */
-function syncLiveRating() {
-  const all = store.store || {};
+let feedSlow = false;    // the page stopped reading: a corner read over budget (its 'feed-off')
+recorder.on('feed-off', (m) => {
+  feedSlow = true;
+  console.log(`[live-rating] the recorder's page stopped reading the kill feed: ${(m && m.why) || 'slow'} (${(m && m.ms) || '?'} ms a read)`);
+});
+recorder.on('running', () => { feedSlow = false; });
+
+function syncLiveRating(snapshot) {
+  const all = snapshot || store.store || {};
   const on = all.liveRating === true;
   const stream = on && all.liveRatingStream === true;
   const was = liveRatingSwitch;
   liveRatingSwitch = { on, stream };
-  // The recorder reads the corner only while the switch is on.
-  try { recorder.setFeed(on); } catch { /* no recorder: the reads' own frames serve */ }
+  // The recorder reads the corner only with the switch on, in a Valorant
+  // session recorded at 700 rows or more, and not once it was too slow or the
+  // recorder fell behind (live-rating-service.js wantFeed); stopped for its
+  // cost, the screen says the feed is not being read.
+  if (!on) feedSlow = false;
+  try {
+    const lv = recorder.liveView();
+    const health = recorder.health || {};
+    const want = wantFeed({ on, game: gameRegistry.get(all.game).id, valorantSession: engine instanceof CoachingEngine && state.isCoaching,
+      height: lv && lv.height, slow: feedSlow, lagMs: health.lagMs });
+    recorder.setFeed(want.on);
+    liveRating.halt(on && (want.why === 'slow' || want.why === 'lag') ? want.why : null);
+  } catch { /* no recorder: the rating says it is not reading */ }
   if (!on) liveRating.reset();
   if (!on || !stream) widgetFullTime = null;
   if (stream && (!ratingStream || !ratingStream.running()) && !widgetStarting) startWidget();

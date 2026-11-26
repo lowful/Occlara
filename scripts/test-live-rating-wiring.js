@@ -19,7 +19,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { createLiveRatingService, pick } = require('../src/main/services/live-rating-service');
+const { createLiveRatingService, pick, wantFeed } = require('../src/main/services/live-rating-service');
 const kf = require('../src/shared/killfeed');
 const { drawFrame, cut } = require('./fixtures/killfeed-frames');
 
@@ -33,101 +33,129 @@ function ok(cond, msg) {
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
-// A decode that stands in for nativeImage: the shot names a drawn frame.
-const FRAMES = new Map();
-let decoded = 0;
-function decode(shot) {
-  decoded++;
-  const fr = FRAMES.get(shot);
-  if (!fr) return null;
-  return { img: cut(fr, kf.regionOf(fr.width, fr.height)), H: fr.height };
-}
 const T0 = 1_800_000_000_000;
-FRAMES.set('kill', drawFrame({ W: 1280, H: 720, rows: [{ slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill', vlen: 0.06 }] }));
-FRAMES.set('empty', drawFrame({ W: 1280, H: 720, rows: [] }));
 const ctx = { side: 'attacking', phase: 'active', playerAlive: true, teamScore: 0, enemyScore: 0, clock: '1:30', gameMode: 'standard',
   playerHp: 87, playerCredits: 3900, enemiesAlive: 3, playerSpot: 'A Main', map: 'Abyss', agent: 'Jett', agentConfirmed: true };
-const rec = (sec, shot) => ({ at: T0 + sec * 1000, image: shot, round: 1, died: false, match: T0 });
+// A read's record as the reader hands it (its frame is never read here), and
+// the recorder's corner rows, drawn and read by the real detector.
+const rec = (at, match, extra) => ({ at, image: 'a frame never decoded', round: 1, died: false, match: match === undefined ? T0 : match, ...(extra || {}) });
+const rowsOf = (rows) => {
+  const fr = drawFrame({ W: 1920, H: 1080, rows });
+  return kf.detect(cut(fr, kf.regionOf(1920, 1080)), 1080).list;
+};
+const KILL = rowsOf([{ slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill', vlen: 0.06 }]);
+const tap = (s, at, list, on) => s.feedTap({ at, H: 1080, list }, { on: on !== false });
 
-console.log('The gate: off, nothing is read or kept');
+console.log('The gate: off, nothing is kept');
 {
-  const s = createLiveRatingService({ decode });
-  decoded = 0;
-  for (let i = 0; i < 4; i++) ok(s.feed(rec(10 + i, 'kill'), ctx, { on: false }) === false, `off: frame ${i + 1} not taken`);
-  ok(decoded === 0, 'off: no frame was decoded for the rating');
+  const s = createLiveRatingService();
+  const now = Date.now();
+  for (let i = 0; i < 3; i++) ok(s.feed(rec(now + i * 1000), ctx, { on: false }) === false, `off: read ${i + 1} not taken`);
+  ok(tap(s, now + 3000, KILL, false) === false && !s.active(), 'off: the recorder\'s rows are dropped');
   ok(s.view() === null && s.field({ on: false, inMatch: true }) === undefined && s.field({ on: true, inMatch: true }) === undefined, 'off: no view and no field');
   ok(s.widget({ on: false, stream: true, inMatch: true }) === null && s.widget({ on: true, stream: false, inMatch: true }) === null, 'either switch off: no widget payload at all');
 }
 
-console.log('\nOn: the view, and only its fields');
+console.log('\nOn: the recorder\'s rows with the reads\' context, and only the view\'s fields');
 {
-  const s = createLiveRatingService({ decode });
-  decoded = 0;
-  s.feed(rec(10, 'empty'), ctx, { on: true });
-  s.feed(rec(11, 'kill'), ctx, { on: true });
-  s.feed(rec(12, 'kill'), ctx, { on: true });
-  ok(decoded === 3, 'on: each read\'s frame decoded once');
-  const f = s.field({ on: true, inMatch: true });
+  const s = createLiveRatingService();
+  const now = Date.now();
+  s.feed(rec(now - 1000), ctx, { on: true });
+  ok(s.field({ on: true, inMatch: true, now }).reading === false, 'before the recorder sends any row: not reading, no number');
+  for (let i = 0; i < 3; i++) tap(s, now + i * 200, KILL);
+  const f = s.field({ on: true, inMatch: true, now: now + 500 });
   ok(f && Object.keys(f).sort().join() === 'last,line,shown,tier,value' && Object.keys(f.last).sort().join() === 'delta,down,label,up',
     `PUSH_LIVE's rating: the value, its tier, the last move and its label, the line (${f && Object.keys(f).join(', ')})`);
-  ok(f && f.value > 6 && /^First kill, 5v5$/.test(f.last.label), `the player's kill moved it (${f && f.shown}, "${f && f.last.label}")`);
-  const text = JSON.stringify(f);
-  ok(!/87|3900|A Main|Abyss|Jett|enemiesAlive|spike|credit/i.test(text), 'nothing of the reader\'s context rides along: no HP, credits, spot, map or agent');
-  ok(s.field({ on: true, inMatch: false }) === undefined, 'not in a match: no field');
-  const w = s.widget({ on: true, stream: true, inMatch: true });
-  ok(w && w.state === 'live' && JSON.stringify(w.rating) === JSON.stringify(f) && Object.keys(w).sort().join() === 'rating,state', 'the widget, mid match: the same fields, nothing more');
-  ok(JSON.stringify(s.widget({ on: true, stream: true, inMatch: false })) === '{"state":"idle"}', 'between matches the widget shows nothing');
+  ok(f && f.value > 6 && f.last.label === 'Opening kill', `the player's kill moved it, its label with no numbers standing (${f && f.shown}, "${f && f.last.label}")`);
+  ok(!/87|3900|A Main|Abyss|Jett|enemiesAlive|spike|credit|\dv\d/i.test(JSON.stringify(f)), 'nothing of the reader\'s context rides along, and no "4v5"');
+  ok(s.field({ on: true, inMatch: false, now }) === undefined, 'not in a match: no field');
+  const w = s.widget({ on: true, stream: true, inMatch: true, now: now + 500 });
+  ok(w && w.state === 'live' && JSON.stringify(w.rating) === JSON.stringify(f), 'the widget, mid match: the same fields, nothing more');
+  ok(JSON.stringify(s.widget({ on: true, stream: true, inMatch: false, now })) === '{"state":"idle"}', 'between matches the widget shows nothing');
+  // The recorder's rows stop: not reading, on the screen and the widget.
+  const later = now + 500 + 4000;
+  ok(JSON.stringify(s.field({ on: true, inMatch: true, now: later })) === '{"reading":false}', 'the recorder\'s rows stopped: "not reading", no number');
+  ok(JSON.stringify(s.widget({ on: true, stream: true, inMatch: true, now: later })) === '{"state":"blind"}', 'and the widget says so too');
+  // The page stopped for its cost: not reading until it is let read again.
+  tap(s, later, KILL);
+  s.halt('slow');
+  ok(s.field({ on: true, inMatch: true, now: later }).reading === false && s.readingNow(later).why === 'slow', 'stopped for its cost: "not reading"');
+  s.halt(null);
+  ok(s.field({ on: true, inMatch: true, now: later }).reading !== false, 'let read again: the number is back');
   // The match ends; its confirmed rating comes in.
   const kept = s.end(T0);
-  ok(kept && kept.value === f.value && kept.kills === 1, 'the match\'s live final is kept at its end');
+  ok(kept && kept.kills === 1, 'the match\'s live final is kept at its end');
   const line = s.compare(T0, { value: 7.2, rounds: 1, version: 1 });
-  ok(line && line.live === f.value && line.confirmed === 7.2 && line.gap === Math.round((f.value - 7.2) * 10) / 10 && line.liveKills === 1,
-    `set against the confirmed rating: live ${line && line.live}, confirmed 7.2, gap ${line && line.gap}`);
+  ok(line && line.confirmed === 7.2 && line.liveKills === 1 && line.gap === Math.round((kept.value - 7.2) * 10) / 10, `set against the confirmed rating, gap ${line && line.gap}`);
   ok(s.compare(T0 + 1, { value: 7 }) === null, 'a match not rated live has nothing to set against');
-  const now = Date.now();
   const ft = s.widget({ on: true, stream: true, inMatch: false, fullTime: { value: 7.2, until: now + 60000 }, now });
-  ok(ft && ft.state === 'final' && ft.rating.shown === '7.2' && ft.rating.tier === 'good' && Object.keys(ft.rating).sort().join() === 'shown,tier,value',
-    '"Full time": the confirmed number, for a while once Riot\'s record came');
-  ok(JSON.stringify(s.widget({ on: true, stream: true, inMatch: false, fullTime: { value: 7.2, until: now - 1 }, now })) === '{"state":"idle"}', 'and then nothing again');
-  // Switched off: everything kept goes at once.
-  s.feed(rec(20, 'kill'), ctx, { on: false });
+  ok(ft && ft.state === 'final' && ft.rating.shown === '7.2' && Object.keys(ft.rating).sort().join() === 'shown,tier,value', '"Full time": the confirmed number, for a while');
+  s.feed(rec(later + 1000), ctx, { on: false });
   ok(s.view() === null && !s.active(), 'switched off: what was kept is gone');
 }
 
-console.log('\nThe recorder\'s corner reads (five a second), and the reads\' frames then left alone');
+console.log('\nOne rating a match id: a new id is a new match, a resume goes back to its own');
 {
-  const s = createLiveRatingService({ decode });
-  decoded = 0;
+  const s = createLiveRatingService();
   const now = Date.now();
-  const r0 = { at: now, image: 'empty', round: 1, died: false, match: T0 };
-  ok(s.feedTap({ at: now, H: 720, list: [] }, { on: false }) === false && !s.active(), 'off: a corner the recorder sent is dropped');
-  s.feed(r0, ctx, { on: true });
-  ok(decoded === 1, 'on, before the recorder sends anything: the read\'s own frame is read');
-  const kill = { slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill', sig: { v: 0.06, r: 150, g: 110, b: 120 } };
-  for (let i = 1; i <= 3; i++) s.feedTap({ at: now + i * 200, H: 1080, list: [kill] }, { on: true });
-  const f = s.field({ on: true, inMatch: true });
-  ok(f && f.last && f.last.label === 'First kill, 5v5', `the recorder's rows count with the read's last context (${f && f.last && f.last.label})`);
-  s.feed({ at: now + 700, image: 'kill', round: 1, died: false, match: T0 }, ctx, { on: true });
-  ok(decoded === 1, 'while the recorder sends the feed, a read\'s frame is not decoded for it');
-  ok(s.feedTap({ at: now + 900, H: 1080, list: [{ slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill', sig: { v: 0.06, r: 150, g: 110, b: 120 }, name: 'x', hp: 87 }] }, { on: true }) === true,
-    'a row with fields of its own is taken');
-  ok(JSON.stringify(s.field({ on: true, inMatch: true })).indexOf('87') < 0, 'and nothing it carried beyond its place, sides, highlight and signature rides along');
-  const rec = read('src/renderer/recorder/recorder.js');
-  const tick = rec.slice(rec.indexOf('function feedTick'), rec.indexOf('function feed(cmd)'));
-  ok(/drawImage\(f, r\.x, r\.y, r\.width, r\.height, 0, 0, r\.width, r\.height\)/.test(tick) && /getImageData\(0, 0, r\.width, r\.height\)/.test(tick) && /release\(f\)/.test(tick),
-    'the page draws the corner alone (never the whole frame), reads back only that, and closes its clone at once');
-  ok(/if \(!cmd \|\| cmd\.on !== true \|\| !kfApi\) return;/.test(rec) && /feed: async \(cmd\) => feed\(cmd\)/.test(rec) && /feed\(null\);/.test(rec),
-    'it reads nothing until main asks, and stops with the recording');
-  const mainRec = read('src/main/services/recorder.js');
-  ok(/if \(this\.feedOn && this\.state === 'recording'\) this\.emit\('feed', m\);/.test(mainRec), 'main takes the rows only while it asked for them');
-  ok(/recorder\.setFeed\(on\)/.test(read('src/main/index.js')), 'and asks only while the switch is on');
+  s.feed(rec(now, T0), ctx, { on: true });
+  for (let i = 1; i <= 3; i++) tap(s, now + i * 200, KILL);
+  const a = s.field({ on: true, inMatch: true, now: now + 700 });
+  // Match B: its first read carries match A's score.
+  s.feed(rec(now + 60000, T0 + 9, { round: 3 }), { ...ctx, teamScore: 1, enemyScore: 0 }, { on: true });
+  tap(s, now + 60200, []);
+  const b = s.field({ on: true, inMatch: true, now: now + 60300 });
+  ok(a.value > 6 && b.value === 6 && b.last === null, `a new match id starts again whatever its first score (${a.value} then ${b.value})`);
+  // The reader resumes match A (resumeMatch puts its id back): A's own rating.
+  s.feed(rec(now + 61000, T0), ctx, { on: true });
+  tap(s, now + 61200, []);
+  const back = s.field({ on: true, inMatch: true, now: now + 61300 });
+  ok(back.value === a.value, `a match the reader resumes is rated on from its own (${back.value})`);
+}
+
+console.log('\nWhen the recorder reads the corner (by what it is asked, not by its text)');
+{
+  const base = { on: true, game: 'valorant', valorantSession: true, height: 1080, slow: false, lagMs: 200 };
+  const cases = [
+    [{}, true, null], [{ on: false }, false, 'off'], [{ game: 'lol' }, false, 'game'], [{ valorantSession: false }, false, 'game'],
+    [{ height: 480 }, false, 'height'], [{ height: 720 }, true, null], [{ height: undefined }, false, 'height'],
+    [{ slow: true }, false, 'slow'], [{ lagMs: 4000 }, false, 'lag'],
+  ];
+  for (const [over, on, why] of cases) {
+    const w = wantFeed({ ...base, ...over });
+    ok(w.on === on && w.why === why, `${JSON.stringify(over)}: ${on ? 'read' : 'not read'}${why ? ` (${why})` : ''}`);
+  }
+  // The main recorder, driven: the page is asked only while it records, and
+  // a page that stops for its cost is not asked again by itself.
+  const { Recorder } = require('../src/main/services/recorder');
+  const sent = [];
+  const emitted = [];
+  const fake = Object.create(Recorder.prototype);
+  require('events').EventEmitter.call(fake);
+  Object.assign(fake, { page: { send: (m) => sent.push(m) }, state: 'recording', feedOn: false });
+  fake.on('feed', () => emitted.push('feed'));
+  fake.on('feed-off', () => emitted.push('feed-off'));
+  fake.setFeed(true);
+  ok(sent.length === 1 && sent[0].type === 'feed' && sent[0].on === true && sent[0].everyMs === 200, 'asked: the page is told to read five a second');
+  fake.fromPage(fake.page, 'status', { type: 'feed', at: Date.now(), list: [] });
+  fake.fromPage(fake.page, 'status', { type: 'feed-off', why: 'slow', ms: 22 });
+  fake.fromPage(fake.page, 'status', { type: 'feed', at: Date.now(), list: [] });
+  ok(emitted.join() === 'feed,feed-off' && fake.feedOn === false, 'rows while asked; the page stopping for its cost ends it, and later rows are not taken');
+  fake.setFeed(false);
+  ok(sent.length === 1, 'already off: nothing more is sent');
+  fake.state = 'idle';
+  fake.setFeed(true);
+  ok(sent.length === 1 && fake.feedOn === true, 'not recording: remembered, asked of the next page when it starts');
 }
 
 console.log('\npick: only the view\'s own fields, whatever is handed in');
 {
   const p = pick({ value: 6.4, shown: '6.4', tier: 'fair', last: { delta: '+0.4', up: true, down: false, label: 'Kill, 4v5', hp: 87 }, line: [6, 6.4], map: 'Abyss', hp: 87 });
-  ok(JSON.stringify(p) === '{"value":6.4,"shown":"6.4","tier":"fair","last":{"delta":"+0.4","up":true,"down":false,"label":"Kill, 4v5"},"line":[6,6.4]}', 'a stray field never rides along');
+  ok(JSON.stringify(p) === '{"value":6.4,"shown":"6.4","tier":"fair","last":{"delta":"+0.4","up":true,"down":false,"label":"Kill"},"line":[6,6.4]}', 'a stray field never rides along, and the label says what happened alone');
   ok(pick(null) === null && pick({}) === null, 'nothing rated is nothing');
+  const L = require('../src/main/services/live-rating-service').liveLabel;
+  ok(L('First kill, 5v5') === 'Opening kill' && L('Died first, 4v5') === 'Died first' && L('Kill as the last one up, 1v3') === 'Kill' && L('Spike planted, 5v5') === 'Spike planted'
+    && L('Traded a teammate, 3v2') === 'Trade kill' && L('Round won, held to the timer') === 'Round won, held to the timer', 'every live label without the numbers standing');
 }
 
 console.log('\nindex.js decides it, read as text');
@@ -136,12 +164,12 @@ console.log('\nindex.js decides it, read as text');
   ok(/diagnostics: \(rec\) => \{ recordAiFrame\(rec\); feedLiveRating\(rec\); \}/.test(idx), 'the live reader\'s applied reads reach the rating through feedLiveRating');
   ok(/liveRating\.feed\(rec, engine\.matchContext, \{ on: liveRatingSwitch\.on \}\)/.test(idx) && /engine instanceof CoachingEngine\) \|\| !state\.isCoaching\) return;/.test(idx),
     'only the live Valorant reader\'s, and only through the switch');
-  ok(/const rated = liveRating\.field\(\{ on: all\.liveRating === true, inMatch: liveRatingSupported\(\) \}\);\s*if \(rated\) out\.rating = rated;/.test(idx),
+  ok(/const rated = liveRating\.field\(\{ on: all\.liveRating === true, inMatch: liveRatingSupported\(\), now: Date\.now\(\) \}\);\s*if \(rated\) out\.rating = rated;/.test(idx),
     'liveView adds `rating` only through the gate, with the switch on and a recording at 720p or more');
-  ok(/return !!\(v && Number\(v\.height\) >= 700\);/.test(idx) && !/function decodeFeed/.test(idx) && /createLiveRatingService\(\{\}\)/.test(idx),
-    'the reads\' own frames are never read for kills in main: only the recorder\'s, at 720p or 1080p');
   ok((idx.match(/out\.rating\s*=/g) || []).length === 1, 'and nowhere else');
-  ok(/if \(!on\) liveRating\.reset\(\);/.test(idx), 'the switch off: what was kept goes, every tick');
+  ok(/registry\.sendTo\('main', C\.PUSH_LIVE, view\);/.test(idx) && !/broadcast\(C\.PUSH_LIVE/.test(idx), 'PUSH_LIVE goes to the shell alone');
+  ok(/recorder\.setFeed\(want\.on\)/.test(idx) && /wantFeed\(\{ on, game:/.test(idx), 'the recorder is asked through wantFeed: the game, the height, the cost');
+  ok(!/decodeFeed|nativeImage\.createFromBuffer\(Buffer\.from\(shot/.test(idx), 'the reads\' own frames are never decoded for the rating');
   ok(/liveRating: all\.liveRating === true, liveRatingStream: all\.liveRating === true && all\.liveRatingStream === true/.test(idx), 'the state says both switches, the widget only with the rating on');
   const iv = read('src/main/services/import-video.js');
   ok(!/liveRating|live-rating|killfeed/.test(iv), 'an import runs its own reader with no such hook: nothing live');

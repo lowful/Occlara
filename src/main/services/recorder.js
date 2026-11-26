@@ -1665,6 +1665,11 @@ class Recorder extends EventEmitter {
       if (this.feedOn && this.state === 'recording') this.emit('feed', m);
       return;
     }
+    // The page stopped reading the corner by itself (over its budget).
+    if (m.type === 'feed-off') {
+      if (this.feedOn) { this.feedOn = false; this.emit('feed-off', m); }
+      return;
+    }
     if (m.type === 'error') {
       if (this.state === 'stopping') return;
       this.giveUp(s, 'error', { why: `the page failed in ${m.where || 'a step'}: ${m.message || 'no reason given'}` });
