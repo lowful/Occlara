@@ -125,6 +125,18 @@ console.log('\nWhen the recorder reads the corner (by what it is asked, not by i
     const w = wantFeed({ ...base, ...over });
     ok(w.on === on && w.why === why, `${JSON.stringify(over)}: ${on ? 'read' : 'not read'}${why ? ` (${why})` : ''}`);
   }
+  // Round 4: the lag has a gap between letting go (over 1500 ms) and taking
+  // back (under 1000 ms), so a recorder hovering at the limit does not switch
+  // the feed every second.
+  let lagging = false;
+  const flips = [];
+  for (const lagMs of [1400, 1600, 1450, 1550, 1200, 1100, 900, 1450, 1600]) {
+    const w = wantFeed({ ...base, lagMs, wasLagging: lagging });
+    lagging = w.lagging;
+    flips.push(w.on ? 'on' : 'off');
+  }
+  ok(flips.join() === 'on,off,off,off,off,off,on,on,off', `the lag lets go over 1500 ms and takes back only under 1000 ms (${flips.join()})`);
+  ok(wantFeed({ ...base, lagMs: undefined, wasLagging: true }).on === true, 'no lag reading leaves nothing stuck off');
   // The main recorder, driven: the page is asked only while it records, and
   // a page that stops for its cost is not asked again by itself.
   const { Recorder } = require('../src/main/services/recorder');
@@ -169,6 +181,9 @@ console.log('\nindex.js decides it, read as text');
   ok((idx.match(/out\.rating\s*=/g) || []).length === 1, 'and nowhere else');
   ok(/registry\.sendTo\('main', C\.PUSH_LIVE, view\);/.test(idx) && !/broadcast\(C\.PUSH_LIVE/.test(idx), 'PUSH_LIVE goes to the shell alone');
   ok(/recorder\.setFeed\(want\.on\)/.test(idx) && /wantFeed\(\{ on, game:/.test(idx), 'the recorder is asked through wantFeed: the game, the height, the cost');
+  ok(/wasLagging: feedLagging \}\);\s*feedLagging = want\.lagging;/.test(idx), 'the lag\'s state is handed back each time (its gap between off and on)');
+  ok(/if \(id !== null && id !== feedMatch\) \{ feedMatch = id; if \(feedSlow\) \{ feedSlow = false;/.test(idx) && /liveRating\.end\(snap\.startedAt\);[^\n]*\n\s*feedSlow = false;/.test(idx),
+    'a page stopped for its cost is asked again at the next match, not left off for the whole recording');
   ok(!/decodeFeed|nativeImage\.createFromBuffer\(Buffer\.from\(shot/.test(idx), 'the reads\' own frames are never decoded for the rating');
   ok(/liveRating: all\.liveRating === true, liveRatingStream: all\.liveRating === true && all\.liveRatingStream === true/.test(idx), 'the state says both switches, the widget only with the rating on');
   const iv = read('src/main/services/import-video.js');

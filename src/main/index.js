@@ -541,6 +541,10 @@ const SESSION_DIR = /^session-[0-9A-Za-z-]+$/;
 function feedLiveRating(rec) {
   try {
     if (!(engine instanceof CoachingEngine) || !state.isCoaching) return;
+    // A new match re-arms the corner read: one hitch (three slow reads on a
+    // load screen) stopped it for the whole recording before round 4.
+    const id = rec && rec.match !== undefined && rec.match !== null ? rec.match : null;
+    if (id !== null && id !== feedMatch) { feedMatch = id; if (feedSlow) { feedSlow = false; console.log("[live-rating] a new match: the kill feed's corner is read again"); } }
     liveRating.feed(rec, engine.matchContext, { on: liveRatingSwitch.on });
   } catch (e) { /* the rating is never worth a read */ }
 }
@@ -573,7 +577,9 @@ recorder.on('feed', (m) => {
 });
 
 /** The two switches, read once; off, what was kept goes; the widget follows both. */
-let feedSlow = false;    // the page stopped reading: a corner read over budget (its 'feed-off')
+let feedSlow = false;    // the page stopped reading: a corner read over budget (its 'feed-off'), until the next match
+let feedMatch = null;    // the match the reads are of, to re-arm the corner read on a new one
+let feedLagging = false; // the recorder fell behind; back only once well under the limit (wantFeed)
 recorder.on('feed-off', (m) => {
   feedSlow = true;
   console.log(`[live-rating] the recorder's page stopped reading the kill feed: ${(m && m.why) || 'slow'} (${(m && m.ms) || '?'} ms a read)`);
@@ -595,7 +601,8 @@ function syncLiveRating(snapshot) {
     const lv = recorder.liveView();
     const health = recorder.health || {};
     const want = wantFeed({ on, game: gameRegistry.get(all.game).id, valorantSession: engine instanceof CoachingEngine && state.isCoaching,
-      height: lv && lv.height, slow: feedSlow, lagMs: health.lagMs });
+      height: lv && lv.height, slow: feedSlow, lagMs: health.lagMs, wasLagging: feedLagging });
+    feedLagging = want.lagging;
     recorder.setFeed(want.on);
     liveRating.halt(on && (want.why === 'slow' || want.why === 'lag') ? want.why : null);
   } catch { /* no recorder: the rating says it is not reading */ }
@@ -2270,6 +2277,7 @@ function onValorantMatchEnded(snap) {
   // The live rating's final of this match, kept for its review's confirmed
   // rating to be logged against (logLiveFinal). An import has none.
   if (!snap.importRun) { try { liveRating.end(snap.startedAt); } catch { /* nothing kept */ } }
+  feedSlow = false;   // the next match reads the corner again
   // Two reviews of one match only happen when it resumed: the newer one is the
   // whole match, and the older one goes, from the library too.
   const prior = reviewJobs.get(snap.startedAt);
