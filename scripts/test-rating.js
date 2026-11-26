@@ -121,7 +121,7 @@ console.log('\nA traded entry duelist');
   }
   const u = run(untraded);
   const t = run(traded);
-  ok(t.snap.value > u.snap.value + 0.5, `a traded entry rates well above an untraded one (${t.snap.value} against ${u.snap.value})`);
+  ok(t.snap.value >= u.snap.value + 0.3, `a traded entry rates above an untraded one (${t.snap.value} against ${u.snap.value})`);
   ok(t.snap.value < 6.0, `but dying first every round is still below the start (${t.snap.value})`);
   const lab = t.snap.timeline.map((e) => e.label);
   ok(lab.includes('Died first, traded') && lab.includes('Your death was traded, part of it given back'), 'the death says it was traded and the trade gives part back');
@@ -230,7 +230,8 @@ console.log('\nThe saved shape and its version');
   // A saved rating is shown as saved, never counted again.
   const savedOld = { version: 0, value: 7.7, rounds: 4, timeline: [], place: null, lobby: null };
   const rv = { kind: 'valorant', rating: savedOld, rounds: [] };
-  ok(rating.ratingOfReview(rv).rating === savedOld, 'a review with a saved rating keeps it, whatever the version');
+  const kept = rating.ratingOfReview(rv).rating;
+  ok(kept.version === 0 && kept.value === 7.7 && kept.rounds === 4, 'a review with a saved rating keeps it, whatever the version');
   const screen = rating.ratingOfReview({ kind: 'valorant', rounds: [{ n: 1, result: 'won', riot: null }] });
   ok(screen.rating === null && screen.why === 'no-record' && /Riot's record/.test(screen.note), `a screen only review says what would rate it ("${screen.note}")`);
   ok(rating.ratingOfReview({ kind: 'lol', rounds: [] }).rating === null && rating.ratingOfReview({ kind: 'lol' }).note === null, 'League has none, and no note');
@@ -283,12 +284,18 @@ console.log('\nTrades: named, or Riot\'s own flag');
     { kind: 'kill', round: 1, ms: 5800, killer: 'us:Sova', victim: 'them:Jett', weapon: 'Vandal' }]);
   const u = run([{ kind: 'round', round: 1, side: 'attacking' }, { kind: 'kill', round: 1, ms: 5000, killer: 'them:Jett', victim: 'me', weapon: 'Vandal' },
     { kind: 'kill', round: 1, ms: 9000 + 5000, killer: 'us:Sova', victim: 'them:Jett', weapon: 'Vandal' }]);
-  ok(Math.abs(sum(t.snap) - sum(u.snap)) < 0.002, `the give back comes out of the trader's credit (lobby total ${sum(t.snap).toFixed(3)} traded, ${sum(u.snap).toFixed(3)} not)`);
+  // The trader keeps the whole swing of the trade kill, the give back added on its own (round 3).
+  const sova = (snap) => snap.players.find((p) => p.key === 'us:Sova').net;
+  const charged = Math.abs(t.outs[1].swing);
+  const back = (charged - rating.W.DEATH_FLOOR * rating.W.LOSS_WEIGHT) * rating.W.TRADE_BACK;
+  ok(Math.abs(sova(t.snap) - sova(u.snap)) < 0.002 && Math.abs(sum(t.snap) - sum(u.snap) - back) < 0.002,
+    `the trader keeps the whole kill and the give back is added on its own (Sova ${sova(t.snap).toFixed(3)} traded, ${sova(u.snap).toFixed(3)} not)`);
   // The entry traded within a second every round, no kills.
   const ev = [];
   for (let n = 1; n <= 24; n++) ev.push(...round(n, n <= 12 ? 'attacking' : 'defending', [['them:Jett', 'me', 8000], ['us:Sova', 'them:Jett', 8900]], n % 2 === 0));
   const e = run(ev).snap.value;
-  ok(e >= 4.4 && e <= 5, `an entry who dies first every round and is always traded rates 4.4 to 5 (${e})`);
+  // Round 3: a traded death still costs the life (DEATH_FLOOR), so a zero kill entry stays low.
+  ok(e >= 3.4 && e < 4.5, `an entry who dies first every round, always traded, no kills, rates 3.4 to 4.4 (${e})`);
 }
 
 console.log('\nRevives, the Clove ultimate, a team kill and a fall');
@@ -393,6 +400,124 @@ console.log('\nThe rounds, named');
   const sw = rating.swings(rating.fromRecord({ rounds: [] }).rating || { byRound: rr.snap.byRound });
   const shown = sw.gains.map((g) => g.delta);
   ok(shown.every((d, i) => i === 0 || d <= shown[i - 1]) && sw.losses.length === 1, `the round swings read in the order the page shows them (${shown.join(' ')})`);
+}
+
+console.log('\nRound 3: who revives, the spike settled, trades, and the names');
+{
+  // 1. The player is the Sage who revives.
+  const sage = createRating({ players: ['me', 'us:Sova', 'us:Omen', 'us:Killjoy', 'us:Jett', ...THEM], meAgent: 'Sage' });
+  sage.push({ kind: 'round', round: 1, side: 'attacking' });
+  sage.push({ kind: 'kill', round: 1, ms: 1000, killer: 'them:Reyna', victim: 'us:Jett', weapon: 'Vandal' });
+  const res = sage.push({ kind: 'kill', round: 1, ms: 9000, killer: 'us:Jett', victim: 'them:Reyna', weapon: 'Vandal' });
+  ok(res.swing > 0.15 && /^Revived Jett, /.test(res.label), `the player as Sage is credited the revive ("${res.label}", ${res.swing})`);
+  // 7. Clove's own ultimate is hers, a Sage up or not.
+  const clove = createRating({ players: [...LOBBY.filter((k) => k !== 'us:Sage'), 'us:Sage'], meAgent: 'Clove' });
+  clove.push({ kind: 'round', round: 1, side: 'attacking' });
+  clove.push({ kind: 'kill', round: 1, ms: 1000, killer: 'them:Jett', victim: 'me', weapon: 'Vandal' });
+  const back = clove.push({ kind: 'kill', round: 1, ms: 5000, killer: 'me', victim: 'them:Reyna', weapon: 'Vandal' });
+  const sageNet = clove.snapshot().players.find((p) => p.key === 'us:Sage').net;
+  ok(back.swing > 0.3 && Math.abs(sageNet) < 0.03 && /back in the round$/.test(back.label), `Clove's own revive is Clove's, not a living Sage's (${back.swing}, Sage ${sageNet}, "${back.label}")`);
+  // 2. The spike goes off on a thrown 1v0: settled the same whether it kills the player or not.
+  const spike = (tail) => {
+    const r = createRating({ players: LOBBY });
+    r.push({ kind: 'round', round: 1, side: 'defending' });
+    [['them:Jett', 'us:Sova', 1000], ['them:Jett', 'us:Omen', 2000], ['them:Jett', 'us:Sage', 3000], ['them:Jett', 'us:Raze', 4000],
+      ['me', 'them:Reyna', 5000], ['me', 'them:Viper', 6000], ['me', 'them:Cypher', 7000]].forEach(([k, v, ms]) => r.push({ kind: 'kill', round: 1, ms, killer: k, victim: v, weapon: 'Vandal' }));
+    r.push({ kind: 'plant', round: 1, ms: 20000, by: 'them:Jett' });
+    r.push({ kind: 'kill', round: 1, ms: 24000, killer: 'me', victim: 'them:Jett', weapon: 'Vandal' });
+    r.push({ kind: 'kill', round: 1, ms: 25000, killer: 'me', victim: 'them:Fade', weapon: 'Vandal' });
+    for (const e of tail) r.push(e);
+    r.push({ kind: 'end', round: 1, won: false });
+    return r.snapshot();
+  };
+  const lived = spike([]);
+  const killed = spike([{ kind: 'kill', round: 1, ms: 65500, killer: 'me', victim: 'me', weapon: null }]);
+  const nobody = spike([{ kind: 'kill', round: 1, ms: 65500, killer: null, victim: 'me', weapon: null }]);
+  ok(lived.value === killed.value && killed.value === nobody.value && lived.byRound[0].label === 'Ace' && killed.byRound[0].label === 'Ace',
+    `an ace thrown by no defuse rates the same, killed by the spike or not (${lived.value}, ${killed.value}, ${nobody.value})`);
+  const rec = rating.eventsOfRound({ n: 1, side: 'attacking', won: true, plantMs: 30000, feed: [{ ms: 5000, by: 'me', on: 'enemy', ka: 'Jett', va: 'Sova' }] });
+  ok(rec[rec.length - 1].ms === 30000 + rating.W.SPIKE_MS + 1, 'a round the spike won ends at the spike\'s time, so the clock settles it');
+  // 3. Of two deaths to one killer, the latest is the traded one; Riot's flag with no times.
+  const two = createRating({ players: LOBBY });
+  two.push({ kind: 'round', round: 1, side: 'attacking' });
+  two.push({ kind: 'kill', round: 1, ms: 1000, killer: 'them:Jett', victim: 'us:Sova', weapon: 'Vandal' });
+  two.push({ kind: 'kill', round: 1, ms: 3000, killer: 'them:Jett', victim: 'us:Omen', weapon: 'Vandal' });
+  two.push({ kind: 'kill', round: 1, ms: 4000, killer: 'me', victim: 'them:Jett', weapon: 'Vandal' });
+  const nets = two.snapshot().players;
+  ok(nets.find((p) => p.key === 'us:Omen').net > nets.find((p) => p.key === 'us:Sova').net + 0.05, 'the latest of two deaths to one killer is the one traded');
+  const noMs = rating.fromRecord({ rounds: [1, 2, 3].map((n) => ({ n, side: 'attacking', won: false, traded: true,
+    feed: [{ by: 'enemy', on: 'me', ka: 'Jett' }, { by: 'mate', on: 'enemy', ka: 'Sova', va: 'Jett' }] })) }).rating;
+  ok(noMs.byRound.every((r) => r.label === 'Died first, traded'), 'Riot\'s traded flag counts when the killer is named but the feed has no times');
+  // The trader keeps the kill even when the death it avenged cost more.
+  const big = createRating({ players: LOBBY });
+  big.push({ kind: 'round', round: 1, side: 'attacking' });
+  big.push({ kind: 'kill', round: 1, ms: 1000, killer: 'them:Jett', victim: 'us:Sova', weapon: 'Vandal' });
+  big.push({ kind: 'kill', round: 1, ms: 1100, killer: 'them:Reyna', victim: 'us:Omen', weapon: 'Vandal' });
+  big.push({ kind: 'kill', round: 1, ms: 1200, killer: 'them:Viper', victim: 'us:Sage', weapon: 'Vandal' });
+  big.push({ kind: 'kill', round: 1, ms: 1300, killer: 'them:Cypher', victim: 'us:Raze', weapon: 'Vandal' });
+  const tk = big.push({ kind: 'kill', round: 1, ms: 2000, killer: 'me', victim: 'them:Cypher', weapon: 'Vandal' });
+  ok(tk.swing > 0 && /^Traded a teammate/.test(tk.label), `a trade kill always keeps its own swing (${tk.swing})`);
+  // 5. Names.
+  const nm = (events) => run([{ kind: 'round', round: 1, side: 'attacking' }, ...events.map(([k, v, ms, w]) => ({ kind: 'kill', round: 1, ms, killer: k, victim: v, weapon: w === undefined ? 'Vandal' : w })),
+    { kind: 'end', round: 1, won: true }], { meAgent: 'Clove' }).snap.byRound[0].label;
+  ok(nm([['them:Jett', 'me', 1000], ['me', 'them:Jett', 4000], ['me', 'them:Reyna', 5000], ['me', 'them:Viper', 6000], ['me', 'them:Cypher', 7000], ['me', 'them:Fade', 8000]]) === 'Ace',
+    'died, back in the round, then an ace reads "Ace", the death cleared by the revive');
+  ok(nm([['me', 'them:Jett', 1000], ['them:Reyna', 'me', 2000], ['me', 'me', 16000, 'Not Dead Yet']]) === 'Opening kill, then died', 'Clove: a kill, a death and the ultimate running out keeps the death');
+  ok(nm([['us:Sova', 'me', 1000, 'Incendiary']]) === 'Killed by a teammate' && nm([['me', 'me', 1000, null]]) === 'Died to yourself', 'a team kill and a fall say so, never "Died first, not traded"');
+  ok(nm([['me', 'us:Sova', 1000, 'Incendiary']]) === 'Killed a teammate', 'killing a teammate is in the name');
+  // 6. A kill with no ms keeps its place in the feed, and the order is one order.
+  const ev = rating.eventsOfRound({ n: 1, side: 'attacking', won: true, plantMs: 3000,
+    feed: [{ ms: 5000, by: 'me', on: 'enemy' }, { ms: null, by: 'mate', on: 'enemy' }, { ms: 1000, by: 'mate', on: 'enemy' }] });
+  ok(ev.slice(1, -1).map((e) => `${e.kind}@${e.ms}`).join(' ') === 'kill@1000 plant@3000 kill@5000 kill@null', `a kill with no time follows the kill before it in the feed (${ev.slice(1, -1).map((e) => `${e.kind}@${e.ms}`).join(' ')})`);
+  // 9. No semicolon is ever saved in a label.
+  const sv = createRating({ players: LOBBY, meAgent: 'Clove' });
+  sv.push({ kind: 'round', round: 1, side: 'attacking' });
+  sv.push({ kind: 'kill', round: 1, ms: 1000, killer: 'them:Jett', victim: 'me', weapon: 'Vandal' });
+  const both = sv.push({ kind: 'kill', round: 1, ms: 5000, killer: 'me', victim: 'them:Reyna', weapon: 'Vandal' });
+  ok(!/;/.test(both.label) && /, back in the round$/.test(both.label), `a revive and a kill in one line, joined by a comma ("${both.label}")`);
+  // 10. Overtime: the value never moves without an event, and a positive round reads positive.
+  const ot = createRating({ players: LOBBY });
+  for (let n = 1; n <= 24; n++) for (const e of round(n, n % 2 ? 'attacking' : 'defending', [['me', 'them:Jett', 4000]], true)) ot.push(e);
+  const at24 = ot.value();
+  const open25 = ot.push({ kind: 'round', round: 25, side: 'attacking' });
+  ok(open25.delta === 0 && ot.value() === at24, `opening round 25 moves nothing (${at24} then ${ot.value()})`);
+  for (const e of round(25, 'attacking', [['me', 'them:Jett', 4000]], true).slice(1)) ot.push(e);
+  ok(ot.snapshot().byRound[24].delta >= 0, `a winning overtime round with an opening kill never reads as a loss (${ot.snapshot().byRound[24].delta})`);
+}
+
+console.log('\nA damaged saved rating');
+{
+  const vr = require('../src/shared/valorant-review');
+  const base = { kind: 'valorant', game: {}, rounds: [], rating: { version: 1, value: 7, rounds: 3, timeline: [], place: { n: 1, of: 2 },
+    lobby: [{ side: 'us', agent: 'Jett', value: 'bad', me: true }, { side: 'them', agent: 'Sova', value: 6, me: false }] } };
+  let shown = null;
+  try { shown = vr.served(base); } catch (e) { shown = { threw: e.message }; }
+  ok(shown && !shown.threw && shown.ratingView && shown.ratingView.lobby === null, `a lobby value that is no number never fails the review (${JSON.stringify(shown && (shown.threw || shown.ratingView && shown.ratingView.shown))})`);
+  ok(vr.served({ ...base, rating: { ...base.rating, value: 99, lobby: null } }).ratingView.shown === '10.0', 'a saved 99 is shown as 10.0');
+  ok(vr.served({ ...base, rating: { version: 1, value: 'x' } }).ratingView.value === null, 'a saved value that is no number is no saved rating, and a review with no feed says so');
+  ok(rating.cleanSaved({ version: 1, value: 7, timeline: [{ round: 1, value: 7, delta: 0.3, swing: 0.2, label: 'A; B', kind: 'kill' }] }).timeline[0].label === 'A, B', 'a semicolon saved before is shown as a comma');
+}
+
+console.log('\nThe bottom of the scale: the archetypes in order');
+{
+  const { A, balanced } = require('./fixtures/rating-archetypes');
+  const v = {};
+  const place = {};
+  for (const [name, rounds] of Object.entries(A)) {
+    const r = rating.fromRecord({ rounds, meAgent: 'Reyna', queue: 'competitive' }).rating;
+    v[name] = r.value; place[name] = r.place.n;
+  }
+  const avg = v['average player (12-12)'];
+  ok(v['AFK, not flagged (3-13)'] <= avg - 1.5 && v['AFK, not flagged (3-13)'] < 5, `an AFK Riot did not flag, 0/13, rates clearly under a 12/12 (${v['AFK, not flagged (3-13)']} against ${avg})`);
+  ok(v['bottom frag, won (13-7)'] <= avg - 1.5 && v['bottom frag, won (13-7)'] < 5, `a 3/20 bottom frag too (${v['bottom frag, won (13-7)']})`);
+  ok(place['entry, always traded (13-11)'] > 2 && v['entry, always traded (13-11)'] < avg, `a 12/24 entry, always traded, is not second and is under the 12/12 (${v['entry, always traded (13-11)']}, ${place['entry, always traded (13-11)']} of 10)`);
+  ok(v['hard carry (13-9)'] >= 9 && v['top frag, lost (10-13)'] >= 9 && v['1v4 clutch hero, lost (9-13)'] >= 7 && v['sentinel, survives, defuses (13-11)'] >= 8,
+    `the top stays: a carry ${v['hard carry (13-9)']}, a top frag who lost ${v['top frag, lost (10-13)']}, a clutch hero ${v['1v4 clutch hero, lost (9-13)']}, a sentinel ${v['sentinel, survives, defuses (13-11)']}`);
+  ok(v['lurker, late kills (13-11)'] > v['baiter, exit kills (12-12)'] + 2, `impact over volume: 18 timely kills over 18 exit kills (${v['lurker, late kills (13-11)']} against ${v['baiter, exit kills (12-12)']})`);
+  const b = rating.fromRecord({ rounds: balanced(24), meAgent: 'Reyna', queue: 'competitive' }).rating;
+  const vals = b.lobby.map((p) => p.value);
+  const mean = vals.reduce((q, x) => q + x, 0) / vals.length;
+  ok(mean >= 6 && mean <= 6.6 && Math.min(...vals) >= 5.4 && Math.max(...vals) <= 7.2, `a balanced lobby sits at 6.0 to 6.6 (${mean.toFixed(2)}, ${Math.min(...vals)} to ${Math.max(...vals)})`);
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' rating checks passed'}`);

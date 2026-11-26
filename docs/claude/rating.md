@@ -33,28 +33,43 @@ inside it moved, with no bonus written for either: a 1v4 clutch won carries
 0.94 of a round, an ace from 5v5 0.61 (`test:rating`). Calibration showed no
 shape the maths undervalued, so no explicit term was added.
 
-- **Deaths** are debited the swing they caused, times `LOSS_WEIGHT` 0.85 (a
+- **Deaths** are debited the swing they caused, times `LOSS_WEIGHT` 0.8 (a
   duel lost is partly the killer's doing; football ratings average above
-  their start for the same reason).
+  their start for the same reason), and **never less than `DEATH_FLOOR`
+  0.12** before the round is over (below, "The bottom of the scale").
 - **A traded death** (a teammate kills the killer within `TRADE_MS`, 5 s,
-  the record's own rule) gives back `TRADE_BACK`, 0.7 of what it cost, at the
-  trade, **taken out of the trader's credit for the trade kill**, so a one
-  for one trade adds nothing to the lobby's total. Both ends must be named:
-  a killer with no agent is the bare `them`, which is never matched to a later
-  kill (round 1 matched it to any later kill, read every death as traded and rated the Abyss 8.3 where its own maths gave 8.0).
-  With no keys, Riot's own `traded` flag on the player's death gives the same
-  share back, from nobody. A death's label says "traded" or "not traded" once
-  the round ends. An entry who dies first every round and is always traded
-  within a second, with no kills, rates 4.5 (3.2 untraded).
+  the record's own rule) gives back `TRADE_BACK`, 0.7 of what it cost above
+  the floor, at the trade: a traded death still costs the life. **The trader
+  keeps the whole swing of the trade kill**, a good play whatever the death
+  it answered cost; the give back is added on its own, so the lobby's total
+  grows by it and the calibration holds the mean (round 2 took it out of the
+  trader, which could leave a trade kill worth nothing). Of two deaths to the
+  same killer the latest is the one traded. Both ends must be named: a killer
+  with no agent is the bare `them`, never matched to a later kill (round 1
+  did, read every death as traded and rated the Abyss 8.3 where its own maths
+  gave 8.0). Where the feed cannot show the trade (a killer with no key, or
+  no times), Riot's own `traded` flag on the player's death gives the same
+  share back. A death's label says "traded" or "not traded" once the round
+  ends. An entry who dies first every round and is always traded within a
+  second, with no kills, rates 3.6 (3.2 untraded).
 - **Revives** (`riot-rounds.js teamworkOf`'s rule): a **gun** kill (`isGun`,
   the game data's weapons and the knife) by a player down 2 s or more, or a
   second death of one, puts them back up first, and the change in the chance
-  at that moment is credited to a Sage of that side who is up, else to the
-  player themselves (Clove's Not Dead Yet). An ability's kill by a player
-  already dead (a molly 3 s after its owner died) is no revive. **Clove's
-  ultimate running out** with no kill (a self kill by an ability of a player
-  down) moves nothing: the round costs what the first death cost, labelled
-  "Your ultimate ran out, no kill".
+  at that moment is credited to whoever made it (`reviverOf`): Clove is her
+  own (Not Dead Yet), anyone else a Sage of that side who is up, **the player
+  when the player is that Sage**, and with no Sage up the revived player. A
+  revive clears the player's death from the round's name. An ability's kill
+  by a player already dead (a molly 3 s after its owner died) is no revive.
+  **Clove's ultimate running out** with no kill (a self kill by an ability of
+  a player down) moves nothing: the round costs what the first death cost.
+- **The spike going off** is found by the first event after its time, or by
+  the round's end, which the record now times at the spike's time when the
+  attackers won a planted round with no defuse (`eventsOfRound`). What was
+  left of the chance at the last moment the engine knew of is then settled
+  the way a round's end settles it (the attackers up gain it, the defenders
+  up lose it), and the round is decided. So an ace that leaves 40 s and no
+  defuse rates the same whether the spike then kills the player or not (6.2
+  both, `test:rating`), where it rated 7.2 and 6.3.
 - **Assists** take `ASSIST_SHARE` 0.15 of the kill's swing each, half at most
   in all, from the killer.
 - **Plants and defuses** move the chance like a kill does. A named planter or
@@ -66,7 +81,8 @@ shape the maths undervalued, so no explicit term was added.
   side ("Round won, held to the timer", "Round lost, alive at the end"). Then
   the result term, `RESULT` 0.02 to each player of the side that won and
   minus 0.02 to each of the side that lost.
-- **A teamkill or a self kill** is carried by whoever did it.
+- **A teamkill or a self kill** is carried by whoever did it, and named so:
+  "Killed by a teammate", "Died to yourself", "Killed a teammate".
 - **A round the player sat out** (`sat-out.js`) moves nothing of theirs and is
   not counted as a round played; the others' values still see it.
 
@@ -74,6 +90,56 @@ shape the maths undervalued, so no explicit term was added.
 "Triple kill with the opening kill", "2 kills, won a 1v3", "Opening kill and
 the plant", "Trade kill", "Died first, not traded", "Saved the last life",
 "Double kill, then died". It adds no points.
+
+## The bottom of the scale (round 3)
+
+The second review scripted ten archetypes (`scripts/fixtures/rating-archetypes.js`)
+and found the bottom wrong: an AFK Riot did not flag (0/13 in a 3 to 13
+loss) and a 3/20 bottom frag both rated 5.7, at or above a 12/12 player at
+5.6, and an entry at 12/24 always traded rated 7.7, second in the lobby. The
+cause: a death in a round already lost (1v5) moves the chance by nearly
+nothing, so doing nothing and dying late cost nothing.
+
+**The mechanism: a death costs at least `DEATH_FLOOR`, 0.12 of a round,
+before the round is over**, and a trade gives back only what it cost above
+the floor. A life is the gun, the shields and the information the team had,
+which the next rounds pay for even when this one is gone: the chance to win
+this round is not all a death costs. The floor does not touch the top of the
+table (a kill is valued as before, exit kills still little, clutches and
+defuses as before); it does not touch a death after the round is decided
+(the spike gone off, a side wiped), which is over. The other candidate, the
+lost round's share weighted by what the player did in it, charges presence
+more than play and needed a definition of "did" that a live feed cannot
+always give; the floor is one number on one event.
+
+With the floor and `LOSS_WEIGHT` 0.8 (the mean held near 6.5):
+
+| archetype | K/D | rating | place |
+| --- | --- | --- | --- |
+| top frag, lost 10 to 13 | 32/14 | 9.8 | 2nd |
+| hard carry, 13 to 9 | 23/8 | 9.4 | 2nd |
+| lurker, late kills | 18/10 | 8.7 | 5th |
+| sentinel, survives, 7 defuses | 14/0 | 8.7 | 3rd |
+| 1v4 clutch hero, lost | 17/14 | 7.6 | 3rd |
+| 12/12 player | 12/12 | 7.4 | 3rd |
+| support, 38 assists, 12 plants | 0/17 | 6.2 | 4th |
+| entry, always traded | 12/24 | 5.9 | 5th |
+| baiter, 18 exit kills | 18/12 | 5.6 | 6th |
+| AFK, not flagged, 3 to 13 | 0/13 | 4.5 | 7th |
+| bottom frag, won 13 to 7 | 3/20 | 4.1 | 9th |
+
+The 12/12 player sits at 7.4, not the 6.0 to 6.5 the review asked for, and
+that is the lobby's doing, not the scale's: in that script he makes the
+decisive kill of every round his team wins, and six of the ten players in
+his lobby have 0 to 6 kills (Raze has 54). He is third of ten and 1.2 above
+the lobby's mean. In a **balanced lobby** (`balanced()`, every kill and
+death rotating through all ten) every player sits at 5.7 to 6.8, the mean
+6.28, which is what an ordinary game is. `test:rating` holds the order: an
+unflagged AFK and a bottom frag at least 1.5 under the 12/12 and under 5,
+the 12/24 entry not second and under the 12/12, the top kept (a carry and a
+losing top frag at 9 or more, the clutch hero at 7 or more, the sentinel at
+8 or more), timely kills over exit kills by 2 or more, and the balanced
+lobby at 6.0 to 6.6.
 
 ## The table
 
@@ -131,6 +197,12 @@ decimal.
 
     x = net (24 + 12) / (E + 12) min(1, E / rounds)
 
+`rounds` counts the rounds **ended**: a round is counted at its end event, so
+the shown value never moves without an event (round 25 opening moved 9.8 to
+9.7 before anything happened), and a round's own move is read at one scale
+(the value after it against the value before it at the same count), so a
+winning overtime round never reads as a loss.
+
 E is the queue's usual longest match: 24 rounds, 9 for Swiftplay and
 Replication, 7 for Spike Rush (`lengthOf`; a first to five match of nine
 rounds or fewer with no queue named is Swiftplay). Twelve rounds of neutral
@@ -141,7 +213,8 @@ twelve rounds".
   (build 2) never leaps because the match is young.
 - **Overtime does not inflate**: past E the net is taken per round, so thirty
   rounds of the same play rate exactly what twenty four did (8.8 and 8.8,
-  `test:rating`). Live, each round past E dilutes the value a little.
+  `test:rating`). Live, each round past E dilutes the value a little, at its
+  end.
 - **A Swiftplay is not wildly volatile**: its moves count 36 / 21 = 1.71
   times, which leaves its noise a little under a full match's where a per
   round average would give four times the swing per move. The same play
@@ -155,25 +228,30 @@ only and writes nothing). Seven matches with a kill feed: the two fixtures
 (no agents in their feed, so the player alone) and five saved reviews with
 every kill named by agent, all ten rated. 52 timelines.
 
-- **Distribution**: mean 6.55, median 6.5, 10th percentile 4.8, 90th 8.3,
-  min 4.3, max 9.1. By whole point: 4.x 7, 5.x 10, 6.x 17, 7.x 7, 8.x 10,
+- **Distribution**: mean 6.57, median 6.6, 10th percentile 4.7, 90th 8.5,
+  min 4.3, max 9.3. By whole point: 4.x 10, 5.x 6, 6.x 16, 7.x 8, 8.x 11,
   9.x 1. None at 10.0.
-- **Per match, all ten** (best, worst, mean): 20 rounds 8.5, 5.0, 6.71;
-  6 rounds 8.5, 4.6, 6.35; 16 rounds 8.3, 4.5, 6.46; 23 rounds 9.1, 4.8,
-  6.70; 7 rounds 8.4, 4.3, 6.32.
-- **Correlations**: with kills less deaths over all 52 timelines 0.86 (0.88
-  per round); the player's own seven matches with ACS 0.85; with Occlara's
-  grade over the five graded 0.94. Clearly related, not a copy: the rating
+- **Per match, all ten** (best, worst, mean): 20 rounds 8.5, 4.8, 6.67;
+  6 rounds 8.7, 4.7, 6.43; 16 rounds 8.5, 4.5, 6.45; 23 rounds 9.3, 4.4,
+  6.77; 7 rounds 8.5, 4.3, 6.35.
+- **Correlations**: with kills less deaths over all 52 timelines 0.89 (0.91
+  per round); the player's own seven matches with ACS 0.88; with Occlara's
+  grade over the five graded 0.82. Clearly related, not a copy: the rating
   ranks by when a kill came and what it changed. The other nine's ACS never
   reaches the client, so the ACS figure is the player's own seven matches.
 - **Real matches**: the Abyss 31 kill, 21 death Jett rates 8.3; the Split 17
-  / 16 Jett 6.9; the player's five saved reviews 6.8, 7.4, 6.6, 6.9 and 8.4
-  (ACS 279, 241, 285, 265, 447; grades 71, 73, 61, 65, 84), placed 4th, 3rd,
-  6th, 4th and 1st of 10.
-- **How the weights were set**: `TRADE_BACK` 0.7 puts the always traded
-  entry at 4.5; with the give back now out of the trader's credit,
-  `LOSS_WEIGHT` 0.85 puts the mean at 6.55; the squash's 3.2 and 2.6 put the
-  best near 8.5 to 9 and the worst near 4.5.
+  / 16 Jett 6.7; the player's five saved reviews 6.6, 7.3, 7.0, 6.8 and 8.5
+  (ACS 279, 241, 285, 265, 447; grades 71, 73, 61, 65, 84), placed 5th, 3rd,
+  5th, 4th and 1st of 10.
+- **How the weights were set** (round 3): `DEATH_FLOOR` 0.12 puts the
+  unflagged AFK at 4.5 and the bottom frag at 4.1 (0.15 moved them 0.2 more
+  and pulled the balanced lobby to 6.15); `LOSS_WEIGHT` 0.8 puts the
+  library's mean at 6.57 and the balanced lobby at 6.28 (0.85 gave 6.44 and
+  6.15, 0.75 gave 6.71); `TRADE_BACK` 0.7 of what a death cost above the
+  floor keeps a traded entry clearly above an untraded one; the squash's 3.2
+  and 2.6 put the best near 8.5 to 9 and the worst near 4.5. The table did
+  not change: `rating-fit.js` fits the chance from the record, which no
+  weight touches.
 
 ## What a missing field costs
 
@@ -182,11 +260,11 @@ change of the player's final, largest change):
 
 | missing | what happens | cost |
 | --- | --- | --- |
-| the round's side | no defenders' edge, no spike in the chance; a plant whose planter's side is known still says the side | -0.16, at most 0.4 |
-| kill times (`ms`) | the feed's own order; no named trade is seen (Riot's flag still counts); no "after the spike went off" | -0.14, at most 0.5 |
-| the plant's time | the plant moves nothing and post plant kills are valued as before it | -0.09, at most 0.2 |
-| the round's result | no result term and no end remainder | -0.04, at most 0.2 |
-| agents on the feed (`ka`, `va`) | only the player is rated, so no place and no lobby; trades come from Riot's flag alone; plants and the end remainder are shared only by known players | +0.16, at most 0.5 |
+| the round's side | no defenders' edge, no spike in the chance; a plant whose planter's side is known still says the side (and is believed over a side given before) | -0.10, at most 0.3 |
+| kill times (`ms`) | each kill takes the time of the one before it in the feed, so the order is the feed's; no named trade is seen (Riot's flag still counts); no spike clock | -0.07, at most 0.2 |
+| the plant's time | the plant moves nothing and post plant kills are valued as before it | -0.07, at most 0.2 |
+| the round's result | no result term and no end remainder | -0.07, at most 0.2 |
+| agents on the feed (`ka`, `va`) | only the player is rated, so no place and no lobby; trades come from Riot's flag alone; plants and the end remainder are shared only by known players | +0.01, at most 0.1 |
 | the victim's side | the kill is worth `NEUTRAL_SWING` 0.17, the mean swing of a kill or death in calibration | per kill |
 | the killer's side | the victim is debited, nobody credited | per kill |
 | the numbers standing | worked out from the feed; the screen's own count can be given (`alive`) and wins | none with a whole feed |
@@ -241,7 +319,11 @@ name, tag or puuid): `as` on each kill with assisters (v4 `assistants` as
 players, v2 `assistant_puuid` and `assistant_team`), and on each round
 `plantBy` (v4 `plant.player`, v2 `plant_events.planted_by`), `defuseMs` and
 `defuseBy` (v4 `defuse`, v2 `defuse_events`). A record without them adds no
-key, so an older client reads the same round. The client keeps each end only
+key, so an older client reads the same round. Round 3 hardened the parse:
+`lower` and `idOf` take strings only (an object with a `toString` that is not
+a function in a name or team field threw, and the route then asked for that
+match again forever), an agent is passed on only when the game data knows it
+(`endOf`), and a defuse time outside 0 to 300 s is dropped. The client keeps each end only
 as a side and an agent the game data knows (`valorant-verify.js endKept`),
 and the card carries `plantBy`, `defuseSec` and `defuseBy` (`recordOnCard`).
 `test:riotrecord` holds both shapes, the forged ends dropped and no name.
@@ -277,7 +359,12 @@ feed, round by round."
 
 **The saved rating never leaves for a window**: `served` drops `rating` from
 every review it serves, any game, and sends `ratingView` alone; a locked
-review gets neither.
+review gets neither. **A damaged saved rating never fails a review**
+(`cleanSaved`, and `withRating` catches anything else): the value is clamped
+to 0 to 10 (a saved 99 shows 10.0) or, not a number, there is no saved
+rating; a lobby with a damaged row is dropped whole, with the place; a
+semicolon saved before is shown as a comma. Labels are saved clean: a revive
+and a kill in one line are joined by a comma.
 
 ## On the review page
 
@@ -329,7 +416,16 @@ replay stops when its page is hidden.
 
 ## Tests
 
-- `npm run test:rating` (90): the chance and the spike's clock, the swings,
+- `npm run test:rating` (115), round 3 adding: the player as Sage credited
+  the revive, Clove's own revive hers with a Sage up, a thrown 1v0 settled
+  the same killed by the spike or not, the spike round's end timed, the
+  latest of two deaths traded, Riot's flag with a named killer and no times,
+  a trade kill that keeps its swing, the names (died then revived then aced,
+  Clove's kill, death and ultimate, a team kill, a fall, killing a
+  teammate), a kill with no time in its place, no semicolon, overtime moving
+  nothing at round 25's opening, a damaged saved rating (a lobby value that
+  is no number, a 99, a value that is no number, a semicolon), and the
+  archetypes in order with the balanced lobby. And from round 2: the chance and the spike's clock, the swings,
   the sanity cases (an ace, a 1v4 clutch above an ace with no bonus, 24
   untraded first deaths near the floor, a traded entry at 4.4 to 5, cleanup
   kills under the start and under the mates who took the rounds, an AFK
@@ -349,7 +445,10 @@ replay stops when its page is hidden.
   the notes; none locked or for League; the sample ranks all ten by agent; no
   name, no dash, no channel.
 - `npm run test:riotrecord`: the new fields from both record shapes, no
-  name, a forged end dropped, and none added to a record without them.
+  name, a forged end dropped, none added to a record without them, a hostile
+  `toString` in a name or team field parsing without a throw, a roster agent
+  that is a player's name never passed on, and a defuse time out of range
+  dropped.
 - `npm run check:rating` (a window, run on GitHub's Windows machine only):
   the block as main served it with its tier, the line's ticks, half and a
   round read by the arrow keys, a swing opening its round, the replay playing

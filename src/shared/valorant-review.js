@@ -1218,12 +1218,16 @@ function withRating(review) {
   // ten rows are main's; the page is sent the view alone, every review.
   const { rating: kept, ...rest } = review;
   if (review.kind !== 'valorant' || review.locked === true) return rest;
-  const r = rating.ratingOfReview(review);
-  const cards = Array.isArray(review.rounds) ? review.rounds : [];
-  const view = rating.viewOf(r.rating, {
-    note: r.note, rounds: cards.length, half: review.halftimeAfter,
-    results: cards.map((c) => ({ n: c.n, won: c.result === 'won' ? true : c.result === 'lost' ? false : null })),
-  });
+  // A rating that cannot be shown is no rating, never a review that fails.
+  let view = null;
+  try {
+    const r = rating.ratingOfReview(review);
+    const cards = Array.isArray(review.rounds) ? review.rounds : [];
+    view = rating.viewOf(r.rating, {
+      note: r.note, rounds: cards.length, half: review.halftimeAfter,
+      results: cards.map((c) => ({ n: c && c.n, won: c && c.result === 'won' ? true : c && c.result === 'lost' ? false : null })),
+    });
+  } catch { view = null; }
   return view ? { ...rest, ratingView: view } : rest;
 }
 

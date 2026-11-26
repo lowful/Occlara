@@ -29,7 +29,10 @@
 
 const crypto = require('crypto');
 
-const lower = (s) => String(s || '').toLowerCase();
+// Strings only: an object in a name or team field (one with a toString that
+// is not a function threw here, and the route then asked for that match
+// again forever) reads as no value.
+const lower = (s) => (typeof s === 'string' ? s.toLowerCase() : typeof s === 'number' && Number.isFinite(s) ? String(s) : '');
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 // The game data, server/'s own copy (sync:valorant writes it beside
@@ -56,7 +59,8 @@ function killsOf(d) {
 }
 
 const teamOfPlayer = (p) => lower(p && (p.team_id || p.team));
-const idOf = (x) => x && (x.puuid || [x.name, x.tag].filter(Boolean).join('#').toLowerCase()) || null;
+const str = (v) => (typeof v === 'string' && v ? v : null);
+const idOf = (x) => (x && typeof x === 'object' && (str(x.puuid) || [str(x.name), str(x.tag)].filter(Boolean).join('#').toLowerCase())) || null;
 const agentOfPlayer = (p) => (p && ((p.agent && p.agent.name) || (typeof p.character === 'string' ? p.character
   : p.character && p.character.name))) || null;
 
@@ -90,14 +94,14 @@ function agentFinder(players) {
   for (const p of players) {
     const agent = agentOfPlayer(p);
     if (typeof agent !== 'string' || !agent) continue;
-    if (p.puuid) by.set(`p:${p.puuid}`, agent);
-    const id = [p.name, p.tag].filter(Boolean).join('#').toLowerCase();
+    if (str(p.puuid)) by.set(`p:${p.puuid}`, agent);
+    const id = [str(p.name), str(p.tag)].filter(Boolean).join('#').toLowerCase();
     if (id) by.set(`n:${id}`, agent);
   }
   return (x) => {
     if (!x || typeof x !== 'object') return null;
-    const id = [x.name, x.tag].filter(Boolean).join('#').toLowerCase();
-    return (x.puuid && by.get(`p:${x.puuid}`)) || (id && by.get(`n:${id}`)) || null;
+    const id = [str(x.name), str(x.tag)].filter(Boolean).join('#').toLowerCase();
+    return (str(x.puuid) && by.get(`p:${x.puuid}`)) || (id && by.get(`n:${id}`)) || null;
   };
 }
 
@@ -858,8 +862,9 @@ function parse(d, name, tag) {
     if (!x || typeof x !== 'object') return null;
     const by = whoIs(x);
     if (!by) return null;
+    // An agent the game data knows, or none: never a string the roster carried.
     const a = agentOf(x);
-    return a ? { by, a } : { by };
+    return typeof a === 'string' && DATA.agents && Object.prototype.hasOwnProperty.call(DATA.agents, a) ? { by, a } : { by };
   };
   const endsOf = (list) => (Array.isArray(list) ? list : []).map(endOf).filter(Boolean).slice(0, 4);
   const isMate = (x) => whoIs(x) === 'mate';
@@ -941,7 +946,7 @@ function parse(d, name, tag) {
       // match rating): a side and an agent each, never a name, and only
       // where the record names them.
       ...(planter ? { plantBy: planter } : {}),
-      ...(defuseMs !== null ? { defuseMs } : {}),
+      ...(defuseMs !== null && Number.isFinite(defuseMs) && defuseMs >= 0 && defuseMs <= 300000 ? { defuseMs } : {}),
       ...(defuser ? { defuseBy: defuser } : {}),
     };
   });

@@ -313,6 +313,30 @@ ok(pr(7).afk === true && !('afk' in pr(6)) && pr(8).inSpawn === true && !('inSpa
     && JSON.stringify(forged.feed[0].as) === '[{"by":"mate"}]', 'a side that is no side goes, a name sent as an agent goes, only the side is kept');
 }
 
+// A hostile record (round 3 of the rating review): an object whose toString is
+// not a function in a team or name field reads as no value and never throws,
+// a roster agent that is not an agent is never passed on, and a defuse time
+// out of any round is dropped.
+{
+  const hostile = { toString: 5 };
+  const d = payload();
+  d.kills[2].assistants = [{ puuid: 'p-x', name: hostile, tag: hostile, team: hostile }];
+  d.kills[3].killer = { ...d.kills[3].killer, team: hostile, name: hostile };
+  d.rounds[3].plant = { round_time_in_ms: 30000, site: 'A', player: { name: hostile, tag: 'X', team: hostile } };
+  d.rounds[3].defuse = { round_time_in_ms: 1e300, player: { ...FOES[0], team: hostile } };
+  let threw = null;
+  let p = null;
+  try { p = riotRounds.parse(d, ME.name, ME.tag); } catch (e) { threw = e.message; }
+  ok(!threw && p && !p.error, `a toString that is not a function in a name or team field does not throw (${threw || 'parsed'})`);
+  ok(p && !('defuseMs' in p.perRound.find((r) => r.n === 4)), 'a defuse time out of any round is dropped');
+  const named = payload();
+  named.players[1].agent = { id: 'a', name: MATES[0].name };
+  named.kills[2].assistants = [{ ...MATES[0] }];
+  const q = riotRounds.parse(named, ME.name, ME.tag);
+  const as = q.perRound.find((r) => r.n === 4).feed.find((k) => k.by === 'me').as;
+  ok(JSON.stringify(as) === '[{"by":"mate"}]', `a roster agent that is a player's name is never passed on (${JSON.stringify(as)})`);
+}
+
 // ── The client: valorant-verify.js reconcile ────────────────────────────────
 const { rounds: merged } = verify.reconcile([], parsed);
 const mr = (n) => merged.find((r) => r.n === n);
