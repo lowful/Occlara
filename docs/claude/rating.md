@@ -691,6 +691,79 @@ rounds 2, 3, 6 and 7, eq7o3v rounds 2, 5 and 6, q3bntd rounds 1, 4, 5 and 6;
 the 9 others (bsxk1d rounds 2, 7, 10, 12, loi6yi round 6, x9fzkd rounds 1, 2,
 4, 6) carry the clip's own death mark.
 
+### Round 4: a second adversarial review, and what changed
+
+The review's new scripts (recall, false highlights, the feed, matches, caps)
+ran against round 3. Recorder safety, the rating a match id, two frame
+deaths, the not reading state, the gate and the stream server held. Fixed:
+
+- **A counted row is never refused on its yellow** (`live-rating.js align`).
+  Round 3's rule that a counted row never takes a yellow one read the
+  detector's raw yellow, and when it fired the row and every row under it
+  were made new: one noise yellow frame counted a kill twice, and dead and
+  spectating, the watched teammate's rows were counted again every 1.6 s (60
+  kill events where there were 30). Gone; nor is a row refused on its
+  signature, since the owner's real rows read their block length anywhere
+  from 0.03 to 0.065 of the height frame to frame. A frame's row may be new
+  wherever it is in the feed (a misread top row no longer makes the two
+  under it new, which counted a kill twice on a real clip, q3bntd round 6),
+  and the signature weighs half (at 0.2 a frame's rows all shifted onto the
+  row about to leave, and the new one under them was lost).
+- **Three rows new on one frame wait instead of being dropped**: counted once
+  they stay a second with their signatures steady (a Raze ult, the feed read
+  again after a recorder stall or switched on mid round); colours crossing
+  the corner do not stay. Any row seen on one frame only and gone is noise.
+- **A row lives by when it was last seen**: it has left once missed on three
+  frames read and unseen a second (a stall with no frame read ages nothing),
+  or unseen 5 s; a row on screen 7 s is one kill. A row older than 4.5 s is
+  the same only when followed frame to frame.
+- **The highlight's own shape** (`killfeed.js`): a yellow box outline (3 px at
+  720p, 4 at 1080p) or a solid blob 4 to 12 px wide at the chevron's place
+  beside a teammate's row, and yellow in a teammate's death row's right
+  margin, read as the player's before (two frames do not help against an
+  enemy standing still). Measured on the owner's rows: the chevron's point
+  narrows (its outer column a third to a half as tall as the tallest, and on
+  a death the point is the tail just past the frame's full edge, 32 then 10,
+  8, 6, 4, 2 lines at 1080p), and is the outermost yellow. So a highlight
+  needs that point (a partial column across the plate's middle, with the
+  yellow only falling away past it), or the portrait's own frame (its top
+  and bottom edges yellowish across the portrait). The frame alone could
+  not be required: those edges are 1 to 2 px blended into the plate
+  (127/187/124 at 1080p), never yellow to the classifier, and yellowish on
+  only 35 to 65 percent of the highlighted frames. Kept on the owner's
+  highlighted frames: kills 147 of 150 at 1080p and 24 of 24 at 720p,
+  deaths 314 of 315 and 84 of 92; none new.
+- **Each row's real top and bottom** from its own block (its colour or its
+  name's white letters across most of it): real rows sit up to 7 px off
+  their place at 1080p, and the gap lines checked above and below the
+  highlight are now just outside the row's own plate, not at a fixed place
+  (3 px off at 720p lost both the kill and the death before). A wall of the
+  block's own colour makes the plate too tall: then the killer's block, then
+  the row's place. Teal leans green over blue, so a sky blue ground
+  (140/180/220) is no teal.
+- **Turning it on is the Settings view's own main frame** (`register-ipc.js
+  fromSettings`): the sender is the registry's Settings webContents and the
+  frame its main frame (or the same frame by process and routing id), never
+  a URL another page or a frame inside one could carry.
+- **The corner read is asked again at the next match** after a page stopped
+  for its cost (one hitch on a load screen stopped it for the whole
+  recording), and the lag lets go over 1500 ms and takes back only under
+  1000 ms, so a recorder hovering at the limit does not switch it each
+  second (`wantFeed`, `index.js feedMatch`, `feedLagging`).
+
+**Known, by design (the spectating guard)**: a kill row within 1.5 s of a
+teammate's death row is counted as a teammate's (`us`), so a real trade by
+the player 0.2 s after a teammate fell is lost to them; from 0.4 s on it is
+theirs. **Still open**: the player's own death row missed by the detector
+while the reader still says the player is alive; the watched teammate's kill
+in the next seconds is then the player's (scenario A).
+
+Measured again on the clips (`npm run measure:liveratingclips`): at 5 a
+second kills 3 of 3, none wrong, deaths 20 of 20, others' kills 18 against
+Riot's 20; at 10 a second deaths 20 of 20, others 21 against 20; at 2 a second
+deaths 19 of 20. The review's scenarios: every one counts right but the
+trade inside 1.5 s (above).
+
 ### The owner's first real match on this branch
 
 1. **Before**: in Settings, Record match video **On at 720p or 1080p** (write

@@ -105,7 +105,43 @@ for (const [name, wall] of [['teal', [80, 176, 150]], ['salmon', [222, 140, 130]
     let seed = 7;
     for (let i = 0; i < noisy.data.length; i++) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; noisy.data[i] = Math.max(0, Math.min(255, noisy.data[i] + ((seed % 25) - 12))); }
     ok(brief(readFr(noisy, H)) === '0:ally>enemy*kill 1:enemy>ally*death', `${H}p: with compression noise the player's kill and death still read (${brief(readFr(noisy, H))})`);
+
+    // ROUND 4: the yellow enemy highlight on a distant enemy standing still
+    // (two frames do not help) beside a teammate's row, at the chevron's own
+    // place: a box outline, a solid blob, yellow in a death row's margin.
+    const line = H >= 1000 ? 4 : 3;
+    const team = [{ slot: 1, killer: 'ally', victim: 'enemy' }, { slot: 2, killer: 'enemy', victim: 'ally' }];
+    let fooled = [];
+    for (const bh of [0.02, 0.03, 0.036]) {
+      const cy = H * (kf.FIRST + kf.PITCH * 1);
+      const box = drawFrame({ W, H, rows: team });
+      const x0 = kBlock - H * 0.105; const y0 = cy - (H * bh) / 2; const w = H * 0.012; const hh = H * bh;
+      paint(box, x0, y0, line, hh, YH); paint(box, x0 + w - line, y0, line, hh, YH); paint(box, x0, y0, w, line, YH); paint(box, x0, y0 + hh - line, w, line, YH);
+      if (readFr(box, H).list.some((r) => r.mine)) fooled.push(`box ${bh}`);
+      for (const bw of [4, 8, 12]) {
+        const blob = drawFrame({ W, H, rows: team });
+        paint(blob, kBlock - H * 0.105, cy - (H * bh) / 2, bw, H * bh, YH);
+        if (readFr(blob, H).list.some((r) => r.mine)) fooled.push(`blob ${bw}px ${bh}`);
+      }
+      const cy2 = H * (kf.FIRST + kf.PITCH * 2);
+      const margin = drawFrame({ W, H, rows: team });
+      paint(margin, right + 1, cy2 - (H * bh) / 2, H * 0.012, H * bh, YH);
+      if (readFr(margin, H).list.some((r) => r.mine)) fooled.push(`margin ${bh}`);
+    }
+    ok(!fooled.length, `${H}p: a ${line} px box outline, a solid blob 4 to 12 px wide at the chevron's place, and yellow in a teammate's death row's margin make no row the player's (${fooled.join(', ') || 'none'})`);
+
+    // A row off its place or taller than drawn keeps its kill and its death (round 4: 3 px at 720p lost both).
+    const shifted = [];
+    for (const dy of [-4, -3, 3, 4]) for (const dh of [0, 2, 4]) {
+      const d = read({ W, H, dy, dh, rows: [{ slot: 1, killer: 'ally', victim: 'enemy', mine: 'kill' }, { slot: 3, killer: 'enemy', victim: 'ally', mine: 'death' }] });
+      if (brief(d) !== '1:ally>enemy*kill 3:enemy>ally*death') shifted.push(`dy${dy} dh${dh}: ${brief(d)}`);
+    }
+    ok(!shifted.length, `${H}p: rows 3 or 4 px off their place, and up to 4 px taller, keep the kill and the death (${shifted.join('; ') || 'all'})`);
+    const sky = read({ W, H, ground: [140, 180, 220], rows: [{ slot: 1, killer: 'ally', victim: 'enemy', mine: 'kill' }, { slot: 3, killer: 'enemy', victim: 'ally', mine: 'death' }] });
+    ok(brief(sky) === '1:ally>enemy*kill 3:enemy>ally*death', `${H}p: a sky blue ground is no teal, the kill and the death still read (${brief(sky)})`);
   }
+  ok(kf.classOf(140, 180, 220) === kf.CLASSES.NONE && kf.classOf(98, 170, 143) === kf.CLASSES.TEAL && kf.classOf(109, 186, 146) === kf.CLASSES.TEAL,
+    'teal leans green over blue: the owner\'s rows are teal, a sky blue is not');
 }
 
 // A full feed, and the order BGRA comes in.

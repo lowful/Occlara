@@ -32,6 +32,7 @@ const LINE_OUT = 40;             // points of the line a window is sent
 const TAP_STALE_MS = 3000;       // the recorder's rows stopped arriving this long: not reading
 const BUDGET_MS = 15;            // a corner read slower than this, three in a row: the page stops
 const LAG_LIMIT_MS = 1500;       // the recorder's chunks this late: the feed is let go
+const LAG_RESUME_MS = 1000;      // and taken back only once they are this close again
 
 /*
  * THE LIVE LABEL says what happened and nothing of the numbers standing (the
@@ -59,16 +60,21 @@ function pick(v) {
  * WHETHER THE RECORDER SHOULD READ THE CORNER: only with the switch on, a
  * Valorant session recording at 700 rows or more, and the page not stopped
  * for its cost (a read over BUDGET_MS three times running) or a recorder
- * falling behind (its chunks over LAG_LIMIT_MS late). Answers { on, why }.
+ * falling behind (its chunks over LAG_LIMIT_MS late, and back only once
+ * under LAG_RESUME_MS, so a recorder hovering at the limit does not switch
+ * it each second). Answers { on, why, lagging }: the caller hands lagging back
+ * as wasLagging next time.
  */
 function wantFeed(s) {
   const o = s || {};
-  if (o.on !== true) return { on: false, why: 'off' };
-  if (o.game !== 'valorant' || o.valorantSession !== true) return { on: false, why: 'game' };
-  if (!(Number(o.height) >= 700)) return { on: false, why: 'height' };
-  if (o.slow === true) return { on: false, why: 'slow' };
-  if (Number(o.lagMs) > LAG_LIMIT_MS) return { on: false, why: 'lag' };
-  return { on: true, why: null };
+  const lag = Number(o.lagMs);
+  const lagging = Number.isFinite(lag) ? (o.wasLagging === true ? lag > LAG_RESUME_MS : lag > LAG_LIMIT_MS) : false;
+  if (o.on !== true) return { on: false, why: 'off', lagging: false };
+  if (o.game !== 'valorant' || o.valorantSession !== true) return { on: false, why: 'game', lagging };
+  if (!(Number(o.height) >= 700)) return { on: false, why: 'height', lagging };
+  if (o.slow === true) return { on: false, why: 'slow', lagging };
+  if (lagging) return { on: false, why: 'lag', lagging };
+  return { on: true, why: null, lagging };
 }
 
 function createLiveRatingService() {
@@ -229,4 +235,4 @@ function createLiveRatingService() {
     finalOf: (id) => finals.get(String(id)) || null, active: () => matches.size > 0, current: () => current };
 }
 
-module.exports = { createLiveRatingService, pick, liveLabel, wantFeed, BUDGET_MS, LAG_LIMIT_MS, TAP_STALE_MS };
+module.exports = { createLiveRatingService, pick, liveLabel, wantFeed, BUDGET_MS, LAG_LIMIT_MS, LAG_RESUME_MS, TAP_STALE_MS };

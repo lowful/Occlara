@@ -44,7 +44,6 @@
 const rating = require('./rating');
 
 const MATCH_ROW_MS = 9000;       // a row unseen this long is gone from the feed
-const ROW_LIFE_MS = 6000;        // a row stays on the feed about five seconds (measured): one first seen longer ago is gone
 const HOLD_ROW_MS = 4000;        // a plain row waits this long for its yellow
 const HOLD_SEEN = 8;             // or this many sightings (1.6 s at five frames a second)
 const MINE_SEEN = 2;             // the player's kill: the yellow seen on this many frames
@@ -54,8 +53,14 @@ const TOL_LEN = 0.01;            // a block's length may wobble this much (a sha
 const TOL_RGB = 75;              // and the portrait's colour this much (the three summed)
 const ALLY_DOWN_MS = 1500;       // after a teammate's death row, no yellow kill is the player's this long
 const SIDE_CAP = 5;              // deaths a side can have in a round (a revive's second death is dropped)
-const BLIND_ROUNDS = 2;
-const FLOOD_ROWS = 3;             // rows new on one frame at once: noise, not kills          // rounds closed with no kill feed row seen: not reading the feed
+const BLIND_ROUNDS = 2;          // rounds closed with no kill feed row seen: not reading the feed
+const FLOOD_ROWS = 3;            // rows new on one frame at once: counted only once they have stayed
+const FLOOD_STAY_MS = 1000;      // a row new in a flood is counted once seen this long with its signature steady
+const STEADY_SIG = 1.0;          // the most a steady row's signature wanders from its first sighting
+const MIN_SEEN = 2;              // a row seen on one frame only and gone is noise, never a kill
+const UNSEEN_MS = 1000;          // a known row missed on UNSEEN_FRAMES read frames and unseen this long has left the feed
+const STALE_MS = 5000;           // unseen a whole row's life (a long stall, frames far apart): left, whatever was read
+const UNSEEN_FRAMES = 3;         // (rows live by when last seen, not first, and a stall with no frame read ages nothing)
 const LINE_MAX = 60;             // points kept on the small line
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -83,8 +88,8 @@ function sameRow(a, b) {
  * match: a row may be one already known only in that order, of the same
  * sides, at its place or above it, never one a row above it in this frame
  * came after; a known row may be skipped (gone, or missed by this frame); a
- * frame row matched to none is new, and new rows only come under the matched
- * ones. Of the alignments that fit, the one whose pairs' signatures are the
+ * frame row matched to none is new, wherever it is (a misread row at the top
+ * is new without making the rows under it new). Of the alignments that fit, the one whose pairs' signatures are the
  * most alike wins, a known row near the end of its life costing more, and a
  * new row costing more than any fair match. Measured on the owner's clips at
  * 5 frames a second: the signature alone wobbles as a semi transparent row
@@ -95,11 +100,17 @@ function sameRow(a, b) {
  */
 const NEW_COST = 1.5;
 const OLD_MS = 4500;
+const FOLLOW_MS = 1500;          // frames further apart than this do not follow an old row from one to the next
 function sigCost(k, d) {
   if (!k.sig || !d.sig) return 1;
   return Math.abs(k.sig.v - d.sig.v) / 0.02 + (Math.abs(k.sig.r - d.sig.r) + Math.abs(k.sig.g - d.sig.g) + Math.abs(k.sig.b - d.sig.b)) / 150;
 }
-function align(known, now, t) {
+/** A row has left the feed: missed on the last few frames read and unseen a while. */
+function gone(x, at) {
+  return ((x.missed || 0) >= UNSEEN_FRAMES && at - x.lastAt >= UNSEEN_MS) || at - x.lastAt >= STALE_MS;
+}
+
+function align(known, now, t, prevAt) {
   const K = known;
   const n = now.length;
   const memo = new Map();
@@ -107,16 +118,26 @@ function align(known, now, t) {
     if (i >= n) return { cost: 0, pick: [] };
     const key = i * 64 + j;
     if (memo.has(key)) return memo.get(key);
-    // The rest are new.
-    let out = { cost: NEW_COST * (n - i), pick: now.slice(i).map(() => null) };
+    // This row is new and the ones under it are still lined up (round 4: the
+    // fading top row misread as another made the two under it new, a kill
+    // counted twice, when new could only be "the rest").
+    const skip = best(i + 1, j);
+    let out = { cost: NEW_COST + skip.cost, pick: [null, ...skip.pick] };
     for (let jj = j; jj < K.length; jj++) {
       const k = K[jj];
       const d = now[i];
       if (k.killer !== d.killer || k.victim !== d.victim || k.slot < d.slot) continue;
-      // A row already counted without the player's highlight never takes a
-      // frame row that has it (a phantom once absorbed a real yellow row).
-      if (d.mine && !k.pending && !(k.kills > 0) && !(k.deaths > 0)) continue;
-      const c = sigCost(k, d) * 0.2 + (t - k.firstAt > OLD_MS ? 0.8 : 0);
+      // Never refused on the yellow, nor on the signature: the round 3 rule
+      // that a counted row never takes a yellow one counted kills twice (a
+      // noise yellow frame, the spectated teammate's rows every 1.6 s), and
+      // the owner's real rows read their length anywhere from 0.03 to 0.065
+      // of the height frame to frame, so the signature only weighs (round 4).
+      // A row near the end of its life is the same only when followed frame to
+      // frame: shown on the last frame read, and that frame a moment ago.
+      if (t - k.firstAt > OLD_MS && prevAt !== null && (k.lastAt < prevAt || t - prevAt > FOLLOW_MS)) continue;
+      // The signature weighs half (0.2 before round 4 let a frame's rows all
+      // shift onto the row about to leave, and a new row under them was lost).
+      const c = sigCost(k, d) * 0.5 + (t - k.firstAt > OLD_MS ? 0.8 : 0);
       const rest = best(i + 1, jj + 1);
       if (c + rest.cost < out.cost) out = { cost: c + rest.cost, pick: [k, ...rest.pick] };
     }
@@ -152,10 +173,11 @@ function createLiveRating(opts) {
   let events = [];             // what was pushed, for the tests and the field log
   let changed = true;
   let nowAt = null;
+  let lastReadAt = null;      // the last frame the feed was read on
 
   function reset() {
     r = rating.createRating({ subject: 'me', queue, meAgent: o.meAgent || null });
-    lastScore = null; cur = null; nextN = null; nextSince = null; skipped = []; rows = []; roundsBlind = 0; everRow = false;
+    lastScore = null; cur = null; nextN = null; nextSince = null; skipped = []; rows = []; roundsBlind = 0; everRow = false; lastReadAt = null;
     last = null; line = [rating.D.START]; events = []; changed = true;
   }
   reset();
@@ -202,11 +224,20 @@ function createLiveRating(opts) {
   function flushRows(at, all) {
     const waiting = rows.filter((x) => x.pending).sort((a, b) => a.firstAt - b.firstAt || a.slot - b.slot);
     for (const x of waiting) {
+      // Left the feed (unseen a while) or the round is over: what it has is all it gets.
+      const left = all || gone(x, at);
+      // A row seen on one frame only, and a row new in a flood that has not
+      // stayed a second with its signature steady, is noise: never a kill.
+      const real = x.seen >= MIN_SEEN && (!x.flood || (x.steady && x.lastAt - x.firstAt >= FLOOD_STAY_MS));
+      if (!real) {
+        if (left) { x.pending = false; continue; }
+        break;
+      }
       // The player's kill and death alike want the highlight on two frames.
       const sure = (x.mine === 'death' && x.deaths >= mineSeen) || (x.mine === 'kill' && x.kills >= mineSeen);
       // Gone from this frame's feed: it has had its chance to show the yellow.
-      const gone = x.lastAt < at;
-      if (!all && !sure && !gone && x.seen < HOLD_SEEN && at - x.firstAt < HOLD_ROW_MS) break;
+      const off = x.lastAt < at;
+      if (!all && !sure && !off && x.seen < HOLD_SEEN && at - x.firstAt < HOLD_ROW_MS) break;
       x.pending = false;
       emitKill(x);
     }
@@ -315,9 +346,17 @@ function createLiveRating(opts) {
       && !(cur.allyDownAt !== null && at - cur.allyDownAt < ALLY_DOWN_MS);
     const read = f.det && Array.isArray(f.det.list);
     const list = read ? f.det.list.filter((d) => d && d.killer && d.victim && d.sig).sort((a, b) => a.slot - b.slot) : [];
-    // Every row still in its life, in the order it came (oldest first).
-    const recent = rows.filter((x) => at - x.firstAt <= ROW_LIFE_MS).sort((p, q) => p.firstAt - q.firstAt || p.slot - q.slot);
-    const same = read ? align(recent, list, at) : [];
+    // Every row still on the feed, in the order it came (oldest first): a row
+    // lives by when it was last seen, so one on screen longer than usual (7 s
+    // was measured once) is never counted again.
+    const recent = rows.filter((x) => !gone(x, at)).sort((p, q) => p.firstAt - q.firstAt || p.slot - q.slot);
+    const same = read ? align(recent, list, at, lastReadAt) : [];
+    if (read) {
+      lastReadAt = at;
+      // Every row still on the feed that this frame did not show missed one more read.
+      const shown = new Set(same.filter(Boolean));
+      for (const x of recent) x.missed = shown.has(x) ? 0 : (x.missed || 0) + 1;
+    }
     // The player's own death row on this frame, where one is (rows stack in time order).
     const deathRow = cur.died ? null : list.find((d) => d.mine === 'death');
     const deathSlot = deathRow ? deathRow.slot : null;
@@ -334,9 +373,10 @@ function createLiveRating(opts) {
       // down, and its yellow is the spectated teammate's.
       const afterDeath = (deathSlot !== null && d.slot > deathSlot) || (allySlot !== null && d.slot > allySlot);
       const known = same[i] || null;
-      // Three or more rows new on one frame are colours crossing the corner,
-      // not kills (a multi kill's rows come a frame or more apart): known,
-      // never counted.
+      // Three or more rows new on one frame are colours crossing the corner, or
+      // real: a Raze ult, the feed read again after a stall or switched on mid
+      // round. They wait, and count once they have stayed a second with their
+      // signatures steady (flushRows); colours crossing do not stay.
       const flood = newCount >= FLOOD_ROWS;
       // A kill row already on the feed before a teammate's death row came (a
       // trade, the two a moment apart) keeps taking its yellow: only rows that
@@ -348,6 +388,7 @@ function createLiveRating(opts) {
         known.lastAt = at;
         known.slot = d.slot;
         known.seen++;
+        if (known.firstSig && sigCost({ sig: known.firstSig }, d) > STEADY_SIG) known.steady = false;
         if (known.pending && !known.mine && mine) known.mine = mine;
         if (known.pending && mine === 'kill') known.kills = (known.kills || 0) + 1;
         if (known.pending && mine === 'death') known.deaths = (known.deaths || 0) + 1;
@@ -355,8 +396,9 @@ function createLiveRating(opts) {
       }
       // A row first seen once the round is over, or before the next opened, is
       // the last round's tail: known, never counted.
-      const live = !cur.ended && nextN === null && !flood;
-      const row = { ...d, mine, kills: mine === 'kill' ? 1 : 0, deaths: mine === 'death' ? 1 : 0, firstAt: at, lastAt: at, seen: 1, pending: live };
+      const live = !cur.ended && nextN === null;
+      const row = { ...d, mine, kills: mine === 'kill' ? 1 : 0, deaths: mine === 'death' ? 1 : 0, firstAt: at, lastAt: at, seen: 1, pending: live,
+        flood, firstSig: d.sig, steady: true };
       rows.push(row);
     }
     rows = rows.filter((x) => x.pending || at - x.lastAt <= MATCH_ROW_MS * 2);

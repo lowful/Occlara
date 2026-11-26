@@ -13,6 +13,7 @@ const updater = require('../updater');
 const pcCheck = require('../services/pc-check');
 const { resOf } = require('../services/recorder');
 const { isOwnPage } = require('../windows/web-guard');
+const registry = require('../windows/registry');
 
 /**
  * Registers every ipcMain handler in one place. All channel names come from the
@@ -266,9 +267,23 @@ function registerIpc(deps) {
 }
 
 /** A write that came from Settings' own page (its frame's file under renderer/settings). */
+/**
+ * The write came from the Settings page itself (round 4): its sender is the
+ * Settings view's own webContents in the registry and the frame is that
+ * webContents' main frame. Never told by a URL, which another page or a frame
+ * inside one could carry.
+ */
 function fromSettings(e) {
-  const url = e && e.senderFrame && typeof e.senderFrame.url === 'string' ? e.senderFrame.url : '';
-  return /^file:\/\/.*\/renderer\/settings\/index\.html(?:[?#].*)?$/i.test(url.replace(/\\/g, '/'));
+  const view = registry.get('settings');
+  const wc = view && view.webContents;
+  if (!wc || (typeof wc.isDestroyed === 'function' && wc.isDestroyed())) return false;
+  if (!e || e.sender !== wc) return false;
+  const f = e.senderFrame;
+  const m = wc.mainFrame;
+  if (!f || !m) return false;
+  if (f === m) return true;
+  // The same frame handed back as another wrapper: the same process and routing id.
+  return Number.isInteger(f.routingId) && f.routingId === m.routingId && f.processId === m.processId;
 }
 
 function snapshotConfig() {

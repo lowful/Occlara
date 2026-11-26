@@ -134,17 +134,38 @@ const set = handlers.get(C.CONFIG_SET);
     'every key a page writes is one it may write', [...written].filter((k) => !WRITABLE.includes(k)).join(', '));
 
   // THE LIVE RATING turns on only from Settings' own page (its warning and
-  // confirm are there); any page may turn it off.
-  const frameOf = (page) => ({ senderFrame: { url: require('url').pathToFileURL(path.join(__dirname, '..', 'src', 'renderer', page, 'index.html')).href + '?embed=1' } });
+  // confirm are there); any page may turn it off. Round 4: the sender is the
+  // Settings view's own webContents in the registry and its main frame, never
+  // told by a URL another page or a frame inside one could carry.
+  const registry = require('../src/main/windows/registry');
+  const pageUrl = (page) => require('url').pathToFileURL(path.join(__dirname, '..', 'src', 'renderer', page, 'index.html')).href + '?embed=1';
+  const viewOf = (page) => {
+    const mainFrame = { url: pageUrl(page) };
+    const wc = { isDestroyed: () => false, on: () => {}, mainFrame };
+    return { webContents: wc };
+  };
+  const settingsView = viewOf('settings');
+  const shellView = viewOf('shell');
+  registry.register('settings', settingsView);
+  registry.register('main', shellView);
+  const from = (view, frame) => ({ sender: view.webContents, senderFrame: frame || view.webContents.mainFrame });
+  const settingsUrl = pageUrl('settings');
   data.liveRating = false; data.liveRatingStream = false;
   await set({}, { liveRating: true, liveRatingStream: true });
-  await set(frameOf('shell'), { liveRating: true, liveRatingStream: true });
-  await set(frameOf('home'), { liveRating: true });
-  ok(data.liveRating === false && data.liveRatingStream === false, 'the live rating is not turned on by a write from no page, the Recording screen or Home', JSON.stringify({ r: data.liveRating, s: data.liveRatingStream }));
-  await set(frameOf('settings'), { liveRating: true, liveRatingStream: true });
-  ok(data.liveRating === true && data.liveRatingStream === true, 'Settings turns it on');
-  await set(frameOf('shell'), { liveRating: false, liveRatingStream: false });
+  await set(from(shellView), { liveRating: true, liveRatingStream: true });
+  ok(data.liveRating === false && data.liveRatingStream === false, 'the live rating is not turned on by a write from no page or the Recording screen', JSON.stringify({ r: data.liveRating, s: data.liveRatingStream }));
+  await set({ sender: shellView.webContents, senderFrame: { url: settingsUrl } }, { liveRating: true });
+  await set(from(shellView, { url: settingsUrl }), { liveRatingStream: true });
+  ok(data.liveRating === false && data.liveRatingStream === false, 'nor by another page whose frame carries the Settings page\'s own address');
+  await set(from(settingsView, { url: settingsUrl }), { liveRating: true });
+  ok(data.liveRating === false, 'nor by a frame inside the Settings view that is not its main frame');
+  await set(from(settingsView), { liveRating: true, liveRatingStream: true });
+  ok(data.liveRating === true && data.liveRatingStream === true, 'the Settings view\'s own main frame turns it on');
+  await set(from(shellView), { liveRating: false, liveRatingStream: false });
   ok(data.liveRating === false && data.liveRatingStream === false, 'and any page may turn it off');
+  settingsView.webContents.isDestroyed = () => true;
+  await set(from(settingsView), { liveRating: true });
+  ok(data.liveRating === false, 'a Settings view already closed turns nothing on');
 
   console.log(failed ? `FAIL: ${failed} of ${passed + failed} config write checks failed` : `PASS: all ${passed} config write checks passed`);
   process.exit(failed ? 1 : 0);
