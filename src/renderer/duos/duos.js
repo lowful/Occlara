@@ -438,7 +438,7 @@ const KIND_WORD = { death: 'death clip', flag: 'flagged death', highlight: 'high
 
 async function urlOf(c) {
   if (c.url) return { ok: true, url: c.url };
-  return (await call('openClip', { ref: c.ref, name: c.name, match: current.ref })) || { ok: false, line: 'That clip could not be opened.' };
+  return (await call('openClip', { ref: c.ref, name: c.name, match: current.ref, expiresAt: current.expiresAt })) || { ok: false, line: 'That clip could not be opened.' };
 }
 
 async function watch(r) {

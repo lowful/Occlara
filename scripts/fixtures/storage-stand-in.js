@@ -68,7 +68,8 @@ function createStorage(opts = {}) {
           const name = rest.split('/')[0];
           if (o.search && !name.includes(o.search)) continue;
           if (rest.includes('/')) { if (!seen.has(name)) seen.set(name, { name, id: null, metadata: null }); continue; }
-          seen.set(name, { name, id: crypto.createHash('md5').update(k).digest('hex'), metadata: { size: v.bytes.length, mimetype: v.type } });
+          seen.set(name, { name, id: crypto.createHash('md5').update(k).digest('hex'), created_at: new Date(v.at).toISOString(), updated_at: new Date(v.at).toISOString(),
+            metadata: { size: v.bytes.length, mimetype: v.type } });
         }
         const list = [...seen.values()].sort((x, y) => x.name.localeCompare(y.name));
         const off = Number(o.offset) || 0;
@@ -135,7 +136,7 @@ function createStorage(opts = {}) {
     },
     close() { if (server) server.close(); },
     /** Put a file as if an app had uploaded it (for the sweep's and the purge's cases). */
-    put(bucket, path, bytes, type = 'video/x-matroska') { objects.set(`${bucket}/${path}`, { bytes: Buffer.from(bytes), type, at: now() }); },
+    put(bucket, path, bytes, type = 'video/x-matroska', at) { objects.set(`${bucket}/${path}`, { bytes: Buffer.from(bytes), type, at: at === undefined ? now() : at }); },
   };
 }
 

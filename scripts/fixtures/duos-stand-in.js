@@ -118,7 +118,9 @@ async function fetchClip(url) {
 /** services/duos-service.js, its createDuos handed the stand-in api and fetch. */
 function wrap(mod, opts) {
   const api = createApi(opts);
-  return { ...mod, standIn: api, createDuos: (deps) => mod.createDuos({ ...deps, api, fetch: fetchClip }) };
+  // The profiles service's own status ask, answered by the stand-in, unless the app hands its own.
+  const socialLive = async () => (await api.get('/api/social/status')).data;
+  return { ...mod, standIn: api, createDuos: (deps) => mod.createDuos({ socialLive, ...deps, api, fetch: fetchClip }) };
 }
 
 module.exports = { createApi, fetchClip, wrap, ME, MATCHES, MATCH, MINE, THEIRS, CLIP };

@@ -5291,8 +5291,13 @@ const duosIpc = createDuos({
   cacheDir: path.join(app.getPath('userData'), 'duo-cache'),
   broadcast: (payload) => registry.broadcast(C.PUSH_DUOS, payload),
   openPlans: () => profileIpc.plans(),
-  // 8.19's status answer, reused: Duos asks /api/social/status no more often than it did.
+  // The status the profiles service already holds (it asks at launch, when the
+  // shell paints the account menu, and when a social page opens): while Duos
+  // is not known live, the duos service asks nothing of its own (duos.md,
+  // "What runs when"). socialLive is that service's own ask, for the Duos row
+  // and page (it remembers its answer a minute).
   peekStatus: () => socialIpc.peekStatus(),
+  socialLive: () => socialIpc.state({ only: 'live' }),
   log: (...a) => console.log(...a),
 });
 /*

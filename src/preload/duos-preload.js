@@ -37,7 +37,7 @@ contextBridge.exposeInMainWorld('occlara', {
   setUpload: (on) => ipcRenderer.invoke(C.DUOS_UPLOAD, on === true),
   plans:     () => ipcRenderer.invoke(C.DUOS_PLANS),
   match:     (ref) => ipcRenderer.invoke(C.DUOS_MATCH, String(ref || '')),
-  openClip:  (x) => ipcRenderer.invoke(C.DUOS_CLIP, { ref: String((x && x.ref) || ''), name: String((x && x.name) || ''), match: String((x && x.match) || '') }),
+  openClip:  (x) => ipcRenderer.invoke(C.DUOS_CLIP, { ref: String((x && x.ref) || ''), name: String((x && x.name) || ''), match: String((x && x.match) || ''), expiresAt: String((x && x.expiresAt) || '') }),
   pin:       (b) => ipcRenderer.invoke(C.DUOS_PIN, b && typeof b === 'object' ? { clip: String(b.clip || ''), at: Number.isInteger(b.at) ? b.at : -1,
     label: String(b.label || ''), reaction: b.reaction ? String(b.reaction) : null } : {}),
   unpin:     (ref) => ipcRenderer.invoke(C.DUOS_UNPIN, String(ref || '')),

@@ -156,6 +156,7 @@
     "test:duos": "node scripts/test-duos.js",
     "test:duossql": "node scripts/test-duossql.js",
     "test:duosflow": "node scripts/test-duosflow.js",
+    "test:duosretry": "node scripts/test-duosretry.js",
     "feedback": "node scripts/feedback-inbox.js",
     "test:aiprivacy": "node scripts/test-ai-privacy.js",
     "test:tiproutes": "node scripts/test-tip-routes.js",

@@ -65,6 +65,8 @@ DROP FUNCTION IF EXISTS public.social_duo_report_target(uuid, text);
 DROP FUNCTION IF EXISTS public.social_duo_sweep(integer, integer, integer, integer);
 DROP FUNCTION IF EXISTS public.social_duo_trash_done(text[]);
 DROP FUNCTION IF EXISTS public.social_duo_clip_drop(text);
+DROP FUNCTION IF EXISTS public.social_duo_clip_reject(text);
+DROP FUNCTION IF EXISTS public.social_duo_paths_live(text[]);
 DROP FUNCTION IF EXISTS public.social_duo_all_paths(integer, text);
 
 NOTIFY pgrst, 'reload schema';

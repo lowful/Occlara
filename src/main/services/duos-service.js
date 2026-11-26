@@ -41,9 +41,12 @@ const S = require('../../shared/duos');
 const clipScheme = require('./clip-scheme');
 
 const { DUO } = S;
-const STATUS_MS = 60 * 1000;           // Duos live: the status remembered this long (as social-service.js does)
-const STATUS_OFF_MS = 15 * 60 * 1000;  // Duos not live: asked again at most this often
-const STATUS_DOWN_MS = 5 * 60 * 1000;  // the server not reached: asked again after this
+// Reports this app sends in a rolling hour, at most, whatever is pending or
+// failing: under the report route's own 30 an hour.
+const REPORTS_PER_HOUR = 20;
+const LIVE_KEEP_MS = 15 * 60 * 1000;   // Duos live: its own status answer kept at least this long
+const BACKOFF_MS = [60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 60 * 60 * 1000, 24 * 60 * 60 * 1000];
+const backoff = (n) => BACKOFF_MS[Math.min(Math.max(0, n), BACKOFF_MS.length - 1)];
 const PRUNE_MS = 10 * 60 * 1000;       // the cache checked against the server's list at most this often
 const REREPORT_MS = [60 * 1000, 2 * 60 * 1000, 5 * 60 * 1000, 10 * 60 * 1000, 20 * 60 * 1000, 30 * 60 * 1000];
 const TICK_MS = 60 * 1000;
@@ -73,7 +76,7 @@ function createDuos(deps = {}) {
   const fetchFn = deps.fetch || ((...a) => globalThis.fetch(...a));
   const cacheDir = deps.cacheDir || null;
 
-  const status = { at: 0, live: null, duos: false, down: false };
+  const status = { at: 0, live: null, duos: false, known: false };
   let prunedAt = 0;
   let ticker = null;
   let running = false;
@@ -101,50 +104,67 @@ function createDuos(deps = {}) {
   }
 
   /**
-   * Whether Duos is open: /api/social/status's duos. Never asked more often
-   * than 8.19 asks it: social-service.js's fresh answer is used when it has
-   * one (deps.peekStatus), else this asks, remembered STATUS_MS while Duos is
-   * live, STATUS_OFF_MS while it is not, STATUS_DOWN_MS after a failure. Null
-   * when it cannot be said.
+   * WHETHER DUOS IS OPEN, and how it is known (the review of 25 Nov, second
+   * round). While Duos is NOT known to be live, this service asks NOTHING of
+   * its own: it reads the status the profiles service already holds
+   * (social-service.js, which asks at launch when the shell paints the account
+   * menu, and when a social page opens), on every tick (deps.peekStatus). Once
+   * live, its answer is kept at least LIVE_KEEP_MS, and then asked again by
+   * this service (only while it is live: to notice Duos switched off).
+   * Null when it is not known yet.
    */
+  function adopt(p) {
+    if (!p || p.live === null || p.live === undefined || !Number.isFinite(p.at) || p.at <= status.at) return;
+    status.live = !!p.live; status.duos = !!(p.live && p.duos); status.at = p.at; status.known = true;
+  }
+  function peekNow() {
+    try { adopt(typeof deps.peekStatus === 'function' ? deps.peekStatus() : null); } catch { /* none */ }
+  }
   async function live() {
-    const keep = status.down ? STATUS_DOWN_MS : status.duos ? STATUS_MS : STATUS_OFF_MS;
-    if (status.at && now() - status.at < keep) return status.down ? null : status.duos;
-    let peek = null;
-    try { peek = typeof deps.peekStatus === 'function' ? deps.peekStatus() : null; } catch { peek = null; }
-    if (peek && peek.live !== null && peek.live !== undefined && now() - (peek.at || 0) < STATUS_MS) {
-      status.live = !!peek.live; status.duos = !!(peek.live && peek.duos); status.at = now(); status.down = false;
-      return status.duos;
+    peekNow();
+    if (status.known && status.duos && now() - status.at >= LIVE_KEEP_MS) {
+      const r = await call('GET', '/api/social/status');
+      if (r.ok && r.data) adopt({ live: r.data.live === true, duos: r.data.duos === true, at: Math.max(now(), status.at + 1) });
+      else status.at = now() - LIVE_KEEP_MS + 5 * 60 * 1000;   // not reached: kept, asked again in 5 minutes
     }
-    const r = await call('GET', '/api/social/status');
-    status.at = now();
-    if (r.offline || !r.ok) { status.down = true; return null; }
-    status.down = false;
-    status.live = !!(r.data && r.data.live === true);
-    status.duos = !!(status.live && r.data && r.data.duos === true);
-    return status.duos;
+    return status.known ? status.duos : null;
+  }
+  /** For the shell and the page: the profiles service's own ask (it remembers its answer a minute), then its answer. */
+  async function liveForPage() {
+    if (typeof deps.socialLive === 'function') {
+      try { const r = await deps.socialLive(); if (r && r.live !== null && r.live !== undefined) adopt({ live: r.live, duos: r.duos === true, at: now() }); } catch { /* the peek below */ }
+    }
+    return live();
   }
 
   /*
-   * ENGAGED: this account has a duo, an invite, or Discoverable on under
-   * Duos' words. Only then does the tick ask anything, report a match or
-   * upload: an account that opted in to nothing makes no duo request at all
-   * after a match. Known from the last state of the Duos page, the actions
-   * taken on it, and the Profile switch (noteDiscoverable); when it is not
-   * known (a new install) or older than ENGAGED_MS, the tick asks once
-   * (GET /me), never right after a match of an account known to have opted in
-   * to nothing. The server checks the same for itself (social_duo_report
-   * 'not-engaged').
+   * ENGAGED: this account has a duo (active or paused), an invite IT SENT, or
+   * Discoverable on under Duos' words; an invite it was SENT does not count (a
+   * stranger's invite never makes this app report). Only then does the tick
+   * report, upload, or ask anything but this. Learned from the Duos page, its
+   * actions and the Profile switch (noteDiscoverable); else asked (GET /me)
+   * when not known or a day old, stamped on ANY answer (401 or 403: not
+   * engaged), backed off on a failure (1, 5, 15, 60 minutes, then daily). An
+   * app not signed in with a session (a licence key alone) asks nothing at all.
+   * The server checks the same (social_duo_report 'not-engaged').
    */
   const engaged = () => store.get('duoEngaged') === true;
   const engagedKnown = () => { const at = Number(store.get('duoEngagedAt')) || 0; return at > 0 && now() - at < ENGAGED_MS; };
-  const setEngaged = (on) => { store.set('duoEngaged', !!on); store.set('duoEngagedAt', now()); };
+  const setEngaged = (on) => { store.set('duoEngaged', !!on); store.set('duoEngagedAt', now()); store.set('duoEngagedFails', 0); };
+  const engagedOf = (v) => !!(v && (v.discoverable || (v.partners || []).length || (v.invitesOut || []).length));
   function noteDiscoverable(on) { if (on === true) setEngaged(true); }
+  /** A session (an Authorization header), not a licence key alone. */
+  function isSession() {
+    try { const h = api && typeof api.authHeaders === 'function' ? api.authHeaders(auth) : {}; return !!(h && (h.Authorization || h.authorization)); } catch { return false; }
+  }
   async function learnEngaged() {
+    if (now() < (Number(store.get('duoEngagedNext')) || 0)) return;
     const r = await call('GET', '/api/social/duos/me');
-    const v = r.ok && r.data && r.data.me;
-    if (!v) return;
-    setEngaged(!!(v.discoverable || (v.partners || []).length || (v.invitesIn || []).length || (v.invitesOut || []).length));
+    if (r.ok && r.data && r.data.me) { setEngaged(engagedOf(r.data.me)); return; }
+    if (r.status === 401 || r.status === 403) { setEngaged(false); return; }
+    const n = (Number(store.get('duoEngagedFails')) || 0);
+    store.set('duoEngagedFails', n + 1);
+    store.set('duoEngagedNext', now() + backoff(n));
   }
 
   // ── The switch and the queue ──────────────────────────────────────────────
@@ -180,6 +200,7 @@ function createDuos(deps = {}) {
       if (it.state === 'paused') paused = true;
     }
     const sheets = q.filter((it) => it.sheet === 'sent').length;
+    const refused = q.filter((it) => it.sheet === 'refused').length;
     const lines = [];
     if (sheets || clips) lines.push(`Shared ${sheets === 1 ? 'one match' : `${sheets} matches`} with your duo: ${clips === 1 ? 'one clip' : `${clips} clips`}, ${S.bytesText(bytes)}.`);
     else lines.push('Nothing shared yet. After a match you play with your duo, your side of it is shared here.');
@@ -189,6 +210,7 @@ function createDuos(deps = {}) {
     if (tooLarge) lines.push(`${tooLarge === 1 ? 'One clip was' : `${tooLarge} clips were`} too large for the server to take, so ${tooLarge === 1 ? 'it was' : 'they were'} not shared.`);
     if (failed) lines.push(`${failed === 1 ? 'One clip' : `${failed} clips`} could not be uploaded after ${MAX_TRIES} tries.`);
     if (quota) lines.push(`Your upload limit, ${S.bytesText(DUO.UPLOAD_BYTES)} in ${DUO.QUOTA_DAYS} days, is reached. Clips wait until older uploads leave the window.`);
+    if (refused) lines.push(`The server refused ${refused === 1 ? "one match's sheet" : `${refused} matches' sheets`}, so ${refused === 1 ? 'it was' : 'they were'} not shared.`);
     if (paused) lines.push('A duo is paused, so nothing new of its matches goes up.');
     return { on: uploadOn(), line: lines.join(' '), waiting, failed, quota };
   }
@@ -197,20 +219,20 @@ function createDuos(deps = {}) {
   async function state(opts) {
     if (busy()) return null;
     if (!credentialed()) return { duos: null, problem: 'signed-out', home: null, upload: uploadModel() };
-    const on = await live();
+    const on = await liveForPage();
     if (opts && opts.only === 'live') return { duos: on };
     if (on === null) return { duos: null, problem: 'offline', home: null, upload: uploadModel() };
     if (!on) return { duos: false, problem: 'not-live', home: null, upload: uploadModel() };
     const [me, list] = await Promise.all([call('GET', '/api/social/duos/me'), call('GET', '/api/social/duos/matches')]);
     if (me.offline || !me.ok) {
       const p = problem(me);
-      if (p === 'not-live') { status.duos = false; status.at = now(); }
+      if (p === 'not-live') { status.duos = false; status.at = now(); status.known = true; }
       return { duos: p !== 'not-live', problem: p, home: null, upload: uploadModel() };
     }
     const view = me.data && me.data.me;
     const matches = list.ok && list.data && Array.isArray(list.data.matches) ? list.data.matches : [];
     const home = S.homeModel(view, matches, { now: now() });
-    if (view) setEngaged(!!(view.discoverable || (view.partners || []).length || (view.invitesIn || []).length || (view.invitesOut || []).length));
+    if (view) setEngaged(engagedOf(view));
     if (list.ok) { pruneCache(new Set(matches.map((m) => m.ref))); prunedAt = now(); }
     // The page was opened: the pins on this player's clips are seen now.
     if (home && home.partners.some((p) => p.pins)) call('POST', '/api/social/duos/seen', {}).catch(() => {});
@@ -451,13 +473,24 @@ function createDuos(deps = {}) {
       const seen = done[row.id];
       if (!seen && t - (Number(row.at) || 0) > DUO.REPORT_GAME_HOURS * 3600000) continue;
       if (seen && (seen.done || t < (seen.next || 0))) continue;
-      if (seen && seen.pending && t - (seen.first || 0) > windowMs) { done[row.id] = { done: true, at: seen.at || t }; changed = true; continue; }
+      // Pending or failing, a report stops at the pairing window, never later.
+      if (seen && t - (seen.first || seen.at || t) > windowMs) { done[row.id] = { done: true, at: seen.at || t }; changed = true; continue; }
       const saved = reviews.get(row.id);
       const rep = S.reportOf(saved);
       if (!rep) { done[row.id] = { done: true, at: t }; changed = true; continue; }
+      const sent = (store.get('duoReportTimes') || []).filter((x) => t - x < 3600000);
+      if (sent.length >= REPORTS_PER_HOUR) break;
+      store.set('duoReportTimes', [...sent, t]);
       const r = await call('POST', '/api/social/duos/report', rep);
       changed = true;
-      if (r.offline || (!r.ok && r.status !== 400)) { done[row.id] = { ...(seen || {}), at: (seen && seen.at) || t, next: t + REREPORT_MS[2] }; continue; }
+      if (r.offline || (!r.ok && r.status !== 400)) {
+        // An error (offline, 5xx, 429, 401): backed off (1, 5, 15, 60 minutes),
+        // and given up at the pairing window like a pending one.
+        const tries = seen ? (seen.errors || 0) + 1 : 1;
+        done[row.id] = { ...(seen || {}), first: (seen && seen.first) || t, errors: tries, at: (seen && seen.at) || t,
+          next: t + backoff(tries - 1) };
+        continue;
+      }
       const d = r.data || {};
       if (!d.ok) {
         // No username yet: again later. Refused for good ('no-game', 'not-engaged', a bad match): never again.
@@ -526,6 +559,14 @@ function createDuos(deps = {}) {
         // The server's own file limit (a Supabase Free plan refuses over 50 MB
         // whatever the bucket says): never tried again.
         if (e.status === 413) e.tooLarge = true;
+        // Some Supabase versions answer 400 with { statusCode: "413" } in the body.
+        if (e.status === 400) {
+          let text = '';
+          try { text = typeof res.text === 'function' ? await res.text() : ''; } catch { text = ''; }
+          let j = null;
+          try { j = JSON.parse(text); } catch { j = null; }
+          if (j && String(j.statusCode) === '413') e.tooLarge = true;
+        }
         throw e;
       }
       return buf.length;
@@ -537,6 +578,21 @@ function createDuos(deps = {}) {
   }
 
   /** The next thing to send, sent: a sheet, else one clip. 'more' | 'idle' | 'stop'. */
+  /*
+   * WHAT IS FINAL (the review of 25 Nov, second round). For the SHEET: a 4xx
+   * other than 401, 403 and 429 (400 invalid, 413 too big, and a refusal the
+   * server named that is not 'paused' or 'none') is final for that match's
+   * sheet, recorded and said as not shared, and the queue moves on; 'none'
+   * (no pair, the match expired) drops the match; 'paused' waits RETRY_MS;
+   * 429 waits on the backing off ladder; 401, 403, 5xx and offline stop the
+   * step and try again on a later tick. For a CLIP's start: final are
+   * 'too-big' (too large), 'none' (no pair, expired: the match goes), 'count'
+   * (the match's clips are all used), 'issues' (its upload URLs are spent) and
+   * 'clip' (a malformed ask); 'quota' and 'paused' wait RETRY_MS; any 429,
+   * 401, 403, 404, 5xx or offline is counted (slot.waits), backed off on the
+   * ladder, and NEVER final. An upload that fails (not 413) is a try: five and
+   * the clip is failed. No item ever blocks another: one waiting is passed over.
+   */
   async function uploadStep() {
     const q = queue();
     const t = now();
@@ -545,34 +601,43 @@ function createDuos(deps = {}) {
       if ((it.state === 'paused' || it.state === 'quota') && t - (it.stateAt || 0) < RETRY_MS) continue;
       const saved = it.review ? reviews.get(it.review) : null;
       if (!saved) { delete q[ref]; saveQueue(q); continue; }
-      if (it.sheet !== 'sent') {
+      if (it.sheet !== 'sent' && it.sheet !== 'refused') {
+        if (t < (it.sheetNext || 0)) continue;
         const sheet = S.sheetOf(saved);
+        if (!sheet) { it.sheet = 'refused'; it.sheetWhy = 'no-sheet'; saveQueue(q); return 'more'; }
         const r = await call('POST', '/api/social/duos/sheet', { ref, sheet });
         if (r.offline || (!r.ok && r.status >= 500)) return 'stop';
+        if (r.status === 401 || r.status === 403) { it.sheetWaits = (it.sheetWaits || 0) + 1; it.sheetNext = t + backoff(it.sheetWaits); saveQueue(q); return 'stop'; }
+        if (r.status === 429) { it.sheetWaits = (it.sheetWaits || 0) + 1; it.sheetNext = t + backoff(it.sheetWaits); saveQueue(q); continue; }
         const reason = r.data && r.data.reason;
-        if (r.data && r.data.ok) { it.sheet = 'sent'; it.state = 'active'; }
+        if (r.ok && r.data && r.data.ok) { it.sheet = 'sent'; it.state = 'active'; }
         else if (reason === 'paused') { it.state = 'paused'; it.stateAt = t; }
         else if (reason === 'none') { delete q[ref]; saveQueue(q); continue; }
-        else it.sheet = 'refused';
+        else { it.sheet = 'refused'; it.sheetWhy = String(reason || r.status || 'refused').slice(0, 20); log(`[duos] a sheet was refused (${it.sheetWhy}): not shared`); }
         saveQueue(q);
         return 'more';
       }
       if (!uploadOn() || it.state === 'paused') continue;
       const list = S.clipsOf(saved, (n) => reviews.hasClip(it.review, n));
       it.clips = it.clips || {};
-      const next = list.find((c) => { const s = it.clips[c.name]; return !s || (s.st === 'wait' && (s.tries || 0) < MAX_TRIES); });
+      const next = list.find((c) => { const sl = it.clips[c.name]; return !sl || (sl.st === 'wait' && (sl.tries || 0) < MAX_TRIES && t >= (sl.next || 0)); });
       if (!next) continue;
       const slot = it.clips[next.name] || (it.clips[next.name] = { st: 'wait', tries: 0 });
       const file = reviews.clipFile(it.review, next.name);
       let size = 0;
       try { size = (await fsp.stat(file)).size; } catch { slot.st = 'failed'; saveQueue(q); return 'more'; }
       if (size > DUO.CLIP_MAX_BYTES) { slot.st = 'too-large'; saveQueue(q); return 'more'; }
+      const wait = () => { slot.waits = (slot.waits || 0) + 1; slot.next = t + backoff(slot.waits); saveQueue(q); return 'stop'; };
       const st = await call('POST', '/api/social/duos/clip/start', { ref, name: next.name, round: next.round, kind: next.kind, marks: next.marks, size });
-      if (st.offline || (!st.ok && st.status >= 500)) return 'stop';
+      if (st.offline || (!st.ok && [401, 403, 404, 429].includes(st.status)) || (!st.ok && st.status >= 500)) return wait();
       const d = st.data || {};
       if (!d.ok) {
-        if (d.reason === 'quota') { it.state = 'quota'; it.stateAt = t; } else if (d.reason === 'paused') { it.state = 'paused'; it.stateAt = t; } else if (d.reason === 'none') { delete q[ref]; }
-        else if (d.reason === 'too-big') slot.st = 'too-large'; else slot.st = 'failed';
+        if (d.reason === 'quota') { it.state = 'quota'; it.stateAt = t; }
+        else if (d.reason === 'paused') { it.state = 'paused'; it.stateAt = t; }
+        else if (d.reason === 'none') delete q[ref];
+        else if (d.reason === 'too-big') slot.st = 'too-large';
+        else if (['count', 'issues', 'clip'].includes(d.reason)) { slot.st = 'failed'; slot.why = d.reason; }
+        else return wait();
         saveQueue(q);
         return 'more';
       }
@@ -582,6 +647,7 @@ function createDuos(deps = {}) {
         const done = await call('POST', '/api/social/duos/clip/done', { clip: d.clip });
         if (done.ok && done.data && done.data.ok) { slot.st = 'done'; slot.bytes = sent; log('[duos] a clip went up to the duo'); }
         else if (done.data && done.data.reason === 'too-big') slot.st = 'too-large';
+        else if (done.offline || [401, 403, 429].includes(done.status) || done.status >= 500) return wait();
         else slot.tries = (slot.tries || 0) + 1;
       } catch (e) {
         if (busy() || (e && e.name === 'AbortError' && pausedForMatch)) { saveQueue(q); return 'stop'; }
@@ -625,6 +691,8 @@ function createDuos(deps = {}) {
     try {
       // Signed out: nothing of an account is kept, and nothing is asked.
       if (!credentialed()) { wipeCache(); return 'off'; }
+      // A licence key alone, no session: Duos is an account's, nothing is asked.
+      if (!isSession()) { wipeCache(); return 'idle'; }
       const on = await live();
       if (on === false) { wipeCache(); return 'off'; }
       if (on !== true) { sweepStrays(); return 'off'; }
@@ -655,12 +723,14 @@ function createDuos(deps = {}) {
 
   /** Signed out or another account: nothing of the last one is kept, its partner's clips included. */
   function forget() {
-    status.at = 0; status.live = null; status.duos = false; status.down = false;
+    status.at = 0; status.live = null; status.duos = false; status.known = false;
     if (inflight) inflight.ctrl.abort();
     store.set('duoQueue', {});
     store.set('duoReported', {});
     store.set('duoEngaged', false);
     store.set('duoEngagedAt', 0);
+    store.set('duoEngagedNext', 0);
+    store.set('duoEngagedFails', 0);
     seenRefs.clear();
     wipeCache();
   }
@@ -672,4 +742,4 @@ function createDuos(deps = {}) {
   };
 }
 
-module.exports = { createDuos, TICK_MS, STATUS_MS, MAX_TRIES };
+module.exports = { createDuos, TICK_MS, LIVE_KEEP_MS, MAX_TRIES };

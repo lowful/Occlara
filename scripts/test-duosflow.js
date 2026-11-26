@@ -112,9 +112,9 @@ function reviewOf(id, matchId, agent) {
     const kept = {};
     let clock = Date.now();
     const api = { authHeaders: () => (o.signedOut && o.signedOut() ? {} : { Authorization: tok }), get: (p) => req('GET', p, tok), post: (p, b) => req('POST', p, tok, b) };
-    const svc = createDuos({ api, auth: {}, busy: o.busy || (() => false), now: () => clock,
+    const svc = createDuos({ api, auth: {}, busy: o.busy || (() => false), now: () => clock, peekStatus: o.peekStatus || (() => ({ live: true, duos: true, at: clock })),
       reviews: { list: () => [{ id, at: saved.at, matchId }], get: (x) => (x === id ? saved : null), hasClip: (x, nm) => fs.existsSync(path.join(dir, x, nm)), clipFile: (x, nm) => path.join(dir, x, nm) },
-      store: { get: (k) => kept[k], set: (k, v) => { kept[k] = v; } }, cacheDir: path.join(dir, 'cache'), fetch: o.fetch || ((u, x) => fetch(u, x)), peekStatus: o.peekStatus, log: () => {} });
+      store: { get: (k) => kept[k], set: (k, v) => { kept[k] = v; } }, cacheDir: path.join(dir, 'cache'), fetch: o.fetch || ((u, x) => fetch(u, x)), log: () => {} });
     return { svc, kept, tok, dir, advance: (ms) => { clock += ms; }, clockNow: () => clock };
   }
   const pairUp = async (a, b, code) => {
@@ -334,17 +334,22 @@ function reviewOf(id, matchId, agent) {
       const offApi = { authHeaders: () => ({ Authorization: 'x' }), get: async (p) => { counted.push(p); return { ok: true, status: 200, data: { live: false, riotProof: false, duos: false } }; }, post: async () => ({ ok: false, status: 503, data: {} }) };
       let clock = Date.now();
       const kept = { duoEngaged: true, duoEngagedAt: clock };
-      const s = createDuos({ api: offApi, auth: {}, now: () => clock, store: { get: (k) => kept[k], set: (k, v) => { kept[k] = v; } } });
-      for (let i = 0; i < 10; i++) { await s.tick(); clock += 60000; }
-      ok(counted.length === 1, 'Duos not live: ten ticks a minute apart ask the status once', counted.length);
-      clock += 6 * 60000;
-      await s.tick();
-      ok(counted.length === 2, 'and again after 15 minutes');
-      const peeked = [];
-      const p2 = createDuos({ api: { ...offApi, get: async (p) => { peeked.push(p); return offApi.get(p); } }, auth: {}, now: () => clock,
-        peekStatus: () => ({ live: true, duos: false, at: clock }), store: { get: (k) => kept[k], set: (k, v) => { kept[k] = v; } } });
-      await p2.tick();
-      ok(peeked.filter((p) => p === '/api/social/status').length === 0, '8.19\'s fresh answer is reused: no status request of its own');
+      // Duos OFF, the profiles service holding "not live" (or nothing yet): the
+      // duos service makes NO request of its own over a whole day.
+      for (const peek of [() => ({ live: true, duos: false, at: clock - 1000 }), () => ({ live: null, duos: false, at: 0 })]) {
+        const s = createDuos({ api: offApi, auth: {}, now: () => clock, peekStatus: peek, store: { get: (k) => kept[k], set: (k, v) => { kept[k] = v; } } });
+        counted.length = 0;
+        for (let i = 0; i < 24 * 60; i++) { await s.tick(); clock += 60000; }
+        ok(counted.length === 0, 'Duos off: 24 hours of ticks, zero requests from the duos service', counted.length);
+      }
+      // Duos LIVE: its own status answer kept 15 minutes at least.
+      const liveApi = { ...offApi, get: async (p) => { counted.push(p); return { ok: true, status: 200, data: { live: true, duos: true } }; } };
+      const at0 = clock;
+      const s2 = createDuos({ api: liveApi, auth: {}, now: () => clock, peekStatus: () => ({ live: true, duos: true, at: at0 }), store: { get: (k) => kept[k], set: (k, v) => { kept[k] = v; } } });
+      counted.length = 0;
+      for (let i = 0; i < 24 * 60; i++) { await s2.tick(); clock += 60000; }
+      const statusAsks = counted.filter((p) => p === '/api/social/status').length;
+      ok(statusAsks > 0 && statusAsks <= 24 * 4, 'Duos live: the status asked at most every 15 minutes', statusAsks);
       const lim = rateLimits.routeLimits({});
       const social = lim.find((x) => x.mw.limits.name === 'social');
       const skipped = await new Promise((res) => {

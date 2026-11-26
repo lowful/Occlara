@@ -342,8 +342,8 @@ function meView(row, o = {}) {
     const tier = proof && p.verified === true ? social.tierOf(p.rank_current) : social.tierOf(p.pc_rank);
     return {
       username: p.username,
+      // Active or paused, never which side pays: the viewer knows its own plan (me.max).
       state: mine || theirs ? 'active' : 'paused',
-      max: mine && theirs ? 'both' : mine ? 'you' : theirs ? 'them' : null,
       since: iso(p.since),
       rank: tier ? { tier, source: proof && p.verified === true ? 'verified' : 'pc' } : null,
       newPins: count(p.new_pins),
@@ -460,6 +460,8 @@ function createStore(supabase) {
     clipDrop: (ref) => call('social_duo_clip_drop', { p_ref: ref }),
     clipSettle: (ref, size) => call('social_duo_clip_done', { p_user: null, p_ref: ref, p_size: size, p_cap: D.CLIP_MAX_BYTES }),
     allPaths: (limit, after) => call('social_duo_all_paths', { p_limit: limit, p_after: after || null }),
+    clipReject: (ref) => call('social_duo_clip_reject', { p_ref: ref }),
+    pathsLive: (paths) => call('social_duo_paths_live', { p_paths: paths }),
 
     // ── The bucket ────────────────────────────────────────────────────────
     /**
@@ -490,6 +492,16 @@ function createStore(supabase) {
       if (!hit) return null;
       const sz = Number(hit.metadata && hit.metadata.size);
       return Number.isFinite(sz) ? sz : null;
+    },
+    /** One folder of the bucket: [{ name, folder: bool, size, at }]. */
+    async listFolder(folder, offset = 0, limit = 100) {
+      const { data, error } = await bucket().list(folder, { limit, offset });
+      if (error) throw failed(error, 'list');
+      return (Array.isArray(data) ? data : []).filter((o) => o && o.name).map((o) => ({
+        name: o.name, folder: o.id === null || o.id === undefined,
+        size: o.metadata && Number.isFinite(Number(o.metadata.size)) ? Number(o.metadata.size) : null,
+        at: Date.parse(o.created_at || o.updated_at || '') || null,
+      }));
     },
     async removeFiles(paths) {
       if (!paths.length) return;

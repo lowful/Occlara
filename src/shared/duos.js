@@ -178,12 +178,61 @@ function sheetOf(saved) {
     if (riot && Array.isArray(riot.killPlaces) && riot.killPlaces.length) row.killPlaces = riot.killPlaces.filter((p) => typeof p === 'string').slice(0, 5).map((p) => p.slice(0, 40));
     rounds.push(row);
   }
-  // Rounds past the score (a review that read more rounds than the match had) are left out.
-  const kept = score ? rounds.filter((x) => x.n <= score.us + score.them) : rounds;
-  return {
+  const sheet = {
     v: 1, agent: agentOf(g.agent), map: mapOf(g.map), mode: MODES.includes(g.mode) ? g.mode : null,
-    result: RESULT[g.result] || null, score, grade, line, rounds: kept,
+    result: RESULT[g.result] || null, score, grade, line, rounds,
   };
+  return agreeWithServer(sheet);
+}
+
+const THREE_SITES = new Set((DATA.threeSiteMaps || []).map((m) => String(m).toLowerCase()));
+/**
+ * AN HONEST REVIEW IS NEVER REFUSED (the review of 25 Nov, second round): the
+ * server's cleaner (duos.js cleanSheet) refuses a sheet WHOLE when its numbers
+ * cannot be true together, and a real review can hold numbers that disagree
+ * (a tracker scoreline counted before the last kills, a round won that the
+ * score has not caught up with, a screen read round past the score). So the
+ * sheet drops, here, whatever part disagrees, the part and never the sheet:
+ * rounds past the score; the score when it is no score; the result when the
+ * score says otherwise; each round's won when more are won or lost than the
+ * score holds; the scoreline when the rounds list more kills or deaths; a
+ * kill after the player's own death; a C site on a two site map. A sheet with
+ * no agent the game data knows is no sheet (null): the app shares nothing.
+ * test:duos runs this over every review the fixtures can build.
+ */
+function agreeWithServer(s) {
+  if (!s.agent) return null;
+  let score = s.score && Number.isInteger(s.score.us) && Number.isInteger(s.score.them) && s.score.us >= 0 && s.score.them >= 0
+    && s.score.us + s.score.them <= DUO.ROUNDS_MAX ? s.score : null;
+  let rounds = s.rounds.filter((r) => r.n >= 1 && r.n <= DUO.ROUNDS_MAX);
+  if (score) rounds = rounds.filter((r) => r.n <= score.us + score.them);
+  if (score && rounds.length > score.us + score.them) score = null;
+  let result = s.result;
+  if (result && score && ((result === 'W' && score.us <= score.them) || (result === 'L' && score.us >= score.them) || (result === 'D' && score.us !== score.them))) result = null;
+  rounds = rounds.map((r) => {
+    const x = { ...r, kills: (r.kills || []).filter((k) => Number.isInteger(k) && k >= 0 && k <= 200).slice(0, 5) };
+    if (x.died && Number.isInteger(x.sec)) x.kills = x.kills.filter((k) => k <= x.sec + 1);
+    if (x.plant && (!['A', 'B', 'C'].includes(x.plant.site) || (x.plant.site === 'C' && s.map && !THREE_SITES.has(s.map.toLowerCase())))) delete x.plant;
+    if (!x.died) { for (const k of ['sec', 'place', 'killer', 'weapon', 'traded', 'alive', 'cause', 'fd']) delete x[k]; }
+    return x;
+  });
+  if (score) {
+    const won = rounds.filter((r) => r.won === true).length;
+    const lost = rounds.filter((r) => r.won === false).length;
+    if (won > score.us || lost > score.them) rounds = rounds.map((r) => ({ ...r, won: null }));
+  }
+  let line = s.line;
+  if (line) {
+    const kills = rounds.reduce((n, r) => n + r.kills.length, 0);
+    const deaths = rounds.filter((r) => r.died).length;
+    if (kills > line.k || deaths > line.d) line = null;
+  }
+  let out = { ...s, score, result, line, rounds };
+  // 24 KB at most: where the kills fell goes first, then rounds from the end.
+  const size = (x) => Buffer.byteLength(JSON.stringify(x), 'utf8');
+  if (size(out) > DUO.SHEET_MAX_BYTES) out = { ...out, rounds: out.rounds.map((r) => ({ ...r, killPlaces: [] })) };
+  while (size(out) > DUO.SHEET_MAX_BYTES && out.rounds.length) out = { ...out, rounds: out.rounds.slice(0, -1) };
+  return out;
 }
 
 /**
@@ -307,9 +356,8 @@ function inviteLine(reason, o = {}) {
 /** Why a duo is paused, or what keeps it active. */
 function stateWords(p) {
   if (p.state === 'paused') return 'Paused: neither of you has Max now. Nothing new is shared, and what was shared stays until it expires.';
-  if (p.max === 'both') return 'Active: you both have Max.';
-  if (p.max === 'you') return 'Active on your Max plan.';
-  return `Active on ${p.username}'s Max plan.`;
+  // Which side pays is never said beyond what active means (one of the two has Max).
+  return p.youMax ? 'Active on your Max plan.' : 'Active.';
 }
 
 /** The page's home model, from GET /me and GET /matches. */
@@ -317,7 +365,7 @@ function homeModel(me, matches, o = {}) {
   const now = o.now || Date.now();
   if (!isObj(me)) return null;
   const partners = (me.partners || []).map((p) => ({
-    username: p.username, state: p.state, stateLine: stateWords(p),
+    username: p.username, state: p.state, stateLine: stateWords({ ...p, youMax: me.max === true }),
     rank: p.rank ? `${p.rank.tier}${p.rank.source === 'verified' ? '' : ', from their PC'}` : null,
     since: p.since ? `Duo since ${agoText(p.since, now).replace(/ ago$/, '')} ago` : null,
     pins: p.newPins ? `${plural(p.newPins, 'new pin')} on your clips` : null,
@@ -432,7 +480,7 @@ function matchModel(m, o = {}) {
   const score = scoreOf(mine) || scoreOf(theirs, true);
   const g = (s) => (s && s.grade ? { score: String(s.grade.score), letter: s.grade.letter } : null);
   return {
-    ref: m.ref, partner: m.partner,
+    ref: m.ref, partner: m.partner, expiresAt: m.expiresAt || null,
     title: [head.map || 'A shared match', score].filter(Boolean).join(', '),
     sub: [mine && mine.agent ? `You as ${mine.agent}` : 'You', theirs && theirs.agent ? `${m.partner} as ${theirs.agent}` : m.partner].join(', ')
       + `, ${agoText(m.playedAt, now)}`,

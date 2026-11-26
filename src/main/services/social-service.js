@@ -135,7 +135,7 @@ function createSocial(deps = {}) {
     if (opts && opts.only === 'live') {
       let signed = null;
       try { signed = typeof deps.signedIn === 'function' ? !!(await deps.signedIn()) : null; } catch { signed = null; }
-      return { live: isLive, riotProof: isLive === true && status.riotProof === true, signedIn: signed, problem: isLive === null ? 'offline' : isLive ? (signed === false ? 'signed-out' : null) : 'not-live' };
+      return { live: isLive, riotProof: isLive === true && status.riotProof === true, duos: isLive === true && status.duos === true, signedIn: signed, problem: isLive === null ? 'offline' : isLive ? (signed === false ? 'signed-out' : null) : 'not-live' };
     }
     if (isLive === null) return { live: null, signedIn: null, problem: 'offline', profile: null, words: words(null), preview: null };
     if (!isLive) return { live: false, signedIn: null, problem: 'not-live', profile: null, words: words(null), preview: null };

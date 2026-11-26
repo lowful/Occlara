@@ -223,6 +223,9 @@ function reviewOf(id, matchId, agent) {
   /** main's api-client, pointed at this server. */
   const apiAs = (tok) => ({ authHeaders: () => ({ Authorization: `Bearer ${tok}` }), get: (p) => req('GET', p, { as: tok }), post: (p, b) => req('POST', p, { as: tok, body: b }) });
   const sql = (q, p) => db.query(q, p);
+  // The status the profiles service holds (social-service.js peekStatus): Duos live.
+  const LIVE_AT = Date.now();
+  const livePeek = () => ({ live: true, duos: true, at: LIVE_AT });
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'duos-test-'));
 
   try {
@@ -277,7 +280,7 @@ function reviewOf(id, matchId, agent) {
       hasClip: (id, n) => fs.existsSync(path.join(dirA, 'reviews', id, n)),
       clipFile: (id, n) => path.join(dirA, 'reviews', id, n),
     };
-    const svcA = createDuos({ api: apiAs('occ_1'), auth: {}, busy: () => busyA, reviews: reviewsA, clipUrl: (id, n) => scheme.urlFor(id, n),
+    const svcA = createDuos({ peekStatus: livePeek, api: apiAs('occ_1'), auth: {}, busy: () => busyA, reviews: reviewsA, clipUrl: (id, n) => scheme.urlFor(id, n),
       store: { get: (k) => keptA[k], set: (k, v) => { keptA[k] = v; } }, cacheDir: path.join(dirA, 'duo-cache'), fetch: fetchA, log: () => {} });
     busyA = true;
     ok(await svcA.state() === null && await svcA.tick() === null && await svcA.openClip({ ref: 'a1b2c3d4e5f60718', name: 'r2-clip.mkv', match: 'a1b2c3d4e5f60718' }) === null
@@ -323,7 +326,7 @@ function reviewOf(id, matchId, agent) {
     // ── Birch's PC: the shared match, a clip opened ─────────────────────────
     const dirB = path.join(tmp, 'b');
     const keptB = {};
-    const svcB = createDuos({ api: apiAs('occ_2'), auth: {}, busy: () => false, reviews: { list: () => [], get: () => null, hasClip: () => false, clipFile: () => null },
+    const svcB = createDuos({ peekStatus: livePeek, api: apiAs('occ_2'), auth: {}, busy: () => false, reviews: { list: () => [], get: () => null, hasClip: () => false, clipFile: () => null },
       store: { get: (k) => keptB[k], set: (k, v) => { keptB[k] = v; } }, cacheDir: path.join(dirB, 'duo-cache'), fetch: (u, o) => fetch(u, o), log: () => {} });
     const stB = await svcB.state();
     ok(stB.duos === true && stB.problem === null && stB.home.partners[0].username === 'Alder' && stB.home.partners[0].state === 'active' && stB.home.max === false
@@ -348,7 +351,8 @@ function reviewOf(id, matchId, agent) {
     // A file that is not Matroska is never kept.
     const h3 = mB.match.rounds.find((x) => x.n === 3).theirClips[0];
     const h3path = (await sql('SELECT path FROM public.social_duo_clips WHERE ref = $1', [h3.ref])).rows[0].path;
-    storage.put('duo-clips', h3path, Buffer.from('<html>not a clip at all, padded to more than sixty four bytes so only its header is wrong</html>'), 'video/x-matroska');
+    // The same size as the file the server settled (a different size is refused by the server itself: test:duosflow), only its header wrong.
+    storage.put('duo-clips', h3path, Buffer.alloc(FIXTURE.length, 0x3c), 'video/x-matroska');
     const notClip = await svcB.openClip({ ref: h3.ref, name: h3.name, match: mref });
     ok(notClip.ok === false && /not a clip/.test(notClip.line) && !svcB.cacheFile(h3.ref, h3.name), 'a file that is not Matroska: refused, never cached', notClip);
     // A pin on Alder's clip.
@@ -417,7 +421,7 @@ function reviewOf(id, matchId, agent) {
 
     // Remove, ended said; flag.
     await post('/api/social/duos/remove', { name: 'Alder' }, 'occ_3');
-    const stC = await createDuos({ api: apiAs('occ_1'), auth: {}, busy: () => false, store: { get: () => undefined, set() {} }, log: () => {} }).state();
+    const stC = await createDuos({ peekStatus: livePeek, api: apiAs('occ_1'), auth: {}, busy: () => false, store: { get: () => undefined, set() {} }, log: () => {} }).state();
     ok(stC.home.ended.length === 1 && /Cedar ended your duo/.test(stC.home.ended[0].line), 'a removal is said to the other side', stC.home.ended);
     const flagged = await post('/api/social/duos/flag', { name: 'Cedar', reason: 'pins' }, 'occ_1');
     const flaggedStranger = await post('/api/social/duos/flag', { name: 'Dogwood', reason: 'pins' }, 'occ_1');
@@ -556,7 +560,7 @@ function reviewOf(id, matchId, agent) {
   // ── No dash in any of its files ───────────────────────────────────────────
   {
     const dash = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
-    const files = ['server/services/duos.js', 'scripts/test-duosflow.js', 'server/routes/duos.js', 'src/shared/duos.js', 'src/main/services/duos-service.js', 'src/preload/duos-preload.js',
+    const files = ['server/services/duos.js', 'scripts/test-duosflow.js', 'scripts/test-duosretry.js', 'server/routes/duos.js', 'src/shared/duos.js', 'src/main/services/duos-service.js', 'src/preload/duos-preload.js',
       'src/renderer/duos/index.html', 'src/renderer/duos/duos.js', 'src/renderer/duos/duos.css', 'src/renderer/duos/duo-time.js', 'scripts/test-duos.js', 'scripts/test-duossql.js',
       'scripts/fixtures/storage-stand-in.js', 'scripts/fixtures/duos-stand-in.js', 'scripts/fixtures/pglite-duos.js', 'docs/claude/duos.md', 'server/scripts/duos-purge.js']
       .map((f) => path.join(ROOT, f)).filter((f) => fs.existsSync(f));

@@ -115,7 +115,7 @@ function registerIpc(deps) {
     safeHandle(C.DUOS_UPLOAD, async (_e, on) => duos.setUpload(on === true));
     safeHandle(C.DUOS_PLANS, async () => duos.plans());
     safeHandle(C.DUOS_MATCH, async (_e, ref) => duos.match(text(ref, 20)));
-    safeHandle(C.DUOS_CLIP, async (_e, x) => { const o = obj(x); return duos.openClip({ ref: text(o.ref, 20), name: text(o.name, 20), match: text(o.match, 20) }); });
+    safeHandle(C.DUOS_CLIP, async (_e, x) => { const o = obj(x); return duos.openClip({ ref: text(o.ref, 20), name: text(o.name, 20), match: text(o.match, 20), expiresAt: text(o.expiresAt, 40) }); });
     safeHandle(C.DUOS_PIN, async (_e, b) => { const o = obj(b); return duos.pin({ clip: text(o.clip, 20), at: Number.isInteger(o.at) ? o.at : -1, label: text(o.label, 20), reaction: o.reaction === null ? null : text(o.reaction, 20) }); });
     safeHandle(C.DUOS_UNPIN, async (_e, ref) => duos.unpin(text(ref, 20)));
   }

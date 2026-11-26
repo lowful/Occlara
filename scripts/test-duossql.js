@@ -207,6 +207,10 @@ async function cases(db, say) {
     'the block check taken out of join': sqlText.replace("IF public.social_duo_blocked(i.from_user, p_user) THEN RETURN jsonb_build_object('ok', false, 'reason', 'gone'); END IF;\n  SELECT username INTO v_from", "SELECT username INTO v_from"),
     'the block check taken out of the invites in': sqlText.replace("AND NOT public.social_duo_blocked(i.from_user, p_user)), '[]'::jsonb),", "), '[]'::jsonb),"),
   };
+  // The doc's number and list are this list (docs/claude/duos.md, "Tests").
+  const doc = fs.readFileSync(require('path').join(__dirname, '..', 'docs', 'claude', 'duos.md'), 'utf8').replace(/\s+/g, ' ');
+  const names = Object.keys(mutants);
+  ok(doc.includes(`the mutants (${names.length}):`) && names.every((n) => doc.includes(n)), `duos.md names the same ${names.length} mutants this test runs`, names.filter((n) => !doc.includes(n)));
   for (const [what, text] of Object.entries(mutants)) {
     ok(text !== sqlText, `the mutation "${what}" changes the SQL`);
     const m = await pg.makeDb({ duos: text });
@@ -254,7 +258,7 @@ async function cases(db, say) {
   await r('social_duo_decline', { p_user: U(8), p_from_key: 'alder' });
   const again8 = await inviteName(1, 'Hazel');
   ok(again8.reason === 'sent' && (await inbox(8)).length === 0, 'declined: an invite again is "sent" and reaches nobody for 7 days', again8);
-  await db2.query("UPDATE public.social_duo_invites SET created_at = now() - interval '8 days' WHERE status = 'declined'");
+  await db2.query("UPDATE public.social_duo_invites SET declined_at = now() - interval '8 days' WHERE status = 'declined'");
   await db2.query("UPDATE public.social_duo_invites SET status = 'cancelled' WHERE status = 'open' AND to_key = 'hazel'");
   await inviteName(1, 'Hazel');
   ok((await inbox(8)).join() === 'Alder', 'after 7 days it reaches them again');

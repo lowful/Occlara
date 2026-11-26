@@ -10,7 +10,7 @@ one. Built on the public profiles of 8.19 (social.md): usernames, blocks,
 "The switch", "The plan", "A duo and its states", "Invites", "Detecting
 teammates", "Consent: Discoverable as Duos reads it", "What a shared match holds", "The clips and the bucket", "Caps,
 quotas and the worst case", "Expiry, the sweep and the trash", "Blocks,
-removal, deletion", "Pins", "Names", "Main's half", "The page", "The routes",
+removal, deletion", "Pins", "Names", "Main's half", "What runs when", "The page", "The routes",
 "The tables", "Residual risks", "Tests", "Turning it on (the owner's
 runbook)", "Taking it away".
 
@@ -73,7 +73,7 @@ invites sent.
   250 ms floor) in time. It reaches the profile only when that profile is
   **PUBLIC** (being discoverable never lets a stranger who knows a name invite
   it), neither blocked the other, and that profile did not DECLINE this sender
-  in the last 7 days; otherwise it reaches nobody and expires. The sender's
+  in the 7 days since the decline (`declined_at`); otherwise it reaches nobody and expires. The sender's
   list shows the name AS THEY TYPED IT. So an invite adds nothing to "What
   search can still reveal" (social.md): it never says whether a private
   profile exists, nor that a decline happened. The only refusals that name a
@@ -95,8 +95,9 @@ invites sent.
 ## Detecting teammates
 
 **Who reports at all (the review of 25 Nov, finding 5).** Only an account
-that opted in to something: a live duo, an open invite to or from it, or
-Discoverable turned on under Duos' words. The app knows it from the Duos
+that opted in to something: a live duo, an open invite IT SENT (never one it
+was sent: a stranger's invite never makes an app report), or Discoverable
+turned on under Duos' words. The app knows it from the Duos
 page, its actions and the Profile switch, and asks once (`GET /me`) when it
 does not know or its answer is a day old, never right after a match of an
 account known to have opted in to nothing; such an account makes NO duo
@@ -208,6 +209,10 @@ server (its JSON limit is 2 MB):
    (`list` through the service role, never the app's word) and settles the
    row and the quota to exactly that size; a file over the cap or over what was
    held for it goes (into the trash), its reserve spent.
+4. `POST /clip/url { clip }` (a partner opening it): the file is LOOKED UP
+   AGAIN, and one that is not the size it was settled at (grown, or gone) is
+   deleted with its row and no URL is given. This is the real guarantee
+   against an overwrite whatever Supabase does with an upload URL used twice.
 
 So a file in the bucket is always one PUT of at most 80 MB, charged at the
 size storage reports, and downloads are charged by that same size
@@ -269,15 +274,21 @@ an honest app downloads each clip once (the cache), well under the 1.5 GB.
   trash's paths, which the server removes from the bucket.
 - **The trash** (`social_duo_trash`): a trigger puts the path of every clip row
   deleted BY ANY PATH (expiry, a removal, a block, an account deleted by
-  cascade) into it. A path is handed over for removal ONLY when no live clip
-  row points at it (and such a path leaves the trash), and is let go only
-  once no upload URL could still land a file there (its issue plus 2 h 10
-  min); until then each sweep removes it again, so a file that lands late is
-  removed too.
+  cascade, a dropped upload) into it. A path is handed over for removal ONLY
+  when no live clip row points at it (and such a path leaves the trash), and
+  is let go only **26 hours after its upload URL was issued** (a URL lasts
+  about 2 hours, and a slow PUT started just before its end can still land
+  long after); until then each sweep removes it again, so a file that lands
+  late is removed too.
+- **The reconciliation** (the second review, finding 5): each sweep also walks
+  a little of the bucket's own listing (6 list calls, folder by folder, from
+  where the last one stopped, back to the top when done) and deletes any file
+  that no live clip row points at and that is older than 26 hours, whatever
+  table forgot it.
 - An upload issued and never seen stored for 2 h 10 min is **stale**: the
   sweep looks it up; there, it is settled from storage's size; not there, it
-  is dropped (its reserve given back, its path into the trash). Its retry is
-  a new row at a new path.
+  is dropped (its reserve given back, its path into the trash for 26 hours).
+  Its retry is a new row at a new path.
 
 ## Blocks, removal, deletion
 
@@ -331,32 +342,78 @@ kill feed, the scoreboard). The page says so under the clips
   every 500 ms while they run). An aborted upload is no try and is sent again
   whole after the match; an aborted download keeps nothing, and its budget
   stays spent (given back, an abort would be a way to download for free).
-- **The status** is 8.19's answer reused when it is fresh (social-service.js
-  `peekStatus`); else asked, remembered a minute while Duos is live, **15
-  minutes** while it is not, 5 after a failure. Duos' calls are counted under
-  their own limit (`social-duos`), never against 8.19's profiles and search.
-- **The tick** (every minute), only for an engaged account (above): the
-  duos' match list when a report is pending or the cache needs checking, then
-  each pending or new report, then the sheet, then the clips ONE AT A TIME
-  while "Upload my clips to my duo" is on (on by default, the owner's
-  "automatic"; the sheet goes up either way), the duo active and the quota
-  able. A failed clip is retried on later ticks, 5 tries; a stored one is
-  never sent again; one the server refuses as **too large** (413: a Supabase
-  Free plan refuses any file over 50 MB whatever the bucket says) is said so
-  on the page and never tried again. The upload reads the whole file into
-  memory (80 MB at most, one at a time): Supabase's signed upload wants the
-  length, and a streamed body is sent chunked.
+- **The status** (the second review, finding 3). While Duos is NOT known to
+  be live, the duos service asks nothing of its own: it re-reads, on every
+  tick, the status the profiles service already holds (`peekStatus`;
+  social-service.js asks it at launch when the shell paints the account menu,
+  and when a social page opens, and remembers it a minute). The Duos row and
+  page ask through that same service (`socialLive`). Once Duos is known live,
+  the duos service keeps that answer at least **15 minutes**, then asks
+  `/api/social/status` itself (only while live: to notice Duos switched off),
+  at most 96 times a day.
+- **Engaged** (findings 4 and 8): a duo (active or paused), an invite this
+  account SENT, or Discoverable under Duos' words. An invite it was SENT never
+  counts. Learned from the page, its actions and the Profile switch; else
+  `GET /me` when not known or a day old, stamped on ANY answer (401 and 403:
+  not engaged), backed off on a failure (1, 5, 15, 60 minutes, then daily). An
+  app with no session (a licence key alone) asks nothing at all.
+- **The report** (findings 2 and 6): once a review is linked; a first answer
+  with no shared match stays pending and goes again at 1, 2, 5, 10, 20, then
+  every 30 minutes, or at once when the duos' match list shows a match not
+  queued; a failure (offline, 5xx, 429, 401) backs off 1, 5, 15, 60 minutes;
+  either stops at the pairing window (3 h 10 min from the first try); and
+  this app sends at most **20 reports in any hour** whatever is pending.
+- **The sheet and the clips** (findings 1 and 2), one thing at a time, an item
+  that waits never blocks the next:
+
+  | Answer | Sheet | Clip start |
+  | --- | --- | --- |
+  | ok | sent | upload, then done |
+  | `paused`, `quota` | waits 6 h | waits 6 h |
+  | `none` (no pair, expired) | the match leaves the queue | the match leaves the queue |
+  | `too-big` | refused, final | too large, final |
+  | `count`, `issues`, `clip` | | failed, final |
+  | another 4xx (400 invalid, 413) | refused, final, said on the page | backed off, never final |
+  | 429 | backed off on its own clock, the queue moves on | backed off (1, 5, 15, 60 min, daily), never final |
+  | 401, 403, 404 | 401 and 403 back off and stop the step | backed off, never final |
+  | 5xx, offline | the step stops, next tick | backed off, never final |
+
+  An upload that fails (not 413) is a try; five and the clip is failed. A 413,
+  or a 400 whose body says `statusCode: "413"` (some Supabase versions), is
+  too large: said on the page, never tried again. The sheet is built so the
+  server never refuses an honest review (`sheetOf` drops whatever part
+  disagrees: a scoreline counted early, won rounds over the score, rounds
+  past it, a kill after the death, a C site on a two site map); test:duosretry
+  runs it over 60 reviews the fixtures build.
 - **The partner's clips** download only when opened, through the signed URL,
   into `userData/duo-cache` (2 GB, least recently used first out), are checked
   to begin with the Matroska magic `1A 45 DF A3` before they are kept, and
-  play through `occlara-clip://duo/<ref>/<name>` (clip-scheme.js, a second host
-  beside `review`). **A cached clip is removed**: when the Duos page loads and
-  its match is not in the server's list; on the tick, at most every 10
-  minutes, when its match is not in the server's list (expired, ended,
-  blocked); when its match's expiry passes; every one when the account is
-  signed out, another account signs in, Duos is not live, or the account has
-  no duo, invite or Discoverable left; and any file the index does not name
-  (a `.part` a crash left) on every tick and at launch.
+  play through `occlara-clip://duo/<ref>/<name>`. **A cached clip is
+  removed**: when the Duos page loads and its match is not in the server's
+  list; on the tick, at most every 10 minutes, when its match is not in the
+  server's list (expired, ended, blocked); when ITS MATCH'S expiry passes (the
+  page hands the expiry through the preload and the IPC); every one when the
+  account is signed out, another account signs in, there is no session, Duos
+  is not live, or the account is no longer engaged; and any file the index
+  does not name (a `.part` a crash left) on every tick and at launch.
+
+## What runs when
+
+What the duos service (main) and the server do, by moment. "Asks" means a
+request to `/api/social/duos/*` or `/api/social/status` made by the duos
+service itself.
+
+| Moment | Duos OFF (or not yet known) | Duos ON |
+| --- | --- | --- |
+| App start | Nothing asked. `start()` sweeps stray cache files and sets the 1 minute tick. The shell paints the account menu: the profiles service asks the status (8.19's own ask); the Duos row stays hidden | The same; the Duos row shows once the profiles service's answer says live |
+| Each tick (1 min) | Re-reads the profiles service's status, asks NOTHING; the cache is wiped when the status says not live, kept when it is not known | No session: nothing asked, cache wiped. Engagement not known or a day old: `GET /me` (backed off on failure). Not engaged: nothing more, cache wiped. Engaged: the match list (only while a report is pending or the cache is due its 10 minute check), due reports (at most 20 an hour), one sheet or clip at a time. The status asked again only every 15 minutes |
+| After a review is saved | Nothing | On the next tick, if engaged and the review is linked to Riot (a `matchId`, both comps) and under 4 hours old: its report |
+| The Duos page opened | Not reachable (no row) | The profiles service's status ask, then `GET /me` and `GET /matches`; the cache pruned to the list; pins seen |
+| Sign in | Nothing | The next tick learns engagement (`GET /me`) |
+| Sign out, or another account | Queue, reports, engagement and every cached clip forgotten (`forget()`); nothing asked | The same |
+| A match starts | Nothing (every call null) | Every call null, the tick does nothing, an upload or download in flight aborted |
+| Quit | The tick stops (`stop()`), an upload in flight aborted; its clip goes again next launch | The same |
+| The server, every 10 min | The sweep runs while the tables exist: expiry, trash, stale uploads, the reconciliation | The same |
 
 ## The page (`src/renderer/duos/`)
 
@@ -402,7 +459,7 @@ Ten `social_duo_*` tables (invites, pairs, reports, matches, sheets, clips,
 pins, bytes, trash, guesses) and one column on 001's `social_profiles`
 (`duo_discoverable_at`), RLS on with no policy, every privilege of PUBLIC,
 anon and authenticated revoked, EXECUTE granted to `service_role` on an
-EXPLICIT list of the 36 functions it creates (the undo drops exactly that
+EXPLICIT list of the 38 functions it creates (the undo drops exactly that
 list), three triggers (a clip row gone into the trash; a block ends a duo;
 Discoverable off clears Duos' stamp), the bucket. Needs social-001 and the
 live accounts tables (`entitlements`, `game_usage`).
@@ -429,42 +486,56 @@ live accounts tables (`entitlements`, `game_usage`).
 
 ## Tests
 
-- `test:duossql` (113 checks): the SQL on PGlite over Supabase's default
-  privileges after 001, twice, the undo twice and again; privileges on every
-  table and function, the grant and undo lists exact; invites (one answer for
-  every name, public profiles only, the decline's 7 days), codes (own, single
-  use, expired, the guess limit counted first, twenty at once counting ten),
-  five duos, the lazy pause on a refund; Discoverable's consent stamp; the
-  report's binding, its `not-engaged` refusal and its window, partners shared,
+- `test:duossql`: the SQL on PGlite over Supabase's default privileges after
+  001, twice, the undo twice and again; privileges on every table and
+  function, the grant and undo lists exact; invites (one answer for every
+  name, public profiles only, a decline's 7 days), codes (own, single use,
+  expired, the guess limit counted first, twenty at once counting ten), five
+  duos, the lazy pause on a refund; Discoverable's consent stamp; the report's
+  binding, its `not-engaged` refusal and its window, partners shared,
   discoverable teammates found and never an enemy or across a block; clips
   (the path with the row's ref, the count, the quota held and settled to
-  storage's size, a file over the cap or over its reserve removed, a retry at a
-  new path, a live path never handed to the sweep), downloads, their budget
-  and their daily count, pins; an outsider with a valid ref on every function;
-  a duo and an invite across a block (no trigger, a race's outcome) passed
-  over everywhere; removal, account deletion, expiry and stale uploads each
-  leaving every path in the trash; and ELEVEN mutants failing (no block lock;
-  no plan check on an upload; no team check; no membership check on the
-  match view; none on an upload start; no owner check on clip_done; no block
-  check in join; none in the invites in; no discoverable check in the report;
-  no plan check on a sheet).
-- `test:duos` (91 checks): the rules byte for byte; codes; the team word; the
-  sheet; the two clip clock; the scheme's duo host; THE SWITCH three ways; the
-  real routes on PGlite and the storage stand-in with main's half uploading
-  and downloading for real, the pause mid upload, the switch, a file that is
-  not Matroska refused, pins, the lazy pause, a block and an expiry emptying
-  the bucket, the purge; no leak in any answer; the limits and the floor; the
-  page in the fake DOM in every state; Discoverable both ways; the site proof
-  off.
-- `test:duosflow` (31 checks), one case per finding of the review of 25 Nov:
-  the overwrite refused and the bound, a retry settled from storage; the
-  first reporter uploading in both orders, late in the window, and not past
-  it; the 10 second URL; an outsider with a valid ref on every route; no duo
-  request from an account that opted in to nothing; consent and public only
-  invites; a found teammate reported; Block and Report on the rows; a download
-  aborted by a match; the cache pruned on the tick after a block, signed out,
-  and a stray `.part`; the status reused and backed off, and Duos' own limit;
-  a 413 never retried.
+  storage's size, a file over the cap or its reserve removed, a retry at a new
+  path, a live path never handed to the sweep), downloads, their budget and
+  their daily count, pins; an outsider with a valid ref on every function; a
+  duo and an invite across a block passed over everywhere; removal, account
+  deletion, expiry and stale uploads each leaving every path in the trash;
+  and the mutants (10): the block trigger and the block clauses of the match
+  and the clip taken out; the plan check taken out of an upload; the team
+  check taken out of the report; the membership check taken out of the match
+  view; the membership check taken out of an upload start; the discoverable
+  check taken out of the report; the plan check taken out of a sheet; the
+  owner check taken out of clip_done; the block check taken out of join; the
+  block check taken out of the invites in. Each fails the cases, and the test
+  holds this list to its own.
+- `test:duos`: the rules byte for byte; codes; the team word; the sheet; the
+  two clip clock; the scheme's duo host; THE SWITCH three ways; the real
+  routes on PGlite and the storage stand-in with main's half uploading and
+  downloading for real, the pause mid upload, the switch, a file that is not
+  Matroska refused, pins, the lazy pause, a block and an expiry emptying the
+  bucket, the purge; no leak in any answer; the limits and the floor; the page
+  in the fake DOM in every state; Discoverable both ways; the site proof off.
+- `test:duosflow`, one case per finding of the first review of 25 Nov: the
+  overwrite refused and the bound, a retry settled from storage; the first
+  reporter uploading in both orders, late in the window, and not past it; the
+  10 second URL; an outsider with a valid ref on every route; no duo request
+  from an account that opted in to nothing; consent and public only invites;
+  a found teammate reported; Block and Report on the rows; a download aborted
+  by a match; the cache pruned on the tick; Duos off asking nothing for a day
+  and Duos on asking the status at most every 15 minutes; Duos' own limit; a
+  413 never retried.
+- `test:duosretry`, one case per finding of the second review: a refused
+  sheet final and the queue moving on, a 429 backed off; `sheetOf` over 60
+  reviews the fixtures build, every one taken by the server; every final and
+  every backed off answer of a clip start; Duos off or not known, and a
+  licence key alone, asking nothing for 24 hours; `GET /me` answering 403, 500
+  and 429 for a day; failing reports at most 20 an hour and none past the
+  window; an invite received never engaging, in the app and on the server; a
+  decline counted from the decline; who pays never said; a teammate never
+  shown not reportable; a cached clip leaving at its match's expiry; a file
+  grown after it was settled refused and deleted at download; a 400 saying
+  413 too large; a dropped upload's path kept 26 hours and the
+  reconciliation removing a late landing.
 - `check:seal`: Duos mid match: not shown, its row locked, every channel null,
   the tick asks nothing. `check:mainwindow`: the row, the page, a match, the
   stage on the duos stand-in. `export:siteproof` boots it NOT live.
@@ -494,13 +565,23 @@ live accounts tables (`entitlements`, `game_usage`).
    within a few minutes, then the clips. In the Railway log look for
    `[duos] a duo was made`, `[duos] a match was shared`, and no `[duos] route
    failed` or `[duos] the sweep failed`.
+   **Two checks on the real project**, both made safe in code either way:
+   (a) a second PUT to an upload URL already used, sent WITH
+   `x-upsert: true`, must be refused (storage-js sends that header from the
+   PUT; the design assumes Supabase obeys the token's own claim of no upsert;
+   if it does not, the server's look at the file's size at `/clip/done` and
+   again at every download URL is the guarantee: a grown file is deleted);
+   (b) an upload over the plan's file limit: note whether Supabase answers
+   413, or 400 with `"statusCode": "413"` in the body (the app reads both as
+   too large).
 6. **Turning it off**: unset `SOCIAL_DUOS_ON`. At once nothing of Duos is
    answered or shown; the sweep keeps expiring what is stored.
 
 ## Taking it away
 
-1. Unset `SOCIAL_DUOS_ON`, then **wait 2 hours and 10 minutes**: an upload URL
-   issued just before can still land a file for that long.
+1. Unset `SOCIAL_DUOS_ON`, then **wait 26 hours**: an upload URL issued just
+   before lasts about 2 hours, and a slow PUT started inside it can land later
+   (the trash keeps a path that long for the same reason).
 2. From `server/` with the server's environment: `node scripts/duos-purge.js`
    (a dry run: how many files), then `node scripts/duos-purge.js --apply` (every
    file the database knows and every file the bucket lists, removed through

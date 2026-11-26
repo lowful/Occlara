@@ -80,9 +80,12 @@ CREATE TABLE IF NOT EXISTS public.social_duo_invites (
   status      text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'accepted', 'declined', 'cancelled')),
   created_at  timestamptz NOT NULL DEFAULT now(),
   expires_at  timestamptz NOT NULL,
+  -- When it was declined: the 7 days a decline holds the sender off count from here.
+  declined_at timestamptz,
   CONSTRAINT social_duo_invites_kind CHECK ((to_name IS NULL) <> (code_hash IS NULL) AND (to_name IS NULL) = (to_key IS NULL)),
   CONSTRAINT social_duo_invites_not_self CHECK (to_user IS NULL OR to_user <> from_user)
 );
+ALTER TABLE public.social_duo_invites ADD COLUMN IF NOT EXISTS declined_at timestamptz;
 CREATE INDEX IF NOT EXISTS social_duo_invites_from_idx ON public.social_duo_invites (from_user, status);
 CREATE INDEX IF NOT EXISTS social_duo_invites_to_idx ON public.social_duo_invites (to_user, status);
 
@@ -237,7 +240,9 @@ SET search_path TO 'public'
 AS $function$
 BEGIN
   INSERT INTO public.social_duo_trash (path, not_before)
-  VALUES (OLD.path, GREATEST(now(), OLD.issued_at + interval '2 hours 10 minutes'))
+  -- Kept until well after any upload URL issued for it could still be
+  -- finishing a slow PUT (a URL lasts about 2 hours; 26 hours from the issue).
+  VALUES (OLD.path, GREATEST(now(), OLD.issued_at + interval '26 hours'))
   ON CONFLICT (path) DO UPDATE SET not_before = GREATEST(public.social_duo_trash.not_before, EXCLUDED.not_before);
   RETURN OLD;
 END;
@@ -471,7 +476,7 @@ BEGIN
   WHERE o.username_key = p_key AND o.user_id <> p_user AND o.is_public
     AND NOT public.social_duo_blocked(p_user, o.user_id)
     AND NOT EXISTS (SELECT 1 FROM public.social_duo_invites d WHERE d.from_user = p_user AND d.to_user = o.user_id
-                      AND d.status = 'declined' AND d.created_at > now() - interval '7 days');
+                      AND d.status = 'declined' AND COALESCE(d.declined_at, d.created_at) > now() - interval '7 days');
   INSERT INTO public.social_duo_invites (from_user, to_user, to_name, to_key, expires_at)
   VALUES (p_user, v_to, p_name, p_key, now() + make_interval(secs => p_ttl_ms / 1000.0));
   RETURN jsonb_build_object('ok', true, 'reason', 'sent');
@@ -599,7 +604,7 @@ LANGUAGE plpgsql
 SET search_path TO 'public'
 AS $function$
 BEGIN
-  UPDATE public.social_duo_invites i SET status = 'declined' FROM public.social_profiles f
+  UPDATE public.social_duo_invites i SET status = 'declined', declined_at = now() FROM public.social_profiles f
   WHERE f.user_id = i.from_user AND f.username_key = p_from_key AND i.to_user = p_user AND i.status = 'open';
   RETURN FOUND;
 END;
@@ -670,7 +675,7 @@ BEGIN
           OR EXISTS (SELECT 1 FROM public.social_duo_pairs p WHERE p.status = 'paired' AND (p.user_a = p_user OR p.user_b = p_user)
                        AND NOT public.social_duo_blocked(p.user_a, p.user_b))
           OR EXISTS (SELECT 1 FROM public.social_duo_invites i WHERE i.status = 'open' AND i.expires_at > now()
-                       AND (i.from_user = p_user OR i.to_user = p_user))) THEN
+                       AND i.from_user = p_user)) THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'not-engaged');
   END IF;
   PERFORM pg_advisory_xact_lock(hashtext('social-duo-report:' || p_user::text));
@@ -987,7 +992,14 @@ AS $function$
          -- A teammate this account was shown as found (the same match, the same team, the last 3 days).
          OR EXISTS (SELECT 1 FROM public.social_duo_reports r1 JOIN public.social_duo_reports r2
                       ON r2.match_hash = r1.match_hash AND r2.team = r1.team
-                    WHERE r1.user_id = p_user AND r2.user_id = o.user_id)
+                    JOIN public.social_profiles me ON me.user_id = p_user
+                    WHERE r1.user_id = p_user AND r2.user_id = o.user_id
+                      -- exactly as social_duo_me showed it: both discoverable
+                      -- under Duos' words, within the 3 hour window, no block
+                      AND abs(extract(epoch FROM (r2.at - r1.at))) <= 10800
+                      AND me.discoverable AND me.duo_discoverable_at IS NOT NULL
+                      AND o.discoverable AND o.duo_discoverable_at IS NOT NULL
+                      AND NOT public.social_duo_blocked(p_user, o.user_id))
          OR EXISTS (SELECT 1 FROM public.social_duo_invites i WHERE i.from_user = o.user_id AND i.to_user = p_user
                       AND i.created_at > now() - interval '30 days')
          -- A duo that ended in the last 14 days: what was said in it can still be reported.
@@ -1090,6 +1102,30 @@ AS $function$
   SELECT discoverable AND duo_discoverable_at IS NOT NULL FROM public.social_profiles WHERE user_id = p_user;
 $function$;
 
+-- A stored clip whose file is not what was settled (it grew, or is gone):
+-- the row goes, its file through the trash.
+CREATE OR REPLACE FUNCTION public.social_duo_clip_reject(p_ref text)
+RETURNS boolean
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $function$
+BEGIN
+  DELETE FROM public.social_duo_clips WHERE ref = p_ref;
+  RETURN FOUND;
+END;
+$function$;
+
+-- Of these storage paths, the ones a live clip row points at (the sweep's
+-- reconciliation keeps them and removes any other file older than a day).
+CREATE OR REPLACE FUNCTION public.social_duo_paths_live(p_paths text[])
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SET search_path TO 'public'
+AS $function$
+  SELECT COALESCE(jsonb_agg(c.path), '[]'::jsonb) FROM public.social_duo_clips c WHERE c.path = ANY (p_paths);
+$function$;
+
 -- Every storage path this migration's rows know, a page at a time, for the
 -- purge before the undo (server/scripts/duos-purge.js).
 CREATE OR REPLACE FUNCTION public.social_duo_all_paths(p_limit integer, p_after text)
@@ -1146,6 +1182,8 @@ BEGIN
     'public.social_duo_sweep(integer, integer, integer, integer)',
     'public.social_duo_trash_done(text[])',
     'public.social_duo_clip_drop(text)',
+    'public.social_duo_clip_reject(text)',
+    'public.social_duo_paths_live(text[])',
     'public.social_duo_all_paths(integer, text)'
   ] LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', f);

@@ -291,6 +291,17 @@ function createRouter(deps = {}) {
     const ref = duos.refOf(body(req).clip);
     const r = ref ? must(await store.clipGet(caller.userId, ref), 'social_duo_clip_get') : { ok: false, reason: 'none' };
     if (!r.ok) return res.status(r.reason === 'budget' ? 429 : 404).json(said(r));
+    // THE REAL GUARANTEE, whatever Supabase does with an upload URL used twice
+    // (duos.md, the runbook's check): the file is looked up again, and one that
+    // is not the size it was settled at (grown, or gone) is deleted, its row
+    // with it, and no URL is given.
+    const now = await store.stat(r.path);
+    if (now === null || now !== Number(r.size)) {
+      await store.clipReject(ref);
+      if (now !== null) { try { await store.removeFiles([r.path]); } catch { /* the trash removes it */ } }
+      log('[duos] a stored clip was not the size it was settled at: removed');
+      return res.status(404).json({ ok: false, reason: 'none' });
+    }
     res.json({ ok: true, reason: null, url: await store.signDownload(r.path), size: Number(r.size) || null });
   }));
 
@@ -369,6 +380,37 @@ function createRouter(deps = {}) {
   // ── The sweep ───────────────────────────────────────────────────────────
   // Runs whether or not the switch is on (expiry is enforced while Duos is
   // hidden too), only while the tables are there, one batch at a time.
+  /*
+   * THE RECONCILIATION: a file in the bucket that no live clip row points at
+   * and that is older than ORPHAN_MS (an upload that landed after its row was
+   * dropped and its trash row let go, a purge missed) is deleted. The bucket
+   * is walked a little on each sweep (RECONCILE_LISTS list calls), folder by
+   * folder, from where the last sweep stopped, and again from the top once
+   * done.
+   */
+  const ORPHAN_MS = 26 * 60 * 60 * 1000;
+  const RECONCILE_LISTS = 6;
+  let walk = [{ folder: '', offset: 0 }];
+  async function reconcile() {
+    const files = [];
+    for (let i = 0; i < RECONCILE_LISTS && walk.length; i++) {
+      const at = walk.shift();
+      const rows = await store.listFolder(at.folder, at.offset, 100);
+      if (rows.length === 100) walk.push({ folder: at.folder, offset: at.offset + 100 });
+      for (const o of rows) {
+        const p = at.folder ? `${at.folder}/${o.name}` : o.name;
+        if (o.folder) walk.push({ folder: p, offset: 0 });
+        else files.push({ path: p, at: o.at });
+      }
+    }
+    if (!walk.length) walk = [{ folder: '', offset: 0 }];
+    if (!files.length) return 0;
+    const live = new Set(await store.pathsLive(files.map((f) => f.path)) || []);
+    const old = files.filter((f) => !live.has(f.path) && Number.isFinite(f.at) && now() - f.at > ORPHAN_MS).map((f) => f.path);
+    if (old.length) { await store.removeFiles(old); log(`[duos] the reconciliation removed ${old.length} file${old.length === 1 ? '' : 's'} no clip row holds`); }
+    return old.length;
+  }
+
   let sweeping = null;
   async function sweep(limit = SWEEP_BATCH) {
     if (sweeping) return sweeping;
@@ -386,6 +428,7 @@ function createRouter(deps = {}) {
         const size = await store.stat(c.path);
         if (size === null) { await store.clipDrop(c.ref); out.dropped++; } else { await store.clipSettle(c.ref, size); out.settled++; }
       }
+      out.orphans = await reconcile();
       if (out.removed || out.dropped) log(`[duos] the sweep removed ${out.removed} file${out.removed === 1 ? '' : 's'}, dropped ${out.dropped} upload${out.dropped === 1 ? '' : 's'} never finished`);
       return out;
     })().catch((e) => {
