@@ -778,6 +778,136 @@ open question that bench answers.
   Standard 520 by 190 in OBS, compact (`?size=compact`) 360 by 130. Served
   self contained (the fonts as data, no request but its own events).
 
+## The video tool (build 3, the owner's content, 2026-11-26)
+
+A tool for the owner alone, in `scripts/`, never shipped (package.json ships
+no scripts): it takes a recording, his own, one of Occlara's clips, or a pro
+player's point of view VOD, and writes an mp4 with the match rating on it,
+moving at each kill and death the way a football rating does on a broadcast.
+No server, no AI read, no licence, no window.
+
+```
+npm run rating:video -- <video> [--out file.mp4] [options]
+```
+
+| option | what it does |
+| --- | --- |
+| `--out file.mp4` | where to write (beside the video, `<name>-rating.mp4`) |
+| `--side attacking\|defending` | the player's side in the first round in the video (unknown otherwise) |
+| `--start-round N` | that round's number (1) |
+| `--half N` | the last round of the first half (12, Swiftplay 4); overtime swaps every round |
+| `--mode standard\|swiftplay`, `--agent Name` | for the engine (its length rule, the agent) |
+| `--dump-events file.json` | write what the video says happened, to fix by hand |
+| `--no-render` | with `--dump-events`: stop there |
+| `--events file.json` | render a hand corrected list, the video not read |
+| `--review <id>` | one of the owner's reviews (its id or last part): Riot's record, exact |
+| `--from S --to S` | only that part of the video |
+| `--corner bottom-left\|top-left\|top-right\|bottom-right` | where the badge goes (bottom left) |
+| `--scale X` | the badge's size (1) |
+| `--vertical` | a 9:16 cut, 1080 by 1920 |
+| `--full-time[=S]` | the last frame held S seconds (2) with "Full time" |
+| `--fps N` | kill feed reads a second (10) |
+| `--crf N --preset P` | libx264's quality (18, medium) |
+
+**How it reads the video** (`scripts/rating-video/events.js`): the bundled
+ffmpeg decodes only the kill feed's corner at 10 frames a second, the live
+rating's own detector reads it (`killfeed.js`) and the live rating's own feed
+counts the rows (`live-rating.js`: the rows lined up frame to frame, the
+player's yellow on two frames, no yellow kill while a teammate is watched, the
+caps), fed a context the video cannot give and the tool makes up honestly:
+
+- **Rounds**: a new round starts at the first row after a side was wiped out,
+  or after 40 s with no row. Measured on Riot's record of the owner's 72
+  rounds (`npm run measure:ratingvideo`): 65 of 67 rounds ended in a wipe,
+  the rule could miss at most 1 of the 67 boundaries (a lower bound on the
+  gap: the 30 s buy phase and the next round's first kill), and it splits 6
+  of 474 gaps inside a round (a long quiet stretch after the plant) into a new
+  round. A wipe needs every row of it read; a missed one leaves the 40 s gap.
+- **Results**: only a wipe says one (enemy wiped, won; team wiped, lost);
+  otherwise unknown (cost in "What a missing field costs": -0.07, at most 0.2
+  over a match).
+- **The side**: only from `--side` (cost: -0.10, at most 0.3).
+- **The spike, the clock, the score**: not read. A plant moves nothing (cost
+  -0.07, at most 0.2), add it by hand with `--events`.
+- **Assists**: not on the feed (round 2 above), so not counted, except by hand
+  (`"assists": ["me"]` on a kill) or with `--review`.
+- **The numbers standing**: from every row of the feed, both teams. On the
+  owner's 9 death clips with Riot's feed and a death mark, one second after
+  each kill: both teams right 19 of 22 times (86.4%), the enemy's 100%, the
+  player's team 86.4% (a teammate's death row missed).
+- **The player's own kills and deaths**: the live rating's, measured above
+  (deaths 20 of 20; at 10 a second the clips show the player's kill in 8 of
+  20 clips, none counted beyond Riot's count for the round). Pro VODs were
+  never measured: the bar is the owner's real match first.
+
+So with the video alone the number is the live rating's: right in its moves,
+usually lower than the review's for the missing side, plant, results and
+assists. `--dump-events` writes the list (`{ t, kind: 'round', round, side }`,
+`{ t, kind: 'kill', killer, victim }` with `me`, `us`, `them`, `{ t, kind:
+'end', won }`), the owner fixes a wrong line, adds a plant (`{ "t", "kind":
+"plant", "by": "us" }`) or an assist, and renders again with `--events`.
+
+**`--review <id>`, exact**: the review's rounds go through the engine as the
+review counts them (Riot's kills with their times, assists, plants, defuses,
+results, sides), the value the video opens on counts every round before, and
+each round is laid on the video by one offset: a death clip of that review by
+its own death mark (exact; a clip saved before the mark was kept has its
+death placed 4.45 s before its end and the tool says so), any other recording
+(his whole OBS match) by matching the kills read off the video to the
+record's (`plan.js alignRounds`, two kills of the same two teams within
+0.8 s). Measured: placed from the video alone on 7 of the 9 clips with a mark,
+off it by 0.23 s at the median and 0.41 s at most (the row shows a little
+after the kill); the two not placed had one kill read of a round with more.
+
+**The overlay** (`scripts/rating-video/ass.js`): the widget's broadcast look
+drawn by the bundled ffmpeg's libass, chosen over drawtext with PNG overlays
+because one subtitle script carries shapes, text and motion on time, frame
+exact, and over a hidden Electron window because it needs none. One plate on
+the app's surface with its rim and shadow, the number in its tier's colour in
+the dark ink (counted to its new value in 0.42 s, the badge's colour turning
+with it), the move rising in green or falling in red at the event (sliding 14
+px and fading after 2.8 s), the short label without the numbers standing
+(`liveLabel`, rising 6 px, held 4 s; a kill that moves the shown number less
+than 0.05 keeps its label and shows no move), and the crescent with
+"Occlara". The app ships Geist only as woff2 and this ffmpeg's freetype cannot
+read woff2, so `scripts/rating-video/woff2.js` decodes the app's own files to
+TrueType in pure node (brotli from node's zlib, the glyf and loca transform
+rebuilt), into a temporary folder each run: checked against fontTools, all 783
+glyphs' outlines and metrics the same. Placement, scaled by the height: bottom
+left (default) ends at 0.86 of the height, clear of the minimap, the voice
+list, the kill feed, the health bar and the abilities (the chat sits under
+it); top right is under the kill feed, top left under the minimap, bottom
+right left of the weapon list.
+
+**The output**: libx264 (`-profile:v high`, `yuv420p`, CRF 18, medium), the
+source's sound as AAC 192k (padded with silence through Full time), the
+source's frame rate rounded, `+faststart`: what phones, TikTok, Shorts and X
+take. `--vertical` puts the whole picture full width across the middle over a
+blurred, darkened copy of itself and the badge at twice the size under it.
+
+**A pro player's VOD, step by step**:
+
+1. Only a player's own point of view with the normal player HUD: the kill
+   feed top right as the player sees it, the player's own rows yellow. A
+   broadcast or observer HUD is not supported (below).
+2. 720p or more, 16:9 (the corner is looked for where a 16:9 picture has it;
+   the tool says so otherwise).
+3. Trim to the match or the moment first, with `--from` and `--to`, or the
+   tool reads the whole VOD.
+4. Run it with `--dump-events` and `--side` if the first round's side is known,
+   look at the list, fix what is wrong (rounds, a missed row, plants), render
+   with `--events`. Only sides and agents are written, never a name.
+
+**A VCT broadcast, not done.** Broadcasts use the observer HUD: a different
+kill feed (all ten players with their names, team colours rather than ally
+teal and enemy red, no yellow for one player) and both teams' players along
+the bottom. Rating one player there would take a detector of its own for that
+feed's geometry and colours, a way to tell the chosen player's rows (by the
+agent portrait at the row's end, read against the ten agents on the bottom
+bar, since the names must never be read or printed), the round from the
+broadcast's own round counter, and a fresh measurement against the match's
+public record before anything is shown.
+
 ## Tests
 
 - `npm run test:rating` (115), round 3 adding: the player as Sage credited
@@ -841,6 +971,19 @@ open question that bench answers.
   switch off and on, Settings' warning, confirm and widget address,
   `main-recording-rating.png`, `main-settings-live-rating-*.png`).
   `npm run measure:liverating` reruns the measurement on this PC's sessions
+  (read only, counts only).
+- The video tool: `npm run test:ratingvideo` (67, pure node and the bundled
+  ffmpeg, synthetic video only: the woff2 decoder's tables, loca and
+  checksum; events from drawn frames, a round split by the gap and one by a
+  wipe, its result, the sides by half and overtime, a hand corrected file
+  checked line by line; the plan's moves and labels, Riot's record by offset
+  and the offset found from the kills read; the overlay clear of the kill
+  feed, the minimap and the health bar at 720p, 1080p and 1440p, the count,
+  the script's timing, Full time; every option and refusal; a drawn video
+  read, rendered and probed end to end: H.264 high, yuv420p, AAC, faststart,
+  the badge in its tier's colour, the kill feed still read under it, the
+  vertical cut). `npm run measure:ratingvideo` reruns the round rule on Riot's
+  record, the numbers standing and `--review`'s placing on this PC's clips
   (read only, counts only).
 
 ## Open questions

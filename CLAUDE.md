@@ -151,6 +151,7 @@ in `docs/claude/` to find it.
 | Occlara Wrapped: the year record (`year-record.js`), the story (`wrapped.js`), its view, its look, sound and closing card, when it opens | `docs/claude/wrapped.md` |
 | The match rating (`rating.js`): the chance to win table, the swings, the event shape a live feed must send, the calibration, what is saved, its block and replay on the review page (`rating-view.js`) | `docs/claude/rating.md` |
 | The live rating: the kill feed detector (`killfeed.js`), the live feed (`live-rating.js`), main's gates (`live-rating-service.js`), the stream widget and its server (`rating-stream.js`, `rating-widget/`), the shared badge, `measure:liverating` | `docs/claude/rating.md`, "Live", and `docs/claude/screen-silence.md`, "The live rating" |
+| The rating video tool, the owner's content (`scripts/rating-video.js`, `scripts/rating-video/`, `rating:video`, `measure:ratingvideo`), never shipped | `docs/claude/rating.md`, "The video tool" |
 
 ## Conventions
 
