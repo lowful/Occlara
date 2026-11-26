@@ -218,19 +218,62 @@ ok(clockLeft('1:39') === 99 && clockLeft('0:05') === 5 && clockLeft('buy') === n
   cap.f(10);
   for (let k = 0; k < 7; k++) { const t = 11 + k * 7; for (let s = 0; s < 9; s++) cap.f(t + s * 0.2, { rows: [ROW.mateKill(0.03 + k * 0.02)] }); cap.f(t + 5.5, { rows: [] }); }
   ok(cap.kills().filter((e) => e.victim === 'them').length === 5, `a side loses five players a round at most (${cap.kills().filter((e) => e.victim === 'them').length})`);
-  const flood = play();
-  flood.f(10);
-  flood.f(11, { rows: [ROW.mateKill(0.03), ROW.mateDeath(0.05), ROW.mateKill(0.09)] });
-  for (let s = 1; s <= 10; s++) flood.f(11 + s * 0.2, { rows: [ROW.mateKill(0.03), ROW.mateDeath(0.05), ROW.mateKill(0.09)] });
-  flood.f(20, { rows: [] });
-  ok(flood.kills().length === 0, 'three rows new on one frame are colours crossing the corner: none counted');
-  const absorb = play();
-  absorb.f(10);
-  for (let s = 0; s < 9; s++) absorb.f(11 + s * 0.2, { rows: [ROW.mateKill(0.05)] });
-  absorb.f(13, { rows: [{ ...ROW.myKill(0.05), slot: 0 }] });
-  absorb.f(13.2, { rows: [{ ...ROW.myKill(0.05), slot: 0 }] });
-  absorb.f(20, { rows: [] });
-  ok(me(absorb.kills()) === 1, 'a row counted as a teammate\'s never takes a later yellow row');
+  // Round 4: three rows new on one frame are real once they stay (a Raze
+  // ult, the feed read again after a stall); colours crossing do not stay.
+  const raze = play();
+  raze.f(10);
+  for (let s = 0; s <= 10; s++) raze.f(11 + s * 0.2, { rows: [ROW.myKill(0.03), { ...ROW.myKill(0.06), sig: sig(0.06, 110) }, { ...ROW.myKill(0.09), sig: sig(0.09, 190) }] });
+  raze.f(20, { rows: [] });
+  ok(me(raze.kills()) === 3, `three of the player's kills new on one frame (a Raze ult) are three kills once they stay a second (${me(raze.kills())})`);
+  const flicker = play();
+  flicker.f(10);
+  flicker.f(11, { rows: [ROW.mateKill(0.03), ROW.mateDeath(0.05), ROW.mateKill(0.09)] });
+  flicker.f(11.2, { rows: [{ ...ROW.mateKill(0.06), sig: sig(0.06, 250) }, { ...ROW.mateDeath(0.09), sig: sig(0.09, 0) }, ROW.mateKill(0.03)] });
+  flicker.f(11.4, { rows: [] });
+  for (let s = 0; s < 10; s++) flicker.f(11.6 + s * 0.2, { rows: [] });
+  ok(flicker.kills().length === 0, 'three rows new on one frame that flicker and wander, colours crossing the corner, count nothing');
+  const stall = play();
+  stall.f(10);
+  stall.f(11, { rows: [ROW.mateDeath()] }); stall.f(11.2, { rows: [ROW.mateDeath()] });
+  for (let s = 0; s < 15; s++) stall.f(12.4 + s * 0.2, { rows: [ROW.mateDeath(), ROW.myKill(0.05), ROW.mateKill(0.06), { ...ROW.mateDeath(0.065), sig: sig(0.065, 70) }] });
+  stall.f(20, { rows: [] });
+  const sk = stall.kills().map((e) => `${e.killer}>${e.victim}`);
+  ok(sk.join() === 'them>us,me>them,us>them,them>us', `the recorder stalls a second, then three rows at once: each counted once, the row from before not again (${sk.join()})`);
+  const blip = play();
+  blip.f(10);
+  blip.f(11, { rows: [ROW.mateKill(0.05)] });
+  for (let s = 1; s < 10; s++) blip.f(11 + s * 0.2, { rows: [] });
+  ok(blip.kills().length === 0, 'a row seen on one frame only and gone is noise, no kill');
+  const seven = play();
+  seven.f(10);
+  for (let s = 0; s <= 35; s++) seven.f(11 + s * 0.2, { rows: [ROW.myKill(0.05)] });
+  seven.f(20, { rows: [] });
+  ok(me(seven.kills()) === 1, 'a row on screen seven seconds is one kill (rows live by when last seen)');
+  // A counted row is never refused on yellow alone (the round 3 rule did,
+  // and counted kills twice): a noise yellow frame, the spectated teammate's
+  // highlight, three teammate kills that never fill the cap.
+  const noise = play();
+  noise.f(10);
+  for (let s = 0; s < 13; s++) noise.f(11 + s * 0.2, { rows: [ROW.mateKill(0.05)] });
+  noise.f(13.6, { rows: [{ ...ROW.mateKill(0.05), mine: 'kill' }] });
+  for (let s = 0; s < 8; s++) noise.f(13.8 + s * 0.2, { rows: [ROW.mateKill(0.05)] });
+  noise.f(20, { rows: [] });
+  ok(noise.kills().length === 1 && me(noise.kills()) === 0, `one noise yellow frame on a counted teammate's row counts nothing again (${noise.kills().length})`);
+  const watch = play();
+  watch.f(10);
+  for (let s = 0; s < 13; s++) watch.f(11 + s * 0.2, { rows: [ROW.mateKill(0.05), ROW.mateDeath(0.07)] });
+  for (let s = 0; s < 12; s++) watch.f(13.6 + s * 0.2, { rows: [{ ...ROW.mateKill(0.05), mine: 'kill' }, ROW.mateDeath(0.07)], alive: false, phase: 'dead' });
+  watch.f(20, { rows: [], alive: false, phase: 'dead' });
+  ok(watch.kills().length === 2 && me(watch.kills()) === 0, `dead and spectating, a counted row turning yellow is not counted again (${watch.kills().length})`);
+  const fill = play();
+  fill.f(10);
+  const mates = [[2, 0.05, 150, 4.6], [8, 0.06, 110, 10.6], [14, 0.045, 190, 16.6], [20, 0.08, 30, null], [22, 0.055, 220, null]];
+  for (let t = 10.2; t < 35; t = Math.round((t + 0.2) * 10) / 10) {
+    const vis = mates.filter(([at]) => t >= 10 + at && t < 10 + at + 5);
+    fill.f(t, { rows: vis.map(([at, v, r, n], i) => ({ slot: i, killer: 'ally', victim: 'enemy', sig: sig(v, r), mine: n === null ? 'kill' : Math.abs(t - 10 - n) < 0.05 ? 'kill' : null })) });
+  }
+  const fk = fill.kills().map((e) => `${e.killer}>${e.victim}`);
+  ok(fk.join() === 'us>them,us>them,us>them,me>them,me>them', `three teammate kills each with a noise yellow frame, then the player's two: none twice, the cap not filled (${fk.join()})`);
   const blind = play();
   blind.f(10);
   blind.f(20, { team: 1, enemy: 0, rows: [] }); blind.f(24, { rows: [] });
