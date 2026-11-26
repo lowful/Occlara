@@ -138,6 +138,7 @@ in `docs/claude/` to find it.
 | Public profiles, usernames, player search, the Players page, proving a Riot ID (named agents, off until SOCIAL_RIOT_PROOF=1), `/api/social`, `social-001-profiles.sql` | `docs/claude/social.md` |
 | Occlara Duos: invites and codes, the Max rule, teammates found, the sheet, clip uploads to the `duo-clips` bucket, the duo cache, pins, the Duos page, `/api/social/duos`, `social-002-duos.sql`, `SOCIAL_DUOS_ON` | `docs/claude/duos.md` |
 | Occlara Wrapped: the year record (`year-record.js`), the story (`wrapped.js`), its view, its look, sound and closing card, when it opens | `docs/claude/wrapped.md` |
+| The match rating (`rating.js`): the chance to win table, the swings, the event shape a live feed must send, the calibration, what is saved, its block and replay on the review page (`rating-view.js`) | `docs/claude/rating.md` |
 
 ## Conventions
 
