@@ -212,6 +212,7 @@
           </div>
           <p id="rt-note" class="rt-note" hidden></p>
           <div id="rt-line" class="rt-line" hidden></div>
+          <p id="rt-read" class="rt-read" hidden></p>
           <div id="rt-swings" class="rt-swings" hidden>
             <div class="rt-col">
               <span class="rt-col-label">Biggest gains</span>
@@ -268,18 +269,24 @@
           <div class="rt-r-top">
             <span id="rt-r-title" class="rt-r-title">Match rating</span>
             <span id="rt-r-round" class="rt-r-round"></span>
+            <span id="rt-r-score" class="rt-r-score">0 : 0</span>
           </div>
           <div class="rt-r-mid">
-            <span id="rt-r-num" class="rt-r-num">6.0</span>
+            <div id="rt-r-badge" class="rt-r-badge t-fair">
+              <span id="rt-r-num" class="rt-r-num">6.0</span>
+            </div>
             <span id="rt-r-delta" class="rt-r-delta" aria-hidden="true"></span>
+            <ol id="rt-r-feed" class="rt-r-feed" aria-hidden="true"></ol>
           </div>
-          <p id="rt-r-label" class="rt-r-label" aria-live="polite"></p>
-          <div id="rt-r-line" class="rt-line rt-r-line"></div>
+          <p id="rt-r-label" class="rt-r-label"></p>
+          <div id="rt-r-line" class="rt-line rt-r-line" aria-hidden="true"></div>
           <div class="rt-r-acts">
             <button id="rt-r-skip" class="btn btn-ghost sm" type="button">Skip</button>
             <button id="rt-r-close" class="btn btn-ghost sm" type="button" hidden>Close</button>
             <button id="rt-r-again" class="btn btn-ghost sm" type="button" hidden>Watch again</button>
           </div>
+          <!-- Only full time is announced; the steps are seen, not read out. -->
+          <p id="rt-r-said" class="sr-only" aria-live="polite"></p>
         </div>
       </section>
 

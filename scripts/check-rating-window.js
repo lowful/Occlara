@@ -157,6 +157,24 @@ setTimeout(async () => {
     await rjs("document.getElementById('rt-lobby-wrap').open = true; document.getElementById('rt-lobby-wrap').scrollIntoView({ block: 'end' }); true");
     await shot('rating-lobby', mainWindow, win);
     await rjs("document.getElementById('rt-lobby-wrap').open = false; true");
+    // The tier's colour on the number, and a round read off the line by the keys.
+    const tier = await rjs("[...document.getElementById('rt-value').classList].find((c) => /^t-/.test(c)) || null");
+    if (tier !== `t-${view.tier}`) return report(false, `the number is not in its tier's colour (${tier}, served ${view.tier})`);
+    const read = await rjs(`(() => {
+      const plot = document.querySelector('#rt-line .rt-plot');
+      plot.focus();
+      plot.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+      return { text: document.getElementById('rt-read').textContent, now: !document.querySelector('#rt-line .rt-now').hidden,
+        ticks: document.querySelectorAll('#rt-line .rt-tick').length, half: !!document.querySelector('#rt-line .rt-halfline'),
+        area: !!(document.querySelector('#rt-line .rt-area') || {}).getAttribute };
+    })()`);
+    lines.push(`read off the line: ${JSON.stringify(read)}`);
+    const r23 = view.rounds[view.rounds.length - 2];
+    if (!read.now || read.ticks !== view.rounds.length || !read.half || !read.text.startsWith(`Round ${r23.n}${r23.score}${r23.delta}`)) {
+      return report(false, `the line does not read a round by the keys, or lacks its ticks and half: ${JSON.stringify(read)}`);
+    }
+    await shot('rating-read', mainWindow, win);
+    await rjs("document.querySelector('#rt-line .rt-plot').blur(); true");
 
     // 2. A swing opens its round.
     const opened = await rjs(`(() => {
@@ -172,20 +190,32 @@ setTimeout(async () => {
 
     // 3. The replay: it plays, a key skips it to the final, Esc closes it and only it.
     await rjs("document.querySelector('.body').scrollTo(0, 0); document.getElementById('rt-play').click(); true");
-    await wait(3200);
-    const mid = await rjs(`(() => ({ open: !document.getElementById('rt-replay').hidden, round: document.getElementById('rt-r-round').textContent,
+    await wait(6500);
+    const midJs = `(() => ({ open: !document.getElementById('rt-replay').hidden, round: document.getElementById('rt-r-round').textContent,
       num: document.getElementById('rt-r-num').textContent, label: document.getElementById('rt-r-label').textContent,
-      count: getComputedStyle(document.getElementById('rt-r-num')).getPropertyValue('--rt').trim() }))()`);
+      score: document.getElementById('rt-r-score').textContent, feed: document.querySelectorAll('#rt-r-feed .rt-f').length,
+      tier: [...document.getElementById('rt-r-badge').classList].find((c) => /^t-/.test(c)) || null,
+      said: document.getElementById('rt-r-said').textContent, focus: !!document.activeElement && document.getElementById('rt-replay').contains(document.activeElement) }))()`;
+    const mid = await rjs(midJs);
     lines.push(`replay playing: ${JSON.stringify(mid)}`);
-    if (!mid.open || !/^Round \d+ of \d+$/.test(mid.round) || !/^\d+\.\d$/.test(mid.num) || !mid.label) return report(false, `the replay is not playing: ${JSON.stringify(mid)}`);
+    if (!mid.open || !/^Round \d+ of \d+$/.test(mid.round) || !/^\d+\.\d$/.test(mid.num) || !mid.label || !/^\d+ : \d+$/.test(mid.score)
+      || mid.feed < 2 || !mid.tier || mid.said) return report(false, `the replay is not playing as a broadcast, or announced a step: ${JSON.stringify(mid)}`);
     await shot('rating-replay', mainWindow, win);
+    // A modifier alone does not skip it, and Tab stays inside it.
+    await rjs("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', bubbles: true })); document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })); true");
+    const held = await rjs(midJs);
+    lines.push(`after Shift and Tab: ${JSON.stringify(held)}`);
+    if (!/^Round /.test(held.round) || !held.focus) return report(false, `Shift skipped the replay or Tab left it: ${JSON.stringify(held)}`);
     review.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     review.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await wait(900);
     const fin = await rjs(`(() => ({ open: !document.getElementById('rt-replay').hidden, round: document.getElementById('rt-r-round').textContent,
       num: document.getElementById('rt-r-num').textContent, label: document.getElementById('rt-r-label').textContent }))()`);
     lines.push(`replay skipped: ${JSON.stringify(fin)}`);
-    if (!fin.open || fin.round !== 'Final' || fin.num !== view.shown || !fin.label.includes(view.place)) return report(false, `a key did not skip the replay to the final: ${JSON.stringify(fin)}`);
+    const said = await rjs("document.getElementById('rt-r-said').textContent");
+    if (!fin.open || fin.round !== 'Full time' || fin.num !== view.shown || !fin.label.includes(view.place) || !said.includes(view.shown)) {
+      return report(false, `a key did not skip the replay to full time, announced: ${JSON.stringify({ ...fin, said })}`);
+    }
     await shot('rating-replay-final', mainWindow, win);
     review.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     review.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
@@ -211,7 +241,7 @@ setTimeout(async () => {
       window.__keep = current;
       paint(Object.assign({}, current, { id: current.id + '-screen', ratingView: { value: null, note: 'Rated only once Riot\\'s record of the match is linked.' } }));
       return { shown: !document.getElementById('v-rating-wrap').hidden, note: document.getElementById('rt-note').textContent,
-        value: document.getElementById('rt-value').parentNode.hidden, play: document.getElementById('rt-play').hidden, line: document.getElementById('rt-line').hidden };
+        value: document.querySelector('#v-rating-wrap .rt-head').hidden, play: document.getElementById('rt-play').hidden, line: document.getElementById('rt-line').hidden };
     })()`);
     lines.push(`screen only: ${JSON.stringify(note)}`);
     if (!note.shown || !/Riot's record/.test(note.note) || !note.value || !note.play || !note.line) return report(false, `a screen only review does not say what would rate it: ${JSON.stringify(note)}`);
@@ -221,6 +251,24 @@ setTimeout(async () => {
     lines.push(`locked: block hidden=${locked}`);
     if (!locked) return report(false, 'a locked review shows the rating');
     await rjs('paint(window.__keep); delete window.__keep; true');
+
+    // 6. The window at its least size, 960 by 640: the block and the replay.
+    if (process.env.OCCLARA_SHOTS === '1') {
+      const was = win.getBounds();
+      win.setMinimumSize(1, 1);
+      win.setSize(960, 640);
+      await wait(900);
+      await rjs("document.getElementById('v-rating-wrap').scrollIntoView({ block: 'start' }); true");
+      await shot('rating-narrow', mainWindow, win);
+      await rjs("document.querySelector('.body').scrollTo(0, 0); document.getElementById('rt-play').click(); true");
+      await wait(6500);
+      await shot('rating-replay-narrow', mainWindow, win);
+      await rjs('window.RatingView.finish(); true');
+      await wait(900);
+      await shot('rating-replay-final-narrow', mainWindow, win);
+      await rjs('window.RatingView.stop(); true');
+      win.setSize(was.width, was.height);
+    }
 
     if (errs.length) return report(false, `renderer errors: ${errs.join(' | ')}`);
     report(true, 'ok');

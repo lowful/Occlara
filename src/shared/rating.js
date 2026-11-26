@@ -509,7 +509,8 @@ function createRating(opts) {
       death = d.first ? `Died first, ${d.traded ? 'traded' : 'not traded'}`
         : d.last ? 'Died as the last one up' : `Died, ${d.traded ? 'traded' : 'not traded'}`;
     }
-    if (main && death) return `${main}, then ${death.charAt(0).toLowerCase()}${death.slice(1)}`;
+    // After kills a death says only whether it was traded, so the line stays short.
+    if (main && d && !d.decided) return `${main}, then died${d.traded ? ', traded' : ''}`;
     if (main) return main;
     if (death) return death;
     if (alive && won === true) return 'Round won, alive at the end';

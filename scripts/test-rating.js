@@ -379,7 +379,7 @@ console.log('\nThe rounds, named');
   const ace = run(round(1, 'attacking', THEM.map((v, i) => ['me', v, 5000 + i * 3000]), true)).snap.byRound[0];
   ok(ace.label === 'Ace', `an ace ("${ace.label}")`);
   const triple = run(round(1, 'attacking', [['me', 'them:Jett', 4000], ['me', 'them:Reyna', 6000], ['me', 'them:Viper', 8000], ['them:Cypher', 'me', 12000]], false)).snap.byRound[0];
-  ok(triple.label === 'Triple kill with the opening kill, then died, not traded', `a triple, then a death ("${triple.label}")`);
+  ok(triple.label === 'Triple kill with the opening kill, then died', `a triple, then a death ("${triple.label}")`);
   const clutch = run(round(1, 'defending', [['them:Jett', 'us:Sova', 3000], ['them:Jett', 'us:Omen', 4000], ['them:Reyna', 'us:Sage', 5000], ['them:Reyna', 'us:Raze', 6000],
     ['me', 'them:Jett', 20000], ['me', 'them:Reyna', 25000]], true)).snap.byRound[0];
   ok(clutch.label === '2 kills, won a 1v5', `a clutch ("${clutch.label}")`);
