@@ -643,7 +643,8 @@ function paintLive() {
  */
 function paintRating(r) {
   const box = $('live-rating');
-  const ok = r && typeof r === 'object' && typeof r.value === 'number' && Number.isFinite(r.value);
+  if (!box) return;
+  const ok = r && typeof r === 'object' && typeof r.value === 'number' && Number.isFinite(r.value) && !!window.RatingBadge;
   box.hidden = !ok;
   if (!ok) { ratingShown = null; return; }
   const changed = ratingShown !== null && r.value !== ratingShown;
