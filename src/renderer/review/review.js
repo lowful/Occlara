@@ -270,6 +270,9 @@ function paintValorant(r, verdict) {
   paintPatterns(r);
   paintRounds(r);
   paintStudy(r);
+  // The match rating (rating-view.js), as main served it: its swings open
+  // their round's row, the clip in it where one was kept.
+  if (window.RatingView) window.RatingView.paint(r.ratingView || null, { goRound });
 
   const refused = Array.isArray(r.refused) ? r.refused : [];
   $('v-refused-wrap').hidden = !refused.length;
@@ -1972,6 +1975,7 @@ function paint(r) {
   const sameReview = !!(r && current && r.id && r.id === current.id);
   $('share').hidden = true;
   if (!r || r.work) { closeShare(false); shareVerdict = null; }
+  if (window.RatingView && (!r || r.work || r.kind !== 'valorant' || r.locked === true)) window.RatingView.paint(null);
   if (!r) {
     progressFor = null;
     paintBuilding(null);
@@ -2168,7 +2172,7 @@ function paintLockedValorant(r) {
   paintStats(r);
   // The comparison under each number is the player's own average, kept: it
   // is Riot's numbers against Riot's numbers, no grade in it.
-  for (const id of ['v-summary-wrap', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap']) $(id).hidden = true;
+  for (const id of ['v-summary-wrap', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap', 'v-rating-wrap']) $(id).hidden = true;
   $('v-rounds').replaceChildren();
 }
 
