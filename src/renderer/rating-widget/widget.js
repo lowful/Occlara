@@ -35,6 +35,18 @@
   function paint(msg) {
     const m = msg && typeof msg === 'object' ? msg : { state: 'idle' };
     const r = m.rating && typeof m.rating === 'object' ? m.rating : null;
+    // Main says the kill feed is not being read: the plate says so, no number.
+    if (m.state === 'blind') {
+      box.classList.add('blind');
+      $('w-state').textContent = 'Live';
+      $('w-label').textContent = 'Not reading the kill feed';
+      $('w-num').textContent = '';
+      window.RatingBadge.setDelta($('w-delta'), '');
+      line(null);
+      show(true);
+      return;
+    }
+    box.classList.remove('blind');
     if ((m.state !== 'live' && m.state !== 'final') || !r || typeof r.value !== 'number') { show(false); return; }
     box.classList.toggle('final', m.state === 'final');
     window.RatingBadge.setNumber($('w-num'), $('w-badge'), r.value);

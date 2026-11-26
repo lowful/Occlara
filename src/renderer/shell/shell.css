@@ -335,6 +335,9 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
    and the move run once on a change; nothing else moves. */
 .live-rating { display: flex; align-items: center; gap: var(--space-5); margin-bottom: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--line); min-width: 0; }
 .live-rating[hidden] { display: none; }
+.live-rating-off { gap: var(--space-3); align-items: baseline; flex-wrap: wrap; }
+.lr-off-text { font-size: 16px; font-weight: 600; color: var(--text-dim); }
+.lr-low { flex-basis: 100%; }
 .lr-badge { flex: none; min-width: 112px; padding: var(--space-2) var(--space-4); border-radius: var(--r-card); }
 .lr-num { font-size: 52px; }
 .lr-side { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }

@@ -644,7 +644,11 @@ function paintLive() {
 function paintRating(r) {
   const box = $('live-rating');
   if (!box) return;
-  const ok = r && typeof r === 'object' && typeof r.value === 'number' && Number.isFinite(r.value) && !!window.RatingBadge;
+  // Main says the kill feed is not being read: that line, and no number.
+  const off = $('live-rating-off');
+  const blind = !!(r && typeof r === 'object' && r.reading === false);
+  if (off) off.hidden = !blind;
+  const ok = !blind && r && typeof r === 'object' && typeof r.value === 'number' && Number.isFinite(r.value) && !!window.RatingBadge;
   box.hidden = !ok;
   if (!ok) { ratingShown = null; return; }
   const changed = ratingShown !== null && r.value !== ratingShown;

@@ -1471,7 +1471,7 @@ setTimeout(async () => {
       feed(KILL);
       const on = await until(async () => { const s = await sjs(RATING_NOW); return s.shown && s.label && s.rating ? s : null; }, 4000) || await sjs(RATING_NOW);
       lines.push(`live rating, its switch on: ${JSON.stringify({ ...on, text: on.text.slice(0, 120) })}`);
-      if (!on.shown || on.ratingKeys !== 'last,line,shown,tier,value' || on.label !== 'First kill, 5v5' || on.chip !== 'Live, provisional'
+      if (!on.shown || on.ratingKeys !== 'last,line,shown,tier,value' || on.label !== 'Opening kill' || on.chip !== 'Live, provisional'
         || on.num !== on.rating.shown || !(on.rating.value > 6) || !/\bt-(fair|good|great|excellent)\b/.test(on.tier)) {
         return report(false, `with the live rating on, the Recording screen does not show the number, its move and "Live, provisional": ${JSON.stringify(on)}`);
       }
@@ -1481,6 +1481,18 @@ setTimeout(async () => {
       const whole = await sjs(LIVE_NOW);
       if (/\b87\b|3900|A Main|carried|spike/i.test(whole.text)) return report(false, `with the rating on, the Recording screen shows more than allowed: ${whole.text}`);
       await shot('recording-rating', mainWindow, win);
+      // The recorder's rows stop: "Not reading the kill feed" in place of the
+      // number, never a number it cannot back.
+      const offNow = await until(async () => {
+        const s = await sjs(`window.occlara.getLive().then((v) => ({ rating: v && v.rating, off: !document.getElementById('live-rating-off').hidden,
+          num: !document.getElementById('live-rating').hidden, text: document.getElementById('live-rating-off').innerText.replace(/\\s+/g, ' ') }))`);
+        return s.off ? s : null;
+      }, 6000) || {};
+      lines.push(`live rating, the recorder's rows stopped: ${JSON.stringify(offNow)}`);
+      if (!offNow.off || offNow.num || JSON.stringify(offNow.rating) !== '{"reading":false}' || !/Not reading the kill feed/.test(offNow.text || '')) {
+        return report(false, `with the recorder's rows stopped, the screen does not say it is not reading the kill feed: ${JSON.stringify(offNow)}`);
+      }
+      await shot('recording-rating-off', mainWindow, win);
       await setjs2('window.occlara.setConfig({ liveRating: false, liveRatingStream: false }).then(() => true)');
       const gone = await until(async () => { const s = await sjs(RATING_NOW); return !s.shown && !s.rating ? s : null; }, 4000) || await sjs(RATING_NOW);
       lines.push(`live rating, switched off again: ${JSON.stringify({ keys: gone.keys, shown: gone.shown })}`);

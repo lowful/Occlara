@@ -192,10 +192,18 @@
                      last move with the engine's plain label, the line so far,
                      marked "Live, provisional". Never advice, never anything
                      of a review. It moves only when a fact arrives. -->
+                <!-- Not reading the kill feed (no row seen for rounds, the recorder's
+                     rows stopped, or the page stopped for its cost): this line in
+                     place of the number, never a number it cannot back. -->
+                <div id="live-rating-off" class="live-rating live-rating-off" hidden>
+                  <span class="live-label">Rating</span>
+                  <span class="lr-off-text">Not reading the kill feed</span>
+                  <span class="live-note">The rating is in your review once the match ends.</span>
+                </div>
                 <div id="live-rating" class="live-rating" hidden>
                   <div id="lr-badge" class="rt-r-badge lr-badge"><span id="lr-num" class="rt-r-num lr-num">6.0</span></div>
                   <div class="lr-side">
-                    <div class="lr-head"><span class="live-label">Rating</span><span class="live-chip lr-prov">Live, provisional</span></div>
+                    <div class="lr-head"><span class="live-label">Rating</span><span class="live-chip lr-prov">Live, provisional</span><span class="live-note lr-low">Usually lower than the confirmed rating. Assists are not counted live.</span></div>
                     <div class="lr-move"><span id="lr-delta" class="rt-r-delta lr-delta"></span><span id="lr-label" class="lr-label"></span></div>
                   </div>
                   <svg id="lr-line" class="lr-line" viewBox="0 0 200 48" preserveAspectRatio="none" aria-hidden="true">

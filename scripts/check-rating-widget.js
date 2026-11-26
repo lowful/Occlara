@@ -143,6 +143,13 @@ app.whenReady().then(async () => {
     }
     await shoot(win, 'live-down', '#1b2129');
 
+    // Not reading the kill feed: the plate says so, no number.
+    stream.send({ state: 'blind' });
+    const blind = await until(async () => { const s = await js(NOW); return s.label === 'Not reading the kill feed' ? s : null; }, 3000) || await js(NOW);
+    lines.push(`not reading: ${JSON.stringify({ shown: blind.shown, num: blind.num, label: blind.label })}`);
+    if (!blind.shown || blind.num !== '' || blind.label !== 'Not reading the kill feed') return report(false, `"not reading" does not show in place of the number: ${JSON.stringify(blind)}`);
+    await shoot(win, 'blind', '#1b2129');
+
     // Full time.
     stream.send({ state: 'final', rating: { value: 7.4, shown: '7.4', tier: 'good' } });
     const fin = await until(async () => { const s = await js(NOW); return s.state === 'Full time' ? s : null; }, 3000) || await js(NOW);

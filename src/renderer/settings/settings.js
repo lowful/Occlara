@@ -150,7 +150,11 @@ function paintLiveRating() {
   lrCopy.disabled = !url;
   lrObs.textContent = LR_OBS[lrSizeNow];
   lrErr.hidden = !(w.on && !w.running && w.error);
-  if (!lrErr.hidden) lrErr.textContent = 'The widget could not start on this PC: no free port between 47815 and 47824. Close what uses them, or turn the widget off and on again.';
+  if (!lrErr.hidden) {
+    lrErr.textContent = w.error === 'EADDRINUSE'
+      ? 'The widget could not start on this PC: no free port between 47815 and 47824. Close what uses them, or turn the widget off and on again.'
+      : 'The widget could not start on this PC. Turn it off and on again.';
+  }
 }
 lrSeg.addEventListener('click', async (e) => {
   const btn = e.target.closest('button');
