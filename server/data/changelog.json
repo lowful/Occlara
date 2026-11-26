@@ -1,5 +1,29 @@
 [
   {
+    "version": "8.20.0",
+    "date": "2026-11-26",
+    "title": "Occlara Duos, on the way",
+    "summary": "This update carries Occlara Duos, which switches on soon with no further update needed.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Occlara Duos: add a friend who uses Occlara, and after each match you play together on one team you both see, round by round, where each of you died and what each of you was doing."
+      },
+      {
+        "kind": "new",
+        "text": "Watch both clips of a round side by side on one clock, and leave your duo a pin on a moment of their clip, picked from a short list."
+      },
+      {
+        "kind": "new",
+        "text": "A duo needs a Max plan on one side. The other player can join with any plan, or none. Clips for shared matches upload by themselves after the match and are deleted after 30 days."
+      },
+      {
+        "kind": "improved",
+        "text": "Nothing uploads or downloads while you are in a match, and you can block or report anyone, which ends the duo and removes what was shared."
+      }
+    ]
+  },
+  {
     "version": "8.19.0",
     "date": "2026-11-26",
     "title": "Player profiles and search, on the way",

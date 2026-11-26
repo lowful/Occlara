@@ -186,3 +186,15 @@ What still counts as "reaching the screen", and is sealed mid match:
   or it loses the pointer; in its menu it draws one still frame and runs no
   loop at all. The flag key is never touched: it is held only mid match,
   when the Trainer is sealed.
+
+## Occlara Duos is silent mid match, and its uploads stop (2026-11-25)
+
+The Duos page (docs/claude/duos.md) is a page of the main window, sealed like
+every page, and its row in the account menu is locked by the seal. Every duo
+channel answers null mid match or sealed with no request made, the uploader's
+tick does nothing then, and an upload in flight is aborted the moment a match
+starts (it competes with the game for the player's connection) and sent again
+after it. A partner's new pins are said only on the Duos page, the next time it
+is opened: never a notification mid match, and no OS notification at all.
+check:seal holds the page, the row, every channel and the tick; test:duos holds
+the abort on a real upload.

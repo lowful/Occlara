@@ -45,7 +45,7 @@ function createSocial(deps = {}) {
   const rows = deps.rows || (() => []);
   const broadcast = deps.broadcast || (() => {});
 
-  const status = { at: 0, live: null, riotProof: false };
+  const status = { at: 0, live: null, riotProof: false, duos: false };
   let lastMe = null;          // the last /me profile, to know whether to upload
   let pending = null;         // the profile the Players page was opened at
   let wanted = false;         // an upload waits for the match to end
@@ -88,6 +88,8 @@ function createSocial(deps = {}) {
     status.live = !!(r.data && r.data.live === true);
     // The Riot ID proof, only while the server says it is open (SOCIAL_RIOT_PROOF).
     status.riotProof = !!(status.live && r.data && r.data.riotProof === true);
+    // Occlara Duos (docs/claude/duos.md): the Discoverable switch says what it does only while Duos is open.
+    status.duos = !!(status.live && r.data && r.data.duos === true);
     status.at = now();
     return status.live;
   }
@@ -115,7 +117,7 @@ function createSocial(deps = {}) {
       challenge: profile ? challengeWords(profile.challenge) : null,
       publicExplain: status.riotProof ? S.PUBLIC_EXPLAIN : S.PUBLIC_EXPLAIN_NAME,
       publicMore: S.PUBLIC_MORE,
-      discoverExplain: S.DISCOVER_EXPLAIN,
+      discoverExplain: status.duos ? S.DISCOVER_EXPLAIN : S.DISCOVER_EXPLAIN_OFF,
       nameHint: `${S.USERNAME_MIN} to ${S.USERNAME_MAX} letters, digits or underscores. It can change once every ${S.CHANGE_DAYS} days.`,
     };
   }
@@ -133,7 +135,7 @@ function createSocial(deps = {}) {
     if (opts && opts.only === 'live') {
       let signed = null;
       try { signed = typeof deps.signedIn === 'function' ? !!(await deps.signedIn()) : null; } catch { signed = null; }
-      return { live: isLive, riotProof: isLive === true && status.riotProof === true, signedIn: signed, problem: isLive === null ? 'offline' : isLive ? (signed === false ? 'signed-out' : null) : 'not-live' };
+      return { live: isLive, riotProof: isLive === true && status.riotProof === true, duos: isLive === true && status.duos === true, signedIn: signed, problem: isLive === null ? 'offline' : isLive ? (signed === false ? 'signed-out' : null) : 'not-live' };
     }
     if (isLive === null) return { live: null, signedIn: null, problem: 'offline', profile: null, words: words(null), preview: null };
     if (!isLive) return { live: false, signedIn: null, problem: 'not-live', profile: null, words: words(null), preview: null };
@@ -143,7 +145,14 @@ function createSocial(deps = {}) {
       if (p === 'not-live') { status.live = false; status.at = now(); }
       return { live: p !== 'not-live', signedIn: p === 'signed-out' ? false : null, problem: p, profile: null, words: words(null), preview: null };
     }
-    const profile = r.data && r.data.profile ? r.data.profile : null;
+    let profile = r.data && r.data.profile ? r.data.profile : null;
+    // Occlara Duos (docs/claude/duos.md, "Consent"): while it is open, the
+    // switch shows Discoverable as Duos reads it, so a flag turned on under
+    // 8.19's words ("Nothing is shared yet") shows off until turned on again.
+    if (profile && status.duos) {
+      const d = await call('GET', '/api/social/duos/discoverable');
+      profile = { ...profile, discoverable: !!(d.ok && d.data && d.data.on === true) };
+    }
     lastMe = profile;
     let preview = null;
     if (profile && profile.username) {
@@ -181,7 +190,17 @@ function createSocial(deps = {}) {
     const body = {};
     for (const k of ['public', 'showRiotId', 'discoverable']) if (f && typeof f[k] === 'boolean') body[k] = f[k];
     if (!Object.keys(body).length) return { ok: false, line: 'Nothing to change.' };
-    const r = await call('POST', '/api/social/flags', body);
+    // Discoverable under Duos' words goes through Duos' own route, which keeps
+    // the consent stamp; the 8.19 route never sets it.
+    if (typeof body.discoverable === 'boolean' && status.duos) {
+      const d = await call('POST', '/api/social/duos/discoverable', { on: body.discoverable });
+      if (d.offline || !d.ok || !d.data || d.data.ok !== true) {
+        return { ok: false, line: d.data && d.data.reason === 'no-username' ? 'Pick a username first.' : 'Could not save that. Try again in a moment.' };
+      }
+      try { if (typeof deps.onDiscoverable === 'function') deps.onDiscoverable(body.discoverable); } catch { /* the duos service learns it next time */ }
+      delete body.discoverable;
+    }
+    const r = Object.keys(body).length ? await call('POST', '/api/social/flags', body) : { ok: true, data: { ok: true, profile: lastMe } };
     if (r.offline || !r.ok || !r.data || r.data.ok !== true) {
       const p = problem(r);
       return { ok: false, line: r.data && r.data.reason === 'no-username' ? 'Pick a username first.' : p === 'offline' ? 'Could not save that. Check your connection and try again.' : 'Could not save that. Try again in a moment.' };
@@ -343,9 +362,11 @@ function createSocial(deps = {}) {
   function stop() { if (ticker) clearInterval(ticker); ticker = null; }
 
   /** Signed out or another account: nothing of the last one is kept. */
-  function forget() { lastMe = null; pending = null; status.at = 0; status.live = null; status.riotProof = false; }
+  function forget() { lastMe = null; pending = null; status.at = 0; status.live = null; status.riotProof = false; status.duos = false; }
 
-  return { state, checkName, setName, setFlags, search, view, block, report, riotStart, riotCheck, open, take, sync, tick, start, stop, forget,
+  /** The last status answer, for the duos service to reuse rather than ask again. */
+  const peekStatus = () => ({ live: status.live, duos: status.duos, at: status.at });
+  return { state, checkName, setName, setFlags, search, view, block, report, riotStart, riotCheck, open, take, sync, tick, start, stop, forget, peekStatus,
     _wanted: () => wanted };
 }
 

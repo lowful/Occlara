@@ -118,7 +118,9 @@ function installStandIns() {
     if (parent && parent.filename && same(parent.filename, INDEX) && request === './services/coaching-engine') return StandInValorant;
     if (parent && parent.filename && same(parent.filename, INDEX) && request === './services/account-service') return seededAccounts(realLoad(request, parent, isMain));
     // The public profile's server (docs/claude/social.md): a stand-in, no network.
-    if (parent && parent.filename && same(parent.filename, INDEX) && request === './services/social-service') return require('./social-stand-in').wrap(realLoad(request, parent, isMain), { live: process.env.OCCLARA_PROOF_SOCIAL !== 'off' });
+    if (parent && parent.filename && same(parent.filename, INDEX) && request === './services/social-service') return require('./social-stand-in').wrap(realLoad(request, parent, isMain), { live: process.env.OCCLARA_PROOF_SOCIAL !== 'off', duos: process.env.OCCLARA_PROOF_DUOS !== 'off' });
+    // Occlara Duos' server (docs/claude/duos.md): a stand-in, no network; not live for the site's proof.
+    if (parent && parent.filename && same(parent.filename, INDEX) && request === './services/duos-service') return require('./duos-stand-in').wrap(realLoad(request, parent, isMain), { live: process.env.OCCLARA_PROOF_DUOS !== 'off' });
     return realLoad(request, parent, isMain);
   };
 }

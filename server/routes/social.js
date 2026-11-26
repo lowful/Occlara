@@ -3,7 +3,7 @@
 /**
  * PUBLIC PROFILES AND PLAYER SEARCH, under /api/social (docs/claude/social.md).
  *
- *   GET  /status                 -> { live, riotProof }   no sign in needed
+ *   GET  /status                 -> { live, riotProof, duos }   no sign in needed
  *   GET  /me                     -> { profile | null, rules }
  *   GET  /username?name=         -> { ok, reason }    may this account take it now
  *   POST /username { name }      -> { ok, reason, nextAt }
@@ -174,13 +174,20 @@ function createRouter(deps = {}) {
   }
 
   // GET /api/social/status
+  // Occlara Duos (docs/claude/duos.md) answers here too: duos true only with
+  // SOCIAL_DUOS_ON and its tables there (routes/duos.js live()), so the app
+  // shows no trace of Duos otherwise.
+  const duosLive = async () => {
+    if (!deps.duos || typeof deps.duos.live !== 'function') return false;
+    try { return (await deps.duos.live()) === true; } catch { return false; }
+  };
   router.get('/status', handle(async (req, res) => {
-    if (!switchedOn()) return res.json({ live: false, riotProof: false });
+    if (!switchedOn()) return res.json({ live: false, riotProof: false, duos: false });
     if (status.live === null || now() - status.at > social.STATUS_MS) {
       status.live = await store.status();
       status.at = now();
     }
-    res.json({ live: status.live === true, riotProof: status.live === true && proofOn() });
+    res.json({ live: status.live === true, riotProof: status.live === true && proofOn(), duos: status.live === true && await duosLive() });
   }, { always: true }));
 
   // GET /api/social/me

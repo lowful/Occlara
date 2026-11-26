@@ -69,7 +69,9 @@ function createApi(opts = {}) {
     calls.push({ method, url, body });
     const u = new URL(url, 'http://stand.in');
     const p = u.pathname;
-    if (p === '/api/social/status') return { ok: true, status: 200, data: { live: !!o.live, riotProof: !!o.live && o.riotProof !== false } };
+    if (p === '/api/social/status') return { ok: true, status: 200, data: { live: !!o.live, riotProof: !!o.live && o.riotProof !== false, duos: !!o.live && o.duos === true } };
+    // Discoverable as Duos reads it (docs/claude/duos.md): off until turned on through Duos.
+    if (p === '/api/social/duos/discoverable') return { ok: true, status: 200, data: method === 'GET' ? { on: false } : { ok: true, reason: null } };
     if (!o.live) return { ok: false, status: 503, data: { error: 'social-not-live' } };
     if (p === '/api/social/me') return { ok: true, status: 200, data: { profile: o.me, rules: { usernameMin: 3, usernameMax: 20, changeDays: 30, holdDays: 30, need: 3 } } };
     if (p === '/api/social/username' && method === 'GET') return { ok: true, status: 200, data: { ok: true, reason: 'free' } };

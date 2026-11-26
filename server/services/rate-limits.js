@@ -263,7 +263,26 @@ function routeLimits(deps = {}) {
     { paths: ['/api/social/stats'], mw: L({ name: 'social-stats', windowMs: 60 * MIN, max: 20 }) },
     { paths: ['/api/social/report'], mw: L({ name: 'social-report', windowMs: 60 * MIN, max: 5 }) },
     { paths: ['/api/social/flags', '/api/social/block'], mw: L({ name: 'social-write', windowMs: 10 * MIN, max: 30 }) },
-    { paths: ['/api/social'], mw: L({ name: 'social', windowMs: 10 * MIN, max: 240 }) },
+    // Occlara Duos (docs/claude/duos.md). Its real limits are the database's
+    // (an invite code's 10 wrong guesses a day per account, 10 open invites,
+    // 5 duos, one report per live game metered, 18 clips a match, 2 GB up in
+    // 30 days and 1.5 GB down a day); these are the ceilings in front of it,
+    // each well above an app's own pace: a match uploads at most 18 clips,
+    // two calls each, with retries.
+    { paths: ['/api/social/duos/accept'], mw: L({ name: 'social-duos-accept', windowMs: 60 * MIN, max: 20 }) },
+    { paths: ['/api/social/duos/accept'], mw: L({ name: 'social-duos-accept-network', windowMs: 60 * MIN, max: 60, key: byIp }) },
+    { paths: ['/api/social/duos/invite', '/api/social/duos/code'], mw: L({ name: 'social-duos-invite', windowMs: 60 * MIN, max: 20 }) },
+    { paths: ['/api/social/duos/report'], mw: L({ name: 'social-duos-report', windowMs: 60 * MIN, max: 30 }) },
+    { paths: ['/api/social/duos/clip'], mw: L({ name: 'social-duos-clip', windowMs: 60 * MIN, max: 240 }) },
+    { paths: ['/api/social/duos/sheet'], mw: L({ name: 'social-duos-sheet', windowMs: 60 * MIN, max: 60 }) },
+    { paths: ['/api/social/duos/pin'], mw: L({ name: 'social-duos-pin', windowMs: 10 * MIN, max: 60 }) },
+    { paths: ['/api/social/duos/flag'], mw: L({ name: 'social-duos-flag', windowMs: 60 * MIN, max: 5 }) },
+    { paths: ['/api/social/duos/discoverable'], mw: L({ name: 'social-duos-discoverable', windowMs: 10 * MIN, max: 30 }) },
+    { paths: ['/api/social/duos'], mw: L({ name: 'social-duos', windowMs: 10 * MIN, max: 300 }) },
+    // Profiles and search keep their own budget: Duos' calls are not counted
+    // here (they have social-duos above).
+    { paths: ['/api/social'], mw: L({ name: 'social', windowMs: 10 * MIN, max: 240,
+      skip: (req) => String(req.originalUrl || '').split('?')[0].startsWith('/api/social/duos') }) },
     // What answers with nothing to look up still answers: a ceiling per address.
     { paths: ['/health', '/api/health', '/admin'], mw: L({ name: 'public', windowMs: MIN, max: 120, key: byIp }) },
     // Any /api request carrying no credentials at all, per address. The
@@ -339,7 +358,10 @@ function collapseSlashes(req, res, next) {
  * Mounted before the limiters and the caller lookup.
  */
 const FLOOR_MS = 250;
-const FLOOR_PATHS = ['/api/social/profile', '/api/social/search', '/api/social/username', '/api/social/block'];
+// Duos (docs/claude/duos.md): an invite by name answers 'sent' whoever the name
+// is, and an accept is the same refusal for every wrong code, in time as well.
+const FLOOR_PATHS = ['/api/social/profile', '/api/social/search', '/api/social/username', '/api/social/block',
+  '/api/social/duos/invite', '/api/social/duos/accept', '/api/social/duos/flag'];
 function answerFloor(ms = FLOOR_MS) {
   return (req, res, next) => {
     const t0 = Date.now();

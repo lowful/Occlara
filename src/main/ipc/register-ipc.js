@@ -30,10 +30,11 @@ const { isOwnPage } = require('../windows/web-guard');
  *   practice:   { get(game), mark(id), remove(id), today(), open(key, title) } (services/practice-store.js, built in index.js)
  *   trainer:    { get(), save(run), clear(id), open(id), playing(on) } (services/trainer-store.js, built in index.js)
  *   social:     { state(), checkName(n), setName(n), setFlags(f), search(q), view(u), block(b), report(b), open(u), take() } (services/social-service.js, built in index.js)
+ *   duos:       { state(), invite(n), makeCode(), accept(x), decline(n), cancel(r), remove(n), flag(b), setUpload(on), plans(), match(r), openClip(x), pin(b), unpin(r) } (services/duos-service.js)
  * }
  */
 function registerIpc(deps) {
-  const { controller, license, account, profile, community, changelog, feedback, practice, trainer, wrapped, social } = deps;
+  const { controller, license, account, profile, community, changelog, feedback, practice, trainer, wrapped, social, duos } = deps;
 
   // ── Occlara Wrapped (docs/claude/wrapped.md) ──────────────────────────────
   // All local, and every one null or refused mid match or sealed (wrapped-service.js busy()).
@@ -97,6 +98,26 @@ function registerIpc(deps) {
     safeHandle(C.SOCIAL_RIOT_CHECK, async () => social.riotCheck());
     safeHandle(C.SOCIAL_OPEN, async (_e, name) => social.open(text(name, 40)));
     safeHandle(C.SOCIAL_TAKE, async () => social.take());
+  }
+  // ── Occlara Duos (docs/claude/duos.md) ───────────────────────────────────
+  // Every one null mid match or sealed, with no request made (duos-service.js busy()).
+  if (duos) {
+    const text = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
+    const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+    safeHandle(C.DUOS_STATE, async (_e, opts) => duos.state(opts && opts.only === 'live' ? { only: 'live' } : null));
+    safeHandle(C.DUOS_INVITE, async (_e, name) => duos.invite(text(name, 40)));
+    safeHandle(C.DUOS_CODE, async () => duos.makeCode());
+    safeHandle(C.DUOS_ACCEPT, async (_e, x) => { const o = obj(x); return duos.accept(typeof o.code === 'string' ? { code: text(o.code, 40) } : { from: text(o.from, 40) }); });
+    safeHandle(C.DUOS_DECLINE, async (_e, from) => duos.decline(text(from, 40)));
+    safeHandle(C.DUOS_CANCEL, async (_e, ref) => duos.cancel(text(ref, 20)));
+    safeHandle(C.DUOS_REMOVE, async (_e, name) => duos.remove(text(name, 40)));
+    safeHandle(C.DUOS_FLAG, async (_e, b) => { const o = obj(b); return duos.flag({ name: text(o.name, 40), reason: text(o.reason, 20) }); });
+    safeHandle(C.DUOS_UPLOAD, async (_e, on) => duos.setUpload(on === true));
+    safeHandle(C.DUOS_PLANS, async () => duos.plans());
+    safeHandle(C.DUOS_MATCH, async (_e, ref) => duos.match(text(ref, 20)));
+    safeHandle(C.DUOS_CLIP, async (_e, x) => { const o = obj(x); return duos.openClip({ ref: text(o.ref, 20), name: text(o.name, 20), match: text(o.match, 20), expiresAt: text(o.expiresAt, 40) }); });
+    safeHandle(C.DUOS_PIN, async (_e, b) => { const o = obj(b); return duos.pin({ clip: text(o.clip, 20), at: Number.isInteger(o.at) ? o.at : -1, label: text(o.label, 20), reaction: o.reaction === null ? null : text(o.reaction, 20) }); });
+    safeHandle(C.DUOS_UNPIN, async (_e, ref) => duos.unpin(text(ref, 20)));
   }
   // ── the Practice page (docs/claude/ui.md, "The Practice page") ───────────
   // All local, and every one quiet mid match or sealed (practice-store.js busy()).

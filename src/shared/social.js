@@ -314,7 +314,10 @@ function challengeLine(result, c) {
 const PUBLIC_EXPLAIN = 'Signed in Occlara players can find you by your username, and by your whole Riot ID once you prove it is yours.';
 const PUBLIC_EXPLAIN_NAME = 'Signed in Occlara players can find you by your username.';
 const PUBLIC_MORE = 'They see your rank, your average grade and its letter, your record, K/D and headshots, your main agents and maps, your last 10 matches, multi kills, clutches and your Wrapped title. Never your mistakes, your reviews, your clips or your email. Turned off, your profile leaves search at once and its numbers are deleted from the server.';
-const DISCOVER_EXPLAIN = 'For Occlara Duos, coming next: teammates who also use Occlara may be told you use it too. Nothing is shared yet.';
+// Discoverable, said by what it does (docs/claude/duos.md): with Duos open,
+// what a teammate sees; with it off, no word of Duos at all.
+const DISCOVER_EXPLAIN = 'After a match you played on one team, a teammate who also uses Occlara and turned this on too sees your username and the agent you played, and you see theirs, so either of you can invite the other to a duo. Never an opponent, never anyone else, never your Riot ID. It does not let anyone invite you by typing your username: that reaches public profiles only.';
+const DISCOVER_EXPLAIN_OFF = 'Lets teammates who also use Occlara find you after a match you played together, once that opens. Nothing is shared yet.';
 const FROM_PC = "These are Occlara's numbers from this player's own PC, from the matches they reviewed.";
 const FROM_MY_PC = "These are Occlara's numbers from your own PC, from the matches you reviewed. They update when you save a review.";
 const RANK_LABEL = { verified: 'Verified', pc: "From this player's PC" };
@@ -394,5 +397,5 @@ module.exports = {
   RESERVED_LONG, RESERVED_SHORT, RESERVED_START, WORDS_ANYWHERE, WORDS_WHOLE, FOLD_PAIRS, FOLD_ONE,
   checkUsername, wordPattern, fold, forms, keyOf, tierOf, snapshotOf, nameLine, riotLine, riotText, timeLeft, challengeSteps,
   challengeLine, profileModel, resultModel, recordLine, searchable,
-  PUBLIC_EXPLAIN, PUBLIC_EXPLAIN_NAME, PUBLIC_MORE, DISCOVER_EXPLAIN, FROM_PC, FROM_MY_PC, WHY_PROVE, RANK_LABEL,
+  PUBLIC_EXPLAIN, PUBLIC_EXPLAIN_NAME, PUBLIC_MORE, DISCOVER_EXPLAIN, DISCOVER_EXPLAIN_OFF, FROM_PC, FROM_MY_PC, WHY_PROVE, RANK_LABEL,
 };

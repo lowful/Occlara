@@ -40,6 +40,11 @@ const PAGES = [
   // is the account menu's first row, beside Profile, and reached from
   // Profile's "Public profile" section and Home. Sealed like every page.
   { id: 'players', label: 'Players', surface: 'players', query: {}, preload: 'players-preload.js', nav: false },
+  // Occlara Duos (docs/claude/duos.md): a friend's side of the matches played
+  // together. Players' family, so the account menu's row under Players (the
+  // top bar is full), shown only once the server says Duos is open, and
+  // sealed like every page.
+  { id: 'duos', label: 'Duos', surface: 'duos', query: {}, preload: 'duos-preload.js', nav: false },
   // The Invite page (8.7): a button in the sidebar's foot directly above
   // Settings, not a nav entry, and locked by the seal like every page.
   { id: 'invite', label: 'Invite', surface: 'invite', query: {}, preload: 'invite-preload.js', nav: false },

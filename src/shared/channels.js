@@ -100,6 +100,22 @@ const CHANNELS = {
   SOCIAL_RIOT_CHECK: 'social:riotCheck', // () → { ok, result, line, state } Riot's record read against the open challenge
   SOCIAL_OPEN:      'social:open',       // (username?) → { ok } opens the Players page, at that profile when one is named
   SOCIAL_TAKE:      'social:take',       // () → username | null the profile the Players page was opened at, taken once
+  // Occlara Duos (docs/claude/duos.md, services/duos-service.js): every one
+  // answers null mid match or sealed, and no request is made then.
+  DUOS_STATE:       'duos:state',        // (opts?) → { duos, problem, home, upload } | null mid match; { only: 'live' } asks the status alone
+  DUOS_INVITE:      'duos:invite',       // (username) → { ok, reason, line, state }
+  DUOS_CODE:        'duos:code',         // () → { ok, reason, line, code, codeLine, state } a new invite code, shown once
+  DUOS_ACCEPT:      'duos:accept',       // ({ code } | { from }) → { ok, reason, line, state }
+  DUOS_DECLINE:     'duos:decline',      // (from) → { ok, state }
+  DUOS_CANCEL:      'duos:cancel',       // (ref) → { ok, state } an invite this account sent
+  DUOS_REMOVE:      'duos:remove',       // (username) → { ok, line, state } ends the duo, what it shared deleted
+  DUOS_FLAG:        'duos:flag',         // ({ name, reason }) → { ok, line }
+  DUOS_UPLOAD:      'duos:upload',       // (on) → { ok, upload } the "Upload my clips to my duo" switch
+  DUOS_PLANS:       'duos:plans',        // () → { ok } opens the plans in the browser, as Profile's Plans does
+  DUOS_MATCH:       'duos:match',        // (ref) → { ok, match: model, names } | { ok: false, error }
+  DUOS_CLIP:        'duos:clip',         // ({ ref, name, match }) → { ok, url } | { ok: false, line } downloaded into the duo cache when opened
+  DUOS_PIN:         'duos:pin',          // ({ clip, at, label, reaction }) → { ok, ref } | { ok: false, line }
+  DUOS_UNPIN:       'duos:unpin',        // (ref) → { ok }
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',
@@ -151,6 +167,7 @@ const CHANNELS = {
   PRACTICE_OPEN:   'practice:open',      // send (key, title) the page, opened on one mistake (the review's Practise this)
   PUSH_PRACTICE:   'push:practice',      // main -> pages: the plan or the log moved; ask again
   PUSH_SOCIAL:     'push:social',        // main -> Profile, Players: { open?: username } the public profile moved, or open this one
+  PUSH_DUOS:       'push:duos',          // main -> Duos, shell: the duos or the uploads moved; ask again
   // The Trainer (docs/claude/trainer.md, services/trainer-store.js): the runs
   // kept on this PC and the scenario asked for. All local, no AI and no
   // network, every one quiet mid match: null, or { ok: false, error: 'match' }.
@@ -355,6 +372,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_PRACTICE,
   CHANNELS.PUSH_TRAINER,
   CHANNELS.PUSH_SOCIAL,
+  CHANNELS.PUSH_DUOS,
 ];
 
 module.exports = CHANNELS;

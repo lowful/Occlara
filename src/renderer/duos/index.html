@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' occlara-clip:; font-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none';" />
+  <title>Duos</title>
+  <!-- Before the body: a page of the main window never paints its old window chrome. -->
+  <script src="../shared/embed.js"></script>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../players/players.css" />
+  <link rel="stylesheet" href="../review/clip-player.css" />
+  <link rel="stylesheet" href="duos.css" />
+</head>
+<body>
+  <!-- OCCLARA DUOS (docs/claude/duos.md). Two friends who both use Occlara
+       see each other's side of the matches they played together on one team:
+       a round by round table of both, one time axis per round with both
+       players' kills and deaths, and the two clips of a round side by side on
+       one clock, with pins from a fixed list. Every line is main's
+       (src/shared/duos.js), every string set as text. Opened from the
+       account menu under Players, shown only while the server says Duos is
+       open, and locked by the seal like every page: nothing here shows, plays
+       or loads mid match. -->
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
+        <h2>Duos</h2>
+      </div>
+    </header>
+
+    <main class="body">
+      <!-- HOME: partners, invites, teammates found, shared matches, uploads. -->
+      <div id="du-home" class="pl-col du-col">
+        <section class="pl-sec pl-lead">
+          <h1 class="pl-hero">Review with your duo</h1>
+          <p id="du-what" class="pl-hint"></p>
+        </section>
+
+        <!-- A state the page cannot go past: signed out, no username, offline, loading. -->
+        <section id="du-state" class="pl-sec du-state" aria-live="polite" hidden>
+          <p id="du-state-line" class="pl-hint"></p>
+          <div class="pl-actions"><button id="du-state-act" class="btn btn-ghost md" type="button" hidden></button></div>
+        </section>
+
+        <section id="du-partners-sec" class="pl-sec" aria-labelledby="du-partners-title" hidden>
+          <h3 id="du-partners-title" class="pl-title">Your duos</h3>
+          <ul id="du-partners" class="pl-rows"></ul>
+          <p id="du-partners-empty" class="pl-hint" hidden>No duo yet. Invite a friend below, or join with their code.</p>
+          <ul id="du-ended" class="du-notes"></ul>
+          <p id="du-partner-said" class="pl-note" aria-live="polite"></p>
+        </section>
+
+        <section id="du-invites-sec" class="pl-sec" aria-labelledby="du-invites-title" hidden>
+          <h3 id="du-invites-title" class="pl-title">Invites</h3>
+          <ul id="du-invites" class="pl-rows" aria-label="Invites to you and from you"></ul>
+        </section>
+
+        <section id="du-invite-sec" class="pl-sec" aria-labelledby="du-invite-title" hidden>
+          <h3 id="du-invite-title" class="pl-title">Start a duo</h3>
+          <!-- With Max: by exact username, or by a code to send any way. -->
+          <div id="du-can-invite" class="du-stack" hidden>
+            <label class="pl-label" for="du-name">Their username, exactly</label>
+            <form id="du-invite-form" class="pl-search" autocomplete="off" novalidate>
+              <input id="du-name" class="input pl-q" type="text" spellcheck="false" maxlength="20" placeholder="Username" />
+              <button id="du-invite-go" class="btn btn-primary md" type="submit">Send invite</button>
+            </form>
+            <div class="pl-actions">
+              <button id="du-code-make" class="btn btn-ghost md" type="button">Make an invite code</button>
+            </div>
+            <div id="du-code-box" class="du-code-box" hidden>
+              <span class="pl-label">Your invite code</span>
+              <b id="du-code" class="du-code"></b>
+              <p id="du-code-line" class="pl-note"></p>
+            </div>
+          </div>
+          <!-- Without Max: what Duos is, that it needs Max on one side, and the way to upgrade. -->
+          <div id="du-needs-max" class="du-stack" hidden>
+            <p id="du-needs-line" class="pl-hint"></p>
+            <div class="pl-actions"><button id="du-plans" class="btn btn-ghost md" type="button">See plans</button></div>
+            <p id="du-ask-line" class="pl-hint"></p>
+          </div>
+          <div class="du-stack du-join">
+            <label class="pl-label" for="du-join-code">Have a code from a friend?</label>
+            <form id="du-join-form" class="pl-search" autocomplete="off" novalidate>
+              <input id="du-join-code" class="input pl-q du-code-in" type="text" spellcheck="false" maxlength="14" placeholder="K7M2Q-9XH4P" />
+              <button id="du-join-go" class="btn btn-ghost md" type="submit">Join</button>
+            </form>
+          </div>
+          <p id="du-invite-said" class="pl-note" aria-live="polite"></p>
+        </section>
+
+        <section id="du-found-sec" class="pl-sec" aria-labelledby="du-found-title" hidden>
+          <h3 id="du-found-title" class="pl-title">Teammates who use Occlara</h3>
+          <p id="du-found-note" class="pl-hint"></p>
+          <ul id="du-found" class="pl-rows"></ul>
+          <p id="du-found-said" class="pl-note" aria-live="polite"></p>
+        </section>
+
+        <section id="du-matches-sec" class="pl-sec" aria-labelledby="du-matches-title" hidden>
+          <h3 id="du-matches-title" class="pl-title">Shared matches</h3>
+          <ul id="du-matches" class="pl-rows" aria-label="Shared matches"></ul>
+          <p id="du-matches-empty" class="pl-hint" hidden></p>
+        </section>
+
+        <section id="du-upload-sec" class="pl-sec" aria-labelledby="du-upload-title" hidden>
+          <h3 id="du-upload-title" class="pl-title">Upload my clips to my duo</h3>
+          <p class="pl-hint">After a match you played with your duo, your death and highlight clips of it go up one at a time, never while you play. Your sheet of the match, numbers and places only, goes up either way.</p>
+          <div id="du-upload" class="seg" role="group" aria-label="Upload my clips to my duo">
+            <button type="button" data-val="on" aria-pressed="false">On</button>
+            <button type="button" data-val="off" aria-pressed="false">Off</button>
+          </div>
+          <p id="du-upload-line" class="pl-hint"></p>
+          <p id="du-quota-line" class="pl-note"></p>
+        </section>
+      </div>
+
+      <!-- ONE SHARED MATCH: both players round by round, one time axis per
+           round, and the two clips of a round side by side on one clock. -->
+      <article id="du-match" class="pl-col du-col du-wide" aria-labelledby="dm-title" hidden>
+        <div class="pl-back-row">
+          <button id="dm-back" class="btn btn-link sm" type="button">Back to Duos</button>
+        </div>
+        <section class="pl-sec pl-lead">
+          <h1 id="dm-title" class="pl-hero"></h1>
+          <p id="dm-sub" class="pl-hint"></p>
+          <p id="dm-left" class="pl-note"></p>
+          <p id="dm-paused" class="pl-hint du-warn" hidden></p>
+        </section>
+
+        <section class="pl-sec" aria-label="Both grades">
+          <div class="stats sm pv-stats du-grades">
+            <div class="stat"><b class="stat-n"><span id="dm-g-me"></span> <span id="dm-l-me" class="pv-letter"></span></b><span id="dm-a-me" class="pl-label"></span><span id="dm-k-me" class="pv-sub"></span></div>
+            <div class="stat"><b class="stat-n"><span id="dm-g-them"></span> <span id="dm-l-them" class="pv-letter"></span></b><span id="dm-a-them" class="pl-label"></span><span id="dm-k-them" class="pv-sub"></span></div>
+          </div>
+          <p id="dm-missing" class="pl-hint" hidden></p>
+        </section>
+
+        <!-- The stage: the round's two clips, one clock. Built when a round is watched. -->
+        <section id="dm-stage-sec" class="pl-sec" aria-labelledby="dm-stage-title" hidden>
+          <h3 id="dm-stage-title" class="pl-title"></h3>
+          <div id="dm-stage" class="du-stage"></div>
+          <div id="dm-sync" class="du-sync" role="group" aria-label="Both clips together" hidden>
+            <button id="ds-play" class="btn btn-primary sm" type="button">Play both</button>
+            <button id="ds-back" class="btn btn-ghost sm" type="button" aria-label="Back one second">-1 s</button>
+            <button id="ds-fwd" class="btn btn-ghost sm" type="button" aria-label="Forward one second">+1 s</button>
+            <button id="ds-frame-back" class="btn btn-ghost sm" type="button" aria-label="Back one frame">-1 frame</button>
+            <button id="ds-frame-fwd" class="btn btn-ghost sm" type="button" aria-label="Forward one frame">+1 frame</button>
+            <input id="ds-seek" class="du-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Round time" />
+            <span id="ds-time" class="du-time"></span>
+          </div>
+          <p id="dm-stage-note" class="pl-note"></p>
+          <!-- A pin on the partner's clip: a label from the fixed list and a reaction. No typed words. -->
+          <div id="dm-pin" class="du-pin" hidden>
+            <span id="dm-pin-label" class="pl-label"></span>
+            <div id="dm-pin-labels" class="seg" role="group" aria-labelledby="dm-pin-label"></div>
+            <div id="dm-pin-reactions" class="seg" role="group" aria-label="A reaction, if you like"></div>
+            <div class="pl-actions"><button id="dm-pin-go" class="btn btn-ghost md" type="button" disabled>Pin here</button></div>
+          </div>
+          <ul id="dm-pins" class="du-pins" aria-label="Pins on this round's clips"></ul>
+          <p id="dm-stage-said" class="pl-note" aria-live="polite"></p>
+          <p id="dm-names" class="pl-note"></p>
+        </section>
+
+        <section class="pl-sec" aria-labelledby="dm-rounds-title">
+          <h3 id="dm-rounds-title" class="pl-title">Round by round</h3>
+          <div class="du-legend" aria-hidden="true">
+            <span class="du-key"><i class="du-sw lane-me"></i>You, the top line</span>
+            <span class="du-key"><i class="du-sw lane-them"></i><span id="dm-key-them"></span></span>
+            <span class="du-key"><i class="du-sw"><i class="du-mark kill"></i></i>Kill</span>
+            <span class="du-key"><i class="du-sw"><i class="du-mark death"></i></i>Death</span>
+            <span class="du-key"><i class="du-sw plant"></i>Plant</span>
+          </div>
+          <ol id="dm-rounds" class="du-rounds"></ol>
+        </section>
+      </article>
+    </main>
+  </div>
+
+  <script src="../shared/seg.js"></script>
+  <script src="../review/clip-time.js"></script>
+  <script src="../review/clip-player.js"></script>
+  <script src="duo-time.js"></script>
+  <script src="duos.js"></script>
+</body>
+</html>

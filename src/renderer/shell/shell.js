@@ -45,6 +45,8 @@ const PAGE_ICO = {
   profile: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.8 18.3a6 6 0 0 1 10.4 0"/>',
   // Players (docs/claude/social.md): a magnifier, for the search.
   players: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5l5 5"/>',
+  // Duos (docs/claude/duos.md): two players side by side.
+  duos: '<circle cx="8.5" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3 19.5a5.5 5.5 0 0 1 11 0"/><path d="M13.6 14.3A5.5 5.5 0 0 1 21.5 19.5"/>',
   // Report a problem (docs/claude/feedback.md): a flag, the icon at the end
   // of Profile's row above the Discord.
   feedback: '<path d="M5.5 21V4.5"/><path d="M5.5 4.5h11.2a.6.6 0 0 1 .5.92L15.2 8.5l2 3.08a.6.6 0 0 1-.5.92H5.5"/>',
@@ -91,6 +93,8 @@ navButtons.set('invite', $('nav-invite'));
 navButtons.set('profile', $('nav-profile'));
 // Players (docs/claude/social.md), the account menu's row beside Profile.
 navButtons.set('players', $('nav-players'));
+// Duos (docs/claude/duos.md), the account menu's row under Players.
+navButtons.set('duos', $('nav-duos'));
 navButtons.set('settings', $('nav-settings'));
 // Report a problem: a page like the rest, so the seal locks it and the
 // marker finds it, drawn as the quiet icon at the end of Profile's row.
@@ -99,6 +103,7 @@ $('nav-feedback').addEventListener('click', () => window.occlara.go('feedback'))
 $('nav-invite').addEventListener('click', () => window.occlara.go('invite'));
 $('nav-profile').addEventListener('click', () => window.occlara.go('profile'));
 $('nav-players').addEventListener('click', () => window.occlara.go('players'));
+$('nav-duos').addEventListener('click', () => window.occlara.go('duos'));
 $('nav-settings').addEventListener('click', () => window.occlara.go('settings'));
 $('learn').addEventListener('click', () => { setDrawer(false); window.occlara.openLearn(); });
 
@@ -213,7 +218,7 @@ if (typeof window.occlara.onMenuAct === 'function') {
     }
   });
 }
-for (const id of ['nav-invite', 'nav-profile', 'nav-players', 'nav-settings', 'nav-feedback', 'discord', 'account']) {
+for (const id of ['nav-invite', 'nav-profile', 'nav-players', 'nav-duos', 'nav-settings', 'nav-feedback', 'discord', 'account']) {
   $(id).addEventListener('click', () => setDrawer(false));
 }
 // The Discord (the community): main opens the invite in the browser, never
@@ -448,6 +453,20 @@ async function paintPlayers() {
 }
 if (typeof window.occlara.onAccount === 'function') window.occlara.onAccount(() => paintPlayers());
 if (typeof window.occlara.onSocial === 'function') window.occlara.onSocial(() => paintPlayers());
+
+/*
+ * DUOS (docs/claude/duos.md): its row shows only once the server says Duos is
+ * open (SOCIAL_DUOS_ON and its SQL), asked when Players is; main answers null
+ * mid match, and the row is kept as it was. Off, there is no trace of Duos.
+ */
+async function paintDuos() {
+  if (typeof window.occlara.duosLive !== 'function') return;
+  const s = await Promise.resolve(window.occlara.duosLive()).catch(() => null);
+  if (!s) return;
+  $('nav-duos').hidden = s.duos !== true;
+}
+if (typeof window.occlara.onAccount === 'function') window.occlara.onAccount(() => paintDuos());
+if (typeof window.occlara.onSocial === 'function') window.occlara.onSocial(() => paintDuos());
 
 /** The config, or what is already known when it cannot be read. */
 function readConfig(fallback) {
@@ -759,7 +778,7 @@ window.occlara.onShell((s) => {
   const sealing = !!s.sealed && !shell.sealed;
   const unsealing = !s.sealed && !!shell.sealed;
   shell = s;
-  if (unsealing) paintPlayers();
+  if (unsealing) { paintPlayers(); paintDuos(); }
   if (sealing) setDrawer(false);
   paintNav();
 });
@@ -789,6 +808,7 @@ document.querySelector('.bar').addEventListener('dblclick', (e) => {
   paintAccount();
   paintNav();
   paintPlayers();
+  paintDuos();
   // The avatar pops in once, as the window first opens (8.9.2), and never
   // when it opens on the Recording screen: nothing there moves but its arrival.
   if (!shell.sealed && !reducedMotion()) {
