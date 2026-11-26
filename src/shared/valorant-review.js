@@ -28,6 +28,7 @@ const { FIGHTS, CHANGES, CAUSES, recordCause } = require('./death-causes');
 const icons = require('./valorant-icons');
 const { killIcon } = require('./kit-icons');
 const { satOut, cardSatOut } = require('./sat-out');
+const rating = require('./rating');
 
 let DATA = {};
 try {
@@ -753,6 +754,11 @@ function recordOnCard(r, agent) {
   if (casts) out.casts = casts;
   if (r.afk === true) out.afk = true;
   if (r.inSpawn === true) out.inSpawn = true;
+  // For the match rating (rating.md): who planted, the defuse and who made
+  // it, as sides and agents, only where Riot's record named them.
+  if (r.plantBy && typeof r.plantBy === 'object') out.plantBy = { ...r.plantBy };
+  if (typeof r.defuseMs === 'number') out.defuseSec = Math.round(r.defuseMs / 100) / 10;
+  if (r.defuseBy && typeof r.defuseBy === 'object') out.defuseBy = { ...r.defuseBy };
   return out;
 }
 
@@ -1139,7 +1145,19 @@ function build(input) {
     // them: agents and roles only. The page's comps line is computed from it
     // when shown (compsLine), and Ask Coach is told it.
     ...(compsOf(input.comps) ? { comps: compsOf(input.comps) } : {}),
+    // THE MATCH RATING (docs/claude/rating.md): counted from Riot's kill feed
+    // on the cards wherever Riot's record was laid over the review (the match
+    // end, the late link, the backfill, an import that matched) and saved
+    // with its version. A review from the screen alone has none, and the
+    // page says what would give it one (served, withRating).
+    ...ratingField(cards, game),
   };
+}
+
+/** The rating of a review's cards as a field, or nothing. */
+function ratingField(cards, game) {
+  const out = rating.ratingOfReview({ kind: 'valorant', game, rounds: cards });
+  return out.rating ? { rating: out.rating } : {};
 }
 
 /**
@@ -1175,13 +1193,42 @@ function riotOnlyNote(grade, riotOnly) {
  * A review built today comes back with the same content.
  */
 function served(review) {
-  if (!review || review.kind !== 'valorant') return review;
+  if (!review || review.kind !== 'valorant') return withRating(review);
   if (review.source === 'riot') {
-    return withView(withCompsLine(weaponsInTodaysWords(withoutEconomy({ ...review, insights: insights.asFacts(review.insights),
-      grade: grader.riotWords(review.grade) }))));
+    return withRating(withView(withCompsLine(weaponsInTodaysWords(withoutEconomy({ ...review, insights: insights.asFacts(review.insights),
+      grade: grader.riotWords(review.grade) })))));
   }
   const out = recordCausesSaved(review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review);
-  return withView(withCompsLine(weaponsInTodaysWords(aboutNotesInTodaysWords(withoutEconomy(out)))));
+  return withRating(withView(withCompsLine(weaponsInTodaysWords(aboutNotesInTodaysWords(withoutEconomy(out))))));
+}
+
+/*
+ * THE RATING AS THE PAGE DRAWS IT, NEVER ON DISK (docs/claude/rating.md):
+ * `ratingView`, from the rating saved with the review, or counted on open
+ * from its cards when it was saved before ratings existed and they carry
+ * Riot's kill feed, or the line that says what would give it one. Nothing is
+ * written back and the grade is never touched. A locked review gets none: it
+ * shows nothing that judges the match.
+ */
+function withRating(review) {
+  if (!review || typeof review !== 'object') return review;
+  // Another game's review with nothing to strip is the very same object.
+  if (review.kind !== 'valorant' && !('rating' in review)) return review;
+  // The saved rating never leaves for a window: its timeline and the lobby's
+  // ten rows are main's; the page is sent the view alone, every review.
+  const { rating: kept, ...rest } = review;
+  if (review.kind !== 'valorant' || review.locked === true) return rest;
+  // A rating that cannot be shown is no rating, never a review that fails.
+  let view = null;
+  try {
+    const r = rating.ratingOfReview(review);
+    const cards = Array.isArray(review.rounds) ? review.rounds : [];
+    view = rating.viewOf(r.rating, {
+      note: r.note, rounds: cards.length, half: review.halftimeAfter,
+      results: cards.map((c) => ({ n: c && c.n, won: c && c.result === 'won' ? true : c && c.result === 'lost' ? false : null })),
+    });
+  } catch { view = null; }
+  return view ? { ...rest, ratingView: view } : rest;
 }
 
 /*
@@ -1202,7 +1249,7 @@ function withoutEconomy(review) {
  * holds, so a review from any version gets them. withoutView takes them off
  * again, for a test that holds the rest of what is shown unchanged.
  */
-const VIEW_FIELDS = ['summaryLines', 'context'];
+const VIEW_FIELDS = ['summaryLines', 'context', 'ratingView'];
 const VIEW_CARD_FIELDS = ['tags', 'open', 'killerCard', 'chain', 'flag', 'explain'];
 
 /*

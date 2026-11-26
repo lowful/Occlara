@@ -276,6 +276,67 @@ ok(pr(7).afk === true && !('afk' in pr(6)) && pr(8).inSpawn === true && !('inSpa
   ok(!n.perRound.flatMap((r) => NEW.filter((k) => k in r)).length, 'nulls where the fields are read degrade to no key, never a throw');
 }
 
+// THE MATCH RATING'S FIELDS (Nov 2026, docs/claude/rating.md): the assisters
+// on each kill, who planted, and the defuse's moment and who made it, each a
+// side and an agent only, and only where the record names them.
+{
+  const d = payload();
+  d.kills[2].assistants = [{ ...MATES[0] }, { ...MATES[1] }];                       // v4: players
+  d.kills[3].assistants = [{ assistant_puuid: FOES[3].puuid, assistant_display_name: `${FOES[3].name}#${FOES[3].tag}`, assistant_team: 'Blue' }]; // v2
+  d.rounds[3].plant = { round_time_in_ms: 30000, site: 'A', player: { ...ME } };
+  d.rounds[3].defuse = { round_time_in_ms: 61000, player: { ...FOES[0] } };
+  d.rounds[4].plant_events = { plant_time_in_round: 25000, plant_site: 'B', planted_by: { puuid: MATES[2].puuid, display_name: `${MATES[2].name}#${MATES[2].tag}`, team: 'Red' } };
+  d.rounds[4].defuse_events = { defuse_time_in_round: 50000, defused_by: { puuid: 'p-unknown', display_name: 'Nobody#X', team: 'Blue' } };
+  const p = riotRounds.parse(d, ME.name, ME.tag);
+  const r4 = p.perRound.find((r) => r.n === 4);
+  const r5 = p.perRound.find((r) => r.n === 5);
+  const k4 = r4.feed.find((k) => k.by === 'me');
+  ok(JSON.stringify(k4.as) === '[{"by":"mate","a":"Omen"},{"by":"mate","a":"Sova"}]', `a kill's assisters by side and agent (${JSON.stringify(k4.as)})`);
+  ok(JSON.stringify(r4.feed.find((k) => k.by === 'enemy').as) === '[{"by":"enemy","a":"Cypher"}]', 'a v2 assister by puuid and team, the same way');
+  ok(JSON.stringify(r4.plantBy) === '{"by":"me","a":"Jett"}' && r4.defuseMs === 61000 && JSON.stringify(r4.defuseBy) === '{"by":"enemy","a":"Reyna"}',
+    `the planter, the defuse's moment and the defuser (${JSON.stringify([r4.plantBy, r4.defuseMs, r4.defuseBy])})`);
+  ok(JSON.stringify(r5.plantBy) === '{"by":"mate","a":"Killjoy"}' && r5.defuseMs === 50000 && JSON.stringify(r5.defuseBy) === '{"by":"enemy"}',
+    'v2\'s planted_by and defuse_events, a defuser the roster lacks kept as a side alone');
+  const text = JSON.stringify(p.perRound).toLowerCase();
+  const leaked = ALL.flatMap((x) => [x.name, x.tag, x.puuid]).concat(['nobody', 'p-unknown']).filter((w) => text.includes(w.toLowerCase()));
+  ok(!leaked.length, `no name, tag or id rides with them (${leaked.join(', ') || 'none'})`);
+  ok(!parsed.perRound.some((r) => 'plantBy' in r || 'defuseMs' in r || 'defuseBy' in r || r.feed.some((k) => 'as' in k)),
+    'a record with no assisters, plant player or defuse adds no key, so an older client reads the same round');
+  // The client keeps them, to the card, and a forged one is dropped.
+  const card4 = riotReview.fromRiot({ row: { matchId: 'm-2', map: 'Ascent', agent: 'Jett', mode: 'Competitive', result: 'Defeat', score: '6-8', startedAt: Date.parse('2026-11-01T10:00:00Z') },
+    riot: { ...p, map: 'Ascent' }, history: [], account: 'x#y' }).review.rounds.find((c) => c.n === 4).riot;
+  ok(JSON.stringify(card4.plantBy) === '{"by":"me","a":"Jett"}' && card4.defuseSec === 61 && JSON.stringify(card4.defuseBy) === '{"by":"enemy","a":"Reyna"}'
+    && card4.feed.some((k) => Array.isArray(k.as) && k.as.length === 2), 'the card keeps the planter, the defuse and the assisters');
+  const forged = verify.reconcile([], { map: 'Ascent', perRound: [{ n: 1, died: false, won: true, plantBy: { by: 'Lowfulwyrm', a: 'Jett' }, defuseMs: 'soon', defuseBy: { by: 'enemy', a: 'Zephyrine1' },
+    feed: [{ ms: 1, by: 'me', on: 'enemy', as: [{ by: 'mate', a: 'Brindlecap1' }, { by: 'x' }, 'Omen'] }] }] }).rounds[0];
+  ok(!('plantBy' in forged) && !('defuseMs' in forged) && JSON.stringify(forged.defuseBy) === '{"by":"enemy"}'
+    && JSON.stringify(forged.feed[0].as) === '[{"by":"mate"}]', 'a side that is no side goes, a name sent as an agent goes, only the side is kept');
+}
+
+// A hostile record (round 3 of the rating review): an object whose toString is
+// not a function in a team or name field reads as no value and never throws,
+// a roster agent that is not an agent is never passed on, and a defuse time
+// out of any round is dropped.
+{
+  const hostile = { toString: 5 };
+  const d = payload();
+  d.kills[2].assistants = [{ puuid: 'p-x', name: hostile, tag: hostile, team: hostile }];
+  d.kills[3].killer = { ...d.kills[3].killer, team: hostile, name: hostile };
+  d.rounds[3].plant = { round_time_in_ms: 30000, site: 'A', player: { name: hostile, tag: 'X', team: hostile } };
+  d.rounds[3].defuse = { round_time_in_ms: 1e300, player: { ...FOES[0], team: hostile } };
+  let threw = null;
+  let p = null;
+  try { p = riotRounds.parse(d, ME.name, ME.tag); } catch (e) { threw = e.message; }
+  ok(!threw && p && !p.error, `a toString that is not a function in a name or team field does not throw (${threw || 'parsed'})`);
+  ok(p && !('defuseMs' in p.perRound.find((r) => r.n === 4)), 'a defuse time out of any round is dropped');
+  const named = payload();
+  named.players[1].agent = { id: 'a', name: MATES[0].name };
+  named.kills[2].assistants = [{ ...MATES[0] }];
+  const q = riotRounds.parse(named, ME.name, ME.tag);
+  const as = q.perRound.find((r) => r.n === 4).feed.find((k) => k.by === 'me').as;
+  ok(JSON.stringify(as) === '[{"by":"mate"}]', `a roster agent that is a player's name is never passed on (${JSON.stringify(as)})`);
+}
+
 // ── The client: valorant-verify.js reconcile ────────────────────────────────
 const { rounds: merged } = verify.reconcile([], parsed);
 const mr = (n) => merged.find((r) => r.n === n);

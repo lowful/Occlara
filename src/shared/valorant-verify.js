@@ -192,8 +192,19 @@ function killFeedOf(feed) {
     if (ka) e.ka = ka;
     if (va) e.va = va;
     if (w) e.w = w;
+    // The assisters (Nov 2026, the match rating): each a side and an agent
+    // the game data knows, never a name; no key where none was kept.
+    const as = (Array.isArray(k.as) ? k.as : []).map(endKept).filter(Boolean).slice(0, 4);
+    if (as.length) e.as = as;
     return e;
   });
+}
+
+/** One end of a plant, a defuse or an assist: { by, a } kept only as a side and a known agent. */
+function endKept(x) {
+  if (!x || typeof x !== 'object' || !SIDES.has(x.by)) return null;
+  const a = agentName(x.a);
+  return a ? { by: x.by, a } : { by: x.by };
 }
 
 /*
@@ -264,6 +275,13 @@ function recordExtras(rr, map) {
   if (casts) out.casts = casts;
   if (rr.afk === true) out.afk = true;
   if (rr.inSpawn === true) out.inSpawn = true;
+  // Who planted, and the defuse's moment and who made it (Nov 2026, the
+  // match rating), each only as a side, a known agent and a time in the round.
+  const planter = endKept(rr.plantBy);
+  if (planter) out.plantBy = planter;
+  if (typeof rr.defuseMs === 'number' && Number.isFinite(rr.defuseMs) && rr.defuseMs >= 0 && rr.defuseMs <= 300000) out.defuseMs = rr.defuseMs;
+  const defuser = endKept(rr.defuseBy);
+  if (defuser) out.defuseBy = defuser;
   return out;
 }
 

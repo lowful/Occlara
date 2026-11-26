@@ -1,0 +1,199 @@
+/* palette: tokens only */
+/* THE MATCH RATING (docs/claude/rating.md, rating-view.js): a block of the
+   review, a heading then rows parted by the hairline, no card. The number in
+   Geist 600 in its tier's colour, the way football ratings colour theirs
+   (under 6 --bad, 6 to 6.9 --warn, 7 to 7.9 --good, 8 to 8.9 --tier-4, 9 and
+   up --tier-5; never the signal), with the number always the text. The line
+   in the ink over a soft area, 6.0 dashed, the half dashed, a tick a round,
+   a swing's dot in its outcome's colour (a gain above the line, a loss
+   below). The replay over the page in the Verdict's own panel. Motion is
+   opacity, transform, shadow and clip; the count is CSS (@property --rt over
+   counter()); reduced motion takes every duration to nothing (theme.css). */
+
+.rt[hidden], .rt [hidden] { display: none !important; }
+
+/* The tier, as a token every rule below reads. */
+.t-poor { --rt-tier: var(--bad); }
+.t-fair { --rt-tier: var(--warn); }
+.t-good { --rt-tier: var(--good); }
+.t-great { --rt-tier: var(--tier-4); }
+.t-excellent { --rt-tier: var(--tier-5); }
+
+.rt-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-6); flex-wrap: wrap; }
+.rt-big { display: flex; align-items: baseline; gap: var(--space-2); }
+.rt-value {
+  font-family: var(--font); font-size: 64px; font-weight: 600; line-height: 0.85;
+  letter-spacing: -0.05em; color: var(--rt-tier, var(--text)); font-variant-numeric: tabular-nums;
+}
+.rt-out { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.rt-side { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.rt-place { margin: 0; font-size: 14px; font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.rt-note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-mute); max-width: 72ch; }
+
+/* The line: an SVG stretched to the column, its strokes one width whatever
+   the stretch, the dots and the cursor HTML over it so they stay round. */
+.rt-line { display: flex; flex-direction: column; gap: 6px; }
+.rt-plot { position: relative; height: 112px; outline: none; border-radius: var(--r-control); }
+.rt-plot:focus-visible { box-shadow: 0 0 0 2px var(--line-2); }
+.rt-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.rt-base { stroke: var(--line-2); stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.rt-halfline { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 5; vector-effect: non-scaling-stroke; }
+.rt-area { fill: rgba(255,255,255,0.05); stroke: none; }
+.rt-path { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.rt-mark {
+  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
+  background: var(--text-mute); box-shadow: 0 0 0 2px var(--bg); pointer-events: none;
+}
+.rt-mark.up { background: var(--good); transform: translateY(-8px); }
+.rt-mark.down { background: var(--bad); transform: translateY(8px); }
+.rt-cursor { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px; background: var(--line-2); pointer-events: none; }
+.rt-now {
+  position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; pointer-events: none;
+  background: var(--text); box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--rt-tier, var(--line-2));
+}
+.rt-ticks { position: relative; height: 6px; }
+.rt-tick { position: absolute; top: 0; width: 2px; height: 6px; margin-left: -1px; border-radius: 1px; background: var(--line-2); }
+.rt-tick.won { background: var(--text-dim); }
+.rt-axis { position: relative; display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--text-mute); }
+.rt-axis-half { position: absolute; top: 0; transform: translateX(-50%); }
+
+/* A round read off the line, one line under it. */
+.rt-read { margin: 0; min-height: 20px; display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; font-size: 13px; color: var(--text-dim); }
+.rt-read-n { font-weight: 600; color: var(--text); }
+.rt-read-score, .rt-read-d { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.rt-read-d.up { color: var(--good); }
+.rt-read-d.down { color: var(--bad); }
+.rt-read-label { color: var(--text); }
+.rt-read-hint { color: var(--text-mute); }
+
+/* The three biggest round gains and losses, side by side, each its round. */
+.rt-swings { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-6); }
+.rt-col { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.rt-col-label { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.rt-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.rt-row { border-bottom: 1px solid var(--line); }
+.rt-row-btn {
+  all: unset; box-sizing: border-box; cursor: pointer;
+  display: flex; align-items: baseline; gap: var(--space-3); width: 100%; padding: var(--space-2) var(--space-1);
+  transition: background var(--t-fast) var(--ease);
+}
+.rt-row-btn:hover { background: rgba(255,255,255,0.035); }
+.rt-row-btn:focus-visible { outline: 2px solid var(--line-2); outline-offset: -2px; }
+.rt-round { flex: none; width: 32px; font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.rt-label { flex: 1; min-width: 0; font-size: 14px; line-height: 1.4; color: var(--text); }
+.rt-delta { flex: none; font-family: var(--font-mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.rt-delta.up { color: var(--good); }
+.rt-delta.down { color: var(--bad); }
+
+/* The lobby, closed until asked for: agents and numbers only. */
+.rt-lobby-wrap > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-dim); }
+.rt-lobby { list-style: none; margin: var(--space-2) 0 0; padding: 0; counter-reset: lob; border-top: 1px solid var(--line); }
+.rt-lob { counter-increment: lob; display: flex; align-items: baseline; gap: var(--space-3); padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--text-dim); }
+.rt-lob::before { content: counter(lob); width: 20px; font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.rt-lob-agent { flex: 1; min-width: 0; color: var(--text); }
+.rt-lob.me .rt-lob-agent { font-weight: 600; }
+.rt-lob-side { color: var(--text-mute); font-size: 12px; }
+.rt-lob-val { width: 36px; text-align: right; font-family: var(--font-mono); font-weight: 500; color: var(--rt-tier, var(--text)); font-variant-numeric: tabular-nums; }
+
+/* ── The replay, a broadcast graphic ─────────────────────────────────────── */
+.rt-replay {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: center; padding: var(--space-6);
+  background: var(--scrim);
+  animation: rtFade var(--t-med) var(--ease-out) both;
+}
+.rt-replay[hidden] { display: none; }
+.rt-stage {
+  width: min(760px, 100%); max-height: 100%; overflow: hidden; display: flex; flex-direction: column; gap: var(--space-5);
+  padding: var(--space-8); border-radius: var(--r-panel); background: var(--s1); box-shadow: var(--rim);
+  animation: rtRise var(--t-slow) var(--ease-expo) both;
+}
+.rt-r-top { display: flex; align-items: baseline; gap: var(--space-4); }
+.rt-r-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+.rt-r-round { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.rt-r-score {
+  display: inline-block; font-family: var(--font-mono); font-size: 15px; font-weight: 500; color: var(--text);
+  padding: 2px 10px; border-radius: var(--r-pill); background: var(--s3); font-variant-numeric: tabular-nums;
+}
+.rt-r-score.tick { animation: rtTick var(--t-med) var(--ease-spring) both; }
+.rt-replay.done .rt-r-round { color: var(--text); font-weight: 500; }
+
+.rt-r-mid { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: var(--space-5); min-height: 132px; }
+
+/* THE BADGE: the rating on its tier's colour, the dark ink on it. */
+.rt-r-badge {
+  display: flex; align-items: center; justify-content: center; min-width: 200px; padding: var(--space-4) var(--space-6);
+  border-radius: var(--r-panel); background: var(--rt-tier, var(--s3)); color: var(--on-accent);
+  box-shadow: var(--drop); transition: background-color var(--t-slow) var(--ease-out);
+}
+.rt-replay.done .rt-r-badge { animation: rtStamp var(--t-slow) var(--ease-spring) both; }
+
+/* THE COUNT: the value in tenths, --rt, which the page sets; its whole part
+   rounded down by the integer type (--rt less 5, over 10) and its tenth what
+   is left, drawn by counter() over the real number, which stays the text. */
+@property --rt { syntax: '<integer>'; initial-value: 60; inherits: true; }
+@property --rt-w { syntax: '<integer>'; initial-value: 6; inherits: true; }
+@property --rt-d { syntax: '<integer>'; initial-value: 0; inherits: true; }
+.rt-r-num {
+  position: relative; color: transparent;
+  font-family: var(--font); font-size: 104px; font-weight: 700; line-height: 0.9;
+  letter-spacing: -0.055em; font-variant-numeric: tabular-nums;
+  --rt-w: calc((var(--rt) - 5) / 10);
+  --rt-d: calc(var(--rt) - var(--rt-w) * 10);
+  counter-reset: rtw var(--rt-w) rtd var(--rt-d);
+  transition: --rt var(--t-slow) var(--ease-out);
+}
+.rt-r-num::after { content: counter(rtw) "." counter(rtd); position: absolute; left: 0; top: 0; color: var(--on-accent); }
+
+/* The move beside it: up rises in green, down falls in red. */
+.rt-r-delta { min-width: 4ch; font-family: var(--font-mono); font-size: 28px; font-weight: 500; color: var(--text-mute); font-variant-numeric: tabular-nums; opacity: 0; }
+.rt-r-delta.up { color: var(--good); animation: rtUp var(--t-slow) var(--ease-out) both; }
+.rt-r-delta.down { color: var(--bad); animation: rtDown var(--t-slow) var(--ease-out) both; }
+
+/* The running feed: the newest on top, the older quieter. */
+.rt-r-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; align-self: stretch; justify-content: center; }
+.rt-f { display: flex; align-items: baseline; gap: var(--space-2); font-size: 13px; color: var(--text-dim); min-width: 0; }
+.rt-f:first-child { color: var(--text); animation: rtRise var(--t-med) var(--ease-out) both; }
+.rt-f:nth-child(3) { opacity: 0.7; }
+.rt-f:nth-child(4) { opacity: 0.45; }
+.rt-f-n { flex: none; width: 28px; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--text-mute); }
+.rt-f-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rt-f-d { flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
+.rt-f-d.up { color: var(--good); }
+.rt-f-d.down { color: var(--bad); }
+
+.rt-r-label { margin: 0; min-height: 1.3em; font-size: 24px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; color: var(--text); }
+.rt-r-label.in { animation: rtRise var(--t-med) var(--ease-out) both; }
+.rt-replay.done .rt-r-label { font-size: 28px; }
+.rt-r-line .rt-plot { height: 140px; }
+.rt-r-line .rt-mark { opacity: 0; transition: opacity var(--t-med) var(--ease-out); }
+.rt-r-line .rt-mark.on { opacity: 1; }
+.rt-r-line .rt-now.ping { animation: rtPing var(--t-slow) var(--ease-out) both; }
+.rt-r-acts { display: flex; justify-content: flex-end; gap: var(--space-2); }
+
+/* A narrow window: the feed under the badge. */
+@media (max-width: 720px) {
+  .rt-stage { padding: var(--space-5); gap: var(--space-4); }
+  .rt-r-mid { grid-template-columns: auto 1fr; min-height: 0; }
+  .rt-r-feed { grid-column: 1 / -1; }
+  .rt-r-badge { min-width: 150px; }
+  .rt-r-num { font-size: 76px; }
+  .rt-r-label { font-size: 19px; }
+  .rt-r-line .rt-plot { height: 110px; }
+}
+
+/* A short window (the main window's least is 640 high): the stage tighter. */
+@media (max-height: 720px) {
+  .rt-stage { padding: var(--space-6); gap: var(--space-3); }
+  .rt-r-mid { min-height: 0; }
+  .rt-r-num { font-size: 80px; }
+  .rt-r-line .rt-plot { height: 96px; }
+}
+
+@keyframes rtFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rtRise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes rtUp { from { opacity: 0; transform: translateY(14px); } 30% { opacity: 1; } to { opacity: 1; transform: none; } }
+@keyframes rtDown { from { opacity: 0; transform: translateY(-14px); } 30% { opacity: 1; } to { opacity: 1; transform: none; } }
+@keyframes rtTick { from { transform: scale(1.18); } to { transform: none; } }
+@keyframes rtStamp { from { transform: scale(1.08); } to { transform: none; } }
+@keyframes rtPing { from { transform: scale(1.8); } to { transform: none; } }

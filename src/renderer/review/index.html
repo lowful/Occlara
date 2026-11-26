@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="../shared/grade-view.css" />
   <link rel="stylesheet" href="clip-player.css" />
   <link rel="stylesheet" href="review.css" />
+  <link rel="stylesheet" href="rating.css" />
 </head>
 <body>
   <div class="sheet glass">
@@ -190,6 +191,44 @@
           <ul id="v-summary" class="v-summary"></ul>
         </section>
 
+        <!-- THE MATCH RATING (docs/claude/rating.md, rating-view.js): 0.0 to
+             10.0 from 6.0, each move the change in the chance to win the
+             round the player's action caused, from Riot's kill feed. The
+             number, the line across the match by round with its biggest
+             swings marked, the three biggest gains and losses (each opens its
+             round), the place in the lobby by agent and number, and the
+             replay. A review from the screen alone says what would rate it. -->
+        <section class="block rt" id="v-rating-wrap" aria-labelledby="rt-title" hidden>
+          <h3 id="rt-title">Match rating</h3>
+          <div class="rt-head">
+            <div class="rt-big">
+              <span id="rt-value" class="rt-value"></span>
+              <span class="rt-out">out of 10</span>
+            </div>
+            <div class="rt-side">
+              <p id="rt-place" class="rt-place" hidden></p>
+              <button id="rt-play" class="btn btn-ghost sm" type="button" hidden>Replay the rating</button>
+            </div>
+          </div>
+          <p id="rt-note" class="rt-note" hidden></p>
+          <div id="rt-line" class="rt-line" hidden></div>
+          <p id="rt-read" class="rt-read" hidden></p>
+          <div id="rt-swings" class="rt-swings" hidden>
+            <div class="rt-col">
+              <span class="rt-col-label">Biggest gains</span>
+              <ul id="rt-gains" class="rt-list"></ul>
+            </div>
+            <div class="rt-col">
+              <span class="rt-col-label">Biggest losses</span>
+              <ul id="rt-losses" class="rt-list"></ul>
+            </div>
+          </div>
+          <details id="rt-lobby-wrap" class="rt-lobby-wrap" hidden>
+            <summary>The lobby, by agent</summary>
+            <ol id="rt-lobby" class="rt-lobby"></ol>
+          </details>
+        </section>
+
         <!-- EVERY ROUND, ONCE (8.3.1). What the numbers say about the rounds
              and nothing the lists above said; then one row a round, the two
              halves headed by their side (review.js paintRounds), each row's
@@ -220,6 +259,36 @@
 
         <p class="v-foot">Read silently. Nothing was coached on your screen while you played.</p>
       </div>
+
+      <!-- THE RATING'S REPLAY (rating-view.js play): the rating from 6.0
+           through the match, event by event, a few seconds a round. Over the
+           page, skippable by Skip, a click on the ground, Esc or any key.
+           Played only on screen, never mid match. -->
+      <section id="rt-replay" class="rt-replay" role="dialog" aria-modal="true" aria-labelledby="rt-r-title" hidden>
+        <div class="rt-stage">
+          <div class="rt-r-top">
+            <span id="rt-r-title" class="rt-r-title">Match rating</span>
+            <span id="rt-r-round" class="rt-r-round"></span>
+            <span id="rt-r-score" class="rt-r-score">0 : 0</span>
+          </div>
+          <div class="rt-r-mid">
+            <div id="rt-r-badge" class="rt-r-badge t-fair">
+              <span id="rt-r-num" class="rt-r-num">6.0</span>
+            </div>
+            <span id="rt-r-delta" class="rt-r-delta" aria-hidden="true"></span>
+            <ol id="rt-r-feed" class="rt-r-feed" aria-hidden="true"></ol>
+          </div>
+          <p id="rt-r-label" class="rt-r-label"></p>
+          <div id="rt-r-line" class="rt-line rt-r-line" aria-hidden="true"></div>
+          <div class="rt-r-acts">
+            <button id="rt-r-skip" class="btn btn-ghost sm" type="button">Skip</button>
+            <button id="rt-r-close" class="btn btn-ghost sm" type="button" hidden>Close</button>
+            <button id="rt-r-again" class="btn btn-ghost sm" type="button" hidden>Watch again</button>
+          </div>
+          <!-- Only full time is announced; the steps are seen, not read out. -->
+          <p id="rt-r-said" class="sr-only" aria-live="polite"></p>
+        </div>
+      </section>
 
       <div id="review" hidden>
         <!-- WHAT WAS PLAYED. First, and named, so the player can tell at a
@@ -298,6 +367,8 @@
   <script src="clip-time.js"></script>
   <script src="clip-player.js"></script>
   <script src="../shared/motion.js"></script>
+  <!-- The match rating's block and its replay (docs/claude/rating.md). -->
+  <script src="rating-view.js"></script>
   <script src="review.js"></script>
 </body>
 </html>

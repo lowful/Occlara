@@ -125,6 +125,37 @@ function installStandIns() {
   };
 }
 
+/*
+ * THE FEED BY AGENT, A SAMPLE'S (the match rating, docs/claude/rating.md):
+ * the fixture's record was fetched before the feed named both ends of a kill
+ * by agent, so the sample has the player's own kills and deaths as Riot has
+ * them and the other nine by agent from the comps above, each kill given to
+ * a player still up on its side, deterministically, the player's killer as
+ * Riot names it. Enough for the rating to rank all ten as a review linked
+ * today does; never anything a real match said about the other nine.
+ */
+function withAgents(rounds) {
+  const mine = 'Jett';
+  const mates = COMPS.us.map((c) => c.agent).filter((a) => a !== mine);
+  const theirs = COMPS.them.map((c) => c.agent);
+  return rounds.map((r) => {
+    if (!Array.isArray(r.feed)) return r;
+    const up = { mate: mates.slice(), enemy: theirs.slice() };
+    const pick = (side, i, want) => {
+      const list = up[side];
+      if (!list.length) return null;
+      return want && list.includes(want) ? want : list[(r.n + i) % list.length];
+    };
+    const feed = r.feed.map((k, i) => {
+      const ka = k.by === 'me' ? mine : k.by === 'mate' || k.by === 'enemy' ? pick(k.by, i, k.on === 'me' ? r.killerAgent : null) : null;
+      const va = k.on === 'me' ? mine : k.on === 'mate' || k.on === 'enemy' ? pick(k.on, i + 1, null) : null;
+      if (va && k.on !== 'me') up[k.on] = up[k.on].filter((a) => a !== va);
+      return { ...k, ...(ka ? { ka } : {}), ...(va ? { va } : {}) };
+    });
+    return { ...r, feed };
+  });
+}
+
 /**
  * The reviews, built from the real match.
  * @param opts.now  the newest match's time; the older ones an hour apart before it
@@ -133,7 +164,7 @@ function build(opts) {
   const o = opts || {};
   const now = typeof o.now === 'number' ? o.now : Date.now();
   const played = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
-  const { rounds } = verify.reconcile(played.rounds, load('riot-abyss-13-11.json'));
+  const rounds = withAgents(verify.reconcile(played.rounds, load('riot-abyss-13-11.json')).rounds);
   const input = (rs) => ({ rounds: rs, context: { ...played.context, agent: 'Jett' }, endedBy: 'score', ai: { focus: FOCUS, summary: SUMMARY },
     role: 'Duelist', history: [], riotMe: { kills: 31, deaths: 21, assists: 4, score: 9168 }, comps: COMPS });
   // THE OLDER MATCHES WERE LOOKED AT (8.7, for the Moments page): the coach's
@@ -187,5 +218,5 @@ function seed(ud, opts) {
 module.exports = {
   SAMPLE_LABEL, OLDER, SEEDED, FOCUS, SUMMARY, COMPS,
   SEEDED_STATE, SEEDED_VIEW, SEEDED_REF, SEEDED_REFERRAL, seededAccounts,
-  StandInValorant, readers, installStandIns, build, seed, usage,
+  StandInValorant, readers, installStandIns, build, seed, usage, withAgents,
 };
