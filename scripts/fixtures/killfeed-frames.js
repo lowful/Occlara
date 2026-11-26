@@ -93,11 +93,13 @@ function drawFrame(o) {
       // The yellow frame on the player's portrait and the chevron before it.
       rect(kPort, y0, port, edge, YELLOW); rect(kPort, y0 + h - edge, port, edge, YELLOW);
       rect(kPort, y0, edge, h, YELLOW); rect(kPort + port - edge, y0, edge, h, YELLOW);
-      rect(kPort - H * 0.012, y0, H * 0.006, h, YELLOW);
+      // The chevron and the frame's left edge: a run 0.007 of the height wide,
+      // 0.105 of it left of the killer's block (measured on the owner's rows).
+      rect(kBlock - H * 0.105, y0, H * 0.007, h, YELLOW);
     } else if (r.mine === 'death') {
       rect(vPort, y0, port, edge, YELLOW); rect(vPort, y0 + h - edge, port, edge, YELLOW);
       rect(vPort, y0, edge, h, YELLOW); rect(vPort + port - edge, y0, edge, h, YELLOW);
-      rect(right + H * 0.004, y0, H * 0.006, h, YELLOW);
+      rect(right + H * 0.002, y0, H * 0.007, h, YELLOW);
     }
   }
   return { width: W, height: H, data, channels: ch, order: bgra ? 'bgr' : 'rgb' };

@@ -97,7 +97,6 @@ function detect(img, frameH) {
   const minRun = Math.max(3, Math.round(H * 0.03));     // a block: a short name at least
   const bridge = Math.max(2, Math.round(H * 0.012));    // the gun's white icon, a letter's gap
   const edgeIn = Math.round(H * 0.13);                  // a row ends a portrait from the right edge
-  const reach = Math.round(H * 0.14);                   // the chevron and the portrait beside a block
   const gapIn = Math.round(H * 0.05);                   // a gap inside one side of a row
   const halfH = Math.max(2, Math.round(H * HALF));
 
@@ -153,43 +152,88 @@ function detect(img, frameH) {
       mine: null,
       sig: sigOf(img, vb, a, b, H),
     };
-    // The yellow edge, on most lines within a reach of the block's outer end
-    // (lines covered by any yellow pixel there, since the chevron slants).
-    const covered = (lo, hi) => {
+    /*
+     * THE PLAYER'S HIGHLIGHT, read from the portrait's own frame alone
+     * (round 3, after an adversarial review). Measured on the owner's rows:
+     * the frame's upright left edge and the chevron make a run of 5 to 14
+     * neighbouring columns yellow on most of the row's lines (0.0045 to 0.013
+     * of the height), 0.07 to 0.12 of the height left of a killer's block for
+     * a kill, in the right margin past the victim's block for a death. So:
+     *   - a run, not a pixel: at least 0.0035 of the height wide (a one or two
+     *     pixel outline, Valorant's yellow enemy highlight on a body, is too
+     *     thin), at most 0.02 (a yellow patch or wall is too wide);
+     *   - inside the row: the same columns are not yellow on the lines just
+     *     above or below the row's plate (between two rows), where a line or
+     *     a patch of the scene crossing the feed is, and the chevron is not;
+     *   - nothing else yellow beside it: outside the row's extent on its own
+     *     lines (the open scene left of the portrait) no column is yellow on
+     *     half the lines, or the frame says nothing and no row is the player's.
+     * The live feed then wants it on two frames, for a kill and a death alike.
+     */
+    const colYellow = (x, y0, y1) => {
       let n = 0;
-      for (let y = 0; y < lines; y++) {
-        for (let x = Math.max(0, lo); x <= Math.min(W - 1, hi); x++) if (cls[y * W + x] === YELLOW) { n++; break; }
-      }
-      return n / lines;
+      for (let y = y0; y <= y1; y++) if (y >= 0 && y < Hr && px(x, y) === YELLOW) n++;
+      return n;
     };
-    // The most neighbouring columns in a strip yellow on 0.6 of the lines or more.
-    const solid = (lo, hi) => {
-      let run = 0; let most = 0;
+    const runMin = Math.max(2, Math.round(H * 0.0035));
+    const runMax = Math.max(runMin + 2, Math.round(H * 0.02));
+    const gapA = Math.max(0, c - Math.round(H * 0.019));
+    const gapB = Math.min(Hr - 1, c + Math.round(H * 0.019));
+    // The runs in a strip that are an edge of this row's plate.
+    const runsIn = (lo, hi, least) => {
+      const out2 = [];
+      let run = 0; let start = 0;
+      const close = (end) => {
+        if (run < (least || runMin) || run > runMax) return;
+        // Not crossing into the gaps above and below the row.
+        for (let x = start; x <= end; x++) if (px(x, gapA) === YELLOW || px(x, gapB) === YELLOW) return;
+        out2.push({ x0: start, x1: end });
+      };
       for (let x = Math.max(0, lo); x <= Math.min(W - 1, hi); x++) {
         let n = 0;
         for (let y = 0; y < lines; y++) if (cls[y * W + x] === YELLOW) n++;
-        run = n >= lines * 0.6 ? run + 1 : 0;
-        if (run > most) most = run;
+        if (n >= lines * 0.6) { if (!run) start = x; run++; } else { if (run) close(x - 1); run = 0; }
       }
-      return most;
+      if (run) close(Math.min(W - 1, hi));
+      return out2;
     };
-    const inset = Math.round(H * 0.012);
-    // A yellow wall in the corner (sand in the sun) would be yellow beside
-    // every block: with the corner's own far left yellow on these lines, the
-    // edge says nothing, so no row is called the player's.
-    const wall = covered(0, Math.round(H * 0.04)) >= 0.3;
-    // The killer's colour running to the region's edge (a teal wall): the
-    // chevron is somewhere inside that run, before the gun.
-    const s0 = kb.x0 <= minRun ? 0 : kb.x0 - reach;
-    const s1 = kb.x0 <= minRun ? Math.max(0, kb.x1 - minRun) : kb.x0 + inset;
-    if (wall) row.mine = null;
-    else if (row.killer === 'ally' && covered(s0, s1) >= 0.6) row.mine = 'kill';
-    // The player's death: the portrait's frame is upright, so it is two or
-    // more neighbouring columns yellow on most lines. A yellow haired agent's
-    // portrait is yellow in scattered pixels, no column of it (measured on
-    // the owner's clips: the frame's columns 0.67 to 1 of the lines, a
-    // portrait's at most 0.47).
-    else if (row.victim === 'ally' && solid(vb.x1 - inset, W - 1) >= 2) row.mine = 'death';
+    // Yellow on half the lines anywhere in a strip of open scene.
+    const stray = (lo, hi) => {
+      for (let x = Math.max(0, lo); x <= Math.min(W - 1, hi); x++) {
+        let n = 0;
+        for (let y = 0; y < lines; y++) if (cls[y * W + x] === YELLOW) n++;
+        if (n >= lines * 0.5) return true;
+      }
+      return false;
+    };
+    // How far the row's teal is from an edge run: measured on the owner's
+    // rows, 0.045 to 0.11 of the height from the chevron's right to the
+    // killer's teal (the portrait and its plate between), 0.043 to 0.053 from
+    // the victim's teal to the death's edge. A run at any other distance is no
+    // part of this row's highlight.
+    // Measured both to the row's next teal column and to its next teal block
+    // (a name wide): a portrait's teal pixels come and go from frame to frame,
+    // so either in its band will do.
+    const tealRight = (x) => { const t = big.find((q) => q.c === TEAL && q.x0 > x); let p = Infinity; for (let i = x + 1; i < W; i++) if (col[i] === TEAL) { p = i - x; break; } return [t ? t.x0 - x : Infinity, p]; };
+    const tealLeft = (x) => { const t = big.filter((q) => q.c === TEAL && q.x1 < x).pop(); let p = Infinity; for (let i = x - 1; i >= 0; i--) if (col[i] === TEAL) { p = x - i; break; } return [t ? x - t.x1 : Infinity, p]; };
+    const inBand = (ds, lo, hi) => ds.some((d) => d >= H * lo && d <= H * hi);
+    const clear = Math.round(H * 0.02);
+    if (row.killer === 'ally') {
+      // The chevron: the rightmost edge run left of the killer's block that
+      // has the killer's own teal within a portrait to its right, and no other
+      // yellow left of it on these lines.
+      const runs = runsIn(0, kb.x1 - minRun).filter((r) => inBand(tealRight(r.x1), 0.045, 0.125));
+      const k = runs[runs.length - 1];
+      if (k && !stray(0, k.x0 - clear)) row.mine = 'kill';
+    }
+    if (!row.mine && row.victim === 'ally') {
+      // The death: an edge run right of the victim's teal block, within a
+      // portrait of it, and no yellow in the open scene left of the row.
+      const runs = runsIn(vb.x1 + 1, W - 1, Math.max(2, Math.round(H * 0.0018))).filter((r) => inBand(tealLeft(r.x0), 0.025, 0.07));
+      const left = big[0].x0;
+      if (runs.length && !stray(0, left - clear)) row.mine = 'death';
+    }
+    row.span = [kb.x0, vb.x1];
     out.list.push(row);
     if (row.mine === 'kill') out.kills.push({ slot: s, sig: row.sig });
     if (row.mine === 'death') out.deaths.push({ slot: s });

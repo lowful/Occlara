@@ -70,9 +70,42 @@ for (const [name, wall] of [['teal', [80, 176, 150]], ['salmon', [222, 140, 130]
   const d = read({ W: 1280, H: 720, wall, rows: [{ slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill' }, { slot: 1, killer: 'enemy', victim: 'ally' }] });
   const kill = d.list.find((x) => x.slot === 0);
   const other = d.list.find((x) => x.slot === 1);
-  ok(!d.list.some((x) => x.mine && x.slot !== 0) && (!kill || kill.mine === 'kill' || name === 'pale yellow'),
+  ok(!d.list.some((x) => x.mine && x.slot !== 0) && (!kill || kill.mine === 'kill' || name === 'pale yellow' || (name === 'teal' && kill.mine === null)),
     `a ${name} wall behind the feed makes no row the player's that is not (${brief(d)})`);
   ok(!other || other.mine === null, `and a teammate's death over the ${name} wall is no death of the player's`);
+}
+
+// THE ATTACKS (round 3, an adversarial review): yellow that is not the
+// player's highlight never makes a row the player's.
+{
+  const YH = [250, 250, 90];   // Valorant's yellow enemy highlight
+  const paint = (fr, x0, y0, w, h, c) => {
+    for (let y = Math.round(y0); y < Math.round(y0 + h); y++) for (let x = Math.round(x0); x < Math.round(x0 + w); x++) {
+      const i = (y * fr.width + x) * 3; fr.data[i] = c[0]; fr.data[i + 1] = c[1]; fr.data[i + 2] = c[2];
+    }
+  };
+  const readFr = (fr, H) => kf.detect(cut(fr, kf.regionOf(fr.width, H)), H);
+  for (const [W, H] of [[1920, 1080], [1280, 720]]) {
+    const port = H * 0.035; const right = W - H * 0.016; const vlen = 0.07 * H; const gun = 0.07 * H; const klen = 0.08 * H;
+    const kBlock = right - port - vlen - gun - klen;
+    for (const [what, x, w] of [['a 1 px line', kBlock - H * 0.1, 1], ['a 2 px line', kBlock - H * 0.1, 2], ['a 6 px outline', kBlock - H * 0.1, 6],
+      ['a 2 px line in the right margin', W - H * 0.008, 2], ['a 5 px outline in the right margin', W - H * 0.009, 5]]) {
+      const fr = drawFrame({ W, H, rows: [{ slot: 2, killer: 'ally', victim: 'enemy' }, { slot: 3, killer: 'enemy', victim: 'ally' }] });
+      paint(fr, x, H * 0.15, w, H * 0.15, YH);    // a body's outline crossing two rows and the gap between them
+      const d = readFr(fr, H);
+      ok(!d.list.some((r) => r.mine), `${H}p: ${what} of the yellow enemy highlight across the feed makes no row the player's (${brief(d)})`);
+    }
+    const ground = drawFrame({ W, H, ground: YH, rows: [{ slot: 0, killer: 'ally', victim: 'enemy' }, { slot: 1, killer: 'enemy', victim: 'ally' }] });
+    ok(!readFr(ground, H).list.some((r) => r.mine), `${H}p: a bright yellow ground behind the feed makes no row the player's`);
+    const patch = drawFrame({ W, H, rows: [{ slot: 0, killer: 'ally', victim: 'enemy' }] });
+    paint(patch, kBlock - H * 0.12, H * 0.08, H * 0.05, H * 0.06, YH);   // a yellow thing in the scene by the row
+    ok(!readFr(patch, H).list.some((r) => r.mine), `${H}p: a yellow patch in the scene beside a teammate's row is no highlight`);
+    // Compression noise: the player's own rows still read as theirs.
+    const noisy = drawFrame({ W, H, rows: [{ slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill' }, { slot: 1, killer: 'enemy', victim: 'ally', mine: 'death' }] });
+    let seed = 7;
+    for (let i = 0; i < noisy.data.length; i++) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; noisy.data[i] = Math.max(0, Math.min(255, noisy.data[i] + ((seed % 25) - 12))); }
+    ok(brief(readFr(noisy, H)) === '0:ally>enemy*kill 1:enemy>ally*death', `${H}p: with compression noise the player's kill and death still read (${brief(readFr(noisy, H))})`);
+  }
 }
 
 // A full feed, and the order BGRA comes in.
@@ -92,7 +125,7 @@ for (const [name, wall] of [['teal', [80, 176, 150]], ['salmon', [222, 140, 130]
   const other = read({ W: 1280, H: 720, rows: [{ slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill', vlen: 0.11 }] }).list[0];
   ok(a && moved && Math.abs(a.sig.v - moved.sig.v) < 0.003 && Math.abs(a.sig.r - moved.sig.r) < 4, 'a row moved up a place keeps its signature');
   ok(other && Math.abs(other.sig.v - a.sig.v) > 0.02, 'a victim with a longer name has another');
-  ok(Object.keys(a).sort().join() === 'killer,mine,sig,slot,victim' && Object.keys(a.sig).sort().join() === 'b,g,r,v',
+  ok(Object.keys(a).sort().join() === 'killer,mine,sig,slot,span,victim' && Object.keys(a.sig).sort().join() === 'b,g,r,v',
     'a row says its place, its sides, whose it is and its signature, nothing more (no name is read)');
 }
 
