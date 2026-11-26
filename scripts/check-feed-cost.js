@@ -100,7 +100,10 @@ app.whenReady().then(async () => {
       })()`);
       lines.push(`${H}p: the corner ${r.region.width}x${r.region.height}, ${r.corner.toFixed(2)} ms a read (${(r.corner * 5).toFixed(1)} ms a second at five a second); a whole frame drawn and read back ${r.whole.toFixed(2)} ms; rows ${r.rows}`);
       if (r.rows !== '0:ally>enemy*kill 1:enemy>ally*death 2:ally>enemy') return report(false, `at ${H}p the corner read through a canvas does not find the drawn rows: ${r.rows}`);
-      if (!(r.corner < r.whole)) return report(false, `at ${H}p the corner costs no less than a whole frame (${r.corner} against ${r.whole})`);
+      // The feed runs at 700 rows or more alone (index.js wantFeed): at 480p the
+      // corner, detector and all, is about the size of a bare whole frame read
+      // back, and its cost is only reported.
+      if (H >= 700 && !(r.corner < r.whole)) return report(false, `at ${H}p the corner costs no less than a whole frame (${r.corner} against ${r.whole})`);
     }
     report(true, 'ok');
   } catch (e) {
