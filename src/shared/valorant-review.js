@@ -1193,7 +1193,7 @@ function riotOnlyNote(grade, riotOnly) {
  * A review built today comes back with the same content.
  */
 function served(review) {
-  if (!review || review.kind !== 'valorant') return review;
+  if (!review || review.kind !== 'valorant') return withRating(review);
   if (review.source === 'riot') {
     return withRating(withView(withCompsLine(weaponsInTodaysWords(withoutEconomy({ ...review, insights: insights.asFacts(review.insights),
       grade: grader.riotWords(review.grade) })))));
@@ -1211,10 +1211,20 @@ function served(review) {
  * shows nothing that judges the match.
  */
 function withRating(review) {
-  if (!review || review.kind !== 'valorant' || review.locked === true) return review;
+  if (!review || typeof review !== 'object') return review;
+  // Another game's review with nothing to strip is the very same object.
+  if (review.kind !== 'valorant' && !('rating' in review)) return review;
+  // The saved rating never leaves for a window: its timeline and the lobby's
+  // ten rows are main's; the page is sent the view alone, every review.
+  const { rating: kept, ...rest } = review;
+  if (review.kind !== 'valorant' || review.locked === true) return rest;
   const r = rating.ratingOfReview(review);
-  const view = rating.viewOf(r.rating, { note: r.note, rounds: Array.isArray(review.rounds) ? review.rounds.length : 0 });
-  return view ? { ...review, ratingView: view } : review;
+  const cards = Array.isArray(review.rounds) ? review.rounds : [];
+  const view = rating.viewOf(r.rating, {
+    note: r.note, rounds: cards.length, half: review.halftimeAfter,
+    results: cards.map((c) => ({ n: c.n, won: c.result === 'won' ? true : c.result === 'lost' ? false : null })),
+  });
+  return view ? { ...rest, ratingView: view } : rest;
 }
 
 /*

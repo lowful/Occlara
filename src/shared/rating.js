@@ -5,24 +5,27 @@
  * what the player does, the way a football player's match rating does.
  *
  * EVERY MOVE IS A CHANGE IN THE CHANCE TO WIN THE ROUND. Each kill, death,
- * plant, defuse and round end moves the chance of the player's team to win the
- * round it happened in (`winChance`, by players alive on each side and the
- * spike), and the player is credited the change their action caused. A first
- * kill at five against five moves it about a quarter, the fifth kill of a
- * five against one about two hundredths, a kill after the spike went off
- * nothing at all. A clutch and a multi kill are no bonus written here: they
- * are worth what the kills inside them moved.
+ * revive, plant, defuse and round end moves the chance of a team to win the
+ * round it happened in (`winChance`, by players standing on each side, the
+ * spike and its clock), and each player is credited the change their action
+ * caused. A first kill at five against five moves it about a quarter, the
+ * last kill of a five against one about two hundredths, a kill after the
+ * spike went off nothing at all. A clutch and a multi kill are no bonus
+ * written here: they are worth what the kills inside them moved. The names a
+ * round is given ("Triple kill, won a 1v2") are labels only.
  *
  * STREAMING, ON PARTIAL INFORMATION. `createRating()` takes one event at a
  * time and answers the subject's value after it, so the same engine runs over
  * Riot's record after a match (`fromRecord`, `ratingOfReview`) and, later,
- * over what the screen reads live. A field that is missing degrades to a
- * neutral value, never to a guess at a person (docs/claude/rating.md says what
- * each missing field costs).
+ * over what the screen reads live: an event carrying an `id` it has seen is
+ * ignored, an event of a round older than the one being played is ignored,
+ * and a `round` event for the round being played only updates its side. A
+ * missing field degrades to a neutral value, never to a guess at a person
+ * (docs/claude/rating.md says what each missing field costs).
  *
  * NEVER A NAME. A player is a key: 'me', or a side and an agent ('us:Jett',
  * 'them:Sova'), or a side alone ('us', 'them') when the agent is unknown, who
- * is then counted in the numbers standing and credited nothing.
+ * is counted in the numbers standing and credited nothing.
  *
  * Pure, deterministic, no I/O, no Electron.
  */
@@ -33,91 +36,111 @@ const VERSION = 1;
 
 /*
  * THE CHANCE TO WIN A ROUND, for the attackers, from `a` attackers and `d`
- * defenders standing and whether the spike is down. A logistic on the man
- * advantage and the spike, fitted by maximum likelihood on 116 rounds of
- * Riot's record (940 states, both teams of every round: the repo's two
- * fixtures with a kill feed and the owner's five saved reviews with one):
+ * defenders standing and whether the spike is down. A logistic fitted by
+ * maximum likelihood (scripts/rating-fit.js) on 116 rounds of Riot's record,
+ * 907 states with both sides standing, both teams of every round:
  *
- *   logit P = B0 + B_MAN * (a - d) + B_RATIO * ln(a / d) + B_SPIKE * planted
+ *   logit P = B0 + B_MAN * (a - d) + B_SPIKE * planted
  *
- * The difference and the ratio together fitted best (log loss 0.494, the
- * difference alone 0.495, the ratio alone 0.501), and the ratio is what makes
- * a man up in a two against two worth more than one in a five against five,
- * as the record has it (2v1 won 75 percent, 5v4 62 percent). B0
- * is the defenders' edge at equal numbers with the spike up, which the clock
- * gives them. With no attacker left and the spike down the defenders still
- * have to defuse: half the time against one defender, then 0.3 times as
- * likely for each more (26 such states; rating.md, "The table").
+ * Held out by match it scored best of the four candidates (log loss 0.506;
+ * the ratio of players standing 0.508, players down 0.510, an extra term for
+ * the opening state 0.507). B0 is the defenders' edge at equal numbers, which
+ * the clock gives them: 39 percent for the attackers at equal numbers, where
+ * the 116 opening states were won 43 percent of the time, within one standard
+ * error (4.6 points), and a term of its own for the opening did worse held out.
+ *
+ * ATTACKERS WIPED AFTER THE PLANT still win if the defenders cannot reach the
+ * spike and defuse it (7 s) in the time it has left: sigmoid((WIPED_T0 -
+ * left) / WIPED_S) by the seconds left. The record has 20 such states, the
+ * attackers winning 2, at 15.3 and 19.2 s left and losing every one with 20
+ * s or more; the curve is centred on 12 s (the defuse and 5 s to reach it).
+ * With no time to go by, the record's own share, WIPED_FLAT.
  */
-const WP = Object.freeze({ B0: -0.43, B_MAN: 0.82, B_RATIO: 0.60, B_SPIKE: 0.98, ZERO_ATT_ONE: 0.5, ZERO_ATT_DECAY: 0.3 });
+const WP = Object.freeze({ B0: -0.45, B_MAN: 1.05, B_SPIKE: 1.02, WIPED_T0: 12, WIPED_S: 3, WIPED_FLAT: 0.1 });
 
 /*
  * THE WEIGHTS, set on the calibration (rating.md, "Calibration"):
  *
  * LOSS_WEIGHT   every move against a player counts this share of itself. A
  *               duel lost is partly the killer's doing, and a football rating
- *               averages above its start for the same reason. With the trades
- *               given back it puts the calibration lobby's mean at 6.6 where
- *               an even 1.0 put it at 6.3 (0.75 gave 6.9).
+ *               averages above its start for the same reason.
  * TRADE_BACK    a death a teammate traded gives this share of its cost back,
- *               at the trade: the trade recovered the chance.
+ *               taken from the trader's credit for the trade kill, so a one
+ *               for one trade adds nothing to the lobby's total. With no
+ *               trader to take it from (a feed without agents, Riot's own
+ *               traded flag), it is given back alone.
  * TRADE_MS      the trade window, riot-rounds.js TRADE_MS.
+ * REVIVE_MS     a gun kill by a player down this long or more is a revive
+ *               (riot-rounds.js teamworkOf's rule); a molly or a grenade by a
+ *               player already dead is not.
  * ASSIST_SHARE  each assister named on a kill takes this share of its swing
- *               from the killer, half at most in all. Riot's feed as the
- *               client keeps it names no assister yet, so today every kill is
- *               its killer's alone.
+ *               from the killer, half at most in all.
  * PLANTER_SHARE a named planter or defuser takes this share of the swing and
- *               the rest is shared by the side's players alive at it; with no
- *               one named it is all shared.
+ *               the rest is shared by the side's players alive at it.
  * RESULT        each player of the side that won a round gains this, each of
- *               the side that lost it loses it. Small on purpose: the result
- *               is already inside the swings, which sum to it.
+ *               the side that lost it loses it. Small on purpose.
  * DECIDED       a swing under this is "after the round was decided".
- * NEUTRAL_SWING a kill whose numbers standing cannot be known (a side
- *               missing) is worth the mean swing of a kill or death in calibration (0.17,
- *               over the player's 209 on the seven matches).
+ * NEUTRAL_SWING a kill whose numbers standing cannot be known is worth the
+ *               mean swing of a kill or death in calibration.
  */
 const W = Object.freeze({
-  LOSS_WEIGHT: 0.9, TRADE_BACK: 0.5, TRADE_MS: 5000, REVIVE_MS: 2000,
+  LOSS_WEIGHT: 0.85, TRADE_BACK: 0.7, TRADE_MS: 5000, REVIVE_MS: 2000,
   ASSIST_SHARE: 0.15, ASSIST_MAX: 0.5, PLANTER_SHARE: 0.5, RESULT: 0.02, DECIDED: 0.01,
   NEUTRAL_SWING: 0.17, SPIKE_MS: 45000,
 });
 
 /*
- * THE DISPLAY. 6.0 plus a squash of the player's net swing scaled to a
- * standard length: up to 4 points above (10.0 only in the limit, so it is
- * rare) and 3 below (a floor of 3.0), each a tanh, so returns diminish near
- * the ends.
+ * THE DISPLAY. 6.0 plus a squash of the net swing scaled to a standard
+ * length: up to 4 points above (10.0 only in the limit) and 3 below (a floor
+ * of 3.0), each a tanh, so returns diminish near the ends.
  *
- * MATCH LENGTH. The net is scaled by (REF + K) / (max(rounds, E) + K): E is
- * the queue's usual longest match (24 rounds, 9 for Swiftplay, 7 for Spike
- * Rush), K twelve rounds of neutral play. Up to E rounds every event weighs
- * the same from the first round on, so a live value never leaps because the
- * match is young; past E, overtime, every move is diluted a little, so thirty
- * rounds of trading do not inflate. A Swiftplay counts its moves 36 / 21 =
- * 1.71 times, which leaves its spread a little under a full match's instead
- * of four times it, as a per round average would (rating.md, "Match length").
+ * MATCH LENGTH. x = net * (REF + K) / (E + K) * min(1, E / rounds): E is the
+ * queue's usual longest match (24 rounds; 9 for Swiftplay and Replication; 7
+ * for Spike Rush), K twelve rounds of neutral play. Up to E rounds every
+ * event weighs the same from the first round on, so a live value never leaps
+ * because the match is young; past E the net is taken per round, so thirty
+ * rounds of the same play rate exactly what twenty four did. A Swiftplay
+ * counts its moves 36 / 21 = 1.71 times, which leaves its spread a little
+ * under a full match's (rating.md, "Match length").
  */
 const D = Object.freeze({ START: 6.0, UP: 4.0, DOWN: 3.0, A: 3.2, B: 2.6, REF: 24, K: 12 });
 const LENGTHS = Object.freeze({ standard: 24, swiftplay: 9, spikerush: 7 });
+
+/*
+ * A GUN, for the revive rule: the game data's weapons and the knife. An
+ * ability's kill (a molly, a grenade, an ultimate) by a player already dead
+ * is no revive.
+ */
+let GUNS = new Set(['knife', 'melee']);
+try {
+  const data = require('./valorant-data.generated.json');
+  GUNS = new Set([...GUNS, ...Object.keys(data.weapons || {}).map((w) => w.toLowerCase())]);
+} catch { /* the knife alone */ }
+const isGun = (w) => typeof w === 'string' && GUNS.has(w.trim().toLowerCase());
 
 const sigmoid = (z) => 1 / (1 + Math.exp(-z));
 const round1 = (v) => Math.round(v * 10) / 10;
 const round3 = (v) => Math.round(v * 1000) / 1000;
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-/** The attackers' chance to win from a against d, the spike down or not. */
-function winChance(a, d, planted) {
+/**
+ * The attackers' chance to win from a against d, the spike down or not, and
+ * when it is down and the attackers are wiped, the seconds it has left.
+ */
+function winChance(a, d, planted, left) {
   if (d <= 0 && a <= 0) return planted ? 1 : 0.5;
   if (d <= 0) return 1;
-  if (a <= 0) return planted ? WP.ZERO_ATT_ONE * Math.pow(WP.ZERO_ATT_DECAY, d - 1) : 0;
-  return sigmoid(WP.B0 + WP.B_MAN * (a - d) + WP.B_RATIO * Math.log(a / d) + (planted ? WP.B_SPIKE : 0));
+  if (a <= 0) {
+    if (!planted) return 0;
+    return num(left) !== null ? (left <= 0 ? 1 : sigmoid((WP.WIPED_T0 - left) / WP.WIPED_S)) : WP.WIPED_FLAT;
+  }
+  return sigmoid(WP.B0 + WP.B_MAN * (a - d) + (planted ? WP.B_SPIKE : 0));
 }
 
 /** The usual longest match of a queue, in rounds. */
 function lengthOf(queue) {
   const q = String(queue || '').toLowerCase();
-  if (/swift/.test(q)) return LENGTHS.swiftplay;
+  if (/swift|replication|onefa/.test(q)) return LENGTHS.swiftplay;
   if (/spike ?rush/.test(q)) return LENGTHS.spikerush;
   return LENGTHS.standard;
 }
@@ -125,7 +148,8 @@ function lengthOf(queue) {
 /** The shown value of a net swing over a number of rounds, one decimal. */
 function display(net, rounds, longest) {
   const E = Math.max(1, longest || LENGTHS.standard);
-  const x = net * (D.REF + D.K) / (Math.max(rounds || 0, E) + D.K);
+  const n = Math.max(rounds || 0, 1);
+  const x = net * ((D.REF + D.K) / (E + D.K)) * Math.min(1, E / n);
   const v = x >= 0 ? D.START + D.UP * Math.tanh(x / D.A) : D.START + D.DOWN * Math.tanh(x / D.B);
   return Math.min(10, Math.max(0, round1(v)));
 }
@@ -146,25 +170,28 @@ function agentOfKey(key, meAgent) {
 const named = (key) => key === 'me' || (typeof key === 'string' && /^(us|them):.+$/.test(key));
 const other = (side) => (side === 'us' ? 'them' : side === 'them' ? 'us' : null);
 const vs = (own, opp) => `${own}v${opp}`;
+const MULTI = ['', '', 'Double kill', 'Triple kill', 'Quadra kill', 'Ace'];
 
 /**
  * A NEW RATING. opts:
- *   subject   the key followed, 'me' by default
+ *   subject   the key followed: 'me' by default, or any named key
  *   players   every key known to be in the match (the lobby), so a player is
  *             counted alive and gets the result term before their first kill
  *   queue     for the length rule; longest overrides it in rounds
- *   meAgent   the subject's agent, for the lobby list
+ *   meAgent   the subject's agent, for the lobby list and the revive rule
  *
  * push(event) takes one event and answers the subject's move:
  *   { round, ms, kind, delta, value, swing, label }
  * delta is the change in the shown value, swing the subject's credit in
  * chance to win, label a plain line ("First kill, 5v5"), null when the event
- * was nothing of the subject's. A death's label gains ", traded" or ", not
- * traded" at the round's end, once the trade window is shut.
+ * was nothing of the subject's. An ignored event (a repeated id, an older
+ * round) answers with `ignored` set and moves nothing.
  *
- * Events (rating.md, "The event shape"):
+ * Events (rating.md, "The event shape"), each with an optional `id`:
  *   { kind: 'round', round, side: 'attacking' | 'defending' | null, satOut }
- *   { kind: 'kill', round, ms, killer, victim, assists: [key], weapon, alive: { us, them } }
+ *       side is the side of 'us', the subject's team when the subject is 'me'
+ *   { kind: 'kill', round, ms, killer, victim, assists: [key], weapon, alive: { us, them }, traded }
+ *       traded: Riot's own flag for a death whose killer has no key
  *   { kind: 'plant', round, ms, by }      by a key, or a side alone
  *   { kind: 'defuse', round, ms, by }
  *   { kind: 'end', round, won }           won: the subject's side, true, false or null
@@ -172,10 +199,13 @@ const vs = (own, opp) => `${own}v${opp}`;
 function createRating(opts) {
   const o = opts || {};
   const subject = typeof o.subject === 'string' && named(o.subject) ? o.subject : 'me';
+  const mySide = sideOfKey(subject);
   const longest = num(o.longest) || lengthOf(o.queue);
   const players = new Map(); // key -> { net }
   const timeline = [];
+  const byRound = [];
   const credits = new Map(); // this event's credits by key
+  const seen = new Set();
   let rnd = null;
   let roundsStarted = 0;
   let subjectRounds = 0;
@@ -190,45 +220,53 @@ function createRating(opts) {
 
   const roundsOf = (key) => (key === subject ? subjectRounds : roundsStarted);
   const valueOf = (key) => display((players.get(key) || { net: 0 }).net, roundsOf(key), longest);
+  const agentOf = (key) => agentOfKey(key, o.meAgent);
+  // The subject's own number first: "2v3" with the subject's side on the left.
+  const mine = (st) => (mySide === 'them' ? vs(st.them, st.us) : vs(st.us, st.them));
 
   function startRound(n, side, satOut) {
     rnd = {
       n, side: side === 'attacking' || side === 'defending' ? side : null,
-      satOut: satOut === true, alive: { us: 5, them: 5 }, down: { us: new Map(), them: new Map() },
+      satOut: satOut === true, alive: { us: 5, them: 5 }, down: { us: new Map(), them: new Map() }, revived: new Set(),
       planted: false, plantMs: null, decided: false, decidedFor: null, kills: 0, deaths: [], ended: false,
+      startValue: valueOf(subject), swing: 0,
+      me: { kills: 0, firstKill: false, tradeKills: 0, plant: false, defuse: false, died: null, clutch: 0, revived: false, ultOut: false },
     };
     roundsStarted++;
     if (!rnd.satOut) subjectRounds++;
   }
 
-  // The chance of the subject's side ('us') to win the round now.
-  function chanceUs() {
+  // The chance of 'us' to win the round now; `ms` gives the spike's clock.
+  function chanceUs(ms) {
     const { us, them } = rnd.alive;
     if (rnd.decided) return rnd.decidedFor === 'us' ? 1 : rnd.decidedFor === 'them' ? 0 : null;
-    if (rnd.side === 'attacking') return winChance(us, them, rnd.planted);
-    if (rnd.side === 'defending') return 1 - winChance(them, us, rnd.planted);
+    const left = rnd.planted && rnd.plantMs !== null && num(ms) !== null ? (rnd.plantMs + W.SPIKE_MS - ms) / 1000 : null;
+    if (rnd.side === 'attacking') return winChance(us, them, rnd.planted, left);
+    if (rnd.side === 'defending') return 1 - winChance(them, us, rnd.planted, left);
     // No side known: the spike cannot be placed, the man advantage alone.
     if (us <= 0) return 0;
     if (them <= 0) return 1;
-    return sigmoid(WP.B_MAN * (us - them) + WP.B_RATIO * Math.log(us / them));
+    return sigmoid(WP.B_MAN * (us - them));
   }
 
-  // Credit a key. A move against it counts LOSS_WEIGHT of itself, and the
-  // subject's round sat out moves nothing.
-  function credit(key, amount) {
-    if (!named(key) || !amount) return;
-    if (key === subject && rnd && rnd.satOut) return;
-    const c = amount < 0 ? amount * W.LOSS_WEIGHT : amount;
+  // Credit a key. A move against it counts LOSS_WEIGHT of itself unless `raw`,
+  // and the subject's round sat out moves nothing.
+  function credit(key, amount, raw) {
+    if (!named(key) || !amount) return 0;
+    if (key === subject && rnd && rnd.satOut) return 0;
+    const c = amount < 0 && !raw ? amount * W.LOSS_WEIGHT : amount;
     ensure(key).net += c;
     credits.set(key, (credits.get(key) || 0) + c);
+    return c;
   }
 
-  // The subject's answer to one event; kept on the timeline when it was the
+  // The subject's answer to one event, kept on the timeline when it was the
   // subject's doing or the subject's round end.
   function record(kind, ev, label, before, involved) {
-    const mine = credits.get(subject) || 0;
+    const mineNow = credits.get(subject) || 0;
     const value = valueOf(subject);
-    const out = { round: rnd ? rnd.n : null, ms: num(ev && ev.ms), kind, delta: round1(value - before), value, swing: round3(mine), label: involved ? label : null };
+    if (rnd) rnd.swing += mineNow;
+    const out = { round: rnd ? rnd.n : null, ms: num(ev && ev.ms), kind, delta: round1(value - before), value, swing: round3(mineNow), label: involved ? label : null };
     if (involved && label && !(rnd && rnd.satOut)) timeline.push(out);
     credits.clear();
     return out;
@@ -236,10 +274,26 @@ function createRating(opts) {
 
   function decideByNumbers() {
     const { us, them } = rnd.alive;
-    const usDefend = rnd.side === 'defending';
     const usAttack = rnd.side === 'attacking';
+    const usDefend = rnd.side === 'defending';
     if (us === 0 && !(rnd.planted && usAttack)) { rnd.decided = true; rnd.decidedFor = 'them'; }
     else if (them === 0 && !(rnd.planted && usDefend)) { rnd.decided = true; rnd.decidedFor = 'us'; }
+  }
+
+  // Back up: the change in the chance at the revive, to whoever made it, a
+  // Sage of that side up and not the one revived, else the revived player
+  // (Clove's own ultimate). Answers the reviver's key.
+  function revive(side, key, ms) {
+    const p0 = chanceUs(ms);
+    rnd.down[side].delete(key);
+    rnd.revived.add(key);
+    rnd.alive[side] = Math.min(5, rnd.alive[side] + 1);
+    const p1 = chanceUs(ms);
+    const sage = `${side}:Sage`;
+    const by = key !== sage && players.has(sage) && !rnd.down[side].has(sage) ? sage : key;
+    if (p0 !== null && p1 !== null) credit(by, side === 'us' ? p1 - p0 : p0 - p1);
+    if (key === subject) rnd.me.revived = true;
+    return by;
   }
 
   function kill(ev, before) {
@@ -248,18 +302,32 @@ function createRating(opts) {
     const ms = num(ev.ms);
     const kSide = sideOfKey(killer);
     const vSide = sideOfKey(victim);
-    // The spike's time is up: nothing after it changes the round.
+    // The spike's time is up: nothing after it changes the round, whatever the side.
     if (rnd.planted && rnd.plantMs !== null && ms !== null && ms > rnd.plantMs + W.SPIKE_MS && !rnd.decided) {
       rnd.decided = true;
       rnd.decidedFor = rnd.side === 'attacking' ? 'us' : rnd.side === 'defending' ? 'them' : null;
     }
-    // A revive puts a player back (riot-rounds.js teamworkOf's rule): a gun
-    // kill by a player down REVIVE_MS or more, or a second death of one.
-    if (kSide && named(killer) && rnd.down[kSide].has(killer)) {
-      const at = rnd.down[kSide].get(killer);
-      if (ev.weapon && at !== null && ms !== null && ms - at >= W.REVIVE_MS) { rnd.down[kSide].delete(killer); rnd.alive[kSide] = Math.min(5, rnd.alive[kSide] + 1); }
+    const self = !!(killer && victim && killer === victim);
+    // An ultimate that ran out (Clove's Not Dead Yet with no kill): the player
+    // was down all along, so nothing changes.
+    if (self && named(victim) && rnd.down[vSide].has(victim) && !isGun(ev.weapon)) {
+      if (victim === subject) rnd.me.ultOut = true;
+      return record('kill', ev, victim === subject ? 'Your ultimate ran out, no kill' : null, before, victim === subject);
     }
-    if (vSide && named(victim) && rnd.down[vSide].has(victim)) { rnd.down[vSide].delete(victim); rnd.alive[vSide] = Math.min(5, rnd.alive[vSide] + 1); }
+    let reviveLabel = null;
+    // A revive puts a player back: a gun kill by a player down REVIVE_MS or
+    // more, or a second death of one.
+    if (kSide && named(killer) && !self && rnd.down[kSide].has(killer)) {
+      const at = rnd.down[kSide].get(killer);
+      if (isGun(ev.weapon) && at !== null && ms !== null && ms - at >= W.REVIVE_MS) {
+        const by = revive(kSide, killer, ms);
+        if (by === subject) reviveLabel = killer === subject ? `Back in the round, ${mine(rnd.alive)}` : `Revived ${agentOf(killer) || 'a teammate'}, ${mine(rnd.alive)}`;
+      }
+    }
+    if (vSide && named(victim) && rnd.down[vSide].has(victim)) {
+      const by = revive(vSide, victim, ms);
+      if (by === subject) reviveLabel = victim === subject ? `Back in the round, ${mine(rnd.alive)}` : `Revived ${agentOf(victim) || 'a teammate'}, ${mine(rnd.alive)}`;
+    }
     // The screen may know the numbers standing better than the feed does.
     if (ev.alive && num(ev.alive.us) !== null && num(ev.alive.them) !== null) {
       rnd.alive = { us: Math.max(0, Math.min(5, ev.alive.us)), them: Math.max(0, Math.min(5, ev.alive.them)) };
@@ -270,75 +338,102 @@ function createRating(opts) {
 
     // The swing for the victim's side, negative.
     let swing;
-    if (!vSide) {
-      swing = -W.NEUTRAL_SWING;
-    } else {
-      const p0 = chanceUs();
+    if (rnd.decided) {
+      swing = 0;
+      if (vSide) rnd.alive[vSide] = Math.max(0, rnd.alive[vSide] - 1);
+    } else if (!vSide) swing = -W.NEUTRAL_SWING;
+    else {
+      const p0 = chanceUs(ms);
       rnd.alive[vSide] = Math.max(0, rnd.alive[vSide] - 1);
-      if (named(victim)) rnd.down[vSide].set(victim, ms);
-      const p1 = chanceUs();
+      const p1 = chanceUs(ms);
       const dUs = p0 === null || p1 === null ? (vSide === 'us' ? -W.NEUTRAL_SWING : W.NEUTRAL_SWING) : p1 - p0;
       swing = vSide === 'us' ? dUs : -dUs;
     }
+    if (vSide && named(victim)) rnd.down[vSide].set(victim, ms);
     const decided = Math.abs(swing) < W.DECIDED;
     const ownTeam = !!(kSide && vSide && kSide === vSide);
-    const self = !!(killer && victim && killer === victim);
-    const sideOf = (s) => (s === 'us' ? vs(standing.us, standing.them) : vs(standing.them, standing.us));
+    const sideStand = (s) => (s === 'us' ? vs(standing.us, standing.them) : vs(standing.them, standing.us));
 
     let label = null;
     let involved = false;
     if (self || ownTeam) {
       // A fall, the spike, a teammate's molly: the one who did it carries it.
+      // An ability that killed its own owner after a revive is the ultimate
+      // running out.
       credit(self ? victim : killer, swing);
-      if (victim === subject) { label = self ? 'Died to themselves' : 'Killed by a teammate'; involved = true; }
-      else if (killer === subject) { label = 'Killed a teammate'; involved = true; }
+      const ultOut = self && rnd.revived.has(victim) && !isGun(ev.weapon);
+      if (victim === subject) {
+        involved = true;
+        label = ultOut ? 'Your ultimate ran out' : self ? 'Died to yourself' : 'Killed by a teammate';
+        if (ultOut) rnd.me.ultOut = true;
+        rnd.me.died = rnd.me.died || { first, traded: false, last: (mySide === 'us' ? standing.us : standing.them) === 1, decided };
+      } else if (killer === subject) { involved = true; label = 'Killed a teammate'; }
     } else {
-      // The killer, and each assister's share.
       if (kSide) {
         const assists = (Array.isArray(ev.assists) ? ev.assists : []).filter((a) => named(a) && sideOfKey(a) === kSide && a !== killer);
         const share = Math.min(W.ASSIST_MAX, W.ASSIST_SHARE * assists.length);
-        credit(killer, -swing * (1 - share));
-        for (const a of assists) credit(a, -swing * (share / assists.length));
-        const own = kSide === 'us' ? standing.us : standing.them;
-        // A trade: the killer killed whoever had just killed one of theirs.
-        const avenged = rnd.deaths.find((d) => !d.traded && d.killer && d.killer === victim && d.side === kSide
-          && d.ms !== null && ms !== null && ms >= d.ms && ms - d.ms <= W.TRADE_MS);
+        // A trade: the killer killed whoever had just killed one of theirs,
+        // both named. The give back comes out of the trade kill's credit.
+        const avenged = named(victim) ? rnd.deaths.find((d) => !d.traded && named(d.killer) && d.killer === victim && d.side === kSide
+          && d.ms !== null && ms !== null && ms >= d.ms && ms - d.ms <= W.TRADE_MS) : null;
+        let back = 0;
         if (avenged) {
           avenged.traded = true;
-          if (!avenged.decided) credit(avenged.victim, Math.abs(avenged.cost) * W.TRADE_BACK);
+          if (!avenged.decided && named(avenged.victim)) back = Math.min(-swing, Math.abs(avenged.charged) * W.TRADE_BACK);
         }
+        const gain = -swing - back;
+        credit(killer, gain * (1 - share));
+        for (const a of assists) credit(a, gain * (share / assists.length));
+        if (back) credit(avenged.victim, back);
+        const own = kSide === 'us' ? standing.us : standing.them;
         if (killer === subject) {
           involved = true;
+          rnd.me.kills++;
+          if (first) rnd.me.firstKill = true;
+          if (avenged) rnd.me.tradeKills++;
           label = decided ? 'Kill after the round was decided'
-            : first ? `First kill, ${sideOf(kSide)}`
-              : avenged ? `Traded a teammate, ${sideOf(kSide)}`
-                : own === 1 ? `Kill as the last one up, ${sideOf(kSide)}`
-                  : `Kill, ${sideOf(kSide)}`;
+            : first ? `First kill, ${sideStand(kSide)}`
+              : avenged ? `Traded a teammate, ${sideStand(kSide)}`
+                : own === 1 ? `Kill as the last one up, ${sideStand(kSide)}`
+                  : `Kill, ${sideStand(kSide)}`;
         } else if (assists.includes(subject)) {
           involved = true;
-          label = decided ? 'Assist after the round was decided' : `Assist, ${sideOf(kSide)}`;
-        } else if (avenged && avenged.victim === subject && !avenged.decided) {
+          label = decided ? 'Assist after the round was decided' : `Assist, ${sideStand(kSide)}`;
+        } else if (avenged && avenged.victim === subject && back) {
           involved = true;
-          label = 'Your death was traded, half of it given back';
+          label = 'Your death was traded, part of it given back';
         }
       }
       // The victim.
       if (named(victim)) {
-        credit(victim, swing);
+        const charged = credit(victim, swing);
         const own = vSide === 'us' ? standing.us : standing.them;
-        rnd.deaths.push({ victim, killer, side: vSide, ms, cost: swing, traded: false, first, decided, last: own === 1, at: null });
+        const d = { victim, killer, side: vSide, ms, charged, traded: false, first, decided, last: own === 1, at: null };
+        rnd.deaths.push(d);
+        // Riot's own traded flag, where the killer has no key to see it by.
+        if (victim === subject && !named(killer) && ev.traded === true && !decided) {
+          d.traded = true;
+          credit(victim, Math.abs(charged) * W.TRADE_BACK, true);
+        }
         if (victim === subject) {
           involved = true;
+          rnd.me.died = d;
           label = decided ? 'Died after the round was decided'
-            : first ? `Died first, ${sideOf(vSide)}`
-              : own === 1 ? `Died last, ${sideOf(vSide)}`
-                : `Died, ${sideOf(vSide)}`;
+            : first ? `Died first, ${sideStand(vSide)}`
+              : own === 1 ? `Died last, ${sideStand(vSide)}`
+                : `Died, ${sideStand(vSide)}`;
         }
       }
     }
+    if (!label && reviveLabel) { label = reviveLabel; involved = true; }
+    else if (label && reviveLabel) label = `${reviveLabel}; ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
     const out = record('kill', ev, label, before, involved);
     const d = rnd.deaths[rnd.deaths.length - 1];
     if (victim === subject && d && d.victim === subject && !d.at) d.at = out;
+    // The subject the last one up on their side, against how many.
+    if (!rnd.decided && !rnd.down[mySide].has(subject) && rnd.alive[mySide] === 1 && rnd.alive[other(mySide)] > 0) {
+      rnd.me.clutch = Math.max(rnd.me.clutch, rnd.alive[other(mySide)]);
+    }
     decideByNumbers();
     return out;
   }
@@ -351,8 +446,7 @@ function createRating(opts) {
     return out;
   }
 
-  // Share a gain among a side's players alive (the gain's own sign), a named
-  // one first taking `lead` of it.
+  // Share a gain among a side's players alive, a named one first taking `lead`.
   function share(side, gain, by, lead) {
     const n = Math.max(1, rnd.alive[side]);
     const keys = aliveKeys(side).slice(0, n);
@@ -370,42 +464,78 @@ function createRating(opts) {
     // The planting side attacks: a plant says the side when nothing else did.
     if (kind === 'plant' && !rnd.side && side) rnd.side = side === 'us' ? 'attacking' : 'defending';
     if (!side && rnd.side) side = kind === 'plant' ? (rnd.side === 'attacking' ? 'us' : 'them') : (rnd.side === 'defending' ? 'us' : 'them');
-    const p0 = chanceUs();
+    const ms = num(ev.ms);
+    const p0 = chanceUs(ms);
     const standing = { ...rnd.alive };
-    if (kind === 'plant') { rnd.planted = true; rnd.plantMs = num(ev.ms); }
+    if (kind === 'plant') { rnd.planted = true; rnd.plantMs = ms; }
     else if (side) { rnd.decided = true; rnd.decidedFor = side; }
-    const p1 = chanceUs();
+    const p1 = chanceUs(ms);
+    if (by === subject) rnd.me[kind] = true;
     if (p0 === null || p1 === null || !side) return record(kind, ev, null, before, false);
     const gain = side === 'us' ? p1 - p0 : p0 - p1;
     share(side, gain, by, W.PLANTER_SHARE);
     share(other(side), -gain, null, 0);
-    const mineSide = sideOfKey(subject) === side;
-    const st = side === 'us' ? vs(standing.us, standing.them) : vs(standing.them, standing.us);
-    const alive = !rnd.down.us.has(subject);
+    const ours = mySide === side;
+    const alive = !rnd.down[mySide].has(subject);
     const label = kind === 'plant'
-      ? (!mineSide ? `Spike planted against you, ${vs(standing.us, standing.them)}` : by === subject ? `Planted the spike, ${st}` : `Spike planted, ${st}`)
-      : (!mineSide ? `Spike defused against you, ${vs(standing.us, standing.them)}` : by === subject ? `Defused the spike, ${st}` : `Spike defused, ${st}`);
+      ? (!ours ? `Spike planted against you, ${mine(standing)}` : by === subject ? `Planted the spike, ${mine(standing)}` : `Spike planted, ${mine(standing)}`)
+      : (!ours ? `Spike defused against you, ${mine(standing)}` : by === subject ? `Defused the spike, ${mine(standing)}` : `Spike defused, ${mine(standing)}`);
     return record(kind, ev, label, before, alive || by === subject);
+  }
+
+  /*
+   * THE ROUND'S NAME, a label only (it adds no points): what the subject did
+   * in it, in the words players use. "Triple kill with the opening kill",
+   * "2 kills, won a 1v3", "Opening kill and the plant", "Died first, not
+   * traded", "Saved the last life".
+   */
+  function roundName(won) {
+    if (rnd.satOut) return 'Sat out, not counted';
+    const m = rnd.me;
+    const alive = !rnd.down[mySide].has(subject);
+    const clutchWon = won === true && m.clutch > 0;
+    let main = null;
+    if (m.kills) {
+      if (clutchWon) main = `${m.kills === 1 ? '1 kill' : `${m.kills} kills`}, won a 1v${m.clutch}`;
+      else if (m.kills >= 2) main = `${MULTI[Math.min(5, m.kills)]}${m.firstKill && m.kills < 5 ? ' with the opening kill' : ''}`;
+      else main = m.firstKill ? 'Opening kill' : m.tradeKills ? 'Trade kill' : 'A kill';
+    } else if (clutchWon) main = `Won a 1v${m.clutch}`;
+    if (m.plant) main = main ? `${main} and the plant` : 'Planted the spike';
+    if (m.defuse) main = main ? `${main} and the defuse` : 'Defused the spike';
+    if (m.ultOut && !m.kills && !main) main = 'Ultimate ran out with no kill';
+    const d = m.died && !m.ultOut ? m.died : null;
+    let death = null;
+    if (d && !d.decided) {
+      death = d.first ? `Died first, ${d.traded ? 'traded' : 'not traded'}`
+        : d.last ? 'Died as the last one up' : `Died, ${d.traded ? 'traded' : 'not traded'}`;
+    }
+    if (main && death) return `${main}, then ${death.charAt(0).toLowerCase()}${death.slice(1)}`;
+    if (main) return main;
+    if (death) return death;
+    if (alive && won === true) return 'Round won, alive at the end';
+    if (alive && won === false) return rnd.alive[mySide] === 1 ? 'Saved the last life' : 'Alive when the round was lost';
+    if (d) return won === true ? 'Round won' : 'Round lost';
+    return won === true ? 'Round won' : won === false ? 'Round lost' : null;
   }
 
   // The round's end: what was left of the chance goes to whoever was still up
   // (a defuse nobody named, the timer, the spike going off, a save), and the
   // small result term to everyone who played it.
   function end(ev, before) {
-    const won = ev.won === true ? 'us' : ev.won === false ? 'them' : null;
-    let label = won === 'us' ? 'Round won' : won === 'them' ? 'Round lost' : null;
+    const won = ev.won === true ? mySide : ev.won === false ? other(mySide) : null;
+    const meWon = ev.won === true ? true : ev.won === false ? false : null;
+    let label = meWon === true ? 'Round won' : meWon === false ? 'Round lost' : null;
     if (won && !rnd.decided) {
-      const p0 = chanceUs();
+      const p0 = chanceUs(num(ev.ms));
       if (p0 !== null) {
         const left = won === 'us' ? 1 - p0 : p0;
         share(won, left, null, 0);
         share(other(won), -left, null, 0);
-        const usWon = won === 'us';
-        const theyDefended = (rnd.side === 'defending') === usWon;
-        if (!rnd.down.us.has(subject) && left >= W.DECIDED && rnd.side) {
-          label = rnd.planted && theyDefended ? (usWon ? 'Round won, spike defused' : 'Round lost to the defuse')
-            : rnd.planted ? (usWon ? 'Round won, the spike went off' : 'Round lost, the spike went off')
-              : usWon ? 'Round won, held to the timer' : 'Round lost, alive at the end';
+        const defendersWon = (rnd.side === 'defending') === (won === 'us');
+        if (!rnd.down[mySide].has(subject) && left >= W.DECIDED && rnd.side) {
+          label = rnd.planted && defendersWon ? (meWon ? 'Round won, spike defused' : 'Round lost to the defuse')
+            : rnd.planted ? (meWon ? 'Round won, the spike went off' : 'Round lost, the spike went off')
+              : meWon ? 'Round won, held to the timer' : 'Round lost, alive at the end';
         }
       }
     }
@@ -417,22 +547,45 @@ function createRating(opts) {
       d.at.label = d.first ? `Died first, ${d.traded ? 'traded' : 'not traded'}` : `${d.at.label}, ${d.traded ? 'traded' : 'not traded'}`;
     }
     rnd.ended = true;
-    return record('end', ev, label, before, !!label);
+    const out = record('end', ev, label, before, !!label);
+    byRound.push({
+      n: rnd.n, won: meWon, value: out.value, delta: round1(out.value - rnd.startValue),
+      swing: round3(rnd.swing), label: roundName(meWon), satOut: rnd.satOut,
+    });
+    return out;
   }
+
+  const ignored = (ev, why) => {
+    const value = valueOf(subject);
+    return { round: rnd ? rnd.n : null, ms: num(ev.ms), kind: ev.kind, delta: 0, value, swing: 0, label: null, ignored: why };
+  };
 
   function push(ev) {
     if (!ev || typeof ev !== 'object') return null;
+    // The same event twice (a live feed re-sending) moves nothing the second time.
+    if (ev.id !== undefined && ev.id !== null) {
+      const id = String(ev.id);
+      if (seen.has(id)) return ignored(ev, 'repeated');
+      seen.add(id);
+    }
+    const n = num(ev.round);
+    // A round older than the one being played is over: nothing changes it.
+    if (rnd && n !== null && n < rnd.n) return ignored(ev, 'stale');
     const before = valueOf(subject);
     if (ev.kind === 'round') {
-      startRound(num(ev.round) !== null ? ev.round : (rnd ? rnd.n + 1 : 1), ev.side, ev.satOut);
+      // The round being played again: its side only, never a reset.
+      if (rnd && (n === null || n === rnd.n)) {
+        if (!rnd.side && (ev.side === 'attacking' || ev.side === 'defending')) rnd.side = ev.side;
+        return ignored(ev, 'same round');
+      }
+      startRound(n !== null ? n : (rnd ? rnd.n + 1 : 1), ev.side, ev.satOut);
       credits.clear();
       const value = valueOf(subject);
       return { round: rnd.n, ms: null, kind: 'round', delta: round1(value - before), value, swing: 0, label: null };
     }
     // A round no 'round' event opened is opened by its first event.
-    const n = num(ev.round);
     if (!rnd || (n !== null && n !== rnd.n)) startRound(n !== null ? n : (rnd ? rnd.n + 1 : 1), null, false);
-    if (rnd.ended) return record(ev.kind, ev, null, before, false);
+    if (rnd.ended) return ignored(ev, 'round over');
     if (ev.kind === 'kill') return kill(ev, before);
     if (ev.kind === 'plant' || ev.kind === 'defuse') return spike(ev.kind, ev, before);
     if (ev.kind === 'end') return end(ev, before);
@@ -446,9 +599,10 @@ function createRating(opts) {
       net: round3((players.get(subject) || { net: 0 }).net),
       rounds: subjectRounds,
       players: [...players.entries()].map(([key, p]) => ({
-        key, side: sideOfKey(key), agent: agentOfKey(key, o.meAgent), value: valueOf(key), net: round3(p.net),
+        key, side: sideOfKey(key), agent: agentOf(key), value: valueOf(key), net: round3(p.net),
       })),
       timeline: timeline.map((e) => ({ ...e })),
+      byRound: byRound.map((e) => ({ ...e })),
     };
   }
 
@@ -467,22 +621,24 @@ function keyOf(who, agent) {
 
 /**
  * One round of Riot's record as events. A round: { n, side, won, satOut,
- * plantMs, plantBy, defuseMs, defuseBy, feed: [{ ms, by, on, ka, va, w, as }] },
- * the feed in riot-rounds.js parse's shape (a card's riot.feed), `as` the
- * assisters as [{ by, a }] where a record names them, plantBy and defuseBy a
- * feed end ({ by, a }). Null for a round with no feed: it cannot be rated.
+ * traded, plantMs, plantBy, defuseMs, defuseBy, feed: [{ ms, by, on, ka, va,
+ * w, as }] }, the feed in riot-rounds.js parse's shape (a card's riot.feed),
+ * `as` the assisters as [{ by, a }], plantBy and defuseBy a feed end
+ * ({ by, a }), `traded` Riot's own flag for the player's death. Null for a
+ * round with no feed: it cannot be rated.
  */
 function eventsOfRound(r) {
   if (!r || !Array.isArray(r.feed)) return null;
-  const end = (x) => (x && typeof x === 'object' ? keyOf(x.by, x.a) : null);
+  const endKey = (x) => (x && typeof x === 'object' ? keyOf(x.by, x.a) : null);
   const timed = r.feed.map((k, i) => ({ t: num(k && k.ms), i, e: {
     kind: 'kill', round: r.n, ms: num(k && k.ms), killer: keyOf(k && k.by, k && k.ka), victim: keyOf(k && k.on, k && k.va),
     weapon: k && typeof k.w === 'string' ? k.w : null,
-    ...(k && Array.isArray(k.as) ? { assists: k.as.map(end).filter(Boolean) } : {}),
+    ...(k && Array.isArray(k.as) ? { assists: k.as.map(endKey).filter(Boolean) } : {}),
+    ...(k && k.on === 'me' && typeof r.traded === 'boolean' ? { traded: r.traded } : {}),
   } }));
   const attackers = r.side === 'attacking' ? 'us' : r.side === 'defending' ? 'them' : null;
-  if (num(r.plantMs) !== null) timed.push({ t: r.plantMs, i: -1, e: { kind: 'plant', round: r.n, ms: r.plantMs, by: end(r.plantBy) || attackers } });
-  if (num(r.defuseMs) !== null) timed.push({ t: r.defuseMs, i: 1e6, e: { kind: 'defuse', round: r.n, ms: r.defuseMs, by: end(r.defuseBy) || other(attackers) } });
+  if (num(r.plantMs) !== null) timed.push({ t: r.plantMs, i: -1, e: { kind: 'plant', round: r.n, ms: r.plantMs, by: endKey(r.plantBy) || attackers } });
+  if (num(r.defuseMs) !== null) timed.push({ t: r.defuseMs, i: 1e6, e: { kind: 'defuse', round: r.n, ms: r.defuseMs, by: endKey(r.defuseBy) || other(attackers) } });
   // In time order, the feed's own order breaking ties and placing a kill with
   // no time, and a plant before a kill on the same ms.
   timed.sort((a, b) => (a.t === null || b.t === null ? a.i - b.i : (a.t - b.t) || (a.i - b.i)));
@@ -532,6 +688,7 @@ function fromRecord(match) {
 /**
  * THE SAVED SHAPE, what a review keeps (rating.md, "What is saved"):
  *   { version, value, rounds,
+ *     byRound: [{ n, won, value, delta, swing, label }],
  *     timeline: [{ round, ms, kind, delta, value, swing, label }],
  *     place: { n, of } or null, lobby: [{ side, agent, value, me }] or null }
  * The lobby is sides, agents and numbers, never a name, and only when every
@@ -541,6 +698,7 @@ function saved(snap, keyed) {
   const timeline = snap.timeline.filter((e) => e.label).map((e) => ({
     round: e.round, ms: e.ms, kind: e.kind, delta: e.delta, value: e.value, swing: e.swing, label: e.label,
   }));
+  const byRound = snap.byRound.map((e) => ({ n: e.n, won: e.won, value: e.value, delta: e.delta, swing: e.swing, label: e.label }));
   let lobby = null;
   let place = null;
   if (keyed) {
@@ -551,7 +709,7 @@ function saved(snap, keyed) {
     if (at >= 0 && list.length >= 2) place = { n: at + 1, of: list.length };
     lobby = list.map((p) => ({ side: p.side, agent: p.agent, value: p.value, me: p.me }));
   }
-  return { version: VERSION, value: snap.value, rounds: snap.rounds, timeline, place, lobby };
+  return { version: VERSION, value: snap.value, rounds: snap.rounds, byRound, timeline, place, lobby };
 }
 
 /**
@@ -567,6 +725,7 @@ function roundsOfReview(review) {
       side: c.sideKey === 'attacking' || c.sideKey === 'defending' ? c.sideKey : null,
       won: c.result === 'won' ? true : c.result === 'lost' ? false : null,
       satOut: !!(riot && (riot.afk === true || riot.inSpawn === true)),
+      ...(riot && typeof riot.traded === 'boolean' ? { traded: riot.traded } : {}),
       plantMs: riot && num(riot.plantSec) !== null ? Math.round(riot.plantSec * 1000) : null,
       ...(riot && num(riot.defuseSec) !== null ? { defuseMs: Math.round(riot.defuseSec * 1000) } : {}),
       ...(riot && riot.plantBy && typeof riot.plantBy === 'object' ? { plantBy: riot.plantBy } : {}),
@@ -610,14 +769,18 @@ function ratingOfReview(review) {
   return { rating: out.rating, why: out.why, note: out.why ? WHY[out.why] : null };
 }
 
-/** The k biggest gains and losses of a saved rating by swing, each with its label and round. */
+/**
+ * The k biggest round gains and losses of a saved rating, each the round's
+ * move in the shown value, its swing breaking a tie, with its name. Sorted by
+ * the number the page shows, so the list reads in order.
+ */
 function swings(rating, k) {
   const n = k || 3;
-  const tl = rating && Array.isArray(rating.timeline) ? rating.timeline : [];
-  const by = (e) => (typeof e.swing === 'number' ? e.swing : e.delta);
+  const rs = rating && Array.isArray(rating.byRound) ? rating.byRound.filter((e) => e && e.label && !/^Sat out/.test(e.label)) : [];
+  const key = (e) => e.delta * 1000 + (e.swing || 0);
   return {
-    gains: tl.filter((e) => by(e) > 0).sort((a, b) => (by(b) - by(a)) || (a.round - b.round)).slice(0, n),
-    losses: tl.filter((e) => by(e) < 0).sort((a, b) => (by(a) - by(b)) || (a.round - b.round)).slice(0, n),
+    gains: rs.filter((e) => e.swing > 0 && e.delta > 0).sort((a, b) => (key(b) - key(a)) || (a.n - b.n)).slice(0, n),
+    losses: rs.filter((e) => e.swing < 0 && e.delta < 0).sort((a, b) => (key(a) - key(b)) || (a.n - b.n)).slice(0, n),
   };
 }
 
@@ -637,50 +800,71 @@ function signed(v) {
   return t > 0 ? `+${(t / 10).toFixed(1)}` : t < 0 ? `-${(-t / 10).toFixed(1)}` : '0.0';
 }
 
+/*
+ * THE TIER, as football ratings colour theirs: under 6.0 poor, 6.0 to 6.9
+ * fair, 7.0 to 7.9 good, 8.0 to 8.9 very good, 9.0 and up excellent. The page
+ * maps each to a token (rating.css); the number is always beside it.
+ */
+function tierOf(v) {
+  return typeof v !== 'number' ? null : v >= 9 ? 'excellent' : v >= 8 ? 'great' : v >= 7 ? 'good' : v >= 6 ? 'fair' : 'poor';
+}
+
 /**
  * WHAT THE PAGE IS SENT (served by valorant-review.js, never on disk): the
- * number, the line across the match by round, the three biggest gains and
- * losses, the place in the lobby, the lobby by agent, and every event for the
- * replay. Sides, agents, rounds and numbers only. With no rating, the line
- * that says what would give one, or null where nothing is said (League).
+ * number and its tier, a point a round, the three biggest round gains and
+ * losses, the place in the lobby, the lobby by agent, the half, the running
+ * score and every event for the replay. Sides, agents, rounds and numbers
+ * only. With no rating, the line that says what would give one, or null
+ * where nothing is said (League). A rating saved before rounds were kept is
+ * drawn from its events.
  *   opts.rounds  the match's rounds, so the line runs to the last one
+ *   opts.half    the round after which the sides swapped
+ *   opts.results each round's result for the score, [{ n, won }]
  */
 function viewOf(r, opts) {
   const o = opts || {};
   if (!r) return o.note ? { value: null, note: o.note } : null;
   const tl = Array.isArray(r.timeline) ? r.timeline : [];
-  const last = Math.max(num(o.rounds) || 0, r.rounds || 0, ...tl.map((e) => e.round || 0));
+  const kept = Array.isArray(r.byRound) ? r.byRound : null;
+  const last = Math.max(num(o.rounds) || 0, r.rounds || 0, ...tl.map((e) => e.round || 0), ...(kept || []).map((e) => e.n || 0));
+  const results = new Map((Array.isArray(o.results) ? o.results : []).map((x) => [x.n, x.won]));
   const after = new Map();
   for (const e of tl) after.set(e.round, e.value);
-  const line = [{ n: 0, value: D.START }];
+  const byN = new Map((kept || []).map((e) => [e.n, e]));
+  const rounds = [];
   let v = D.START;
-  for (let n = 1; n <= last; n++) { if (after.has(n)) v = after.get(n); line.push({ n, value: v }); }
+  let us = 0;
+  let them = 0;
+  for (let n = 1; n <= last; n++) {
+    const e = byN.get(n);
+    const before = v;
+    if (e) v = e.value; else if (after.has(n)) v = after.get(n);
+    const won = e && typeof e.won === 'boolean' ? e.won : results.has(n) ? results.get(n) : null;
+    if (won === true) us++; else if (won === false) them++;
+    rounds.push({ n, value: v, delta: signed(v - before), label: e ? e.label : null, won, score: `${us} : ${them}` });
+  }
   const sw = swings(r, 3);
-  const item = (e) => ({ round: e.round, label: e.label, delta: signed(typeof e.swing === 'number' ? deltaOf(e) : e.delta), up: (e.swing || e.delta) > 0 });
+  const item = (e) => ({ round: e.n, label: e.label, delta: signed(e.delta), up: e.delta > 0 });
   return {
     version: r.version,
     value: r.value,
     shown: r.value.toFixed(1),
+    tier: tierOf(r.value),
     place: placeLine(r.place),
-    lobby: Array.isArray(r.lobby) ? r.lobby.map((p) => ({ side: p.side, agent: p.agent || null, value: p.value.toFixed(1), me: !!p.me })) : null,
-    line,
+    lobby: Array.isArray(r.lobby) ? r.lobby.map((p) => ({ side: p.side, agent: p.agent || null, value: p.value.toFixed(1), tier: tierOf(p.value), me: !!p.me })) : null,
+    half: num(o.half) && o.half < last ? o.half : null,
+    line: [{ n: 0, value: D.START }, ...rounds.map((x) => ({ n: x.n, value: x.value }))],
+    rounds,
     gains: sw.gains.map(item),
     losses: sw.losses.map(item),
-    marks: [...sw.gains, ...sw.losses].map((e) => ({ round: e.round, up: (e.swing || e.delta) > 0 })),
-    events: tl.map((e) => ({ round: e.round, kind: e.kind, label: e.label, value: e.value, delta: signed(e.delta) })),
+    marks: [...sw.gains, ...sw.losses].map((e) => ({ round: e.n, up: e.delta > 0 })),
+    events: tl.map((e) => ({ round: e.round, kind: e.kind, label: e.label, value: e.value, delta: signed(e.delta), tier: tierOf(e.value) })),
     note: null,
   };
-}
-// A big move's size in the shown value: its delta when it moved a tenth,
-// else the swing on the display's own scale near 6.0, so a list never says
-// "+0.0" for a move it ranks among the biggest.
-function deltaOf(e) {
-  if (Math.abs(e.delta) >= 0.1) return e.delta;
-  return (e.swing > 0 ? D.UP / D.A : D.DOWN / D.B) * e.swing;
 }
 
 module.exports = {
   VERSION, WP, W, D, LENGTHS, MIN_ROUNDS, WHY,
   winChance, display, lengthOf, createRating, eventsOfRound, fromRecord, roundsOfReview, lobbyOf, allKeyed,
-  ratingOfReview, swings, ordinal, placeLine, keyOf, viewOf, signed,
+  ratingOfReview, swings, ordinal, placeLine, keyOf, viewOf, signed, tierOf, isGun,
 };

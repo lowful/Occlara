@@ -72,9 +72,17 @@ let linked;
     tracker: TRACKER, role: 'Duelist', history: [], queue: 'unrated' }), imported: true };
   ok(JSON.stringify(imported.rating) === JSON.stringify(linked.rating), 'an import that matched saves the same one');
 
-  // The grade is not changed by the rating: built without the rating module's say, the same score.
-  ok(linked.grade.score === valorantReview.build({ rounds: verify.reconcile(played.rounds, riot).rounds, context: { ...played.context, agent: 'Jett' },
-    endedBy: 'score', ai: {}, tracker: TRACKER, role: 'Duelist', history: [], queue: 'unrated' }).grade.score, 'the grade is the same score it always was');
+  // The grade is not touched by the rating: with the rating module stubbed
+  // out, the same build grades byte for byte the same, and saves no rating.
+  const real = rating.ratingOfReview;
+  rating.ratingOfReview = () => ({ rating: null, why: 'stub', note: null });
+  let without;
+  try {
+    without = valorantReview.build({ rounds: verify.reconcile(played.rounds, riot).rounds, context: { ...played.context, agent: 'Jett' },
+      endedBy: 'score', ai: {}, tracker: TRACKER, role: 'Duelist', history: [], queue: 'unrated' });
+  } finally { rating.ratingOfReview = real; }
+  ok(!('rating' in without) && JSON.stringify(without.grade) === JSON.stringify(linked.grade) && JSON.stringify(without.insights) === JSON.stringify(linked.insights),
+    `the grade and the lists are the same with the rating stubbed out (${linked.grade.score})`);
 }
 
 console.log('\nServed to the page');
@@ -113,7 +121,9 @@ console.log('\nServed to the page');
   ok(sv && sv.value === null && /Riot's record/.test(sv.note), `a screen only review says what would rate it ("${sv && sv.note}")`);
 
   // Locked, and League.
-  ok(!('ratingView' in valorantReview.served({ ...linked, locked: true })), 'a locked review is sent none');
+  const locked = valorantReview.served({ ...linked, locked: true });
+  ok(!('ratingView' in locked) && !('rating' in locked), 'a locked review is sent no view and not the saved rating');
+  ok(!('rating' in shown) && !('rating' in valorantReview.served({ kind: 'lol', rating: { version: 1, value: 7 } })), 'no review sends the saved rating, its timeline or its lobby, only the view');
   ok(valorantReview.served({ kind: 'lol', game: { champion: 'Ahri' } }).ratingView === undefined, 'League is sent none');
 }
 
