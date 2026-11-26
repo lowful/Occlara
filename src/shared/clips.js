@@ -11,6 +11,8 @@
  *
  *   r<n>-clip.mkv   the death in round n of a Valorant match
  *   d<k>-clip.mkv   the player's k-th death in a League game
+ *   h<n>-clip.mkv   the highlight of round n of a Valorant match (8.17): its
+ *                   kills, the dead time between them cut out (HIGHLIGHTS)
  *
  * WHICH SECONDS. From 11 before the death to 4 after it: the fight that led
  * to it, the death, and the first seconds after, which in Valorant is the
@@ -60,11 +62,30 @@
  * AND NOT ONCE THE PLAYER CHOSE OFF (cutsClips), whatever the recorder still
  * holds of a match already played.
  *
+ * HIGHLIGHTS (8.17). The player got a 3K and no clip of it was kept: only
+ * deaths were ever cut. Now a round Riot's record proves a highlight with
+ * kills (2K to 5K, or a clutch won, highlightRank) gets one clip of its kills,
+ * cut from the same recording in the same step as the deaths' clips. Each
+ * kill is covered from KILL_BEFORE_MS before it to KILL_AFTER_MS after it:
+ * the death's 11 s lead is there for the look's stills, which reach 4.5 s
+ * back, and for the fight that led to it, where a kill's moment is the duel
+ * itself, so 4 s shows the peek and the shot, and the 2.5 s after the kill
+ * banner and the next swing, where a death needs 4 for the killer seen from
+ * the spectator camera. Windows that overlap or come within KILL_JOIN_MS of
+ * each other are one: a cut that skips less than that is a jump for nothing,
+ * and each piece opens on the keyframe up to a second before its first
+ * second anyway. Where the gap is longer, the dead time is cut out and the
+ * pieces written into one file (webm.js cutJoined), the clip told where each
+ * cut falls and how much it skipped (highlightMarks). No earlier than a
+ * second before the round's barriers, as a death's. And no longer than
+ * HIGHLIGHT_MAX_MS, the flagged death's 45 s, held by trimming every kill's
+ * lead and tail by one share, never by dropping a kill (killWindows).
+ *
  * Plain JavaScript, so main and the tests read the same numbers.
  */
 
 // A clip's file name, and nothing else: no path, no other type.
-const CLIP_RE = /^[rd]\d{1,3}-clip\.mkv$/;
+const CLIP_RE = /^[rdh]\d{1,3}-clip\.mkv$/;
 
 const BEFORE_MS = 11000;
 const AFTER_MS = 4000;
@@ -80,6 +101,23 @@ const FLAG_BEFORE_MS = 20000;
 const FLAG_AFTER_MS = 6000;
 const FLAG_SCREEN_LEAD_MS = 12000;
 const FLAG_MAX_MS = 45000;
+// A highlight's clip (HIGHLIGHTS): around each kill, the windows that nearly
+// touch made one, the whole no longer than a flagged death's.
+const KILL_BEFORE_MS = 4000;
+const KILL_AFTER_MS = 2500;
+const KILL_JOIN_MS = 3000;
+const HIGHLIGHT_MAX_MS = FLAG_MAX_MS;
+// Trimmed to the cap, a kill keeps at least this much either side of it.
+const KILL_MIN_BEFORE_MS = 1000;
+const KILL_MIN_AFTER_MS = 500;
+// Each piece opens on the keyframe at or before its first second, up to this
+// much early, and runs on to where the Cluster after its last second begins,
+// up to this much late (webm.js planClip: a window of 10 to 12 s was cut 9.149
+// to 12.213), so the cap counts it in at both ends.
+const KEYFRAME_MS = 1000;
+const PIECE_SLACK_MS = 2 * KEYFRAME_MS;
+// A review keeps at most this many highlight clips, apart from its deaths'.
+const MAX_HIGHLIGHT_CLIPS = 6;
 
 // The seconds from the death a look's stills are taken at (see THE STILLS A
 // LOOK TAKES), in time order: Riot's moment, and the screen's.
@@ -107,6 +145,12 @@ function roundClip(n) {
 function deathClip(k) {
   const i = Number(k);
   return Number.isInteger(i) && i > 0 && i < 1000 ? `d${i}-clip.mkv` : null;
+}
+
+/** Round n's highlight clip (8.17), or null for anything that is not a round number. */
+function highlightClip(n) {
+  const k = Number(n);
+  return Number.isInteger(k) && k > 0 && k < 1000 ? `h${k}-clip.mkv` : null;
 }
 
 /** The cap in GB, one of CAPS_GB, the default for anything else. */
@@ -243,6 +287,111 @@ function cutsClips(prefs) {
 }
 
 /**
+ * WHICH HIGHLIGHT FIRST (8.17), by a round's Riot facts ({ kills, clutch }, a
+ * reconciled round or a card's `riot` alike): 0 an ace, 1 a 4K, 2 a clutch
+ * won, 3 a 3K, 4 a 2K, the order a review's MAX_HIGHLIGHT_CLIPS are filled
+ * in. Null for a round that is no highlight with a kill in it: a highlight
+ * clip is of kills, so a clutch won with none (a defuse, the clock) has
+ * none, nor has a first kill streak, which is no one moment.
+ */
+function highlightRank(r) {
+  const kills = r && typeof r.kills === 'number' && Number.isFinite(r.kills) ? r.kills : 0;
+  if (kills < 1) return null;
+  const won = !!(r.clutch && typeof r.clutch.vs === 'number' && r.clutch.won === true);
+  if (kills >= 5) return 0;
+  if (kills === 4) return 1;
+  if (won) return 2;
+  if (kills === 3) return 3;
+  if (kills === 2) return 4;
+  return null;
+}
+
+/** The rounds whose highlight is clipped: by highlightRank, then the earlier round, `max` at most. */
+function pickHighlights(rounds, max) {
+  const k = Number.isInteger(max) && max > 0 ? max : MAX_HIGHLIGHT_CLIPS;
+  return (Array.isArray(rounds) ? rounds : [])
+    .map((r) => ({ r, rank: r && Number.isInteger(r.n) ? highlightRank(r) : null }))
+    .filter((x) => x.rank !== null)
+    .sort((a, b) => a.rank - b.rank || a.r.n - b.r.n)
+    .slice(0, k)
+    .map((x) => x.r);
+}
+
+/**
+ * The seconds a highlight's clip covers (HIGHLIGHTS): { windows: [{ from,
+ * to }], kills, share }, wall clock ms in time order, or null with no kill.
+ * Each kill from KILL_BEFORE_MS before it to KILL_AFTER_MS after it, none
+ * earlier than a second before the round's barriers (`drop`), windows within
+ * KILL_JOIN_MS of each other made one. Longer than HIGHLIGHT_MAX_MS, each
+ * piece counted with the second it may open early by and the second it may
+ * run on by (PIECE_SLACK_MS), and every
+ * kill's lead and tail is cut by the same share (`share`, 1 untouched) down
+ * to KILL_MIN_BEFORE_MS and KILL_MIN_AFTER_MS at the least: no kill is ever
+ * dropped, so a clip that is still too long then keeps them all.
+ */
+function killWindows(kills, drop) {
+  const ks = (Array.isArray(kills) ? kills : []).filter((k) => typeof k === 'number' && Number.isFinite(k)).sort((a, b) => a - b);
+  if (!ks.length) return null;
+  const floor = Number.isFinite(drop) ? drop - DROP_LEAD_MS : -Infinity;
+  const build = (share) => {
+    const before = KILL_MIN_BEFORE_MS + (KILL_BEFORE_MS - KILL_MIN_BEFORE_MS) * share;
+    const after = KILL_MIN_AFTER_MS + (KILL_AFTER_MS - KILL_MIN_AFTER_MS) * share;
+    const out = [];
+    for (const k of ks) {
+      const from = Math.min(k, Math.max(k - before, floor));
+      const to = k + after;
+      const last = out[out.length - 1];
+      if (last && from - last.to < KILL_JOIN_MS) last.to = Math.max(last.to, to);
+      else out.push({ from, to });
+    }
+    return out;
+  };
+  const length = (ws) => ws.reduce((n, w) => n + (w.to - w.from) + PIECE_SLACK_MS, 0);
+  let share = 1;
+  let windows = build(1);
+  if (length(windows) > HIGHLIGHT_MAX_MS) {
+    let lo = 0;
+    let hi = 1;
+    for (let i = 0; i < 24; i++) {
+      const mid = (lo + hi) / 2;
+      if (length(build(mid)) <= HIGHLIGHT_MAX_MS) lo = mid; else hi = mid;
+    }
+    share = lo;
+    windows = build(lo);
+  }
+  return { windows, kills: ks, share };
+}
+
+/**
+ * WHERE THE CUTS AND THE KILLS FALL IN A JOINED CLIP (8.17), for its player,
+ * in ms on the clip's own timeline: { length, kills: [ms], cuts: [{ at,
+ * skipped }] }. `pieces` as the recorder cut them, each { startWall, endWall,
+ * offset, length }: where its own 0 and its last frame's end are on the wall
+ * clock, and where it starts in the clip and how long it runs there. A cut is
+ * where each piece after the first starts, `skipped` the wall clock seconds
+ * between it and the piece before (ms). A kill is placed in the piece that
+ * holds it, and one no piece holds is left unmarked rather than guessed. Null
+ * when the pieces do not say where they are.
+ */
+function highlightMarks(pieces, kills) {
+  const ps = Array.isArray(pieces) ? pieces : [];
+  const fine = (x) => typeof x === 'number' && Number.isFinite(x);
+  if (!ps.length || !ps.every((p) => p && fine(p.startWall) && fine(p.endWall) && fine(p.offset) && fine(p.length))) return null;
+  const cuts = [];
+  for (let i = 1; i < ps.length; i++) {
+    cuts.push({ at: Math.round(ps[i].offset), skipped: Math.max(0, Math.round(ps[i].startWall - ps[i - 1].endWall)) });
+  }
+  const placed = [];
+  for (const k of Array.isArray(kills) ? kills : []) {
+    if (!fine(k)) continue;
+    const p = ps.find((x) => k >= x.startWall && k < x.endWall);
+    if (p) placed.push(Math.round(p.offset + (k - p.startWall)));
+  }
+  const last = ps[ps.length - 1];
+  return { length: Math.round(last.offset + last.length), kills: placed.sort((a, b) => a - b), cuts };
+}
+
+/**
  * At most `max` of a list, spread across it, in order: all of them when they
  * fit, else the first, the last and the rest evenly between, so a League game
  * of ten deaths has clips from its start, its middle and its end rather than
@@ -264,5 +413,7 @@ function pickSpread(list, max) {
 module.exports = {
   CLIP_RE, BEFORE_MS, AFTER_MS, LEAD_MS, DROP_LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME, LOOK_AT,
   FLAG_BEFORE_MS, FLAG_AFTER_MS, FLAG_SCREEN_LEAD_MS, FLAG_MAX_MS,
+  KILL_BEFORE_MS, KILL_AFTER_MS, KILL_JOIN_MS, HIGHLIGHT_MAX_MS, KILL_MIN_BEFORE_MS, KILL_MIN_AFTER_MS, KEYFRAME_MS, PIECE_SLACK_MS, MAX_HIGHLIGHT_CLIPS,
+  highlightClip, highlightRank, pickHighlights, killWindows, highlightMarks,
   roundClip, deathClip, capGB, windowOf, lookWindow, flagWindow, momentOf, stillsMomentOf, deathInClip, stillName, cutsClips, pickSpread,
 };

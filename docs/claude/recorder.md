@@ -293,7 +293,9 @@ PC coped, never what was on it.
   five minutes past its end, the time a match ended too early can still resume
   in, until its review's work is done (`releaseMatchHolds`, beside its AI log
   frames), an hour at most, or sooner, the moment Riot's look has cut its
-  clips (8.3.1, `recordingCut`): its stills are decoded from those clips after
+  clips (8.3.1, `recordingCut`), and since 8.17 its highlights' as well, cut
+  in the same step before it (`clipHighlights`, recorder `cutJoined`): its
+  stills are decoded from those clips after
   the match in progress ends, and held to the link's end the match before's
   recording, about 1.6 GB at 1080p, was kept through the whole of the next
   one. A look after it (Riot's again after a failure, the screen's when Riot's

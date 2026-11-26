@@ -1,0 +1,13 @@
+{
+  "note": "The owner's 7 round Swiftplay on Split (8.17): the three rounds with more than one kill, which were never clipped, as Riot's record times them, ms from each round's barriers dropping. Numbers only: no name, no Riot ID, no frame. Rounds 1, 2, 4 and 6 were deaths, each clipped; round 3 holds a death and a 3K both.",
+  "map": "Split",
+  "queue": "swiftplay",
+  "rounds": [
+    { "n": 3, "kills": 3, "died": true, "deathMs": 35000, "result": "lost",
+      "feed": [{ "ms": 10700, "by": "me", "on": "enemy" }, { "ms": 28100, "by": "me", "on": "enemy" }, { "ms": 29800, "by": "me", "on": "enemy" }, { "ms": 35000, "by": "enemy", "on": "me" }] },
+    { "n": 5, "kills": 3, "died": false, "deathMs": null, "result": "won",
+      "feed": [{ "ms": 1900, "by": "me", "on": "enemy" }, { "ms": 8000, "by": "me", "on": "enemy" }, { "ms": 14500, "by": "me", "on": "enemy" }] },
+    { "n": 7, "kills": 4, "died": false, "deathMs": null, "result": "won",
+      "feed": [{ "ms": 15300, "by": "me", "on": "enemy" }, { "ms": 31500, "by": "me", "on": "enemy" }, { "ms": 33600, "by": "me", "on": "enemy" }, { "ms": 36800, "by": "me", "on": "enemy" }] }
+  ]
+}

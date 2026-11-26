@@ -28,6 +28,10 @@
  * look named a clip that is gone says why, once the review was told
  * (clipsCleared), else that it is gone. And the page's one note says why no
  * clip at all was kept, when none was: recording Off, the cap, or Clear clips.
+ * A HIGHLIGHT WITH KILLS HAS ITS OWN CLIP (8.17, clips.js HIGHLIGHTS), cut
+ * with the deaths' off Riot's kill times, the dead time between its kills
+ * left out and the cuts marked; a highlight whose kills could not be timed
+ * has none and says nothing about one, and the reel plays every one kept.
  *
  * Pure: the library hands in the saved reviews, the patterns and what is on
  * disk, so scripts/test-moments.js runs it on the real fixture.
@@ -162,9 +166,32 @@ function valorantDeaths(saved, have, io, patternKeys) {
   return out;
 }
 
+/**
+ * A highlight's clip (8.17) as the page plays it: clipOf's, with where each
+ * kill and each cut falls in it (ms on the clip's own timeline) and how much
+ * each cut skipped, for its player's marks. Null where none was cut: a round
+ * with no drop to time its kills by, recording off, a review saved before.
+ */
+function highlightClipOf(card, have, review, io, id) {
+  const h = card && card.highlight && typeof card.highlight === 'object' ? card.highlight : null;
+  if (!h || typeof h.clip !== 'string' || h.clip[0] !== 'h') return { clip: null, clipGone: null };
+  const got = clipOf(h.clip, null, have, review, io, id);
+  if (!got.clip) return got;
+  const ms = (x) => typeof x === 'number' && Number.isFinite(x) && x >= 0;
+  return {
+    clip: {
+      ...got.clip,
+      kills: (Array.isArray(h.kills) ? h.kills : []).filter(ms),
+      cuts: (Array.isArray(h.cuts) ? h.cuts : []).filter((c) => c && ms(c.at) && ms(c.skipped)).map((c) => ({ at: c.at, skipped: c.skipped })),
+    },
+    clipGone: null,
+  };
+}
+
 /** A Valorant review's highlights, off its Riot verified rounds alone. */
-function valorantHighlights(saved) {
+function valorantHighlights(saved, have, io) {
   const { id, review } = saved;
+  const playIo = io || { url: (i, name) => `${i}/${name}`, frames: () => null };
   const cards = (Array.isArray(review.rounds) ? review.rounds : []).filter((c) => c && Number.isInteger(c.n) && c.riot);
   const out = [];
   for (const c of cards) {
@@ -182,13 +209,14 @@ function valorantHighlights(saved) {
     if (r.firstKill) parts.push('first kill of the round');
     const secs = killSecs(r);
     if (secs.length) parts.push(`kills at ${secs.map((s) => `${s} s`).join(', ')}`);
+    const { clip, clipGone } = highlightClipOf(c, have, review, playIo, id);
     out.push({
       kind: 'highlight', id, round: c.n, key: `${id}:h${c.n}`,
       title, line: parts.length ? parts.join(', ') : null,
       what: kills >= ACE_KILLS ? 'ace' : kills >= MULTI_KILLS ? 'multi' : 'clutch',
       kills, sec: secs.length ? secs[0] : null, time: secs.length ? secText(secs[0]) : null,
       won: c.result === 'won',
-      clip: null, clipGone: null, repeats: [],
+      clip, clipGone, clipGoneText: clipGone ? GONE[clipGone] : null, repeats: [],
     });
   }
   // The first kill of the round, two or more rounds running: one entry on the
@@ -271,11 +299,12 @@ function build(game, saved, opts) {
   let clips = 0;
   let gone = null;
   let looked = 0;
+  const lit = [];
   for (const s of all) {
     const have = new Set((clipsOf(s.id) || []).map((c) => (typeof c === 'string' ? c : c && c.name)).filter(Boolean));
     const isLol = (s.game || s.review.kind) === 'lol';
     const d = isLol ? lolDeaths(s, have, io) : valorantDeaths(s, have, io, patternKeys);
-    const h = isLol ? [] : valorantHighlights(s);
+    const h = isLol ? [] : valorantHighlights(s, have, io);
     const moments = [...d, ...h].sort((a, b) => a.round - b.round || (a.kind === 'highlight' ? -1 : 1));
     deaths += d.length;
     highlights += h.length;
@@ -284,8 +313,20 @@ function build(game, saved, opts) {
       if (m.clipGone && m.clipGone !== 'gone') gone = gone || m.clipGone;
       if (m.cause) looked += 1;
     }
+    for (const m of h) {
+      if (m.clip) { clips += 1; lit.push(m.key); }
+      if (m.clipGone && m.clipGone !== 'gone') gone = gone || m.clipGone;
+    }
     matches.push({ ...matchOf(s), moments });
   }
+
+  // THE HIGHLIGHTS REEL (8.17): every highlight clip kept, newest match first,
+  // played back to back as the compilation plays a pattern's deaths. Beside
+  // the compilation, never in it: that one counts repeated mistakes.
+  const reel = lit.length ? {
+    key: 'highlights', title: 'Your highlights', clips: lit.length,
+    line: `${plural(lit.length, 'highlight clip')} kept`, items: lit.slice(),
+  } : null;
 
   // THE COMPILATION: every death in a round a pattern across matches counts,
   // grouped by the pattern, most deaths first, over THE PATTERN'S OWN WINDOW,
@@ -325,7 +366,7 @@ function build(game, saved, opts) {
   }
 
   return {
-    game, matches, compilation,
+    game, matches, compilation, reel,
     counts: { matches: matches.length, deaths, highlights, clips },
     clipsNote, clipsNoteText: clipsNote ? NOTES[clipsNote] : null,
     enough: !!patterns.enough,
@@ -347,4 +388,4 @@ const GONE = Object.freeze({
 
 // mistakesAt and clipOf are the Practice page's join too (8.11, practice.js
 // clipFor): its own clip of a mistake is found exactly as the compilation finds it.
-module.exports = { build, valorantDeaths, valorantHighlights, lolDeaths, mistakesAt, clipOf, secText, roundsText, NOTES, GONE, MULTI_KILLS, ACE_KILLS, STREAK, LOOK_BACK };
+module.exports = { build, valorantDeaths, valorantHighlights, highlightClipOf, lolDeaths, mistakesAt, clipOf, secText, roundsText, NOTES, GONE, MULTI_KILLS, ACE_KILLS, STREAK, LOOK_BACK };

@@ -43,6 +43,13 @@
  * page hidden, it pauses. No animation of its own under reduced motion
  * (review.css).
  *
+ * A HIGHLIGHT'S CLIP (8.17) is its kills with the dead time between them cut
+ * out: each kill is marked on the timeline in --good, a kill being a good
+ * outcome, and each cut as a break in the track, its title and the
+ * timeline's saying how much was skipped there. As playback, or a step,
+ * crosses a cut, the picture says so for a moment ("12 s skipped"), so a
+ * jump in the fight is never taken for the game's own.
+ *
  * DOM built with textContent only, every control a button or an input with
  * its own accessible name.
  */
@@ -58,6 +65,10 @@
   const MAX_TRIES = 6;
   // How long a landed seek waits for the frame it shows to be presented, at most.
   const SHOWN_WAIT_MS = 250;
+  // How long the picture says a cut was crossed, and the furthest one move may
+  // go and still count as crossing it, not a jump past it.
+  const SKIP_SHOW_MS = 1600;
+  const CROSS_MAX_S = 1.5;
   const KEYS = 'Space or K plays and pauses, comma and full stop step one frame, the arrows one second, and Home goes back to the start.';
 
   // The marks, on the 24 unit grid the app's icons use, filled.
@@ -144,6 +155,8 @@
    *   screen   a look from the screen: the time counts from its read of the death
    *   stills   the coach's stills, their seconds from the death (frameAt)
    *   onStill  (i) => the still the clip now shows, null once it moves on
+   *   kills    a highlight's kills, ms in it (8.17), or none
+   *   cuts     and its cuts, [{ at, skipped }] in ms, or none
    *
    * Returns { el, video, canShow(at), showStill(at, i), keysFrom(host) }: the
    * figure, its <video>, and for the filmstrip under it whether a still's
@@ -160,6 +173,13 @@
     const stills = death === null ? [] : (Array.isArray(o.stills) ? o.stills : [])
       .map((at, i) => ({ at, i })).filter((s) => typeof s.at === 'number' && Number.isFinite(s.at));
     const onStill = typeof o.onStill === 'function' ? o.onStill : () => {};
+    const inClip = (ms) => typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 && (!frames || ms <= frames.end);
+    const kills = (Array.isArray(o.kills) ? o.kills : []).filter(inClip).sort((a, b) => a - b);
+    const cuts = (Array.isArray(o.cuts) ? o.cuts : [])
+      .filter((c) => c && inClip(c.at) && c.at > 0 && typeof c.skipped === 'number' && Number.isFinite(c.skipped) && c.skipped >= 0)
+      .sort((a, b) => a.at - b.at);
+    const skippedWords = (c) => `${Math.max(1, Math.round(c.skipped / 1000))} s skipped`;
+    const atWords = (ms) => `${Math.round(ms / 100) / 10} s`;
 
     const fig = el('figure', 'v-clip');
     fig.setAttribute('role', 'group');
@@ -185,6 +205,12 @@
     big.append(mark('play'));
     const frame = el('div', 'v-clip-frame');
     frame.append(v, big);
+    // The words a cut crossed shows over the picture (8.17), only where there is one.
+    const skip = cuts.length ? el('span', 'cp-skip') : null;
+    if (skip) {
+      skip.setAttribute('aria-hidden', 'true');
+      frame.append(skip);
+    }
 
     // The timeline: a track drawn under the range, its fill and its marks.
     const line = el('div', 'cp-line');
@@ -203,6 +229,18 @@
       marks.push({ el: m, ms: death });
       track.append(m);
     }
+    kills.forEach((ms, i) => {
+      const m = el('i', 'cp-mark kill');
+      m.title = `Kill ${i + 1}, at ${atWords(ms)}`;
+      marks.push({ el: m, ms });
+      track.append(m);
+    });
+    for (const c of cuts) {
+      const m = el('i', 'cp-mark cut');
+      m.title = `Cut at ${atWords(c.at)}: ${skippedWords(c)}`;
+      marks.push({ el: m, ms: c.at });
+      track.append(m);
+    }
     const range = el('input', 'cp-seek');
     range.setAttribute('type', 'range');
     range.setAttribute('min', '0');
@@ -212,6 +250,11 @@
       range.title = stills.length
         ? `The red mark is ${screen ? 'where the screen read the death' : 'the death'}, the white ones the coach's stills`
         : `The red mark is ${screen ? 'where the screen read the death' : 'the death'}`;
+    } else if (kills.length || cuts.length) {
+      const said = [];
+      if (kills.length) said.push(kills.length === 1 ? 'The green mark is your kill' : 'The green marks are your kills');
+      if (cuts.length) said.push(`${said.length ? 't' : 'T'}ime between them was cut out: ${cuts.map((c) => `${skippedWords(c)} at ${atWords(c.at)}`).join(', ')}`);
+      range.title = said.join(', and ');
     }
     line.append(track, range);
 
@@ -301,6 +344,8 @@
     const watchShown = () => v.requestVideoFrameCallback((_now, meta) => {
       shownMs = meta && Number.isFinite(meta.mediaTime) ? meta.mediaTime * 1000 : null;
       shownCount += 1;
+      // A cut crossed while it plays is said on the frame it shows, not at the next timeupdate.
+      if (shownMs !== null && playing()) crossAt(shownMs / 1000);
       watchShown();
     });
     if (canSee) watchShown();
@@ -324,7 +369,29 @@
       }
     }
 
+    /**
+     * A CUT CROSSED (8.17): the clip went on from before a cut to after it,
+     * playing or stepped, by no more than CROSS_MAX_S (a seek further on is a
+     * jump, not a crossing), and the picture says how much was skipped there
+     * for SKIP_SHOW_MS. A loop back to the start crosses nothing.
+     */
+    let lastT = null;
+    let skipTimer = null;
+    function crossAt(t) {
+      if (!skip || typeof t !== 'number' || !Number.isFinite(t)) return;
+      const prev = lastT;
+      lastT = t;
+      if (prev === null || !(t > prev) || t - prev > CROSS_MAX_S) return;
+      const c = cuts.find((x) => prev * 1000 < x.at && x.at <= t * 1000 + 1);
+      if (!c) return;
+      skip.textContent = skippedWords(c);
+      skip.classList.add('on');
+      clearTimeout(skipTimer);
+      skipTimer = setTimeout(() => skip.classList.remove('on'), SKIP_SHOW_MS);
+    }
+
     function paint(t) {
+      crossAt(t);
       const len = lengthMs();
       const p = len > 0 ? Math.min(1, Math.max(0, (t * 1000) / len)) : 0;
       line.style.setProperty('--p', String(Math.round(p * 10000) / 10000));

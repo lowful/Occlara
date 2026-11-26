@@ -474,6 +474,37 @@ app.whenReady().then(async () => {
     });
   }
 
+  // A HIGHLIGHT'S JOINED CLIP (8.17): two pieces of the recording, the 4 s
+  // between them left out, as one file. Its duration is held to the two
+  // pieces' own ends together, each cut alone and read off its own blocks,
+  // and it is seeked into the middle of each piece and held there to the
+  // recording's frame at the same moment, pixel for pixel.
+  const joinWindows = [{ from: 1000, to: 3000 }, { from: 8000, to: 10500 }];
+  const joined = webm.cutJoined({ init: reader.init, clusters: C, windows: joinWindows });
+  if (!joined || joined.pieces.length !== 2) return report('no joined clip could be cut');
+  const jTimes = frameTimes(joined.bytes);
+  const pieceEnds = joinWindows.map((w) => {
+    const plan = webm.planClip(C, w.from, w.to);
+    const t = frameTimes(webm.cutClip({ init: reader.init, clusters: C, from: w.from, to: w.to }));
+    const next = sourceTimes.find((x) => x > plan.start + t[t.length - 1]);
+    return next === undefined ? t[t.length - 1] + (t[t.length - 1] - t[0]) / (t.length - 1) : next - plan.start;
+  });
+  const jFrame = (jTimes[jTimes.length - 1] - jTimes[0]) / (jTimes.length - 1);
+  joined.pieces.forEach((p, i) => {
+    const inPiece = jTimes.filter((t) => t >= p.offset && t < p.offset + p.length);
+    const mid = p.offset + p.length / 2;
+    let k = 0;
+    while (k + 2 < inPiece.length && inPiece[k + 1] <= mid) k += 1;
+    const at = (inPiece[k] + inPiece[k + 1]) / 2;
+    clips.push({
+      label: `the joined clip, in its ${i ? 'second' : 'first'} piece`, b64: joined.bytes.toString('base64'), at: at / 1000,
+      sourceAt: (p.start + (at - p.offset)) / 1000, frames: jTimes.length, frameMs: jFrame, ends: pieceEnds[0] + pieceEnds[1],
+      startsAt: p.start, bytes: joined.bytes.length, endsAtNext: true, joined: true,
+    });
+  });
+  ok(jTimes.every((t, i) => i === 0 || t > jTimes[i - 1]) && Math.abs(joined.pieces[1].offset - pieceEnds[0]) <= 1,
+    `the joined clip's frames only rise, its second piece starting where the first ends (${Math.round(joined.pieces[1].offset)} ms, ${jTimes.length} frames, ${joinWindows[1].from - joinWindows[0].to} ms of the recording between the windows left out)`);
+
   const win = new BrowserWindow({
     show: false, width: 640, height: 360, skipTaskbar: true, focusable: false,
     webPreferences: { backgroundThrottling: false, contextIsolation: true, nodeIntegration: false, sandbox: true },

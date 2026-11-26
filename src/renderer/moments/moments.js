@@ -8,7 +8,9 @@
  * there (its cause from the closed list, or Riot's facts), when in the round
  * it came, the mark of each repeated mistake it belongs to, and the clip of it
  * where one was kept; a highlight Riot's record proves (a 2K, 3K, 4K or 5K round,
- * a clutch won, the first kill rounds running). A row opens its
+ * a clutch won, the first kill rounds running), with its own clip of its
+ * kills where one was cut (8.17), the cuts and the kills marked on its
+ * timeline, and over the compilation the reel of every one. A row opens its
  * review at that round. Over the list the compilation by repeated mistake,
  * with Play all, which plays the kept clips of those deaths back to back in a
  * player over the page: Esc closes it, the arrows move, Space plays and
@@ -89,6 +91,36 @@ function paintCompilation() {
   }
 }
 
+// ── The highlights reel (8.17) ────────────────────────────────────────────
+// Every highlight clip kept, main's line and items: its row shows only the
+// highlights below, and Play all plays them back to back.
+function paintReel() {
+  const host = $('mo-reel-rows');
+  host.replaceChildren();
+  const r = data && data.reel;
+  $('mo-reel').hidden = !r;
+  if (!r) return;
+  const row = el('div', 'mo-crow');
+  row.setAttribute('role', 'listitem');
+  const pick = el('button', 'mo-cpick');
+  pick.type = 'button';
+  pick.title = 'Show only highlights';
+  pick.append(el('span', 'mo-ctitle', r.title), el('span', 'mo-cline', r.line));
+  pick.addEventListener('click', () => {
+    // A pattern chosen in the compilation shows deaths alone: let it go first,
+    // or the Highlights filter under it shows nothing.
+    if (state.pattern) { state.pattern = null; paintCompilation(); }
+    const b = $('mo-filter').querySelector('button[data-kind="highlight"]');
+    if (b) b.click();
+  });
+  const play = el('button', 'btn btn-ghost sm', 'Play all');
+  play.type = 'button';
+  play.setAttribute('aria-label', `Play all ${r.clips} highlight clips`);
+  play.addEventListener('click', () => openPlayer(r));
+  row.append(pick, play);
+  host.append(row);
+}
+
 // ── The list ──────────────────────────────────────────────────────────────
 function shown(x) {
   if (state.kind !== 'all' && x.kind !== state.kind) return false;
@@ -166,7 +198,7 @@ function momentRow(m, x) {
   if (x.clip) {
     const b = el('button', 'icon-btn mo-play');
     b.type = 'button';
-    b.title = `Play the clip of round ${x.round}`;
+    b.title = x.kind === 'highlight' ? `Play the highlight of round ${x.round}` : `Play the clip of round ${x.round}`;
     b.setAttribute('aria-label', b.title);
     b.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
     b.addEventListener('click', () => openPlayer({ title: `${x.title}, round ${x.round}`, items: [x.key], clips: 1 }));
@@ -241,11 +273,13 @@ function paint(first) {
   $('mo-log').hidden = !any;
   if (!any) {
     $('mo-comp').hidden = true;
+    $('mo-reel').hidden = true;
     const [title, hint] = matches.length ? EMPTY.quiet : EMPTY.none;
     $('mo-empty-title').textContent = title;
     $('mo-empty-hint').textContent = hint;
     return;
   }
+  paintReel();
   paintCompilation();
   paintCounts();
   paintNote();
@@ -257,7 +291,7 @@ function paint(first) {
   if (Mo && !Mo.reduced() && Mo.once($('mo-log'), 'cards')) {
     Mo.whenShown(() => {
       if (Mo.reduced()) return;
-      const cards = [$('mo-comp'), $('mo-log')].filter((c) => !c.hidden);
+      const cards = [$('mo-reel'), $('mo-comp'), $('mo-log')].filter((c) => !c.hidden);
       cards.forEach((c, i) => { c.style.setProperty('--i', String(i)); c.classList.add('mo-in'); });
       setTimeout(() => cards.forEach((c) => c.classList.remove('mo-in')), 380 + 40 + 120);
     });
@@ -342,10 +376,12 @@ function stageClip(x) {
   const stage = $('mo-pl-stage');
   releaseStage();
   stage.replaceChildren();
-  const label = `The clip of round ${x.round}`;
+  const label = x.kind === 'highlight' ? `The highlight of round ${x.round}` : `The clip of round ${x.round}`;
   let v;
   if (window.ClipPlayer && typeof window.ClipPlayer.create === 'function') {
-    const p = window.ClipPlayer.create({ url: x.clip.url, death: x.clip.death, frames: x.clip.frames || null, label });
+    // A highlight's kills and cuts are marked on its timeline (8.17), main's numbers.
+    const p = window.ClipPlayer.create({ url: x.clip.url, death: x.clip.death, frames: x.clip.frames || null, label,
+      kills: x.clip.kills || null, cuts: x.clip.cuts || null });
     v = p.video;
     // Back to back, never round: the next clip follows on `ended`.
     v.removeAttribute('loop');

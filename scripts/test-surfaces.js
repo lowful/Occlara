@@ -6389,6 +6389,80 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(pl.hidden, 'mid match the player does not open');
     sealed = false;
 
+    // A HIGHLIGHT'S CLIP (8.17): its row plays it, the reel plays every one,
+    // and its player marks each kill in --good's class and each cut, says
+    // what a cut skipped in its title and the timeline's, and says it over
+    // the picture as playback crosses it.
+    const multi = rv.rounds.find((c) => c.riot && c.riot.kills >= 2);
+    const HL = { clip: `h${multi.n}-clip.mkv`, length: 17000, kills: [4700, 12100, 13800], cuts: [{ at: 8000, skipped: 10000 }] };
+    const litRv = { ...rv, kind: 'valorant', rounds: rv.rounds.map((c) => (c.n === multi.n ? { ...c, highlight: HL } : c)) };
+    // Two matches, so the compilation has patterns; the older one's clip is not on disk.
+    const litSaved = [0, 1].map((i) => ({ id: `valorant-${T0 - i * 3600000}-lit${i}`, at: T0 - i * 3600000, game: 'valorant', review: litRv }));
+    const HF = { times: Array.from({ length: 510 }, (_v, i) => Math.round((i * 1000) / 30)), end: 17000 };
+    const litData = moments.build('valorant', litSaved, { patterns: patterns.summarise(litSaved), clips: (id) => (id === litSaved[0].id ? [HL.clip] : []),
+      url, frames: () => HF, recordingMode: 'auto' });
+    const hq = await open(litData);
+    const hRow = hq.document.querySelector(`#mo-list .mo-row[data-key="${litSaved[0].id}:h${multi.n}"]`);
+    ok(hRow && hRow.querySelector('.mo-kind.highlight') && hRow.querySelector('.mo-play')
+      && hRow.querySelector('.mo-play').getAttribute('aria-label') === `Play the highlight of round ${multi.n}`,
+    'a highlight with its clip kept has a play button of its own', hRow && hRow.textContent);
+    const reelRow = hq.document.querySelector('#mo-reel-rows .mo-crow');
+    ok(!hq.$('mo-reel').hidden && reelRow && reelRow.querySelector('.mo-ctitle').textContent === 'Your highlights'
+      && reelRow.querySelector('.mo-cline').textContent === '1 highlight clip kept' && reelRow.querySelector('button.btn').textContent === 'Play all',
+    'and the reel over the compilation says how many are kept, with Play all', reelRow && reelRow.textContent);
+    // With a pattern chosen in the compilation first, its row still shows the
+    // highlights: the pattern is let go, never left filtering them all out.
+    hq.document.querySelector('#mo-comp-rows .mo-cpick').click();
+    const chosen = hq.document.querySelector('#mo-comp-rows .mo-cpick');
+    ok(chosen && chosen.getAttribute('aria-pressed') === 'true' && litData.compilation.length > 0
+      && [...hq.document.querySelectorAll('#mo-list .mo-row')].every((r) => r.querySelector('.mo-kind.death')), 'a pattern is chosen in the compilation, its deaths alone below');
+    reelRow.querySelector('.mo-cpick').click();
+    const hlRows = [...hq.document.querySelectorAll('#mo-list .mo-row')];
+    ok(hq.document.querySelector('#mo-filter button[data-kind="highlight"]').getAttribute('aria-pressed') === 'true'
+      && hlRows.length === litData.counts.highlights && hlRows.every((r) => r.querySelector('.mo-kind.highlight')) && hq.$('mo-none').hidden
+      && ![...hq.document.querySelectorAll('#mo-comp-rows .mo-cpick')].some((b) => b.getAttribute('aria-pressed') === 'true'),
+    `its row shows every highlight below, the pattern chosen before let go (${hlRows.length} of ${litData.counts.highlights})`);
+    hq.document.querySelector('#mo-filter button[data-kind="all"]').click();
+    reelRow.querySelector('button.btn').click();
+    await settle();
+    const hStage = hq.$('mo-pl-stage');
+    const hFig = hStage.querySelector('.v-clip');
+    const kMarks = hFig ? hFig.querySelectorAll('.cp-mark.kill') : [];
+    const cMarks = hFig ? hFig.querySelectorAll('.cp-mark.cut') : [];
+    ok(!hq.$('mo-player').hidden && hq.$('mo-pl-title').textContent === 'Your highlights' && hq.$('mo-video').getAttribute('src') === url(litSaved[0].id, HL.clip)
+      && hFig.getAttribute('aria-label') === `The highlight of round ${multi.n}` && !hFig.querySelector('.cp-mark.death'),
+    'Play all opens the player on the highlight clip, named for its round, no death marked on it');
+    ok(kMarks.length === 3 && same(kMarks.map((m) => m.style['--p']), HL.kills.map((k) => String(k / 17000))) && same(kMarks.map((m) => m.title), ['Kill 1, at 4.7 s', 'Kill 2, at 12.1 s', 'Kill 3, at 13.8 s']),
+      'each kill marked where it falls in the clip, its title saying which and when', kMarks.map((m) => `${m.style['--p']} ${m.title}`).join(' | '));
+    ok(cMarks.length === 1 && cMarks[0].style['--p'] === String(8000 / 17000) && cMarks[0].title === 'Cut at 8 s: 10 s skipped'
+      && hFig.querySelector('.cp-seek').title === 'The green marks are your kills, and time between them was cut out: 10 s skipped at 8 s',
+    'the cut marked where it falls, its title and the timeline\'s saying how much was skipped', `${cMarks[0] && cMarks[0].title} / ${hFig.querySelector('.cp-seek').title}`);
+    const hv = hq.$('mo-video');
+    const skipWords = hFig.querySelector('.v-clip-frame .cp-skip');
+    ok(skipWords && skipWords.getAttribute('aria-hidden') === 'true' && !skipWords.classList.contains('on'), 'over the picture a line for a cut crossed, not shown before one is');
+    hv.currentTime = 7.8;
+    hq.fire(hv, 'timeupdate');
+    hv.currentTime = 8.05;
+    hq.fire(hv, 'timeupdate');
+    ok(skipWords.classList.contains('on') && skipWords.textContent === '10 s skipped', `playback crossing the cut says so on the picture ("${skipWords.textContent}")`);
+    skipWords.classList.remove('on');
+    hv.currentTime = 15;
+    hq.fire(hv, 'timeupdate');
+    hv.currentTime = 0.1;
+    hq.fire(hv, 'timeupdate');
+    hv.currentTime = 6;
+    hq.fire(hv, 'timeupdate');
+    hv.currentTime = 9.5;
+    hq.fire(hv, 'timeupdate');
+    ok(!skipWords.classList.contains('on'), 'and a loop back to the start, or a jump past the cut, says nothing');
+    const ccss = fs.readFileSync(path.join(RENDERER, 'review', 'clip-player.css'), 'utf8');
+    ok(/\.cp-mark\.kill \{[^}]*background: var\(--good\);/.test(ccss) && /\.cp-mark\.cut \{[^}]*background: var\(--bg\);/.test(ccss)
+      && /prefers-reduced-motion: reduce\) \{\s*\.cp-skip \{ transition: none; \}/.test(ccss) && !/--signal|--red\b/.test(ccss.slice(ccss.indexOf('.cp-mark.kill'))),
+    'a kill is --good, a cut a break in the track on the ground, the words still under reduced motion, and never the signal');
+    hq.fire(hq.$('mo-pl-close'), 'keydown', { key: 'Escape' });
+    ok(hq.$('mo-player').hidden && hq.logs.every((l) => !/error|TypeError/i.test(l)), 'and it closes as any clip does, the page logging no error', hq.logs.join(' | '));
+    ok(data.reel === null && q.$('mo-reel').hidden, 'with no highlight clip kept there is no reel');
+
     // The empty states, and the note on no clips.
     const none = await open(moments.build('valorant', [], { patterns: {}, clips: () => [], url, recordingMode: 'auto' }));
     ok(!none.$('mo-empty').hidden && none.$('mo-log').hidden && none.$('mo-comp').hidden && none.$('mo-empty-title').textContent === 'No matches yet'

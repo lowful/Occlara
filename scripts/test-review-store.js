@@ -134,6 +134,23 @@ const CUT_SHORT = '[{"id":';
   ok(store.list().length === 2, 'a whole index is the list, never merged with the files beside it');
 }
 
+// 7. A HIGHLIGHT'S CLIP (8.17) is a clip of its review's like any other: kept
+// by path, listed, kept when the card names it and gone when nothing does,
+// and counted against the cap with the rest.
+{
+  const { store, ids } = library();
+  const id = ids[2];
+  store.saveClip(id, 'h3-clip.mkv', Buffer.alloc(2000, 2));
+  store.saveClip(id, 'h5-clip.mkv', Buffer.alloc(2000, 3));
+  const names = () => store.clipsOf(id).map((c) => c.name);
+  ok(names().join() === 'h3-clip.mkv,h5-clip.mkv,r1-clip.mkv' && store.hasClip(id, 'h3-clip.mkv') && store.clipFile(id, 'h3-clip.mkv'),
+    'a highlight clip is written beside its review and listed with its death clips', names().join());
+  const gone = store.keepClips(id, ['r1-clip.mkv', 'h3-clip.mkv']);
+  ok(gone === 1 && names().join() === 'h3-clip.mkv,r1-clip.mkv', 'keepClips keeps the highlight clip the card names and deletes the one it does not', names().join());
+  ok(store.clipUsage().bytes === 3 * 1000 + 2000, 'and it counts against the cap with every other clip', String(store.clipUsage().bytes));
+  ok(store.clipFile(id, 'h3-clip.mkv.tmp') === null && store.clipFile(id, '../h3-clip.mkv') === null, 'and no name near one is a clip');
+}
+
 try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
 console.log(failed ? `FAIL: ${failed} of ${passed + failed} review store checks failed` : `PASS: all ${passed} review store checks passed`);
 process.exit(failed ? 1 : 0);

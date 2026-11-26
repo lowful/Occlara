@@ -162,3 +162,28 @@
   transition: color var(--t-fast) var(--ease);
 }
 .cp-rate[aria-pressed="true"], .cp-rate[aria-pressed="true"]:hover { background: transparent; color: var(--bg); }
+
+/* ── A highlight's clip (8.17, clip-player.js): its kills and its cuts ─────
+   Each kill a tick in --good, taller than the stills, a kill being a good
+   outcome as a death is a bad one; each cut a break in the track, the
+   ground showing through between two hairline edges, so a jump in the
+   picture is seen to be ours. The words a cut crossed shows sit over the
+   picture's top left on the glass's neutral black, faded in and out, and
+   simply shown and hidden under reduced motion. */
+.cp-mark.kill { top: -6px; bottom: -6px; width: 2px; margin-left: -1px; background: var(--good); }
+.cp-mark.cut {
+  top: -3px; bottom: -3px; width: 5px; margin-left: -2.5px;
+  background: var(--bg); box-shadow: inset 1px 0 0 var(--text-dim), inset -1px 0 0 var(--text-dim);
+}
+.cp-skip {
+  position: absolute; left: var(--space-3); top: var(--space-3);
+  padding: 4px 10px; border-radius: var(--r-btn);
+  background: rgba(0, 0, 0, 0.62); color: var(--text);
+  font: 500 12px var(--font); font-variant-numeric: tabular-nums;
+  pointer-events: none; opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.cp-skip.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .cp-skip { transition: none; }
+}

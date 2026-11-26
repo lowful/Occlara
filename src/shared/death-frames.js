@@ -278,25 +278,72 @@ function deathMoment(records, round, window) {
   if (!r.died || (r.afterPlant && !Number.isFinite(r.plantMs))) return null;
   const ms = Number.isFinite(r.deathMs) ? r.deathMs : typeof r.deathSec === 'number' ? r.deathSec * 1000 : null;
   if (ms === null || ms < 0) return null;
-  const w = window || {};
-  let drop = barrierDrop(records, r.n, { from: w.from, to: w.to });
-  // Riot's plant, plantMs after the drop: the frames from a second before it
-  // on are read again without, the drop they gave kept only if the rest give
-  // none. A second, because a frame read just after the plant carries the
-  // clock of the plant's own second, meets the others at their edge, and
-  // moves the drop that would have placed the plant.
-  if (drop && Number.isFinite(r.plantMs)) {
-    drop = barrierDrop(records, r.n, { from: w.from, to: w.to, before: drop.at + r.plantMs - 1000 }) || drop;
-  }
-  if (!drop) return null;
+  const drop = roundDrop(records, r, window);
+  if (drop === null) return null;
   // AND INSIDE THE ROUND IT IS THE DEATH OF. One frame of the next round filed
   // under this one is a drop all the same: on the real Abyss session, read
   // every ten seconds, round 8's one clocked frame was round 9's, and put
   // round 8's death 15 s into round 9.
-  const own = (records || []).filter((x) => x && x.round === r.n && Number.isFinite(x.at)).map((x) => x.at);
-  const at = drop.at + ms;
-  if (!own.length || at < Math.min(...own) - 2000 || at > Math.max(...own) + AFTER_WALL_MS) return null;
-  return at;
+  const at = drop + ms;
+  return insideRound(records, r.n, at) ? at : null;
+}
+
+/**
+ * When a round's barriers dropped on the wall clock (ms), the drop Riot's
+ * moments in it are counted from, or null: deathMoment's, for a round the
+ * player died in or survived alike (8.17, the highlight's kills). Riot's
+ * plant, plantMs after the drop: the frames from a second before it on are
+ * read again without, the drop they gave kept only if the rest give none. A
+ * second, because a frame read just after the plant carries the clock of the
+ * plant's own second, meets the others at their edge, and moves the drop that
+ * would have placed the plant.
+ */
+function roundDrop(records, round, window) {
+  const r = round || {};
+  const w = window || {};
+  let drop = barrierDrop(records, r.n, { from: w.from, to: w.to });
+  if (drop && Number.isFinite(r.plantMs)) {
+    drop = barrierDrop(records, r.n, { from: w.from, to: w.to, before: drop.at + r.plantMs - 1000 }) || drop;
+  }
+  return drop ? drop.at : null;
+}
+
+/** Whether a moment on the wall clock lies among round n's own frames (deathMoment's rule). */
+function insideRound(records, n, at) {
+  const own = (records || []).filter((x) => x && x.round === n && Number.isFinite(x.at)).map((x) => x.at);
+  return own.length > 0 && at >= Math.min(...own) - 2000 && at <= Math.max(...own) + AFTER_WALL_MS;
+}
+
+/**
+ * THE PLAYER'S KILLS IN A ROUND ON THE WALL CLOCK (8.17, the highlight's
+ * clip): { drop, kills: [ms, ...] } in time order, or null. Riot's kill feed
+ * counts each kill's milliseconds from the same drop its death does (the
+ * death is the feed's own entry on the player, riot-rounds.js), so a kill is
+ * timed exactly as deathMoment times a death: the round's barriers off its
+ * clocked frames plus Riot's milliseconds. Only Riot's verified rounds, only
+ * the player's own kills of an enemy, and NOTHING RATHER THAN A GUESS: a
+ * round with no drop, a planted round without Riot's plant time (the frames
+ * after the plant carry the clock of the read before them, which a frame
+ * alone cannot tell from the clock before it, deathMoment's rule), or a kill
+ * the drop puts outside the round's own frames, and the round has none.
+ */
+function killMoments(records, round, window) {
+  const r = round || {};
+  if (!r.verified || !Number.isInteger(r.n)) return null;
+  const feed = Array.isArray(r.feed) ? r.feed : [];
+  const ms = feed.filter((k) => k && k.by === 'me' && k.on === 'enemy' && Number.isFinite(k.ms) && k.ms >= 0)
+    .map((k) => k.ms).sort((a, b) => a - b);
+  if (!ms.length) return null;
+  const planted = !!r.planted || Number.isFinite(r.riotPlantMs);
+  if (planted && !Number.isFinite(r.plantMs)) return null;
+  const w = window || {};
+  const inMatch = (records || []).filter((x) => x && x.frame
+    && (!w.from || x.at >= w.from) && (!w.to || x.at <= w.to + 5000));
+  const drop = roundDrop(inMatch, r, w);
+  if (drop === null) return null;
+  const kills = ms.map((m) => drop + m);
+  if (!kills.every((at) => insideRound(inMatch, r.n, at))) return null;
+  return { drop, kills };
 }
 
 /**
@@ -560,6 +607,7 @@ function flagDeaths(records, rounds, window) {
 
 module.exports = {
   teachableDeaths, teachableScreenDeaths, framesFor, looksFor, flagDeaths, secondsIn, barrierDrop, deathMoment, withRiotTimes, dropOf,
+  roundDrop, killMoments,
   borrowedInto,
   BEFORE_MS, AFTER_MS, FRAME_MARGIN_MS, CLOCK_SLACK_MS,
 };

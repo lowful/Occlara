@@ -137,6 +137,15 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     const never = ['r2-before.jpg', 'r2-clip.mkv.tmp', '../r2-clip.mkv', 'r2-clip.mkv/x', 'sub/r2-clip.mkv', 'R2-clip.mkv', 'x2-clip.mkv',
       'r-clip.mkv', 'r1000-clip.mkv', 'r2-clip.webm', 'r2-clip.mp4', 'r2clip.mkv', ' r2-clip.mkv', 'r2-clip.mkv ', '', 'index.json'];
     ok(never.every((n) => !clips.CLIP_RE.test(n)), 'and none of a frame, a temp file, a path, another letter, another type, a padded name', never.filter((n) => clips.CLIP_RE.test(n)).join(', '));
+    // A HIGHLIGHT'S CLIP HAS ITS OWN NAME (8.17): a round can hold a death's
+    // clip and a highlight's both, round 3 of the Split swiftplay among them.
+    ok(clips.CLIP_RE.test('h3-clip.mkv') && clips.CLIP_RE.test('h24-clip.mkv') && clips.CLIP_RE.test('h100-clip.mkv')
+      && clips.highlightClip(3) === 'h3-clip.mkv' && clips.highlightClip('7') === 'h7-clip.mkv' && clips.highlightClip(0) === null
+      && clips.highlightClip(1000) === null && clips.highlightClip(2.5) === null && clips.highlightClip('x') === null
+      && clips.highlightClip(3) !== clips.roundClip(3),
+    "a highlight's clip is h<n>-clip.mkv, a name of its own beside the round's death clip, and nothing for anything else");
+    const neverH = ['h-clip.mkv', 'h1000-clip.mkv', 'H3-clip.mkv', 'h3-clip.mkv.tmp', '../h3-clip.mkv', 'h3-clip.webm', 'hh3-clip.mkv', 'rh3-clip.mkv'];
+    ok(neverH.every((n) => !clips.CLIP_RE.test(n)), 'and no near miss of one is a clip', neverH.filter((n) => clips.CLIP_RE.test(n)).join(', '));
     ok(clips.roundClip(2) === 'r2-clip.mkv' && clips.roundClip('14') === 'r14-clip.mkv' && clips.deathClip(3) === 'd3-clip.mkv'
       && clips.roundClip(0) === null && clips.roundClip(2.5) === null && clips.roundClip('x') === null && clips.deathClip(-1) === null,
     'named for their round or death, and nothing for anything else');
@@ -627,6 +636,29 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     });
     ok(counted.missed === 1 && counted.kept.length === 1 && counted.kept[0].name === 'r8-clip.mkv',
       'and a moment no recording holds is counted as missed, the one it holds clipped');
+
+    // A HIGHLIGHT'S KILLS (8.17), across the same two recordings back to
+    // back. Kills just after the first one's end lie inside the second: the
+    // second is cut, as cutClip would choose it, though the first holds them
+    // within its second of slack too.
+    const firstEnd = first.zero() + first.clusters()[first.clusters().length - 1].last;
+    const secondStart = second.zero() + second.clusters()[0].timecode;
+    const edge = [secondStart + 200, secondStart + 600];
+    const fromSecond = await rec.cutJoined(clips.killWindows(edge, null).windows, edge);
+    ok(edge.every((k) => k < firstEnd + 1000) && fromSecond && fromSecond.pieces[0].startWall >= secondStart
+      && clips.highlightMarks(fromSecond.pieces, edge).kills.length === 2,
+    `kills ${edge.map((k) => k - firstEnd).join(' and ')} ms past the first recording's end are cut from the second, the one they lie inside`);
+    // AND A CLIP MISSING A KILL IS NO CLIP: two kills in the first recording
+    // and a third 0.5 s past its end, in the second, kept a 3K showing two.
+    const split3 = [first.zero() + 3000, first.zero() + 6000, firstEnd + 500];
+    const torn = await rec.cutJoined(clips.killWindows(split3, null).windows, split3);
+    const keptTorn = await reviewClips.cutHighlights({ highlights: [{ key: 4, name: 'h4-clip.mkv', windows: clips.killWindows(split3, null).windows, kills: split3 }],
+      cut: (ws, ks) => rec.cutJoined(ws, ks), save: () => true, stopped: () => false, yieldTo: async () => {} });
+    const twoOfThree = await reviewClips.cutHighlights({ highlights: [{ key: 4, name: 'h4-clip.mkv', windows: [{ from: T0, to: T0 + 6000 }], kills: [T0 + 1000, T0 + 2000, T0 + 9000] }],
+      cut: (ws) => ({ bytes: Buffer.from('h'), pieces: [{ startWall: ws[0].from, endWall: ws[0].to, offset: 0, length: 6000 }] }),
+      save: () => true, stopped: () => false, yieldTo: async () => {} });
+    ok(torn === null && keptTorn.kept.length === 0 && keptTorn.missed === 1 && twoOfThree.kept.length === 0 && twoOfThree.missed === 1,
+      'a 3K whose third kill lies past the recording it was cut from has no clip, and a clip that marks two of three kills is never kept');
   });
 
   await section('what Settings is told of the recording, and what a League notice says:', () => {
@@ -1161,7 +1193,7 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     const lineOf = (head) => { const i = mainSrc.indexOf(head); return i < 0 ? '' : mainSrc.slice(i, mainSrc.indexOf('\n', i) + 1); };
     const needed = ['\nasync function forensicsFor(', '\nasync function askForensics(', '\nasync function afterMatch(', '\nasync function recordingStills(',
       '\nfunction clipLooks(', '\nasync function cutLookClips(', '\nfunction keepLookClips(',
-      '\nfunction readFlags(', '\nfunction noteFlagClips('].map(fnOf);
+      '\nfunction readFlags(', '\nfunction noteFlagClips(', '\nfunction clipHighlights(', '\nasync function cutHighlightClips('].map(fnOf);
     ok(needed.every(Boolean) && lineOf('const AFTER_MATCH_POLL_MS'), 'the look\'s own code is found in main');
     const src = [lineOf('const AFTER_MATCH_MAX_MS'), lineOf('const AFTER_MATCH_POLL_MS'), ...needed, fnOf('\nfunction recordingCut(')].join('\n');
 
@@ -1219,7 +1251,8 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       console: { log() {}, warn() {}, error() {} }, fs, path, Buffer, Map, Set, Promise, Date, Math, Number, JSON, Object, Array, String,
       setTimeout: (f, ms) => setTimeout(f, Math.min(ms, 20)),
       deathFrames, deathFlags: require('../src/shared/death-flags'), clips, reviewClips, lookStills, reviewStore: library,
-      recorder: { cutClip: (...a) => { cutsAt.push(rec.holds.length); cutArgs.push(a); const got = rec.cutClip(...a); cutGot.push(got); return got; } },
+      recorder: { cutClip: (...a) => { cutsAt.push(rec.holds.length); cutArgs.push(a); const got = rec.cutClip(...a); cutGot.push(got); return got; },
+        cutJoined: (...a) => rec.cutJoined(...a) },
       releaseRecording: (h) => rec.release(h),
       store: { get: (k) => ({ recordingMode: mode, licenseKey: 'TEST' })[k] },
       // The account's auth (8.7, index.js authed): what api-client sends.
@@ -1317,6 +1350,348 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       'a flagged death keeps its clip though the look failed');
     ok(flagCut && flagCut[1] - flagCut[2] === clips.FLAG_AFTER_MS, 'and that clip runs the flagged length past the death');
     rec.release(job4.recording);
+  });
+
+  // ── HIGHLIGHTS (8.17) ─────────────────────────────────────────────────────
+  // The spec's numbers, written here: each kill from 4 s before it to 2.5 s
+  // after, windows nearer than 3 s made one, 45 s at most, six a review.
+  const HL = { before: 4000, after: 2500, join: 3000, max: 45000, clips: 6, minBefore: 1000, minAfter: 500 };
+  const SPLIT_HL = load('highlights-split-swiftplay.json');
+
+  await section('a highlight\'s clip: which rounds, which seconds, where the cuts and kills fall (8.17):', async () => {
+    ok(clips.KILL_BEFORE_MS === HL.before && clips.KILL_AFTER_MS === HL.after && clips.KILL_JOIN_MS === HL.join
+      && clips.HIGHLIGHT_MAX_MS === HL.max && clips.HIGHLIGHT_MAX_MS === clips.FLAG_MAX_MS && clips.MAX_HIGHLIGHT_CLIPS === HL.clips
+      && clips.MAX_CLIPS === SPEC.max && clips.KILL_MIN_BEFORE_MS === HL.minBefore && clips.KILL_MIN_AFTER_MS === HL.minAfter,
+    'a kill is clipped from 4 s before it to 2.5 s after, windows under 3 s apart are one, 45 s at most, six highlights a review and still six deaths');
+    // THE ORDER THE SIX ARE FILLED IN: ace, 4K, a clutch won, 3K, 2K, then the earlier round.
+    const R = (n, kills, clutch) => ({ n, kills, clutch: clutch || null });
+    const pool = [R(9, 2), R(2, 2), R(4, 3), R(6, 1, { vs: 2, won: true }), R(8, 4), R(11, 5), R(1, 1), R(3, 0, { vs: 1, won: true }),
+      R(12, 3, { vs: 3, won: true }), R(13, 2, { vs: 2, won: false }), R(14, 5, { vs: 1, won: true })];
+    ok(same(clips.pickHighlights(pool, 6).map((r) => r.n), [11, 14, 8, 6, 12, 4]) && same(clips.pickHighlights(pool, 20).map((r) => r.n), [11, 14, 8, 6, 12, 4, 2, 9, 13]),
+      'filled ace first, then a 4K, a clutch won, a 3K, a 2K, the earlier round first among equals, six at most',
+      JSON.stringify(clips.pickHighlights(pool, 20).map((r) => r.n)));
+    ok(clips.highlightRank(R(3, 0, { vs: 1, won: true })) === null && clips.highlightRank(R(1, 1)) === null && clips.highlightRank(R(13, 2, { vs: 2, won: false })) === 4
+      && clips.highlightRank(R(6, 1, { vs: 2, won: true })) === 2 && clips.highlightRank(null) === null,
+    'a clutch won with no kill (a defuse, the clock) and a lone kill have no highlight clip; a clutch won with one kill has');
+
+    // THE SPLIT SWIFTPLAY, by Riot's milliseconds from each round's drop.
+    const D = { 3: T0 + 100000, 5: T0 + 300000, 7: T0 + 500000 };
+    const killsOf = (n) => SPLIT_HL.rounds.find((r) => r.n === n).feed.filter((k) => k.by === 'me').map((k) => D[n] + k.ms);
+    const rel = (n, ws) => ws.map((w) => [(w.from - D[n]) / 1000, (w.to - D[n]) / 1000]);
+    const w3 = clips.killWindows(killsOf(3), D[3]);
+    const w5 = clips.killWindows(killsOf(5), D[5]);
+    const w7 = clips.killWindows(killsOf(7), D[7]);
+    ok(same(rel(3, w3.windows), [[6.7, 13.2], [24.1, 32.3]]) && w3.share === 1,
+      `round 3, kills at 10.7, 28.1 and 29.8 s: two pieces, the 10.9 s between them cut (${JSON.stringify(rel(3, w3.windows))})`);
+    ok(same(rel(5, w5.windows), [[-1, 17]]),
+      `round 5, kills at 1.9, 8 and 14.5 s: one piece from a second before the barriers, nothing cut (${JSON.stringify(rel(5, w5.windows))})`);
+    ok(same(rel(7, w7.windows), [[11.3, 17.8], [27.5, 39.3]]),
+      `round 7, kills at 15.3, 31.5, 33.6 and 36.8 s: two pieces, the last three one (${JSON.stringify(rel(7, w7.windows))})`);
+    // A gap of just under 3 s is joined, one of 3 s is cut.
+    const near = clips.killWindows([T0, T0 + 6500 + 2999], null).windows.length;
+    const far = clips.killWindows([T0, T0 + 6500 + 3000], null).windows.length;
+    ok(near === 1 && far === 2, `windows 2.999 s apart are one, 3 s apart are two (${near}, ${far})`);
+
+    // THE CAP: five kills 9.4 s apart make one window of 44.1 s, which with
+    // a second at each end for the Clusters it is cut on is past 45. Trimmed
+    // by one share, every kill kept.
+    ok(clips.PIECE_SLACK_MS === 2000, 'the cap counts a second at each end of every piece: the keyframe it opens on, the Cluster it runs on to');
+    const five = [0, 9400, 18800, 28200, 37600].map((x) => T0 + x);
+    const capped = clips.killWindows(five, null);
+    const total = (ws) => ws.reduce((n, w) => n + (w.to - w.from) + 2000, 0);
+    const leads = five.map((k) => k - capped.windows.find((w) => w.from <= k && k <= w.to).from);
+    ok(capped.share < 1 && capped.share > 0.9 && total(capped.windows) <= HL.max && five.every((k) => capped.windows.some((w) => w.from <= k && k <= w.to))
+      && Math.abs(capped.windows[0].from - (five[0] - (HL.minBefore + (HL.before - HL.minBefore) * capped.share))) < 1,
+    `an ace 9.4 s apart a kill is trimmed to ${total(capped.windows) / 1000} s by cutting every lead and tail by the same share (${capped.share.toFixed(3)}), no kill dropped`,
+    JSON.stringify({ windows: capped.windows.map((w) => [(w.from - T0) / 1000, (w.to - T0) / 1000]), leads }));
+    const crowd = Array.from({ length: 20 }, (_v, i) => T0 + i * 2900);
+    const over = clips.killWindows(crowd, null);
+    ok(over.share === 0 && crowd.every((k) => over.windows.some((w) => w.from <= k && k <= w.to)) && over.windows[0].from === crowd[0] - HL.minBefore,
+      `and a clip that is still past the cap at the least lead and tail keeps every kill: never one dropped (${total(over.windows) / 1000} s, share ${over.share})`);
+    ok(clips.killWindows([], T0) === null && clips.killWindows([NaN], T0) === null, 'no kill, no window');
+
+    // WHERE THE CUTS AND THE KILLS FALL: the pieces as the recorder cut them.
+    const pieces = [{ startWall: D[3] + 6000, endWall: D[3] + 14000, offset: 0, length: 8000 },
+      { startWall: D[3] + 24000, endWall: D[3] + 33000, offset: 8000, length: 9000 }];
+    const marks = clips.highlightMarks(pieces, killsOf(3));
+    ok(marks && same(marks.kills, [4700, 12100, 13800]) && same(marks.cuts, [{ at: 8000, skipped: 10000 }]) && marks.length === 17000,
+      `round 3's clip: kills at 4.7, 12.1 and 13.8 s, one cut at 8 s that skipped 10 s, 17 s long (${JSON.stringify(marks)})`);
+    ok(same(clips.highlightMarks(pieces, [D[3] + 20000]).kills, []) && clips.highlightMarks([{ startWall: NaN }], [T0]) === null && clips.highlightMarks([], [T0]) === null,
+      'a kill no piece holds is left unmarked, never guessed, and pieces that do not say where they are mark nothing');
+
+    // ONE AT A TIME, six at most, nothing written once withdrawn.
+    const asked = [];
+    const hs = Array.from({ length: 8 }, (_v, i) => ({ key: i + 1, name: clips.highlightClip(i + 1), windows: [{ from: T0, to: T0 + 6500 }], kills: [T0 + 4000] }));
+    const cutOne = (ws) => { asked.push(ws); return { bytes: Buffer.from('h'), pieces: [{ startWall: ws[0].from, endWall: ws[0].to, offset: 0, length: ws[0].to - ws[0].from }] }; };
+    const six = await reviewClips.cutHighlights({ highlights: hs, cut: cutOne, save: () => true, stopped: () => false, yieldTo: async () => {} });
+    ok(six.kept.length === HL.clips && asked.length === HL.clips && six.kept[0].name === 'h1-clip.mkv' && same(six.kept[0].marks.kills, [4000]),
+      `six highlights at most, each kept with its marks (${six.kept.length} of 8)`);
+    const bad = await reviewClips.cutHighlights({ highlights: [{ key: 1, name: 'r1-clip.mkv', windows: hs[0].windows, kills: hs[0].kills }, { key: 2, name: 'h2-clip.mkv', windows: [], kills: [T0] }],
+      cut: () => { throw new Error('never asked'); }, save: () => true, stopped: () => false, yieldTo: async () => {} });
+    const missed = await reviewClips.cutHighlights({ highlights: hs.slice(0, 2), cut: (ws) => (ws === hs[0].windows ? null : { bytes: Buffer.from('h'), pieces: [{ startWall: 0, endWall: 1, offset: 0, length: 1 }] }),
+      save: () => true, stopped: () => false, yieldTo: async () => {} });
+    ok(bad.tried === 0 && missed.missed === 2 && missed.kept.length === 0,
+      'a death clip\'s name or no window is never cut as a highlight, and a clip the recording lacks, or one holding none of its kills, is missed');
+  });
+
+  await section('the player\'s kills on the wall clock, timed exactly as the death is (8.17):', () => {
+    // RIOT'S FEED AND RIOT'S DEATH ARE ONE CLOCK. On both real records in the
+    // repo every death's milliseconds are its own feed entry's, and the
+    // feed's kills by the player are Riot's kills, round by round.
+    for (const f of ['riot-split-13-7.json', 'riot-abyss-13-11.json']) {
+      const riot = load(f);
+      const died = riot.perRound.filter((p) => p.died);
+      const same1 = died.filter((p) => Array.isArray(p.feed) && p.feed.some((k) => k.on === 'me' && k.ms === p.deathMs));
+      const killsMatch = riot.perRound.every((p) => (p.feed || []).filter((k) => k.by === 'me' && k.on === 'enemy').length === (p.kills || 0));
+      ok(died.length > 10 && same1.length === died.length && killsMatch,
+        `${f}: every one of ${died.length} deaths is timed by its own kill feed entry, and the feed holds every one of Riot's ${riot.perRound.reduce((n, p) => n + (p.kills || 0), 0)} kills`);
+    }
+    // A round read about once a second: its barriers, and the kills by them.
+    const DROP = T0;
+    const clockAt = (t) => { const left = Math.floor(100 - t); return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`; };
+    const recs = (n, drop, until, extra) => Array.from({ length: until }, (_v, k) => ({ i: n * 1000 + k, at: Math.round(drop + (0.4 + k * 1.01) * 1000),
+      frame: `f${n}-${k}.jpg`, round: n, died: false, state: { phase: 'active', clock: clockAt(0.4 + k * 1.01), ...(extra || {}) } }));
+    const records = recs(4, DROP, 45);
+    const feed = [{ ms: 10700, by: 'me', on: 'enemy' }, { ms: 12000, by: 'mate', on: 'enemy' }, { ms: 28100, by: 'me', on: 'enemy' },
+      { ms: 29800, by: 'me', on: 'enemy' }, { ms: 30500, by: 'me', on: 'mate' }, { ms: 35000, by: 'enemy', on: 'me' }];
+    const r4 = { n: 4, verified: true, died: true, deathMs: 35000, deathSec: 35, kills: 3, feed, planted: false, riotPlantMs: null, plantMs: null };
+    const km = deathFrames.killMoments(records, r4, {});
+    const death = deathFrames.deathMoment(records, r4, {});
+    ok(km && Math.abs(km.drop - DROP) <= 500 && same(km.kills.map((k) => k - km.drop), [10700, 28100, 29800]),
+      `the player's own kills of an enemy only, each its round's drop plus Riot's ms, the drop off the round's clock within half a second (${km && km.drop - DROP} ms)`);
+    ok(km && death === km.drop + 35000 && km.kills.every((k, i) => death - k === 35000 - [10700, 28100, 29800][i]) && deathFrames.roundDrop(records, r4, {}) === km.drop,
+      'and the same drop the round\'s death is timed by: each kill lies exactly Riot\'s own gap before the death the death clip marks');
+    const survived = { ...r4, died: false, deathMs: null, deathSec: null, feed: feed.slice(0, 5) };
+    ok(deathFrames.deathMoment(records, survived, {}) === null && deathFrames.killMoments(records, survived, {}) && deathFrames.killMoments(records, survived, {}).drop === km.drop,
+      'a round the player survived has no death and still has its drop and its kills');
+    ok(deathFrames.killMoments(records, { ...r4, verified: false }, {}) === null && deathFrames.killMoments(records, { ...r4, feed: feed.filter((k) => k.by !== 'me') }, {}) === null
+      && deathFrames.killMoments(records, { ...r4, n: 5 }, {}) === null,
+    'nothing for a round Riot never verified, one with no kill of the player\'s, or one with no clocked frame (no drop)');
+    ok(deathFrames.killMoments(records, { ...r4, planted: true, riotPlantMs: 26000, plantMs: null }, {}) === null
+      && deathFrames.killMoments(records, { ...r4, planted: true, riotPlantMs: 26000, plantMs: 26000 }, {}) !== null,
+    "a planted round without Riot's plant time is not timed at all, as a post plant death is not; with it, it is");
+    ok(deathFrames.killMoments(records, { ...r4, feed: [{ ms: 90000, by: 'me', on: 'enemy' }] }, {}) === null,
+      "and a kill the drop puts outside the round's own frames gives the round no highlight rather than one in the wrong place");
+
+    // THE REAL SPLIT SESSION, through the real reader, against Riot's record:
+    // which of its rounds with a kill of the player's are timed, and every
+    // round with a death too is timed off the very drop its death look uses.
+    const SPLIT_RIOT = load('riot-split-13-7.json');
+    const split = replaySession('valorant-session-split-competitive.json', SPLIT_RIOT);
+    const rounds = deathFrames.withRiotTimes(split.rounds, SPLIT_RIOT);
+    const withKills = rounds.filter((r) => r.verified && (r.kills || 0) > 0);
+    const timed = withKills.map((r) => ({ r, km: deathFrames.killMoments(split.records, r, split.window) })).filter((x) => x.km);
+    const inMatch = split.records.filter((x) => x.frame && x.at >= split.window.from && x.at <= split.window.to + 5000);
+    const agree = timed.filter((x) => !x.r.died || deathFrames.deathMoment(inMatch, x.r, split.window) === null
+      || deathFrames.deathMoment(inMatch, x.r, split.window) === x.km.drop + x.r.deathMs);
+    ok(timed.length >= 5 && agree.length === timed.length,
+      `the real Split session: ${timed.length} of ${withKills.length} rounds with a kill of the player's timed off their drop, every one with a death too on the drop its death look uses`,
+      JSON.stringify(withKills.map((r) => [r.n, r.kills, !!timed.find((x) => x.r === r)])));
+  });
+
+  await section('the recorder cuts a highlight as one joined clip, and main names it (8.17, the Split swiftplay):', async () => {
+    // A RECORDING OF FOUR MINUTES, one Cluster a second opening on a keyframe,
+    // thirty frames each, as Chromium writes them: rounds 3, 5 and 7 of the
+    // Split swiftplay 10, 90 and 170 s in. The frames are stand ins (the
+    // timing is under test; check:webmplay plays a real joined clip).
+    const vs = (n) => { let len = 1; while (n >= 2 ** (7 * len) - 1) len++; const b = Buffer.alloc(len); let v = n; for (let i = len - 1; i >= 0; i--) { b[i] = v % 256; v = Math.floor(v / 256); } b[0] |= 0x80 >> (len - 1); return b; };
+    const ib = (id) => { const h = id.toString(16); return Buffer.from(h.length % 2 ? `0${h}` : h, 'hex'); };
+    const ub = (n) => { let len = 1; while (len < 8 && n >= 2 ** (8 * len)) len++; const b = Buffer.alloc(len); let v = n; for (let i = len - 1; i >= 0; i--) { b[i] = v % 256; v = Math.floor(v / 256); } return b; };
+    const mk = (id, ...parts) => { const body = Buffer.concat(parts.map((p) => (Buffer.isBuffer(p) ? p : Buffer.from(p, 'latin1')))); return Buffer.concat([ib(id), vs(body.length), body]); };
+    const UNKNOWN = Buffer.from([0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+    const HEAD = Buffer.concat([mk(0x1A45DFA3, mk(0x4282, 'matroska')), ib(0x18538067), UNKNOWN, mk(0x1549A966, mk(0x2AD7B1, ub(1000000))),
+      mk(0x1654AE6B, mk(0xAE, mk(0xD7, ub(1)), mk(0x83, ub(1)), mk(0x86, 'V_MPEG4/ISO/AVC')))]);
+    const SECONDS = 240;
+    const clusterOf = (s) => Buffer.concat([ib(0x1F43B675), UNKNOWN, mk(0xE7, ub(s * 1000)),
+      ...Array.from({ length: 30 }, (_v, f) => { const t = Buffer.alloc(2); t.writeInt16BE(Math.round((f * 1000) / 30)); return mk(0xA3, Buffer.from([0x81]), t, Buffer.from([f === 0 ? 0x80 : 0]), Buffer.alloc(24, (s + f) % 256)); })]);
+    const mem = new Map();
+    const files = {
+      mkdir() {}, write: (f, b) => mem.set(f, Buffer.from(b)), append: (f, b) => mem.set(f, Buffer.concat([mem.get(f) || Buffer.alloc(0), Buffer.from(b)])),
+      read: (f, off, size) => mem.get(f).subarray(off, off + size), remove: (f) => mem.delete(f), removeTree() {}, list: () => [],
+    };
+    const Z = T0 + 9000000;
+    const seg = new Segment(path.join('/x', 'rec-split'), files, 60000);
+    seg.startWall = Z - 5;
+    seg.firstWall = Z;
+    for (let s = 0; s < SECONDS; s++) seg.push(s === 0 ? Buffer.concat([HEAD, clusterOf(0)]) : clusterOf(s), Z + s * 1000 + 1000);
+    seg.finish();
+    const rec = new Recorder({ root: '/x', prefs: { get: () => null, set() {} }, files, log: () => {} });
+    rec.segments = [seg];
+    ok(seg.zero() === Z && seg.clusters().length === SECONDS, `the stand in recording: ${seg.clusters().length} Clusters, its 0 where it began`);
+
+    // The AI log: each round's clock read about once a second from its drop.
+    const DROP = { 3: Z + 10000, 5: Z + 90000, 7: Z + 170000 };
+    const clockAt = (t) => { const left = Math.floor(100 - t); return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`; };
+    const logDir = freshDir();
+    const records = [];
+    for (const n of [3, 5, 7]) {
+      for (let k = 0; k < 44; k++) {
+        const t = 0.4 + k * 1.01;
+        const dead = n === 3 && t > 35.2;
+        const i = records.length;
+        const frame = `frame-${String(i).padStart(5, '0')}.jpg`;
+        fs.writeFileSync(path.join(logDir, frame), Buffer.from(`frame ${i}`));
+        records.push({ i, at: Math.round(DROP[n] + t * 1000), frame, round: n, died: dead, match: Z - 1000,
+          state: dead ? { phase: 'dead', clock: clockAt(t) } : { phase: 'active', clock: clockAt(t) } });
+      }
+    }
+    const snap = { log: { dir: logDir, records }, startedAt: Z - 1000, endedAt: Z + SECONDS * 1000,
+      context: { agent: 'Jett', agentConfirmed: true, map: 'Split', language: 'en' } };
+    const riotRows = SPLIT_HL.rounds.map((r) => ({ n: r.n, verified: true, died: r.died, result: r.result, kills: r.kills, clutch: null,
+      deathMs: r.deathMs, deathSec: r.deathMs === null ? null : Math.round(r.deathMs / 1000), plantMs: null, riotPlantMs: null, planted: false,
+      afterPlant: false, screenDied: r.died, firstDeath: false, traded: false, side: 'attacking', feed: r.feed,
+      ...(r.died ? { killerAgent: 'Raze', weapon: 'Vandal', deathSpot: 'B Main' } : {}) }));
+
+    // index.js's own look and highlights, in a sandbox, as the section above.
+    const vm = require('vm');
+    const mainSrc = mainText();
+    const fnOf = (head) => { const i = mainSrc.indexOf(head); const j = i < 0 ? -1 : mainSrc.indexOf('\n}\n', i); return j < 0 ? '' : mainSrc.slice(i, j + 3); };
+    const lineOf = (head) => { const i = mainSrc.indexOf(head); return i < 0 ? '' : mainSrc.slice(i, mainSrc.indexOf('\n', i) + 1); };
+    const src = [lineOf('const AFTER_MATCH_MAX_MS'), lineOf('const AFTER_MATCH_POLL_MS'), ...['\nasync function forensicsFor(', '\nasync function askForensics(',
+      '\nasync function afterMatch(', '\nasync function recordingStills(', '\nfunction clipLooks(', '\nasync function cutLookClips(', '\nfunction keepLookClips(',
+      '\nfunction readFlags(', '\nfunction noteFlagClips(', '\nfunction clipHighlights(', '\nasync function cutHighlightClips(', '\nfunction recordingCut(',
+      '\nfunction dropHighlightClips('].map(fnOf)].join('\n');
+    const library = new ReviewStore(freshDir());
+    let mode = 'auto';
+    let capped = false;
+    const joinedAsked = [];
+    const box = vm.createContext({
+      console: { log() {}, warn() {}, error() {} }, fs, path, Buffer, Map, Set, Promise, Date, Math, Number, JSON, Object, Array, String,
+      setTimeout: (f, ms) => setTimeout(f, Math.min(ms, 20)),
+      deathFrames, deathFlags: require('../src/shared/death-flags'), clips, reviewClips, lookStills, reviewStore: library,
+      recorder: { cutClip: (...a) => rec.cutClip(...a), cutJoined: (...a) => { joinedAsked.push({ holds: rec.holds.length, a }); return rec.cutJoined(...a); } },
+      releaseRecording: (h) => rec.release(h),
+      store: { get: (k) => ({ recordingMode: mode, licenseKey: 'TEST' })[k] },
+      authed: () => ({ 'X-License-Key': 'TEST' }), rankBandNow: () => null,
+      CAPTURE: { profiles: { standard: { targetW: 1280, targetH: 720, jpegQuality: 70 } } },
+      API: { DEATH_FORENSICS: '/api/coach/death-forensics' },
+      api: { post: async (_p, body) => (capped ? { ok: false, status: 402, data: { error: 'cap' } }
+        : { ok: true, data: { deaths: body.deaths.map((d) => ({ n: d.n, cause: 'isolated', what: 'Alone.', better: 'With a teammate.' })) } }) },
+      matchInProgress: () => false, applyClipCap() {}, lockReview: (j) => { j.locked = true; },
+      require: (m) => {
+        if (m === '../shared/valorant-review') return require('../src/shared/valorant-review');
+        if (m !== './windows/frames-window') throw new Error(`${m} is not in the sandbox`);
+        return { open: async () => ({ decode: async (j) => ({ ok: true, frames: j.picks.map(() => Buffer.from('a still')) }), close() {} }) };
+      },
+    });
+    const main = vm.runInContext(`${src}\n;({ forensicsFor })`, box);
+    const jobFor = (at) => {
+      const id = newId('valorant', at);
+      library.save({ id, game: 'valorant', at, review: { id, at, kind: 'valorant', rounds: [] } });
+      return { id, cancelled: false, recording: rec.hold(snap.startedAt - 5000, snap.endedAt + 300000) };
+    };
+    const job = jobFor(Z + SECONDS * 1000);
+    const rows = deathFrames.withRiotTimes(riotRows, null);
+    const looked = await main.forensicsFor(rows, snap, { job, stale: () => job.cancelled });
+    const names = library.clipsOf(job.id).map((c) => c.name);
+    ok(same(names, ['h3-clip.mkv', 'h5-clip.mkv', 'h7-clip.mkv', 'r3-clip.mkv']) && looked.byRound[3] && looked.byRound[3].clip === 'r3-clip.mkv',
+      `every multi kill round of the Split swiftplay is clipped beside the review, and round 3 keeps its death clip too (${names.join(', ')})`);
+    ok(joinedAsked.length === 3 && joinedAsked.every((x) => x.holds === 1) && rec.stats().holds === 0 && job.recordingLetGo === true,
+      `cut while the match's recording was still held, then let go once the highlights were cut too (${joinedAsked.map((x) => x.holds).join(', ')} hold at each cut, ${rec.stats().holds} after)`);
+    ok(same([...job.highlights.keys()], [7, 3, 5]) && same(joinedAsked.map((x) => x.a[1].length), [4, 3, 3]) && joinedAsked[1].a[1][0] < joinedAsked[2].a[1][0],
+      `cut the 4K first, then the 3Ks in round order (${[...job.highlights.keys()].join(', ')})`);
+    // The marks, worked out here from the drop main timed the kills by and the
+    // whole seconds the stand in's Clusters start on.
+    const km = (n) => deathFrames.killMoments(records, rows.find((r) => r.n === n), { from: snap.startedAt, to: snap.endedAt });
+    const want = (n) => {
+      const k = km(n);
+      const ws = clips.killWindows(k.kills, k.drop).windows;
+      let offset = 0;
+      const pieces = ws.map((w) => {
+        const s = Math.floor((w.from - Z) / 1000) * 1000;
+        const e = (Math.floor((w.to - Z) / 1000) + 1) * 1000;
+        const p = { startWall: Z + s, endWall: Z + e, offset, length: e - s };
+        offset += e - s;
+        return p;
+      });
+      return clips.highlightMarks(pieces, k.kills);
+    };
+    const h3 = job.highlights.get(3);
+    const h5 = job.highlights.get(5);
+    const h7 = job.highlights.get(7);
+    ok(h3 && same({ length: h3.length, kills: h3.kills, cuts: h3.cuts }, want(3)) && h3.cuts.length === 1 && h3.cuts[0].skipped >= 9000 && h3.cuts[0].skipped <= 11000,
+      `round 3: ${h3 && h3.length / 1000} s, its kills at ${h3 && h3.kills.map((x) => x / 1000).join(', ')} s, one cut at ${h3 && h3.cuts[0].at / 1000} s that skipped ${h3 && h3.cuts[0].skipped / 1000} s`, JSON.stringify([h3, want(3)]));
+    ok(h5 && same({ length: h5.length, kills: h5.kills, cuts: h5.cuts }, want(5)) && h5.cuts.length === 0,
+      `round 5: one piece of ${h5 && h5.length / 1000} s, nothing cut, kills at ${h5 && h5.kills.map((x) => x / 1000).join(', ')} s`, JSON.stringify([h5, want(5)]));
+    ok(h7 && same({ length: h7.length, kills: h7.kills, cuts: h7.cuts }, want(7)) && h7.cuts.length === 1 && h7.kills.length === 4,
+      `round 7: ${h7 && h7.length / 1000} s, four kills, one cut that skipped ${h7 && h7.cuts[0] && h7.cuts[0].skipped / 1000} s`, JSON.stringify([h7, want(7)]));
+    // The joined file itself: Timecodes that only rise, each piece opening on
+    // a keyframe, its Duration the pieces' lengths together, read by the
+    // clip player's own frame reader.
+    const bytes = fs.readFileSync(library.clipFile(job.id, 'h3-clip.mkv'));
+    const idx = clipFrames.indexClip(bytes);
+    const rd = webm.createReader();
+    rd.push(bytes);
+    rd.end();
+    const tcs = rd.clusters.map((c) => c.timecode);
+    const cutAt = h3.cuts[0].at;
+    ok(idx && idx.frames.length === 30 * (h3.length / 1000) && idx.frames.every((f, i) => i === 0 || f.ms > idx.frames[i - 1].ms)
+      && tcs.every((t, i) => i === 0 || t > tcs[i - 1]) && rd.clusters.every((c) => c.keyframe === true) && tcs.includes(cutAt) && Math.abs(idx.endMs - h3.length) <= 34,
+    `the joined clip reads whole: ${idx && idx.frames.length} frames rising, ${tcs.length} Clusters on keyframes, the second piece opening at the cut (${cutAt} ms), ${idx && idx.endMs} ms long`);
+    // THE CAP HOLDS ON THE REAL CUT, not only on the windows asked: each
+    // piece opens on the Cluster at or before its first second and runs on to
+    // the next one's first frame. Five kills at 0.7 s past a second, 9.4 s
+    // apart, and twenty crowded ones 6.9 s apart, cut whole and measured.
+    for (const [what, ks] of [['an ace 9.4 s apart', [0, 9400, 18800, 28200, 37600]], ['a round of 12 kills 6.9 s apart', Array.from({ length: 12 }, (_v, i) => i * 6900)]]) {
+      const kills = ks.map((x) => Z + 20700 + x);
+      const w = clips.killWindows(kills, null);
+      const got = await rec.cutJoined(w.windows, kills);
+      const real = got ? clipFrames.indexClip(got.bytes) : null;
+      const marks = got ? clips.highlightMarks(got.pieces, kills) : null;
+      ok(real && real.endMs <= HL.max + 1 && marks.kills.length === kills.length && Math.abs(marks.length - real.endMs) <= 1,
+        `${what}: cut, its clip is ${real && (real.endMs / 1000).toFixed(2)} s with every kill in it, within the 45 s cap (share ${w.share.toFixed(3)}, ${w.windows.length} pieces)`);
+    }
+
+    // The death clip of the same round lands on the same clock: the death
+    // there less each kill is Riot's own gap between them.
+    const lookAt3 = looked.byRound[3];
+    const k3 = km(3);
+    ok(lookAt3 && Number.isFinite(lookAt3.moment) && lookAt3.moment === k3.drop + 35000,
+      `round 3's death clip is timed off the same drop as its kills: the death ${(lookAt3.moment - k3.drop) / 1000} s after it, Riot's 35 s`);
+
+    // A look after the recording went takes these clips and asks for nothing.
+    const before = joinedAsked.length;
+    await main.forensicsFor(rows, snap, { job, stale: () => job.cancelled });
+    ok(joinedAsked.length === before && job.highlights.size === 3, 'a look after the recording was let go keeps the highlights cut and asks the recorder for none');
+
+    // OFF: none cut, and none kept from a look before.
+    const job2 = jobFor(Z + SECONDS * 1000 + 1000);
+    mode = 'off';
+    await main.forensicsFor(rows, snap, { job: job2, stale: () => job2.cancelled });
+    mode = 'auto';
+    ok(library.clipsOf(job2.id).length === 0 && job2.highlights.size === 0, 'with recording Off no highlight is clipped');
+    rec.release(job2.recording);
+    // LOCKED: none cut.
+    const job3 = { ...jobFor(Z + SECONDS * 1000 + 2000), locked: true };
+    const asked3 = joinedAsked.length;
+    await main.forensicsFor(rows, snap, { job: job3, stale: () => job3.cancelled });
+    ok(joinedAsked.length === asked3 && !library.clipsOf(job3.id).some((c) => c.name[0] === 'h'), 'nor for a review saved locked');
+    rec.release(job3.recording);
+    // THE LOOK REFUSED FOR THE CAP: the review is saved locked and names no
+    // clip, so the highlights just cut go; the death clip stays as it always has.
+    const job5 = jobFor(Z + SECONDS * 1000 + 4000);
+    capped = true;
+    const refused = await main.forensicsFor(rows, snap, { job: job5, stale: () => job5.cancelled });
+    capped = false;
+    const left = library.clipsOf(job5.id).map((c) => c.name);
+    ok(job5.locked === true && !Object.keys(refused.byRound).length && same(left, ['r3-clip.mkv']) && job5.highlights.size === 0,
+      `a look refused for the cap leaves no highlight clip on disk, the death clip as before (${left.join(', ')})`);
+    // A LOOK FROM THE SCREEN keeps none: its review names none.
+    const job4 = jobFor(Z + SECONDS * 1000 + 3000);
+    const screenRows = [{ n: 3, died: true, verified: false, result: 'lost', early: false, side: 'attacking', deathSpot: 'B Main' }];
+    await main.forensicsFor(screenRows, snap, { source: 'screen', job: job4, stale: () => job4.cancelled });
+    ok(!library.clipsOf(job4.id).some((c) => c.name[0] === 'h') && job4.recordingLetGo !== true, 'and a look from the screen, with no Riot record, cuts none and lets nothing go');
+    rec.release(job4.recording);
+
+    // The card: valorant-review.js carries the clip and its marks, never a path.
+    const built = valorantReview.build({ rounds: [{ ...rows[0], highlight: { clip: 'h3-clip.mkv', ...h3 } }, { ...rows[1], highlight: { clip: '../h5.mkv', length: 1 } }],
+      context: { agent: 'Jett', map: 'Split' }, endedBy: 'score', ai: {}, history: [] });
+    const c3 = built.rounds.find((c) => c.n === 3);
+    const c5 = built.rounds.find((c) => c.n === 5);
+    ok(c3 && c3.highlight && c3.highlight.clip === 'h3-clip.mkv' && same(c3.highlight.kills, h3.kills) && same(c3.highlight.cuts, h3.cuts)
+      && c3.highlight.length === h3.length && c5 && !('highlight' in c5),
+    'the card keeps the highlight clip\'s name, length, kills and cuts, and no key at all for a name that is not one');
+    ok(same(reviewClips.namedClips(built).sort(), ['h3-clip.mkv']), 'and the review names it among its clips, so keepClips keeps it');
   });
 
   await section('the words:', () => {

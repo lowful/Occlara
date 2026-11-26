@@ -47,6 +47,122 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   ask again): no still is taken from them after it, so a look still waiting
   for its stills is sent the read's frames, and it keeps none of them, as
   8.3.0's look, cutting after it landed, kept none.
+- **Highlights** (8.17, `index.js clipHighlights`, `clips.js` HIGHLIGHTS,
+  `webm.js cutJoined`). The owner got a 3K and no clip of it was kept: only
+  deaths were ever cut (on the real 7 round Split swiftplay, rounds 1, 2, 4
+  and 6 had their death clips and the 3K, 3K and 4K of rounds 3, 5 and 7
+  none). Now each round Riot's record proves a highlight with kills (2K to
+  5K, or a clutch won: `highlightRank`; a clutch won with no kill, and a
+  first kill streak, have none) is cut as ONE clip of its kills,
+  `h<n>-clip.mkv`, a name of its own since a round can hold a death clip and
+  a highlight clip both (`CLIP_RE` is `[rdh]`, so `saveClip`, `clipsOf`,
+  `keepClips`, the cap, `occlara-clip` and `namedClips` take it as any
+  clip). Six a review at most (`MAX_HIGHLIGHT_CLIPS`, apart from the
+  deaths' `MAX_CLIPS`), filled ace, 4K, clutch won, 3K, 2K, then the earlier
+  round (`pickHighlights`).
+  - **When the kills were** (`death-frames.js killMoments`): exactly as a
+    death is timed, its round's barrier drop off its clocked frames
+    (`roundDrop`, deathMoment's own drop, which a round the player survived
+    has too) plus Riot's feed milliseconds of each `by: 'me', on: 'enemy'`
+    entry. One clock: on both real Riot records in the repo every death's
+    `deathMs` is its own feed entry's `ms` (37 of 37), and the feed holds
+    every one of Riot's kills (48 of 48); in a round with a death the kills
+    and the death come off the very same drop, so each kill lies Riot's own
+    gap before the death the death clip marks (`test:clips`, the real Split
+    session through the real reader: 9 of 9 rounds with a kill timed, every
+    one with a death on its death look's drop). NOTHING RATHER THAN A GUESS:
+    no drop, a planted round without Riot's plant time, or a kill the drop
+    puts outside the round's frames, and the round gets no highlight clip and
+    the page says nothing about one. Riot's look alone cuts them; a look from
+    the screen keeps none.
+  - **Which seconds** (`killWindows`): each kill from 4 s before it to 2.5 s
+    after. The death's 11 s lead is there for the look's stills (back to
+    4.5 s) and the fight that led to it; a kill's moment is the duel itself,
+    so 4 s shows the peek and the shot, and 2.5 s the kill banner and the
+    next swing, where a death needs 4 for the killer from the spectator
+    camera. No earlier than a second before the barriers, as a death's.
+    Windows that overlap or come within 3 s of each other are one: a cut
+    skipping less is a jump for nothing, and each piece may open on the
+    keyframe up to a second early anyway. Past 45 s (`HIGHLIGHT_MAX_MS`,
+    the flagged death's, each piece counted with a second at each end,
+    `PIECE_SLACK_MS`: it opens on the keyframe Cluster at or before its first
+    second and runs on to the next Cluster's first frame, so a window of 10
+    to 12 s is cut 9.149 to 12.213; counted at one end only, the real cut ran
+    about a second a piece past the cap) every
+    kill's lead and tail is cut by the same share, down to 1 s and 0.5 s,
+    never by dropping a kill: a clip still too long then keeps them all.
+  - **One file of several pieces** (`webm.js planJoin`, `cutJoined`,
+    `joinClips`). Each piece is a clip as `cutClip` writes it, opening on a
+    keyframe Cluster with its own SPS and PPS; two whose Clusters meet or
+    overlap are one. Joined, each piece's Clusters are written again with
+    their Timecodes moved on by a running offset, the lengths of the pieces
+    before, the blocks copied byte for byte: Timecodes only rise, the
+    Duration is the pieces' lengths together, the Cues point at every
+    keyframe Cluster of every piece. One piece is `cutClip`'s own clip, byte
+    for byte. EACH CLUSTER IS REBUILT ONCE and the file written once
+    (`joinSteps`, `writeClip`): cutting each piece as a clip and reading it
+    back to join copied every byte three times, 4.6 ms a MB on the fixture
+    against `cutClip`'s 1.7 (6.1 against 2.2 on the reviewer's PC), and a
+    45 s 1080p highlight is 34 to 68 MB; written once it is 1.8 to 2.0, the
+    same bytes. `joinClips` stays for an import's whole ffmpeg clips. Main is
+    let go between pieces (`cutJoinedSoon`) and between highlights, since the
+    next match may be recording. `recorder.cutJoined(windows, kills)` cuts
+    from the recording that holds every kill to within a second of its
+    ends, the one they lie furthest inside first, as `cutClip` chooses (of
+    two back to back, kills just past the first one's end are the second's),
+    and A CLIP MISSING A KILL IS NO CLIP: one whose pieces do not hold every
+    kill is passed over, and `cutHighlights` keeps a clip only with every
+    kill marked (a 3K once kept showing two). It answers each piece's wall
+    clock start and end and its place in the clip.
+  - **The cuts and the kills are marked** (`highlightMarks`): kept on the
+    card as `highlight: { clip, length, kills, cuts: [{ at, skipped }] }`,
+    ms on the clip's own timeline (`valorant-review.js highlightOnCard`, only
+    on a card that has one). The clip player draws each kill as a tick in
+    `--good` and each cut as a break in the track, their titles and the
+    timeline's saying "10 s skipped at 8 s", and over the picture "10 s
+    skipped" for 1.6 s as playback or a step crosses a cut (`crossAt`, a
+    move of 1.5 s or less, so a loop or a jump says nothing).
+  - **The same rules stop them**: Off (`cutsClips`, asked before and while
+    they are cut, and at `keepLookClips`), a locked review, a look no longer
+    the review's (`stale`), the recording already let go (a later look takes
+    the clips cut, `job.highlightsCut`, and asks for nothing). Cut on the
+    look's queue (`job.clipping`), after the deaths' and BEFORE
+    `recordingCut`, so the recording is never let go first. Named on their
+    cards by `riotLook` from `job.highlights`, which `keepLookClips` keeps
+    with the deaths' and a flag's; anything else in the folder goes. A look
+    refused for the games cap (402) saves the review locked and names no
+    clip, so the highlight clips it just cut are taken off the folder
+    (`dropHighlightClips`) and every other clip stays as it did before.
+  - **Imported recordings too** (`import-video.js cutVideoJoined`, the run's
+    `cutJoined`): each piece cut by ffmpeg as any import clip, every one
+    opening on a keyframe, the match in progress waited out before EACH
+    piece's encode (`idle`, never only the first), then joined by
+    `joinClips`, which needs the same
+    video (track, codec, size, TimecodeScale) rather than the same Tracks
+    bytes, since ffmpeg writes a fresh TrackUID each run. A 45 s highlight
+    in three pieces took 3.4 s on the test video here; six of them sit well
+    inside the import review's 10 working minutes (`IMPORT_REVIEW_MS`, time
+    a match is played not counted). If those run out, the import is
+    reported done with the review as saved and its holds let go
+    (`reviewImport`); the job is not cancelled, so a look still cutting
+    goes on reading the player's own file, and its clips and next save can
+    still land after.
+  - Not on the review page: a round card names its highlight clip, but only
+    the Moments page (its rows and the reel) and the compilation player
+    play it.
+  - Held by `test:clips` (names, windows on the Split case, the cap trim,
+    marks, the order, the real records' one clock, the real Split session,
+    and index.js's own look in a sandbox over a stand in four minute
+    recording: the Split swiftplay's three highlights cut while the
+    recording is held and let go after, their marks, Off, locked, a look
+    from the screen, the card), `test:webm` (the joined file: rising
+    Timecodes, its Duration, the source's blocks, keyframes, Cues, merging,
+    refusals, `joinClips`), `check:webmplay` (a joined clip of the fixture
+    plays, knows its length and shows the recording's frame in each piece),
+    `test:reviewstore`, `test:moments`, `test:surfaces` (the reel, the
+    marks, the words at a cut) and `test:importvideo` (ffmpeg's pieces
+    joined). Fixture: `scripts/fixtures/highlights-split-swiftplay.json`,
+    the Split swiftplay's kill times, numbers only.
 - **League's deaths, clipped** (`index.js clipLolDeaths`). The League recorder
   notes the game's clock against the wall clock on every poll
   (`lol-recorder.js timeline`, `wallAt`: the last poll at or before a moment,

@@ -815,6 +815,11 @@ function cutClip(args) {
   const head = parseInit(init);
   const plan = head && planClip(clusters, from, to);
   if (!plan) return null;
+  return cutPlanned(head, plan, read);
+}
+
+/** One plan's Clusters, rebased to 0, as a whole clip (cutClip's own writing). */
+function cutPlanned(head, plan, read) {
   // Times on the recording's timeline are ms; a Matroska file counts ticks.
   const tickMs = head.timecodeScale / 1e6;
   const ticks = (t) => Math.round(t / tickMs);
@@ -829,22 +834,32 @@ function cutClip(args) {
     if (!data || (Number.isInteger(c.size) && data.length !== c.size)) return null;
     const bytes = rebuildCluster(data, ticks(c.timecode) - base);
     if (!bytes) return null;
-    built.push({ c, bytes });
+    built.push({ bytes, keyframe: c.keyframe === true, cue: Math.max(0, ticks(c.first) - base) });
   }
+  // A Duration is a float of ticks, so an estimated end keeps its fraction.
+  return writeClip(head, built, plan.end / tickMs - base);
+}
 
+/*
+ * A clip's bytes around its Clusters, already rebuilt on its own timeline
+ * (`built`: { bytes, keyframe, cue }, cue the ticks of a Cluster's first
+ * frame), `duration` in ticks: the EBML header, then a Segment of known size
+ * holding a SeekHead, Info with that Duration, the recording's Tracks as they
+ * were, and Cues pointing at each keyframe Cluster.
+ */
+function writeClip(head, built, duration) {
   const infoParts = head.info.filter((k) => k.id !== ID.Duration).map((k) => k.bytes);
   if (!head.info.some((k) => k.id === ID.TimecodeScale)) infoParts.unshift(element(ID.TimecodeScale, uintBytes(head.timecodeScale)));
-  // A Duration is a float of ticks, so an estimated end keeps its fraction.
-  infoParts.push(floatElement(ID.Duration, plan.end / tickMs - base));
+  infoParts.push(floatElement(ID.Duration, duration));
   const info = element(ID.Info, Buffer.concat(infoParts));
   const tracks = head.tracks;
 
   // Every position in the SeekHead and the Cues is written in 8 bytes, so
   // their sizes are known before the positions they hold. Positions count from
   // the first byte of the Segment's data.
-  const keyed = built.filter((b) => b.c.keyframe === true);
+  const keyed = built.filter((b) => b.keyframe === true);
   const cues = (positions) => element(ID.Cues, Buffer.concat(keyed.map((b, i) => element(ID.CuePoint, Buffer.concat([
-    element(ID.CueTime, uintBytes(Math.max(0, ticks(b.c.first) - base))),
+    element(ID.CueTime, uintBytes(b.cue)),
     element(ID.CueTrackPositions, Buffer.concat([
       element(ID.CueTrack, uintBytes(head.video.track)),
       element(ID.CueClusterPosition, uintBytes(positions[i], 8)),
@@ -861,4 +876,196 @@ function cutClip(args) {
   return Buffer.concat([head.ebml, idBytes(ID.Segment), sizeBytes(body.length, 8), body]);
 }
 
-module.exports = { createReader, indexFile, parseInit, planClip, cutClip, MAX_INIT, MAX_META, MAX_ELEMENT };
+// ---------------------------------------------------------------------------
+// Joined clips (8.17)
+// ---------------------------------------------------------------------------
+
+/*
+ * A HIGHLIGHT IS ONE FILE OF SEVERAL PIECES: the seconds around each kill,
+ * the dead time between them left out (shared/clips.js killWindows). Each
+ * piece is a clip as cutClip writes it, so it opens on a keyframe Cluster
+ * that carries its own SPS and PPS and needs nothing from the piece before.
+ * Joined, every Cluster of a piece is written again with its Timecode moved
+ * on by where the piece starts in the file, a running offset of the lengths
+ * of the pieces before it; the blocks inside are copied byte for byte, their
+ * times relative to their Cluster as they were. So the Timecodes only ever
+ * rise, the file's Duration is the pieces' lengths together, and its Cues
+ * point at every keyframe Cluster of every piece, which is what a player
+ * seeks by. check:webmplay plays one and seeks into each piece.
+ */
+
+/**
+ * Which Clusters each piece of a joined clip of `windows` ([{ from, to }] on
+ * the recording's timeline, ms, in time order) is made of: planClip's plan of
+ * each, and two pieces whose Clusters meet or overlap (a window's keyframe
+ * reaching back into the one before) made one, so no Cluster is written
+ * twice and no cut skips nothing. Null when any window has no plan: a clip
+ * without one of its moments is not the clip asked for.
+ */
+function planJoin(clusters, windows) {
+  if (!Array.isArray(clusters) || !Array.isArray(windows)) return null;
+  const ws = windows.filter((w) => w && isTime(w.from) && isTime(w.to) && w.to >= w.from);
+  if (!ws.length || ws.length !== windows.length) return null;
+  for (let i = 1; i < ws.length; i++) if (ws[i].from < ws[i - 1].from) return null;
+  const out = [];
+  for (const w of ws) {
+    let win = { from: w.from, to: w.to };
+    let plan = planClip(clusters, win.from, win.to);
+    if (!plan) return null;
+    const prev = out[out.length - 1];
+    if (prev && clusters.indexOf(plan.clusters[0]) <= clusters.indexOf(prev.plan.clusters[prev.plan.clusters.length - 1]) + 1) {
+      win = { from: prev.win.from, to: Math.max(prev.win.to, win.to) };
+      plan = planClip(clusters, win.from, win.to);
+      if (!plan) return null;
+      out.pop();
+    }
+    out.push({ win, plan });
+  }
+  return out.map((x) => x.plan);
+}
+
+/**
+ * A joined clip of `windows` out of one recording: { bytes, pieces }, each
+ * piece { start, end, offset, length }, where it starts and its last frame
+ * ends on the recording's timeline, and where it starts in the clip and how
+ * long it runs there, all ms. One piece is cutClip's own clip. Null when
+ * there is no clip to cut, as cutClip.
+ *
+ *   cutJoined({ init, clusters, windows, read })
+ */
+function cutJoined(args) {
+  const steps = joinSteps(args);
+  let r = steps.next();
+  while (!r.done) r = steps.next();
+  return r.value;
+}
+
+/**
+ * cutJoined, letting `turn()` (awaited) run between its pieces: a 45 s 1080p
+ * highlight is tens of MB copied on main, and the recorder's next match may
+ * be writing its pages meanwhile. The same bytes as cutJoined.
+ */
+async function cutJoinedSoon(args, turn) {
+  const steps = joinSteps(args);
+  let r = steps.next();
+  while (!r.done) {
+    if (typeof turn === 'function') await turn();
+    r = steps.next();
+  }
+  return r.value;
+}
+
+/*
+ * The work of cutJoined, a piece at a time (it yields after each). EACH
+ * CLUSTER IS REBUILT ONCE, its Timecode moved on by the running offset of the
+ * pieces before, and the file written once (writeClip): cutting each piece
+ * as a clip of its own and reading it back to join it copied every byte three
+ * times (6.1 ms a MB against cutClip's 2.2, measured). One piece is
+ * cutPlanned, cutClip's own writing, byte for byte. joinClips stays for the
+ * whole clips an import's ffmpeg writes.
+ */
+function* joinSteps(args) {
+  const { init, clusters, windows, read } = args && typeof args === 'object' ? args : {};
+  const head = parseInit(init);
+  const plans = head && planJoin(clusters, windows);
+  if (!plans || !plans.length) return null;
+  if (plans.length === 1) {
+    const bytes = cutPlanned(head, plans[0], read);
+    return bytes ? { bytes, pieces: [{ start: plans[0].start, end: plans[0].end, offset: 0, length: plans[0].end - plans[0].start }] } : null;
+  }
+  const tickMs = head.timecodeScale / 1e6;
+  const ticks = (t) => Math.round(t / tickMs);
+  const built = [];
+  const pieces = [];
+  let offset = 0;
+  let total = 0;
+  for (let i = 0; i < plans.length; i++) {
+    if (i > 0) yield;
+    const p = plans[i];
+    const base = ticks(p.start);
+    for (const c of p.clusters) {
+      let data = c.data;
+      if (data === undefined && typeof read === 'function') {
+        try { data = read(c); } catch { return null; }
+      }
+      data = asBuffer(data);
+      if (!data || (Number.isInteger(c.size) && data.length !== c.size)) return null;
+      const bytes = rebuildCluster(data, offset + ticks(c.timecode) - base);
+      if (!bytes) return null;
+      built.push({ bytes, keyframe: c.keyframe === true, cue: offset + Math.max(0, ticks(c.first) - base) });
+    }
+    const length = p.end / tickMs - base;
+    pieces.push({ start: p.start, end: p.end, offset: offset * tickMs, length: length * tickMs });
+    total = offset + length;
+    offset += Math.round(length);
+  }
+  yield;
+  return { bytes: writeClip(head, built, total), pieces };
+}
+
+// A clip's Duration in ticks, as its Info holds it, or null.
+function durationOf(head) {
+  const d = head.info.find((k) => k.id === ID.Duration);
+  if (!d) return null;
+  const h = headerAt(d.bytes, 0, d.bytes.length);
+  if (!h || h.bad || h.size === null) return null;
+  const s = h.headerLen;
+  const v = h.size === 8 ? d.bytes.readDoubleBE(s) : h.size === 4 ? d.bytes.readFloatBE(s) : NaN;
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+/**
+ * Whole clips, each opening on a keyframe, as one: { bytes, pieces: [{
+ * offset, length }] }, where each starts in the joined clip and how long it
+ * runs, ms. The first clip's header, Info and Tracks are the joined clip's,
+ * so every clip must be of the same video (its track, codec and size, and
+ * the same TimecodeScale); a clip of another, or one that does not read
+ * whole, and there is no joined clip: null. A clip's length is its Duration,
+ * else where its last frame ends by its frames' mean (planClip's end).
+ * The pieces of an imported recording are cut by ffmpeg one at a time and
+ * joined here (import-video.js), the recorder's by cutJoined.
+ */
+function joinClips(list) {
+  const xs = Array.isArray(list) ? list.map(asBuffer) : [];
+  if (!xs.length || xs.some((b) => !b || !b.length)) return null;
+  let first = null;
+  const built = [];
+  const pieces = [];
+  let offset = 0;
+  let total = 0;
+  for (const buf of xs) {
+    const r = createReader({ keepBytes: true });
+    r.push(buf);
+    r.end();
+    if (r.error || !r.init) return null;
+    const head = parseInit(r.init);
+    if (!head) return null;
+    if (!first) first = head;
+    else if (head.timecodeScale !== first.timecodeScale || head.video.track !== first.video.track || head.video.codec !== first.video.codec
+      || head.video.width !== first.video.width || head.video.height !== first.video.height) return null;
+    const usable = r.clusters.filter((c) => isMs(c.timecode) && isMs(c.first) && c.frames > 0);
+    if (!usable.length || usable[0].keyframe !== true || r.clusters.some((c) => c.truncated)) return null;
+    const tickMs = head.timecodeScale / 1e6;
+    const ticks = (t) => Math.round(t / tickMs);
+    const base = ticks(usable[0].timecode);
+    let end = durationOf(head);
+    if (end === null) {
+      const plan = planClip(usable, usable[0].timecode, Infinity);
+      if (!plan) return null;
+      end = plan.end / tickMs;
+    }
+    const length = end - base;
+    if (!(length > 0)) return null;
+    for (const c of usable) {
+      const bytes = rebuildCluster(c.data, offset + ticks(c.timecode) - base);
+      if (!bytes) return null;
+      built.push({ bytes, keyframe: c.keyframe === true, cue: offset + Math.max(0, ticks(c.first) - base) });
+    }
+    pieces.push({ offset: offset * tickMs, length: length * tickMs });
+    total = offset + length;
+    offset += Math.round(length);
+  }
+  return { bytes: writeClip(first, built, total), pieces };
+}
+
+module.exports = { createReader, indexFile, parseInit, planClip, cutClip, planJoin, cutJoined, cutJoinedSoon, joinClips, MAX_INIT, MAX_META, MAX_ELEMENT };

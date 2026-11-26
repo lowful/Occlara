@@ -180,6 +180,20 @@ function kitAgentOf(riotAgent, ctx) {
   return (typeof riotAgent === 'string' && riotAgent) || (c.agentConfirmed && typeof c.agent === 'string' ? c.agent : null);
 }
 
+/**
+ * A highlight's clip on its card (8.17), as { highlight: { clip, length,
+ * kills, cuts } }, or nothing: only a highlight clip's name (h<n>-clip.mkv),
+ * whole ms on the clip's own timeline, a cut's `skipped` its wall clock ms.
+ */
+function highlightOnCard(h) {
+  if (!h || typeof h !== 'object' || typeof h.clip !== 'string' || !CLIP_RE.test(h.clip) || h.clip[0] !== 'h') return {};
+  const ms = (x) => typeof x === 'number' && Number.isFinite(x) && x >= 0;
+  const kills = (Array.isArray(h.kills) ? h.kills : []).filter(ms).map(Math.round);
+  const cuts = (Array.isArray(h.cuts) ? h.cuts : []).filter((c) => c && ms(c.at) && ms(c.skipped))
+    .map((c) => ({ at: Math.round(c.at), skipped: Math.round(c.skipped) }));
+  return { highlight: { clip: h.clip, length: ms(h.length) ? Math.round(h.length) : null, kills, cuts } };
+}
+
 /*
  * THE FRAMES A LOOK KEEPS ON ITS CARD (8.3.1): up to five, the stills it took
  * from the match's recording (shared/clips.js LOOK_AT) or the read's own
@@ -955,6 +969,11 @@ function build(input) {
       // The look's own label where Riot's record changed it (recordCause).
       ...(r.forensics.was && CAUSES[r.forensics.was] ? { was: r.forensics.was } : {}),
     } : null,
+    // THE HIGHLIGHT'S CLIP (8.17, shared/clips.js HIGHLIGHTS): its name, its
+    // length, where each kill and each cut falls in it and how much each cut
+    // skipped, ms on the clip's own timeline, never a wall clock or a path.
+    // Only on a card that has one, so every card saved before keeps its keys.
+    ...highlightOnCard(r.highlight),
   }));
 
   // WHAT THE COACH WATCHED, which is not every round once Riot's record is laid

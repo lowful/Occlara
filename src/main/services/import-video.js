@@ -26,6 +26,7 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { withClock } = require('../../shared/virtual-clock');
 const clipFrames = require('../../shared/clip-frames');
+const webm = require('../../shared/webm');
 
 const LIMITS = Object.freeze({
   MAX_SECONDS: 65 * 60,
@@ -273,6 +274,35 @@ async function cutVideoClip(file, fromSec, toSec, { ffmpeg, tmpDir = os.tmpdir()
   } finally {
     fs.promises.rm(out, { force: true }).catch(() => {});
   }
+}
+
+/**
+ * A HIGHLIGHT'S JOINED CLIP OF AN IMPORTED FILE (8.17): each window of
+ * seconds ([{ from, to }], in time order, shared/clips.js killWindows) cut by
+ * cutVideoClip, every piece encoded to open on a keyframe as every clip of an
+ * import is, then joined into one file (webm.js joinClips): { bytes, pieces:
+ * [{ from, length, offset }] }, where each piece starts in the file and in
+ * the clip and how long it runs there, seconds and ms. Null when any piece
+ * could not be cut or the pieces could not be joined: a clip missing a kill
+ * is not the highlight's.
+ *
+ * `opts.idle` (awaited) BEFORE EACH PIECE'S ENCODE: encoding is real work for
+ * the PC, and a match started between two pieces must not have the rest
+ * encoded while it is played.
+ */
+async function cutVideoJoined(file, windows, opts) {
+  const ws = Array.isArray(windows) ? windows : [];
+  if (!ws.length) return null;
+  if (!ws.every((w) => w && Number.isFinite(w.from) && Number.isFinite(w.to) && w.to > w.from)) return null;
+  const { idle, ...cutOpts } = opts || {};
+  const parts = [];
+  for (const w of ws) {
+    if (typeof idle === 'function') await idle();
+    parts.push(await cutVideoClip(file, w.from, w.to, cutOpts));
+  }
+  const joined = webm.joinClips(parts);
+  if (!joined) return null;
+  return { bytes: joined.bytes, pieces: joined.pieces.map((p, i) => ({ from: ws[i].from, length: p.length, offset: p.offset })) };
 }
 
 // ── The import's own AI log folder ────────────────────────────────────────────
@@ -683,6 +713,19 @@ function createImporter(deps) {
         const bytes = await cutVideoClip(file, from, to, { ffmpeg: d.ffmpeg });
         return { bytes, mime: 'video/x-matroska', startWall: t0 + from * 1000 };
       },
+      // A highlight's pieces, in the recorder's shape (8.17, recorder.cutJoined):
+      // each kill inside the file, or no clip.
+      cutJoined: async (windows, kills) => {
+        const ks = Array.isArray(kills) ? kills.map((k) => (k - t0) / 1000) : [];
+        if (!ks.length || ks.some((k) => !Number.isFinite(k) || k < 0 || k > p.seconds)) return null;
+        const secs = (Array.isArray(windows) ? windows : []).map((w) => ({
+          from: Math.max(0, (w.from - t0) / 1000), to: Math.min(p.seconds, (w.to - t0) / 1000) }));
+        // Idle before every piece's encode, never only the first (cutVideoJoined).
+        const got = await cutVideoJoined(file, secs, { ffmpeg: d.ffmpeg, idle: d.idle });
+        if (!got) return null;
+        return { bytes: got.bytes, mime: 'video/x-matroska', pieces: got.pieces.map((x) => ({
+          startWall: t0 + x.from * 1000, endWall: t0 + x.from * 1000 + x.length, offset: x.offset, length: x.length })) };
+      },
     };
     let done;
     try {
@@ -712,4 +755,4 @@ function createImporter(deps) {
 }
 
 module.exports = { LIMITS, EXTENSIONS, FAILURE_TEXT, PROBE_TEXT, ffmpegPath, parseProbe, probe, JpegSplitter, videoFrames,
-  toRecorderShape, cutVideoClip, ImportLog, createEngine, firstMatch, readFrames, createImporter };
+  toRecorderShape, cutVideoClip, cutVideoJoined, ImportLog, createEngine, firstMatch, readFrames, createImporter };

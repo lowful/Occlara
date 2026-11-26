@@ -1153,9 +1153,13 @@ async function forensicsFor(rounds, snap, opts) {
   const cut = job ? await clipLooks(job, looks, stale, targets) : new Map();
   if (stale()) return empty;
   if (job) noteFlagClips(job, targets, cut);
+  // The highlights' clips (8.17), off Riot's record alone, cut in the same
+  // step and before the recording goes, so it is never let go first.
+  const lit = job && source === 'riot' ? await clipHighlights(job, rounds, snap, stale) : new Map();
+  if (stale()) return empty;
   // Riot's look has its clips, the review's to keep: the recording goes now,
   // never held through the wait for a match in progress (recordingCut).
-  if (job && source === 'riot') recordingCut(job, cut);
+  if (job && source === 'riot') recordingCut(job, cut, lit);
   const stills = cut.size ? await recordingStills(job, looks, cut, source, stale) : new Map();
   if (stale()) return empty;
   // Riot's match id (8.5.0), the key to the match's own name set on the
@@ -1163,9 +1167,18 @@ async function forensicsFor(rounds, snap, opts) {
   const matchId = (opts && opts.matchId) || (job && job.tracker && job.tracker.matchId) || null;
   const looked = await askForensics(looks, stills, snap, source, log, matchId);
   // Refused for the cap (8.7): the review is saved locked, and no look is kept.
-  if (looked.capped) { if (job) lockReview(job); return empty; }
+  // Nor the highlights' clips just cut (8.17): a locked review names none, so
+  // nothing would play them while they counted against the cap. Every other
+  // clip in its folder stays exactly as it did before them.
+  if (looked.capped) {
+    if (job) {
+      lockReview(job);
+      if (lit.size) dropHighlightClips(job, lit);
+    }
+    return empty;
+  }
   if (stale()) return empty;
-  if (job) keepLookClips(job, looked, cut);
+  if (job) keepLookClips(job, looked, cut, lit);
   return looked;
 }
 
@@ -1636,6 +1649,93 @@ async function cutLookClips(job, looks, stale, targets) {
   return cut;
 }
 
+/**
+ * THE CLIPS OF A MATCH'S HIGHLIGHTS (8.17, shared/clips.js HIGHLIGHTS). The
+ * player got a 3K and nothing of it was kept: only deaths were ever cut. Each
+ * round Riot's record proves a highlight with kills (an ace, a 4K, a clutch
+ * won, a 3K, a 2K, filled in that order, then the earlier round,
+ * clips.MAX_HIGHLIGHT_CLIPS a review apart from its deaths') is cut as one
+ * clip of its kills, the dead time between them left out (recorder.cutJoined),
+ * kept as h<n>-clip.mkv with where each kill and each cut falls in it, and
+ * named on its round's card once the look answers (keepLookClips, riotLook).
+ *
+ * Riot's look alone, which knows every kill to the millisecond: a kill is
+ * timed exactly as its round's death is, the round's barriers read off its
+ * clocked frames plus Riot's milliseconds (death-frames.js killMoments). A
+ * round with no drop, or a planted one without Riot's plant time, has no
+ * highlight clip, and its highlight on the Moments page shows none and says
+ * nothing about one. The rules that stop a death's clip stop these too:
+ * Off, a locked review, a look no longer the review's (`stale`), and the
+ * recording let go, after which a later look takes the clips cut here and
+ * asks the recorder for nothing. Chained on the same queue as the looks'
+ * clips (job.clipping), one clip at a time.
+ *
+ * Resolves Map n -> { name, length, kills, cuts }.
+ */
+function clipHighlights(job, rounds, snap, stale) {
+  const run = () => cutHighlightClips(job, rounds, snap, stale);
+  const cut = (job.clipping || Promise.resolve()).then(run, run)
+    .catch((e) => { console.log('[clips] the highlights could not be cut:', e.message); return new Map(); });
+  job.clipping = cut;
+  return cut;
+}
+
+async function cutHighlightClips(job, rounds, snap, stale) {
+  const cut = new Map();
+  const off = () => !clips.cutsClips(store);
+  if (stale() || off() || job.locked) return cut;
+  if (job.recordingLetGo) {
+    for (const [n, h] of job.highlightsCut || []) if (reviewStore.hasClip(job.id, h.name)) cut.set(n, h);
+    return cut;
+  }
+  const log = snap && snap.log;
+  if (!log || !Array.isArray(log.records) || !log.records.length) return cut;
+  const window = { from: snap.startedAt, to: snap.endedAt };
+  const timed = new Map();
+  for (const r of rounds || []) {
+    if (!r || !r.verified || clips.highlightRank(r) === null) continue;
+    const km = deathFrames.killMoments(log.records, r, window);
+    if (km) timed.set(r.n, km);
+  }
+  const wanted = clips.pickHighlights((rounds || []).filter((r) => r && timed.has(r.n)), clips.MAX_HIGHLIGHT_CLIPS)
+    .map((r) => {
+      const km = timed.get(r.n);
+      const w = clips.killWindows(km.kills, km.drop);
+      return w ? { key: r.n, name: clips.highlightClip(r.n), windows: w.windows, kills: km.kills } : null;
+    })
+    .filter((h) => h && h.name);
+  if (!wanted.length) return cut;
+  let r = { kept: [], tried: 0, missed: 0 };
+  try {
+    r = await reviewClips.cutHighlights({
+      highlights: wanted, max: clips.MAX_HIGHLIGHT_CLIPS,
+      // An imported recording's pieces come out of its file (import-video.js).
+      cut: (windows, kills) => (job.importRun
+        ? (typeof job.importRun.cutJoined === 'function' ? job.importRun.cutJoined(windows, kills) : null)
+        : recorder.cutJoined(windows, kills)),
+      save: (name, bytes) => !stale() && reviewStore.saveClip(job.id, name, bytes) > 0,
+      stopped: () => stale() || off(),
+    });
+  } catch (e) {
+    console.log('[clips] the highlights could not be cut:', e.message);
+    return cut;
+  }
+  for (const k of r.kept) cut.set(k.key, { name: k.name, ...k.marks });
+  console.log(`[clips] ${job.id}: ${r.kept.length} of ${wanted.length} highlights clipped`
+    + `${r.missed ? `, ${r.missed} not in the recording` : ''} (${Math.round(r.kept.reduce((n, k) => n + k.bytes, 0) / 1024)} KB)`);
+  return cut;
+}
+
+/** The highlight clips in `lit` taken off the review's folder, and no other (8.17). */
+function dropHighlightClips(job, lit) {
+  const going = new Set([...lit.values()].map((h) => h.name));
+  job.highlights = new Map();
+  job.highlightsCut = new Map();
+  try {
+    reviewStore.keepClips(job.id, reviewStore.clipsOf(job.id).map((c) => c.name).filter((n) => !going.has(n)));
+  } catch (e) { console.log('[clips] keepClips:', e.message); }
+}
+
 /*
  * THE RECORDING GOES ONCE RIOT'S LOOK HAS CUT ITS CLIPS (8.3.1). Its stills are
  * decoded from those clips beside the review (recordingStills), never from the
@@ -1648,8 +1748,10 @@ async function cutLookClips(job, looks, stale, targets) {
  * finished) takes the clips cut here (cutLookClips). The AI log's frames stay
  * held to the link's end, for a death with no clip.
  */
-function recordingCut(job, cut) {
+function recordingCut(job, cut, lit) {
   job.clipsCut = new Map(cut);
+  // And the highlights' (8.17), which a look after it takes the same way.
+  job.highlightsCut = new Map(lit || []);
   if (job.recordingLetGo) return;
   job.recordingLetGo = true;
   releaseRecording(job.recording);
@@ -1670,7 +1772,7 @@ function recordingCut(job, cut) {
  * beside the review and named on its card, where 8.3.0, cutting after the
  * look, kept none.
  */
-function keepLookClips(job, looked, cut) {
+function keepLookClips(job, looked, cut, lit) {
   const names = [];
   const off = !clips.cutsClips(store);
   for (const [n, f] of Object.entries((looked && looked.byRound) || {})) {
@@ -1678,6 +1780,10 @@ function keepLookClips(job, looked, cut) {
     // And where in it the moment the look's frames are timed against falls, for its player (8.4.4).
     if (c && f) { f.clip = c.name; f.clipDeath = reviewClips.lookDeathInClip(f, c.startWall); names.push(c.name); }
   }
+  // The highlights' clips (8.17), Riot's look's alone, named on their cards
+  // by riotLook (job.highlights); a look from the screen keeps none of them.
+  job.highlights = off ? new Map() : new Map(lit || []);
+  for (const h of job.highlights.values()) names.push(h.name);
   // A flagged death's clip stays whatever the look said of it (8.13).
   if (!off) names.push(...deathFlags.clipNames(job.flags));
   try { reviewStore.keepClips(job.id, names); } catch (e) { console.log('[clips] keepClips:', e.message); }
@@ -2175,6 +2281,11 @@ function linkRiotRecord(job) {
         { job, stale: () => job.cancelled, matchId: lm.matchId });
     if (job.cancelled) return false;
     for (const r of rounds) if (looked.byRound[r.n]) r.forensics = looked.byRound[r.n];
+    // Each highlight names its clip (8.17, keepLookClips kept them), none once locked.
+    for (const r of rounds) {
+      const h = !job.locked && job.highlights ? job.highlights.get(r.n) : null;
+      if (h) r.highlight = { clip: h.name, length: h.length, kills: h.kills, cuts: h.cuts };
+    }
 
     job.stage = 'writing';
     noteWork(job);

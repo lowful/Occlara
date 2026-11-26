@@ -141,7 +141,7 @@ clip the look's, played by `clipScheme.urlFor` while on disk
 (`reviewStore.clipsOf`), else `clipGone` with the review's `clipsCleared`
 reason or 'gone', and nothing at all for a death never looked at, since a
 clip is only cut at a look. A HIGHLIGHT is counted off Riot's verified rounds
-alone: three or more kills (five an ace), a clutch Riot records as won, and
+alone: two or more kills (2K to 5K, five an ace), a clutch Riot records as won, and
 the first kill in two or more rounds running (one entry on the streak's first
 round); its times are the player's kills off Riot's kill feed. The
 COMPILATION groups every death in a round a pattern counts by the pattern,
@@ -154,15 +154,24 @@ reason no clip at all was kept ('off', 'space', 'cleared', 'nolook'), its
 sentence `clipsNoteText`; every sentence the page shows is written here
 (`NOTES`, `GONE`), so the page counts and words nothing. Main serves it as
 `MOMENTS_GET` (index.js `getMoments`), from the same read the patterns are
-made from. **No highlight clips**: Riot's record gives kill times, but a
-highlight's place on the recording needs its round's barrier drop on the wall
-clock, which only a look's clocked frames give (death-frames.js barrierDrop),
-and cutting more clips at the look would hold the recording longer and
-outgrow `MAX_CLIPS`; so a highlight is its facts and no clip, said plainly in
-the page's counts.
+made from. **A highlight has its own clip (8.17)**, since the player got a
+3K and nothing of it was kept: a highlight with kills (2K to 5K, or a clutch
+won) carries the card's `highlight` (`{ clip, length, kills, cuts }`, the
+clip `h<n>-clip.mkv`, every number ms on the clip's own timeline), played
+by its URL with its kill and cut marks (`highlightClipOf`), gone with its
+reason as a death's is, and nothing at all where none was cut (its kills
+could not be timed, recording off, a review saved before); a first kill
+streak is no one moment and never has one. Every highlight clip kept makes
+the REEL (`reel`: `{ key: 'highlights', title, line, clips, items }`, null
+with none), beside the compilation and never in it, since that one counts
+repeated mistakes; highlight clips count in `counts.clips`. How they are
+cut is clips.md, "Highlights".
 
 The page (`src/renderer/moments/`, `moments-preload.js`) paints it in the
-log's language: the compilation as ruled rows with Play all where clips were
+log's language: the highlights reel first where one is kept (8.17,
+`#mo-reel`, "Highlights reel": one ruled row, "Your highlights" and main's
+line, the row choosing the Highlights filter, Play all playing every
+highlight clip in the same player), the compilation as ruled rows with Play all where clips were
 kept (else "No clip kept"), a row chosen (`aria-pressed`) showing only its
 deaths below; the filter All, Deaths, Highlights as one capsule
 (`occlaraSeg`); the counts line; the note; then each match's ruled line over
@@ -180,6 +189,10 @@ rule. THE COMPILATION PLAYER plays each clip in THE REVIEW'S OWN CLIP PLAYER
 timeline, the time as seconds from the death, a frame step, the speed; one
 player a clip, built on `#mo-pl-stage` as each comes up with the clip's
 `death` and `frames` (main reads the frames with `reviewClips.frameTimes`),
+and a highlight's with its `kills` and `cuts` (8.17: each kill a tick in
+`--good`, each cut a break in the track, the skipped seconds in their titles
+and the timeline's, and "12 s skipped" over the picture as playback crosses
+one; named "The highlight of round N"),
 its loop taken off so `ended` advances; on the clip's own `occlara-clip://`
 URL (the page's CSP allows `media-src occlara-clip:`), muted, in a dialog
 over the page: Esc closes it and gives the focus back, the arrows on the

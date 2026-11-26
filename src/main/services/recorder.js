@@ -1331,6 +1331,65 @@ class Recorder extends EventEmitter {
     return null;
   }
 
+  /**
+   * A HIGHLIGHT'S JOINED CLIP (8.17): the seconds of each window in `windows`
+   * ([{ from, to }], wall clock ms, in time order, shared/clips.js
+   * killWindows) out of the pages on disk, the time between them left out,
+   * as one file (webm.cutJoined): { bytes, mime, pieces }, each piece {
+   * startWall, endWall, offset, length }, where its own 0 and its last
+   * frame's end are on the wall clock and where it starts in the clip and
+   * how long it runs there, ms. Or null.
+   *
+   * ONE RECORDING, THAT HOLDS EVERY KILL (`at`, the kills' wall clock ms) to
+   * within a second of its ends, chosen as cutClip chooses for its one
+   * moment: the one the kills lie furthest inside first (the least they lie
+   * outside it, together), so of two recordings back to back, a kill just
+   * past the first one's end is the second's. And A CLIP MISSING A KILL IS
+   * NO CLIP: one a piece of which does not hold every kill is not kept, and
+   * the next recording is tried. A round the recording paused in, began in
+   * after a kill or stopped in before one has no highlight clip. Its 0 is
+   * read at the kills' middle (Segment AND IT DRIFTS: a round is under two
+   * minutes).
+   *
+   * Main is let go between the pieces (`turn`, awaited: webm.cutJoinedSoon),
+   * a highlight being tens of MB at 1080p, while the next match's recording
+   * may be writing its pages.
+   */
+  async cutJoined(windows, at, turn) {
+    const SLACK_MS = 1000;
+    const kills = (Array.isArray(at) ? at : []).filter((x) => Number.isFinite(x));
+    if (!Array.isArray(windows) || !windows.length || !kills.length) return null;
+    const mid = (Math.min(...kills) + Math.max(...kills)) / 2;
+    const files = this.files;
+    const spans = [];
+    for (const g of this.segments) {
+      const z = g.zeroAt(mid);
+      if (z === null || !g.init || g.discarded) continue;
+      const clusters = g.clusters();
+      if (!clusters.length) continue;
+      const first = z + clusters[0].timecode;
+      const last = clusters[clusters.length - 1];
+      const end = z + (Number.isFinite(last.last) ? last.last : last.timecode);
+      if (!kills.every((k) => k > first - SLACK_MS && k < end + SLACK_MS)) continue;
+      const outside = kills.reduce((n, k) => n + Math.max(0, first - k, k - end), 0);
+      spans.push({ g, z, clusters, outside });
+    }
+    spans.sort((a, b) => a.outside - b.outside);
+    const yieldTo = typeof turn === 'function' ? turn : () => new Promise((resolve) => setImmediate(resolve));
+    for (const { g, z, clusters } of spans) {
+      const got = await webm.cutJoinedSoon({
+        init: g.init, clusters, windows: windows.map((w) => ({ from: w.from - z, to: w.to - z })),
+        read: (c) => files.read(c.file, c.offset, c.size),
+      }, yieldTo);
+      if (!got) continue;
+      const pieces = got.pieces.map((p) => ({ startWall: z + p.start, endWall: z + p.end, offset: p.offset, length: p.length }));
+      if (!kills.every((k) => pieces.some((p) => k >= p.startWall && k < p.endWall))) continue;
+      const head = webm.parseInit(g.init);
+      return { bytes: got.bytes, mime: head ? head.mime : 'video/x-matroska', pieces };
+    }
+    return null;
+  }
+
   /** For the logs and the checks: what is on disk and what is held. */
   stats() {
     let pages = 0;

@@ -54,6 +54,8 @@ const ok = (cond, what) => {
 // A yes or no, never a diff: drawing one between two Clusters' bytes takes minutes.
 const same = (a, b) => util.isDeepStrictEqual(a, b);
 const noThrow = (fn) => { try { return { value: fn() }; } catch (e) { return { threw: e }; } };
+// Checks that wait on a promise, run out before the count is said.
+const later = [];
 
 const FIXTURE = path.join(__dirname, 'fixtures', 'recording-canvas.mkv');
 const META = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'recording-canvas.json'), 'utf8'));
@@ -429,6 +431,70 @@ const sourceBlocks = (fromIndex, toIndex) => truth.clusters.slice(fromIndex, toI
   ok(all && readClip(all).t.clusters.length === C.length && readClip(all).points.length === C.length, 'from the very start to the very end is every Cluster, each with a cue');
 }
 
+// ── Joined clips (8.17): a highlight's pieces in one file ─────────────────
+{
+  const { planJoin, cutJoined, joinClips } = webm;
+  // Two pieces of the fixture, the dead time between them left out.
+  const windows = [{ from: C[1].timecode + 100, to: C[3].timecode + 200 }, { from: C[8].timecode + 300, to: C[10].timecode + 500 }];
+  const plans = planJoin(C, windows);
+  ok(plans && plans.length === 2 && plans[0].clusters.map((c) => c.index).join() === '1,2,3' && plans[1].clusters.map((c) => c.index).join() === '8,9,10',
+    `two windows apart are two pieces, each from the keyframe Cluster at or before its start: ${plans && plans.map((p) => p.clusters.map((c) => c.index).join('-')).join(' and ')}`);
+  const got = cutJoined({ init: R.init, clusters: C, windows });
+  const x = got && readClip(got.bytes);
+  const tcs = x ? x.t.clusters.map((c) => c.timecode) : [];
+  const len0 = C[4].first - C[1].timecode;
+  const len1 = C[11].first - C[8].timecode;
+  ok(got && x && same(tcs, [0, C[2].timecode - C[1].timecode, C[3].timecode - C[1].timecode, len0, len0 + C[9].timecode - C[8].timecode, len0 + C[10].timecode - C[8].timecode]),
+    `its Timecodes only rise, the second piece moved on by the first's length (${tcs.join(', ')})`);
+  ok(x && x.durationTicks === len0 + len1 && same(got.pieces.map((p) => [p.offset, p.length]), [[0, len0], [len0, len1]])
+    && same(got.pieces.map((p) => [p.start, p.end]), [[C[1].timecode, C[4].first], [C[8].timecode, C[11].first]]),
+  `its Duration is the pieces' lengths together, ${x && x.durationTicks} ms, and each piece says where it is in the recording and in the clip`);
+  const gotBlocks = x ? x.t.clusters.reduce((a, c) => a.concat(c.blocks), []) : [];
+  const wantBlocks = sourceBlocks(1, 3).concat(sourceBlocks(8, 10));
+  ok(gotBlocks.length === wantBlocks.length && gotBlocks.every((b, i) => got.bytes.subarray(b.start, b.end).equals(FILE.subarray(wantBlocks[i].start, wantBlocks[i].end))),
+    `its ${gotBlocks.length} blocks are the source's, byte for byte, the dead time's not among them`);
+  ok(x && x.t.clusters[0].blocks[0].key && x.t.clusters[3].blocks[0].key && nalTypes(x.t.clusters[3].blocks[0].frame).includes(7),
+    'each piece opens on a keyframe that carries its own SPS');
+  ok(x && x.points.length === 6 && x.points.every((p, i) => p.time === x.t.clusters[i].timecode && x.t.clusters[i].offset === segData(x) + p.at),
+    'and its Cues point at every keyframe Cluster of both pieces, which is what a seek finds them by');
+  const back = readAll([got.bytes]);
+  ok(!back.r.error && back.r.clusters.length === 6 && back.r.clusters.every((c, i) => i === 0 || c.timecode > back.r.clusters[i - 1].timecode),
+    'webm.js reads it back whole, its Clusters in rising order');
+  // Windows whose Clusters meet are one piece, no Cluster written twice.
+  const meet = planJoin(C, [{ from: C[1].timecode, to: C[3].timecode + 10 }, { from: C[4].timecode + 50, to: C[5].timecode }]);
+  const overlap = planJoin(C, [{ from: C[1].timecode, to: C[4].timecode + 10 }, { from: C[4].timecode + 50, to: C[6].timecode }]);
+  ok(meet && meet.length === 1 && meet[0].clusters.map((c) => c.index).join() === '1,2,3,4,5' && overlap && overlap.length === 1
+    && overlap[0].clusters.map((c) => c.index).join() === '1,2,3,4,5,6',
+  'two pieces whose Clusters meet or overlap are one, with nothing skipped and no Cluster twice');
+  // EACH CLUSTER REBUILT ONCE: the same bytes as cutting each piece as a clip
+  // and joining those, the way it was first written, without the copies.
+  const twice = webm.joinClips(windows.map((w) => cutClip({ init: R.init, clusters: C, from: w.from, to: w.to })));
+  ok(got && twice && got.bytes.equals(twice.bytes), 'written in one pass, it is byte for byte the pieces cut as clips and joined');
+  const turns = [];
+  later.push(webm.cutJoinedSoon({ init: R.init, clusters: C, windows }, async () => { turns.push(1); }).then((soon) => {
+    ok(soon && soon.bytes.equals(got.bytes) && turns.length === 2,
+      `and cut letting main go between its pieces it is the same file (${turns.length} turns for two pieces and the writing)`);
+  }));
+  const single = cutJoined({ init: R.init, clusters: C, windows: [windows[0]] });
+  ok(single && single.bytes.equals(cutClip({ init: R.init, clusters: C, from: windows[0].from, to: windows[0].to })) && single.pieces.length === 1,
+    'one piece is cutClip\'s own clip, byte for byte');
+  ok(planJoin(C, [windows[0], { from: C[C.length - 1].last + 60000, to: C[C.length - 1].last + 70000 }]) === null
+    && planJoin(C, [windows[1], windows[0]]) === null && planJoin(C, []) === null && planJoin(C, [{ from: NaN, to: 1 }]) === null && planJoin(null, windows) === null,
+  'and no joined clip for a window the recording does not hold, windows out of order, or none');
+  // Whole clips joined, as an import's ffmpeg pieces are.
+  const a = cutClip({ init: R.init, clusters: C, from: 0, to: C[1].timecode });
+  const b = cutClip({ init: R.init, clusters: C, from: C[12].timecode, to: Infinity });
+  const j = joinClips([a, b]);
+  const jx = j && readClip(j.bytes);
+  ok(j && jx && Math.abs(jx.durationTicks - (readClip(a).durationTicks + readClip(b).durationTicks)) < 1 && j.pieces[1].offset === Math.round(readClip(a).durationTicks)
+    && jx.t.clusters.length === 4,
+  `joinClips joins whole clips into one whose Duration is theirs together (${jx && jx.durationTicks.toFixed(1)} ms)`);
+  const otherVideo = stream({ clusters: [second(0)], tracks: [[2, 1]] });
+  const delta = cutClip({ init: R.init, clusters: C.map((c) => c), from: 0, to: 0 });
+  ok(joinClips([a, otherVideo]) === null && joinClips([]) === null && joinClips([a, Buffer.from('nope')]) === null && delta && joinClips([delta]) !== null,
+    'and none of clips of another video, or of what is not a clip');
+}
+
 // ── Streams built here: what the recording does not show ──────────────────
 {
   // Delta frames opening Clusters: a clip must reach back to a keyframe.
@@ -660,5 +726,7 @@ refused('no Cluster in the first megabyte', [Buffer.concat([EBML_HEAD(), W.unkno
   ok(!missing.threw && missing.value.error && missing.value.clusters.length === 0, `a file that is not there: ${missing.value && missing.value.error}`);
 }
 
-console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' webm checks passed'}`);
-process.exit(fails ? 1 : 0);
+Promise.all(later).catch((e) => ok(false, 'a check that waits threw: ' + e.message)).then(() => {
+  console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' webm checks passed'}`);
+  process.exit(fails ? 1 : 0);
+});

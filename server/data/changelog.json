@@ -1,5 +1,29 @@
 [
   {
+    "version": "8.17.0",
+    "date": "2026-11-25",
+    "title": "Your highlights are clipped now",
+    "summary": "Every multi kill and won clutch gets its own clip after the match, with the dead time between kills cut out.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Every 2K, 3K, 4K, ace and won clutch now gets a clip after the match. Before this, only your deaths were clipped, so a 3K showed on Moments with no video."
+      },
+      {
+        "kind": "new",
+        "text": "When the kills are far apart, the waiting between them is cut out and the pieces are joined into one clip. The player marks each kill and each cut on the timeline, and tells you how many seconds were skipped as you pass a cut."
+      },
+      {
+        "kind": "new",
+        "text": "Moments has a Highlights reel that plays all of your highlight clips back to back."
+      },
+      {
+        "kind": "improved",
+        "text": "Imported recordings get highlight clips too."
+      }
+    ]
+  },
+  {
     "version": "8.16.1",
     "date": "2026-11-22",
     "title": "No more antivirus alert on the capture helper",

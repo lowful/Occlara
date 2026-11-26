@@ -105,6 +105,31 @@ const quiet = async (fn) => {
     ok(clip.frames.every((f, i) => i === 0 || f.ms > clip.frames[i - 1].ms), 'in display order: no B frames');
     ok(bytes.indexOf(Buffer.from([0x63, 0xA2])) < 0 || bytes.indexOf(Buffer.from([0x63, 0xA2])) > bytes.indexOf(Buffer.from([0x1F, 0x43, 0xB6, 0x75])), 'with no CodecPrivate left in its tracks');
     ok(clipFrames.planFrames(clip, [1000, 2500]).picks.every((x) => x.frame !== null), 'and the stills planner finds frames in it');
+    // A HIGHLIGHT OF AN IMPORT (8.17): each piece cut by ffmpeg, joined in one file.
+    const joined = await imp.cutVideoJoined(video, [{ from: 10, to: 16.5 }, { from: 30, to: 36.5 }], { ffmpeg, tmpDir: dir });
+    const jc = joined && clipFrames.indexClip(joined.bytes);
+    const jr = joined && webm.createReader();
+    if (jr) { jr.push(joined.bytes); jr.end(); }
+    ok(joined && jc && !jr.error && joined.pieces.length === 2 && joined.pieces[0].from === 10 && joined.pieces[1].from === 30
+      && Math.abs(joined.pieces[0].length - 6500) <= 40 && Math.abs(joined.pieces[1].offset - joined.pieces[0].length) <= 1
+      && jc.frames.every((f, i) => i === 0 || f.ms > jc.frames[i - 1].ms) && Math.abs(jc.endMs - (joined.pieces[1].offset + joined.pieces[1].length)) <= 40,
+    `an import's highlight: two pieces cut by ffmpeg and joined, ${jc && jc.frames.length} frames rising, ${joined && Math.round(joined.pieces[1].offset)} ms to the cut`,
+    JSON.stringify(joined && joined.pieces));
+    const keyAtCut = jc && jc.frames.find((f) => Math.abs(f.ms - joined.pieces[1].offset) < 1);
+    ok(keyAtCut && keyAtCut.key && jc.frames[0].key, 'each piece opens on a keyframe');
+    ok(await imp.cutVideoJoined(video, [], { ffmpeg, tmpDir: dir }) === null && await imp.cutVideoJoined(video, [{ from: 5, to: 5 }], { ffmpeg, tmpDir: dir }) === null,
+      'and no window, or an empty one, is no clip');
+    // IDLE BEFORE EVERY PIECE'S ENCODE: a match started between two pieces
+    // gets none of the rest encoded while it is played. And what the longest
+    // highlight, 45 s in three pieces, costs against the review's budget.
+    const order = [];
+    const runFn = async (bin, args) => { order.push('encode'); const s = spawnSync(bin, args); return { code: s.status, stderr: String(s.stderr) }; };
+    const t45 = Date.now();
+    const long = await imp.cutVideoJoined(video, [{ from: 2, to: 17 }, { from: 25, to: 40 }, { from: 50, to: 65 }],
+      { ffmpeg, tmpDir: dir, runFn, idle: async () => { order.push('idle'); } });
+    const took = Date.now() - t45;
+    ok(long && order.join() === 'idle,encode,idle,encode,idle,encode',
+      `the match is waited out before each piece's encode, not only the first (${order.join(', ')}); a 45 s highlight in three pieces took ${(took / 1000).toFixed(1)} s here`);
 
     // ── A whole import, real engine, fake server ─────────────────────────
     const t0 = Date.parse('2026-11-17T10:00:00Z');

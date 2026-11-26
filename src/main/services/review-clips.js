@@ -78,6 +78,45 @@ async function cutClips(opts) {
 }
 
 /**
+ * Cut and keep the joined clip of each highlight (8.17), in the order given,
+ * `max` at most (clips.MAX_HIGHLIGHT_CLIPS), one at a time as cutClips does.
+ *
+ *   highlights  [{ key, name, windows, kills }]: the round, the name it is
+ *               kept under (h<n>-clip.mkv), the seconds to cut
+ *               (clips.killWindows) and each kill on the wall clock
+ *   cut         (windows, kills) => { bytes, pieces } | null   recorder.cutJoined
+ *   save, stopped, yieldTo   as cutClips
+ *
+ * Resolves with { kept: [{ key, name, bytes, marks }], tried, missed }, marks
+ * where each cut and each kill falls in the clip (clips.highlightMarks).
+ */
+async function cutHighlights(opts) {
+  const o = opts || {};
+  const max = Number.isInteger(o.max) && o.max > 0 ? Math.min(o.max, clips.MAX_HIGHLIGHT_CLIPS) : clips.MAX_HIGHLIGHT_CLIPS;
+  const out = { kept: [], tried: 0, missed: 0 };
+  const turn = typeof o.yieldTo === 'function' ? o.yieldTo : nextTurn;
+  for (const h of Array.isArray(o.highlights) ? o.highlights : []) {
+    if (out.kept.length >= max) break;
+    if (typeof o.stopped === 'function' && o.stopped()) break;
+    if (!h || !Array.isArray(h.windows) || !h.windows.length || !Array.isArray(h.kills) || !h.kills.length) continue;
+    if (!clips.CLIP_RE.test(String(h.name || '')) || h.name[0] !== 'h') continue;
+    out.tried += 1;
+    let got = null;
+    try { got = await o.cut(h.windows, h.kills); } catch { got = null; }
+    const bytes = got && got.bytes;
+    const marks = got ? clips.highlightMarks(got.pieces, h.kills) : null;
+    // A clip missing any of its kills is not the highlight's: a 3K showing two is no 3K.
+    if (!bytes || !bytes.length || !marks || marks.kills.length !== h.kills.length) { out.missed += 1; continue; }
+    if (typeof o.stopped === 'function' && o.stopped()) break;
+    let saved = false;
+    try { saved = !!o.save(h.name, bytes); } catch { saved = false; }
+    if (saved) out.kept.push({ key: h.key, name: h.name, bytes: bytes.length, marks });
+    await turn();
+  }
+  return out;
+}
+
+/**
  * THE DEATH'S PLACE IN A LOOK'S CLIP (8.4.4), in ms on the clip's own
  * timeline, kept on the card beside the clip's name (`clipDeath`) for its
  * player: the moment the look's frames are timed against, and only where they
@@ -203,13 +242,14 @@ function presentClips(review, io) {
   return out;
 }
 
-/** Every clip a review names, Valorant's and League's alike. */
+/** Every clip a review names, Valorant's and League's alike, a highlight's too (8.17). */
 function namedClips(review) {
   const names = [];
   for (const c of (review && review.rounds) || []) if (c && c.forensics && typeof c.forensics.clip === 'string') names.push(c.forensics.clip);
+  for (const c of (review && review.rounds) || []) if (c && c.highlight && typeof c.highlight.clip === 'string') names.push(c.highlight.clip);
   for (const d of (review && review.deathList) || []) if (d && typeof d.clip === 'string') names.push(d.clip);
   names.push(...clipNames(review && review.deathFlags));
   return names.filter((n) => clips.CLIP_RE.test(n));
 }
 
-module.exports = { cutClips, presentClips, namedClips, lookDeathInClip, createFrameTimes, frameTimes, MAX_FRAME_FILES };
+module.exports = { cutClips, cutHighlights, presentClips, namedClips, lookDeathInClip, createFrameTimes, frameTimes, MAX_FRAME_FILES };

@@ -187,6 +187,31 @@ const url = (id, name) => `occlara-clip://review/${id}/${name}`;
   const d4 = m.find((x) => x.kind === 'death' && x.round === 4);
   ok(d4 && d4.lost === true && d4.title === 'Died', 'a verified death with no killer named is Died', JSON.stringify(d4));
 
+  // A HIGHLIGHT CARRIES ITS CLIP (8.17): its kills and cuts as the card keeps
+  // them, played by its URL; one named and gone says so; one never cut says nothing.
+  const lit = { ...madeUp, rounds: madeUp.rounds.map((c) => (c.n === 1
+    ? { ...c, highlight: { clip: 'h1-clip.mkv', length: 17000, kills: [4700, 12100, 13800], cuts: [{ at: 8000, skipped: 10000 }] } }
+    : c.n === 3 ? { ...c, highlight: { clip: 'h3-clip.mkv', length: 9000, kills: [4000], cuts: [] } } : c)) };
+  const litSaved = [{ id: `valorant-${T0}-lit0`, at: T0, game: 'valorant', review: lit }];
+  const lb2 = moments.build('valorant', litSaved, { patterns: {}, clips: () => ['h1-clip.mkv'], url, frames: () => ({ times: [0, 33], end: 66 }), recordingMode: 'auto' });
+  const lm = lb2.matches[0].moments.filter((x) => x.kind === 'highlight');
+  const h1 = lm.find((x) => x.round === 1);
+  ok(h1 && h1.clip && h1.clip.url === url(litSaved[0].id, 'h1-clip.mkv') && h1.clip.name === 'h1-clip.mkv' && h1.clip.death === null
+    && JSON.stringify(h1.clip.kills) === '[4700,12100,13800]' && JSON.stringify(h1.clip.cuts) === '[{"at":8000,"skipped":10000}]' && h1.clip.frames.end === 66,
+  'an ace with its clip kept is played by its URL, its kills and its cut marked, no death on it', JSON.stringify(h1 && h1.clip));
+  const h3 = lm.find((x) => x.round === 3 && x.what === 'multi');
+  ok(h3 && !h3.clip && h3.clipGone === 'gone' && h3.clipGoneText === 'Clip gone', 'a highlight clip named and not on disk is gone', JSON.stringify(h3));
+  const h2 = lm.find((x) => x.round === 2);
+  ok(h2 && h2.clip === null && h2.clipGone === null, 'a highlight never clipped says nothing of a clip');
+  ok(lb2.counts.clips === 1 && lb2.reel && lb2.reel.clips === 1 && JSON.stringify(lb2.reel.items) === JSON.stringify([h1.key])
+    && lb2.reel.line === '1 highlight clip kept' && lb2.reel.title === 'Your highlights' && lb2.clipsNote === null && !lb2.compilation.length,
+  'the kept highlight clips are counted and make the reel, beside the compilation and never in it', JSON.stringify(lb2.reel));
+  ok(m.every((x) => x.kind !== 'highlight' || x.clip === null) && moments.build('valorant', two, { patterns: {}, clips: () => [], url }).reel === null,
+    'with no highlight clip there is no reel');
+  const deathName = { ...lit, rounds: lit.rounds.map((c) => (c.n === 1 ? { ...c, highlight: { ...c.highlight, clip: 'r1-clip.mkv' } } : c)) };
+  const dn = moments.build('valorant', [{ ...litSaved[0], review: deathName }], { patterns: {}, clips: () => ['r1-clip.mkv'], url }).matches[0].moments;
+  ok(dn.find((x) => x.kind === 'highlight' && x.round === 1).clip === null, 'and a highlight never plays a death\'s clip under its name');
+
   const lol = { kind: 'lol', game: { champion: 'Ahri', mode: "Summoner's Rift" }, grade: { score: 66, letter: 'C' },
     deathList: [{ n: 1, atSec: 212, at: '3:32', fact: 'No ally died within 10 seconds of it.', clip: 'd1-clip.mkv', clipDeath: 11000 },
       { n: 2, atSec: 700, at: '11:40', fact: 'An ally had died in the 10 seconds before it.' }] };
