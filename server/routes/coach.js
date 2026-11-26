@@ -5332,6 +5332,160 @@ module.exports.__test = {
 };
 // Ask Coach's counts for /api/admin/chat (server.js): today's, counts only.
 module.exports.chatReport = chatReport;
+
+/*
+ * PUBLIC PROFILES (docs/claude/social.md, routes/social.js): Riot's record for
+ * the proof of control and a verified profile's rank, on the SAME code paths
+ * the match link uses, with a budget of their own on the shared HenrikDev key.
+ *
+ *   the account   /valorant/v2/account/{name}/{tag} (the call regionOf makes)
+ *                 but FRESH: remembered 5 minutes at most and never served
+ *                 stale, because the proof rests on which Riot account is
+ *                 behind a name now; a name with no account is remembered
+ *                 10 minutes. Region, puuid, and Riot's spelling of the name
+ *                 and tag (data.name, data.tag).
+ *   the match     /valorant/v4/match/{region}/{matchId}, the call
+ *                 /match-rounds makes: each candidate match of a proof is
+ *                 confirmed in Riot's own record (the player with the
+ *                 challenge's puuid in it, the agent they played, the start),
+ *                 remembered as hashes only, never a raw puuid.
+ *   the matches   /valorant/v1/stored-matches/{region}/{name}/{tag}?size=10
+ *                 with no queue filter, newest first: the call /last-match
+ *                 makes to find a match that ended minutes ago (the client's
+ *                 match link). Each row's meta.id, meta.started_at and
+ *                 stats.character.name are what lastMatchRow already reads;
+ *                 stats.puuid is read when HenrikDev sends it. Deathmatch is
+ *                 kept (the roundBased filter is for reviews).
+ *   the rank      MMR v3 by puuid (henrikStats's own call)
+ *
+ * FAILS CLOSED: no key, the key turned away in the last two minutes
+ * (henrikThrottled), the social budget spent (SOCIAL_BUDGET calls in its
+ * window, server wide) or an upstream failure all answer { status:
+ * 'transient' }, which the routes say as "try again in a few minutes".
+ */
+const SOCIAL_BUDGET = { windowMs: 10 * 60 * 1000, max: 60 };
+const socialCalls = [];
+function socialMay(now = Date.now()) {
+  if (!process.env.HENRIKDEV_API_KEY || henrikThrottled(now)) return false;
+  while (socialCalls.length && now - socialCalls[0] >= SOCIAL_BUDGET.windowMs) socialCalls.shift();
+  if (socialCalls.length >= SOCIAL_BUDGET.max) return false;
+  socialCalls.push(now);
+  return true;
+}
+const SOCIAL_MATCHES_MS = 45 * 1000;
+const SOCIAL_ACCOUNT_MS = 5 * 60 * 1000;
+const SOCIAL_NO_ACCOUNT_MS = 10 * 60 * 1000;
+const socialMatchesCache = new Map();   // riot id (lower) -> { at, rows }
+const socialAccountCache = new Map();   // riot id (lower) -> { at, value }
+const socialMatchCache = new Map();     // match id (lower) -> { startedAt, players: Map(puuid hash -> agent) }
+const socialRiot = {
+  /** The Riot account, fresh: { status: 'ok', region, puuid, name, tag } | { status: 'none' } | { status: 'transient' }. */
+  async account(name, tag) {
+    if (typeof name !== 'string' || typeof tag !== 'string' || !name || !tag) return { status: 'none' };
+    const key = `${name}#${tag}`.toLowerCase();
+    const hit = socialAccountCache.get(key);
+    if (hit && Date.now() - hit.at < (hit.value.status === 'none' ? SOCIAL_NO_ACCOUNT_MS : SOCIAL_ACCOUNT_MS)) return hit.value;
+    if (!socialMay()) return { status: 'transient' };
+    try {
+      const r = await henrikGet(`/valorant/v2/account/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`);
+      if (r.status === 404 || r.status === 400) {
+        const value = { status: 'none' };
+        cacheSet(socialAccountCache, key, { at: Date.now(), value }, 2000);
+        return value;
+      }
+      const d = r.ok && r.json && r.json.data;
+      const region = d ? regionWord(d.region) : null;
+      const puuid = d && typeof d.puuid === 'string' && /^[A-Za-z0-9_-]{20,90}$/.test(d.puuid) ? d.puuid : null;
+      if (!region || !puuid) return { status: 'transient' };
+      const said = (v, max) => (typeof v === 'string' && v.trim() && v.length <= max && !v.includes('#') ? v.trim() : null);
+      const value = { status: 'ok', region, puuid, name: said(d.name, 32) || name, tag: said(d.tag, 8) || tag };
+      cacheSet(socialAccountCache, key, { at: Date.now(), value }, 2000);
+      return value;
+    } catch (e) {
+      console.warn('[social] the account lookup failed:', e && e.message);
+      return { status: 'transient' };
+    }
+  },
+  /**
+   * One match from Riot's record: { status: 'ok', startedAt, agentOf(puuidHash) } with the
+   * agent each player (by the salted hash of their puuid) played | { status: 'none' } | { status: 'transient' }.
+   */
+  async match(region, matchId) {
+    const id = String(matchId || '').toLowerCase();
+    if (!/^[0-9a-f-]{16,64}$/.test(id)) return { status: 'none' };
+    const view = (m) => ({ status: 'ok', startedAt: m.startedAt, agentOf: (hash) => m.players.get(hash) || null });
+    const hit = socialMatchCache.get(id);
+    if (hit) return view(hit);
+    if (!regionWord(region) || !socialMay()) return { status: 'transient' };
+    try {
+      const md = await henrikGet(`/valorant/v4/match/${encodeURIComponent(region)}/${encodeURIComponent(id)}`, MATCH_DETAIL_TIMEOUT_MS);
+      if (md.status === 404) return { status: 'none' };
+      const d = md.ok && md.json && md.json.data;
+      if (!d) return { status: 'transient' };
+      const startedAt = d.metadata ? (Date.parse(d.metadata.started_at) || Number(d.metadata.game_start_millis) || NaN) : NaN;
+      if (!Number.isFinite(startedAt)) return { status: 'transient' };
+      const players = new Map();
+      for (const p of riotRounds.playersOf(d)) {
+        const pu = p && typeof p.puuid === 'string' ? p.puuid.trim().toLowerCase() : '';
+        const agent = p && ((p.agent && p.agent.name) || (typeof p.character === 'string' ? p.character : p.character && p.character.name));
+        if (pu && agent) players.set(freeAllowance.keyOf('puuid', pu), String(agent));
+      }
+      const m = { startedAt, players };
+      cacheSet(socialMatchCache, id, m, 500);
+      return view(m);
+    } catch (e) {
+      console.warn('[social] a match record failed:', e && e.message);
+      return { status: 'transient' };
+    }
+  },
+  /** The account's newest matches: { status: 'ok', matches: [{ id, startedAt, agent, puuid }] } | { status: 'transient' }. */
+  async matches(region, name, tag) {
+    const key = `${name}#${tag}`.toLowerCase();
+    const hit = socialMatchesCache.get(key);
+    if (hit && Date.now() - hit.at < SOCIAL_MATCHES_MS) return { status: 'ok', matches: hit.rows };
+    if (!regionWord(region) || !socialMay()) return { status: 'transient' };
+    try {
+      const enc = encodeURIComponent;
+      const sm = await henrikGet(`/valorant/v1/stored-matches/${enc(region)}/${enc(name)}/${enc(tag)}?size=10`);
+      if (sm.status === 404) return { status: 'ok', matches: [] };
+      if (!sm.ok) return { status: 'transient' };
+      const rows = (Array.isArray(sm.json && sm.json.data) ? sm.json.data : []).filter((m) => m && m.meta && m.stats).map((m) => ({
+        id: typeof m.meta.id === 'string' ? m.meta.id : null,
+        startedAt: m.meta.started_at ? Date.parse(m.meta.started_at) : NaN,
+        agent: (m.stats.character && m.stats.character.name) || null,
+        puuid: typeof m.stats.puuid === 'string' ? m.stats.puuid.toLowerCase() : null,
+      })).filter((m) => Number.isFinite(m.startedAt));
+      cacheSet(socialMatchesCache, key, { at: Date.now(), rows }, 500);
+      return { status: 'ok', matches: rows };
+    } catch (e) {
+      console.warn('[social] the match list failed:', e && e.message);
+      return { status: 'transient' };
+    }
+  },
+};
+
+/**
+ * A verified profile's rank: { status: 'ok', puuid, current, peak } with the
+ * tiers as Riot names them, { status: 'none' } when Riot has no such Riot ID
+ * now, or { status: 'transient' }. The puuid goes back only to be compared
+ * with the profile's hash, never kept.
+ */
+async function socialRank(name, tag) {
+  const acct = await socialRiot.account(name, tag);
+  if (acct.status !== 'ok') return { status: acct.status };
+  if (!socialMay()) return { status: 'transient' };
+  try {
+    const v3 = await henrikGet(`/valorant/v3/by-puuid/mmr/${encodeURIComponent(acct.region)}/pc/${encodeURIComponent(acct.puuid)}`).catch(() => null);
+    if (!v3 || upstreamTransient(v3.status)) return { status: 'transient' };
+    const d = v3.ok ? henrikRank.mmrV3(v3.json) : null;
+    return { status: 'ok', puuid: acct.puuid, current: d ? d.rank : null, peak: d ? d.peakRank : null };
+  } catch (e) {
+    console.warn('[social] the rank lookup failed:', e && e.message);
+    return { status: 'transient' };
+  }
+}
+module.exports.socialRiot = socialRiot;
+module.exports.socialRank = socialRank;
 // The models actually in use, so /health reports THIS rather than keeping its
 // own copy of the defaults. It kept a separate copy and they drifted, which
 // turned the one endpoint whose job is answering "what is live" into a thing

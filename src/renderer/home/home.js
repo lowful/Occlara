@@ -649,6 +649,16 @@ $('h-start').addEventListener('click', () => { if (typeof window.occlara.startCo
 $('recent-all').addEventListener('click', () => window.occlara.go('matches'));
 // Connect your Riot ID: Settings, where the Riot ID is set.
 $('h-player-connect').addEventListener('click', () => window.occlara.go('settings'));
+// Find players (docs/claude/social.md): shown only while player search is
+// open; main answers null mid match, and the link is left as it was.
+$('h-players').addEventListener('click', () => window.occlara.go('players'));
+async function paintPlayersLink() {
+  if (typeof window.occlara.socialLive !== 'function') return;
+  const s = await Promise.resolve(window.occlara.socialLive()).catch(() => null);
+  if (s) $('h-players').hidden = s.live !== true;
+}
+paintPlayersLink();
+if (typeof window.occlara.onSocial === 'function') window.occlara.onSocial(() => paintPlayersLink());
 // Stats with the journey open, which this button names (8.4.1): it opened
 // Stats with the journey folded in the Rank tile, one more click away.
 $('rank-more').addEventListener('click', () => window.occlara.openRankJourney());

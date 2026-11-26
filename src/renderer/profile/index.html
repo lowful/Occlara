@@ -74,6 +74,120 @@
           <dl id="pr-figs" class="pr-figs"></dl>
         </section>
 
+        <!-- PUBLIC PROFILE (docs/claude/social.md): a username, the opt in
+             and what it shows, the Riot ID's verification in plain words, a
+             preview of what others see, and being discoverable for the
+             coming Duos. Every line is main's (src/shared/social.js); hidden
+             until the server says player search is open, and main answers
+             null mid match. -->
+        <section id="pr-social" class="pr-sec" aria-labelledby="pr-social-title" hidden>
+          <div class="pr-head row">
+            <h3 id="pr-social-title" class="pr-title">Public profile</h3>
+            <button id="pr-find" class="btn btn-ghost sm" type="button">Find players</button>
+          </div>
+          <div id="pr-social-out" class="pr-act" hidden>
+            <p id="pr-social-out-line" class="pr-hint"></p>
+            <button id="pr-social-out-act" class="btn btn-ghost md" type="button" hidden></button>
+          </div>
+          <div id="pr-social-body" class="pr-social-body" hidden>
+            <form id="pr-name" class="pr-redeem" autocomplete="off" novalidate>
+              <label for="pr-name-input" class="pr-redeem-label">Username</label>
+              <div class="pr-redeem-row">
+                <input id="pr-name-input" class="input pr-name-input" type="text" spellcheck="false" maxlength="20" placeholder="Pick a username" />
+                <button id="pr-name-save" class="btn btn-ghost md" type="submit">Save</button>
+              </div>
+              <p id="pr-name-said" class="pr-note" aria-live="polite"></p>
+              <p id="pr-name-hint" class="pr-note"></p>
+            </form>
+
+            <!-- THE RIOT ID, PROVED (docs/claude/social.md): shown on the profile
+                 only once its owner played two named agents in a row on it,
+                 as Riot's own record says. Three steps: the Riot ID, the two
+                 agents with the time left, and Check. -->
+            <div id="pr-riot-block" class="pr-riot-block">
+              <h4 class="pr-opt-title">Riot ID</h4>
+              <p id="pr-riot-state" class="pr-hint"></p>
+              <form id="pr-prove" class="pr-redeem" autocomplete="off" novalidate>
+                <label id="pr-prove-label" for="pr-prove-id" class="pr-redeem-label">1. Your Riot ID</label>
+                <div class="pr-redeem-row">
+                  <input id="pr-prove-id" class="input pr-name-input" type="text" spellcheck="false" maxlength="40" placeholder="Name#TAG" />
+                  <button id="pr-prove-go" class="btn btn-ghost md" type="submit">Start</button>
+                </div>
+                <p id="pr-prove-said" class="pr-note" aria-live="polite"></p>
+              </form>
+              <div id="pr-challenge" class="pr-challenge" hidden>
+                <span id="pr-challenge-riot" class="pr-redeem-label"></span>
+                <span class="pr-redeem-label">2. Play these, in order</span>
+                <ol id="pr-agents" class="pr-agents"></ol>
+                <p id="pr-challenge-plan" class="pr-hint"></p>
+                <p id="pr-challenge-note" class="pr-note"></p>
+                <p id="pr-challenge-time" class="pr-note pr-time"></p>
+                <span class="pr-redeem-label">3. Check</span>
+                <div class="pr-act">
+                  <button id="pr-check" class="btn btn-ghost md" type="button">Check</button>
+                </div>
+                <p id="pr-check-said" class="pr-note" aria-live="polite"></p>
+              </div>
+            </div>
+
+            <div class="pr-opts">
+              <div class="pr-opt">
+                <div class="pr-opt-text">
+                  <h4 class="pr-opt-title">Public</h4>
+                  <p id="pr-public-hint" class="pr-hint"></p>
+                  <details class="pr-more">
+                    <summary>What other players see</summary>
+                    <p id="pr-public-more" class="pr-hint"></p>
+                  </details>
+                </div>
+                <div id="pr-public" class="seg" role="group" aria-label="Public profile">
+                  <button type="button" data-val="on" aria-pressed="false">On</button>
+                  <button type="button" data-val="off" aria-pressed="true">Off</button>
+                </div>
+              </div>
+              <div id="pr-riot-opt" class="pr-opt">
+                <div class="pr-opt-text">
+                  <h4 class="pr-opt-title">Show my Riot ID</h4>
+                  <p id="pr-riot-line" class="pr-hint"></p>
+                </div>
+                <div id="pr-riot" class="seg" role="group" aria-label="Show my Riot ID">
+                  <button type="button" data-val="on" aria-pressed="true">On</button>
+                  <button type="button" data-val="off" aria-pressed="false">Off</button>
+                </div>
+              </div>
+              <div class="pr-opt">
+                <div class="pr-opt-text">
+                  <h4 class="pr-opt-title">Discoverable by teammates</h4>
+                  <p id="pr-disc-hint" class="pr-hint"></p>
+                </div>
+                <div id="pr-disc" class="seg" role="group" aria-label="Discoverable by teammates">
+                  <button type="button" data-val="on" aria-pressed="false">On</button>
+                  <button type="button" data-val="off" aria-pressed="true">Off</button>
+                </div>
+              </div>
+            </div>
+            <p id="pr-flags-said" class="pr-note" aria-live="polite"></p>
+
+            <!-- What others see: the search row of this profile, and the whole view. -->
+            <div id="pr-preview" class="pr-preview" hidden>
+              <h4 class="pr-redeem-label">What other players see</h4>
+              <div class="pr-preview-row">
+                <span class="pr-preview-who">
+                  <span id="pr-preview-name" class="pr-preview-name"></span>
+                  <span id="pr-preview-riot" class="pr-preview-riot"></span>
+                </span>
+                <span id="pr-preview-line" class="pr-preview-line"></span>
+                <button id="pr-preview-open" class="btn btn-ghost sm" type="button">See your profile</button>
+              </div>
+            </div>
+
+            <div id="pr-blocked-wrap" class="pr-bought-wrap" hidden>
+              <h4 class="pr-redeem-label">Blocked players</h4>
+              <ul id="pr-blocked" class="pr-gift-list"></ul>
+            </div>
+          </div>
+        </section>
+
         <!-- YOUR YEAR (docs/claude/wrapped.md): Occlara Wrapped, the year's
              story, from 15 December to 31 January and after it, with main's
              words (wrapped.js entryOf) and its one button; a year without

@@ -597,6 +597,12 @@ network is not.
 | `/api/gifts` (all) | account | 60 in 10 min | the list |
 | `/api/gifts/peek`, `/redeem` (routes/gifts.js) | address | 10 UNKNOWN codes an hour, then 429 before the lookup | code guessing |
 | `/api/account/handoff`, `/signout` | account | 30 in 10 min; handoff also 20 a min per address | a code insert each |
+| `/api/social/search` (social.md) | account, and address | 20 a min and 200 a day per account; 60 a min per address | the enumeration surface |
+| `/api/social/profile` | account, and address | 60 in 10 min and 400 a day per account; 60 a min per address | one profile view |
+| `/api/social/riot/start`, `/riot/check` | account, and address | start 10 an hour per account, 20 per address; check 20 in 10 min per account, 60 per address (the database's own: 2 starts a day and 6 in 30 days per account, every attempt counted, a check a minute and 30 a challenge; never a limit across accounts) | the proof of control (off unless `SOCIAL_RIOT_PROOF=1`), HenrikDev calls |
+| any path with `//` (server.js `collapseSlashes`) | none | made the one path before every route and limit, never refused | `/api/social//search` skipped every per route limit; collapsed so a caller that always sent one keeps working |
+| `/api/social/username`, `/stats`, `/report`, `/flags` and `/block` (the username check, a profile, search and a block answer no sooner than 250 ms) | account | 60 in 10 min; 20 an hour; 5 an hour; 30 in 10 min together | the check as typed, the snapshot, a report, a write |
+| `/api/social` (all) | account | 240 in 10 min | everything else of it |
 | `/api/account/exchange` | address | 10 a min (unchanged) | no auth, a session insert |
 | `/api/license/activate`, `/validate` | address and key | 30 in 10 min, and 300 in 10 min per address | a licence lookup each; the app re-checks every 3 min |
 | same | address | 10 FAILED an hour (unchanged, now on `/validate` too) | key guessing |

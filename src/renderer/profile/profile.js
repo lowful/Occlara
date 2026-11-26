@@ -383,6 +383,7 @@ async function load() {
   }
   paint(m);
   paintWrapped();
+  loadSocial();
 }
 
 /*
@@ -409,6 +410,261 @@ $('pr-wrapped-open').addEventListener('click', async () => {
   const r = await Promise.resolve(api.openWrapped(Number.isInteger(y) ? y : null)).catch(() => null);
   $('pr-wrapped-said').textContent = r && r.ok ? '' : r && r.error === 'thin' ? 'Not enough matches for this year yet.' : 'Wrapped could not open. Try again in a moment.';
 });
+
+/*
+ * PUBLIC PROFILE (docs/claude/social.md): a username (checked as it is typed,
+ * a moment after the last key), the public switch and what it shows, the
+ * Riot ID's verification in plain words, a preview and being discoverable.
+ * Every line is main's (social.js); the section stays hidden until the
+ * server says player search is open, and main answers null mid match.
+ */
+let social = null;
+let socialAsk = 0;
+let nameTimer = null;
+let nameAsk = 0;
+let socialSegs = false;
+const NAME_WAIT_MS = 450;
+
+function setSeg(id, on, disabled) {
+  for (const b of $(id).querySelectorAll('button')) {
+    b.setAttribute('aria-pressed', String((b.dataset.val === 'on') === !!on));
+    b.disabled = !!disabled;
+  }
+}
+
+function socialOut(line, action) {
+  $('pr-social-out').hidden = !line;
+  $('pr-social-out-line').textContent = line || '';
+  const b = $('pr-social-out-act');
+  b.hidden = !action;
+  b.textContent = action ? action.label : '';
+  b.onclick = action ? action.fn : null;
+}
+
+function paintSocial(s) {
+  const sec = $('pr-social');
+  // Not open yet (the SQL has not run), not known (no account to ask with,
+  // the server out of reach) or no answer at all: nothing is offered.
+  if (!s || s.live !== true) { sec.hidden = true; return; }
+  sec.hidden = false;
+  social = s;
+  const w = s.words || {};
+  if (s.problem === 'signed-out' || s.signedIn === false) {
+    $('pr-social-body').hidden = true;
+    socialOut('Sign in to an Occlara account to make a public profile and find other players.', { label: 'Sign in', fn: signInFirst });
+    return;
+  }
+  if (s.problem) {
+    $('pr-social-body').hidden = true;
+    socialOut(s.problem === 'offline' ? 'Your public profile could not be loaded. Check your connection and try again.'
+      : 'Your public profile could not be loaded just now. Try again in a moment.', { label: 'Try again', fn: () => loadSocial() });
+    return;
+  }
+  socialOut(null);
+  $('pr-social-body').hidden = false;
+  const p = s.profile;
+  const named = !!(p && p.username);
+  if (document.activeElement !== $('pr-name-input')) $('pr-name-input').value = named ? p.username : '';
+  $('pr-name-hint').textContent = w.nameHint || '';
+  $('pr-public-hint').textContent = w.publicExplain || '';
+  $('pr-public-more').textContent = w.publicMore || '';
+  $('pr-disc-hint').textContent = w.discoverExplain || '';
+  paintRiot(p, w);
+  const verified = !!(named && p.riot && p.riot.state === 'verified');
+  $('pr-riot-line').textContent = !named ? 'Pick a username first.'
+    : verified ? 'On, your proved Riot ID shows on your profile and finds it in search.' : 'Has effect once you prove your Riot ID above.';
+  // Nothing to switch before there is a username.
+  setSeg('pr-public', named && p.public, !named);
+  setSeg('pr-riot', !named || p.showRiotId, !named);
+  setSeg('pr-disc', named && p.discoverable, !named);
+  if (!socialSegs && typeof window.occlaraSeg === 'function') {
+    socialSegs = true;
+    for (const id of ['pr-public', 'pr-riot', 'pr-disc']) window.occlaraSeg($(id));
+  }
+  const pv = s.preview;
+  $('pr-preview').hidden = !(named && pv);
+  if (named && pv) {
+    $('pr-preview-name').textContent = pv.username;
+    $('pr-preview-riot').textContent = pv.riot || (w.riotProof ? 'No Riot ID shown' : '');
+    $('pr-preview-riot').classList.toggle('none', !pv.riot);
+    const bits = [pv.rank ? pv.rank.current : null, pv.agents[0] ? pv.agents[0].name : null, pv.grade ? `${pv.grade.avg} ${pv.grade.letter}` : null].filter(Boolean);
+    $('pr-preview-line').textContent = p.public ? (bits.join(', ') || 'No numbers yet') : 'Private: only you can see it';
+  }
+  const blocked = p && Array.isArray(p.blocked) ? p.blocked : [];
+  $('pr-blocked-wrap').hidden = !blocked.length;
+  $('pr-blocked').replaceChildren(...blocked.map((name) => {
+    const li = document.createElement('li');
+    li.className = 'pr-gift-row';
+    const n = document.createElement('span');
+    n.className = 'pr-gift-what';
+    n.textContent = name;
+    const act = document.createElement('span');
+    act.className = 'pr-gift-act';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-ghost sm';
+    b.textContent = 'Unblock';
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      const r = await Promise.resolve(api.unblock(name)).catch(() => null);
+      $('pr-flags-said').textContent = (r && r.line) || 'Could not unblock right now. Try again in a moment.';
+      if (r && r.ok) loadSocial(); else b.disabled = false;
+    });
+    act.append(b);
+    li.append(n, document.createElement('span'), document.createElement('span'), act);
+    return li;
+  }));
+}
+
+/*
+ * THE RIOT ID, PROVED (docs/claude/social.md): the state in plain words, then
+ * either step 1 (the Riot ID and Start) or steps 2 and 3 of the open
+ * challenge (the two agents with their bundled portraits, the time left,
+ * Check and what it found). Every line is main's.
+ */
+const ART = /^valorant\/agents\/[A-Za-z0-9]+\.png$/;
+function paintRiot(p, w) {
+  const named = !!(p && p.username);
+  // The Riot ID proof is the server's to open (SOCIAL_RIOT_PROOF): closed, no step, no switch, no word of it.
+  const proof = !!(w && w.riotProof);
+  $('pr-riot-block').hidden = !named || !proof;
+  $('pr-riot-opt').hidden = !proof;
+  if (!named || !proof) return;
+  const r = p.riot || {};
+  $('pr-riot-state').textContent = w.riotLine || '';
+  const c = p.challenge && p.challenge.status === 'open' ? p.challenge : null;
+  const cw = w.challenge || {};
+  $('pr-prove').hidden = !!c;
+  $('pr-challenge').hidden = !c;
+  $('pr-prove-label').textContent = r.state === 'verified' ? 'Prove another Riot ID' : '1. Your Riot ID';
+  if (!c) {
+    if (!$('pr-prove-id').value && w.riotIdTyped) $('pr-prove-id').value = w.riotIdTyped;
+    // The last check that ended (spent or expired) says why, once.
+    const ended = p.challenge && p.challenge.status !== 'open' && p.challenge.status !== 'passed' ? (cw.result || null) : null;
+    if (ended && !$('pr-prove-said').textContent) $('pr-prove-said').textContent = ended;
+    return;
+  }
+  $('pr-agents').replaceChildren(...c.agents.map((a, i) => {
+    const li = document.createElement('li');
+    li.className = 'pr-agent';
+    const rel = Array.isArray(cw.art) ? cw.art[i] : null;
+    if (typeof rel === 'string' && ART.test(rel)) {
+      const img = document.createElement('img');
+      img.src = `../../../assets/${rel}`;
+      img.alt = '';
+      img.className = 'pr-agent-img';
+      img.addEventListener('error', () => img.remove());
+      li.append(img);
+    }
+    const t = document.createElement('span');
+    t.className = 'pr-agent-text';
+    const n = document.createElement('span');
+    n.className = 'pr-agent-step';
+    n.textContent = i === 0 ? 'First match' : i === c.agents.length - 1 ? 'Last match' : 'Then';
+    const name = document.createElement('span');
+    name.className = 'pr-agent-name';
+    name.textContent = a || '';
+    t.append(n, name);
+    li.append(t);
+    return li;
+  }));
+  $('pr-challenge-riot').textContent = c.riot ? `1. Started for ${c.riot.name}#${c.riot.tag}` : '1. Started';
+  $('pr-challenge-plan').textContent = cw.plan || '';
+  $('pr-challenge-note').textContent = cw.note || '';
+  $('pr-challenge-time').textContent = cw.timeLeft || '';
+  if (!$('pr-check-said').textContent && cw.result) $('pr-check-said').textContent = cw.result;
+}
+
+$('pr-prove').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (typeof api.riotStart !== 'function') return;
+  $('pr-prove-go').disabled = true;
+  $('pr-prove-said').textContent = '';
+  const r = await Promise.resolve(api.riotStart($('pr-prove-id').value)).catch(() => null);
+  $('pr-prove-go').disabled = false;
+  if (!r) return;
+  if (r.line) $('pr-prove-said').textContent = r.line;
+  $('pr-check-said').textContent = '';
+  if (r.state) paintSocial(r.state);
+});
+$('pr-check').addEventListener('click', async () => {
+  if (typeof api.riotCheck !== 'function') return;
+  $('pr-check').disabled = true;
+  $('pr-check-said').textContent = 'Reading Riot\'s record';
+  const r = await Promise.resolve(api.riotCheck()).catch(() => null);
+  $('pr-check').disabled = false;
+  if (!r) { $('pr-check-said').textContent = ''; return; }
+  $('pr-check-said').textContent = r.line || '';
+  if (r.ok) $('pr-prove-said').textContent = r.line || '';
+  if (r.state) paintSocial(r.state);
+});
+
+async function loadSocial() {
+  if (typeof api.socialState !== 'function') return;
+  const mine = ++socialAsk;
+  const s = await Promise.resolve(api.socialState()).catch(() => null);
+  if (mine !== socialAsk) return;
+  if (s === null) return;   // mid match: the seal hides the page
+  paintSocial(s);
+}
+
+function nameSaid(line, kind) {
+  const el = $('pr-name-said');
+  el.textContent = line || '';
+  el.classList.toggle('good', kind === 'good');
+  el.classList.toggle('bad', kind === 'bad');
+}
+
+$('pr-name-input').addEventListener('input', () => {
+  clearTimeout(nameTimer);
+  const v = $('pr-name-input').value.trim();
+  const mineNow = social && social.profile && social.profile.username;
+  if (!v || v === mineNow) { nameSaid(''); return; }
+  nameSaid('Checking');
+  nameTimer = setTimeout(async () => {
+    const mine = ++nameAsk;
+    const r = typeof api.checkName === 'function' ? await Promise.resolve(api.checkName(v)).catch(() => null) : null;
+    if (mine !== nameAsk || !r) return;
+    nameSaid(r.line, r.ok ? 'good' : 'bad');
+  }, NAME_WAIT_MS);
+});
+$('pr-name').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearTimeout(nameTimer);
+  nameAsk++;
+  const v = $('pr-name-input').value.trim();
+  if (!v || typeof api.setName !== 'function') return;
+  $('pr-name-save').disabled = true;
+  const r = await Promise.resolve(api.setName(v)).catch(() => null);
+  $('pr-name-save').disabled = false;
+  if (!r) return;
+  nameSaid(r.line, r.ok ? 'good' : 'bad');
+  if (r.ok && r.state) paintSocial(r.state);
+});
+
+async function flag(key, on) {
+  if (typeof api.setFlags !== 'function') return;
+  const ids = ['pr-public', 'pr-riot', 'pr-disc'];
+  for (const id of ids) for (const b of $(id).querySelectorAll('button')) b.disabled = true;
+  $('pr-flags-said').textContent = '';
+  const r = await Promise.resolve(api.setFlags({ [key]: on })).catch(() => null);
+  if (r) $('pr-flags-said').textContent = r.line || '';
+  if (r && r.state) paintSocial(r.state); else loadSocial();
+}
+for (const [id, key] of [['pr-public', 'public'], ['pr-riot', 'showRiotId'], ['pr-disc', 'discoverable']]) {
+  for (const b of $(id).querySelectorAll('button')) {
+    b.addEventListener('click', () => {
+      if (b.disabled || b.getAttribute('aria-pressed') === 'true') return;
+      flag(key, b.dataset.val === 'on');
+    });
+  }
+}
+$('pr-find').addEventListener('click', () => { if (typeof api.openPlayers === 'function') api.openPlayers(''); });
+$('pr-preview-open').addEventListener('click', () => {
+  const p = social && social.profile;
+  if (p && p.username && typeof api.openPlayers === 'function') api.openPlayers(p.username);
+});
+if (typeof api.onSocial === 'function') api.onSocial((m) => { if (!m || !m.open) loadSocial(); });
 
 $('pr-games').addEventListener('input', paintBuy);
 $('pr-games').addEventListener('change', settleField);

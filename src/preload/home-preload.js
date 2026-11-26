@@ -130,6 +130,10 @@ contextBridge.exposeInMainWorld('occlara', {
   // '' when there is nothing to say.
   getAccount: () => ipcRenderer.invoke(C.ACCOUNT_GET),
   onAccount:  (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
+  // Players (docs/claude/social.md): whether player search is open, so its
+  // way in shows only then; null mid match.
+  socialLive: () => ipcRenderer.invoke(C.SOCIAL_STATE, { only: 'live' }),
+  onSocial:   (cb) => subscribe(C.PUSH_SOCIAL, cb),
   openUpgrade: () => ipcRenderer.send(C.OPEN_UPGRADE),
   // The update line (the changelog): main's { version, text, link } or null,
   // never mid match or sealed; seen once it is on screen; What's new opens it.

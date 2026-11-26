@@ -751,6 +751,10 @@ answers null mid match or sealed; the page counts nothing and names no URL
    marked "Your plan" in a ringed capsule, the others a ghost capsule that asks
    main for `occlara.app/#pricing` (`PROFILE_PLANS`).
 
+Between the figures and Your year sits **Public profile** (docs/claude/social.md):
+the username, the opt ins and the preview, hidden until player search is
+open. The Players page it links to is social.md's too.
+
 The page asks again on `ACCOUNT_CHANGED`, `PUSH_REVIEWS` and on coming back to
 the front after 30 s, so games bought in the browser show on return.
 `OCCLARA_SHOTS=1 npm run check:mainwindow` writes `main-profile.png` and

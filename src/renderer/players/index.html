@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none';" />
+  <title>Players</title>
+  <!-- Before the body: a page of the main window never paints its old window chrome. -->
+  <script src="../shared/embed.js"></script>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="players.css" />
+</head>
+<body>
+  <!-- PLAYERS (docs/claude/social.md). Search the Occlara players who made
+       their profile public, by username or by Riot ID, and open a profile:
+       its username, its Riot ID once its owner proved it, its rank, and
+       Occlara's numbers from that player's own PC. Every line is main's
+       (src/shared/social.js), every string set as text, and the art is the
+       bundled files. Opened from the account menu, Profile and Home, and
+       locked by the seal like every page, so nothing here shows mid match. -->
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
+        <h2>Players</h2>
+      </div>
+    </header>
+
+    <main class="body">
+      <!-- SEARCH: the box, its state line and the results as ruled rows. -->
+      <div id="pl-find" class="pl-col">
+        <section class="pl-sec pl-lead">
+          <h1 class="pl-hero">Find a player</h1>
+          <p id="pl-hint" class="pl-hint">Search Occlara players who made their profile public, by the start of their username.</p>
+        </section>
+
+        <section class="pl-sec pl-search-sec" aria-labelledby="pl-q-label">
+          <label id="pl-q-label" class="pl-label" for="pl-q">Username</label>
+          <form id="pl-form" class="pl-search" autocomplete="off" novalidate>
+            <input id="pl-q" class="input pl-q" type="search" spellcheck="false" maxlength="40" placeholder="Username" />
+            <button id="pl-go" class="btn btn-primary md" type="submit">Search</button>
+          </form>
+          <div id="pl-state" class="pl-state" aria-live="polite" hidden>
+            <p id="pl-state-line" class="pl-hint"></p>
+            <div class="pl-actions">
+              <button id="pl-state-act" class="btn btn-ghost md" type="button" hidden></button>
+            </div>
+          </div>
+          <ul id="pl-results" class="pl-results" aria-label="Players found" hidden></ul>
+        </section>
+      </div>
+
+      <!-- ONE PROFILE: the same view for any player and for the player's own
+           (opened from Profile, with a line when it is private). -->
+      <article id="pl-view" class="pl-col" aria-labelledby="pv-name" hidden>
+        <div class="pl-back-row">
+          <button id="pv-back" class="btn btn-link sm" type="button">Back to search</button>
+        </div>
+        <section class="pl-sec pl-lead pv-head">
+          <span id="pv-face" class="pv-face" hidden></span>
+          <div class="pv-who">
+            <h1 id="pv-name" class="pl-hero"></h1>
+            <p class="pv-riot-line"><span id="pv-riot" class="pv-riot"></span><span id="pv-verified" class="pv-verified"></span></p>
+            <p id="pv-private" class="pv-private" hidden></p>
+          </div>
+        </section>
+
+        <!-- The numbers that lead: rank, the average grade, the record. -->
+        <section class="pl-sec" aria-label="Rank and grade">
+          <div class="stats sm pv-stats">
+            <div class="stat"><b id="pv-rank" class="stat-n pv-word"></b><span class="pl-label">Current rank</span><span id="pv-peak" class="pv-sub"></span><span id="pv-rank-src" class="pv-src"></span></div>
+            <div class="stat"><b class="stat-n"><span id="pv-grade"></span> <span id="pv-letter" class="pv-letter"></span></b><span class="pl-label">Average grade</span><span id="pv-grade-n" class="pv-sub"></span></div>
+            <div class="stat"><b id="pv-record" class="stat-n pv-word"></b><span class="pl-label">Record</span><span id="pv-matches" class="pv-sub"></span></div>
+          </div>
+          <div class="stats xs pv-stats pv-small">
+            <div class="stat"><b id="pv-kd" class="stat-n"></b><span class="pl-label">K/D</span></div>
+            <div class="stat"><b id="pv-hs" class="stat-n"></b><span class="pl-label">Headshots</span></div>
+            <div class="stat"><b id="pv-title" class="stat-n pv-word"></b><span class="pl-label">Wrapped title</span></div>
+          </div>
+          <p id="pv-empty" class="pl-hint" hidden></p>
+        </section>
+
+        <section id="pv-mains" class="pl-sec pv-mains" aria-label="Main agents and maps">
+          <div class="pv-half">
+            <h3 class="pl-title">Main agents</h3>
+            <ul id="pv-agents" class="pl-rows"></ul>
+          </div>
+          <div class="pv-half">
+            <h3 class="pl-title">Main maps</h3>
+            <ul id="pv-maps" class="pl-rows"></ul>
+          </div>
+        </section>
+
+        <section id="pv-form-sec" class="pl-sec" aria-labelledby="pv-form-title">
+          <h3 id="pv-form-title" class="pl-title">Last 10 matches</h3>
+          <ul id="pv-recent" class="pl-rows pv-recent"></ul>
+        </section>
+
+        <section id="pv-multi-sec" class="pl-sec" aria-labelledby="pv-multi-title">
+          <h3 id="pv-multi-title" class="pl-title">Multi kills and clutches</h3>
+          <div id="pv-multi" class="stats xs pv-stats"></div>
+        </section>
+
+        <section class="pl-sec pv-foot">
+          <p id="pv-from" class="pl-hint"></p>
+          <p id="pv-updated" class="pl-note"></p>
+          <div id="pv-acts" class="pl-actions">
+            <button id="pv-block" class="btn btn-ghost md" type="button">Block</button>
+            <button id="pv-report-open" class="btn btn-link md" type="button" aria-expanded="false" aria-controls="pv-report">Report</button>
+          </div>
+          <!-- A report is a reason from the list, never words of the reporter's. -->
+          <div id="pv-report" class="pv-report" hidden>
+            <span id="pv-report-label" class="pl-label">What is wrong with this profile?</span>
+            <div id="pv-reasons" class="seg" role="group" aria-labelledby="pv-report-label">
+              <button type="button" data-reason="username" aria-pressed="false">Its username</button>
+              <button type="button" data-reason="impersonation" aria-pressed="false">Pretending to be someone</button>
+              <button type="button" data-reason="other" aria-pressed="false">Something else</button>
+            </div>
+            <div class="pl-actions">
+              <button id="pv-report-send" class="btn btn-ghost md" type="button" disabled>Send report</button>
+            </div>
+          </div>
+          <p id="pv-said" class="pl-note" aria-live="polite"></p>
+        </section>
+      </article>
+    </main>
+  </div>
+
+  <script src="../shared/seg.js"></script>
+  <script src="players.js"></script>
+</body>
+</html>

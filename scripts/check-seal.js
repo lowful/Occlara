@@ -409,6 +409,27 @@ setTimeout(async () => {
       if (reportInfo !== null || !reportPrep || reportPrep.error !== 'match' || !reportSend || reportSend.ok !== false || reportSend.error !== 'match') {
         return report(false, `mid ${game} match, a Report a problem channel answered: ${JSON.stringify({ reportInfo, reportPrep, reportSend })}`);
       }
+      // AND PLAYERS (docs/claude/social.md): asked for mid match the page does
+      // not show, its row in the account menu is locked, and every social
+      // channel answers nothing, asking the server nothing.
+      send(C.SHELL_NAV, 'players');
+      await wait(400);
+      const playersMid = await invoke(C.SHELL_GET);
+      const playersShown = shownViews();
+      const playersLocked = await until(() => sjs("document.getElementById('nav-players').disabled"), 3000);
+      const socialMid = await Promise.all([
+        invoke(C.SOCIAL_STATE), invoke(C.SOCIAL_STATE, { only: 'live' }), invoke(C.SOCIAL_SEARCH, 'Harrier'), invoke(C.SOCIAL_VIEW, 'Harrier'),
+        invoke(C.SOCIAL_NAME_CHECK, 'Kestrel'), invoke(C.SOCIAL_NAME_SET, 'Kestrel'), invoke(C.SOCIAL_FLAGS, { public: true }),
+        invoke(C.SOCIAL_BLOCK, { name: 'Harrier', on: true }), invoke(C.SOCIAL_REPORT, { name: 'Harrier', reason: 'other' }), invoke(C.SOCIAL_TAKE),
+        invoke(C.SOCIAL_RIOT_START, 'Harrier#NA1'), invoke(C.SOCIAL_RIOT_CHECK),
+      ]);
+      const socialOpen = await invoke(C.SOCIAL_OPEN, 'Harrier');
+      lines.push(`${game} match: Players asked for mid match: shown=${playersMid.shown} pages shown=${playersShown.join(',') || 'none'} row locked=${!!playersLocked}`
+        + ` | social answers=${JSON.stringify(socialMid)} open=${JSON.stringify(socialOpen)}`);
+      if (playersMid.shown !== null || playersShown.length || !playersLocked) return report(false, `mid ${game} match, the Players page or its row is not sealed`);
+      if (socialMid.some((r) => r !== null) || !socialOpen || socialOpen.ok !== false || socialOpen.error !== 'match') {
+        return report(false, `mid ${game} match, a social channel answered: ${JSON.stringify({ socialMid, socialOpen })}`);
+      }
       send(C.SHELL_NAV, 'matches');
       e.live = false;
       const over = await invoke(C.SHELL_GET);

@@ -42,4 +42,17 @@ contextBridge.exposeInMainWorld('occlara', {
   // Occlara Wrapped (docs/claude/wrapped.md): main's words, or null; opened by main, never mid match.
   getWrapped:  () => ipcRenderer.invoke(C.WRAPPED_ENTRY),
   openWrapped: (year) => ipcRenderer.invoke(C.WRAPPED_OPEN, Number.isInteger(year) ? year : null),
+  // Public profile (docs/claude/social.md): main asks the server and words every
+  // answer (src/shared/social.js); null mid match. The page sends what was typed.
+  socialState: () => ipcRenderer.invoke(C.SOCIAL_STATE),
+  checkName:   (name) => ipcRenderer.invoke(C.SOCIAL_NAME_CHECK, String(name || '')),
+  setName:     (name) => ipcRenderer.invoke(C.SOCIAL_NAME_SET, String(name || '')),
+  setFlags:    (f) => ipcRenderer.invoke(C.SOCIAL_FLAGS, f && typeof f === 'object' ? f : {}),
+  unblock:     (name) => ipcRenderer.invoke(C.SOCIAL_BLOCK, { name: String(name || ''), on: false }),
+  // The proof of control: main starts and checks it; the agents' portraits are bundled files.
+  riotStart:   (riotId) => ipcRenderer.invoke(C.SOCIAL_RIOT_START, String(riotId || '')),
+  riotCheck:   () => ipcRenderer.invoke(C.SOCIAL_RIOT_CHECK),
+  /** The Players page, at this username when one is given (the player's own preview). */
+  openPlayers: (name) => ipcRenderer.invoke(C.SOCIAL_OPEN, typeof name === 'string' ? name : ''),
+  onSocial:    (cb) => subscribe(C.PUSH_SOCIAL, cb),
 });

@@ -60,6 +60,22 @@ npm run check:splash       the launch animation is always actually seen
 npm run check:learnrole    a support never sees the CS lesson
 ```
 
+**No other player's Riot ID is shown, with one exception (the owner,
+2026-11-25).** The rule below holds for every player who has not opted in:
+teammates and enemies in a review, the kill feed, the roster, Stats, share
+images, the AI log, everything that existed before public profiles and
+anything added later. The one exception is an Occlara user's OWN Riot ID on
+their OWN public profile and in player search, because that user turned it on
+(public on, "Show my Riot ID" on), and only once that user PROVED CONTROL of
+it in the game: three or four matches in a row on it, as owned agents the
+server named, within four hours, each confirmed in Riot's own match record,
+and only while the owner keeps that proof switched on (SOCIAL_RIOT_PROOF). Never a Riot ID the user only
+typed, never one read off a match (a match link proves nothing about who
+owns a Riot ID), and never on any other surface. A rank shown for a profile
+that proved nothing is labelled as coming from the player's own PC. Every name test
+(`test:trackerroutes` and the rest) is unchanged. Detail:
+`docs/claude/social.md`.
+
 **Stats and Riot's death check show no other player's name, and Ask Coach is
 not told the Overview is a trend** (8.4.1):
 

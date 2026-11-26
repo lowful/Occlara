@@ -220,7 +220,7 @@ setTimeout(async () => {
     if (bar.h !== mainWindow.TOP_H || bar.tabs !== 8 || bar.rec || bar.pause || bar.drawer || !bar.inDrawer) {
       return report(false, `the top bar on Home is not the tabs without a Start of its own: ${JSON.stringify(bar)}`);
     }
-    if (bar.kids !== 'profile,invite,settings,feedback,discord') return report(false, `the drawer does not hold every page the sidebar's foot did: ${bar.kids}`);
+    if (bar.kids !== 'profile,players,invite,settings,feedback,discord') return report(false, `the drawer does not hold every page the sidebar's foot did: ${bar.kids}`);
     const card = { height: 0 };
     // THE GRADE LINE (Progress v3) at the foot of the last match: one dot a
     // graded match, oldest first, the newest the match's own grade, inside
@@ -281,7 +281,7 @@ setTimeout(async () => {
     if (kids[kids.length - 1] !== ms.view || ms.bounds.y !== mainWindow.TOP_H || ms.bounds.x + ms.bounds.width !== cw || drawn.w !== 280) {
       return report(false, `the menu's view is not on top under the bar at the window's right: ${JSON.stringify(ms.bounds)} of ${cw}`);
     }
-    if (drawn.rows !== 'profile,invite,settings,feedback,discord' || drawn.games !== SEEDED_VIEW.gamesLeft || drawn.focus !== 'account') {
+    if (drawn.rows !== 'profile,players,invite,settings,feedback,discord' || drawn.games !== SEEDED_VIEW.gamesLeft || drawn.focus !== 'account') {
       return report(false, `the menu's view does not draw the shell's rows with the first focused: ${JSON.stringify(drawn)}`);
     }
     await shot('drawer', mainWindow, win);
@@ -859,6 +859,42 @@ setTimeout(async () => {
     await shot('feedback-foot', mainWindow, win);
     await fjs("document.querySelector('.body').scrollTop = 0; document.querySelector('.fb-more').open = false; true");
 
+    // PLAYERS (docs/claude/social.md), from its row in the account menu beside
+    // Profile, on the public profile's stand-in server (fixtures/social-stand-in.js,
+    // no network): a search for "har" lists its players as rows, and one opens
+    // as a profile with its rank, grade, agents and maps drawn from the bundled art.
+    await sjs("document.getElementById('nav-players').click(); true");
+    if (!await until(settled('players'), 4000)) return report(false, 'the Players row did not bring its page in');
+    const pljs = (s) => mainWindow.pageViews().get('players').webContents.executeJavaScript(s);
+    await until(() => pljs("!document.getElementById('pl-q').disabled"), 4000);
+    await pljs("document.getElementById('pl-q').value = 'har'; document.getElementById('pl-form').requestSubmit(); true");
+    const found = await until(() => pljs(`(() => {
+      const rows = [...document.querySelectorAll('#pl-results .pl-name')].map((n) => n.textContent);
+      const faces = [...document.querySelectorAll('#pl-results img.pl-face')].filter((i) => i.complete && i.naturalWidth > 0).length;
+      return rows.length && faces === rows.length ? { rows, faces } : null;
+    })()`), 4000) || await pljs(`({ rows: [...document.querySelectorAll('#pl-results .pl-name')].map((n) => n.textContent), faces: [...document.querySelectorAll('#pl-results img.pl-face')].filter((i) => i.complete && i.naturalWidth > 0).length })`);
+    const playersMark = await sjs("(() => { const b = document.querySelector('.foot [aria-current=page]'); return b ? b.id : null; })()");
+    lines.push(`players search: ${JSON.stringify(found)} | marked ${playersMark}`);
+    if (!found || found.rows.join() !== 'Harrier,Harrow,Hartley_7' || found.faces !== 3 || playersMark !== 'nav-players') {
+      return report(false, `the Players page did not list the stand-in's players with their agents: ${JSON.stringify(found)} marked ${playersMark}`);
+    }
+    await shot('players', mainWindow, win);
+    await pljs("document.querySelector('#pl-results .pl-result-btn').click(); true");
+    const viewed = await until(() => pljs(`(() => {
+      if (document.getElementById('pl-view').hidden) return null;
+      if (![...document.querySelectorAll('#pv-maps img')].some((i) => i.complete && i.naturalWidth > 0)) return null;
+      return { name: document.getElementById('pv-name').textContent, riot: document.getElementById('pv-riot').textContent,
+        rank: document.getElementById('pv-rank').textContent, grade: document.getElementById('pv-grade').textContent,
+        maps: [...document.querySelectorAll('#pv-maps img')].filter((i) => i.complete && i.naturalWidth > 0).length,
+        recent: document.querySelectorAll('#pv-recent li').length };
+    })()`), 4000);
+    lines.push(`players profile: ${JSON.stringify(viewed)}`);
+    if (!viewed || viewed.name !== 'Harrier' || viewed.riot !== 'Harrier#NA1' || viewed.rank !== 'Diamond 1' || viewed.grade !== '81' || viewed.maps < 1 || viewed.recent !== 10) {
+      return report(false, `a profile opened from the results did not paint: ${JSON.stringify(viewed)}`);
+    }
+    await shot('players-profile', mainWindow, win);
+    await pljs("document.getElementById('pv-back').click(); true");
+
     // THE PROFILE PAGE (8.8), from its button between Invite and Settings: the
     // games left as profile.js wrote them from main's account view, the buy
     // section at 5 games for $10, three figures of the sample library's play
@@ -891,6 +927,27 @@ setTimeout(async () => {
       await pjs("document.querySelector('.body').scrollTop = 99999; true");
       await wait(200);
       await shot('profile-plans', mainWindow, win);
+      await pjs("document.querySelector('.body').scrollTop = 0; true");
+    }
+    // The public profile (docs/claude/social.md) on the stand-in server: its
+    // username, the proved Riot ID in plain words, the preview of
+    // what others see, and the blocked player with Unblock.
+    const socialSec = await until(() => pjs(`(() => {
+      const sec = document.getElementById('pr-social');
+      if (sec.hidden || document.getElementById('pr-social-body').hidden) return null;
+      return { name: document.getElementById('pr-name-input').value, riot: document.getElementById('pr-riot-state').textContent,
+        preview: document.getElementById('pr-preview-name').textContent, blocked: document.querySelectorAll('#pr-blocked li').length,
+        publicOn: document.querySelector('#pr-public button[data-val=on]').getAttribute('aria-pressed') };
+    })()`), 4000);
+    lines.push(`profile public section: ${JSON.stringify(socialSec)}`);
+    if (!socialSec || socialSec.name !== 'Kestrel_9' || !socialSec.riot.startsWith('Kestrel#EUW1 is verified') || socialSec.preview !== 'Kestrel_9'
+      || socialSec.blocked !== 1 || socialSec.publicOn !== 'true') {
+      return report(false, `the Profile page's public profile section did not paint main's state: ${JSON.stringify(socialSec)}`);
+    }
+    if (process.env.OCCLARA_SHOTS === '1') {
+      await pjs("document.getElementById('pr-social').scrollIntoView(); true");
+      await wait(200);
+      await shot('profile-public', mainWindow, win);
       await pjs("document.querySelector('.body').scrollTop = 0; true");
     }
 

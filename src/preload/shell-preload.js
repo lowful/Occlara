@@ -66,6 +66,10 @@ contextBridge.exposeInMainWorld('occlara', {
   openDiscord: () => ipcRenderer.invoke(C.DISCORD_OPEN, DISCORD_URL),
   getAccount: () => ipcRenderer.invoke(C.ACCOUNT_GET),
   onAccount:  (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
+  // Players (docs/claude/social.md): whether player search is open, so its
+  // way in shows only then; null mid match.
+  socialLive: () => ipcRenderer.invoke(C.SOCIAL_STATE, { only: 'live' }),
+  onSocial:   (cb) => subscribe(C.PUSH_SOCIAL, cb),
 
   // THE LIVE STATUS (Progress v3): main's four facts while a match is
   // recorded (PUSH_LIVE), each only while its switch is on, and the

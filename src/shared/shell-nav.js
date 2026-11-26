@@ -35,6 +35,11 @@ const PAGES = [
   { id: 'moments', label: 'Moments', surface: 'moments', query: {}, preload: 'moments-preload.js', nav: true },
   { id: 'stats', label: 'Stats', surface: 'stats', query: {}, preload: 'stats-preload.js', nav: true },
   { id: 'coach', label: 'Ask Coach', surface: 'chat', query: {}, preload: 'chat-preload.js', nav: true },
+  // Players (docs/claude/social.md): search Occlara players who opted in, by
+  // username or Riot ID, and their public profiles. The top bar is full, so it
+  // is the account menu's first row, beside Profile, and reached from
+  // Profile's "Public profile" section and Home. Sealed like every page.
+  { id: 'players', label: 'Players', surface: 'players', query: {}, preload: 'players-preload.js', nav: false },
   // The Invite page (8.7): a button in the sidebar's foot directly above
   // Settings, not a nav entry, and locked by the seal like every page.
   { id: 'invite', label: 'Invite', surface: 'invite', query: {}, preload: 'invite-preload.js', nav: false },

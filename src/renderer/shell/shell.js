@@ -43,6 +43,8 @@ const PAGE_ICO = {
   invite: '<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/>',
   // Profile (8.8): a person in a ring.
   profile: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.8 18.3a6 6 0 0 1 10.4 0"/>',
+  // Players (docs/claude/social.md): a magnifier, for the search.
+  players: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5l5 5"/>',
   // Report a problem (docs/claude/feedback.md): a flag, the icon at the end
   // of Profile's row above the Discord.
   feedback: '<path d="M5.5 21V4.5"/><path d="M5.5 4.5h11.2a.6.6 0 0 1 .5.92L15.2 8.5l2 3.08a.6.6 0 0 1-.5.92H5.5"/>',
@@ -87,6 +89,8 @@ for (const p of pages.filter((x) => x.nav)) {
 // like the rest.
 navButtons.set('invite', $('nav-invite'));
 navButtons.set('profile', $('nav-profile'));
+// Players (docs/claude/social.md), the account menu's row beside Profile.
+navButtons.set('players', $('nav-players'));
 navButtons.set('settings', $('nav-settings'));
 // Report a problem: a page like the rest, so the seal locks it and the
 // marker finds it, drawn as the quiet icon at the end of Profile's row.
@@ -94,6 +98,7 @@ navButtons.set('feedback', $('nav-feedback'));
 $('nav-feedback').addEventListener('click', () => window.occlara.go('feedback'));
 $('nav-invite').addEventListener('click', () => window.occlara.go('invite'));
 $('nav-profile').addEventListener('click', () => window.occlara.go('profile'));
+$('nav-players').addEventListener('click', () => window.occlara.go('players'));
 $('nav-settings').addEventListener('click', () => window.occlara.go('settings'));
 $('learn').addEventListener('click', () => { setDrawer(false); window.occlara.openLearn(); });
 
@@ -208,7 +213,7 @@ if (typeof window.occlara.onMenuAct === 'function') {
     }
   });
 }
-for (const id of ['nav-invite', 'nav-profile', 'nav-settings', 'nav-feedback', 'discord', 'account']) {
+for (const id of ['nav-invite', 'nav-profile', 'nav-players', 'nav-settings', 'nav-feedback', 'discord', 'account']) {
   $(id).addEventListener('click', () => setDrawer(false));
 }
 // The Discord (the community): main opens the invite in the browser, never
@@ -428,6 +433,21 @@ if (typeof window.occlara.getAccount === 'function') {
   Promise.resolve(window.occlara.getAccount()).then(paintGamesLeft).catch(() => {});
 }
 if (typeof window.occlara.onAccount === 'function') window.occlara.onAccount(paintGamesLeft);
+
+/*
+ * PLAYERS (docs/claude/social.md): its row in the account menu shows only
+ * once the server says player search is open (social-001's SQL has run).
+ * Asked at boot, on an account change, when the profile moves and when the
+ * seal lifts; main answers null mid match, and the row is kept as it was.
+ */
+async function paintPlayers() {
+  if (typeof window.occlara.socialLive !== 'function') return;
+  const s = await Promise.resolve(window.occlara.socialLive()).catch(() => null);
+  if (!s) return;
+  $('nav-players').hidden = s.live !== true;
+}
+if (typeof window.occlara.onAccount === 'function') window.occlara.onAccount(() => paintPlayers());
+if (typeof window.occlara.onSocial === 'function') window.occlara.onSocial(() => paintPlayers());
 
 /** The config, or what is already known when it cannot be read. */
 function readConfig(fallback) {
@@ -737,7 +757,9 @@ window.occlara.onShell((s) => {
   // The seal coming on shuts the account menu (main shuts its view too,
   // main-window.js shutMenuForSeal): nothing of it stays over the Recording screen.
   const sealing = !!s.sealed && !shell.sealed;
+  const unsealing = !s.sealed && !!shell.sealed;
   shell = s;
+  if (unsealing) paintPlayers();
   if (sealing) setDrawer(false);
   paintNav();
 });
@@ -766,6 +788,7 @@ document.querySelector('.bar').addEventListener('dblclick', (e) => {
   paintGames();
   paintAccount();
   paintNav();
+  paintPlayers();
   // The avatar pops in once, as the window first opens (8.9.2), and never
   // when it opens on the Recording screen: nothing there moves but its arrival.
   if (!shell.sealed && !reducedMotion()) {

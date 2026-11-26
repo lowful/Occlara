@@ -53,7 +53,12 @@ shows nothing (`docs/claude/death-flags.md`).
 - **One game's data is never shown under another game's name.** A game without
   a source (League has `stats: false`) shows a panel naming the game, never
   another game's dashboard, and no other player's Riot ID is shown, only agents
-  and numbers (`docs/claude/games.md`).
+  and numbers (`docs/claude/games.md`). That holds for every player who has
+  not opted in: teammates and enemies in a review, the kill feed, the roster,
+  share images, everything. The one exception (the owner, 2026-11-25): an
+  Occlara user's own Riot ID, once they proved control of it in the game, on their own public profile
+  and in player search, because that user turned it on
+  (`docs/claude/social.md`).
 - **A refund must take the licence away.** A full `charge.refunded` or any
   `charge.dispute.created` revokes the licence and cancels the subscription
   first, a partial refund must not revoke, and every licence write in the
@@ -128,6 +133,7 @@ in `docs/claude/` to find it.
 | Importing a recording: `import-video.js`, its panel, `/api/usage/import`, the bundled ffmpeg | `docs/claude/import.md` |
 | Changing the flag key, flagged deaths or Further explain | `docs/claude/death-flags.md` |
 | Report a problem: its button, page, `/api/feedback`, the inbox (`npm run feedback`) or triaging a player's report | `docs/claude/feedback.md` |
+| Public profiles, usernames, player search, the Players page, proving a Riot ID (named agents, off until SOCIAL_RIOT_PROOF=1), `/api/social`, `social-001-profiles.sql` | `docs/claude/social.md` |
 | Occlara Wrapped: the year record (`year-record.js`), the story (`wrapped.js`), its view, its look, sound and closing card, when it opens | `docs/claude/wrapped.md` |
 
 ## Conventions

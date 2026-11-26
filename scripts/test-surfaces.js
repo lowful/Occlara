@@ -6094,8 +6094,10 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     const kids = foot.children.map((c) => c.id);
     // Report a problem sits at the end of Profile's row (docs/claude/feedback.md),
     // between them in the markup, beside Profile on the grid.
-    ok(kids[0] === 'nav-profile' && kids[1] === 'nav-invite' && kids[2] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite' && foot.parentNode === s.$('drawer'),
-      'the drawer leads with Profile, then Invite, then Settings (Progress v3: the sidebar\'s foot moved into the avatar\'s drawer)', kids.join(', '));
+    // Players (docs/claude/social.md) sits beside Profile, hidden until the server says search is open.
+    ok(kids[0] === 'nav-profile' && kids[1] === 'nav-players' && kids[2] === 'nav-invite' && kids[3] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite' && foot.parentNode === s.$('drawer'),
+      'the drawer leads with Profile, Players beside it, then Invite, then Settings (Progress v3: the sidebar\'s foot moved into the avatar\'s drawer)', kids.join(', '));
+    ok(s.$('nav-players').hidden === true, 'Players is hidden until the server says player search is open');
     s.$('nav-invite').click();
     ok(s.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'invite'), 'Invite goes to the Invite page');
     s.bridge.emit(C.PUSH_SHELL, { page: 'invite', shown: 'invite', sealed: false, held: false });

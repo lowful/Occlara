@@ -72,7 +72,11 @@ if (!process.versions.electron) {
 
   const electron = require('electron');
   const env = Object.assign({}, process.env, { OCCLARA_PROOF_WORK: WORK, OCCLARA_PROOF_COMMIT: commit, OCCLARA_PROOF_DIRTY: dirty ? '1' : '0',
-    OCCLARA_PROOF_JSON_ONLY: jsonOnly ? '1' : '0' });
+    OCCLARA_PROOF_JSON_ONLY: jsonOnly ? '1' : '0',
+    // The site shows what a player has today: public profiles and Players are
+    // off until the owner's switch is set (docs/claude/social.md), so the proof
+    // boots with the feature not live. Set OCCLARA_PROOF_SOCIAL=on once it is.
+    OCCLARA_PROOF_SOCIAL: process.env.OCCLARA_PROOF_SOCIAL === 'on' ? 'on' : 'off' });
   delete env.ELECTRON_RUN_AS_NODE;
   const r = spawnSync(electron, [__filename], { env, timeout: 240000 });
   let rec = null;

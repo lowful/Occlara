@@ -569,6 +569,8 @@ function flushAccountWaits() {
   if (gamesWatch.pending().length) flushGamesToasts();
   if (accountPushWaiting && !matchInProgress() && !windowSealed()) {
     accountPushWaiting = false;
+    // Another account, or none: nothing of the last one's public profile is kept.
+    try { socialIpc.forget(); } catch { /* not built yet at launch */ }
     registry.broadcast(C.ACCOUNT_CHANGED, account.view());
   }
   if (capNoticeWaiting && !state.isCoaching && !windowSealed()) {
@@ -5225,6 +5227,44 @@ const feedbackIpc = createFeedback({
   log: (...a) => console.log(...a),
 });
 /*
+ * PUBLIC PROFILES AND PLAYER SEARCH (docs/claude/social.md,
+ * services/social-service.js): the Profile page's "Public profile" section
+ * and the Players page, through /api/social with the account's own auth.
+ * Nothing asked, shown or uploaded mid match or sealed; the snapshot (numbers,
+ * agents and maps from the year record) waits for the match to end.
+ */
+const { createSocial } = require('./services/social-service');
+const wrappedModel = require('../shared/wrapped');
+const socialIpc = createSocial({
+  api,
+  auth: authed,
+  busy: () => matchInProgress() || windowSealed(),
+  rows: () => yearRecord.rows(),
+  // Wrapped's title for the latest year it tells, once that year has one.
+  title: () => {
+    const y = wrappedModel.latestYear(Date.now());
+    if (y < wrappedModel.FIRST_YEAR) return null;
+    const st = wrappedModel.story(yearRecord.rows(y), { year: y });
+    return st && st.valorant && st.valorant.title ? st.valorant.title.id : null;
+  },
+  store,
+  open: (page) => openPage(page),
+  broadcast: (payload) => registry.broadcast(C.PUSH_SOCIAL, payload),
+  // The rank of the Riot ID in Settings as the tracker profile holds it, for
+  // the snapshot ("From this player's PC" until a Riot ID is proved).
+  rank: () => {
+    const id = String(store.get('riotId') || '').trim().toLowerCase();
+    const d = statsCache.data;
+    if (!id || !d || String(statsCache.riotId || '').trim().toLowerCase() !== id) return null;
+    return { current: d.rank || null, peak: d.peakRank || null };
+  },
+  riotId: () => store.get('riotId') || '',
+  agentArt: (name) => require('../shared/agent-icons').iconOf('valorant', name),
+  // Signed in to an account (an app session), not a licence key alone.
+  signedIn: async () => { const v = await accountIpc.view(); return !!(v && v.via === 'session'); },
+  log: (...a) => console.log(...a),
+});
+/*
  * PRACTICE (docs/claude/ui.md, "The Practice page", services/practice-store.js):
  * a plan from the player's own repeated mistakes, read from the Patterns
  * page's own read (getPatterns: reviewStore.recent and patterns.summarise),
@@ -5890,8 +5930,11 @@ if (!app.requestSingleInstanceLock()) {
     // a clip and applying the cap left the clips past it.
     applyClipCap();
 
-    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc, practice: practiceIpc, trainer: trainerIpc, wrapped: wrappedIpc });
+    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc, practice: practiceIpc, trainer: trainerIpc, wrapped: wrappedIpc, social: socialIpc });
     changelogIpc.start();
+    // The public profile's snapshot: at launch (at most once every 3 hours), and
+    // after a review is saved, never mid match (social-service.js sync).
+    socialIpc.start();
     // occlara:// for the sign in's fallback link (8.7), on an installed build
     // only: a dev run would point Windows at electron.exe.
     if (app.isPackaged) {

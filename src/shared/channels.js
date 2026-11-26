@@ -86,6 +86,20 @@ const CHANNELS = {
   FEEDBACK_PREPARE: 'feedback:prepare',  // ({ type, size, bytes }) → { ok, token, width, height, bytes, preview } | { ok: false, error } downscaled and recompressed in main
   FEEDBACK_DROP:    'feedback:drop',     // (token) → { ok } a held picture let go
   FEEDBACK_SEND:    'feedback:send',     // ({ kind, text, tokens, withReview }) → { ok, id, said } | { ok: false, error, said }
+  // Public profiles and player search (docs/claude/social.md, services/social-service.js):
+  // every one answers null mid match or sealed, and no request is made then.
+  SOCIAL_STATE:     'social:state',      // (opts?) → { live, signedIn, problem, profile, rules, words, preview } | null mid match; { only: 'live' } asks the status alone
+  SOCIAL_NAME_CHECK: 'social:nameCheck', // (name) → { ok, reason, line } the server's answer for a username as typed
+  SOCIAL_NAME_SET:  'social:nameSet',    // (name) → { ok, reason, line, state }
+  SOCIAL_FLAGS:     'social:flags',      // ({ public?, showRiotId?, discoverable? }) → { ok, line, state }
+  SOCIAL_SEARCH:    'social:search',     // (q) → { ok, results: [model], state } | { ok: false, error }
+  SOCIAL_VIEW:      'social:view',       // (username) → { ok, profile: model } | { ok: false, error: 'not-found' | 'offline' | ... }
+  SOCIAL_BLOCK:     'social:block',      // ({ name, on }) → { ok, line }
+  SOCIAL_REPORT:    'social:report',     // ({ name, reason }) → { ok, line }
+  SOCIAL_RIOT_START: 'social:riotStart', // (riotId) → { ok, result, line, state } the proof of control: two agents to play
+  SOCIAL_RIOT_CHECK: 'social:riotCheck', // () → { ok, result, line, state } Riot's record read against the open challenge
+  SOCIAL_OPEN:      'social:open',       // (username?) → { ok } opens the Players page, at that profile when one is named
+  SOCIAL_TAKE:      'social:take',       // () → username | null the profile the Players page was opened at, taken once
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',
@@ -136,6 +150,7 @@ const CHANNELS = {
   PRACTICE_TODAY:  'practice:today',     // () -> Home's line { drill, cause, title, minutes, text } | null
   PRACTICE_OPEN:   'practice:open',      // send (key, title) the page, opened on one mistake (the review's Practise this)
   PUSH_PRACTICE:   'push:practice',      // main -> pages: the plan or the log moved; ask again
+  PUSH_SOCIAL:     'push:social',        // main -> Profile, Players: { open?: username } the public profile moved, or open this one
   // The Trainer (docs/claude/trainer.md, services/trainer-store.js): the runs
   // kept on this PC and the scenario asked for. All local, no AI and no
   // network, every one quiet mid match: null, or { ok: false, error: 'match' }.
@@ -339,6 +354,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_FRAMES,
   CHANNELS.PUSH_PRACTICE,
   CHANNELS.PUSH_TRAINER,
+  CHANNELS.PUSH_SOCIAL,
 ];
 
 module.exports = CHANNELS;

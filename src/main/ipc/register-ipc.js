@@ -29,10 +29,11 @@ const { isOwnPage } = require('../windows/web-guard');
  *   feedback:   { info(), prepare(file), drop(token), send(report) } (services/feedback-service.js, built in index.js)
  *   practice:   { get(game), mark(id), remove(id), today(), open(key, title) } (services/practice-store.js, built in index.js)
  *   trainer:    { get(), save(run), clear(id), open(id), playing(on) } (services/trainer-store.js, built in index.js)
+ *   social:     { state(), checkName(n), setName(n), setFlags(f), search(q), view(u), block(b), report(b), open(u), take() } (services/social-service.js, built in index.js)
  * }
  */
 function registerIpc(deps) {
-  const { controller, license, account, profile, community, changelog, feedback, practice, trainer, wrapped } = deps;
+  const { controller, license, account, profile, community, changelog, feedback, practice, trainer, wrapped, social } = deps;
 
   // ── Occlara Wrapped (docs/claude/wrapped.md) ──────────────────────────────
   // All local, and every one null or refused mid match or sealed (wrapped-service.js busy()).
@@ -79,6 +80,23 @@ function registerIpc(deps) {
     safeHandle(C.FEEDBACK_PREPARE, async (_e, file) => feedback.prepare(file));
     safeHandle(C.FEEDBACK_DROP, async (_e, token) => feedback.drop(token));
     safeHandle(C.FEEDBACK_SEND, async (_e, report) => feedback.send(report));
+  }
+  // ── Public profiles and player search (docs/claude/social.md) ─────────────
+  // Every one null mid match or sealed, with no request made (social-service.js busy()).
+  if (social) {
+    const text = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
+    safeHandle(C.SOCIAL_STATE, async (_e, opts) => social.state(opts && opts.only === 'live' ? { only: 'live' } : null));
+    safeHandle(C.SOCIAL_NAME_CHECK, async (_e, name) => social.checkName(text(name, 40)));
+    safeHandle(C.SOCIAL_NAME_SET, async (_e, name) => social.setName(text(name, 40)));
+    safeHandle(C.SOCIAL_FLAGS, async (_e, f) => social.setFlags(f && typeof f === 'object' ? f : {}));
+    safeHandle(C.SOCIAL_SEARCH, async (_e, q) => social.search(text(q, 60)));
+    safeHandle(C.SOCIAL_VIEW, async (_e, name) => social.view(text(name, 40)));
+    safeHandle(C.SOCIAL_BLOCK, async (_e, b) => social.block(b && typeof b === 'object' ? { name: text(b.name, 40), on: b.on !== false } : {}));
+    safeHandle(C.SOCIAL_REPORT, async (_e, b) => social.report(b && typeof b === 'object' ? { name: text(b.name, 40), reason: text(b.reason, 20) } : {}));
+    safeHandle(C.SOCIAL_RIOT_START, async (_e, riotId) => social.riotStart(text(riotId, 40)));
+    safeHandle(C.SOCIAL_RIOT_CHECK, async () => social.riotCheck());
+    safeHandle(C.SOCIAL_OPEN, async (_e, name) => social.open(text(name, 40)));
+    safeHandle(C.SOCIAL_TAKE, async () => social.take());
   }
   // ── the Practice page (docs/claude/ui.md, "The Practice page") ───────────
   // All local, and every one quiet mid match or sealed (practice-store.js busy()).

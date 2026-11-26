@@ -239,6 +239,31 @@ function routeLimits(deps = {}) {
     // HenrikDev's quota, shared by every player: for every tier now, the free
     // tier's tighter limit (server.js freeRiotLimiter) as well.
     { paths: RIOT_DATA, mw: L({ name: 'riot-data', windowMs: 10 * MIN, max: 120 }) },
+    // Public profiles and player search (docs/claude/social.md). Search is the
+    // enumeration surface: per account 20 a minute and 200 a day, and per
+    // address 60 a minute whoever is signed in (many accounts on one machine).
+    // A profile, 60 in ten minutes and 400 a day. The username check runs as
+    // the player types (debounced), the snapshot once a review or a launch.
+    { paths: ['/api/social/search'], mw: L({ name: 'social-search', windowMs: MIN, max: 20 }) },
+    { paths: ['/api/social/search'], mw: L({ name: 'social-search-day', windowMs: 24 * 60 * MIN, max: 200 }) },
+    { paths: ['/api/social/search'], mw: L({ name: 'social-search-network', windowMs: MIN, max: 60, key: byIp }) },
+    { paths: ['/api/social/profile'], mw: L({ name: 'social-profile', windowMs: 10 * MIN, max: 60 }) },
+    { paths: ['/api/social/profile'], mw: L({ name: 'social-profile-day', windowMs: 24 * 60 * MIN, max: 400 }) },
+    { paths: ['/api/social/profile'], mw: L({ name: 'social-profile-network', windowMs: MIN, max: 60, key: byIp }) },
+    // The proof of control: its real limits are the database's (two starts a
+    // day and six in 30 days per account, every attempt counted, a check a
+    // minute and 30 a challenge; never a limit across accounts on one Riot
+    // ID); these are the cost ceilings in front of HenrikDev.
+    { paths: ['/api/social/riot/start'], mw: L({ name: 'social-riot-start', windowMs: 60 * MIN, max: 10 }) },
+    { paths: ['/api/social/riot/check'], mw: L({ name: 'social-riot-check', windowMs: 10 * MIN, max: 20 }) },
+    // And per address, whoever is signed in: many free accounts on one machine spend no more.
+    { paths: ['/api/social/riot/start'], mw: L({ name: 'social-riot-start-network', windowMs: 60 * MIN, max: 20, key: byIp }) },
+    { paths: ['/api/social/riot/check'], mw: L({ name: 'social-riot-check-network', windowMs: 10 * MIN, max: 60, key: byIp }) },
+    { paths: ['/api/social/username'], mw: L({ name: 'social-username', windowMs: 10 * MIN, max: 60 }) },
+    { paths: ['/api/social/stats'], mw: L({ name: 'social-stats', windowMs: 60 * MIN, max: 20 }) },
+    { paths: ['/api/social/report'], mw: L({ name: 'social-report', windowMs: 60 * MIN, max: 5 }) },
+    { paths: ['/api/social/flags', '/api/social/block'], mw: L({ name: 'social-write', windowMs: 10 * MIN, max: 30 }) },
+    { paths: ['/api/social'], mw: L({ name: 'social', windowMs: 10 * MIN, max: 240 }) },
     // What answers with nothing to look up still answers: a ceiling per address.
     { paths: ['/health', '/api/health', '/admin'], mw: L({ name: 'public', windowMs: MIN, max: 120, key: byIp }) },
     // Any /api request carrying no credentials at all, per address. The
@@ -283,4 +308,50 @@ function feedbackLimits(deps = {}) {
   ];
 }
 
-module.exports = { createLimiter, createGuessGuard, routeLimits, feedbackLimits, FEEDBACK_LIMITS, byCaller, byIp, bodyKey, LICENCE_BODY, realIpMiddleware };
+/*
+ * A DOUBLE SLASH IS ONE SLASH (the 25 Nov 2026 review). Express 4
+ * routes /api/social//search to the router's /search while app.use('/api/
+ * social/search', limiter) does not match it, so every per route limit was
+ * one extra slash away. The path is made the one it means before anything
+ * else runs (server.js mounts this first), so the same limits, the same raw
+ * body parser and the same route see it. Collapsed, never refused: a caller
+ * outside this repo that has always sent a doubled slash (a webhook address
+ * typed with one, an old client) keeps working, it just stops being a way
+ * round the limits. The query string is left alone.
+ */
+function collapseSlashes(req, res, next) {
+  const raw = String((req && req.url) || '');
+  const q = raw.indexOf('?');
+  const pathPart = q < 0 ? raw : raw.slice(0, q);
+  if (pathPart.includes('//')) {
+    const fixed = pathPart.replace(/\/{2,}/g, '/') + (q < 0 ? '' : raw.slice(q));
+    req.url = fixed;
+    req.originalUrl = fixed;
+  }
+  return next();
+}
+
+/*
+ * EVERY ANSWER OF A LOOKUP IN THE SAME TIME (public profiles, social.md): a
+ * profile, a search and a username check answer no sooner than `ms` after
+ * they arrived, found or not, private, blocked, malformed, refused by a
+ * limiter or failed alike, so the time says nothing about who exists.
+ * Mounted before the limiters and the caller lookup.
+ */
+const FLOOR_MS = 250;
+const FLOOR_PATHS = ['/api/social/profile', '/api/social/search', '/api/social/username', '/api/social/block'];
+function answerFloor(ms = FLOOR_MS) {
+  return (req, res, next) => {
+    const t0 = Date.now();
+    const json = res.json.bind(res);
+    res.json = (body) => {
+      const wait = ms - (Date.now() - t0);
+      if (wait > 0) setTimeout(() => json(body), wait);
+      else json(body);
+      return res;
+    };
+    next();
+  };
+}
+
+module.exports = { collapseSlashes, answerFloor, FLOOR_MS, FLOOR_PATHS, createLimiter, createGuessGuard, routeLimits, feedbackLimits, FEEDBACK_LIMITS, byCaller, byIp, bodyKey, LICENCE_BODY, realIpMiddleware };

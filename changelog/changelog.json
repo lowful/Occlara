@@ -1,5 +1,25 @@
 [
   {
+    "version": "8.19.0",
+    "date": "2026-11-26",
+    "title": "Player profiles and search, on the way",
+    "summary": "This update carries public profiles and a Players page, which switch on soon with no further update needed.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Public profiles: pick a username and choose whether other Occlara players can find you. Your profile shows your rank, average grade, record, main agents and maps, and recent matches."
+      },
+      {
+        "kind": "new",
+        "text": "A Players page to search for other Occlara players by username and open their profile. You can block or report a profile."
+      },
+      {
+        "kind": "improved",
+        "text": "Profiles are off until you turn yours on, and can be turned off again at any time. Your email, your mistakes and anything you typed are never shown to anyone."
+      }
+    ]
+  },
+  {
     "version": "8.18.0",
     "date": "2026-11-25",
     "title": "Occlara Wrapped is coming",

@@ -39,6 +39,8 @@ const accountRoutes = require('./routes/account');
 const coachRoutes   = require('./routes/coach');
 const usageRoutes   = require('./routes/usage');
 const giftRoutes    = require('./routes/gifts');
+// Public profiles and player search (docs/claude/social.md).
+const socialRoutes  = require('./routes/social');
 const callers       = require('./services/caller');
 const retiredRoutes = require('./routes/retired');
 const adminRoutes   = require('./routes/admin');
@@ -53,6 +55,13 @@ const rateLimits = require('./services/rate-limits');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+// A DOUBLE SLASH IN THE PATH IS MADE ONE, before anything else runs: Express
+// routes /api/social//search to a router while app.use('/api/social/search')
+// does not match it, so every per route limit was one slash away
+// (rate-limits.js collapseSlashes). Collapsed, not refused, so nothing that
+// already called this server with one stops working.
+app.use(rateLimits.collapseSlashes);
 
 // Trust Railway's proxy so rate-limiter can read real client IPs
 app.set('trust proxy', 1);
@@ -244,7 +253,8 @@ app.use(express.json({ limit: '2mb' }));
 // without a lookup. A valid caller and an outage are never counted.
 // The sign in handoff is named here too (8.7.3), so its limit is per account.
 // Gifts (8.8) too: their redeem is limited per account, and the peek says "yours".
-const IDENTIFIED = ['/api/coach', '/api/usage', '/api/referral', '/api/account/me', '/api/account/signout', '/api/account/handoff', '/api/gifts', '/api/feedback'];
+// Public profiles (social.md): search is limited per account.
+const IDENTIFIED = ['/api/coach', '/api/usage', '/api/referral', '/api/account/me', '/api/account/signout', '/api/account/handoff', '/api/gifts', '/api/feedback', '/api/social'];
 const guessGuard = rateLimits.createGuessGuard();
 async function identifyFirst(req, res, next) {
   try {
@@ -261,6 +271,9 @@ async function identifyFirst(req, res, next) {
   } catch (e) { /* the route asks again and answers for itself */ }
   next();
 }
+// Public profiles (social.md): a profile, a search and a username check answer
+// no sooner than 250 ms, refusals and failures included (rate-limits.js answerFloor).
+app.use(rateLimits.FLOOR_PATHS, rateLimits.answerFloor());
 app.use(IDENTIFIED, identifyFirst);
 
 // ─── Who is using it ────────────────────────────────────────────────────────
@@ -323,6 +336,9 @@ app.use('/api/account',  accountRoutes);
 app.use('/api',          usageRoutes);
 // Gifts (8.8): /api/gifts/peek, /redeem and the list (routes/gifts.js).
 app.use('/api/gifts',    giftRoutes);
+// Public profiles and player search: /api/social/* (routes/social.js). The
+// rank is the server's own, through the coach router's HenrikDev code.
+app.use('/api/social',   socialRoutes.createRouter({ rank: (name, tag) => coachRoutes.socialRank(name, tag), riot: coachRoutes.socialRiot }));
 app.use('/api/coach',    coachRoutes);
 // A game Occlara no longer coaches: an older install still calling its routes
 // is answered 410 on every path, and nothing is looked up or called. See
