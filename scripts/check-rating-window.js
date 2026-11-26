@@ -189,7 +189,16 @@ setTimeout(async () => {
     if (focused !== `round-${opened}`) return report(false, `a swing of round ${opened} opened ${focused}`);
 
     // 3. The replay: it plays, a key skips it to the final, Esc closes it and only it.
+    // Under reduced motion (GitHub's machine has it on some runs) a click opens
+    // at full time; the steps are then played by the check's own hook.
+    const reduced = await rjs("window.matchMedia('(prefers-reduced-motion: reduce)').matches");
     await rjs("document.querySelector('.body').scrollTo(0, 0); document.getElementById('rt-play').click(); true");
+    await wait(600);
+    const clicked = await rjs("document.getElementById('rt-r-round').textContent");
+    lines.push(`reduced motion: ${reduced}, a click opens at "${clicked}"`);
+    if (reduced && clicked !== 'Full time') return report(false, `under reduced motion the replay did not open at full time ("${clicked}")`);
+    if (!reduced && clicked === 'Full time') return report(false, 'with motion the replay jumped to full time');
+    await rjs('window.RatingView.play(true); true');
     await wait(6500);
     const midJs = `(() => ({ open: !document.getElementById('rt-replay').hidden, round: document.getElementById('rt-r-round').textContent,
       num: document.getElementById('rt-r-num').textContent, label: document.getElementById('rt-r-label').textContent,
@@ -225,7 +234,7 @@ setTimeout(async () => {
     if (!closed || mainWindow.current().shown !== 'review') return report(false, 'Esc did not close the replay alone');
 
     // 4. Sealed mid replay (a match starting): the replay stops.
-    await rjs("document.getElementById('rt-play').click(); true");
+    await rjs('window.RatingView.play(true); true');
     await wait(800);
     mainWindow.setSealed(true);
     await wait(900);
@@ -260,7 +269,7 @@ setTimeout(async () => {
       await wait(900);
       await rjs("document.getElementById('v-rating-wrap').scrollIntoView({ block: 'start' }); true");
       await shot('rating-narrow', mainWindow, win);
-      await rjs("document.querySelector('.body').scrollTo(0, 0); document.getElementById('rt-play').click(); true");
+      await rjs("document.querySelector('.body').scrollTo(0, 0); window.RatingView.play(true); true");
       await wait(6500);
       await shot('rating-replay-narrow', mainWindow, win);
       await rjs('window.RatingView.finish(); true');

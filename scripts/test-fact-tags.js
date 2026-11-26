@@ -131,7 +131,9 @@ const built = review.build({ rounds: verified, context: { ...played.context, age
 const before = JSON.stringify(built);
 const shown = review.served(built);
 ok(JSON.stringify(built) === before, 'the review handed in is not changed');
-ok(JSON.stringify(withoutView(shown)) === before, 'one built today is shown as built, but for the view fields');
+// The saved match rating stays main's (rating.md): served sends its view alone.
+const noRating = (s) => { const o = JSON.parse(s); delete o.rating; return JSON.stringify(o); };
+ok(JSON.stringify(withoutView(shown)) === noRating(before), 'one built today is shown as built, but for the view fields and the saved rating');
 ok(shown.rounds.every((c, i) => JSON.stringify(c.tags) === JSON.stringify(factTags(built.rounds[i].facts)) && typeof c.open === 'boolean'),
   'every card has its facts as tags, and an open flag');
 ok(JSON.stringify(shown.summaryLines) === JSON.stringify(['You died first too often.', 'Trade your duelist.', 'Your aim vs. Jett held.']),
@@ -151,7 +153,7 @@ ok(review.served(looked).rounds.find((c) => c.n === quiet.n).open, `a round the 
 const riotOnly = review.build({ rounds: verified, context: played.context, endedBy: 'score', ai: {}, source: 'riot', history: [] });
 const riotBefore = JSON.stringify(riotOnly);
 const riotShown = review.served(riotOnly);
-ok(JSON.stringify(withoutView(riotShown)) === riotBefore && JSON.stringify(riotOnly) === riotBefore,
+ok(JSON.stringify(withoutView(riotShown)) === noRating(riotBefore) && JSON.stringify(riotOnly) === riotBefore,
   "one from Riot's record alone is shown as built, but for the view fields");
 ok(riotShown.rounds.every((c) => c.tags.length === c.facts.length && !c.open) && riotShown.summaryLines.length === 0,
   "its cards are tagged, none opens with no mistake counted, and no summary is no lines");

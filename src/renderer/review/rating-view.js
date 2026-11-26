@@ -277,7 +277,8 @@
 
   function open() { return !!run; }
 
-  function play() {
+  // `force` plays the steps under reduced motion too: the window check's, never a click's.
+  function play(force) {
     const view = current;
     if (!view || typeof view.value !== 'number') return;
     stop();
@@ -300,7 +301,7 @@
     box.classList.remove('done');
     box.hidden = false;
     $('rt-r-skip').focus({ preventScroll: true });
-    if (lessMotion()) { finish(); return; }
+    if (lessMotion() && force !== true) { finish(); return; }
     run.timer = setTimeout(next, OPEN_MS);
   }
 
@@ -386,10 +387,10 @@
   function wire() {
     const play$ = $('rt-play');
     if (!play$) return;
-    play$.addEventListener('click', play);
+    play$.addEventListener('click', () => play(false));
     $('rt-r-skip').addEventListener('click', (e) => { e.stopPropagation(); finish(); });
     $('rt-r-close').addEventListener('click', (e) => { e.stopPropagation(); stop(); play$.focus({ preventScroll: true }); });
-    $('rt-r-again').addEventListener('click', (e) => { e.stopPropagation(); play(); });
+    $('rt-r-again').addEventListener('click', (e) => { e.stopPropagation(); play(false); });
     $('rt-replay').addEventListener('click', (e) => { if (e.target === $('rt-replay')) skipOrClose(); });
     document.addEventListener('keydown', (e) => {
       if (!run) return;

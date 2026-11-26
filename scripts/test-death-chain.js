@@ -219,7 +219,9 @@ console.log('\nthe review:');
   const r6 = shown.rounds.find((c) => c.n === 6);
   ok(r6.chain && r6.chain.first.kind === 'no-escape' && r6.chain.mistakes === 3, 'a saved card is shown with its chain');
   ok(shown.context && shown.context.memory.some((m) => m.key === 'place') && /^Your biggest repeat: /.test(shown.context.chains.main), 'and the review with its memory and its biggest repeat');
-  ok(JSON.stringify(review.withoutView(shown)) === before, 'withoutView takes both off again: nothing on disk changes');
+  // The saved match rating stays main's (rating.md): served sends its view alone.
+  const noRating = (s) => { const o = JSON.parse(s); delete o.rating; return JSON.stringify(o); };
+  ok(JSON.stringify(review.withoutView(shown)) === noRating(before), 'withoutView takes both off again: nothing on disk changes');
   ok(JSON.stringify(shown.grade) === JSON.stringify(built.grade) && JSON.stringify(shown.insights.mistakes) === JSON.stringify(built.insights.mistakes),
     'the grade and the repeated mistakes are as built');
   const riotOnly = review.served({ ...JSON.parse(before), source: 'riot' });
