@@ -34,7 +34,7 @@
   const H = 100;
   function domain(line) {
     const vs = line.map((p) => p.value);
-    return { lo: Math.min(4.5, ...vs) - 0.3, hi: Math.max(7.5, ...vs) + 0.3 };
+    return { lo: Math.min(5.5, ...vs) - 0.3, hi: Math.max(6.5, ...vs) + 0.3 };
   }
 
   /*
@@ -123,6 +123,8 @@
     const rated = typeof view.value === 'number';
     $('rt-value').textContent = rated ? view.shown : '';
     $('rt-value').parentNode.hidden = !rated;
+    // With no rating the head row goes too, so the note sits under the heading.
+    wrap.querySelector('.rt-head').hidden = !rated;
     $('rt-note').textContent = rated ? '' : (view.note || '');
     $('rt-note').hidden = rated || !view.note;
     $('rt-place').textContent = rated && view.place ? `${view.place} in the lobby` : '';
