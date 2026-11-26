@@ -589,7 +589,14 @@ so the player's kills inside these clips are few: **3**.
 | 30 a second | 3 of 3, 0 | 20 of 20, 0 | 0.08, 0.27 s | 0.15, 1.23 s | 25 |
 
 By height at 5 a second: 1080p kills 2 of 2, deaths 15 of 15; 720p kills 1
-of 1, deaths 5 of 5. The detector costs 0.38 ms a corner in node (p50, 1.7
+of 1, deaths 5 of 5. The corner read in Chromium (`check:feedcost`, GitHub's
+machine, no GPU, software canvas): at 1080p a 670 by 238 corner, 4.2 ms a
+read, 21 ms a second at five a second (about 2% of one core), against 7.7 ms
+for a whole frame drawn and read back; 720p 3.4 ms a read (17 ms a second);
+480p 1.8 ms. So the corner costs about half a whole frame there, not the
+share of the pixels it is: the draw from a VideoFrame carries a fixed cost.
+On a game PC the frame is a GPU texture and the read back is the GPU's; that
+cost is logged once a minute in the field and was not measured here. The detector costs 0.38 ms a corner in node (p50, 1.7
 ms p99) at these heights, about 2 ms a second at five a second, before the
 draw and read back. In the clips with no feed the player's kills counted were
 1, 1, 1, 0, 4, 0 and 0 against Riot's 2, 1, 2, 0, 3, 2 and 0 kills in those
