@@ -78,11 +78,15 @@ exactly as narrow as that choice:
   **Never** advice, a tip, a read, HP, positions, economy, the enemy, who is
   alive, or anything of a review. The label says what happened, never what
   to do.
-- **Only where it was measured to count right**: the kill feed is read off
-  the recorder's own frames five times a second, only while recording at 720p
-  or 1080p; recording off or at 480p it stays off and Settings says why
-  (rating.md, "Live", round 2). The read prompt, the model and every guard
-  are unchanged.
+- **Only where the supply was measured, and not proven for kills**: the kill
+  feed is read off the recorder's own frames five times a second, only while
+  recording at 720p or 1080p; recording off or at 480p it stays off and
+  Settings says why. Deaths were measured to the bar on full rate video; the
+  player's kills only on 3 (rating.md, "Live"), so the number is marked
+  provisional, says it usually reads lower than the confirmed rating and that
+  assists are not counted live, and shows "Not reading the kill feed" in
+  place of a number when the feed goes unread. The read prompt, the model and
+  every guard are unchanged.
 - **Never a window over the game, never an overlay, never a sound.** The
   Recording screen is the main window behind the game, as before. The widget
   is a page OBS fetches from a loopback server and lays on the stream;

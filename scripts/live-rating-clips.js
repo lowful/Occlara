@@ -45,7 +45,7 @@ function clips() {
       const estimated = !Number.isFinite(fo.clipDeath);
       const clipDeath = estimated ? (dur - 4.45) * 1000 : fo.clipDeath;
       const evs = feed ? feed.map((e) => ({ t: (clipDeath - (deathMs - e.ms)) / 1000, by: e.by, on: e.on })) : null;
-      out.push({ name: `${f.slice(-11, -5)}/${fo.clip}`, file, W, H, dur, clipDeath: clipDeath / 1000, estimated, evs, deathMs });
+      out.push({ name: `${f.slice(-11, -5)}/${fo.clip}`, file, W, H, dur, clipDeath: clipDeath / 1000, estimated, evs, deathMs, roundKills: c.riot && Number.isInteger(c.riot.kills) ? c.riot.kills : null });
     }
   }
   return out;
@@ -60,7 +60,7 @@ function frames(c, fps) {
 }
 
 const T0 = 1_800_000_000_000;
-const tot = { k: { riot: 0, hit: 0, ev: 0, lag: [] }, d: { riot: 0, hit: 0, ev: 0, lag: [] }, o: { riot: 0, ev: 0 }, ms: [], multi: { riot: 0, hit: 0 } };
+const tot = { k: { riot: 0, hit: 0, ev: 0, lag: [], wrong: 0, maybe: 0 }, d: { riot: 0, hit: 0, ev: 0, lag: [] }, o: { riot: 0, ev: 0 }, ms: [], multi: { riot: 0, hit: 0 }, guessed: [] };
 const byH = {};
 for (const c of clips()) {
   const fr = frames(c, FPS);
@@ -86,10 +86,20 @@ for (const c of clips()) {
   const tkAll = c.evs ? c.evs.filter((e) => e.by === 'me' && e.on === 'enemy' && e.t >= -6 && e.t <= c.dur) : [];
   const td = [{ t: c.clipDeath }];
   const mk = match(tkAll, myK, -0.5, 4); const md = match(td, myD, c.estimated ? -3 : -0.5, 4);
-  if (!c.evs) { console.log('   (no feed) own kills counted', myK.length, myK.map((e)=>e.t.toFixed(1)).join(' ')); myK.length = 0; }
+  // A clip with no feed on its review: its own kills cannot be matched, but
+  // more counted than Riot has for the whole round is at least that many
+  // possible false positives, counted as such (never hidden).
+  let maybeWrong = 0;
+  if (!c.evs) {
+    maybeWrong = c.roundKills !== null ? Math.max(0, myK.length - c.roundKills) : 0;
+    tot.k.maybe += maybeWrong;
+    console.log(`   (no feed) own kills counted ${myK.length} against Riot's ${c.roundKills === null ? '?' : c.roundKills} in the whole round${maybeWrong ? `: ${maybeWrong} possible false positive(s)` : ''}`);
+    myK.length = 0;
+  }
+  if (c.estimated) tot.guessed.push(c.name);
   const hitsInClip = mk.lag.length; // all hits
   const recallK = tk.filter((k) => used.has(k)).length;
-  tot.k.riot += tk.length; tot.k.hit += recallK; tot.k.ev += myK.length; tot.k.lag.push(...mk.lag);
+  tot.k.riot += tk.length; tot.k.hit += recallK; tot.k.ev += myK.length; tot.k.lag.push(...mk.lag); if (c.evs) tot.k.wrong += mk.fp.length;
   tot.d.riot += 1; tot.d.hit += md.hit; tot.d.ev += myD.length; tot.d.lag.push(...md.lag);
   byH[H].k.riot += tk.length; byH[H].k.hit += recallK; byH[H].k.ev += myK.length; byH[H].d.riot++; byH[H].d.hit += md.hit; byH[H].d.ev += myD.length;
   // Everyone else's kills, counted once each.
@@ -103,7 +113,8 @@ const q = (a, p) => { const s = a.slice().sort((x, y) => x - y); return s.length
 const pc = (a, b) => (b ? (100 * a / b).toFixed(1) + '%' : '-');
 console.log(`\n${FPS} fps, yellow on ${MINE} frame(s), the context says dead ${ALIVE_LAG} s after the death`);
 for (const [H, v] of Object.entries(byH)) console.log(`${H}p (${v.clips} clips): kills ${v.k.hit}/${v.k.riot} found, ${v.k.ev} counted; deaths ${v.d.hit}/${v.d.riot}, ${v.d.ev} counted`);
-console.log(`own kills  recall ${tot.k.hit}/${tot.k.riot} ${pc(tot.k.hit, tot.k.riot)}  counted ${tot.k.ev}  lag p50 ${q(tot.k.lag, .5)} p90 ${q(tot.k.lag, .9)}`);
+console.log(`own kills  recall ${tot.k.hit}/${tot.k.riot} ${pc(tot.k.hit, tot.k.riot)}  counted ${tot.k.ev}, wrong ${tot.k.wrong}, possible false positives in clips with no feed ${tot.k.maybe}  lag p50 ${q(tot.k.lag, .5)} p90 ${q(tot.k.lag, .9)}`);
+console.log(`death times guessed (no death mark kept, placed 4.45 s before the clip's end): ${tot.guessed.length ? tot.guessed.join(', ') : 'none'}`);
 console.log(`own deaths recall ${tot.d.hit}/${tot.d.riot} ${pc(tot.d.hit, tot.d.riot)}  precision ${tot.d.hit}/${tot.d.ev} ${pc(tot.d.hit, tot.d.ev)}  lag p50 ${q(tot.d.lag, .5)} p90 ${q(tot.d.lag, .9)}`);
 console.log(`others' kills counted ${tot.o.ev} against ${tot.o.riot} in Riot's feed`);
 console.log(`detector ${tot.ms.length} frames p50 ${q(tot.ms, .5)} ms p99 ${q(tot.ms, .99)} ms`);

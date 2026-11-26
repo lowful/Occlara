@@ -626,6 +626,103 @@ them from the November 2026 deploy). By the engine's weights an assist is
 kill, so 4 to 6 assists over a match are roughly 0.1 to 0.2 of the shown
 value that the live number will not have.
 
+### Round 3: an adversarial review, and what changed
+
+An independent review ran scripts against the branch. The seal and the
+widget's server held; the rest is fixed:
+
+- **The highlight is read from the portrait's own frame alone**
+  (`killfeed.js`). Measured on the owner's rows: the chevron and the frame's
+  left edge are a run of 5 to 14 columns yellow on most of the row's lines,
+  0.045 to 0.11 of the height left of the killer's teal; the death's edge a
+  run right of the victim's teal by 0.025 to 0.07. So a run must be at least
+  0.0035 of the height wide (0.0018 for the death's thinner edge) and at most
+  0.02, must not cross into the gap above or below the row (where a body's
+  outline crossing the feed is, and the chevron is not), must sit at that
+  distance from the row's own teal, and nothing else on the row's lines left
+  of it may be yellow. Valorant's yellow enemy highlight drawn as 1, 2, 5 and
+  6 pixel outlines across the feed, a yellow patch beside a row and a bright
+  yellow ground make no row the player's; compression noise does not stop
+  the real ones (`test:killfeed`, the review's own `adv-outline` and
+  `adv-detector`). On the reads' frames the per kill visibility went up with
+  it: 11 of 11 kills at 480p and 16 of 17 at 720p show the highlight on some
+  frame (0.73 and 0.81 of the frames), where it was 26 of 28 together before.
+- **Two frames for a death too**, as for a kill: one frame of yellow at a
+  victim's end counted a death at once and then blocked the round's kills.
+- **One rating a match id** (`live-rating-service.js`): a new id is a new
+  rating, a match the reader resumes goes back to its own; a new match whose
+  first read carried the last one's score (or none) used to carry its 6.6 on
+  and file its death under the last match's round 3. Inside one rating, a
+  score read lower before anything was counted starts the match again.
+- **"Not reading the kill feed"** in place of the number (screen and widget)
+  when two rounds close with no row seen at all (yellow enemy blocks, a 4:3
+  picture pillarboxed in a 16:9 capture, very long names on 4:3 stretched,
+  all of which read nothing), when the recorder's rows stop for 3 s, or when
+  the page stopped for its cost.
+- **Sanity caps**: a side loses five players a round at most (a revive's
+  second death is dropped); three or more rows new on one frame are colours
+  crossing the corner, none counted; a row counted as a teammate's never
+  takes a later yellow row.
+- **The spectating trap when the player's own death row is missed**: no
+  yellow kill row counts for 1.5 s after a teammate's death row (or under it
+  on the same frame), nor outside the live round; a kill already on the feed
+  before that death row keeps its yellow (a trade). Not closed: a missed
+  death row that reads as no row at all leaves a spectated teammate's kill
+  in that window, as the review's scenario A still shows.
+- **The feed is asked for only** with the switch on, a Valorant session
+  recording at 700 rows or more, the page under its budget (a read over 15 ms
+  three times running stops it, `feed-off`) and the recorder not over 1.5 s
+  late (`wantFeed`, tested by behaviour on the real Recorder).
+- **Turning it on is Settings' alone** (`register-ipc.js fromSettings`):
+  from any other page the switch only goes off (`test:configset`).
+- **The live label says what happened, no numbers standing**: "Opening
+  kill", "Kill", "Trade kill", "Died first", "Died", "Round won" (`liveLabel`);
+  the review keeps its own.
+- PUSH_LIVE goes to the shell alone and the store is read once a tick; a
+  stop during the widget's start leaves nothing running (`test:ratingstream`).
+
+Measured again on the clips at five a second (`npm run measure:liveratingclips`):
+the player's kills 3 of 3, none wrong, no possible false positive in the
+clips with no feed (counted against Riot's kills for the whole round: 1 of 2,
+1 of 1, 1 of 2, 0 of 0, 3 of 3, 0 of 2, 0 of 0); deaths 20 of 20, none
+wrong, lag p50 0.31 s, p90 1.35 s. **The death times of 11 of the 20 clips are
+guessed** (no death mark kept, placed 4.45 s before the clip's end): l7eesy
+rounds 2, 3, 6 and 7, eq7o3v rounds 2, 5 and 6, q3bntd rounds 1, 4, 5 and 6;
+the 9 others (bsxk1d rounds 2, 7, 10, 12, loi6yi round 6, x9fzkd rounds 1, 2,
+4, 6) carry the clip's own death mark.
+
+### The owner's first real match on this branch
+
+1. **Before**: in Settings, Record match video **On at 720p or 1080p** (write
+   down which), Live rating On (past its confirm), the Stream widget On only
+   if a stream is to be tried. Note the in game **Enemy Highlight Color**
+   (Settings, General, Accessibility in Valorant) and whether a colour blind
+   mode is on: a yellow enemy highlight is the case the detector was hardened
+   against, a colour blind mode was never seen.
+2. **Play one whole match** as usual, recording from the start. Glance at the
+   Recording screen between rounds only if wanted: it should say a number
+   and "Live, provisional", or "Not reading the kill feed".
+3. **After**, once the review has linked Riot's record:
+   - `%APPDATA%\Occlara\ai-log\<the match's session>\live-rating.json`: the
+     live final, the confirmed rating, the gap, the player's kills and deaths
+     the live rating counted (`liveKills`, `liveDeaths`) and `reading`; set
+     `liveKills` against the review's own kill count for the match.
+   - The debug log (`%APPDATA%\Occlara\debug.log`): `[live-rating] the kill
+     feed's corner: N reads in 60 s, X ms a second in the recorder's page, Y ms
+     a read` once a minute (the real cost on that PC's GPU), any
+     `[live-rating] the recorder's page stopped reading the kill feed`, and
+     `[live-rating] live final ... against confirmed ...`.
+   - The review keeps highlight clips for the multi kills and a death clip a
+     death: `npm run measure:liveratingclips` (and `-- --fps=2`, `--fps=10`)
+     reads every clip on the PC with the review's feed and says, per height,
+     the player's kills found and counted wrong, the deaths, the lag, and any
+     possible false positive.
+   - **The kill bar is met** when, over that match's clips and its
+     `live-rating.json`, the player's kills counted are at least 85% of
+     Riot's (recall) with at least 95% of those right (precision), and the
+     deaths at least 95% both. A highlight clip of a 3K or 4K is the test of
+     rows stacking: each kill counted once.
+
 ### What would close the gap, not done
 
 A read prompt field, read off the same highlight the detector reads:

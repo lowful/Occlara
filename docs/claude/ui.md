@@ -229,9 +229,15 @@ live rating switch on (the owner's second exception, off by default,
 the score (`#live-rating`, `shell.js paintRating`, from PUSH_LIVE's `rating`
 alone): the rating in the review replay's own badge
 (`shared/rating-badge.js` and `.css`, the number counted by CSS, its tier's
-colour), its last move rising in green or falling in red with the engine's
-label beside it ("No move yet" before one), the small line of the rating so
-far with 6.0 dashed, and a "Live, provisional" chip. The count and the move
+colour), its last move rising in green or falling in red with a label
+beside it that names what happened and carries no number ("Opening kill",
+"Kill", "Trade kill", "Died first", "Died", "Round won", `liveLabel`; "No
+move yet" before one), the small line of the rating so far with 6.0 dashed,
+a "Live, provisional" chip and the note that it usually reads lower than the
+confirmed rating and counts no assists. While the kill feed goes unread
+(rows stopped, two rounds with none, the page stopped for its cost) the row
+shows "Not reading the kill feed" in place of the number
+(`#live-rating-off`, PUSH_LIVE's `rating` is `{ reading: false }`). The count and the move
 run once when the value changes; a repaint of the same value moves nothing.
 Settings' "Match status while recording" group ends with the two switches:
 Live rating, its warning beside it (a `--warn` rule, never the signal) and a
