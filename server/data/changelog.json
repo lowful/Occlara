@@ -1,5 +1,29 @@
 [
   {
+    "version": "8.21.0",
+    "date": "2026-11-27",
+    "title": "Match rating",
+    "summary": "Every match Riot confirms now gets a rating out of 10 that moves with each kill, death, plant and defuse.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Match rating: a number from 0.0 to 10.0 that starts at 6.0. Every move is how much your action changed your team's chance to win the round, so an opening kill counts for more than the last kill of a 5v1."
+      },
+      {
+        "kind": "new",
+        "text": "Replay the rating: watch the number rise and fall through the match, event by event, ending on your full time rating and your place in the lobby."
+      },
+      {
+        "kind": "new",
+        "text": "The line across the match, with the rounds that moved your rating most and what happened in each, such as a quadra kill, a won clutch, or dying first with nobody to trade."
+      },
+      {
+        "kind": "improved",
+        "text": "A traded death costs less than an untraded one, kills after the round is decided count for almost nothing, and a round Riot marked you AFK in moves nothing."
+      }
+    ]
+  },
+  {
     "version": "8.20.0",
     "date": "2026-11-26",
     "title": "Occlara Duos, on the way",
