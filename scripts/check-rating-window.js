@@ -222,7 +222,7 @@ setTimeout(async () => {
       num: document.getElementById('rt-r-num').textContent, label: document.getElementById('rt-r-label').textContent }))()`);
     lines.push(`replay skipped: ${JSON.stringify(fin)}`);
     const said = await rjs("document.getElementById('rt-r-said').textContent");
-    if (!fin.open || fin.round !== 'Full time' || fin.num !== view.shown || !fin.label.includes(view.place) || !said.includes(view.shown)) {
+    if (!fin.open || fin.round !== 'Full time' || fin.num !== view.shown || !fin.label.startsWith(`Full time, ${view.place}`) || !said.includes(view.shown)) {
       return report(false, `a key did not skip the replay to full time, announced: ${JSON.stringify({ ...fin, said })}`);
     }
     await shot('rating-replay-final', mainWindow, win);

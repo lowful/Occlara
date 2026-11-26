@@ -308,8 +308,9 @@ through CSS (`@property --rt`, the value in tenths, drawn by `counter()` over
 the real number, which stays the text); the move beside it rising in green
 or falling in red; a running feed of the last four events, the newest on
 top; the event's line; the line drawing point by point with its newest point
-ringed in the tier's colour; and "Full time" with the final badge and the
-place. A round's events share 2.6 s (0.6 to 1.2 s each), a round with nothing
+ringed in the tier's colour; and "Full time" with the final badge, the
+place, the final score and the feed turned into the match's story (its two
+biggest round gains and its biggest loss). A round's events share 2.6 s (0.6 to 1.2 s each), a round with nothing
 of the player's 0.36 s, so a 24 round match plays in about a minute. Skip,
 Esc, a click on the ground or any key but a modifier goes to full time; again
 closes it; Esc never closes the page under it. Tab stays inside the dialog.

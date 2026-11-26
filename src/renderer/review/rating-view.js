@@ -357,7 +357,11 @@
     const lastScore = (v.rounds || []).length ? v.rounds[v.rounds.length - 1].score : '';
     $('rt-r-score').textContent = lastScore;
     $('rt-r-round').textContent = 'Full time';
-    $('rt-r-label').textContent = v.place ? `Final rating, ${v.place} in the lobby.` : 'Final rating.';
+    $('rt-r-label').textContent = v.place ? `Full time, ${v.place} in the lobby.` : 'Full time.';
+    // The feed becomes the match's story: its two biggest round gains and its biggest loss.
+    const f = $('rt-r-feed');
+    f.replaceChildren();
+    for (const e of [...(v.gains || []).slice(0, 2), ...(v.losses || []).slice(0, 1)].reverse()) pushFeed({ round: e.round, label: e.label, delta: e.delta });
     $('rt-r-said').textContent = `Full time. Match rating ${v.shown}${v.place ? `, ${v.place} in the lobby` : ''}.`;
     $('rt-r-skip').hidden = true;
     $('rt-r-close').hidden = false;
