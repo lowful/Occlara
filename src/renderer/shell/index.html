@@ -7,6 +7,7 @@
   <title>Occlara</title>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../shared/rating-badge.css" />
   <link rel="stylesheet" href="shell.css" />
 </head>
 <body>
@@ -183,6 +184,25 @@
                     <b id="live-round"></b>
                   </div>
                 </div>
+                <!-- THE LIVE RATING (the owner's second exception, 2026-11-26,
+                     docs/claude/screen-silence.md "The live rating"): only
+                     with its Settings switch on, from main's PUSH_LIVE
+                     `rating` and nothing else: the number in its tier's badge
+                     (shared/rating-badge.js, the review's replay's own), its
+                     last move with the engine's plain label, the line so far,
+                     marked "Live, provisional". Never advice, never anything
+                     of a review. It moves only when a fact arrives. -->
+                <div id="live-rating" class="live-rating" hidden>
+                  <div id="lr-badge" class="rt-r-badge lr-badge"><span id="lr-num" class="rt-r-num lr-num">6.0</span></div>
+                  <div class="lr-side">
+                    <div class="lr-head"><span class="live-label">Rating</span><span class="live-chip lr-prov">Live, provisional</span></div>
+                    <div class="lr-move"><span id="lr-delta" class="rt-r-delta lr-delta"></span><span id="lr-label" class="lr-label"></span></div>
+                  </div>
+                  <svg id="lr-line" class="lr-line" viewBox="0 0 200 48" preserveAspectRatio="none" aria-hidden="true">
+                    <line id="lr-base" class="lr-base" x1="0" x2="200" y1="24" y2="24"></line>
+                    <path id="lr-path" class="lr-path" d=""></path>
+                  </svg>
+                </div>
                 <div class="live-foot">
                   <div id="live-tape-block" class="live-tape-block">
                     <div class="live-tape-head"><span class="live-label">Round tape</span><span class="live-note">Becomes your rounds timeline when the match ends</span></div>
@@ -214,6 +234,7 @@
   <script src="../shared/sfx.js"></script>
   <script src="../shared/game-logos.js"></script>
   <script src="../shared/seg.js"></script>
+  <script src="../shared/rating-badge.js"></script>
   <script src="shell.js"></script>
 </body>
 </html>

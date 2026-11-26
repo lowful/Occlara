@@ -40,6 +40,11 @@ const RULES = Object.freeze({
   liveAgent:      bool,
   liveScore:      bool,
   liveRound:      bool,
+  // The live rating (off by default; Settings turns it on after its warning
+  // and a confirm) and its stream widget. The widget's token and port are
+  // main's alone and never a page's to write.
+  liveRating:       bool,
+  liveRatingStream: bool,
   ailogHintSeen:  (v) => Number.isInteger(v) && v >= 0 && v <= 1000,
   // Typed a character at a time, so a Riot ID without its # yet is a value.
   riotId:         (v) => typeof v === 'string' && v.length <= 64,

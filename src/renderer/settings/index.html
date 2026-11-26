@@ -237,6 +237,56 @@
             <button data-val="off">Off</button>
           </div>
         </div>
+        <!-- THE LIVE RATING (the owner's second exception, 2026-11-26,
+             docs/claude/screen-silence.md "The live rating"): OFF by default,
+             a plain warning beside it and a confirm before it turns on. Main
+             decides everything (index.js syncLiveRating, liveView); this page
+             only writes the two switches and shows the widget's address. -->
+        <div class="row sub" id="lr-row">
+          <div class="row-text">
+            <h4>Live rating</h4>
+            <p class="hint">Your match rating, 0.0 to 10.0, on the Recording screen while you play, moving as the kill feed shows your kills and deaths. Marked provisional: the confirmed one is in your review.</p>
+            <p class="hint lr-warn" id="lr-warn">It shows a number about your play while you play. Riot does not approve apps that show real-time data that changes how you play. Occlara shows a number and what happened, never what to do. Your choice.</p>
+          </div>
+          <div class="seg ctl" id="liverating">
+            <button data-val="on">On</button>
+            <button data-val="off">Off</button>
+          </div>
+        </div>
+        <div class="rec-confirm" id="lr-confirm" role="alertdialog" aria-labelledby="lr-confirm-title" aria-describedby="lr-confirm-body" hidden>
+          <div class="rec-confirm-clip">
+            <div class="rec-confirm-box">
+              <p class="rec-confirm-title" id="lr-confirm-title">Show your rating while you play?</p>
+              <p class="hint rec-confirm-body" id="lr-confirm-body">The Recording screen will show your rating and its last move during the match. That is a number about your play, shown while you play. Riot does not approve apps that show real-time data that changes how you play, and a player who used an app that gave tips mid match had a one week ban. Occlara never says what to do, only the number and what happened. You can turn it off here at any time.</p>
+              <div class="rec-confirm-actions">
+                <button id="lr-keep-off" class="btn btn-primary sm" type="button">Keep it off</button>
+                <button id="lr-turn-on" class="btn btn-ghost sm" type="button">Turn it on</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row sub" id="lrs-row">
+          <div class="row-text">
+            <h4>Stream widget</h4>
+            <p class="hint" id="lrs-hint">The live rating as a browser source for OBS, so your viewers see it move. Served on this PC only, and only while this is on. Needs Live rating on.</p>
+          </div>
+          <div class="seg ctl" id="liveratingstream">
+            <button data-val="on">On</button>
+            <button data-val="off">Off</button>
+          </div>
+        </div>
+        <div class="lr-widget" id="lr-widget" hidden>
+          <div class="lr-line">
+            <div class="seg ctl lr-size" id="lr-size" aria-label="Widget size">
+              <button data-val="standard" class="active">Standard</button>
+              <button data-val="compact">Compact</button>
+            </div>
+            <code class="lr-url" id="lr-url"></code>
+            <button class="btn btn-ghost sm" id="lr-copy" type="button">Copy</button>
+          </div>
+          <p class="hint" id="lr-obs">In OBS, add a Browser source, paste this address and set the width to 520 and the height to 190.</p>
+          <p class="hint lr-err" id="lr-err" hidden></p>
+        </div>
       </section>
 
       <section class="group">

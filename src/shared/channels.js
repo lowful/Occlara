@@ -228,6 +228,10 @@ const CHANNELS = {
   WRAPPED_ACT:     'wrapped:act',        // wrapped view -> main: { close: true }
   // The live status as it stands (PUSH_LIVE's shape), for a shell loaded mid match.
   LIVE_GET:        'shell:liveGet',
+  // The stream widget's address to the clipboard (the live rating, Settings'
+  // Copy): (size: 'standard' | 'compact') -> { ok }. Main copies it, only
+  // while the widget is served (both switches on).
+  STREAM_WIDGET_COPY: 'settings:streamWidgetCopy',
   SHELL_GET:       'shell:get',          // () -> { page, shown, sealed, maximized }
   // A page has painted itself armed (8.2): main-window.js may now hide the
   // page on screen and let this one in (PUSH_PAGE).
@@ -298,6 +302,10 @@ const CHANNELS = {
   // Settings switch is on (liveMap, liveAgent, liveScore, liveRound), and null
   // when nothing is recorded. Only what the player's own HUD already shows:
   // never HP, positions, economy, the enemy, advice or anything of a review.
+  // THE LIVE RATING (the owner's second exception, 2026-11-26): with its own
+  // switch on (liveRating, off by default) it also carries `rating`: { value,
+  // shown, tier, last: { delta, up, down, label } | null, line } and nothing
+  // else (live-rating-service.js pick); with it off there is no such key.
   PUSH_LIVE:         'push:live',
   // The flag key was pressed mid match (8.13): main to the shell, nothing
   // carried, for its one tick. It says nothing about the game.

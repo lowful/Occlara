@@ -65,6 +65,13 @@ const api              = require('./services/api-client');
 const importVideo      = require('./services/import-video');
 const aiLogStore       = require('./services/ai-log-store');
 const aiLogTimeline    = require('./services/ai-log-timeline');
+// The live rating (the owner's second exception, docs/claude/screen-silence.md):
+// the kill feed read off the read's own frame, the rating kept in main, the
+// stream widget's loopback server.
+const { createLiveRatingService } = require('./services/live-rating-service');
+const { createRatingStream, newToken: newWidgetToken } = require('./services/rating-stream');
+const ratingWidgetPage = require('./services/rating-widget-page');
+const killfeed         = require('../shared/killfeed');
 const retiredGames     = require('./services/retired-games');
 const { reconcile: reconcileDeaths, summarise: summariseDeaths, makeCheckCache } = require('./services/death-reconcile');
 const tray     = require('./tray');
@@ -343,7 +350,9 @@ function sendPendingReport() {
 
 function liveSwitches() {
   const all = store.store || {};
-  return { liveMap: all.liveMap !== false, liveAgent: all.liveAgent !== false, liveScore: all.liveScore !== false, liveRound: all.liveRound !== false };
+  return { liveMap: all.liveMap !== false, liveAgent: all.liveAgent !== false, liveScore: all.liveScore !== false, liveRound: all.liveRound !== false,
+    // The live rating and its stream widget: OFF unless the player turned them on.
+    liveRating: all.liveRating === true, liveRatingStream: all.liveRating === true && all.liveRatingStream === true };
 }
 function buildState() {
   return {
@@ -378,6 +387,9 @@ function buildState() {
     // The Recording screen's four switches (8.10.3): Settings and the shell
     // repaint from here, so a change in one shows in the other at once.
     live:            liveSwitches(),
+    // The stream widget's address while it is served (both switches on), for
+    // Settings to show and copy. An address, never anything of the rating.
+    ratingWidget:    widgetState(),
   };
 }
 
@@ -461,9 +473,15 @@ function liveView() {
   if (on('liveAgent') && c.agentConfirmed && typeof c.agent === 'string' && c.agent) out.agent = c.agent;
   if (on('liveScore')) { out.team = team; out.enemy = enemy; out.tape = liveTape.slice(-30); }
   if (on('liveRound') && Number.isInteger(c.roundNumber) && c.roundNumber > 0) out.round = c.roundNumber;
+  // THE LIVE RATING (the owner's second exception, 2026-11-26): only with its
+  // switch on, and only its own fields (live-rating-service.js field, pick).
+  const rated = liveRating.field({ on: all.liveRating === true, inMatch: true });
+  if (rated) out.rating = rated;
   return out;
 }
 function pushLive() {
+  // The rating's switch off: whatever was kept goes, and the widget stops.
+  try { syncLiveRating(); } catch (e) { console.log('[live-rating] sync error:', e.message); }
   let view = null;
   try { view = liveView(); } catch (e) { view = null; }
   const text = JSON.stringify(view);
@@ -475,6 +493,124 @@ function pushLive() {
 {
   const t = setInterval(pushLive, LIVE_EVERY_MS);
   if (t && typeof t.unref === 'function') t.unref();
+}
+
+/*
+ * THE LIVE RATING (build 2 of the match rating; the owner's second deliberate
+ * exception to "nothing reaches the screen", 2026-11-26, docs/claude/
+ * screen-silence.md "The live rating"). OFF by default (liveRating). On, every
+ * read the live Valorant reader applies hands its own frame here (the AI log's
+ * record, engine diagnostics): the kill feed's corner is cut and decoded with
+ * nativeImage, read by shared/killfeed.js, and fed with the reader's guarded
+ * context to shared/live-rating.js (live-rating-service.js). Only its view
+ * leaves main: on PUSH_LIVE for the Recording screen (liveView), and with the
+ * second switch (liveRatingStream) on the stream widget's loopback server
+ * (rating-stream.js). Off, no frame is read for it, nothing is kept, no field
+ * exists and the server is stopped. An import runs a reader of its own with no
+ * such hook; League has no reader here. Nothing is drawn over the game.
+ */
+function decodeFeed(shot) {
+  const { nativeImage } = require('electron');
+  const img = nativeImage.createFromBuffer(Buffer.from(shot, 'base64'));
+  if (!img || img.isEmpty()) return null;
+  const { width, height } = img.getSize();
+  const r = killfeed.regionOf(width, height);
+  if (!r) return null;
+  const part = img.crop(r);
+  const got = part && !part.isEmpty() ? part.getSize() : null;
+  if (!got || got.width !== r.width || got.height !== r.height) return null;
+  // toBitmap is BGRA on Windows.
+  return { img: { width: r.width, height: r.height, data: part.toBitmap(), channels: 4, order: 'bgr' }, H: height };
+}
+const liveRating = createLiveRatingService({ decode: decodeFeed });
+let liveRatingSwitch = { on: false, stream: false };   // read once a tick and on a config change
+let ratingStream = null;
+let widgetStarting = false;
+let widgetError = null;
+let widgetFullTime = null;                             // { value, until, match }: "Full time" on the widget
+const ratingLogged = new Set();                        // reviews whose live final was logged
+const WIDGET_FULL_TIME_MS = 2 * 60 * 1000;
+const SESSION_DIR = /^session-[0-9A-Za-z-]+$/;
+
+/** One applied read of the live reader (its AI log record), to the live rating. Never costs the reader a frame. */
+function feedLiveRating(rec) {
+  try {
+    if (!(engine instanceof CoachingEngine) || !state.isCoaching) return;
+    liveRating.feed(rec, engine.matchContext, { on: liveRatingSwitch.on });
+  } catch (e) { /* the rating is never worth a read */ }
+}
+
+/** The two switches, read once; off, what was kept goes; the widget follows both. */
+function syncLiveRating() {
+  const all = store.store || {};
+  const on = all.liveRating === true;
+  const stream = on && all.liveRatingStream === true;
+  const was = liveRatingSwitch;
+  liveRatingSwitch = { on, stream };
+  if (!on) liveRating.reset();
+  if (!on || !stream) widgetFullTime = null;
+  if (stream && (!ratingStream || !ratingStream.running()) && !widgetStarting) startWidget();
+  if (!stream && ratingStream && ratingStream.running()) {
+    ratingStream.stop().then(() => registry.broadcast(C.PUSH_STATE, buildState())).catch(() => {});
+  }
+  if (stream && ratingStream && ratingStream.running()) {
+    const inMatch = engine instanceof CoachingEngine && state.isCoaching && matchInProgress();
+    ratingStream.send(liveRating.widget({ on, stream, inMatch, fullTime: widgetFullTime, now: Date.now() }));
+  }
+  if (was.on !== on || was.stream !== stream) registry.broadcast(C.PUSH_STATE, buildState());
+}
+
+/** The widget's server, on 127.0.0.1 alone, its token made once per install and kept in main. */
+function startWidget() {
+  widgetStarting = true;
+  try {
+    let token = store.get('ratingWidgetToken');
+    if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{32,}$/.test(token)) { token = newWidgetToken(); store.set('ratingWidgetToken', token); }
+    if (!ratingStream) {
+      const port = Number(store.get('ratingWidgetPort'));
+      ratingStream = createRatingStream({ token, port: Number.isInteger(port) ? port : null, page: ratingWidgetPage.page, log: (l) => console.log(l) });
+    }
+  } catch (e) { widgetStarting = false; widgetError = 'start'; return; }
+  ratingStream.start().then((r) => {
+    widgetStarting = false;
+    widgetError = r && r.ok ? null : (r && r.error) || 'start';
+    if (r && r.ok) store.set('ratingWidgetPort', r.port);
+    // Switched off while it started: stopped again at once.
+    if (!liveRatingSwitch.stream && ratingStream.running()) ratingStream.stop().catch(() => {});
+    registry.broadcast(C.PUSH_STATE, buildState());
+  }).catch(() => { widgetStarting = false; widgetError = 'start'; });
+}
+
+/** For Settings: the widget's address while served, its two sizes, or why it could not start. */
+function widgetState() {
+  const running = !!(ratingStream && ratingStream.running());
+  if (!liveRatingSwitch.stream) return { on: false };
+  return { on: true, running, url: running ? ratingStream.url('standard') : null, compactUrl: running ? ratingStream.url('compact') : null,
+    error: running ? null : widgetError };
+}
+
+/**
+ * The review's confirmed rating (Riot's record laid over) against the live
+ * final of its match: one line in that match's AI log folder, never shown,
+ * so the gap can be measured in the field; and "Full time" on the widget for
+ * two minutes.
+ */
+function logLiveFinal(review) {
+  try {
+    if (!review || !review.rating || typeof review.rating.value !== 'number' || ratingLogged.has(review.id)) return;
+    const log = review.aiLog;
+    const match = log && log.match;
+    if (!match) return;
+    const line = liveRating.compare(match, review.rating);
+    if (!line) return;
+    ratingLogged.add(review.id);
+    console.log(`[live-rating] live final ${line.live} against confirmed ${line.confirmed} (${line.gap > 0 ? '+' : ''}${line.gap})`);
+    if (log.session && SESSION_DIR.test(log.session)) {
+      const dir = path.join(aiLogRoot(), log.session);
+      if (fs.existsSync(dir)) fs.writeFileSync(path.join(dir, 'live-rating.json'), JSON.stringify({ at: Date.now(), app: app.getVersion(), ...line }));
+    }
+    if (liveRatingSwitch.stream) widgetFullTime = { value: review.rating.value, until: Date.now() + WIDGET_FULL_TIME_MS, match };
+  } catch (e) { console.log('[live-rating] could not log the live final:', e.message); }
 }
 
 /*
@@ -674,6 +810,8 @@ function saveReview(review, game, frames) {
   try {
     const { frameData, ...clean } = review;
     const meta = reviewStore.save({ id: review.id, game, at: review.at || Date.now(), review: clean, frames });
+    // The live rating's final against the confirmed one, once Riot's record is laid over.
+    if (game === 'valorant') logLiveFinal(clean);
     breakdownCache.clear();
     // THE PANEL'S "LAST MATCH" IS THE NEWEST GRADED MATCH IN THE LIBRARY, the
     // rule the startup and a withdrawn review already use. An older match
@@ -2842,7 +2980,7 @@ const controller = {
       // to the very next capture without restarting the session.
       experiments: engineExperiments,
       // AI decision log: per-frame screenshot + parsed STATE + tip, to disk.
-      diagnostics: (rec) => recordAiFrame(rec),
+      diagnostics: (rec) => { recordAiFrame(rec); feedLiveRating(rec); },
       // The look at the agent is sent the player's bar alone, cut out of the
       // read's frame and scaled up, a JPEG of the read's own quality, and
       // nothing when it cannot be cut (agent-crop.js): never the whole frame.
@@ -3240,6 +3378,13 @@ const controller = {
   getShell() { syncSeal(); return mainWindow.shellState(); },
   // The live status as it stands (pushLive), for a shell loaded mid match.
   getLive() { pushLive(); return liveNow; },
+  // The stream widget's address to the clipboard (Settings' Copy), only while served.
+  copyRatingWidget(size) {
+    const url = ratingStream && ratingStream.running() && liveRatingSwitch.stream ? ratingStream.url(size === 'compact' ? 'compact' : 'standard') : null;
+    if (!url) return { ok: false };
+    clipboard.writeText(url);
+    return { ok: true };
+  },
   openSettings()  { openPage('settings'); },
   openHistory()   { openPage('matches'); },
   openWeekly()    { weeklyWindow.open(); },
@@ -3773,6 +3918,8 @@ const controller = {
   },
   onConfigChanged() {
     flagKeyChosen = undefined;   // the flag key, read again (8.13)
+    // The live rating's two switches: applied now, not at the next tick.
+    try { syncLiveRating(); } catch (e) { /* the tick tries again */ }
     if (engine && engine.setCaptureSpeed) engine.setCaptureSpeed(store.get('captureSpeed') || 'auto');
     // Record match video turned Off, or On again (Settings' "Try again" after
     // it turned itself off): applied to the session in progress at once.
@@ -5882,6 +6029,7 @@ function cleanupAndQuit() {
   try {
 
     if (engine) { engine.stop(); engine = null; }
+    if (ratingStream) ratingStream.stop().catch(() => {});
     flushAiLog(true);
     // Quitting: no review job outlives the process, so neither does the
     // recording of the screen (and a quit that never gets here is swept at the

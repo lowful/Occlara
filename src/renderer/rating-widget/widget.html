@@ -1,0 +1,52 @@
+<!doctype html>
+<!--
+  THE STREAM WIDGET (the live rating, docs/claude/rating.md "Live"): a page
+  OBS loads as a browser source from Occlara's loopback server
+  (src/main/services/rating-stream.js), never a window of the app and never
+  drawn over the game by Occlara. This file is a template: main fills the
+  marked slots with the fonts (as data, nothing fetched from the net), the
+  app's tokens (shared/theme.css), the shared badge (shared/rating-badge.css
+  and .js) and this folder's widget.css and widget.js, and serves the one
+  self contained page. Transparent: OBS lays it over the stream as it is.
+  It shows only what main sends on its events: the rating, its last move and
+  the engine's plain label, the line so far, "Live, provisional", and after
+  the match "Full time" once Riot's record has linked. Nothing between
+  matches.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; object-src 'none'" />
+  <title>Occlara rating</title>
+  <style>/*FONTS*/</style>
+  <style>/*THEME*/</style>
+  <style>/*BADGE_CSS*/</style>
+  <style>/*WIDGET_CSS*/</style>
+</head>
+<body>
+  <main id="w" class="w" hidden aria-live="off">
+    <div class="w-plate">
+      <div id="w-badge" class="rt-r-badge w-badge"><span id="w-num" class="rt-r-num w-num">6.0</span></div>
+      <div class="w-side">
+        <div class="w-top">
+          <span id="w-delta" class="rt-r-delta w-delta"></span>
+          <span id="w-state" class="w-state">Live, provisional</span>
+        </div>
+        <p id="w-label" class="w-label"></p>
+        <div class="w-foot">
+          <svg id="w-line" class="w-line" viewBox="0 0 160 32" preserveAspectRatio="none" aria-hidden="true">
+            <line class="w-base" x1="0" x2="160" y1="16" y2="16"></line>
+            <path id="w-path" class="w-path" d=""></path>
+          </svg>
+          <span class="w-brand">
+            <svg viewBox="0 0 120 120" width="12" height="12" aria-hidden="true"><path d="M67.444,10.281 A50,50 0 1,0 107.855,80.274 A42,42 0 1,1 67.444,10.281 Z" fill="currentColor"/></svg>
+            Occlara rating
+          </span>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>/*BADGE_JS*/</script>
+  <script>/*WIDGET_JS*/</script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+/* palette: tokens only */
+/* THE RATING'S BADGE (docs/claude/rating.md): one component, three places,
+   the review's replay (review/rating-view.js), the Recording screen's live
+   rating (shell/shell.js) and the stream widget's page (rating-widget/, the
+   server inlines this file). The number on its tier's colour, the way
+   football ratings colour theirs (under 6 --bad, 6 to 6.9 --warn, 7 to 7.9
+   --good, 8 to 8.9 --tier-4, 9 and up --tier-5; never the signal), the dark
+   ink on it, the number always the text. It counts through CSS (@property
+   --rt over counter()), the page sets the value only. The move beside it
+   rises in green or falls in red, once, on a change. Motion is opacity and
+   transform; reduced motion takes every duration to nothing (theme.css). */
+
+/* The tier, as a token every rule reads. */
+.t-poor { --rt-tier: var(--bad); }
+.t-fair { --rt-tier: var(--warn); }
+.t-good { --rt-tier: var(--good); }
+.t-great { --rt-tier: var(--tier-4); }
+.t-excellent { --rt-tier: var(--tier-5); }
+
+/* THE BADGE: the rating on its tier's colour, the dark ink on it. */
+.rt-r-badge {
+  display: flex; align-items: center; justify-content: center; min-width: 200px; padding: var(--space-4) var(--space-6);
+  border-radius: var(--r-panel); background: var(--rt-tier, var(--s3)); color: var(--on-accent);
+  box-shadow: var(--drop); transition: background-color var(--t-slow) var(--ease-out);
+}
+
+/* THE COUNT: the value in tenths, --rt, which the page sets; its whole part
+   rounded down by the integer type (--rt less 5, over 10) and its tenth what
+   is left, drawn by counter() over the real number, which stays the text. */
+@property --rt { syntax: '<integer>'; initial-value: 60; inherits: true; }
+@property --rt-w { syntax: '<integer>'; initial-value: 6; inherits: true; }
+@property --rt-d { syntax: '<integer>'; initial-value: 0; inherits: true; }
+.rt-r-num {
+  position: relative; color: transparent;
+  font-family: var(--font); font-size: 104px; font-weight: 700; line-height: 0.9;
+  letter-spacing: -0.055em; font-variant-numeric: tabular-nums;
+  --rt-w: calc((var(--rt) - 5) / 10);
+  --rt-d: calc(var(--rt) - var(--rt-w) * 10);
+  counter-reset: rtw var(--rt-w) rtd var(--rt-d);
+  transition: --rt var(--t-slow) var(--ease-out);
+}
+.rt-r-num::after { content: counter(rtw) "." counter(rtd); position: absolute; left: 0; top: 0; color: var(--on-accent); }
+
+/* The move beside it: up rises in green, down falls in red. */
+.rt-r-delta { min-width: 4ch; font-family: var(--font-mono); font-size: 28px; font-weight: 500; color: var(--text-mute); font-variant-numeric: tabular-nums; opacity: 0; }
+.rt-r-delta.up { color: var(--good); animation: rtUp var(--t-slow) var(--ease-out) both; }
+.rt-r-delta.down { color: var(--bad); animation: rtDown var(--t-slow) var(--ease-out) both; }
+
+@keyframes rtUp { from { opacity: 0; transform: translateY(14px); } 30% { opacity: 1; } to { opacity: 1; transform: none; } }
+@keyframes rtDown { from { opacity: 0; transform: translateY(-14px); } 30% { opacity: 1; } to { opacity: 1; transform: none; } }

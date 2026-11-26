@@ -1025,6 +1025,68 @@ setTimeout(async () => {
       await setjs("document.querySelector('.body').scrollTop = 0; true");
     }
 
+    // THE LIVE RATING IN SETTINGS (the owner's second exception, 2026-11-26):
+    // off by default with its warning beside it and the widget's switch
+    // locked; On asks first and stores nothing until "Turn it on"; the widget
+    // then serves on 127.0.0.1 under the token with its address, Copy and the
+    // OBS line; Off turns both off and the server stops answering.
+    {
+      const http = require('http');
+      const LR = `(() => ({ on: !!document.querySelector('#liverating button.active[data-val="on"]'),
+        streamOn: !!document.querySelector('#liveratingstream button.active[data-val="on"]'),
+        streamLocked: document.getElementById('liveratingstream').classList.contains('locked'),
+        confirm: !document.getElementById('lr-confirm').hidden, warn: document.getElementById('lr-warn').textContent,
+        widget: !document.getElementById('lr-widget').hidden, url: document.getElementById('lr-url').textContent,
+        obs: document.getElementById('lr-obs').textContent }))()`;
+      const ask = (url) => new Promise((resolve) => {
+        const u = new URL(url);
+        const req = http.request({ host: '127.0.0.1', port: Number(u.port), path: u.pathname, agent: false, headers: { Host: `127.0.0.1:${u.port}` } }, (res) => {
+          let body = '';
+          res.on('data', (c) => { body += c; });
+          res.on('end', () => resolve({ status: res.statusCode, body }));
+        });
+        req.on('error', (e) => resolve({ error: e.code || 'error' }));
+        req.end();
+      });
+      await setjs("document.getElementById('lr-row').scrollIntoView({ block: 'center' }); true");
+      const lr0 = await setjs(LR);
+      lines.push(`settings, the live rating: ${JSON.stringify(lr0)}`);
+      if (lr0.on || lr0.streamOn || !lr0.streamLocked || lr0.widget || lr0.confirm
+        || !/Riot does not approve apps that show real-time data that changes how you play/.test(lr0.warn) || !/never what to do/.test(lr0.warn)) {
+        return report(false, `Settings' live rating is not off by default with its warning and the widget locked: ${JSON.stringify(lr0)}`);
+      }
+      await shot('settings-live-rating-off', mainWindow, win);
+      await setjs("document.querySelector('#liverating button[data-val=\"on\"]').click(); true");
+      await wait(300);
+      const lr1 = await setjs(LR);
+      const cfg1 = await setjs('window.occlara.getConfig()');
+      if (!lr1.confirm || lr1.on || cfg1.liveRating !== false) return report(false, `On did not ask first, or stored before the answer: ${JSON.stringify({ lr1, stored: cfg1.liveRating })}`);
+      await shot('settings-live-rating-confirm', mainWindow, win);
+      await setjs("document.getElementById('lr-turn-on').click(); true");
+      const lr2 = await until(async () => { const s = await setjs(LR); const c = await setjs('window.occlara.getConfig()'); return s.on && !s.streamLocked && c.liveRating === true ? s : null; }, 3000);
+      if (!lr2) return report(false, 'Turn it on did not turn the live rating on and unlock the widget');
+      await setjs("document.querySelector('#liveratingstream button[data-val=\"on\"]').click(); true");
+      const lr3 = await until(async () => { const s = await setjs(LR); return /^http:\/\/127\.0\.0\.1:\d+\/[A-Za-z0-9_-]{32,}\/$/.test(s.url) ? s : null; }, 5000) || await setjs(LR);
+      lines.push(`settings, the widget on: ${JSON.stringify({ ...lr3, url: lr3.url.replace(/\/[A-Za-z0-9_-]{32,}\//, '/<token>/') })}`);
+      if (!lr3.widget || !/^http:\/\/127\.0\.0\.1:\d+\//.test(lr3.url) || !/Browser source/.test(lr3.obs) || !/520/.test(lr3.obs)) {
+        return report(false, `the widget's address, Copy and OBS line are not shown: ${JSON.stringify(lr3)}`);
+      }
+      const served = await ask(lr3.url);
+      if (served.status !== 200 || !/<main id="w"/.test(served.body)) return report(false, `the widget's address does not serve its page: ${JSON.stringify({ status: served.status, error: served.error })}`);
+      await setjs("document.querySelector('#lr-size button[data-val=\"compact\"]').click(); true");
+      await wait(200);
+      const lr4 = await setjs(LR);
+      if (!/\?size=compact$/.test(lr4.url) || !/360/.test(lr4.obs)) return report(false, `the compact size does not change the address and the OBS line: ${JSON.stringify(lr4)}`);
+      await setjs("document.querySelector('#lr-size button[data-val=\"standard\"]').click(); true");
+      await shot('settings-live-rating-on', mainWindow, win);
+      await setjs("document.querySelector('#liverating button[data-val=\"off\"]').click(); true");
+      const stopped = await until(async () => { const r = await ask(lr3.url); return r.error ? r : null; }, 5000);
+      const lr5 = await setjs(LR);
+      lines.push(`settings, the live rating off again: widget ${lr5.widget ? 'shown' : 'hidden'}, the server ${stopped ? stopped.error : 'still answering'}`);
+      if (!stopped || lr5.on || lr5.streamOn || lr5.widget) return report(false, 'turning the live rating off did not stop the widget\'s server and hide its address');
+      await setjs("document.querySelector('.body').scrollTop = 0; true");
+    }
+
     // WHAT'S NEW AND THE DISCORD (the changelog): Settings' two rows, the
     // version line opening the What's new page, the bundled changelog painted
     // there with the running version marked, the sidebar marking Settings,
@@ -1353,6 +1415,65 @@ setTimeout(async () => {
       return report(false, `mid match, the live status shows more than the four facts: ${liveSeen.text}`);
     }
     await shot('recording', mainWindow, win);
+    // THE LIVE RATING (the owner's second exception, 2026-11-26,
+    // docs/claude/screen-silence.md "The live rating"). OFF by default: the
+    // screen shows none and main sends none, even while the reader hands main
+    // its frames with the player's own kill in the kill feed. Turned on (from
+    // Settings' own page, whose view is kept while sealed), the same frames
+    // put the rating on the screen and in PUSH_LIVE, with only its own
+    // fields; turned off again, all of it goes.
+    {
+      const { nativeImage } = require('electron');
+      const { drawFrame } = require('./fixtures/killfeed-frames');
+      const jpeg = (rows) => {
+        const f = drawFrame({ W: 1280, H: 720, rows, order: 'bgra' });
+        return nativeImage.createFromBitmap(f.data, { width: 1280, height: 720 }).toJPEG(92).toString('base64');
+      };
+      const feed = (rows) => reader.opts.diagnostics({ at: Date.now(), image: jpeg(rows), round: 7, died: false, match: 1 });
+      const KILL = [{ slot: 0, killer: 'ally', victim: 'enemy', mine: 'kill', vlen: 0.06 }];
+      Object.assign(reader.matchContext, { side: 'attacking', phase: 'active', playerAlive: true, clock: '1:30' });
+      const RATING_NOW = `window.occlara.getLive().then((v) => {
+        const box = document.getElementById('live-rating');
+        return { keys: v ? Object.keys(v).sort().join() : null, rating: v && v.rating ? v.rating : null,
+          ratingKeys: v && v.rating ? Object.keys(v.rating).sort().join() : null,
+          shown: !!box && !box.hidden && !box.closest('[hidden]'), num: document.getElementById('lr-num').textContent,
+          label: document.getElementById('lr-label').textContent, chip: (box.querySelector('.lr-prov') || {}).textContent || '',
+          tier: document.getElementById('lr-badge').className, text: box.innerText.replace(/\\s+/g, ' ') };
+      })`;
+      if (typeof reader.opts.diagnostics !== 'function') return report(false, 'the reader was handed no diagnostics sink: the live rating has nothing to read');
+      feed([]); feed(KILL); feed(KILL); feed(KILL);
+      await wait(1300);
+      const off = await sjs(RATING_NOW);
+      lines.push(`live rating, its switch off: ${JSON.stringify({ keys: off.keys, shown: off.shown })}`);
+      if (off.shown || off.rating || /rating/.test(off.keys || '')) {
+        return report(false, `with the live rating off, the Recording screen or PUSH_LIVE carries a rating: ${JSON.stringify(off)}`);
+      }
+      const setjs2 = (s) => mainWindow.pageViews().get('settings').webContents.executeJavaScript(s);
+      await setjs2('window.occlara.setConfig({ liveRating: true }).then(() => true)');
+      feed([]);
+      await wait(60);
+      feed(KILL);
+      await wait(60);
+      feed(KILL);
+      await wait(60);
+      feed(KILL);
+      const on = await until(async () => { const s = await sjs(RATING_NOW); return s.shown && s.label && s.rating ? s : null; }, 4000) || await sjs(RATING_NOW);
+      lines.push(`live rating, its switch on: ${JSON.stringify({ ...on, text: on.text.slice(0, 120) })}`);
+      if (!on.shown || on.ratingKeys !== 'last,line,shown,tier,value' || on.label !== 'First kill, 5v5' || on.chip !== 'Live, provisional'
+        || on.num !== on.rating.shown || !(on.rating.value > 6) || !/\bt-(fair|good|great|excellent)\b/.test(on.tier)) {
+        return report(false, `with the live rating on, the Recording screen does not show the number, its move and "Live, provisional": ${JSON.stringify(on)}`);
+      }
+      if (Object.keys(on.rating.last).sort().join() !== 'delta,down,label,up' || /\b87\b|3900|A Main|carried|spike|Abyss|Jett/i.test(JSON.stringify(on.rating))) {
+        return report(false, `the live rating carries more than its own fields: ${JSON.stringify(on.rating)}`);
+      }
+      const whole = await sjs(LIVE_NOW);
+      if (/\b87\b|3900|A Main|carried|spike/i.test(whole.text)) return report(false, `with the rating on, the Recording screen shows more than allowed: ${whole.text}`);
+      await shot('recording-rating', mainWindow, win);
+      await setjs2('window.occlara.setConfig({ liveRating: false, liveRatingStream: false }).then(() => true)');
+      const gone = await until(async () => { const s = await sjs(RATING_NOW); return !s.shown && !s.rating ? s : null; }, 4000) || await sjs(RATING_NOW);
+      lines.push(`live rating, switched off again: ${JSON.stringify({ keys: gone.keys, shown: gone.shown })}`);
+      if (gone.shown || gone.rating) return report(false, `switched off, the live rating stayed: ${JSON.stringify(gone)}`);
+    }
     reader.matchContext = null;
     reader.inLobby = true;
     ipc.emit(CH5.SHELL_NAV, { sender: null }, 'home');

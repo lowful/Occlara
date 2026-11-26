@@ -209,6 +209,20 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
 .seg.locked > button { cursor: not-allowed; }
 .seg.locked > button:not(.active) { color: var(--text-mute); opacity: 0.6; }
 .ailog-lock { margin: 0; }
+/* The live rating (the owner's second exception): its warning in the plain
+   hint ink with a rule beside it, never the signal; the stream widget's row
+   locked like the AI log's while the rating is off; the address in Mono on
+   one line with its Copy. */
+.lr-warn { padding-left: var(--space-3); border-left: 2px solid var(--warn); color: var(--text); }
+.lr-widget { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-3); }
+.lr-widget[hidden] { display: none; }
+.lr-line { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+.lr-url {
+  flex: 1 1 260px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 8px 12px; border: 1px solid var(--line-2); border-radius: var(--r-control);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-dim); user-select: all;
+}
+.lr-err { color: var(--warn); }
 /* The clips kept beside the reviews: what they take, the cap, Clear clips,
    under a hairline inside the recording group. */
 .rec-clips { margin-top: var(--space-2); padding-top: var(--space-4); border-top: 1px solid var(--line); }

@@ -170,6 +170,8 @@ function registerIpc(deps) {
   safeHandle(C.STATE_GET, async () => controller.getState());
   safeHandle(C.SHELL_GET, async () => controller.getShell());
   safeHandle(C.LIVE_GET, async () => (controller.getLive ? controller.getLive() : null));
+  // The stream widget's address to the clipboard, main's to copy (the live rating).
+  safeHandle(C.STREAM_WIDGET_COPY, async (_e, size) => (controller.copyRatingWidget ? controller.copyRatingWidget(size === 'compact' ? 'compact' : 'standard') : { ok: false }));
 
   safeHandle(C.CHAT_SEND, async (_e, messages, opts) => controller.chat(messages, opts && typeof opts === 'object' ? opts : {}));
   // Ask Coach's match (8.5.0): the list and the chip, main's to decide.
@@ -279,6 +281,9 @@ function snapshotConfig() {
     liveAgent:       store.get('liveAgent') !== false,
     liveScore:       store.get('liveScore') !== false,
     liveRound:       store.get('liveRound') !== false,
+    // The live rating and its widget, off unless turned on (never the token).
+    liveRating:       store.get('liveRating') === true,
+    liveRatingStream: store.get('liveRating') === true && store.get('liveRatingStream') === true,
     panelMinimized:  store.get('panelMinimized'),
     // The log window's keyboard hint counts its own appearances. Same trap as
     // language below: without it here, getConfig() reads undefined, the counter

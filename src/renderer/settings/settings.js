@@ -13,7 +13,7 @@ function slideSeg(id) {
   if (el && typeof window.occlaraSeg === 'function' && typeof MutationObserver === 'function') window.occlaraSeg(el);
   return el;
 }
-for (const id of ['capturespeed', 'recording', 'recordingres', 'clipcap', 'advanced', 'capturequality', 'sounds', 'ailog', 'livemap', 'liveagent', 'livescore', 'liveround']) slideSeg(id);
+for (const id of ['capturespeed', 'recording', 'recordingres', 'clipcap', 'advanced', 'capturequality', 'sounds', 'ailog', 'livemap', 'liveagent', 'livescore', 'liveround', 'liverating', 'liveratingstream', 'lr-size']) slideSeg(id);
 
 function markSeg(seg, value) {
   for (const btn of seg.querySelectorAll('button')) {
@@ -103,6 +103,97 @@ let flagKeyControl = null;   // the key that flags a death (8.13, shared/flag-ke
 // Match status while recording (Progress v3): one switch each, on by default.
 const LIVE_SEGS = [['livemap', 'liveMap'], ['liveagent', 'liveAgent'], ['livescore', 'liveScore'], ['liveround', 'liveRound']]
   .map(([id, key]) => [wireBoolSeg(id, key), key]);
+
+/*
+ * THE LIVE RATING (the owner's second exception, 2026-11-26,
+ * docs/claude/screen-silence.md "The live rating"). OFF by default. Turning
+ * it on asks first, with the warning in full; Off asks nothing. The stream
+ * widget's switch is locked (as the AI log's is) while the rating is off, and
+ * turning the rating off turns the widget off too. The widget's address is
+ * main's (state.ratingWidget, only while it is served), copied by main.
+ */
+const lrSeg = document.getElementById('liverating');
+const lrsSeg = document.getElementById('liveratingstream');
+const lrConfirm = document.getElementById('lr-confirm');
+const lrWidget = document.getElementById('lr-widget');
+const lrSize = document.getElementById('lr-size');
+const lrUrl = document.getElementById('lr-url');
+const lrObs = document.getElementById('lr-obs');
+const lrErr = document.getElementById('lr-err');
+const lrCopy = document.getElementById('lr-copy');
+const LR_OBS = {
+  standard: 'In OBS, add a Browser source, paste this address and set the width to 520 and the height to 190.',
+  compact: 'In OBS, add a Browser source, paste this address and set the width to 360 and the height to 130.',
+};
+let lrOn = false;
+let lrStream = false;
+let lrSizeNow = 'standard';
+let lrWidgetState = { on: false };
+function paintLiveRating() {
+  markSeg(lrSeg, lrOn ? 'on' : 'off');
+  markSeg(lrsSeg, lrOn && lrStream ? 'on' : 'off');
+  for (const b of lrsSeg.querySelectorAll('button')) b.disabled = !lrOn;
+  lrsSeg.classList.toggle('locked', !lrOn);
+  if (lrOn) lrsSeg.removeAttribute('aria-disabled'); else lrsSeg.setAttribute('aria-disabled', 'true');
+  const w = lrWidgetState || {};
+  lrWidget.hidden = !(lrOn && lrStream);
+  markSeg(lrSize, lrSizeNow);
+  const url = w.running ? (lrSizeNow === 'compact' ? w.compactUrl : w.url) : null;
+  lrUrl.textContent = url || 'Starting the widget on this PC...';
+  lrCopy.disabled = !url;
+  lrObs.textContent = LR_OBS[lrSizeNow];
+  lrErr.hidden = !(w.on && !w.running && w.error);
+  if (!lrErr.hidden) lrErr.textContent = 'The widget could not start on this PC: no free port between 47815 and 47824. Close what uses them, or turn the widget off and on again.';
+}
+lrSeg.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  if (btn.dataset.val === 'on') {
+    if (lrOn) return;
+    lrConfirm.hidden = false;
+    document.getElementById('lr-keep-off').focus();
+    return;
+  }
+  lrConfirm.hidden = true;
+  lrOn = false; lrStream = false;
+  paintLiveRating();
+  await window.occlara.setConfig({ liveRating: false, liveRatingStream: false }).catch(() => {});
+});
+document.getElementById('lr-keep-off').addEventListener('click', () => { lrConfirm.hidden = true; });
+document.getElementById('lr-turn-on').addEventListener('click', async () => {
+  lrConfirm.hidden = true;
+  lrOn = true;
+  paintLiveRating();
+  await window.occlara.setConfig({ liveRating: true }).catch(() => {});
+});
+lrsSeg.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn || !lrOn) return;
+  lrStream = btn.dataset.val === 'on';
+  paintLiveRating();
+  await window.occlara.setConfig({ liveRatingStream: lrStream }).catch(() => {});
+});
+lrSize.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  lrSizeNow = btn.dataset.val === 'compact' ? 'compact' : 'standard';
+  paintLiveRating();
+});
+lrCopy.addEventListener('click', async () => {
+  const r = await Promise.resolve(window.occlara.copyRatingWidget(lrSizeNow)).catch(() => null);
+  if (r && r.ok) {
+    lrCopy.textContent = 'Copied';
+    setTimeout(() => { lrCopy.textContent = 'Copy'; }, 1600);
+  }
+});
+/** The two switches and the widget's address, from the config at load and every state push. */
+function takeLiveRating(live, widget) {
+  if (live && typeof live.liveRating === 'boolean') lrOn = live.liveRating;
+  if (live && typeof live.liveRatingStream === 'boolean') lrStream = live.liveRatingStream;
+  if (widget && typeof widget === 'object') lrWidgetState = widget;
+  paintLiveRating();
+}
+paintLiveRating();
 // Capture quality is a VALUE segment, not a boolean: 'standard' or
 // 'performance'. Naming the values rather than on/off keeps the meaning in the
 // stored config, where a future third profile would slot in without a migration.
@@ -767,6 +858,7 @@ async function load() {
         flagKeyControl = window.occlaraFlagKeyControl(document.getElementById('flagkey'), cfg.flagKey);
       }
       for (const [seg, key] of LIVE_SEGS) markSeg(seg, cfg[key] === false ? 'off' : 'on');
+      takeLiveRating({ liveRating: cfg.liveRating === true, liveRatingStream: cfg.liveRatingStream === true }, null);
       if (typeof cfg.riotId === 'string') riotEl.value = cfg.riotId;
       // Already connected from a previous session? Show it, no reconnect
       // needed: the profile saved for the Riot ID in config. Connected means
@@ -807,7 +899,9 @@ window.occlara.onState((s) => renderLicense(s));
 window.occlara.onState((s) => {
   if (!s || !s.live || typeof s.live !== 'object') return;
   for (const [seg, key] of LIVE_SEGS) if (typeof s.live[key] === 'boolean') markSeg(seg, s.live[key] ? 'on' : 'off');
+  takeLiveRating(s.live, s.ratingWidget);
 });
+window.occlara.getState().then((s) => { if (s && s.live) takeLiveRating(s.live, s.ratingWidget); }).catch(() => {});
 window.addEventListener('focus', refreshLicense);
 setInterval(refreshLicense, 15000);
 

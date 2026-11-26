@@ -329,6 +329,22 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .live-colon { font-size: 44px; font-weight: 500; line-height: 1; color: var(--text-mute); }
 .live-round-block { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
 .live-round-block b { font-size: 44px; font-weight: 600; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+/* THE LIVE RATING (the owner's second exception, with its switch on): one
+   ruled row under the score, the badge (shared/rating-badge.css) smaller than
+   the replay's, its move and the engine's label, the line so far. The count
+   and the move run once on a change; nothing else moves. */
+.live-rating { display: flex; align-items: center; gap: var(--space-5); margin-bottom: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--line); min-width: 0; }
+.live-rating[hidden] { display: none; }
+.lr-badge { flex: none; min-width: 112px; padding: var(--space-2) var(--space-4); border-radius: var(--r-card); }
+.lr-num { font-size: 52px; }
+.lr-side { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.lr-head { display: flex; align-items: center; gap: var(--space-3); }
+.lr-move { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
+.lr-delta { min-width: 3.5ch; font-size: 20px; }
+.lr-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+.lr-line { flex: none; width: 200px; height: 48px; overflow: visible; }
+.lr-base { stroke: var(--line-2); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.lr-path { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .live-foot { display: flex; flex-direction: column; gap: var(--space-4); }
 .live-tape-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); }
 .live-note { font-size: 12px; color: var(--text-mute); }
