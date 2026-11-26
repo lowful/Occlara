@@ -28,6 +28,7 @@ const { FIGHTS, CHANGES, CAUSES, recordCause } = require('./death-causes');
 const icons = require('./valorant-icons');
 const { killIcon } = require('./kit-icons');
 const { satOut, cardSatOut } = require('./sat-out');
+const rating = require('./rating');
 
 let DATA = {};
 try {
@@ -1139,7 +1140,19 @@ function build(input) {
     // them: agents and roles only. The page's comps line is computed from it
     // when shown (compsLine), and Ask Coach is told it.
     ...(compsOf(input.comps) ? { comps: compsOf(input.comps) } : {}),
+    // THE MATCH RATING (docs/claude/rating.md): counted from Riot's kill feed
+    // on the cards wherever Riot's record was laid over the review (the match
+    // end, the late link, the backfill, an import that matched) and saved
+    // with its version. A review from the screen alone has none, and the
+    // page says what would give it one (served, withRating).
+    ...ratingField(cards, game),
   };
+}
+
+/** The rating of a review's cards as a field, or nothing. */
+function ratingField(cards, game) {
+  const out = rating.ratingOfReview({ kind: 'valorant', game, rounds: cards });
+  return out.rating ? { rating: out.rating } : {};
 }
 
 /**
@@ -1177,11 +1190,26 @@ function riotOnlyNote(grade, riotOnly) {
 function served(review) {
   if (!review || review.kind !== 'valorant') return review;
   if (review.source === 'riot') {
-    return withView(withCompsLine(weaponsInTodaysWords(withoutEconomy({ ...review, insights: insights.asFacts(review.insights),
-      grade: grader.riotWords(review.grade) }))));
+    return withRating(withView(withCompsLine(weaponsInTodaysWords(withoutEconomy({ ...review, insights: insights.asFacts(review.insights),
+      grade: grader.riotWords(review.grade) })))));
   }
   const out = recordCausesSaved(review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review);
-  return withView(withCompsLine(weaponsInTodaysWords(aboutNotesInTodaysWords(withoutEconomy(out)))));
+  return withRating(withView(withCompsLine(weaponsInTodaysWords(aboutNotesInTodaysWords(withoutEconomy(out))))));
+}
+
+/*
+ * THE RATING AS THE PAGE DRAWS IT, NEVER ON DISK (docs/claude/rating.md):
+ * `ratingView`, from the rating saved with the review, or counted on open
+ * from its cards when it was saved before ratings existed and they carry
+ * Riot's kill feed, or the line that says what would give it one. Nothing is
+ * written back and the grade is never touched. A locked review gets none: it
+ * shows nothing that judges the match.
+ */
+function withRating(review) {
+  if (!review || review.kind !== 'valorant' || review.locked === true) return review;
+  const r = rating.ratingOfReview(review);
+  const view = rating.viewOf(r.rating, { note: r.note, rounds: Array.isArray(review.rounds) ? review.rounds.length : 0 });
+  return view ? { ...review, ratingView: view } : review;
 }
 
 /*
@@ -1202,7 +1230,7 @@ function withoutEconomy(review) {
  * holds, so a review from any version gets them. withoutView takes them off
  * again, for a test that holds the rest of what is shown unchanged.
  */
-const VIEW_FIELDS = ['summaryLines', 'context'];
+const VIEW_FIELDS = ['summaryLines', 'context', 'ratingView'];
 const VIEW_CARD_FIELDS = ['tags', 'open', 'killerCard', 'chain', 'flag', 'explain'];
 
 /*
