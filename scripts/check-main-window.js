@@ -724,9 +724,24 @@ setTimeout(async () => {
       return report(false, `the review's comps line is not one line of both teams' agents under the strip: ${JSON.stringify(comps)}`);
     }
 
+    // The match rating (docs/claude/rating.md), before the rounds, as main
+    // serves it for the sample's newest match: the number, the place in the
+    // lobby by agent, the swings. check:rating drives the rest of it.
+    const ratingServed = require(path.join(REPO, 'src/shared/valorant-review')).served({ ...built, id: 'x' }).ratingView;
+    const ratingBlock = await review.webContents.executeJavaScript(`(() => { const w = document.getElementById('v-rating-wrap');
+      return w ? { hidden: w.hidden, value: document.getElementById('rt-value').textContent, place: document.getElementById('rt-place').textContent,
+        next: w.nextElementSibling && w.nextElementSibling.id, rows: document.querySelectorAll('#v-rating-wrap .rt-row').length } : null; })()`);
+    lines.push(`rating block: ${JSON.stringify(ratingBlock)}`);
+    if (!ratingServed || !ratingBlock || ratingBlock.hidden || ratingBlock.value !== ratingServed.shown
+      || ratingBlock.place !== `${ratingServed.place} in the lobby` || ratingBlock.next !== 'v-rounds-wrap' || ratingBlock.rows < 2) {
+      return report(false, `the review's match rating is not the one main serves, before the rounds: ${JSON.stringify(ratingBlock)}`);
+    }
+
     await wait(1500);
     await shot('review', mainWindow, win);
     if (process.env.OCCLARA_SHOTS === '1') {
+      await review.webContents.executeJavaScript("document.getElementById('v-rating-wrap').scrollIntoView({ block: 'start' }); true");
+      await shot('review-rating', mainWindow, win);
       // The strip and the comps line under it (8.5.0), scrolled into view.
       await review.webContents.executeJavaScript("document.getElementById('v-rounds-wrap').scrollIntoView({ block: 'start' }); true");
       await shot('review-comps', mainWindow, win);
