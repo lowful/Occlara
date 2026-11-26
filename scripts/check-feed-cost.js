@@ -49,6 +49,8 @@ function report(ok, detail) {
   if (done) return;
   done = true;
   try { fs.writeFileSync(process.env.OCCLARA_FEEDCOST_OUT || OUT, JSON.stringify({ ok, detail, lines })); } catch { /* exit code */ }
+  // The numbers kept with the screenshots, for a run that only shows failures.
+  try { const dir = path.join(REPO, 'dist-surface-shots'); fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'feed-cost.txt'), lines.join('\n') + '\n'); } catch { /* the lines are in the result too */ }
   app.exit(ok ? 0 : 1);
 }
 app.disableHardwareAcceleration();
