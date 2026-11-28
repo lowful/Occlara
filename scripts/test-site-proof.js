@@ -120,7 +120,11 @@ ok(p.home.mistakesHeading === 'What repeats' && p.home.mistakesTitle, "Home's ca
 ok(p.home.trend.label === 'Trend' && p.home.trend.title === 'Averaging 64' && /^Your last four graded matches/.test(p.home.trend.average)
   && p.home.last.average === p.home.trend.average,
   "Home's trend card: its eyebrow, the average it shows and what it is of", JSON.stringify(p.home.trend));
-ok(/^Grade over your last \d$/.test(p.matches.chart.label), "the Matches chart's label", p.matches.chart.label);
+// 9.1: the trend across the top, its eyebrow and its title, and when you
+// play best below its threshold (the owner's items 15 and 21).
+ok(p.matches.chart.label === 'Grade trend' && /^Your last \d graded matches$/.test(p.matches.chart.title), "the Matches chart's eyebrow and title", JSON.stringify(p.matches.chart));
+ok(p.matches.when && /^Shows after \d+ more graded matches/.test(p.matches.when.note) && !p.matches.when.best,
+  'Matches: when you play, below the threshold, says how many more', JSON.stringify(p.matches.when));
 ok(p.matches.title === 'Matches' && p.matches.sub && p.matches.subnav.map((s) => s.page).join() === 'Matches,Patterns,Stats' && p.matches.subnav[0].current,
   'Matches: its title, its sub line and the sub switch to Patterns and Stats, Matches pressed', JSON.stringify([p.matches.title, p.matches.subnav]));
 ok(p.matches.rows.length === 4 && p.matches.rows.every((r) => r.topMistake === TOP), 'Matches: four rows, each with its top mistake');
@@ -167,9 +171,13 @@ ok(p.places && p.places.moments.length === mo.compilation.rows.length && p.place
 ok(p.places.clips && p.places.clips.hero.length === mo.hero.length && p.places.clips.hero.every((h) => inside(h.at) && h.at.y > BAR),
   "where the hero's cards sit on the picture of Clips", JSON.stringify(p.places.clips));
 const sub = p.places.matches && p.places.matches.subnav;
+// 9.1: the grade trend leads Matches, when you play under it, and the rows
+// start below the first screen: a row off the picture is null, never placed
+// outside it.
 ok(sub && ['Matches', 'Patterns', 'Stats'].every((n) => inside(sub[n]) && sub[n].y > BAR) && sub.Patterns.x > sub.Matches.x && sub.Stats.x > sub.Patterns.x
-  && p.places.matches.rows.length === 4 && p.places.matches.rows.every((r) => inside(r) && r.y > BAR),
-  'where the sub switch and the rows sit on the picture of Matches', JSON.stringify(p.places.matches));
+  && inside(p.places.matches.chart) && p.places.matches.chart.y > sub.Matches.y
+  && p.places.matches.rows.length === 4 && p.places.matches.rows.every((r) => r === null || (inside(r) && r.y > p.places.matches.chart.y)),
+  'where the sub switch, the grade trend and the rows sit on the picture of Matches', JSON.stringify(p.places.matches));
 // The hero's actions sit at the foot of the first screen (Ask about this
 // match was 10px over the picture's foot on 28 Nov 2026), so one the layout
 // pushes past it is null, never a place off the picture.

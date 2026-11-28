@@ -37,6 +37,11 @@
  * with both at the least width; updatefocus the
  * keyboard's ring on Restart to update. Scenes also take news, update and
  * sact (JS run in the bar's own document before the picture).
+ * Matches (9.1) on a fuller library (fixtures/many-matches.js): matchesmany,
+ * matchestip (a point of the trend read), matchespeek and matchesfoot (a
+ * row's peek, under and over its row), matcheslist, matchesmenu,
+ * matchesconfirm (Delete match, asked), matchesdraw (the trend mid draw),
+ * matchesnarrow and matchesnarrowrows (960 by 700), matcheslol (League).
  */
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
@@ -53,6 +58,7 @@ const progress = require('../src/shared/progress');
 const moments = require('../src/shared/moments');
 const { served } = require('../src/shared/valorant-review');
 const { scrubText } = require('../src/shared/plain-text');
+const { manyRows } = require('./fixtures/many-matches');
 
 const TOP_H = Number((fs.readFileSync(path.join(ROOT, 'src', 'main', 'windows', 'main-window.js'), 'utf8').match(/const TOP_H = (\d+);/) || [])[1]) || 56;
 const W = Number(process.env.SHOT_W) || 1280;
@@ -158,6 +164,25 @@ const SCENES = {
       c.append(i, n); s.append(c);
     }
     document.body.append(s); return true; })()` },
+  // Matches on a fuller library (9.1, scripts/fixtures/many-matches.js): the
+  // grade trend, when you play best, every kind of row; a point of the trend
+  // read, a row's peek, its menu and the delete it asks first; and the
+  // window at its least.
+  matchesmany: { page: 'matches', many: true },
+  matchestip: { page: 'matches', many: true, act: "chart.select(14); true" },
+  matchespeek: { page: 'matches', many: true, act: "(() => { const r = document.querySelectorAll('#list .m-row')[4]; r.scrollIntoView({ block: 'center' }); setTimeout(() => { r.focus(); r.closest('.m-item').classList.add('peek-show'); }, 300); return true; })()" },
+  matcheslist: { page: 'matches', many: true, act: "document.getElementById('list').scrollIntoView({ block: 'start' }); true" },
+  matchesmenu: { page: 'matches', many: true, act: "(() => { const b = document.querySelectorAll('#list .m-more')[4]; b.scrollIntoView({ block: 'center' }); setTimeout(() => b.click(), 300); return true; })()" },
+  matchesconfirm: { page: 'matches', many: true, act: "(() => { const b = document.querySelectorAll('#list .m-more')[2]; b.click(); setTimeout(() => { const d = document.querySelector('#m-menu [data-action=delete]'); if (d) d.click(); }, 200); return true; })()" },
+  matchesnarrow: { page: 'matches', many: true, w: 960, h: 700 },
+  matchesnarrowrows: { page: 'matches', many: true, w: 960, h: 700, act: "document.getElementById('list').scrollIntoView({ block: 'start' }); true" },
+  matchesfoot: { page: 'matches', many: true, act: "(() => { const all = document.querySelectorAll('#list .m-row'); const r = all[all.length - 1]; r.scrollIntoView({ block: 'end' }); setTimeout(() => { r.closest('.m-item').dispatchEvent(new Event('pointerenter')); r.closest('.m-item').classList.add('peek-show'); }, 300); return true; })()" },
+  // The trend mid draw: played again, pictured 420ms in.
+  matchesdraw: { page: 'matches', many: true, act: 'chart.play(); true', after: 420 },
+  matcheslol: { page: 'matches', game: 'lol' },
+  matcheswhen: { page: 'matches', many: true, act: "document.getElementById('when').scrollIntoView({ block: 'start' }); true" },
+  // Delete refused (the demo answers nothing): the dialog says so and stays.
+  matchesrefused: { page: 'matches', many: true, act: "(() => { const it = [...document.querySelectorAll('#list .m-item')].find((x) => /import/.test(x.dataset.id)); it.scrollIntoView({ block: 'center' }); setTimeout(() => { it.querySelector('.m-more').click(); setTimeout(() => { document.querySelector('#m-menu [data-action=delete]').click(); setTimeout(() => document.getElementById('m-confirm-go').click(), 150); }, 150); }, 300); return true; })()", after: 1400 },
 };
 
 /** A rank history whose newest rated game is `r.tier` at `r.rr` RR, the last game `r.change` (rank-tiers.js: elo is the place times 100 plus the RR). */
@@ -241,8 +266,9 @@ app.whenReady().then(async () => {
     [C.ACCOUNT_GET]: () => proof.SEEDED_VIEW,
     [C.SOCIAL_STATE]: () => ({ live: false }),
     [C.DUOS_STATE]: () => ({ duos: false }),
-    [C.REVIEWS_LIST]: (_e, game) => (scene.ungraded && (game || 'valorant') === 'valorant' ? [ungradedRow()] : [])
-      .concat(store.list(game || null).map((r) => ({ ...r, aiLog: null, work: null }))),
+    [C.REVIEWS_LIST]: (_e, game) => (scene.many ? manyRows(Date.now() - 20 * 60 * 1000)
+      : (scene.ungraded && (game || 'valorant') === 'valorant' ? [ungradedRow()] : [])
+        .concat(store.list(game || null).map((r) => ({ ...r, aiLog: null, work: null })))),
     [C.REVIEW_GET]: (_e, id) => {
       if (id === UNGRADED_ID) return { id, kind: 'valorant', game: { map: 'Haven' }, watched: { rounds: 2, deaths: 1 }, grade: { score: null, categories: [], notes: [] }, focus: null, rounds: [] };
       const e = store.get(id); return e ? present({ ...e.review, id: e.review.id || id }) : null;
@@ -340,7 +366,7 @@ app.whenReady().then(async () => {
       // scene timed from a review made whole is taken at its own moment).
       if (!scene.whole) await wait(Number(process.env.SHOT_WAIT) || 3600);
       // A scene's own act in its page (a click, a scroll), then a moment to settle.
-      if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(900); }
+      if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(scene.after || 900); }
       // And in the bar's own document (sact).
       if (scene.sact) { await shellWin.webContents.executeJavaScript(scene.sact).catch(() => null); await wait(600); }
       // A scene's pointer over an element of its page (9.1): its hover state, pictured.

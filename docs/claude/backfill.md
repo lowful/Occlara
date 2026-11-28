@@ -4,12 +4,13 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
 
 ### Matches graded from Riot's record
 
-Connect (in onboarding, with Skip, and in Settings) and "Grade my recent
-matches" in Matches grade the account's last ten Competitive, Unrated,
+Connect (in onboarding, with Skip, and in Settings) grades the account's last ten Competitive, Unrated,
 Swiftplay or Premier matches from Riot's record (`backfill.js`,
 `riot-review.js`), so a new player's library, patterns and role baseline are
 not empty on day one. The list is `GET /api/coach/recent-matches`; an older
-server falls back to `/last-match`.
+server falls back to `/last-match`. (9.1, the owner's item 5: the "Grade my
+recent matches" button in Matches is gone; a run shows there as one line,
+`matches.js paintBf`.)
 
 - **Never twice.** Every match is planned before anything is fetched, and a
   saved recording CLAIMS the listed match that shares the most of its window

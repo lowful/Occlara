@@ -226,7 +226,7 @@ const check = (p, what) => {
   ok(matchProgress(home, home[0].id).cleared.length === 0 && matchProgress(home, home[2].id).cleared.length === 0,
     'and a recording that counted nothing clears nothing itself');
   const hm = libraryProgress(home).marks;
-  ok((hm[home[1].id] || []).some((x) => x.kind === 'cleared' && x.text === '3 without Dying in the first 30 seconds')
+  ok((hm[home[1].id] || []).some((x) => x.kind === 'cleared' && x.text === '3 without dying in the first 30 seconds')
     && !Object.values(hm).some((xs) => xs.some((x) => /^5 without/.test(x.text))),
   `the library marks 3 without it on the newest real match, never 5 (${JSON.stringify(hm)})`);
   ok(!require('../src/shared/progress').couldCount(stub(0).review, 'early') && require('../src/shared/progress').couldCount(real(1, []).review, 'early'),

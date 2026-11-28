@@ -1651,7 +1651,7 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const lost = review.build({ rounds: eight, context: ctx, endedBy: 'score', ai: {}, riotIdSet: true, linkMissing: true });
   const LATER = "Riot's record of this match was not found yet. The coach ended it at 3 to 5, a score only Swiftplay ends on, "
     + "so the match may have gone on after that. It is checked against Riot's record again at a later launch "
-    + 'with your Riot ID connected, or now with Grade my recent matches in Matches.';
+    + 'with your Riot ID connected, or now with Connect in Settings.';
   const anotherAccount = (lines) => lines.some((l) => /another account/.test(l));
   ok(gaveUp.refused.includes(LATER) && !anotherAccount(gaveUp.refused) && !anotherAccount(gaveUp.grade.notes)
     && gaveUp.grade.notes.some((n) => /may have gone on after the coach ended it/.test(n)),

@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="../shared/motion.css" />
   <link rel="stylesheet" href="../shared/grade-view.css" />
+  <link rel="stylesheet" href="../shared/trend-chart.css" />
   <link rel="stylesheet" href="matches.css" />
 </head>
 <body>
@@ -23,6 +24,15 @@
       <!-- THE SUB SWITCH (Orbit): the pages this link holds, shared/subnav.js. -->
       <nav class="subnav no-drag" data-group="matches" aria-label="Matches"></nav>
       <nav id="tabs" class="tabs no-drag" role="tablist" aria-label="Game"></nav>
+      <!-- THE PAGE'S OWN ACTION (9.1, the owner's item 5): Import a recording
+           in the head, beside the title, with an upload icon. Valorant's
+           list page alone (matches.js paintImport). -->
+      <div class="h-actions no-drag">
+        <button id="imp-go" class="btn md imp-go" type="button" hidden>
+          <svg class="imp-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14.5v3.5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3.5"/></svg>
+          <span>Import a recording</span>
+        </button>
+      </div>
       <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
       <!-- ORBIT: the page's grey sub line under its title. -->
       <p class="page-sub">Every match you played, the newest first.</p>
@@ -79,12 +89,11 @@
       <section id="every" class="block">
         <div class="l-head">
           <h3>Every match</h3>
-          <div id="bf" class="bf" hidden>
-            <span id="bf-status" class="bf-status" aria-live="polite"></span>
-            <button id="bf-go" class="btn sm bf-go" type="button">Grade my recent matches</button>
-          </div>
-          <button id="imp-go" class="btn sm imp-go" type="button" hidden>Import a recording</button>
         </div>
+        <!-- A run grading recent matches from Riot's record (Connect in
+             Settings starts one): one quiet line while it runs. The button
+             that started one here is gone (9.1, the owner's item 5). -->
+        <p id="bf" class="bf" hidden><span class="bf-dot" aria-hidden="true"></span><span id="bf-status" class="bf-status" aria-live="polite"></span></p>
         <!-- An imported recording (8.12): main holds the file, this only shows it. -->
         <div id="imp" class="imp" hidden>
           <div class="imp-text">
@@ -106,18 +115,76 @@
             <button id="imp-licence" class="imp-licence" type="button" hidden>Video decoding by FFmpeg (GPL)</button>
           </div>
         </div>
-        <!-- PROGRESS V3: the rows beside the grade over the last matches,
-             a card of its own on the list page alone (matches.js paintChart). -->
-        <div class="every-grid">
-          <div id="list" class="list" role="list"></div>
-          <aside id="m-chart" class="m-chart" aria-label="Grade over your last matches" hidden>
-            <span class="m-chart-label">Grade over your last <span id="m-chart-n"></span></span>
-            <div class="m-chart-now"><b id="m-chart-big"></b><span id="m-chart-since" class="m-chart-since"></span></div>
-            <div id="m-chart-line" class="m-chart-line"></div>
-            <span id="m-chart-avg" class="m-chart-avg"></span>
-          </aside>
-        </div>
+        <!-- THE GRADE TREND ACROSS THE TOP (9.1, the owner's items 15 and
+             21): the page's hero, the last graded matches as the moonlit area
+             (shared/trend-chart.js), drawn as it comes on screen, with the
+             latest, the average and the best over it (matches.js paintChart).
+             The list page alone, and only with two grades. -->
+        <section id="m-chart" class="m-chart" aria-labelledby="m-chart-title" hidden>
+          <div class="m-chart-head">
+            <div class="m-chart-titles">
+              <span class="m-chart-label">Grade trend</span>
+              <h3 id="m-chart-title" class="m-card-title">Your last <span id="m-chart-n"></span> graded matches</h3>
+            </div>
+            <dl class="m-chart-stats">
+              <div class="m-stat"><dt>Latest</dt><dd><b id="m-chart-big"></b><span id="m-chart-since" class="m-chart-since"></span></dd></div>
+              <div class="m-stat"><dt>Average</dt><dd><b id="m-chart-avg"></b></dd></div>
+              <div class="m-stat"><dt>Best</dt><dd><b id="m-chart-best"></b></dd></div>
+            </dl>
+          </div>
+          <div id="m-chart-line" class="m-chart-line"></div>
+        </section>
+
+        <!-- WHEN YOU PLAY (9.1, the owner's item 15): the times of day the
+             graded matches started in, by average grade and win rate, from
+             src/shared/play-times.js. The best and worst only once there are
+             enough matches to say it honestly; below that how many more. -->
+        <section id="when" class="when" aria-labelledby="when-title" hidden>
+          <div class="when-text">
+            <span class="m-chart-label">When you play</span>
+            <h3 id="when-title" class="m-card-title"></h3>
+            <p id="when-note" class="when-note"></p>
+            <div id="when-progress" class="when-progress" hidden><span id="when-fill"></span></div>
+            <div id="when-calls" class="when-calls" hidden>
+              <div class="when-call best">
+                <span id="when-best-k" class="when-k"></span>
+                <b id="when-best"></b>
+                <span id="when-best-line" class="when-line"></span>
+              </div>
+              <div class="when-call worst">
+                <span id="when-worst-k" class="when-k"></span>
+                <b id="when-worst"></b>
+                <span id="when-worst-line" class="when-line"></span>
+              </div>
+            </div>
+          </div>
+          <figure class="when-fig">
+            <div id="when-hours" class="when-hours" role="img"></div>
+            <figcaption class="when-cap">Average grade by the hour each match started, how many under each. A faint column has too few to compare.</figcaption>
+          </figure>
+        </section>
+
+        <h3 id="list-title" class="list-title" hidden>Every match</h3>
+        <div id="list" class="list" role="list"></div>
         <p id="empty" class="empty" hidden>No reviewed matches yet. Press Start, play a match, and its graded review lands here when it ends.</p>
+
+        <!-- A ROW'S MENU (9.1, the owner's item 18): one menu for every row,
+             placed under the row's button that opened it. -->
+        <div id="m-menu" class="m-menu" role="menu" aria-label="Match" hidden></div>
+
+        <!-- DELETE A MATCH, ASKED FIRST: what goes, said plainly. -->
+        <div id="m-confirm" class="m-confirm" hidden>
+          <div class="m-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="m-confirm-title" aria-describedby="m-confirm-what m-confirm-body">
+            <h4 id="m-confirm-title" class="m-confirm-title">Delete this match?</h4>
+            <p id="m-confirm-what" class="m-confirm-what"></p>
+            <p id="m-confirm-body" class="m-confirm-body"></p>
+            <p id="m-confirm-error" class="m-confirm-error" role="alert" hidden></p>
+            <div class="m-confirm-actions">
+              <button id="m-confirm-keep" class="btn md" type="button">Keep it</button>
+              <button id="m-confirm-go" class="btn md btn-ghost danger" type="button">Delete match</button>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
   </div>
@@ -128,6 +195,9 @@
   <script src="../shared/grade-view.js"></script>
   <script src="../shared/log-eye.js"></script>
   <script src="../shared/motion.js"></script>
+  <script src="../../shared/display.js"></script>
+  <script src="../../shared/play-times.js"></script>
+  <script src="../shared/trend-chart.js"></script>
   <script src="matches.js"></script>
 </body>
 </html>

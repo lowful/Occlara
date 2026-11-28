@@ -1047,7 +1047,7 @@ function build(input) {
       ? "Riot's record of this match was not found yet. The coach ended it "
         + `${team !== null && enemy !== null ? `at ${team} to ${enemy}, ` : 'on '}a score only Swiftplay ends on, `
         + "so the match may have gone on after that. It is checked against Riot's record again at a later launch "
-        + 'with your Riot ID connected, or now with Grade my recent matches in Matches.'
+        + 'with your Riot ID connected, or now with Connect in Settings.'
       // Not found within the live link's tries is not never: a launch with the
       // Riot ID connected checks unlinked recordings again (the late link).
       : input.linkMissing

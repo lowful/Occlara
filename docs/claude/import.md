@@ -3,7 +3,7 @@
 A player with a plan adds their own video of a Valorant match (OBS, ShadowPlay
 or similar; mp4, mkv, mov or webm; 1 to 65 minutes, 8 GB at most) and gets the
 same review as a live match, marked "Imported recording". The entry point is
-beside "Grade my recent matches" on the Matches page.
+the Matches page head's action, Import a recording with its upload icon (9.1).
 
 ## The owner's rules
 

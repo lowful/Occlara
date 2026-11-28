@@ -1068,9 +1068,9 @@ function rig() {
       + 'at your deaths, their video clips or a written read. Keep Occlara open and it finishes by itself.',
   'a review checked against Riot\'s record: a later launch checks it, without the look, the clips or a read (riot-review.js upgradeWatched)', rc && rc.detail);
   const rt = q(reviewQuestion({ left: riotLeft, riotIdSet: true, connected: false, clips: false }));
-  ok(rt && rt.detail === 'Quit now and it stays as the screen read it until you press Grade my recent matches in Matches, '
+  ok(rt && rt.detail === 'Quit now and it stays as the screen read it until you press Connect in Settings, '
     + "which lays Riot's record over it without the coach's look at your deaths or a written read. Keep Occlara open and it finishes by itself.",
-  'a Riot ID typed and never connected runs no late link: Grade my recent matches is what checks it then', rt && rt.detail);
+  'a Riot ID typed and never connected runs no late link: Connect in Settings is what checks it then', rt && rt.detail);
   const rn = q(reviewQuestion({ left: riotLeft, riotIdSet: false, connected: false, clips: true }));
   ok(rn && rn.detail === "Quit now and it is kept as the screen read it, without Riot's record, the coach's look at your deaths "
     + 'or their video clips. Keep Occlara open and it finishes by itself.',

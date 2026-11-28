@@ -349,9 +349,15 @@ const READ_MATCHES = `(() => { ${READ_HELPERS}
     subnav: QA('.subnav button').map((b) => ({ page: T(b), current: b.getAttribute('aria-pressed') === 'true' })),
     heading: txt('#every .l-head h3'),
     rows: QA('#list .m-item').map((m) => ({ title: txt('.m-title', m), result: txt('.m-res', m), marks: list('.m-mark', m),
-      meta: noDate(txt('.m-meta', m)), topMistake: txt('.m-top-mistake', m).replace(/^Top mistake:\\s*/, ''),
+      meta: txt('.m-meta', m), topMistake: txt('.m-top-mistake', m).replace(/^Top mistake:\\s*/, ''),
       grade: txt('.m-score', m), change: txt('.m-delta', m) })),
-    chart: shown(Q('#m-chart')) ? { label: txt('.m-chart-label'), now: txt('#m-chart-big'), since: txt('#m-chart-since'), average: txt('#m-chart-avg') } : null };
+    // 9.1: the trend across the top (its eyebrow, its title, the latest with
+    // its change, the average and the best) and when the player plays best.
+    chart: shown(Q('#m-chart')) ? { label: txt('#m-chart .m-chart-label'), title: txt('#m-chart-title'), now: txt('#m-chart-big'),
+      since: txt('#m-chart-since'), average: txt('#m-chart-avg') ? 'Average ' + txt('#m-chart-avg') : '', best: txt('#m-chart-best') } : null,
+    when: shown(Q('#when')) ? { title: txt('#when-title'), note: txt('#when-note'),
+      best: shown(Q('#when-calls')) ? { label: txt('#when-best'), line: txt('#when-best-line') } : null,
+      worst: shown(Q('#when-calls')) ? { label: txt('#when-worst'), line: txt('#when-worst-line') } : null } : null };
 })()`;
 /*
  * PATTERNS, PROGRESS V3 (8.9): the chart of the grades with its bands by
@@ -620,11 +626,15 @@ setTimeout(async () => {
     if (out.matches.rows.length !== seeded.SEEDED) return finish(false, `Matches lists ${out.matches.rows.length} rows`);
     await shot('matches', 'Matches: its title and sub line, the sub switch to Patterns and Stats, every saved match as a row with its result, top mistake, grade and change, beside the chart of the grade over the last matches');
     // The sub switch (Matches, Patterns, Stats) and the rows, where they sit on its picture.
+    // 9.1: the grade trend leads the page and when you play follows it, so
+    // the rows start under the first screen; a row off the picture is null.
     const mplaces = await steady(mjs, `(() => { ${READ_HELPERS}
       return { subnav: QA('.subnav button').map((b) => ({ page: T(b), at: placeOf(b) })),
+        chart: placeOf(Q('#m-chart')), when: placeOf(Q('#when')),
         rows: QA('#list .m-item').map((m) => placeOf(Q('.m-title', m) || m)) };
     })()`);
-    places.matches = { subnav: Object.fromEntries(mplaces.subnav.map((b) => [b.page, onPage(b.at)])), rows: mplaces.rows.map(onPage) };
+    places.matches = { subnav: Object.fromEntries(mplaces.subnav.map((b) => [b.page, onPage(b.at)])),
+      chart: onPage(mplaces.chart), when: onPage(mplaces.when), rows: mplaces.rows.map(onPage) };
 
     // 3. Patterns, for the JSON alone, reached as a player reaches it: by the
     // sub switch at the head of Matches (Orbit), not by a link of its own.

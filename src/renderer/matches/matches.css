@@ -222,64 +222,9 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .p-trendword.better { color: var(--good); }
 .p-trendword.steady { color: var(--text-mute); }
 
-/* ── The match rows ────────────────────────────────────────────────────────
-   One ruled row per match, holding two buttons side by side: the row, which
-   opens the review, and the eye at its end, which opens the match's AI log
-   (matches.js row()). The item answers the pointer as one, with a faint fill
-   across it and nothing that moves. */
-/* PROGRESS V3: each match is a card of its own (--s1, the ring), the rows
-   beside the grade chart on the list page. */
-.every-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
-.every-grid.charted { grid-template-columns: minmax(0, 1fr) 264px; }
-.list { display: flex; flex-direction: column; gap: var(--space-2); }
-.m-item {
-  display: flex; align-items: center; gap: var(--space-3);
-  padding: 0 var(--space-4) 0 var(--space-3);
-  border-radius: 18px;
-  background: var(--s1); box-shadow: var(--rim);
-  transition: background var(--t-fast) var(--ease);
-}
-.m-item:hover { background: var(--s2); box-shadow: var(--rim-2); }
-.m-face { flex: none; width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--s3); box-shadow: var(--rim-2); }
-.m-delta {
-  flex: none; width: 46px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
-  border-radius: var(--r-pill);
-  font-family: var(--font-mono); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums;
-  background: var(--s3); color: var(--text-dim);
-}
-.m-delta.none { background: transparent; }
-.m-delta.first { font-family: var(--font); background: transparent; box-shadow: var(--rim-2); color: var(--text-mute); }
-.m-delta.up { background: rgba(var(--good-rgb), 0.14); color: var(--good); }
-.m-delta.down { background: rgba(var(--bad-rgb), 0.14); color: var(--bad); }
-/* The grade over the last matches, its own card. */
-.m-chart {
-  display: flex; flex-direction: column; gap: var(--space-2);
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--r-panel);
-  background: var(--s1); box-shadow: var(--rim);
-}
-.m-chart-label, .m-chart-avg { font-size: 12px; font-weight: 500; color: var(--text-mute); }
-.m-chart-now { display: flex; align-items: center; gap: var(--space-3); }
-.m-chart-now b { font-size: 52px; font-weight: 600; line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
-.m-chart-since { height: 24px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: var(--r-pill);
-  font-family: var(--font-mono); font-size: 12px; font-weight: 500; background: var(--s3); color: var(--text-dim); }
-.m-chart-since.up { background: rgba(var(--good-rgb), 0.14); color: var(--good); }
-.m-chart-since.down { background: rgba(var(--bad-rgb), 0.14); color: var(--bad); }
-.m-chart-line { margin-top: var(--space-2); }
-/* The rows rise once, as the list first appears on screen (matches.js load,
-   occlaraOnShown), --stagger apart and capped at the sixth (8.9.2: the
-   shared m-rise, 8px over --dur-slow); a repaint draws them as they are. */
-.m-item.rise { animation: m-rise var(--dur-slow) var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 5) * var(--stagger)); }
-
-/* MOTION ON THE CHARTS (8.9.2, matches.js entrance), once per visit.
-   The grade line draws (motion.css .m-draw) and its dots and numbers fade in
-   behind it; the Patterns bars grow from the baseline (.m-grow), each number
-   fading in as its bar lands, and the average draws in from the left after
-   them, its label with it. Opacity, transform and clip-path only. */
-.m-chart.gl-in .gl-dot, .m-chart.gl-in .gl-num, .m-chart.gl-in .gl-time {
-  animation: m-fade var(--dur-base) var(--ease-out) both;
-  animation-delay: calc(var(--t-slow) * 0.6);
-}
+/* MOTION ON THE PATTERNS CHART (8.9.2, matches.js entrance), once per visit:
+   the bars grow from the baseline (.m-grow), each number fading in as its
+   bar lands, and the average draws in from the left after them. */
 .p-bar.p-in span, .p-bar.p-in small {
   animation: m-fade var(--dur-base) var(--ease-out) both;
   animation-delay: calc(var(--dur-slow) * 0.6 + var(--i, 0) * var(--stagger));
@@ -290,105 +235,264 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 }
 @keyframes m-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes p-draw-x { from { clip-path: inset(-16px 100% -16px 0); } to { clip-path: inset(-16px 0 -16px 0); } }
+/* A breakdown cell's average grade in its band's tone (one score, 9.1). */
+.b-num.good { color: var(--good); }
+.b-num.warn { color: var(--warn); }
+.b-num.bad  { color: var(--bad); }
+
+/* ── The list page (9.1) ───────────────────────────────────────────────────
+   The head's own action, Import a recording with its upload icon; the grade
+   trend across the top as the page's hero; when you play best; then every
+   match as one grouped list. Cards: --card, radius 24, the hairline rim. */
+.h-actions { display: flex; align-items: center; gap: var(--space-2); }
+.imp-go { gap: var(--space-2); padding-left: 14px; }
+.imp-go .imp-ico { flex: none; color: var(--text-2); transition: transform var(--dur-hover-out) var(--spring-smooth), color var(--dur-hover-out) var(--ease-out); }
+.imp-go:where(:not(:disabled)):hover .imp-ico { color: var(--text); transform: translateY(-1px); transition-duration: var(--dur-hover-in); }
+html[data-section="patterns"] .imp-go { display: none; }
+
+/* A run grading recent matches from Riot's record: one quiet line. */
+.bf { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-2); }
+.bf-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
+.bf.busy .bf-dot { background: var(--text); }
+.bf-status { min-width: 0; }
+
+.m-chart, .when {
+  position: relative;
+  padding: var(--space-6) 28px;
+  border-radius: var(--r-panel);
+  background: var(--card); box-shadow: var(--rim);
+}
+.m-card-title { margin: 6px 0 0; font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); line-height: 1.2; color: var(--text); }
+
+/* THE GRADE TREND: the eyebrow and the title at the left, the three numbers
+   at the right, the chart under them across the card. */
+.m-chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-1); flex-wrap: wrap; }
+.m-chart-titles { min-width: 0; }
+.m-chart-stats { display: flex; gap: 28px; margin: 0; }
+.m-stat dt { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.m-stat dd { margin: 6px 0 0; display: flex; align-items: center; gap: var(--space-2); }
+.m-stat b { font-size: 30px; font-weight: 700; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; color: var(--text); }
+.m-chart-since { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: var(--r-pill);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; background: var(--s3); color: var(--text-dim); }
+.m-chart-since.none { display: none; }
+.m-chart-since.up { background: rgba(var(--good-rgb), 0.14); color: var(--good); }
+.m-chart-since.down { background: rgba(var(--bad-rgb), 0.14); color: var(--bad); }
+.m-chart-line { margin: 0 -2px; }
+
+/* WHEN YOU PLAY: the words at the left, the eight times of day at the right,
+   each column standing at its average grade. */
+.when { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 1fr); gap: var(--space-8); align-items: end; }
+.when-text { min-width: 0; align-self: start; }
+.when-note { margin: var(--space-2) 0 0; font-size: 14px; line-height: 1.5; color: var(--text-2); max-width: 56ch; }
+.when-progress { margin-top: var(--space-4); max-width: 280px; height: 4px; border-radius: 2px; background: var(--s3); overflow: hidden; }
+.when-progress span { display: block; height: 100%; width: var(--p, 0%); border-radius: 2px; background: var(--text-2); }
+.when-calls { margin-top: var(--space-5); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.when-call { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 14px var(--space-4) 15px; border-radius: var(--r-in); background: var(--raised); box-shadow: var(--rim); }
+.when-k { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.when-k::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
+.when-call.best .when-k::before { background: var(--good); }
+.when-call.worst .when-k::before { background: var(--bad); }
+.when.unclear .when-call .when-k::before { background: var(--text-mute); }
+.when-call b { font-size: 17px; font-weight: 700; letter-spacing: -0.015em; color: var(--text); }
+.when-line { font-size: 13px; line-height: 1.45; color: var(--text-2); }
+
+.when-hours { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: var(--space-2); height: 176px; }
+.when-col { display: grid; grid-template-rows: minmax(0, 1fr) auto auto; justify-items: center; row-gap: 4px; min-width: 0; }
+.when-bar { position: relative; width: 100%; max-width: 36px; height: 100%; border-bottom: 1px solid var(--line-2); }
+.when-bar i {
+  position: absolute; left: 0; right: 0; bottom: 0; height: var(--h, 0%);
+  border-radius: 7px 7px 2px 2px; background: rgba(255, 255, 255, 0.2);
+  transform-origin: 50% 100%;
+}
+.when-col.thin .when-bar i { background: transparent; border: 1px dashed var(--line-2); border-bottom: 0; }
+.when-col.empty .when-bar i { display: none; }
+.when-col.best .when-bar i { background: var(--text); }
+.when-col.worst .when-bar i { background: rgba(255, 255, 255, 0.2); box-shadow: inset 0 0 0 1.5px rgba(var(--bad-rgb), 0.75); }
+.when.unclear .when-col.best .when-bar i { background: rgba(255, 255, 255, 0.42); }
+.when.unclear .when-col.worst .when-bar i { box-shadow: none; }
+.when-avg { position: absolute; left: 50%; bottom: calc(var(--h, 0%) + 5px); transform: translateX(-50%);
+  font: 500 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
+.when-col.thin .when-avg { color: var(--text-mute); }
+.when-col.best .when-avg { color: var(--text); }
+.when-hour { font: 500 10px/1.2 var(--font-mono); color: var(--text-mute); white-space: nowrap; }
+.when-n { font: 500 10px/1.2 var(--font-mono); color: var(--text-mute); opacity: 0.7; min-height: 12px; }
+.when-bar i.when-grow { animation: m-grow-y var(--dur-slow) var(--spring-smooth) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+.when-fig { margin: 0; min-width: 0; }
+.when-cap { margin-top: var(--space-3); font-size: 12px; line-height: 1.45; color: var(--text-mute); }
+
+/* THE LIST: one grouped card of rows parted by hairlines, a row's hover a
+   raised fill across it. Six things in columns: the portrait, the agent and
+   the map over the date, the result, the grade, its change. */
+.list-title { margin: var(--space-2) 0 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+.list { display: flex; flex-direction: column; padding: 6px; border-radius: var(--r-panel); background: var(--card); box-shadow: var(--rim); }
+.list:empty { display: none; }
+.m-item {
+  position: relative;
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 10px 0 0;
+  border-radius: var(--r-in);
+  transition: background-color var(--dur-hover-out) var(--ease-out);
+}
+/* The hairline between two rows, gone beside a row under the pointer. */
+.m-item + .m-item::before {
+  content: ''; position: absolute; left: 66px; right: 14px; top: 0; height: 1px; background: var(--line);
+  transition: opacity var(--dur-hover-out) var(--ease-out);
+}
+.m-item:hover, .m-item:focus-within { background: var(--raised); z-index: 4; transition-duration: var(--dur-hover-in); }
+.m-item:hover::before, .m-item:hover + .m-item::before,
+.m-item:focus-within::before, .m-item:focus-within + .m-item::before { opacity: 0; }
+
 .m-row {
   flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: var(--space-4);
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(150px, 210px) 52px 52px;
+  align-items: center; column-gap: var(--space-4);
+  padding: 12px 6px 12px 12px;
   text-align: left;
-  padding: var(--space-3) 0;
-  background: transparent; border: 0; border-radius: 0;
+  background: transparent; border: 0; border-radius: var(--r-in);
   color: var(--text); font: inherit; cursor: pointer;
 }
-.m-row:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-frame); }
-/* A row with no eye, in a list where others have one, keeps the eye's room
-   (its 30px in ui.css), so the grades line up down the list. */
-.m-eye-gap { flex: none; width: 30px; }
-/* Delete on an imported recording's row (8.12), armed as Clear clips is. */
-.m-del {
-  flex: none; padding: var(--space-1) var(--space-2);
-  background: transparent; border: 1px solid transparent; border-radius: 8px;
-  color: var(--text-mute); font: inherit; font-size: 12px; cursor: pointer;
-  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
-}
-.m-del:hover { color: var(--text); background: var(--s3); }
-.m-del:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 1px; }
-.m-del:disabled { opacity: 0.5; cursor: default; }
-.m-del.armed { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.35); background: rgba(var(--bad-rgb), 0.10); }
-.m-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-.m-top { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
-.m-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-row:focus-visible { outline-offset: -2px; border-radius: var(--r-in); }
+.m-face { flex: none; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--s3); box-shadow: var(--rim-2); }
+.m-name { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.m-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-when { font-size: 13px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.m-result { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 /* The result and the score, one word and one number, in the outcome's tone. */
-.m-res { font-size: 13px; font-weight: 500; color: var(--text-mute); flex: none; font-variant-numeric: tabular-nums; }
+.m-res { font-size: 14px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .m-res.win { color: var(--good); }
 .m-res.loss { color: var(--bad); }
-/* The RR the match moved (8.7.9, matches.js paintRR): "RR +18", mono and
-   quiet, as Home's rows draw it (home.css .r-rr), the tone on the number. */
-.m-rr { flex: none; height: 26px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: var(--r-pill);
-  background: var(--s4); box-shadow: var(--rim-2);
-  font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.m-rr[hidden] { display: none; }
-.m-rr.gain { color: var(--good); }
-.m-rr.loss { color: var(--bad); }
-/* A milestone beside the result (8.7, matches.js row(), progress.js marks):
-   "Best in 23", "First A", "3 in a row", "3 without ...", the one mark Home's
-   rows draw (home.css .r-mark): a filled dot, then its words, in --good, so
-   the tone is never alone. No capsule. A long habit's name is cut to fit,
-   whole on hover. */
-.m-mark {
-  flex: 0 1 auto; min-width: 0; max-width: 45%; align-self: center;
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--good);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.m-mark::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.m-mark.run, .m-mark.cleared { color: var(--text-dim); }
-.m-meta { font-size: 12px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m-top-mistake { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m-top-mistake .m-tm-label { color: var(--text-mute); }
-/* The grade: the number of the type scale and the letter as a small capsule
-   mark in its tone. A provisional grade's capsule is dashed. */
-/* The grade (Progress v3): the number leads the row large, after the
-   portrait; the letter ends it (order), the one element laid out across the
-   row by display: contents. */
-.m-grade { display: contents; }
+/* Why a row has no grade, where its result and grade would read. */
+.m-why { font-size: 13px; line-height: 1.35; color: var(--text-2); }
+.m-grade { display: flex; justify-content: flex-end; min-width: 0; }
 .m-score {
-  order: 0;
-  font-family: var(--font); font-size: 38px; font-weight: 600; line-height: 1;
-  letter-spacing: -0.05em; font-variant-numeric: tabular-nums; color: var(--text);
-  min-width: 50px; text-align: left;
+  font-family: var(--font); font-size: 26px; font-weight: 700; line-height: 1;
+  letter-spacing: -0.04em; font-variant-numeric: tabular-nums; color: var(--text);
 }
-.m-row > .m-face { order: -1; }
-.m-row > .m-delta { order: 1; }
-.m-row > .m-main { order: 2; }
-.m-row > .m-rr { order: 3; }
-.m-grade > .gv-checking { order: 4; }
 /* One score, no letter (9.1): the number takes its band's tone, its rule dashed when provisional. */
 .m-score.good { color: var(--good); }
 .m-score.warn { color: var(--warn); }
 .m-score.bad  { color: var(--bad); }
-.m-score.prov { text-decoration: underline dashed var(--text-mute) 1px; text-underline-offset: 4px; }
-.b-num.good { color: var(--good); }
-.b-num.warn { color: var(--warn); }
-.b-num.bad  { color: var(--bad); }
-.m-letter {
-  display: inline-flex; align-items: center; justify-content: center; flex: none;
-  height: 26px; min-width: 26px; padding: 0 8px; border-radius: var(--r-btn);
-  font-size: 11px; font-weight: 600; line-height: 1; letter-spacing: 0.02em;
-  border: 1px solid var(--line-2); color: var(--text);
+.m-score.prov { text-decoration: underline dashed var(--text-mute) 1px; text-underline-offset: 5px; }
+.m-score.none { color: var(--text-3); font-weight: 600; letter-spacing: 0.02em; }
+.m-delta {
+  justify-self: end;
+  min-width: 44px; height: 24px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums;
+  background: var(--s3); color: var(--text-dim);
 }
-.m-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
-.m-letter.mid  { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
-.m-letter.warn { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.45); }
-.m-letter.bad  { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.45); }
-.m-letter.none { color: var(--text-mute); }
-.m-letter.prov { border-style: dashed; }
+.m-delta.none { background: transparent; }
+.m-delta.first { font-family: var(--font); background: transparent; box-shadow: var(--rim-2); color: var(--text-mute); }
+.m-delta.up { background: rgba(var(--good-rgb), 0.14); color: var(--good); }
+.m-delta.down { background: rgba(var(--bad-rgb), 0.14); color: var(--bad); }
+.m-grade > .gv-checking { justify-self: end; }
+.m-item.ungraded .m-face { opacity: 0.7; }
+
+/* The eye and the menu: quiet round buttons at the row's end. */
+.m-item .log-eye, .m-more { width: 32px; height: 32px; background: transparent; border-color: transparent; color: var(--text-mute); }
+.m-item:hover .log-eye:not(:disabled), .m-item:hover .m-more, .m-more.open { color: var(--text-2); }
+.m-item .log-eye:where(:not(:disabled)):hover, .m-more:hover, .m-more.open { background: var(--glass-q-h); border-color: var(--line); color: var(--text); }
+/* A row with no eye, in a list where others have one, keeps the eye's room. */
+.m-eye-gap { flex: none; width: 32px; }
+
+/* THE PEEK: the rest of a row, one step away. Under the row after a short
+   rest of the pointer, or at once for the keyboard; over it near the foot
+   of the page (.peek-up). Never takes the pointer. */
+.m-peek {
+  position: absolute; left: 62px; top: calc(100% - 6px); z-index: 6;
+  width: min(460px, calc(100% - 140px));
+  padding: 12px 14px 13px;
+  border-radius: var(--r-md);
+  background: var(--raised); box-shadow: var(--rim-2), var(--lift);
+  pointer-events: none;
+  opacity: 0; visibility: hidden; transform: translateY(-4px) scale(0.99); transform-origin: 30% 0;
+  transition: opacity var(--dur-hover-out) var(--ease-out), transform var(--dur-hover-out) var(--ease-out), visibility 0s linear var(--dur-hover-out);
+}
+.m-item.peek-up .m-peek { top: auto; bottom: calc(100% - 6px); transform: translateY(4px) scale(0.99); transform-origin: 30% 100%; }
+.m-item:hover .m-peek {
+  opacity: 1; visibility: visible; transform: none;
+  transition: opacity 160ms var(--ease-out) 520ms, transform var(--dur-select) var(--spring-smooth) 520ms, visibility 0s linear 520ms;
+}
+.m-item:has(.m-row:focus-visible) .m-peek, .m-item.peek-show .m-peek {
+  opacity: 1; visibility: visible; transform: none;
+  transition: opacity 160ms var(--ease-out), transform var(--dur-select) var(--spring-smooth), visibility 0s;
+}
+.m-item:has(.m-more.open) .m-peek, .m-item:has(.m-more:hover) .m-peek, .m-item:has(.log-eye:hover) .m-peek { opacity: 0; visibility: hidden; transition-delay: 0s; }
+.m-meta { font-size: 12px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px var(--space-4); margin: 10px 0 0; }
+.m-facts:empty { display: none; }
+.m-fact { display: contents; }
+.m-fact dt { font-size: 12px; font-weight: 500; color: var(--text-mute); line-height: 18px; }
+.m-fact dd { margin: 0; min-width: 0; font-size: 13px; line-height: 18px; color: var(--text); }
+.m-top-mistake { color: var(--text); }
+.m-rr { font-family: var(--font-mono); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text); }
+.m-rr.gain { color: var(--good); }
+.m-rr.loss { color: var(--bad); }
+.m-rating dd { font-variant-numeric: tabular-nums; font-weight: 600; }
+.m-peek-note { grid-column: 1 / -1; margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-2); }
+/* A milestone (8.7, progress.js marks): a filled dot, then its words, in
+   --good, so the tone is never alone. */
+.m-marks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.m-mark { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--good); }
+.m-mark::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.m-mark.run, .m-mark.cleared { color: var(--text-dim); }
+
+/* A ROW'S MENU: a raised card under its button, in on 160ms, out at once. */
+.m-menu {
+  position: fixed; left: 0; top: 0; z-index: 30;
+  min-width: 188px; padding: 6px;
+  border-radius: 14px;
+  background: var(--raised); box-shadow: var(--rim-2), var(--lift);
+  transform-origin: 100% 0;
+}
+.m-menu.up { transform-origin: 100% 100%; }
+.m-menu.in { animation: m-menu-in 160ms var(--ease-out) both; }
+@keyframes m-menu-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }
+.m-menu-item {
+  display: flex; align-items: center; width: 100%; height: 34px; padding: 0 12px;
+  border: 0; border-radius: 9px; background: transparent;
+  font: 500 14px var(--font); letter-spacing: -0.01em; color: var(--text); text-align: left; cursor: pointer;
+  transition: background-color var(--dur-hover-out) var(--ease-out);
+}
+.m-menu-item:hover, .m-menu-item:focus-visible { background: var(--glass-q-h); outline: none; transition-duration: var(--dur-hover-in); }
+.m-menu-item.danger { color: var(--bad); }
+.m-menu-item.danger:hover, .m-menu-item.danger:focus-visible { background: rgba(var(--bad-rgb), 0.12); }
+.m-menu-sep { height: 1px; margin: 6px 8px; background: var(--line); }
+
+/* DELETE, ASKED FIRST: the page dims behind a raised card that rises in on
+   the gentle spring. Keep it is first and has the keyboard. */
+.m-confirm { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: var(--space-6); background: rgba(0, 0, 0, 0.55); }
+.m-confirm.in { animation: m-fade var(--dur-base) var(--ease-out) both; }
+.m-confirm-card { width: min(440px, 100%); padding: var(--space-6); border-radius: var(--r-panel); background: var(--raised); box-shadow: var(--rim-2), var(--shadow); }
+.m-confirm.in .m-confirm-card { animation: m-confirm-in var(--dur-spring) var(--spring-gentle) both; }
+@keyframes m-confirm-in { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+.m-confirm-title { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+.m-confirm-what { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--text); }
+.m-confirm-body { margin: 6px 0 0; font-size: 14px; line-height: 1.5; color: var(--text-2); }
+.m-confirm-error { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: var(--bad); }
+.m-confirm-actions { margin-top: var(--space-6); display: flex; justify-content: flex-end; gap: var(--space-2); }
+
+/* A deleted row folds away before the list is painted again. */
+.m-item.m-leaving {
+  height: 0 !important; opacity: 0; transform: scale(0.98); overflow: hidden; pointer-events: none;
+  transition: height 320ms var(--ease-drawer), opacity 180ms var(--ease-out), transform 320ms var(--ease-drawer);
+}
+
+/* The rows rise once, as the list first appears on screen (matches.js load,
+   occlaraOnShown), --stagger apart and capped at the sixth. */
+.m-item.rise { animation: m-rise var(--dur-slow) var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 5) * var(--stagger)); }
+
+@media (max-width: 900px) {
+  .when { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .m-row { grid-template-columns: 40px minmax(0, 1fr) minmax(120px, 170px) 48px 48px; column-gap: var(--space-3); }
+}
 
 @media (max-width: 620px) {
   .p-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--space-4); }
   .p-cat:nth-of-type(3) { padding-left: 0; border-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .m-item, .m-item.rise { animation: none; transition: none; }
-  .m-chart.gl-in .gl-dot, .m-chart.gl-in .gl-num, .m-chart.gl-in .gl-time,
+  .m-item, .m-item.rise, .m-peek, .m-menu.in, .m-confirm.in, .m-confirm.in .m-confirm-card, .when-bar i.when-grow { animation: none; transition: none; }
   .p-bar.p-in span, .p-bar.p-in small, .p-avgline.p-draw { animation: none; }
 }
 
@@ -426,7 +530,7 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .seg-mini { flex: none; }
 .b-queues { align-self: flex-start; }
 .b-chip small { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: inherit; opacity: 0.7; margin-left: 6px; font-variant-numeric: tabular-nums; }
-#b-dims > button:focus-visible, #b-queues > button:focus-visible, .bf-go:focus-visible {
+#b-dims > button:focus-visible, #b-queues > button:focus-visible {
   outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px;
 }
 /* A row's ring is drawn inset, inside the scrolling body, and a header, which
@@ -510,15 +614,8 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .b-fix { display: block; color: var(--text-dim); margin-top: 2px; }
 .b-src { grid-column: 1 / -1; font-size: 12px; color: var(--text-mute); margin: var(--space-1) 0 0; }
 
-/* The grading line WRAPS rather than hiding when the window is narrow: it is
-   where a run says it could not find the account or reach Riot, and a
-   window at its minimum width still has to say that. */
 .l-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .l-head h3 { flex: none; }
-.bf { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); min-width: 0; flex: 1; }
-.bf-status { font-size: 13px; color: var(--text-dim); line-height: 1.4; text-align: right; min-width: 0; }
-.bf-go { flex: none; }
-.imp-go { flex: none; }
 /* An imported recording's panel (8.12): one ruled block over the rows. */
 .imp { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) 0; margin-bottom: var(--space-3); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .imp[hidden], .imp-pick[hidden], .imp-bar[hidden] { display: none; }
@@ -551,10 +648,10 @@ html[data-section="patterns"] #every { display: none !important; }
 html[data-section="list"] #every .l-head h3,
 html[data-section="patterns"] #patterns .p-head h3 { display: none; }
 html.embedded .sheet > header .h-brand { align-items: baseline; }
-/* On its page the list's grading line stands alone over the rows. */
-html[data-section="list"] #every .l-head { justify-content: flex-end; }
-html[data-section="list"] #every .l-head:has(#bf[hidden]):has(#imp-go[hidden]) { display: none; }
-@media (max-width: 860px) { .every-grid.charted { grid-template-columns: minmax(0, 1fr); } }
+/* On its page the list has no heading row of its own: the page title is it. */
+html[data-section="list"] #every .l-head { display: none; }
+/* The list page's sections stand 20px apart. */
+html[data-section="list"] #every { gap: var(--space-5); }
 
 /* Embedded, the sheet is the page ground (ui.css html.embedded .sheet.glass). */
 html.embedded .patterns { --p-ground: var(--bg); }
@@ -573,6 +670,6 @@ html[data-section="patterns"] .patterns { --p-ground: var(--s1); padding: var(--
 @media (prefers-reduced-motion: reduce) { .m-counting { animation: none; color: inherit !important; } .m-counting::after { content: none; } }
 
 /* ── ORBIT (27 Nov 2026) ─────────────────────────────────────────────────
-   The trend card's label is its eyebrow (check:palette SIGNAL_ALLOWED); the
-   rows' letter is the plain letter beside the number, as on Home. */
+   A card's eyebrow on the list page, the trend's and when you play's
+   (check:palette SIGNAL_ALLOWED). */
 .m-chart-label { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }

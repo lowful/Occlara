@@ -36,8 +36,9 @@
  *   coach never looks at the deaths Riot times, and the read written from the
  *   screen is taken down rather than written again; and the recording its
  *   clips would be cut from is deleted as the app quits. A Riot ID that was
- *   typed and never connected runs no late link: only Grade my recent matches
- *   does the same. And from the screen alone, nothing finishes it later.
+ *   typed and never connected runs no late link: only Connect in Settings,
+ *   which grades the recent matches, does the same (9.1: the Matches button
+ *   that did it too is gone). And from the screen alone, nothing finishes it later.
  *
  *   A League game's death clips. Its review is whole and saved as the game
  *   ends, and each death is cut from the recording six seconds later, once
@@ -135,7 +136,7 @@ function reviewQuestion(r) {
   const later = r.connected
     ? `Quit now and it is checked at a later launch instead, once Riot has the match, without ${without}.`
     : r.riotIdSet
-      ? 'Quit now and it stays as the screen read it until you press Grade my recent matches in Matches, '
+      ? 'Quit now and it stays as the screen read it until you press Connect in Settings, '
         + `which lays Riot's record over it without ${without}.`
       // The Riot ID taken out of Settings while it was being checked: nothing
       // will check it, and what the screen read stays, its read included.

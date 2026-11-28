@@ -234,6 +234,88 @@ say they are averages over the window (`.p-cats-cap`) and each says in an
 arrow AND a word whether the last match was above or below (`.p-cat-vs`).
 `test:surfaces`, "the match library", holds all of it.
 
+### The Matches page (9.1, the owner's items 5, 11, 15, 18 and 21)
+
+The list page (`matches.js`, `section=list`) is, top to bottom: the page head
+with its one action, the grade trend across the top (the page's hero), when
+you play best, then every match as one grouped card of rows.
+
+- **No "Grade my recent matches" (item 5).** The button is gone; Connect in
+  Settings and in onboarding grade the account's recent matches
+  (`backfill.md`), and a run for the Riot ID in Settings shows here as one
+  quiet line (`#bf`, `paintBf`) while it runs and once it ends, never a
+  button. The quit question (`quit-ask.js`) and the late link line
+  (`valorant-review.js`) name Connect in Settings now. **Import a recording**
+  is the head's action (`.h-actions #imp-go`, an upload icon and its words),
+  Valorant's list page alone; its panel (`#imp`) is drawn over the rows.
+- **The grade trend (items 15 and 21)** is `shared/trend-chart.js`
+  (`window.TrendChart`, with `trend-chart.css`), the owner's pick from the
+  option board (the redesign folder's `charts/board.png`): the moonlit area,
+  one line in the ink through every match, the area under it a fill faded by a
+  MASK (a fade is no paint, so check:palette allows it), guides at 60 to 90,
+  the average dashed, only the newest bright, nothing coloured by its band.
+  The line never overshoots a match (monotone cubic). The foot is DAYS
+  ("Today", "Yesterday", "Nov 22") centred under each day's matches, thinned
+  so no two touch, the newest always labelled; never a time of day, which the
+  tooltip carries. It draws itself once per visit (`chart.play()`, the line
+  stroking left to right on --ease-enter, the fill wiping in under it, each
+  dot arriving as the line reaches it), nothing under less motion, nothing
+  infinite. Hover or the keyboard (Left, Right, Home, End) reads each match
+  in a tooltip and a polite live line; a click or Enter opens its review.
+  Matches draws the last 20 graded rows (`CHART_N`, a row still being checked
+  left out) with the latest and its change, the average of the same matches
+  (a provisional grade left out once two final ones are there, as
+  patterns.js averages) and the best. Ids kept from the side card it
+  replaced: `#m-chart`, `#m-chart-n`, `#m-chart-big`, `#m-chart-since`,
+  `#m-chart-avg`, `.m-chart-label` (the eyebrow, check:palette's place).
+- **Home's trend card can use the same chart** (the Home engineer's call):
+  `TrendChart.draw(host, points, { height: 150, average, label, onOpen })`
+  with points oldest first, `{ id, grade, at, provisional, agent, map,
+  result, scoreline, delta }`, and `chart.play()` inside its once per visit
+  entrance; load `../shared/trend-chart.js` and its css. It replaces
+  `GradeView.gradeLine` there, and its foot is the dates item 4 asks for.
+- **When you play best (item 15)** is `src/shared/play-times.js` (pure,
+  `test:playtimes`): every graded row by when its match STARTED (Riot's
+  `matchStartedAt`, else its end less 100 seconds a round, else less half an
+  hour), in eight three hour times of day in the player's clock, each with
+  its average grade, count and win rate (over the matches with a result).
+  Honest in three rules: a time of day is compared only with 4 matches
+  (`MIN_SLOT`), nothing is said under 10 graded matches or two times to
+  compare (`MIN_TOTAL`; below that the card says how many more and shows a
+  progress line), and best and worst are called that only when the gap is at
+  least 4 points and twice the noise of the two averages (each spread held to
+  at least 8); else the title is "No clear best time yet" and the two are
+  "Highest so far" and "Lowest so far". Beside the words the eight times as
+  columns at their average grade, the count under each, a thin one dashed.
+- **Simpler rows (item 11).** A row is six things in columns: the agent's
+  portrait, the agent on the map over the date ("Today, 9:25 PM"), the
+  result and the score ("Victory 13 : 11"), the grade in its band's tone, its
+  change on the graded match before. The rest is the row's PEEK (`.m-peek`,
+  its `aria-describedby`): the queue and where the grade came from
+  (`.m-meta`), the top mistake, the milestones (`.m-mark`), the match rating
+  by its name and the RR (`.m-rr`, filled by `paintRR`). The peek shows after
+  a 520ms rest of the pointer, at once for the keyboard's focus, over the row
+  near the list's foot (`.peek-up`), and never takes the pointer. A row with
+  no grade says why where its result would be (`whyUngraded`): too little
+  read, saved with no games left, stopped early, an import not matched to
+  Riot's record, or not enough measured, the long reason its tooltip and in
+  its peek. Mistake titles inside a line go through `OcclaraDisplay.inSentence`.
+- **Delete a match (item 18).** Each row has a menu button (`.m-more`,
+  `aria-haspopup="menu"`) beside the row, never inside it: Open review, Open
+  AI log (where kept) and Delete match (none while still being checked). Delete
+  asks first (`#m-confirm`, an alertdialog): the match named, then "Its
+  review, its clips and its frames are deleted from this PC. This cannot be
+  undone.", for an import also that its video is kept and its game not given
+  back. Keep it has the keyboard and Escape keeps it. Delete calls
+  `deleteMatch(id)` (MATCH_DELETE); a refusal is said in the dialog; done,
+  the row folds away and the list is read again (a push meanwhile waits for
+  the fold). The imported row's own two press Delete is gone.
+- **Looking at it:** `shot-demo.js` scenes `matchesmany` (a fuller library,
+  `scripts/fixtures/many-matches.js`), `matchestip`, `matchespeek`,
+  `matcheslist`, `matchesmenu`, `matchesconfirm`, `matchesfoot`,
+  `matchesdraw` (mid draw), `matchesnarrow`, `matchesnarrowrows`, `matcheslol`.
+  `test:matchespage` and `test:trendchart` hold all of it offline.
+
 **The Moments page (8.7)** took the Breakdown tab's place in the sidebar, the
 owner's call ("the breakdown tab is kind of useless... maybe a tab with the
 compilation of their deaths and highlights"). `src/shared/moments.js` is pure:
@@ -429,7 +511,8 @@ LINK, WHICH DOES NOT FINISH IT AS THE LIVE LINK WOULD: it lays Riot's record
 over it with no model call, so no look at the deaths Riot times and no read
 (the screen's is taken down), and the recording its clips would be cut from is
 deleted as the app quits. A typed and never connected Riot ID runs no late
-link, so that one says Grade my recent matches is what checks it. The tray's
+link, so that one says Connect in Settings is what checks it (9.1: the
+Matches button that did it too is gone). The tray's
 Quit and Settings' quit with no question as they always did, and an update's
 Restart to update and Windows ending its session close the window as the app goes
 (`before-quit`, `session-end`) and never ask. Ctrl+Shift+M still hides the
