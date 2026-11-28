@@ -122,10 +122,13 @@ in `docs/claude/` to find it.
 | Changing the look at a death: frames, causes, the name gate, forensics variants, the review page's rounds | `docs/claude/death-look.md` |
 | Changing the eye that opens one match's AI log | `docs/claude/ai-log-eye.md` |
 | Changing the grade, insights, patterns or the breakdown | `docs/claude/grade-breakdown.md` |
+| Showing a grade or a match rating anywhere (one score, no letters, the rating out of 100), naming them, or putting a mistake's title inside a sentence (`display.js`) | `docs/claude/grade-breakdown.md`, "One score, no letters" |
 | Grading from Riot's record alone: Connect, `backfill.js`, the late link, `match-link` | `docs/claude/backfill.md` |
 | Changing the recorder: capture, encoder, what is kept, the disk guard, health | `docs/claude/recorder.md` |
 | Changing clips: cutting, playback, the clip player, the cap, recording Settings and onboarding, dev switches | `docs/claude/clips.md` |
+| Deleting a match or a clip, a clip's file in Explorer, the storage bar (`storage-usage.js`) | `docs/claude/clips.md`, "Deleting and storage" |
 | Changing the main window, shell, pages, Home, the record card, closing or the tray | `docs/claude/ui.md` |
+| Back and forward (the history, the mouse's side buttons), or any animation and what pauses it while recording (`html.rec-still`, `Motion.onAmbient`) | `docs/claude/ui.md`, "The history" and "Still while recording" |
 | Changing the Moments page (deaths and highlights, the compilation, its player) or `moments.js` | `docs/claude/ui.md`, "The Moments page" |
 | Changing CSS, tokens, fonts, the signal's places or the shared components, or adding an IPC channel (`channels.js`) | `docs/claude/ui-rules-ipc.md` |
 | Changing the live read prompt or STATE line, `mapState`, model env vars, call costs, or running `verify:ai` | `docs/claude/live-read.md` |
