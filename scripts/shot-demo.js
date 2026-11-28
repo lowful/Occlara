@@ -19,7 +19,8 @@
  *   env -u ELECTRON_RUN_AS_NODE npx electron scripts/shot-demo.js home review recording
  *
  * Scenes: home, matches, patterns, stats, practice, clips, review, recording,
- * waiting, held, stop (recording between matches, on Matches).
+ * waiting, held, stop (recording between matches, on Matches), building (a
+ * review still being built), ready and opening (Review ready, then opening).
  */
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
@@ -55,6 +56,12 @@ const SCENES = {
   practice: { page: 'practice' },
   clips: { page: 'moments' },
   review: { page: 'review' },
+  // The review still being built, then made whole: Review ready (review.js
+  // readyFirst). `whole` is how long after the whole review lands to take
+  // the picture: the card dropped in, then the window opening out of it.
+  building: { page: 'review', work: true },
+  ready: { page: 'review', work: true, whole: 980 },
+  opening: { page: 'review', work: true, whole: 1440 },
   stop: { page: 'matches', coaching: true },
   recording: { page: null, sealed: true, coaching: true, live: 'live' },
   waiting: { page: null, sealed: true, coaching: true, live: 'waiting' },
@@ -147,11 +154,24 @@ app.whenReady().then(async () => {
           await wait(400);
           const id = seeded.ids[0];
           const e = store.get(id);
-          pageWin.webContents.send(C.PUSH_VALORANT_REVIEW, present({ ...e.review, id }));
+          const whole = present({ ...e.review, id });
+          if (scene.work) {
+            const endedAt = Date.now() - 95 * 1000;
+            const work = { path: 'riot', steps: ['saved', 'riot', 'deaths', 'look', 'writing'], step: 'riot', endedAt, until: endedAt + 6 * 60 * 1000, scoreboard: false };
+            pageWin.webContents.send(C.PUSH_VALORANT_REVIEW, { ...whole, work });
+            if (scene.whole) {
+              await wait(3000);
+              pageWin.webContents.send(C.PUSH_VALORANT_REVIEW, whole);
+              await wait(scene.whole);
+            }
+          } else {
+            pageWin.webContents.send(C.PUSH_VALORANT_REVIEW, whole);
+          }
         }
       }
-      // Fonts, the moon and every entrance settle before the picture.
-      await wait(Number(process.env.SHOT_WAIT) || 3600);
+      // Fonts, the moon and every entrance settle before the picture (a
+      // scene timed from a review made whole is taken at its own moment).
+      if (!scene.whole) await wait(Number(process.env.SHOT_WAIT) || 3600);
       const a = await capture(shellWin.webContents);
       const b = pageWin ? await capture(pageWin.webContents) : null;
       if (!a) { console.log(`FAILED ${name}: no picture`); continue; }

@@ -5,6 +5,7 @@ const C = require('../shared/channels');
 const GAMES = require('../shared/games');
 const { homeModel, rankModel, rrForRows, rrWaiting } = require('../shared/home-model');
 const { iconOf, mapArtOf } = require('../shared/agent-icons');
+const { portraitOf } = require('../shared/agent-portraits');
 const { pageMotion } = require('./page-motion');
 
 /**
@@ -34,7 +35,8 @@ const asset = (rel) => (rel ? `../../../assets/${rel}` : null);
  */
 function artOf(game, model) {
   if (game !== 'valorant' || !model) return { last: null, rows: {} };
-  const last = model.last ? { agent: asset(iconOf('valorant', model.last.title)), map: asset(mapArtOf(model.last.map)) } : null;
+  // full: the agent's whole portrait for the hero (Orbit, agent-portraits.js); agent, the head icon it falls back to.
+  const last = model.last ? { agent: asset(iconOf('valorant', model.last.title)), full: asset(portraitOf(model.last.title)), map: asset(mapArtOf(model.last.map)) } : null;
   const rows = {};
   for (const r of model.recent || []) rows[r.id] = { agent: asset(iconOf('valorant', r.title)), map: asset(mapArtOf(r.map)) };
   return { last, rows };

@@ -404,19 +404,46 @@ function paintVerdictArt(host, map) {
   host.append(img, Object.assign(document.createElement('div'), { className: 'vd-art-scrim' }));
 }
 
-/** The agent floating at the hero's right (Orbit): the icon's own bundled file, larger and round. */
+/*
+ * The agent at the hero's right (Orbit): standing, its full portrait
+ * (assets/agents-full through the preload, agent-portraits.js) in front of
+ * the moon, fading in once decoded and floating slowly (m-drift, still when
+ * the window is hidden, mid match or under less motion). A portrait that
+ * fails to load gives way to the head icon, larger and round in its ring;
+ * an icon that fails too leaves nothing. Painted again only for another agent.
+ */
 function paintVerdictAgent(host, v) {
   if (!host) return;
-  host.replaceChildren();
-  const url = v && v.icon && window.VerdictCard && typeof window.VerdictCard.iconUrl === 'function'
+  const face = v && v.icon && window.VerdictCard && typeof window.VerdictCard.iconUrl === 'function'
     ? window.VerdictCard.iconUrl(v.icon) : null;
-  host.hidden = !url;
-  if (!url) return;
+  const full = v && v.icon && typeof window.occlara.agentPortrait === 'function' ? window.occlara.agentPortrait(v.icon) : null;
+  const key = `${full || ''}|${face || ''}`;
+  if (host.dataset.agent === key && host.firstChild) return;
+  host.dataset.agent = key;
+  host.replaceChildren();
+  const ring = () => {
+    host.replaceChildren();
+    host.classList.remove('full');
+    host.hidden = !face;
+    if (!face) return;
+    const img = document.createElement('img');
+    img.className = 'vd-agent-img m-drift';
+    img.src = face;
+    img.alt = '';
+    img.addEventListener('error', () => { host.replaceChildren(); host.hidden = true; });
+    host.append(img);
+  };
+  if (!full) { ring(); return; }
+  host.classList.add('full');
+  host.hidden = false;
   const img = document.createElement('img');
-  img.className = 'vd-agent-img m-drift';
-  img.src = url;
+  img.className = 'vd-agent-full m-drift';
   img.alt = '';
-  img.addEventListener('error', () => { host.replaceChildren(); host.hidden = true; });
+  img.decoding = 'async';
+  img.draggable = false;
+  img.addEventListener('load', () => img.classList.add('ready'), { once: true });
+  img.addEventListener('error', ring, { once: true });
+  img.src = full;
   host.append(img);
 }
 
@@ -1985,11 +2012,15 @@ let reveal = null;
 
 const lessMotion = () => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** Once per review, from the branch where its loading screen gave way. */
-function startReveal(r, verdict) {
+/**
+ * Once per review, from the branch where its loading screen gave way. With
+ * `ready` (Orbit, not under less motion) the review is said ready first and
+ * opens out of that card (readyFirst); without, it arrives as it always did.
+ */
+function startReveal(r, verdict, ready) {
   if (!r.id || revealed.has(r.id)) return;
   revealed.add(r.id);
-  const mine = { id: r.id, verdict, started: false, cued: false, stamp: null, done: null, skip: null };
+  const mine = { id: r.id, verdict, ready: !!ready, opened: false, started: false, cued: false, stamp: null, done: null, skip: null, t: [] };
   reveal = mine;
   const shown = typeof window.occlaraOnShown === 'function' ? window.occlaraOnShown : (fn) => fn();
   shown(() => runReveal(mine));
@@ -1997,7 +2028,21 @@ function startReveal(r, verdict) {
 
 function runReveal(mine) {
   if (reveal !== mine || !current || current.id !== mine.id || current.work) return;
+  if (!mine.skip) {
+    mine.skip = () => endReveal(mine);
+    document.addEventListener('pointerdown', mine.skip, true);
+    document.addEventListener('keydown', mine.skip, true);
+  }
   mine.started = true;
+  if (mine.ready && !mine.opened && !lessMotion()) {
+    // Motion never costs the reveal: a card that cannot be laid out plays it plain.
+    try { readyFirst(mine); return; } catch (e) { clearReady(); }
+  }
+  playReveal(mine);
+}
+
+/** The count, the stamp, the bars and the chips (8.7), and the letter heard as it lands. */
+function playReveal(mine) {
   const root = $('vreview');
   root.classList.remove('reveal-done');
   const still = lessMotion();
@@ -2010,14 +2055,124 @@ function runReveal(mine) {
   root.classList.add('revealing');
   mine.stamp = setTimeout(() => cueReveal(mine), still ? 0 : STAMP_MS);
   mine.done = setTimeout(() => endReveal(mine), still ? 0 : REVEAL_MS);
-  mine.skip = () => endReveal(mine);
-  document.addEventListener('pointerdown', mine.skip, true);
-  document.addEventListener('keydown', mine.skip, true);
+}
+
+/*
+ * REVIEW READY (Orbit's signature, Nov 2026, docs/claude/ui.md "Review
+ * ready"). As the loading screen gives way to the whole review, the loading
+ * screen falls away (ghostBuilding, from the paint), a notification drops in
+ * on the gentle spring, "Review ready" with the grade and how it moved on the
+ * last match, holds a beat, and opens into the review: the review grows out
+ * of the card's corners (a clip-path on #vreview over a ground that fades),
+ * and the count, the stamp, the bars and the medals play as before.
+ *
+ * HONEST. It is said only from the branch where the loading screen gave way,
+ * so only once the review is whole (work null: Riot's record laid over and the
+ * read rewritten, the link given up, or the screen's own review done), never
+ * for a review opened later from the library or Home.
+ *
+ * NOTHING MID MATCH. It runs inside occlaraOnShown like the reveal it leads,
+ * so a review made whole while the next match records waits for the seal to
+ * lift and a page to be shown. Under less motion there is no card: the review
+ * is painted as it ends. A click or a key ends it all at once (endReveal).
+ */
+const READY_IN = 240;    // the card drops in as the loading screen falls away
+const READY_OPEN = 1280; // the beat it holds, then it opens
+const READY_MORPH = 520; // the clip on the drawer curve
+const READY_PLAY = 90;   // the count starts as the window is still opening
+
+function readyFirst(mine) {
+  const root = $('vreview');
+  const card = $('v-ready');
+  if (!card) { playReveal(mine); return; }
+  root.classList.add('ready-pre');
+  $('v-ready-line').replaceChildren(...readyLine(mine.verdict, null));
+  const asked = progressAsked && progressAsked.id === mine.id ? progressAsked.asked : null;
+  if (asked) asked.then((p) => { if (reveal === mine && !mine.opened) $('v-ready-line').replaceChildren(...readyLine(mine.verdict, p)); }).catch(() => {});
+  // Inside the review's own box, so the window it opens into starts at the card.
+  const sheet = root.closest('.sheet') || document.body;
+  const top = root.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
+  card.style.top = `${Math.max(16, Math.round(top + 16))}px`;
+  card.classList.remove('in', 'morphing');
+  card.hidden = false;
+  mine.t.push(setTimeout(() => { if (reveal === mine) card.classList.add('in'); }, READY_IN));
+  mine.t.push(setTimeout(() => openReady(mine), READY_OPEN));
+}
+
+/** The card's line: "71 B, up 7 on your last match", or the result and score where nothing is counted. */
+function readyLine(v, p) {
+  const out = [];
+  const vs = p && p.vsLast && typeof p.vsLast.delta === 'number' ? p.vsLast.delta : null;
+  const g = (current && current.game) || {};
+  const result = [g.result, String(g.score || '').split('-').join(' : ')].filter(Boolean).join(' ');
+  const graded = v && Number.isInteger(v.score) ? `${v.score}${v.letter ? ` ${v.letter}` : ''}` : '';
+  if (vs !== null && vs > 0) out.push(el('i', 'v-ready-up'));
+  const moved = vs === null ? '' : vs > 0 ? `up ${vs} on your last match` : vs < 0 ? `down ${-vs} on your last match` : 'level with your last match';
+  out.push(document.createTextNode([graded, moved || (graded ? result : '')].filter(Boolean).join(', ') || result || 'Your match is graded'));
+  return out;
+}
+
+function openReady(mine) {
+  if (reveal !== mine) return;
+  mine.opened = true;
+  try {
+    const root = $('vreview');
+    const card = $('v-ready');
+    const rr = root.getBoundingClientRect();
+    const cr = card.getBoundingClientRect();
+    root.classList.remove('ready-pre');
+    root.classList.add('ready-open');
+    root.style.transition = 'none';
+    root.style.clipPath = `inset(${Math.max(0, cr.top - rr.top).toFixed(1)}px ${Math.max(0, rr.right - cr.right).toFixed(1)}px ${Math.max(0, rr.bottom - cr.bottom).toFixed(1)}px ${Math.max(0, cr.left - rr.left).toFixed(1)}px round 20px)`;
+    void root.offsetWidth;
+    card.classList.add('morphing');
+    root.style.transition = `clip-path ${READY_MORPH}ms var(--ease-drawer)`;
+    root.style.clipPath = 'inset(0px 0px 0px 0px round 0px)';
+    root.classList.add('ready-opened');
+  } catch (e) { clearReady(); }
+  mine.t.push(setTimeout(() => { if (reveal === mine) playReveal(mine); }, READY_PLAY));
+  mine.t.push(setTimeout(clearReady, READY_MORPH + 80));
+}
+
+/** The card and the window gone, the review as it is: safe at any point and more than once. */
+function clearReady() {
+  const root = $('vreview');
+  root.classList.remove('ready-pre', 'ready-open', 'ready-opened');
+  root.style.clipPath = '';
+  root.style.transition = '';
+  const card = $('v-ready');
+  if (card) { card.classList.remove('in', 'morphing'); card.hidden = true; }
+}
+
+/*
+ * The loading screen falling away as the review it waited for is whole: a
+ * copy of it laid where it was, fading down and out while the page goes on.
+ * Only on screen and with motion; it is gone in under half a second either way.
+ */
+function ghostBuilding() {
+  try {
+    const b = $('building');
+    if (lessMotion() || document.visibilityState !== 'visible' || document.documentElement.classList.contains('page-armed')) return;
+    const box = b.getBoundingClientRect();
+    if (!box.height) return;
+    const g = b.cloneNode(true);
+    g.removeAttribute('id');
+    g.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
+    g.querySelectorAll('[aria-live]').forEach((n) => n.removeAttribute('aria-live'));
+    g.setAttribute('aria-hidden', 'true');
+    g.classList.add('b-ghost');
+    Object.assign(g.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+    (b.closest('.sheet') || document.body).append(g);
+    requestAnimationFrame(() => requestAnimationFrame(() => g.classList.add('b-out')));
+    setTimeout(() => g.remove(), 480);
+  } catch (e) { /* motion never costs a paint */ }
 }
 
 function unhookReveal(mine) {
   clearTimeout(mine.stamp);
   clearTimeout(mine.done);
+  (mine.t || []).forEach(clearTimeout);
+  mine.t = [];
   if (!mine.skip) return;
   document.removeEventListener('pointerdown', mine.skip, true);
   document.removeEventListener('keydown', mine.skip, true);
@@ -2028,6 +2183,7 @@ function endReveal(mine) {
   if (reveal !== mine) return;
   reveal = null;
   unhookReveal(mine);
+  clearReady();
   const root = $('vreview');
   root.classList.add('reveal-done');
   const score = root.querySelector('.vd-score.counting');
@@ -2064,11 +2220,54 @@ function settleReveal(r) {
     return;
   }
   if (mine) { reveal = null; unhookReveal(mine); }
+  clearReady();
   $('vreview').classList.remove('revealing', 'reveal-done');
 }
 
+/*
+ * THE SKY (Orbit, shared/sky.js): the stars and the moon's lit limb behind a
+ * Valorant review and its loading screen, the agent standing in front of it.
+ * Put up only once the page is on screen (a sealed page never is, so the moon
+ * is never drawn mid match; drawn once, it is kept for every page), drawn
+ * again only when the window's size changes, and sliding up at SKY_DRIFT of
+ * the page's scroll, so the hero leaves it behind. League keeps the plain
+ * ground.
+ */
+const SKY_DRIFT = 0.6;
+let skyAt = '';
+function paintSky(on) {
+  const host = $('v-sky');
+  if (!host) return;
+  host.hidden = !on;
+  if (!on) return;
+  const shown = typeof window.occlaraOnShown === 'function' ? window.occlaraOnShown : (fn) => fn();
+  shown(() => {
+    const sky = window.OcclaraSky;
+    if (!sky || host.hidden) return;
+    const key = `${window.innerWidth}x${window.innerHeight}`;
+    if (skyAt !== key) { skyAt = key; sky.stars($('v-stars')); }
+    sky.moon($('v-moon'));
+  });
+}
+window.addEventListener('resize', () => { skyAt = ''; const host = $('v-sky'); if (host && !host.hidden) paintSky(true); });
+(() => {
+  const scroller = document.querySelector('main.body');
+  if (!scroller) return;
+  let frame = 0;
+  scroller.addEventListener('scroll', () => {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const y = scroller.scrollTop * SKY_DRIFT;
+      const host = $('v-sky');
+      if (host) host.style.transform = y ? `translate3d(0, ${(-y).toFixed(1)}px, 0)` : '';
+    });
+  }, { passive: true });
+})();
+
 function paint(r) {
   settleReveal(r);
+  paintSky(!!r && (!!r.work || r.kind === 'valorant'));
   paintEye(r);
   // The share sheet stays open over a new version of the review it was
   // opened on, drawn again; over any other, or none, it closes.
@@ -2093,6 +2292,8 @@ function paint(r) {
   $('ask').hidden = !r.id || !!r.work;
   if (r.work) { progressFor = null; paintBuilding(r.work); return; }
   const wasBuilding = !$('building').hidden;
+  // Whole at last: the loading screen falls away where it stood (Orbit).
+  if (wasBuilding) ghostBuilding();
   paintBuilding(null);
   // LOCKED (8.7): its numbers and the upgrade card, and nothing else: no
   // Verdict, no progress, no reveal and no sound (paintLocked).
@@ -2118,11 +2319,13 @@ function paint(r) {
     paintProgress(r);
     paintRiot(r);
     // Whole at last, it rises in where the loading screen was.
+    // With motion it is said ready first and opens out of that card (Orbit,
+    // readyFirst); without, it rises in as it always did.
     if (wasBuilding) {
+      const ready = !lessMotion() && !!$('v-ready');
       $('vreview').classList.remove('v-arrive');
-      void $('vreview').offsetWidth;
-      $('vreview').classList.add('v-arrive');
-      startReveal(r, verdict);
+      if (!ready) { void $('vreview').offsetWidth; $('vreview').classList.add('v-arrive'); }
+      startReveal(r, verdict, ready);
     }
     arriveRows();
     jumpIfAsked(r);

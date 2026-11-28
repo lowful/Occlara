@@ -37,6 +37,7 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const ffmpeg = require('ffmpeg-static');
@@ -92,10 +93,21 @@ function portraitWebp(png) {
   const pad = Math.round((box.y1 - box.y0 + 1) * MARGIN);
   const x = Math.max(0, box.x0 - pad), y = Math.max(0, box.y0 - pad);
   const cw = Math.min(size.w, box.x1 + pad + 1) - x, ch = Math.min(size.h, box.y1 + pad + 1) - y;
-  return run(['-v', 'error', '-i', 'pipe:0',
-    '-vf', `crop=${cw}:${ch}:${x}:${y},scale=-2:${HEIGHT}:flags=lanczos,format=yuva420p`,
-    '-c:v', 'libwebp', '-quality', String(QUALITY), '-compression_level', '6', '-preset', 'picture',
-    '-frames:v', '1', '-f', 'webp', 'pipe:1'], png);
+  // TO A FILE, NEVER A PIPE: ffmpeg's WebP muxer writes the RIFF size last,
+  // by seeking back, and cannot on a pipe, which leaves it 0. Chromium then
+  // refuses the picture (onerror) while other decoders shrug it off.
+  const tmp = path.join(os.tmpdir(), `occlara-portrait-${process.pid}-${Date.now()}.webp`);
+  try {
+    run(['-v', 'error', '-y', '-i', 'pipe:0',
+      '-vf', `crop=${cw}:${ch}:${x}:${y},scale=-2:${HEIGHT}:flags=lanczos,format=yuva420p`,
+      '-c:v', 'libwebp', '-quality', String(QUALITY), '-compression_level', '6', '-preset', 'picture',
+      '-frames:v', '1', tmp], png);
+    const out = fs.readFileSync(tmp);
+    if (out.length < 16 || out.readUInt32LE(4) + 8 !== out.length) throw new Error('the WebP\'s RIFF size is not its length');
+    return out;
+  } finally {
+    try { fs.unlinkSync(tmp); } catch (e) { /* not written */ }
+  }
 }
 
 async function main() {

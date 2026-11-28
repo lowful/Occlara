@@ -25,6 +25,8 @@ const ok = (name) => { n++; console.log(`  ok  ${name}`); };
 function webpInfo(buf) {
   assert.strictEqual(buf.toString('ascii', 0, 4), 'RIFF', 'a RIFF file');
   assert.strictEqual(buf.toString('ascii', 8, 12), 'WEBP', 'a WebP');
+  // Chromium refuses a WebP whose RIFF size is not its length (ffmpeg writing to a pipe leaves it 0).
+  assert.strictEqual(buf.readUInt32LE(4) + 8, buf.length, 'the RIFF size is the file\'s length');
   assert.strictEqual(buf.toString('ascii', 12, 16), 'VP8X', 'the extended header, which carries the alpha flag');
   const flags = buf[20];
   const w = 1 + buf.readUIntLE(24, 3);

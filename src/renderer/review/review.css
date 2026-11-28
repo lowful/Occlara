@@ -849,7 +849,87 @@ html.embedded .share {
 .vd-agent[hidden] { display: none; }
 .vd-agent::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 1px dashed var(--line-2); }
 .vd-agent-img { width: 188px; height: 188px; border-radius: 50%; object-fit: cover; background: var(--raised); border: 1px solid var(--line-2); box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.95); }
+/* STANDING (review.js paintVerdictAgent): the full portrait, no ring, from
+   above the grade's line down to the fix, its feet fading out before
+   Riot's scoreboard, which sits over it. */
+.vd > .vd-agent.full { display: block; width: auto; height: auto; top: -18px; right: 1%; }
+.vd-agent.full::before { content: none; }
+.vd-agent-full {
+  display: block; height: 580px; width: auto; max-width: none;
+  opacity: 0; transition: opacity 900ms var(--ease-out);
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 1) 60%, transparent 93%);
+          mask-image: linear-gradient(rgba(0, 0, 0, 1) 60%, transparent 93%);
+  -webkit-user-drag: none;
+}
+.vd-agent-full.ready { opacity: 1; }
+@media (max-width: 1100px) { .vd-agent-full { height: 520px; } .vd > .vd-agent.full { right: -2%; } }
+@media (prefers-reduced-motion: reduce) { .vd-agent-full { animation: none !important; } }
 /* Riot's scoreboard under the hero, a card. */
 .vd .v-stats-wrap { margin-top: 44px; padding: 22px 28px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--card); }
 .vd .v-verified, .vd .v-flags { margin-top: var(--space-4); }
 @media (max-width: 900px) { .vd-agent { display: none; } .vd-score { font-size: 112px; } }
+
+/* ── ORBIT, THE SKY BEHIND THE HERO (review.js paintSky) ─────────────────────
+   The stars and the moon's lit limb, as on Home: the moon 130% of the page
+   wide, its centre high and to the right, a little higher than Home's, in the
+   window's own coordinates (this view begins the bar's 56px down it). The
+   stars fade out down the page. It slides up slower than the page scrolls. */
+.sheet { position: relative; }
+.sheet > header, .sheet > .share, .sheet > .body { position: relative; z-index: 1; }
+/* Its top fades in over the first 64px: the bar above it is the plain ground on
+   every page but Home, so the moon rises out of it rather than being cut by it. */
+.v-sky {
+  position: absolute; left: 0; right: 0; top: 0; height: 900px; z-index: 0; pointer-events: none; overflow: hidden;
+  -webkit-mask-image: linear-gradient(transparent 0, rgba(0, 0, 0, 1) 64px);
+          mask-image: linear-gradient(transparent 0, rgba(0, 0, 0, 1) 64px);
+}
+.v-sky[hidden] { display: none; }
+.v-stars {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 1) 0, rgba(0, 0, 0, 1) 38%, transparent 80%);
+          mask-image: linear-gradient(rgba(0, 0, 0, 1) 0, rgba(0, 0, 0, 1) 38%, transparent 80%);
+}
+.v-moon { position: absolute; left: 46%; top: -56px; width: 130%; aspect-ratio: 1; transform: translateY(-73%); }
+.v-moon .sky-moon-img { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity 1.2s var(--ease-out); -webkit-user-drag: none; }
+.v-moon .sky-moon-img.ready { opacity: 1; }
+
+/* ── ORBIT, REVIEW READY (review.js readyFirst) ─────────────────────────────
+   The card: the app's icon, "Review ready", the grade and how it moved, and
+   "now", on the raised ground with the hairline, dropping in on the gentle
+   spring. It opens into the review: its words go, and the review grows out of
+   its corners (a clip-path on #vreview) over a ground of the card's colour that
+   fades as it opens. */
+.v-ready {
+  position: absolute; left: 50%; top: 20px; z-index: 6; width: 392px; max-width: calc(100% - 32px);
+  transform: translate(-50%, -28px) scale(0.96);
+  display: flex; align-items: center; gap: 14px; padding: 14px 18px 14px 14px; border-radius: 20px;
+  background: var(--raised); border: 1px solid var(--line-2); box-shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.85);
+  opacity: 0; filter: blur(6px); pointer-events: none;
+}
+.v-ready[hidden] { display: none; }
+.v-ready.in {
+  opacity: 1; filter: none; transform: translate(-50%, 0);
+  transition: transform 600ms var(--spring-gentle), opacity 260ms var(--ease-out), filter 300ms var(--ease-out);
+}
+.v-ready.morphing { background: transparent; border-color: transparent; box-shadow: none; transition: none; }
+.v-ready.morphing > * { opacity: 0; filter: blur(6px); transform: scale(1.04); transition: opacity 160ms var(--ease-out), filter 160ms var(--ease-out), transform 300ms var(--ease-out); }
+.v-ready-ic { flex: none; width: 40px; height: 40px; border-radius: 10px; }
+.v-ready-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.v-ready-text b { font-weight: 700; color: var(--text); }
+.v-ready-text span { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-dim); }
+.v-ready-up { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+.v-ready-time { align-self: flex-start; margin-top: 1px; font-size: 13px; color: var(--text-2); }
+
+#vreview.ready-pre { opacity: 0; }
+#vreview.ready-open { position: relative; }
+#vreview.ready-open::before {
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  background: var(--raised); transition: opacity 500ms var(--ease-drawer);
+}
+#vreview.ready-open.ready-opened::before { opacity: 0; }
+
+/* The loading screen falling away (review.js ghostBuilding): a copy where it
+   stood, fading down and out with a blur, gone in under half a second. */
+.b-ghost { position: fixed; z-index: 4; margin: 0; pointer-events: none; animation: none; transition: opacity 300ms var(--ease-out), transform 360ms var(--ease-out), filter 300ms var(--ease-out); }
+.b-ghost.b-out { opacity: 0; transform: translateY(14px) scale(0.97); filter: blur(8px); }
+@media (prefers-reduced-motion: reduce) { .v-ready, .b-ghost { display: none; } }

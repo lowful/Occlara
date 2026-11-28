@@ -1484,7 +1484,9 @@ async function openShell(cfg, state, opts) {
       && (v.document.querySelector('#v-verdict .vd-score') || {}).textContent === '61' && v.document.querySelector('#grade-host .gv-grade.compact')
       && !v.$('ask').hidden,
     'its work done, the review is painted whole from the version the page holds, its grade, its read and Ask with it');
-    ok(v.$('vreview').classList.contains('v-arrive'), 'and it rises in where the loading screen was');
+    // Orbit: with motion it is said ready first and opens out of that card
+    // (review.js readyFirst); under less motion it rises in as it always did.
+    ok(!v.$('v-ready').hidden || v.$('vreview').classList.contains('v-arrive'), 'and it is said ready where the loading screen was, or rises in there');
 
     // From the screen alone.
     const s = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => ({ ...BUILT,
@@ -2369,6 +2371,10 @@ async function openShell(cfg, state, opts) {
       ] },
       summary: 'You won 13 to 11.', insights: { mistakes: [], strengths: [], missed: [] }, rounds: [] };
     const WORK = { path: 'screen', steps: ['saved', 'writing', 'look'], step: 'writing', endedAt: Date.now() - 20000, until: null, scoreboard: false };
+    // review.js readyFirst: the card drops in after READY_IN and opens at READY_OPEN, the count READY_PLAY after.
+    const READY_IN = 240;
+    const READY_OPEN = 1280;
+    const READY_PLAY = 90;
     const LINES = [{ kind: 'last', tone: 'good', text: 'Up 4 on your last match.' }];
     const PLAIN = { id: ID, lines: LINES, best: { grade: null, firstLetter: null, categories: [] } };
     const BEST = { id: ID, lines: LINES, best: { grade: { over: 80, matches: 5 }, firstLetter: null, categories: [] } };
@@ -2391,7 +2397,12 @@ async function openShell(cfg, state, opts) {
       sfx.play = (kind) => { v.heard.push(kind); };
       v.realPlay = real;
       await settle();
+      // Whole: said ready first (Orbit, review.js readyFirst), then opened
+      // into the review after READY_OPEN, the reveal below READY_PLAY later.
       v.whole = async () => { v.bridge.emit(C.PUSH_REVIEW_WORK, { id: ID, work: null }); await settle(); };
+      // The fake clock runs only what is due at each step, so the open, then the count it sets.
+      v.open = async () => { await v.after(READY_OPEN); await v.after(READY_PLAY); };
+      v.opened = async () => { await v.whole(); await v.open(); };
       v.after = async (ms) => { v.clock.advance(ms); await settle(); };
       v.root = () => v.$('vreview');
       v.score = () => v.document.querySelector('#v-verdict .vd-score');
@@ -2400,7 +2411,15 @@ async function openShell(cfg, state, opts) {
 
     const v = await page();
     ok(!v.$('building').hidden && !v.root().classList.contains('revealing'), 'while it is built, nothing is revealed');
+    // REVIEW READY (Orbit): whole, the card says so first, and nothing counts yet.
     await v.whole();
+    ok(!v.$('v-ready').hidden && v.root().classList.contains('ready-pre') && !v.root().classList.contains('revealing') && !v.heard.length,
+      'whole, it is said ready first: the card, the review held back, nothing counted or heard', v.root().className);
+    await v.after(READY_IN);
+    ok(v.$('v-ready').classList.contains('in') && v.$('v-ready-line').textContent === '78 B, Victory 13 : 11',
+      'the card drops in with the grade, its letter and, with nothing counted against the last match, the result', v.$('v-ready-line').textContent);
+    await v.after(READY_OPEN - READY_IN);
+    await v.after(READY_PLAY);
     const sc = v.score();
     ok(v.root().classList.contains('revealing') && !v.root().classList.contains('reveal-done')
       && sc && sc.classList.contains('counting') && sc.style['--to'] === '78' && sc.textContent === '78',
@@ -2428,15 +2447,17 @@ async function openShell(cfg, state, opts) {
 
     const later = await page({ work: false });
     await later.after(3000);
-    ok(!later.$('vreview').hidden && !later.root().classList.contains('revealing') && !later.score().classList.contains('counting') && !later.heard.length,
-      'a review opened later is painted as it ends, with no count, no stamp and no sound');
+    ok(!later.$('vreview').hidden && !later.root().classList.contains('revealing') && !later.score().classList.contains('counting') && !later.heard.length
+      && later.$('v-ready').hidden,
+      'a review opened later is painted as it ends, with no card, no count, no stamp and no sound');
+
 
     const quiet = await page({ state: { sounds: false } });
-    await quiet.whole();
+    await quiet.opened();
     await quiet.after(3000);
     ok(quiet.root().classList.contains('reveal-done') && !quiet.heard.length, 'with sounds off it is revealed and nothing is heard');
     const coaching = await page({ state: { isCoaching: true } });
-    await coaching.whole();
+    await coaching.opened();
     await coaching.after(3000);
     ok(!coaching.heard.length, 'while coaching nothing is heard', coaching.heard.join(' '));
     ok(coaching.bridge.invoked.some((c) => c[0] === C.STATE_GET), 'main is asked, as the letter lands');
@@ -2445,17 +2466,20 @@ async function openShell(cfg, state, opts) {
     const sealed = await page({ embed: true });
     await sealed.whole();
     await sealed.after(3000);
-    ok(sealed.document.documentElement.classList.contains('page-armed') && !sealed.root().classList.contains('revealing') && !sealed.heard.length,
-      'a page not on screen (the seal on, or another page shown) reveals nothing and plays nothing');
+    ok(sealed.document.documentElement.classList.contains('page-armed') && !sealed.root().classList.contains('revealing') && !sealed.heard.length
+      && sealed.$('v-ready').hidden,
+      'a page not on screen (the seal on, or another page shown) says nothing ready, reveals nothing and plays nothing');
     sealed.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'forward' });
     await settle();
-    ok(sealed.root().classList.contains('revealing') && !sealed.heard.length, 'on screen at last, it is revealed then');
+    ok(!sealed.$('v-ready').hidden && !sealed.heard.length, 'on screen at last, it is said ready then');
+    await sealed.open();
+    ok(sealed.root().classList.contains('revealing') && !sealed.heard.length, 'and opens into the review, revealed then');
     await sealed.after(420);
     ok(same(sealed.heard, ['reveal']), 'and heard as its letter lands', sealed.heard.join(' '));
 
     // A click or a key ends it at once, the letter heard as it lands then.
     const skip = await page();
-    await skip.whole();
+    await skip.opened();
     for (const fn of skip.document._listeners.keydown || []) fn.call(skip.document, makeEvent('keydown', { key: 'a' }));
     await settle();
     ok(skip.root().classList.contains('reveal-done') && !skip.score().classList.contains('counting') && same(skip.heard, ['reveal']),
@@ -2467,15 +2491,27 @@ async function openShell(cfg, state, opts) {
     const click = await page();
     await click.whole();
     for (const fn of click.document._listeners.pointerdown || []) fn.call(click.document, makeEvent('pointerdown'));
-    ok(click.root().classList.contains('reveal-done'), 'a click ends it at once too');
+    ok(click.root().classList.contains('reveal-done') && click.$('v-ready').hidden && !click.root().classList.contains('ready-pre'),
+      'a click ends it at once too, the ready card with it, even before it opens', click.root().className);
+
+    // The card's line says how the grade moved, from main's progress alone.
+    const up = await page({ progress: { ...PLAIN, vsLast: { delta: 4 } } });
+    await up.whole();
+    ok(up.$('v-ready-line').textContent === '78 B, up 4 on your last match' && !!up.$('v-ready-line').querySelector('.v-ready-up'),
+      'the card says the grade went up on the last match, beside a dot', up.$('v-ready-line').textContent);
+    const down = await page({ progress: { ...PLAIN, vsLast: { delta: -3 } } });
+    await down.whole();
+    ok(down.$('v-ready-line').textContent === '78 B, down 3 on your last match' && !down.$('v-ready-line').querySelector('.v-ready-up'),
+      'or that it went down, with no dot', down.$('v-ready-line').textContent);
 
     const best = await page({ progress: BEST });
-    await best.whole();
+    await best.opened();
     await best.after(420);
     ok(same(best.heard, ['best']), 'with a best in the progress, the best cue instead', best.heard.join(' '));
 
     const still = await page({ still: true });
     await still.whole();
+    ok(still.$('v-ready').hidden && !still.root().classList.contains('ready-pre'), 'asked for less motion, no card says it is ready');
     ok(still.root().classList.contains('revealing') && !still.score().classList.contains('counting'), 'asked for less motion, nothing counts');
     await still.after(0);
     ok(same(still.heard, ['reveal']), 'and nothing waits: the letter is there, and heard, at once', still.heard.join(' '));
