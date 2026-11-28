@@ -174,6 +174,10 @@ score, six kills in a round, a killer with no death, kills after the death,
 more kills than the scoreline, a C site on a two site map), 24 KB. Read back
 through the same cleaner. "The spot they held": a review keeps no such field
 today (only the death's place and where the kills fell), so none is sent.
+The sheet's clutch chip (`sideOf`, 9.1) says "won" only where the player lived
+through the round (`insights.js clutchWonAlive`, every surface's rule): left
+last and killed, with the round won after, it reads "Clutch 1v2" alone, the
+round's Won and the death line beside it.
 
 **The clips**: every `r`, `d` and `h` clip of the match the review names, each
 with its marks (ms on its own timeline: the death, a highlight's kills and

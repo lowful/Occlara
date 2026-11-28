@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const { pageMotion } = require('./page-motion');
 const verdict = require('../shared/verdict');
+const clips = require('../shared/clips');
+const { clutchWonAlive } = require('../shared/insights');
 const { mapArtOf } = require('../shared/agent-icons');
 const { portraitOfIcon } = require('../shared/agent-portraits');
 
@@ -45,6 +47,12 @@ contextBridge.exposeInMainWorld('occlara', {
   // The Verdict at the top of a graded review (8.6.0, shared/verdict.js),
   // built here so the page does no counting of its own.
   verdictOf: (r) => verdict.of(r),
+  // THE ONE CLUTCH RULE (9.1): the best highlight is ranked by clips.js
+  // highlightRank, the order main cut the clips in, and a clutch is named
+  // only where insights.js clutchWonAlive says the player lived through it.
+  // The page keeps no copy of either rule. ({ kills, clutch, died }) each.
+  highlightRank: (r) => clips.highlightRank(r && typeof r === 'object' ? r : null),
+  clutchWonAlive: (r) => clutchWonAlive(r && typeof r === 'object' ? r : null),
   // The map's bundled splash behind the Verdict (Progress v3), or null: only
   // a map the generated data lists gets one (agent-icons.js mapArtOf).
   mapArt: (name) => {

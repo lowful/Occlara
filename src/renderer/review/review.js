@@ -478,17 +478,19 @@ function highlightRankOf(c) {
   const r = c && c.riot;
   const h = c && c.highlight;
   const kills = r && typeof r.kills === 'number' ? r.kills : h && Array.isArray(h.kills) ? h.kills.length : 0;
-  if (kills < 1) return null;
-  // A clutch won ranks only where Riot says the player lived through it
-  // (9.1, insights.js clutchWonAlive): a round won after the player died is
-  // no clutch of theirs, and its lone kill is no highlight.
-  const won = !!(r && r.clutch && typeof r.clutch.vs === 'number' && r.clutch.won === true && c.died === false);
-  if (kills >= 5) return 0;
-  if (kills === 4) return 1;
-  if (won) return 2;
-  if (kills === 3) return 3;
-  if (kills === 2) return 4;
-  return null;
+  // clips.js highlightRank itself, through the preload: a clutch won ranks
+  // only where Riot says the player lived through it (insights.js
+  // clutchWonAlive), so a round won after the player died is no clutch of
+  // theirs, and its lone kill is no highlight. The page has no copy of it.
+  const api = window.occlara;
+  if (!api || typeof api.highlightRank !== 'function') return null;
+  return api.highlightRank({ kills, clutch: r && r.clutch ? r.clutch : null, died: c ? c.died : undefined });
+}
+/** Whether the player won the round's clutch alive, by insights.js clutchWonAlive through the preload. */
+function wonAlone(c) {
+  const api = window.occlara;
+  const r = c && c.riot;
+  return !!(api && typeof api.clutchWonAlive === 'function' && r && api.clutchWonAlive({ clutch: r.clutch || null, died: c.died }));
 }
 function bestHighlight(r) {
   let best = null;
@@ -505,7 +507,7 @@ function highlightTitle(c) {
   const r = c.riot || {};
   const h = c.highlight || {};
   const kills = typeof r.kills === 'number' ? r.kills : Array.isArray(h.kills) ? h.kills.length : 0;
-  const alive = !!(r.clutch && r.clutch.won === true && r.clutch.vs >= 1 && c.died === false);
+  const alive = wonAlone(c);
   const parts = [`Round ${c.n}`];
   if (kills >= 5) parts.push('an ace');
   else if (kills >= 2) parts.push(`${kills}K`);

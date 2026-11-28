@@ -8,7 +8,7 @@
  *      Decisions): the Split round 12 shape, the player left last, then
  *      killed, the round won by the spike, is no "Won as the last one
  *      standing" and no clutch in Decisions; alive, it still is; every guard
- *      the rule had still holds.
+ *      the rule had still holds; the Duos sheet's chip takes the same rule.
  *   2. THE HEAD: the back arrow goes back through the app's history with
  *      Matches as the fallback and says where it goes; "All matches" is gone;
  *      the eye, Share image and the match's menu are its actions.
@@ -18,9 +18,11 @@
  *   4. WHAT MOVED THE RATING: every rated round's line carries its move on the
  *      100 scale and the engine's label, as the rating's view has them, and
  *      the moves add up to the match.
- *   5. THE BEST HIGHLIGHT: the best kept clip by clips.js highlightRank's
- *      order, its line from Riot's facts, in the agent's place; none kept,
- *      none shown. main presents a highlight's clip URL (presentClips).
+ *   5. THE BEST HIGHLIGHT: the best kept clip by clips.js highlightRank
+ *      itself (asked through the preload, which ranks a clutch by
+ *      clutchWonAlive), its line from Riot's facts, in the agent's place;
+ *      none kept, none shown. main presents a highlight's clip URL
+ *      (presentClips).
  *   6. THE REPLAY AS A PLAYER: every label rating.js writes on the sample
  *      matches has one role, each round's kills are Riot's count; pause holds
  *      it, the next and previous event step it, a death's moment is its clip
@@ -84,6 +86,17 @@ console.log('a clutch is won alive:');
   ok(withAlive && withAlive.evidence.includes('won 1 clutch'), 'and still credits one won alive', JSON.stringify(withAlive && withAlive.evidence));
   ok(/clutchWonAlive/.test(read('src/shared/insights.js')) && /r\.died === false/.test(read('src/shared/grade.js')),
     'the lists and the grade read the same rule');
+  // The Duos sheet's chip (src/shared/duos.js sideOf), the same rule: a 1vN
+  // the player died in says no "won", whatever the round's end.
+  const duos = require('../src/shared/duos');
+  const chip = (row) => (duos.sideOf({ kills: [], ...row }).chips.find((c) => /^Clutch/.test(c.word)) || {});
+  const dead = chip({ died: true, sec: 70, clutch: { vs: 2, won: true } });
+  const lived = chip({ died: false, clutch: { vs: 2, won: true } });
+  const lost = chip({ died: true, sec: 70, clutch: { vs: 3, won: false } });
+  ok(dead.word === 'Clutch 1v2' && dead.tone === null && lived.word === 'Clutch 1v2, won' && lived.tone === 'good' && lost.word === 'Clutch 1v3, lost'
+    && chip({ clutch: { vs: 1, won: true } }).word === 'Clutch 1v1',
+  'the Duos sheet says won only where the player lived through it; killed, the 1vN alone; a death not known claims nothing',
+  JSON.stringify([dead, lived, lost]));
   // The owner's own Split of 4 Oct, Riot's record as kept in the repo: round 12 is the audit's case.
   const verify = require('../src/shared/valorant-verify');
   const split = verify.reconcile([], JSON.parse(read('scripts/fixtures/riot-split-13-7.json'))).rounds;
@@ -322,6 +335,17 @@ async function open(review, handlers) {
     'a clutch the player died in ranks by its kills alone, so a real 3K is the best highlight');
     const every = [...order, deadClutch, R(9, 3, { vs: 2, won: true }, { died: true }), R(10, 1, { vs: 1, won: true }, { died: undefined })];
     ok(every.every((c) => (inPage(vmw, 'highlightRankOf')(c) === clips.highlightRank({ ...c.riot, died: c.died }))), 'rank for rank clips.js highlightRank');
+    // ONE RULE, NO COPY (9.1): the page asks clips.js highlightRank and
+    // insights.js clutchWonAlive through its preload, and clips.js takes the
+    // clutch from clutchWonAlive itself, so a clutch "against 0" (no one left
+    // to win against) is no clutch anywhere either.
+    const zero = R(8, 1, { vs: 0, won: true });
+    ok(inPage(vmw, 'highlightRankOf')(zero) === null && clips.highlightRank({ ...zero.riot, died: false }) === null
+      && !/clutch\.won|clutch && r\.clutch/.test(read('src/renderer/review/review.js'))
+      && /clutchWonAlive\(\{ clutch: r\.clutch, died: r\.died \}\)/.test(read('src/shared/clips.js'))
+      && /highlightRank: \(r\) => clips\.highlightRank\(/.test(read('src/preload/review-preload.js'))
+      && /clutchWonAlive: \(r\) => clutchWonAlive\(/.test(read('src/preload/review-preload.js')),
+    'the page keeps no copy of the clutch rule: clips.js ranks by insights.js clutchWonAlive, and the page asks both through its preload');
     const title = inPage(vmw, 'highlightTitle');
     ok(title({ n: 4, died: true, riot: { kills: 1, clutch: { vs: 2, won: true } }, highlight: {} }) === 'Round 4, a kill'
       && title({ n: 9, died: false, riot: { kills: 3, clutch: { vs: 1, won: true } }, highlight: {} }) === 'Round 9, 3K, won alone against one'

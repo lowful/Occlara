@@ -23,6 +23,8 @@
  */
 
 const DATA = require('./valorant-data.generated.json');
+// The one rule for a clutch won (9.1): only where the player lived through the round.
+const { clutchWonAlive } = require('./insights');
 
 // ── DUO RULES START (word for word the same in src/shared/duos.js) ────────
 const DUO = Object.freeze({
@@ -419,7 +421,15 @@ function sideOf(r) {
   if (r.fd) chips.push({ word: 'First death', tone: 'bad' });
   if (r.died && r.traded === true) chips.push({ word: 'Traded', tone: null });
   if (r.died && r.traded === false) chips.push({ word: 'Not traded', tone: 'bad' });
-  if (r.clutch) chips.push({ word: `Clutch 1v${r.clutch.vs}${r.clutch.won === true ? ', won' : r.clutch.won === false ? ', lost' : ''}`, tone: r.clutch.won ? 'good' : null });
+  // Won only where the player lived through it (insights.js clutchWonAlive,
+  // the rule of every other surface): left last and killed, a round the spike
+  // won after is no clutch of theirs, so the chip says the 1vN and no outcome;
+  // the round's Won and the death line say the rest.
+  if (r.clutch) {
+    const won = clutchWonAlive({ clutch: r.clutch, died: r.died === true ? true : r.died === false ? false : null });
+    const how = won ? ', won' : r.clutch.won === false ? ', lost' : '';
+    chips.push({ word: `Clutch 1v${r.clutch.vs}${how}`, tone: won ? 'good' : null });
+  }
   const kills = r.kills.length ? `${plural(r.kills.length, 'kill')} at ${r.kills.map(clockText).join(', ')}` : 'No kill';
   let death = 'Survived';
   if (r.died) {

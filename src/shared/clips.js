@@ -84,6 +84,11 @@
  * Plain JavaScript, so main and the tests read the same numbers.
  */
 
+// The one rule for a clutch the player won (9.1): Riot's record says they
+// lived through the round. insights.js loads only plain shared modules, none
+// of which loads this one.
+const { clutchWonAlive } = require('./insights');
+
 // A clip's file name, and nothing else: no path, no other type.
 const CLIP_RE = /^[rdh]\d{1,3}-clip\.mkv$/;
 
@@ -302,14 +307,16 @@ function cutsClips(prefs) {
  * clip is of kills, so a clutch won with none (a defuse, the clock) has
  * none, nor has a first kill streak, which is no one moment. A clutch is
  * the player's only where Riot's record says they lived through the round
- * (`died: false`, 9.1, insights.js clutchWonAlive): a round won after they
- * died ranks by its kills alone. A card's `riot` carries no `died`; pass
- * the card's own with it ({ ...card.riot, died: card.died }).
+ * (`died: false`, 9.1, insights.js clutchWonAlive itself, the rule every
+ * list, the grade, Clips and Wrapped take): a round won after they died
+ * ranks by its kills alone. A card's `riot` carries no `died`; pass the
+ * card's own with it ({ ...card.riot, died: card.died }). The review page
+ * ranks its best highlight by this very function (review-preload.js).
  */
 function highlightRank(r) {
   const kills = r && typeof r.kills === 'number' && Number.isFinite(r.kills) ? r.kills : 0;
   if (kills < 1) return null;
-  const won = !!(r.clutch && typeof r.clutch.vs === 'number' && r.clutch.won === true && r.died === false);
+  const won = clutchWonAlive({ clutch: r.clutch, died: r.died });
   if (kills >= 5) return 0;
   if (kills === 4) return 1;
   if (won) return 2;

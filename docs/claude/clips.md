@@ -54,9 +54,11 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   none). Now each round Riot's record proves a highlight with kills (2K to
   5K, or a clutch won: `highlightRank`; a clutch won with no kill, and a
   first kill streak, have none; since 9.1 a clutch counts only where Riot's
-  record says the player lived through the round, `died: false`, as
-  insights.js `clutchWonAlive`, so a round won after they died ranks by its
-  kills alone and its lone kill is no highlight) is cut as ONE clip of its kills,
+  record says the player lived through the round, `died: false`, by
+  insights.js `clutchWonAlive` itself, so a round won after they died ranks by its
+  kills alone and its lone kill is no highlight; the review page asks this
+  `highlightRank` and `clutchWonAlive` through `review-preload.js` for its
+  best highlight and its line, and keeps no copy of either) is cut as ONE clip of its kills,
   `h<n>-clip.mkv`, a name of its own since a round can hold a death clip and
   a highlight clip both (`CLIP_RE` is `[rdh]`, so `saveClip`, `clipsOf`,
   `keepClips`, the cap, `occlara-clip` and `namedClips` take it as any
