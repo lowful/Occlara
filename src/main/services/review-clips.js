@@ -226,6 +226,17 @@ function presentClips(review, io) {
       return extra ? { ...c, forensics: { ...c.forensics, ...extra } } : c;
     }) };
   }
+  // A highlight's clip (8.17), on its card's highlight (9.1: the review plays
+  // the best of them at its top and the rating's replay at each kill). Its
+  // kills are its marks; it has no death, so no place for one.
+  if (Array.isArray(out.rounds) && out.rounds.some((c) => c && c.highlight && c.highlight.clip)) {
+    out = { ...out, rounds: out.rounds.map((c) => {
+      const extra = c && c.highlight ? about(c.highlight.clip, null) : null;
+      if (!extra) return c;
+      const { clipDeath: _none, ...rest } = extra;
+      return { ...c, highlight: { ...c.highlight, ...rest } };
+    }) };
+  }
   // A flagged death's clip (8.13), on its card's flag (served()).
   if (Array.isArray(out.rounds) && out.rounds.some((c) => c && c.flag && c.flag.clip)) {
     out = { ...out, rounds: out.rounds.map((c) => {
