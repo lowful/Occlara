@@ -298,7 +298,7 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
   background: transparent; border: 0; border-radius: 0;
   color: var(--text); font: inherit; cursor: pointer;
 }
-.m-row:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
+.m-row:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-frame); }
 /* A row with no eye, in a list where others have one, keeps the eye's room
    (its 30px in ui.css), so the grades line up down the list. */
 .m-eye-gap { flex: none; width: 30px; }
@@ -312,7 +312,7 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .m-del:hover { color: var(--text); background: var(--s3); }
 .m-del:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 1px; }
 .m-del:disabled { opacity: 0.5; cursor: default; }
-.m-del.armed { color: var(--bad); border-color: rgba(var(--red-rgb), 0.35); background: rgba(var(--red-rgb), 0.10); }
+.m-del.armed { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.35); background: rgba(var(--bad-rgb), 0.10); }
 .m-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .m-top { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
 .m-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -408,7 +408,7 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 }
 .breakdown[open] > .b-sum::after { transform: translateY(1px) rotate(225deg); }
 .b-sum:hover::after { border-color: var(--text); }
-.b-sum:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
+.b-sum:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-frame); }
 .b-body { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-4); }
 .b-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-6); }
 .b-head > div:first-child { min-width: 0; }

@@ -1,341 +1,212 @@
-# Occlara's visual system, as built (Progress v3, over 8.7's Training Log)
+# Occlara's visual system, as built: Orbit (27 Nov 2026)
 
-This records what the renderer draws today, read from `src/renderer/shared/theme.css`,
-`ui.css`, `seg.js` and the surface stylesheets. The rules for working on it are in
-`docs/claude/ui-rules-ipc.md`; the window, the seal and the pages are in
-`docs/claude/ui.md`. When the code and this file disagree, fix one of them in the
-same change.
+This records what the renderer draws, read from `src/renderer/shared/theme.css`,
+`ui.css`, `motion.css`, `motion.js`, `sky.js`, `seg.js`, `subnav.js` and the surface
+stylesheets. The contract it is built from is `ORBIT-SPEC.md` (the owner's redesign
+folder); the rules for working on it are in `docs/claude/ui-rules-ipc.md`; the window,
+the seal and the pages are in `docs/claude/ui.md`. When the code and this file
+disagree, fix one of them in the same change.
 
-## Progress v3 (what changed, and what it overrides below)
+## The idea
 
-The owner approved Progress v3 (Fomo style). Where it disagrees with the 8.7
-sections further down, this section wins.
+Occlara in Fomo's language: an indigo black sky where the moon's lit limb is the
+logo's crescent at planet scale, the player's agent floats in front of it, and the
+review arrives as a notification that opens. Cards on the sky, each holding an
+eyebrow, a title and one real fragment of the product. One accent, indigo, kept for
+the few things that are the app's own actions. Motion is buttery: it transitions,
+reverses where it is interrupted, and settles on a spring. Nothing shows, moves or
+plays during a match but the Recording screen's arrival and its facts changing.
 
-- **Ground and surfaces.** `--bg` is indigo black `#07080C`. Content sits on
-  four surface steps, `--s1` `#0B0D12` (a card), `--s2` `#10131A` (a tile in a
-  card, a hovered row), `--s3` `#161A23` (a chip, a control's fill), `--s4`
-  `#1D212C` (a pill, the RR chip), each told from the ground by a low opacity
-  ring (`--rim` white at .07, `--rim-2` at .14) rather than a border or a
-  shadow. A card is `--r-panel` (20px), a tile `--r-tile` (16px).
-- **Cards are back, art led.** Home, Matches, the review's Verdict and the
-  Recording screen use cards. Art carries the colour: the map's splash
-  (`assets/valorant/maps`, `npm run sync:mapart`) dimmed behind a card under
-  one flat `--scrim`, the agent's portrait (`assets/valorant/agents`) as a
-  ringed circle, a kept clip's poster under the fix. Still no gradient and no
-  glow: a scrim is one flat colour.
-- **Start is the loudest thing.** Home opens on the Start strip, ringed in the
-  signal at .42 (a place of the signal, `check-palette.js SIGNAL_ALLOWED`),
-  with Start at 60px (`.btn-rec.xl`). No shortcut hint: Ctrl+Shift+S is
-  Settings and Start has no key of its own.
-- **Big numbers.** The grade is the hero number (76px on Home, 84px on the
-  review, 38px a row in Matches) with its letter beside it and its change
-  since the match before as a tinted pill (`.delta`, `.m-delta`). The grade
-  line (`GradeView.gradeLine`) draws the last grades as dots on a line.
-- **The live status** is the Recording screen in a Valorant match: the map
-  card with agent, score and round, the round tape and the locked review
-  ring (`docs/claude/screen-silence.md`).
-- **Top navigation.** No sidebar: a 64px bar on the ground with the crescent
-  and Occlara, pill tabs (the current one on a sliding `--s3` pill with the
-  `--rim-2` ring), the game switch, a compact 40px Start on every page but
-  Home (Home's strip carries the 60px one), the avatar and the window's
-  buttons. Mid match the tabs dim and Stop is the 44px capsule. Profile,
-  Invite, Settings, Report a problem, the Discord, the Riot ID and games
-  left are rows of the account drawer the avatar opens, an `--s1` panel at
-  the right with the ring.
-- **Type** is unchanged: Geist and Geist Mono only.
+## What is built, and what still wears the last system
 
-## The idea (8.7)
+Phase 1 (feat/orbit) rebuilt the foundation, the top bar and the Recording screen,
+Home, and the review's hero. Every other page reads in Orbit through the tokens
+(the ground, the greys, the hairlines, the glass buttons, Onest, the radii) but keeps
+its Progress v3 or 8.7 layout until its own phase: Matches, Patterns, Stats, Practice,
+the Trainer, Clips (Moments), Settings, Profile, Invite, Players, Duos, What's new,
+Report a problem, Ask Coach, and the windows of their own (onboarding, Sign in,
+the AI log, weekly, learn, splash, the dock). Wrapped keeps its own look.
 
-Every match is one ruled entry in a training log. Content is grouped by hairline
-rules and whitespace, never by cards. The one thing to do differently next match
-is the largest type on Home and at the top of every review. The controls are the
-only tactile objects: capsules lit from above, on a dark ground. Nothing shows,
-moves or plays during a match; the Recording screen rises in once and is still.
+## Ground, ink and the accent
 
-## Ground and ink
-
-All in `theme.css`, consumed everywhere as tokens (`check:palette` refuses a
-literal outside it).
+All in `theme.css`, consumed everywhere as tokens (`check:palette` refuses a literal
+outside it). Every name the surfaces consumed before Orbit is kept, its value moved.
 
 | Token | Value | Job |
 | --- | --- | --- |
-| `--bg` | `#07080C` | the ground of every surface, indigo black (Progress v3) |
-| `--bg-2` | `#0B0D12` | a second ground, the same as `--s1` |
-| `--s1` to `--s4` | `#0B0D12`, `#10131A`, `#161A23`, `#1D212C` | the surface steps (Progress v3) |
-| `--text` | `#F5F5F7` | the ink, 18.1:1 on the ground |
-| `--text-dim` | `#A1A1A6` | support text, 7.7:1 |
-| `--text-mute` | `#808086` | labels and quiet lines, 5.0:1 |
-| `--line` | white at .09 | the hairline: every rule between rows and over a section |
-| `--line-2` | white at .16 | a control's border, a keycap's, a letter mark's |
-| `--grid` | white at .045 | Home's column grid, drawn as elements |
-| `--signal` (`--red`) | `#E5383B` | Start and the signal's other places, nothing else |
-| `--red-2`, `--red-3` | `#F04A4D`, `#C9302F` | Start under the pointer, Start pressed |
-| `--on-accent` | `#0A0B0E` | the label on the signal (4.65:1) |
-| `--cyan` | `#FFFFFF` | the secondary accent, white; the focus ring |
-| `--good`, `--warn`, `--bad` | `#52C88A`, `#D9A441`, `#E8636F` | outcomes only, never the brand |
-| `--paper*` | | the Verdict's share image alone |
+| `--bg` | `#060510` | the ground, indigo black |
+| `--card` (`--s1`) | `#12111A` | a card on the ground |
+| `--raised` (`--s2`) | `#161522` | a raised control, a selected row, a segmented thumb |
+| `--s3`, `--s4` | `#1C1B2A`, `#232233` | the steps above, for what still names them |
+| `--line` | `#CBD0EB1A` | the hairline round a card, between rows |
+| `--line-2` | `#CBD0EB2B` | a hovered card's, an input's, a control's |
+| `--text` | `#F7F7F7` | the ink, 19.0:1 |
+| `--text-2` (`--text-dim`) | `#9899A3` | the grey sub line, 7.2:1 |
+| `--text-mute` | `#80818C` | a label, 5.3:1 |
+| `--text-3` | `#474B52` | marks only, never words (2.2:1) |
+| `--accent` | `#516AF6` | the accent |
+| `--accent-2` | `#6F85FF` | its lighter step: an eyebrow, the keyboard's ring, the round under way |
+| `--accent-t`, `--accent-tint` | `#516AF629`, `#C9D0FF` | its tint (an input's ring), the record dot under the pointer |
+| `--btn`, `--btn-h` | `#606AF780`, `#606AF7CC` | the indigo glass Start is filled with, and under the pointer |
+| `--btn-bar`, `--btn-bar-h` | `#4F59E0D9`, `#606AF7F0` | the bar's Start, denser over the moon |
+| `--glass`, `--glass-h` | `#CBD0EB1F`, `#CBD0EB33` | the white glass of a primary |
+| `--glass-q`, `--glass-q-h` | `#CBD0EB12`, `#CBD0EB24` | the quiet glass of every other control |
+| `--won` (`--good`), `--lost` (`--bad`) | `#21C95E`, `#FF622E` | outcomes only, quiet |
+| `--won-bar`, `--lost-bar`, `--todo-bar` | | the round tape's marks |
+| `--gold-*`, `--silver-*`, `--bronze-*` | | the medals' metal, the review's SVG defs alone |
+| `--close` | `#E5484D` | the window's close under the pointer |
 
-A hover fill on a row is `rgba(255, 255, 255, 0.035)` across the whole row; a
-control's resting fill is white at .055 and .095 under the pointer. These two
-neutrals are the only colour literals a tokens only stylesheet may hold.
+The signal's old names point at the accent (`--red` and `--signal` are `#516AF6`,
+`--on-accent` is white), so a surface not yet rebuilt still puts its Start in indigo.
 
-State is form before hue: a counted grade has a solid rule or a filled mark, a
-provisional one a dashed rule or a dashed capsule (`.m-letter.prov`,
-`.vd-prov`), an unmeasured category a dashed hairline, a failed status a ringed
-dot where a good one is filled. A grade's colour always sits beside its number
-and its letter.
+**THE ACCENT'S PLACES, and nowhere else:** Start and Stop (`.btn-rec`, its record
+icon), the recording dot, the selected round (the round under way on the tape), the
+keyboard's focus ring, and a card's eyebrow. `check:palette SIGNAL_ALLOWED` lists the
+exact rules, and its signal rule reads the accent's own names too. A destructive action
+is coral (`--bad`), never the accent; a selection is the raised fill or the ink.
 
 ## Type
 
-Geist and Geist Mono, bundled in `assets/fonts` (Geist 400 to 800, Mono 400 and
-500). `font-synthesis-weight: none` on `html`, so a weight not shipped draws at
-the nearest one and never as a faked bold. The scale, in few sizes:
+Onest, one variable file from 100 to 900 (OFL, `assets/fonts/onest-var.woff2`), for
+everything read; Geist Mono 400 and 500 for eyebrows, times and columns of digits.
+`font-synthesis-weight: none` on `html`.
 
 | Role | Setting |
 | --- | --- |
-| Hero (the fix for next match) | Geist 44/600, letter-spacing -0.03em, line-height 1.05, `text-wrap: pretty` |
-| The Verdict's letter | Geist 64/600, -0.04em, in its tone |
-| Page title | Geist 24/600 on `--track-display` (-0.02em) |
-| A big number | Geist 600 with `font-variant-numeric: tabular-nums`, 24 to 44px by place (`.display`, `.stats .stat-n`, `.m-score` 20px) |
-| Section heading | Geist 15/600, -0.01em, sentence case, no index |
-| Body | Geist 14/400 in `--text`, support in `--text-dim`, line-height 1.5, max 72ch |
-| Label | Geist 12/500 in `--text-mute`, sentence case |
-| A column of digits, a keycap, the match id, a round number | Geist Mono 500, 11 to 13px, tabular |
+| Display (Home's fix, a page head) | Onest 40px (36 under 1100 wide), 700, -0.035em, 1.08 |
+| The grade numeral | Onest 700, 84px on a card, larger on the review, -0.06em, tabular |
+| Card title | Onest 22px, 700, -0.025em |
+| Body | Onest 15px, 400, -0.011em (set on `html`) |
+| Small | 13px |
+| Eyebrow | Geist Mono 500 12px, uppercase, .06em, `--accent-2` (`.o-eyebrow`) |
 
-There are no mono uppercase kickers, no `[ 01 ]` eyebrows and no section numbers.
-The only uppercase left is the stat block's label (`.stats .stat-l`) and the
-dropdown's small label. One hero per page: Home's fix line, the review's Verdict
-and its fix line, the library's first repeated mistake, Settings' first group.
+Everything is sentence case: headlines, titles, sub lines, buttons ("Your fix for
+next match", "Open last review"). The eyebrow is a label and stays uppercase. The
+wordmark is "Occlara".
 
-## Spacing
+## Components (`ui.css`)
 
-The 4px grid, `--space-1` (4) to `--space-10` (40). Space between groups beats
-space within them: 40px between groups (`--space-10`), 8 to 12px inside one, and
-`--space-1` binds a label to its control. A page's column is centred up to 1040px
-(`html.embedded .sheet > header, > .body`), with `--space-8` at the sides below
-that.
-
-## Ruled rows, not cards
-
-A section is a heading, then rows parted by `1px solid var(--line)`; a list
-begins with a hairline and ends with one. Nothing holds a border and a fill
-around a block of content, and no box sits inside a box. What stays framed: an
-input (`.input`, `--r-control`), a keycap (`.kbd`, `--r-card`), a frame or clip
-image (`--r-card` and the hairline), the letter mark (a small ringed capsule),
-the share image, and a window shaped frame in a window of its own (onboarding,
-activation, learn, weekly, `--r-lg`).
-
-How each page keeps it:
-
-- **Home** (`home.css`): one column of sections, each a hairline over a label
-  and its rows, rising one after another on first paint (`.card.card-in`; the
-  class name is historical, the element is a section). The fix line at 44px, then
-  the last match as one ruled line (result, score, who and where, the grade and
-  its two buttons), the categories as four thin rules, the milestone as a dotted
-  line, then the trend beside the recent matches as ruled rows.
-- **The review** (`review.css`, `grade-view.css`): the Verdict as the hero
-  (letter, number out of 100, the one reason, the result and score at the right,
-  Riot's numbers in a ruled row), the fix at 44px, the progress as one line of
-  dotted facts, the four categories as named rules filled to the score with the
-  evidence as one inline run, the lists as rows with the top mistake set larger,
-  every round a ruled row.
-- **Matches, Patterns** (`matches.css`): rows parted by the hairline, the row's
-  hover a faint fill, the grade a number and a ringed letter, the trend's bars on
-  one hairline, and at the foot of Patterns the breakdown (by agent, map and
-  queue) as one closed `<details>` line, its table of ruled rows that open in
-  place (`.reveal`) inside.
-- **Moments** (`moments.css`, 8.7, in the Breakdown tab's place): the
-  compilation by repeated mistake as ruled rows with Play all at the end, the
-  filter as one capsule, then each match as one ruled line (result and score
-  in its tone, who and where, the date, the grade) over its moments as rows:
-  the round in the mono face, the kind as a word with a mark (a death a ringed
-  dot in `--bad`, a highlight a filled dot in `--good`), the title and one
-  line, the repeated mistakes as dotted marks, the time in the mono face, and
-  a play capsule or a quiet word for a clip gone. Its player is a dark veil
-  over the page, one column: the clip framed as a clip image is, its line,
-  capsule controls.
-- **Settings** (`settings.css`): a group is a heading, one line saying what it
-  changes, and its capsule control on the same row at the right; the explanation
-  is folded into a `<details>` line under the row, every word kept. The first
-  group has no rule over it: it is the page's hero.
-- **The shell** (`shell.css`): the top bar and the account drawer (Progress v3,
-  above); the Recording screen is the live status in a Valorant match and the
-  crescent, one line and two facts as ruled rows held or in League.
-
-## Capsule controls
-
-Every button is `ui.css`'s, never restyled locally. The capsule is `--r-btn`
-(999px) and its depth is built from offset shadows and inset lit edges, never a
-gradient and never a halo:
-
-| Token | Value | Job |
-| --- | --- | --- |
-| `--hi` | `inset 0 1px 0 rgba(255,255,255,.11)` | the lit top edge on a dark capsule |
-| `--hi-ink` | `inset 0 1px 0 rgba(255,255,255,.85), inset 0 -1px 0 rgba(0,0,0,.16)` | the same on the ink capsule and the segmented thumb |
-| `--hi-signal` | `inset 0 1px 0 rgba(255,255,255,.32), inset 0 -1px 0 rgba(0,0,0,.18)` | the same on Start |
-| `--drop` | `0 1px 2px rgba(0,0,0,.55)` | the resting shadow |
-| `--drop-hover` | `0 6px 14px -4px rgba(0,0,0,.7)` | the shadow under the pointer |
-
-- `.btn`: 40px, Geist 500 14px, white at .055 with the `--line-2` border, `--hi`
-  and `--drop`. `.md` 36px, `.sm` 30px at 13px. A trailing keycap pulls the end
-  padding in.
-- Under the pointer a capsule rises 1px (`translateY(-1px)`) and its shadow
-  opens to `--drop-hover`; pressed it goes to `translateY(0) scale(0.985)` with an
-  inset shadow over `--t-press` (80ms). Transform and shadow only.
-- `.btn-primary`: the ink capsule, the ground's colour on it, `--hi-ink`;
-  `--cyan` (white) under the pointer. One primary per view at most.
-- `.btn-ghost`: the dark capsule, the same as a bare `.btn`.
-  `.btn-ghost.danger` takes the signal under the pointer.
-- `.btn-link`: borderless and flat, no depth, so it does not rise.
-- `.btn-rec`: Start, 48px, the one saturated fill in the app, `--on-accent` on
-  it, `--hi-signal`; its hover and press leave Stop (`.active`) alone. Recording,
-  Start is Stop: the dark capsule with its stop icon in the signal. Ended, a ghost
-  at full opacity.
-- `.icon-btn`: a 34px round capsule with the same lit edge, rise and press;
-  `.lg` 48px beside Start; `.log-eye` 30px on a row.
-- `.dd-btn` (the dropdown's trigger) is the same capsule, 36px.
-- The hovers sit in `:where(:not(:disabled))`, so a surface's own state (armed
-  Clear clips, a done button) still outweighs them. Disabled is .45 opacity and
-  no shadow.
-
-## The segmented capsule and seg.js
-
-A row of buttons becomes one capsule with one sliding thumb, the way a monthly
-and yearly toggle does: capture speed, On and Off, the recording size, the clip
-cap, the game picker in the rail, Stats' queue, the breakdown's cut and queue,
-Moments' All, Deaths and Highlights, Learn's bands, onboarding's choices and
-the share sheet's options.
-
-- Markup stays what it was: the buttons are the control and their state is the
-  attribute or class the surface already sets (`aria-pressed="true"`,
-  `aria-selected="true"`, `aria-checked="true"`, `.on`, `.active`, `.picked`).
-  A test or a screen reader reads no new element.
-- `occlaraSeg(el)` from `shared/seg.js` (loaded with
-  `<script src="../shared/seg.js">`) adds `.seg-slide` to the row and prepends an
-  `aria-hidden` `.seg-thumb` behind the buttons. A `MutationObserver` on the
-  buttons' class and aria attributes and the row's children, and a
-  `ResizeObserver`, keep the thumb on the chosen button; a surface that rebuilds
-  its buttons needs no second call. The first placement is instant (`.still`),
-  every later one slides on `--t-med` and `--ease-expo`.
-- `ui.css .seg-slide`: 3px of padding, the `--line-2` border, black at .32 with an
-  inset shadow, so the track reads as a well; the buttons are 32px, flat and
-  transparent, dim until chosen, the ground's colour on the thumb. The thumb is
-  the ink with `--hi-ink` and `--drop`, moved by transform (seg.js writes its width
-  before the transform, so only the slide animates).
-- A surface's own `.seg` rule draws the chosen button filled when the script has
-  not run (`.seg:not(.seg-slide) > button.active`), so a page painted without it
-  looks the same at rest.
+- **Buttons**, radius 12, a 1px `--line`, Onest 600 15px, 44px (`.lg` 52, `.md` 36,
+  `.sm` 30):
+  - `.btn-rec`: START, the loudest word in the app. The indigo glass (`--btn`) over a
+    12px blur, the label 15px 700 in white on -0.01em (17px at `.xl`, the hero size),
+    and the record icon beside the word (`.rec-ico`: a 14px ring of 1.5px in white at
+    70% holding a 6px dot; under the pointer the dot takes `--accent-tint` and grows to
+    7px over 160ms). Recording it is Stop (`.active`): the same glass quieter with an
+    inset indigo glow, its dot squared into the stop glyph. The glow is still.
+  - `.btn-primary`: the white glass (`--glass`), 700, the view's main action that is not Start.
+  - `.btn`, `.btn-ghost`: the quiet glass. `.btn-link`: text alone, the quiet glass
+    fading in under the pointer. `.btn-ghost.danger`: coral text and line, filled
+    coral only while pressed.
+  - The arrow: where the markup asks for one (`.btn-label` and `.btn-arrow`), the label
+    sits 8px right at rest and the arrow slides in under the pointer or the keyboard,
+    180ms on the smooth spring, by transform and opacity.
+  - `.icon-btn`: 36px round in the quiet glass, squished to .86 by a press.
+- **The card** (`.o-card`): `--card`, radius 24, a 1px `--line`, 28px in, `contain:
+  paint`; one that leads somewhere (`.is-link`) takes `--line-2` and lifts 1px over
+  200ms. `.o-eyebrow`, `.o-title`, `.o-display`, `.o-sub`, `.o-link` go in it. Cards on a
+  screen are never all one size.
+- **Input** (`.input`): 44px on the card's fill, radius 16, `--line-2`, the accent's
+  ring when focused.
+- **Switch** (`.switch`, `role="switch"`): 44 by 26, the knob sliding on the smooth
+  spring; on, the track is the ink (the accent stays in its places).
+- **Segmented control** (`.seg-slide`, `shared/seg.js`): one track on the card's fill,
+  4px in, radius 12; the raised thumb settles on the smooth spring over 240ms.
+- **The sub switch** (`.subnav`, `shared/subnav.js`): the pages one top link holds, a
+  segmented control at the head of each of them (Matches: Matches, Patterns, Stats;
+  Practice: Drills, Trainer).
+- Keycaps (`kbd`, `--r-frame`), the viewfinder, the stat block, the live dot, the
+  column grid: as before, on the new tokens.
 
 ## Radii by role
 
 | Token | Value | Role |
 | --- | --- | --- |
-| `--r-btn` | 999px | a capsule control, the segmented track and thumb, a letter mark |
-| `--r-control` | 10px | an input, a nav row's hover and the marker, a window button |
-| `--r-card` | 6px | a keycap, a framed image, a row's focus ring |
-| `--r-pill` | 999px | kept for the few pills left |
-| `--r-sm`, `--r-md`, `--r-lg` | 8, 12, 16px | the focus ring and a window shaped frame in a window of its own; not for a panel on a page |
+| `--r-card` (`--r-panel`) | 24px | a card |
+| `--r-btn` | 12px | a button, the segmented track |
+| `--r-in` | 16px | an input |
+| `--r-tile` | 16px | a tile, a menu |
+| `--r-control` | 10px | a small button, a nav link's focus ring, a chip |
+| `--r-frame` | 6px | a keycap, a framed image (what `--r-card` meant before Orbit) |
+| `--r-pill` | 999px | a true pill |
 
-## Motion
-
-Restrained and material: transform, opacity, shadow and clip only, nothing that
-loops, and nothing during a match.
+## Motion (the buttery part)
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--t-press` | 80ms | a keycap or capsule going down |
-| `--t-fast` | 140ms | a fill or ink answering the pointer |
-| `--t-med` | 220ms | a page coming in, a thumb or the marker sliding, a row opening |
-| `--t-slow` | 420ms | the one authored moment on a page: an arrival, the reveal |
-| `--ease` | `cubic-bezier(.22, 1, .36, 1)` | feedback |
-| `--ease-out` | `cubic-bezier(.25, 1, .5, 1)` | an arrival (ease-out-quart) |
-| `--ease-expo` | `cubic-bezier(.16, 1, .3, 1)` | a page, a thumb, a marker, a row rising |
-| `--ease-spring` | `cubic-bezier(.34, 1.56, .64, 1)` | the letter's stamp |
-| `--ease-in-out` | `cubic-bezier(.77, 0, .175, 1)` | a thing moving on screen: the tabs' pill, a segmented thumb (8.9.2) |
-| `--dur-fast`, `--dur-base`, `--dur-move`, `--dur-slow` | 140, 220, 260, 380ms | `motion.css`: feedback, a pop, a glide, an entrance |
-| `--dur-press` | 160ms | a press going down to `scale(.97)` |
-| `--dur-count`, `--stagger` | 800ms, 40ms | a result counting up; rows arriving, six at most |
+| `--ease-out` | `cubic-bezier(.23, 1, .32, 1)` | small UI, hovers |
+| `--ease-enter` | `cubic-bezier(.16, 1, .3, 1)` | entrances |
+| `--ease-drawer` | `cubic-bezier(.32, .72, 0, 1)` | sheets, drawers |
+| `--spring-smooth` | `linear(...)`, no overshoot, about 520ms | a selection, the nav dot, an entrance |
+| `--spring-gentle` | `linear(...)`, 1% over, about 600ms | a press releasing, a medal |
+| `--dur-hover-in`, `--dur-hover-out` | 120, 220ms | a hover in and out |
+| `--dur-press` | 90ms | a press going down |
+| `--dur-select`, `--dur-nav` | 240, 420ms | a selection; the nav dot |
+| `--dur-enter`, `--dur-sheet` | 480, 460ms | an element arriving; a sheet |
+| `--dur-page-out`, `--dur-page-in` | 160, 380ms | a page leaving and arriving |
+| `--stagger` | 40ms | six at most, then the rest together |
 
-- **The shared entrances (8.9.2).** `shared/motion.css` (`.m-rise` 8px,
-  `.m-stagger`, `.m-pop` from .96, `.m-draw` for a path with `pathLength="1"`,
-  `.m-grow` and `.m-grow.x` for a bar from its baseline) and `shared/motion.js`
-  (`Motion.once`, `rise`, `pop`, `stagger`, `countUp`), loaded on Home, the
-  review, Matches, Stats, Settings, Profile, Moments and onboarding. Each plays
-  once per visit of a page (embed.js says each visit, `occlara-page-enter`),
-  only once the page is on screen, and not at all under reduced motion.
-  `Motion.countUp` is the one place a number is counted in script, for a value
-  `counter()` cannot draw (a K/D, a decimal): tabular figures, 600 to 900ms,
-  ending on exactly the formatted value, which is in `data-value` from the start.
-- **The tabs' pill glides** (`shell.js placeMarker`): put where it ends, then
-  played from the old tab as a transform with the old width as a `scaleX`
-  from its left edge, `--dur-move` on `--ease-in-out`. No width is tweened.
-- **Press and hover (8.9.2).** A capsule, an icon button, a segmented button
-  and the avatar press to `scale(.97)` over `--dur-press`, never when disabled;
-  mid match Stop keeps its old `.985` (`shell.css`). The 1px lift under the
-  pointer is only under `(hover: hover) and (pointer: fine)`. The keyboard's
-  ring comes in from 5px out (`focusIn`, outline only), and a `.u-link`
-  underline draws from the left by `scaleX`. The account menu's rows follow it
-  down 30ms apart, once per opening (`menu.css`).
+- **Transitions for state, keyframes only for one shot moments.** A hover, a press, a
+  selection, an open and a close are transitions, so they reverse from where they are.
+- **The entrance** (`.m-enter`, `Motion.enter`, `.m-stagger`): from 8px low at .985,
+  transparent and blurred 6px, 480ms on the smooth spring, once per visit of a page.
+- **Pages** move by `embed.js` and `main-window.js` (each page is a view of its own):
+  the page leaving fades with a 4px blur in 160ms, the page arriving rises 8px and fades
+  in over 380ms on the smooth spring. Within one document a change of state goes
+  through the View Transitions API (`Motion.transition`, `motion.css`): the old fades
+  out with a 4px blur, the new rises 8px; where the API is missing it is a plain change.
+  The Recording screen uses it as the waiting line gives way to the match's facts.
+- **The nav dot** (`shell.js placeMarker`): one 4px dot under the current link, played
+  from link to link by a transform on the smooth spring over 420ms.
+- **Numbers** count up: the grade through CSS (`@property` over `counter()`), a K/D
+  through `Motion.countUp` (requestAnimationFrame, ease out, 600 to 900ms, tabular).
+- **Ambient** (the stars' twinkle, the agent's float): slow (6 to 9s), off whenever the
+  window is hidden and while a match is recorded (`Motion.ambient`, `html.ambient-off`).
+  The moon is drawn once into an image and kept (`shared/sky.js`, localStorage), never
+  per frame, and never drawn mid match.
+- **Reduced motion**: `theme.css` collapses durations; the surfaces drop their
+  entrances, the arrow's travel, the press's scale, the loops and the view transition's
+  movement, keeping only what a crossfade says.
 
-- **Continuity.** A page change slides 12px from the side it comes from on
-  `--t-med` (`html.page-armed`, `ui.css`); the sidebar marker is one element slid
-  to the current page; every segmented thumb slides; a breakdown row and Stats'
-  notes open by height in place (`.reveal`, one grid row from 0fr to 1fr);
-  Moments' player opens with a short fade and a 6px rise of its column
-  (`.mo-player.open`), nothing while a match is in progress.
-- **Arrival.** Rows rise 6px (`riseIn`, `.rise-in`, `.m-item.rise`,
-  `.mo-row.rise`, `.recent.card-in .r-row`) 40ms apart, the stagger capped at the eighth row,
-  once, when a list first appears on screen, never on a repaint. Home's sections
-  arrive the same way on first paint and on a change of game; the trend's bars
-  rise by their clip (`barUp`).
-- **The reveal** (`review.js startReveal`, `review.css`, `grade-view.css`), the
-  focal moment, once per review as the loading screen gives way and only on
-  screen: the number counts up over `--t-slow` twice (`@property --n`, drawn by
-  `counter()` over the real number, which stays the text; no JS arithmetic), the
-  letter stamps in after `--t-slow` (`vdStamp`, scale 1.35 to 1 on the spring),
-  the fix for next match rises as the letter lands, the reason rises, the
-  category rules fill from `scaleX(0)` `--stagger` (40ms) apart, and the
-  progress lines rise after them. A click, a key or the clock adds
-  `.reveal-done`, the end state at once. The letter landing is heard
-  (`shared/sfx.js`), only with sounds on and `isCoaching` false.
-- **Feedback.** A capsule rises 1px and presses with a hair of scale; a nav
-  row's icon scales to .92 on press; a `<details>` chevron turns and its
-  paragraph rises.
-- **Reduced motion.** `theme.css` collapses every duration to 0.01ms; the
-  surfaces also zero their delays and drop their entrances, so a reduced-motion
-  user still sees every state and waits for nothing. Content is visible by
-  default; no state depends on an animation event.
+## The sky (`shared/sky.js`)
 
-## Focus and keyboard
+The star field, a few twinkling stars and the moon, drawn in the window's own
+coordinates: the bar (the shell's document) and Home (a view 56px down) each draw it
+as the whole window would and shift it by where they sit, so Home's moon carries
+straight on through the bar with no seam. The bar shows its strip only on Home; mid
+match the whole sky is behind the Recording screen, the moon resting low and still.
 
-Every interactive element shows a 2px ring in `--cyan` at .55 on
-`:focus-visible` (inset on a row inside a scrolling body, 2px outside a
-control); a header that reads as text underlines instead. Everything is
-reachable by keyboard, and text keeps 4.5:1 on its ground.
+## The screens built in phase 1
 
-## The signal's places
-
-`--signal` is Start's fill, Home's Start strip's ring (Progress v3), the live
-record controls and their Stop icon, the Recording screen's live dot and the
-live status's dot, the notice line's urgent dot and a destructive action
-under the pointer (the window's close, `.btn-ghost.danger`, Clear clips armed).
-`scripts/check-palette.js SIGNAL_ALLOWED` lists the exact rules; no script or page
-may name it. A loss, a D, a lost round, a death and an error line are `--bad`.
+- **The top bar** (`shell/`, 56px, `main-window.js TOP_H`): the crescent and
+  "Occlara", the four links (Home, Matches, Practice, Clips; `shell-nav.js TOP`), then
+  Start at the bar's size (hidden on Home, whose hero carries the big one), the profile
+  button and the window's buttons. Mid match the links dim to 35% beside a lock and
+  "Locked until the match ends", and the bar keeps the pause button. Ask Coach,
+  Profile, Players, Duos, Invite, Settings, Learn, Report a problem and the Discord are
+  rows of the profile menu.
+- **The Recording screen** (`shell/`, `screen-silence.md`): one centred column over the
+  sky: the still dot and "Recording since 10:58 PM", the agent and the map, the score at
+  136px, the round and the round tape (bars: won, lost, of unknown order, under way in
+  the accent, to come; the halves parted), Stop with its still glow, and "Your review
+  opens when the match ends.", with the player's own choice of what shows at its foot.
+- **Home** (`home/`): the sky; the fix for the next match as the hero, split at its
+  colon into a headline and a grey sub line, Start and Open last review and the line
+  that the review opens when the match ends, the last match's agent (the bundled
+  portrait, round, in its orbit ring) floating in front of the moon; the bento of the
+  last match, the trend and what repeats; the moment the coach looked at beside the
+  rank; the recent matches.
+- **The review's hero** (`review/`): see `docs/claude/ui.md`, "The review's hero".
 
 ## What never to do
 
-- No card: no border and fill around a block of content, and never a box inside
-  a box. A section is a heading and rules.
-- No gradient (the one allowed is Stats' skeleton shimmer, where the gradient is
-  the animation), no glow, no coloured halo, no blur as decoration.
-- No mono uppercase kicker, no `[ 01 ]` eyebrow, no section number.
-- No wall of small grey text: one sentence that changes what the player does,
-  the rest folded into a hint or a `<details>`, with every fact kept.
-- No button styled locally: `.btn`, `.btn-primary`, `.btn-ghost`, `.btn-rec`,
-  `.icon-btn`, `.dd-btn` are the controls. No second primary in a view.
-- No second accent: the signal only in its places, outcomes only in
-  `--good`, `--warn`, `--bad`.
-- No animation on layout (width, height, top), nothing that loops, nothing that
-  shows, moves or plays mid match, no new sound.
-- No weight Geist does not ship, no webfont URL, no em or en dash in any copy.
+- No accent outside its places; no second accent; outcomes only in `--good`, `--warn`,
+  `--bad`.
+- No gradient that paints, but the medals' metal and Wrapped's own look; a mask's fade
+  is allowed (`check:palette`).
+- No animation on layout (width, height, top); no keyframe for a state; nothing that
+  shows, moves or plays mid match but the Recording screen's arrival and its facts.
+- No weight outside what ships, no webfont URL, no em or en dash in any copy.
 - No colour as the only signal: a number, a word or a shape beside it always.
+- No claim, testimonial, user count or rank that is not the player's own record; a
+  medal only for a real thing, and never another player's name.

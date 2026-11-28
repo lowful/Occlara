@@ -132,7 +132,7 @@ ok(p.places && p.places.moments.length === mo.compilation.rows.length && p.place
 ok(p.invite && p.invite.progress && p.invite.how.length === 2, 'Invite: the progress line and how it works');
 
 const mark = JSON.parse(read(dirs[0], 'mark.json').toString('utf8'));
-ok(mark.path && mark.viewBox === '0 0 120 120' && mark.ground === '#07080C' && mark.ink === '#F5F5F7' && mark.signal === '#E5383B' && mark.label === 'Sample match',
+ok(mark.path && mark.viewBox === '0 0 120 120' && mark.ground === '#060510' && mark.ink === '#F7F7F7' && mark.signal === '#516AF6' && mark.label === 'Sample match',
   'mark.json: the crescent, the ground, the ink and the signal', JSON.stringify(mark));
 
 for (const d of dirs) fs.rmSync(d, { recursive: true, force: true });

@@ -79,7 +79,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .fb-pic { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); animation: riseIn var(--t-med) var(--ease-expo) both; }
 .fb-pic img {
   display: block; height: 96px; width: auto; max-width: 200px; object-fit: cover;
-  border: 1px solid var(--line-2); border-radius: var(--r-card);
+  border: 1px solid var(--line-2); border-radius: var(--r-frame);
 }
 .fb-said { font-size: 13px; line-height: 1.5; color: var(--text-dim); min-height: 1.5em; }
 .fb-said.bad { color: var(--bad); }

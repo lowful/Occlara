@@ -1,209 +1,204 @@
-/* Occlara design tokens, imported by every renderer surface. */
+/* Occlara design tokens, imported by every renderer surface.
 
-/* Geist Sans and Geist Mono, bundled locally (assets/fonts) so the app renders
-   correctly offline. The renderer CSP forbids a webfont URL, so a font that is
-   not in this folder silently falls back to Segoe UI and the whole interface
-   changes shape. Never reference a weight that is not shipped here.
+   ORBIT (the owner's pick, 27 Nov 2026). An indigo black sky: the ground is
+   #060510, content sits on cards a step up told from it by a cool hairline,
+   the text is three greys, and ONE accent, indigo #516AF6, is kept for Start
+   and Stop, the recording dot, the selected round, the focus ring and a
+   card's eyebrow. Onest is the face people read, Geist Mono the eyebrow and a
+   column of digits. The contract is ORBIT-SPEC.md (the redesign folder);
+   what is built is DESIGN.md at the repo root. Every token name the surfaces
+   already consumed is kept, its value moved to Orbit, so a surface not yet
+   rebuilt still reads in the new system. */
 
-   Geist replaced Inter in the rebrand: same legibility at small sizes, tighter
-   and more mechanical, which is the register a dark technical interface wants.
-   Mono is not decoration. Stats, K/D, damage and accuracy are columns of digits,
-   and a mono face with tabular figures stops them jittering as they update. */
+/* The faces, bundled locally (assets/fonts) so the app renders offline. The
+   renderer CSP forbids a webfont URL, so a font that is not in this folder
+   silently falls back to Segoe UI and the whole interface changes shape.
+
+   Onest (SIL Open Font License 1.1) is one variable file, every weight from
+   100 to 900. Geist Mono ships 400 and 500 only: never ask it for another.
+   Geist Sans stays declared for Wrapped, whose own look names it. */
+@font-face { font-family: 'Onest'; font-style: normal; font-weight: 100 900; font-display: block; src: url('../../../assets/fonts/onest-var.woff2') format('woff2'); }
+@font-face { font-family: 'Geist Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('../../../assets/fonts/geistmono-400.woff2') format('woff2'); }
+@font-face { font-family: 'Geist Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('../../../assets/fonts/geistmono-500.woff2') format('woff2'); }
 @font-face { font-family: 'Geist'; font-style: normal; font-weight: 400; font-display: swap; src: url('../../../assets/fonts/geist-400.woff2') format('woff2'); }
 @font-face { font-family: 'Geist'; font-style: normal; font-weight: 500; font-display: swap; src: url('../../../assets/fonts/geist-500.woff2') format('woff2'); }
 @font-face { font-family: 'Geist'; font-style: normal; font-weight: 600; font-display: swap; src: url('../../../assets/fonts/geist-600.woff2') format('woff2'); }
 @font-face { font-family: 'Geist'; font-style: normal; font-weight: 700; font-display: swap; src: url('../../../assets/fonts/geist-700.woff2') format('woff2'); }
 @font-face { font-family: 'Geist'; font-style: normal; font-weight: 800; font-display: swap; src: url('../../../assets/fonts/geist-800.woff2') format('woff2'); }
-@font-face { font-family: 'Geist Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('../../../assets/fonts/geistmono-400.woff2') format('woff2'); }
-@font-face { font-family: 'Geist Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('../../../assets/fonts/geistmono-500.woff2') format('woff2'); }
 
-/* NO FAKED BOLD (8.6). A weight that is not shipped above draws at the nearest
-   weight that is, never as a thickened copy of it. Chromium otherwise smears a
-   bold over Geist Mono 500 wherever a rule asks the mono face for 600 or 800,
-   and that synthetic weight is neither Geist's drawing nor the same width. */
+/* NO FAKED BOLD (8.6). A weight that is not shipped draws at the nearest one
+   that is, never as a thickened copy. Onest has them all; Geist Mono has 400
+   and 500, so a mono rule at 600 draws at 500 (check:palette fails it). */
 html { font-synthesis-weight: none; }
 
 :root {
-  /* Brand.
-     ONE accent, not two, and since 8.6 it is not Valorant's red. --red is THE
-     SIGNAL, #E5383B, under its old name: Start's fill, the live record card and
-     its Stop icon, the Recording screen's live dot, the notice line's urgent
-     dot and a destructive action under the pointer, and nowhere else
-     (check:palette holds it to those rules). A loss, a D, a lost round, a
-     death and an error line are an OUTCOME and take --bad below, never the
-     signal. WHITE does the work cyan used to do.
+  /* ── The sky ───────────────────────────────────────────────────────────
+     --bg the ground, --card a card on it, --raised a raised control or a
+     selected row. --s1 to --s4 are the surface steps the surfaces already
+     name, mapped onto the same ladder. */
+  --bg:     #060510;
+  --bg-2:   #0C0B16;
+  --card:   #12111A;
+  --raised: #161522;
+  --s1:     #12111A;
+  --s2:     #161522;
+  --s3:     #1C1B2A;
+  --s4:     #232233;
 
-     --cyan is deliberately NOT renamed even though it is now white. It is
-     consumed 225 times across 15 files, so the established meaning of these two
-     tokens is "primary accent" and "secondary accent" rather than the colours
-     they are named after. Renaming is a 225 site mechanical edit for no user
-     visible gain, and check:palette exists because that class of edit has gone
-     wrong here before. New code writes --signal, the same colour by the name
-     of its job. */
-  --red:   #E5383B;
-  --red-2: #F04A4D;   /* Start under the pointer */
-  --red-3: #C9302F;   /* Start pressed */
+  /* Hairlines, cool white at low alpha: --line round a card, --line-2 a
+     hovered card's, an input's, a control's. --rim and --rim-2 are the same
+     two drawn as a ring (a box-shadow), for what has no border of its own. */
+  --line:   #CBD0EB1A;
+  --line-2: #CBD0EB2B;
+  --grid:   #CBD0EB0C;
+  --rim:    0 0 0 1px #CBD0EB1A;
+  --rim-2:  0 0 0 1px #CBD0EB2B;
+  --scrim:      rgba(6, 5, 16, 0.88);
+  --scrim-soft: rgba(6, 5, 16, 0.24);
+  --scrim-chip: rgba(6, 5, 16, 0.72);
+
+  /* Text: the ink, the grey sub line, the label. 19.0, 7.2 and 5.3 to 1 on
+     the ground. --text-3 is for marks, never for words (a separator dot, an
+     empty bar): it measures 2.2 to 1. --text-2 is Orbit's name for the grey,
+     --text-dim the name every surface already uses. */
+  --text:      #F7F7F7;
+  --text-2:    #9899A3;
+  --text-dim:  #9899A3;
+  --text-mute: #80818C;
+  --text-3:    #474B52;
+
+  /* ── THE ACCENT, indigo, and only in its places ────────────────────────
+     Start and Stop, the recording dot, the selected round, the focus ring and
+     a card's eyebrow. Nowhere else (check:palette SIGNAL_ALLOWED lists the
+     rules). --accent-2 is its lighter step for ink on the dark (an eyebrow, a
+     ring), --accent-t its tint, --accent-tint the record dot under the
+     pointer. --btn and --btn-h are the indigo glass Start is filled with;
+     --btn-bar the denser glass of the bar's Start, which sits over the moon's
+     lit limb and washed out at half strength. */
+  --accent:      #516AF6;
+  --accent-2:    #6F85FF;
+  --accent-t:    #516AF629;
+  --accent-tint: #C9D0FF;
+  --accent-rgb:  81, 106, 246;
+  --btn:      #606AF780;
+  --btn-h:    #606AF7CC;
+  --btn-bar:  #4F59E0D9;
+  --btn-bar-h: #606AF7F0;
+
+  /* The signal, by its old names. --red has been THE SIGNAL since 8.6 and is
+     consumed under that name, so it keeps it and takes the accent: Start's
+     fill, the live dot, the record controls. --signal is the same by the name
+     of its job, and what new code writes. --cyan stays white, the secondary
+     ink, under its historical name (consumed 60 times as --cyan-rgb). */
+  --red:   #516AF6;
+  --red-2: #606AF7;
+  --red-3: #4A57D8;
+  --red-rgb:  81, 106, 246;
   --cyan:  #FFFFFF;
-  /* Cool charcoal (8.6): the ground of every surface, a breath cooler than the
-     neutral near-black before it, so the white ink and the one red signal
-     read as the only colour on it. */
-  --bg:    #07080C;
-  --bg-2:  #0B0D12;
-  /* PROGRESS V3 (9.0): the ground went a step darker and toward indigo, and
-     content sits on four surface steps above it, each told from the ground
-     by a low opacity ring rather than a border or a shadow. No gradient and
-     no glow: the art (a map, an agent, a kept clip) carries the colour.
-       --s1  a card or a panel on the ground
-       --s2  a tile inside a panel, a selected row
-       --s3  a chip or a control's resting fill
-       --s4  a pill's fill, the RR chip
-     --rim and --rim-2 are the hairline round a card and round a raised
-     thing on it, --scrim the dark wash that keeps text readable over art. */
-  --s1:    #0B0D12;
-  --s2:    #10131A;
-  --s3:    #161A23;
-  --s4:    #1D212C;
-  --rim:   0 0 0 1px rgba(255, 255, 255, 0.07);
-  --rim-2: 0 0 0 1px rgba(255, 255, 255, 0.14);
-  --scrim:      rgba(7, 8, 12, 0.9);
-  --scrim-soft: rgba(7, 8, 12, 0.22);
-  --scrim-chip: rgba(7, 8, 12, 0.72);
-  /* A card is --r-panel, a tile inside the page --r-tile. */
-  --r-panel: 20px;
-  --r-tile:  16px;
-
-  /* The same two brand colours as bare RGB triplets, for use inside rgba().
-     A colour needs this form to be tinted: rgba(var(--red-rgb), 0.12). Without
-     it every translucent brand tint has to hand-expand the colour, which is
-     exactly what happened: 51 copies of the red and 68 of the cyan were written
-     out longhand across the surfaces, so changing the palette in one place
-     changed almost nothing on screen. */
-  --red-rgb:  229, 56, 59;
   --cyan-rgb: 255, 255, 255;
-  --signal:     var(--red);
-  --signal-rgb: var(--red-rgb);
-  /* The label colour ON the signal, the ground's colour: 4.65:1 on it, where
-     white measures 4.23:1 and failed. A token rather than a hardcoded colour
-     in .btn-rec, so the signal and the thing written on it can only ever move
-     together. */
-  --on-accent: #0A0B0E;
+  --signal:     var(--accent);
+  --signal-rgb: var(--accent-rgb);
+  /* The label on the indigo glass: white. */
+  --on-accent: #FFFFFF;
 
-  /* Status. These describe an OUTCOME, not the brand, so they stay the same
-     whatever palette is active: a win is green in every game. They exist
-     because every green and red in the app was previously a raw hex, which
-     made them impossible to tell apart from brand colours when re-skinning. */
-  --good:  #52C88A;
-  --bad:   #E8636F;
-  --warn:  #D9A441;
-  --good-rgb: 82, 200, 138;
-  --bad-rgb:  232, 99, 111;
-  --warn-rgb: 217, 164, 65;
-
-  /* League rank bands. FIVE, not eight ranks, matching lol-targets.js: the
-     underlying data does not support eight-way granularity.
-
-     These are OUR marks, not Riot's. Riot's ranked emblems live in the game
-     client and are mirrored by CommunityDragon rather than published on Data
-     Dragon (which is where the champion icons this app already ships come
-     from), so they sit under a different permission in a paid product. These
-     are also ornate gold gradients that would fight a near-black interface and
-     the settled no-decorative-gradients rule. Recognisable tier colours on a
-     shape we drew carry the same meaning with none of that. */
-  --tier-1: #8A6F5C;   /* Iron and Bronze */
-  --tier-2: #9AA7B4;   /* Silver */
-  --tier-3: #D8A94B;   /* Gold */
-  --tier-4: #3FC1AE;   /* Platinum and Emerald */
-  --tier-5: #6E8BE0;   /* Diamond and above */
-
-  /* Text: three levels of ink, 18.1, 7.7 and 5.0 to 1 on --bg. */
-  --text:      #F5F5F7;
-  --text-dim:  #A1A1A6;
-  --text-mute: #808086;   /* was #6E6E73, which measured 3.93:1 and failed 4.5:1 */
-
-  /* Lines (8.6). --line is the hairline (what --glass-border always was),
-     --line-2 the border of a control and a keycap, --grid the column grid
-     behind Home's header, drawn as elements, never as a gradient. */
-  --line:   rgba(255, 255, 255, 0.09);
-  --line-2: rgba(255, 255, 255, 0.16);
-  --grid:   rgba(255, 255, 255, 0.045);
-
-  /* Glass */
-  --glass-fill:   rgba(13, 14, 16, 0.92);   /* darker, less translucent: readability first */
-  --glass-fill-2: rgba(20, 21, 24, 0.82);
+  /* ── Glass ─────────────────────────────────────────────────────────────
+     The white glass a secondary button is filled with, and its hover; the
+     quiet glass a plain control rests on. Each is drawn over a 12px blur. */
+  --glass:      #CBD0EB1F;
+  --glass-h:    #CBD0EB33;
+  --glass-q:    #CBD0EB12;
+  --glass-q-h:  #CBD0EB24;
+  --glass-fill:   rgba(18, 17, 26, 0.92);
+  --glass-fill-2: rgba(22, 21, 34, 0.86);
   --glass-border: var(--line);
-  --glass-blur:   18px;
-  /* --shadow is for full-bleed surfaces (overlay). Windowed surfaces use
-     --shadow-win, which fits inside their transparent margin so it never
-     gets hard-clipped at the window edge. */
-  --shadow:       0 16px 48px rgba(0, 0, 0, 0.60);
-  --shadow-win:   0 2px 10px rgba(0, 0, 0, 0.65);
+  --glass-blur:   12px;
 
-  /* Accent glows: a crisp hairline each, and no halo (8.6). A coloured bloom
-     is the thing that read as "gamer" rather than "clean". --glow-red is used
-     by nothing since the colour pass and is kept for its name. */
-  --glow-cyan: 0 0 0 1px rgba(var(--cyan-rgb), 0.22);
-  --glow-red:  0 0 0 1px rgba(var(--red-rgb), 0.45);
+  /* ── Outcomes, quiet, never the brand ──────────────────────────────────
+     A win, a loss, a warning. --won and --lost are Orbit's names; --good and
+     --bad the names every surface already uses for the same two. The tape's
+     marks: a round won the near white bar, lost the clay one, still to come
+     the empty one. */
+  --won:  #21C95E;
+  --lost: #FF622E;
+  --good: #21C95E;
+  --bad:  #FF622E;
+  --warn: #FFB547;
+  --good-rgb: 33, 201, 94;
+  --bad-rgb:  255, 98, 46;
+  --warn-rgb: 255, 181, 71;
+  --won-bar:  #E6E8F1;
+  --lost-bar: #B9634F;
+  --todo-bar: #CBD0EB17;
+  /* The window's close under the pointer, Windows' own red for it. */
+  --close: #E5484D;
 
-  /* Paper (8.6): the share image of a Verdict and nothing else. Its three
-     inks measure 16.5, 7.4 and 4.9 to 1 on it. */
+  /* The medals, for real things only (the best grade in the last four, first
+     of ten in the lobby by rating, the best rounds by rating swing), each a
+     metal from its light top to its dark foot, and the face inside it from
+     dark to light. Drawn by the review's SVG defs alone. */
+  --gold-1:   #FFC861;
+  --gold-2:   #AF770F;
+  --silver-1: #FFF3DC;
+  --silver-2: #5C5C5C;
+  --bronze-1: #FFA35F;
+  --bronze-2: #A4571C;
+
+  /* League rank bands, OUR marks, not Riot's (lol-targets.js): five. */
+  --tier-1: #8A6F5C;
+  --tier-2: #9AA7B4;
+  --tier-3: #D8A94B;
+  --tier-4: #3FC1AE;
+  --tier-5: #6E8BE0;
+
+  /* Paper (8.6): the share image of a Verdict and nothing else. */
   --paper:       #E9EBF0;
   --paper-ink:   #0A0B0E;
   --paper-ink-2: #484A4E;
   --paper-ink-3: #636568;
   --paper-line:  rgba(10, 11, 14, 0.14);
 
-  /* Geometry + motion.
-     THE RADII ARE ROLES (8.6): a card or a panel --r-card, a control
-     --r-control, a pill --r-pill, each set by role in a surface's own rules.
-     The three legacy names keep 8, 12 and 16 so that a window shaped frame
-     (the splash, onboarding, activation, weekly's sheet, a learn card) and the
-     focus ring keep their shape: remapped here, weekly's frame would have gone
-     from 16 to 10 with nobody touching weekly. */
-  --r-card: 6px;
+  /* ── Geometry, by role ─────────────────────────────────────────────────
+     --r-card a card (24), --r-btn a button (12), --r-in an input (16),
+     --r-sheet a sheet's top, --r-frame a keycap or a framed image (6, what
+     --r-card meant before Orbit), --r-control a window button or a small
+     row, --r-pill a true pill. --r-panel and --r-tile are the card and the
+     tile inside one by their Progress v3 names. */
+  --r-card:    24px;
+  --r-btn:     12px;
+  --r-in:      16px;
+  --r-sheet:   24px;
+  --r-frame:   6px;
   --r-control: 10px;
-  --r-pill: 999px;
-  /* 8.7 redesign, THE TRAINING LOG. A button is a capsule: --r-btn. A card is
-     gone (a ruled row or a hairline section carries the content instead);
-     --r-card stays for the few framed things left (a keycap, a clip frame).
-     Depth is the button's alone, built from OFFSET shadows and inset lit
-     edges (never a gradient, never a halo): --hi the lit top edge, --hi-ink
-     the same on a light fill, --drop the resting shadow, --drop-hover the
-     one under the pointer. */
-  --r-btn: 999px;
-  --hi:         inset 0 1px 0 rgba(255, 255, 255, 0.11);
-  --hi-ink:     inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(0, 0, 0, 0.16);
-  --hi-signal:  inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(0, 0, 0, 0.18);
-  --drop:       0 1px 2px rgba(0, 0, 0, 0.55);
-  --drop-hover: 0 6px 14px -4px rgba(0, 0, 0, 0.7);
-  /* The motion every surface shares: ease-out-quart for arrivals, and one
-     spring for a thumb or a stamp that settles. Durations stay --t-*. */
-  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+  --r-pill:    999px;
+  --r-panel:   24px;
+  --r-tile:    16px;
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;
-  /* Icon sizes, one per hierarchy level rather than a number picked per call
-     site. The first pass at the tip glyphs used 12, 13 and 15px in three
-     different places, which is the exact habit that makes an interface look
-     slightly off without anything being identifiably wrong.
-       --icon-xs  inline inside a run of text, sized against the 15px tip body
-       --icon-sm  leading a line or labelling a control
-       --icon-md  standalone, where the icon IS the control */
+
+  /* Depth. Orbit's controls are glass and a hairline, not lit capsules, so
+     the lit edges are faint and the drops soft; a lifted thing (a menu, a
+     sheet) casts the long --lift. */
+  --hi:         inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --hi-ink:     inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --hi-signal:  inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --drop:       0 1px 2px rgba(0, 0, 0, 0.35);
+  --drop-hover: 0 10px 24px -12px rgba(0, 0, 0, 0.8);
+  --lift:       0 24px 60px -20px rgba(0, 0, 0, 1);
+  --shadow:     0 24px 60px -16px rgba(0, 0, 0, 0.85);
+  --shadow-win: 0 2px 10px rgba(0, 0, 0, 0.65);
+  --glow-cyan: 0 0 0 1px rgba(255, 255, 255, 0.22);
+  --glow-red:  0 0 0 1px rgba(81, 106, 246, 0.45);
+  --sheen: none;
+  --edge-top: 0 0 0 0 rgba(0, 0, 0, 0);
+
+  /* Icon sizes, one per level. */
   --icon-xs: 12px;
   --icon-sm: 15px;
   --icon-md: 18px;
   --icon-lg: 20px;
 
-  /* Spacing, on a 4px grid.
-     An audit across the renderer found 28 distinct padding/margin/gap values,
-     17 of them off any grid at all (3, 5, 7, 9, 11, 13, 17, 22, 26, 34...).
-     Nothing there is identifiably broken, which is exactly the problem: a
-     hundred near-miss measurements are what make an interface read as slightly
-     off without anyone being able to point at the reason.
-
-     THE RULE THAT MATTERS MOST IS THE LAST ONE. Space BETWEEN groups must beat
-     space WITHIN them, or nothing groups and a settings page becomes one long
-     undifferentiated column. Use --space-1 to bind a label to its control,
-     --space-3 inside a group, and --space-8 between groups. */
+  /* Spacing, the 4px grid. Space between groups beats space within one. */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -212,92 +207,93 @@ html { font-synthesis-weight: none; }
   --space-6: 24px;
   --space-8: 32px;
   --space-10: 40px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  /* Expo out: a fast start that settles gently, the curve that makes panels and
-     cards feel like they have weight rather than just fading in. */
-  --ease-expo:   cubic-bezier(0.16, 1, 0.30, 1);
-  /* Slight overshoot for things that should feel springy (badges, confirmations). */
+
+  /* ── Motion: the buttery part ──────────────────────────────────────────
+     --ease-out small UI and hovers; --ease-enter an element arriving;
+     --ease-drawer a sheet or drawer. The two springs as linear(): smooth,
+     critically damped with no overshoot (about 520ms: a selection, the nav
+     dot, an entrance), and gentle, 1% over (about 600ms: a press releasing,
+     a notification, a medal). Transitions for state, keyframes only for a
+     one shot moment, so a hover leaving mid way reverses from where it is. */
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-enter:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --spring-smooth: linear(0, 0.0512 3.8%, 0.1628 7.7%, 0.2936 11.5%, 0.4219 15.4%, 0.5372 19.2%, 0.6356 23.1%, 0.7168 26.9%, 0.7822 30.8%, 0.8339 34.6%, 0.8743 38.5%, 0.9054 42.3%, 0.9292 46.2%, 0.9473 50%, 0.9609 53.8%, 0.9711 57.7%, 0.9787 61.5%, 0.9843 65.4%, 0.9885 69.2%, 0.9916 73.1%, 0.9939 76.9%, 0.9955 80.8%, 0.9968 84.6%, 0.9976 88.5%, 0.9983 92.3%, 0.9988 96.2%, 1);
+  --spring-gentle: linear(0, 0.0642 3.3%, 0.2059 6.7%, 0.3714 10%, 0.53 13.3%, 0.6668 16.7%, 0.7763 20%, 0.8591 23.3%, 0.9183 26.7%, 0.9585 30%, 0.9842 33.3%, 0.9993 36.7%, 1.0073 40%, 1.0106 43.3%, 1.011 46.7%, 1.01 50%, 1.0083 53.3%, 1.0065 56.7%, 1.0048 60%, 1.0033 63.3%, 1.0022 66.7%, 1.0014 70%, 1.0008 73.3%, 1.0004 76.7%, 1.0001 80%, 1);
+  /* The older curves, by the names the surfaces use. */
+  --ease:        cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-expo:   cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --t-press: 80ms;   /* a keycap going down */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  /* Durations: a hover comes in over 120ms and leaves over 220, a press goes
+     down in 90, a selection settles in 240 on the smooth spring, an element
+     arrives in 480, a sheet in 460, the nav dot glides in 420, a spring
+     releases in 600. A page leaves in 160 and arrives in 380. */
+  --dur-hover-in:  120ms;
+  --dur-hover-out: 220ms;
+  --dur-press:     90ms;
+  --dur-select:    240ms;
+  --dur-enter:     480ms;
+  --dur-sheet:     460ms;
+  --dur-nav:       420ms;
+  --dur-spring:    600ms;
+  --dur-page-out:  160ms;
+  --dur-page-in:   380ms;
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-move: 240ms;
+  --dur-slow: 420ms;
+  --dur-count: 800ms;
+  --stagger: 40ms;
+  --t-press: 90ms;
   --t-fast: 140ms;
   --t-med:  220ms;
   --t-slow: 420ms;
-  /* MOTION (8.9.2, shared/motion.css and motion.js). --ease-out above stays
-     the arrival; --ease-in-out is for a thing moving from one place on screen
-     to another (the tabs' pill, a thumb), slow at both ends so the eye can
-     follow it. --dur-press is a press going down, --dur-count a result
-     counting up, --stagger the gap between rows arriving (six at most). */
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --dur-fast: 140ms;
-  --dur-base: 220ms;
-  --dur-move: 260ms;
-  --dur-slow: 380ms;
-  --dur-press: 160ms;
-  --dur-count: 800ms;
-  --stagger: 40ms;
 
-  /* Surfaces stay ONE solid colour. An earlier pass put a white gradient wash
-     down the top of every panel and it read as a smudge, so the only depth cue
-     now is the shadow. Kept as a no-op token so surfaces can still reference it
-     without every one of them needing an edit. */
-  --sheen: none;
-  --edge-top: 0 0 0 0 rgba(0,0,0,0);
-  --lift: 0 12px 34px rgba(0,0,0,0.55);
-
-  --font: 'Geist', -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Consolas, monospace;
-  /* The app's own tracking (8.6): titles and big numbers at --track-display
-     on a line of --lh-display, small uppercase labels at --track-label. */
-  --track-display: -0.02em;
-  --lh-display: 1;
-  --track-label: 0.08em;
+  /* ── Type ──────────────────────────────────────────────────────────────
+     Onest for everything read. Display 40px (36 under 1100 wide) at 700 on
+     -0.035em and 1.08; a card title 22 at 700 on -0.025em; body 15 at 400 on
+     -0.011em; small 13. Geist Mono 500 at 12, uppercase on .06em, for a
+     card's eyebrow and a time. */
+  --font: 'Onest', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, Consolas, monospace;
+  --t-display: 40px;
+  --t-title: 22px;
+  --track-display: -0.035em;
+  --track-title: -0.025em;
+  --track-body: -0.011em;
+  --track-eyebrow: 0.06em;
+  --track-label: 0.06em;
+  --lh-display: 1.08;
 }
+@media (max-width: 1100px) { :root { --t-display: 36px; } }
 
-/* ── One palette ────────────────────────────────────────────────────────────
-   There used to be a per-game block here that repointed the brand tokens to
-   another game's colours, and it is gone: the app looks the same whichever
-   game it is coaching.
-
-   i18n-apply.js still sets data-game on <html>, which is worth keeping. It
-   costs nothing, it is how a surface can tell what is being coached, and it is
-   the hook a future palette would attach to. There simply is not one now.
-
-   If a per-game palette ever comes back, two rules from the first attempt are
-   worth keeping. It must sit AFTER the base :root rather than being spliced
-   into it, because splicing swallowed --r-sm, --ease, --lift and --font while
-   the brace count still balanced perfectly. And --good, --bad and --warn stay
-   out of it: they describe an outcome, so a win is green in every game. */
+/* One palette, the same whichever game is coached. i18n-apply.js still sets
+   data-game on <html>, the hook a per game palette would attach to; --good,
+   --bad and --warn would stay out of one, since a win is a win in every game. */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* The hidden attribute must ALWAYS win, even over display:flex/grid rules.
-   Without this, any styled element with `hidden` still renders (the exact bug
-   that once made every state of the agent check, gone since 8.4.4, show at
-   once). */
+/* The hidden attribute ALWAYS wins, even over a display: flex or grid rule. */
 [hidden] { display: none !important; }
 
 html, body {
   font-family: var(--font);
   color: var(--text);
+  letter-spacing: var(--track-body);
   -webkit-font-smoothing: antialiased;
   user-select: none;
   cursor: default;
 }
+::selection { background: rgba(var(--accent-rgb), 0.4); color: var(--text); }
 
-/* Every scrollbar in the app is the dark hairline one, whatever scrolls. Each
-   surface styles its own scroller, and the one it forgets falls back to the
-   default light Windows bar, which is exactly what the review window showed.
-   Not color-scheme: dark, which would also repaint the canvas behind the
-   transparent windows. */
-::-webkit-scrollbar { width: 8px; height: 8px; }
+/* Every scrollbar is the quiet one, whatever scrolls. */
+::-webkit-scrollbar { width: 12px; height: 12px; }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); }
+::-webkit-scrollbar-thumb { background: #CBD0EB1C; border-radius: 12px; border: 4px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #CBD0EB38; border: 4px solid transparent; background-clip: padding-box; }
 
-/* Reusable glass surface (windowed: panel, settings, history, activation).
-   The sheen is a background LAYER, not a pseudo-element: backgrounds always
-   paint behind content, so it cannot cover text or swallow a click, and it
-   introduces no stacking context that could reparent absolute children. */
+/* The glass of a window of its own (activation, onboarding, weekly). */
 .glass {
   position: relative;
   background: var(--glass-fill);
@@ -310,22 +306,18 @@ html, body {
 .no-drag { -webkit-app-region: no-drag; }
 .drag    { -webkit-app-region: drag; }
 
-/* ── Keyboard accessibility ───────────────────────────────────────────────
-   Every focusable thing gets a visible ring, but only for keyboard users, so
-   the look is untouched for mouse users. The app previously had no focus
-   styling at all, which made it impossible to navigate without a mouse. */
+/* The keyboard's ring, one of the accent's places: only for the keyboard, so
+   the look is untouched for a mouse. */
 :focus { outline: none; }
 :focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--accent-2);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
 
-/* ── Reduced motion ───────────────────────────────────────────────────────
-   Honour the OS setting. Durations collapse rather than animations being
-   removed, so anything that animates into place still ends up in the right
-   final state, it just gets there immediately. Safe here because nothing in
-   the app drives logic off animation events. */
+/* Reduced motion: durations collapse rather than animations going, so what
+   animates into place still ends in its place, at once. Nothing in the app
+   drives logic off an animation event. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

@@ -107,7 +107,7 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
 }
 .more[open] summary::before { transform: rotate(45deg); margin-bottom: 4px; }
 .more summary:hover { color: var(--text); }
-.more summary:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: var(--r-card); }
+.more summary:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: var(--r-frame); }
 .more > p { margin-top: var(--space-2); max-width: 72ch; }
 /* A group's explanation opened: a quick fade and a short rise (8.9.2, the
    shared m-rise over --dur-base). */
@@ -193,7 +193,7 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
 .rec-confirm-box {
   display: flex; flex-direction: column; gap: var(--space-2);
   padding: var(--space-4);
-  border: 1px solid var(--line-2); border-radius: var(--r-card);
+  border: 1px solid var(--line-2); border-radius: var(--r-frame);
   background: var(--bg-2);
 }
 @keyframes rec-open { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
@@ -215,7 +215,7 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
 .rec-usage { margin: 0; }
 .rec-clear:disabled { opacity: 0.4; pointer-events: none; }
 /* Asked once, it says what the second press does, in the danger colour. */
-.rec-clear.armed { color: var(--bad); border-color: rgba(var(--red-rgb),0.35); background: rgba(var(--red-rgb),0.10); }
+.rec-clear.armed { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.35); background: rgba(var(--bad-rgb), 0.10); }
 
 /* Ruled rows: a label at the left, its value at the right, a hairline between
    rows. The first row's rule sits under the group's heading. */
@@ -264,7 +264,7 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
 }
 .ver-link.quiet { font-weight: 400; color: var(--text-mute); }
 .ver-link:hover { color: var(--text); text-decoration-color: var(--text-dim); }
-.ver-link:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: var(--r-card); }
+.ver-link:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: var(--r-frame); }
 .upd { font-size: 12px; color: var(--text-mute); }
 .upd.ok  { color: var(--good); }
 .upd.new { color: var(--text); }

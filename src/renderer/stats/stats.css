@@ -90,7 +90,7 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
   padding: var(--space-2) 0; border-top: 1px solid var(--line); min-width: 0;
   animation: rowIn var(--t-slow) var(--ease-expo) both;
 }
-.agent-icon { width: 32px; height: 32px; border-radius: var(--r-card); flex: none; object-fit: cover; background: rgba(255,255,255,0.04); }
+.agent-icon { width: 32px; height: 32px; border-radius: var(--r-frame); flex: none; object-fit: cover; background: rgba(255,255,255,0.04); }
 .agent-icon.letter { display: grid; place-items: center; font-family: var(--font); font-size: 14px; font-weight: 600; color: var(--text-dim); }
 .agent-info { display: contents; }
 .agent-name { font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -212,7 +212,7 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
    fetch is in flight, so a cold open reads as loading not frozen. The one
    gradient the app allows, because here the gradient IS the animation. */
 .card.skeleton {
-  min-height: 56px; border-left: 0; border-radius: var(--r-card);
+  min-height: 56px; border-left: 0; border-radius: var(--r-frame);
   background: linear-gradient(100deg, rgba(255,255,255,0.03) 30%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 70%);
   background-size: 200% 100%;
   animation: skeleton 1.2s ease-in-out infinite;

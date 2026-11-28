@@ -1,39 +1,46 @@
 /* palette: tokens only */
-/* MOTION (8.9.2): the few entrances a page reuses, so none is written twice.
-   Calm and short: transform and opacity only (stroke-dashoffset for a line
-   being drawn), never layout, never from scale(0), no bounce, nothing that
-   loops. Each one has a job: it shows where a thing came from, what changed,
-   or that a press landed.
+/* MOTION (8.9.2, ORBIT 27 Nov 2026): the entrances a page reuses, so none is
+   written twice. Transform, opacity and filter only (stroke-dashoffset for a
+   line being drawn), never layout. Each has a job: it shows where a thing
+   came from, what changed, or that a press landed.
+
+   TRANSITIONS FOR STATE, KEYFRAMES ONLY FOR A ONE SHOT MOMENT. A hover, a
+   press, a selection, an open and a close are transitions (ui.css), which
+   reverse smoothly when interrupted. What is here plays once: an entrance, a
+   squish, a line drawing itself. The one loop is the ambient float (.m-drift),
+   slow, paused whenever the window is hidden and off mid match.
 
    ONCE. A class here plays when it is put on an element, so a page puts it
-   on once per visit through motion.js (Motion.once, Motion.rise,
-   Motion.stagger), never on every repaint or refresh of its data.
+   on once per visit through motion.js (Motion.once, rise, enter, stagger),
+   never on every repaint.
 
-   NEVER MID MATCH. Mid match the pages are not on screen (the Recording
-   screen is, and nothing on it uses these). A page still never plays one
-   while a match is read: motion.js checks nothing about the match, so a page
-   calls these only from what it already shows outside one.
+   NEVER MID MATCH. Mid match no page is on screen (the Recording screen is,
+   and nothing on it uses these).
 
-   REDUCED MOTION: none of them plays at all (bottom of this file), so the
-   element is simply there, in its final state, with no delay to wait out.
+   REDUCED MOTION: none of them moves (bottom of this file); an element is
+   simply there, at once, a crossfade at most.
 
-     .m-rise     fades in and rises 8px, 380ms ease-out
-     .m-stagger  its children do the same, --stagger (40ms) apart, the
-                 seventh and later with the sixth (the cap)
-     .m-pop      fades in from scale(0.96), 220ms ease-out
-     .m-draw     an svg path or line draws itself: the class on it, or on the
-                 svg round it, and pathLength="1" on each line drawn
-     .m-grow     a bar grows from its baseline (scaleY from the bottom); a
-                 horizontal bar takes .m-grow.x and grows from its left */
+     .m-enter    THE ENTRANCE: from 8px low at .985, transparent and blurred
+                 6px, 480ms, the rise on the smooth spring
+     .m-rise     fades in and rises 8px, 420ms
+     .m-stagger  its children enter, --stagger (40ms) apart, the seventh and
+                 later with the sixth (the cap)
+     .m-pop      fades in from scale(0.96), 220ms
+     .m-squish   a press that landed: 1, .86, 1 over 260ms on the gentle spring
+     .m-draw     an svg path or line draws itself, pathLength="1" on it
+     .m-grow     a bar grows from its baseline; .m-grow.x from its left
+     .m-drift    the ambient float: 5px up and down over 7s */
 
+.m-enter { animation: m-enter var(--dur-enter) var(--spring-smooth) both; }
 .m-rise { animation: m-rise var(--dur-slow) var(--ease-out) both; }
 
 .m-stagger > * {
-  animation: m-rise var(--dur-slow) var(--ease-out) both;
+  animation: m-enter var(--dur-enter) var(--spring-smooth) both;
   animation-delay: calc(min(var(--i, 0), 5) * var(--stagger));
 }
 
 .m-pop { animation: m-pop var(--dur-base) var(--ease-out) both; }
+.m-squish { animation: m-squish 260ms var(--spring-gentle); }
 
 .m-draw[pathLength], .m-draw [pathLength] {
   stroke-dasharray: 1;
@@ -48,21 +55,45 @@
 }
 .m-grow.x { transform-origin: 0 50%; animation-name: m-grow-x; }
 
+/* THE AMBIENT FLOAT: the agent drifting in front of the moon. Slow, and
+   paused whenever the window is hidden or a match is being recorded
+   (motion.js puts html.ambient-off on). */
+.m-drift { animation: m-drift 7s ease-in-out infinite alternate; }
+html.ambient-off .m-drift { animation-play-state: paused; }
+
 /* A number counting up (Motion.countUp) keeps its width still. */
 .m-count { font-variant-numeric: tabular-nums; }
 
+/* The whole entrance rides the smooth spring: critically damped, so the fade
+   never passes full and the rise never overshoots its place. */
+@keyframes m-enter { from { opacity: 0; transform: translateY(8px) scale(0.985); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
 @keyframes m-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes m-pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes m-squish { 0% { transform: scale(1); } 35% { transform: scale(0.86); } 100% { transform: scale(1); } }
 @keyframes m-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes m-grow-y { from { transform: scaleY(0.001); } to { transform: none; } }
 @keyframes m-grow-x { from { transform: scaleX(0.001); } to { transform: none; } }
+@keyframes m-drift { from { transform: translateY(-5px); } to { transform: translateY(5px); } }
 
-/* Asked for less motion: nothing here moves, fades or waits. theme.css only
+/* ── View Transitions (Motion.transition) ───────────────────────────────────
+   A change inside one document: the old state fades out with a 4px blur in
+   160ms, the new one rises 8px and fades in over 380ms on the smooth spring.
+   An element that persists between the two takes a view-transition-name and
+   morphs instead. Where the API is missing, motion.js just makes the change. */
+::view-transition-old(root) { animation: m-vt-out var(--dur-page-out) var(--ease-out) both; }
+::view-transition-new(root) { animation: m-vt-in var(--dur-page-in) var(--spring-smooth) both; }
+::view-transition-group(*) { animation-duration: var(--dur-page-in); animation-timing-function: var(--spring-smooth); }
+@keyframes m-vt-out { to { opacity: 0; filter: blur(4px); } }
+@keyframes m-vt-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* Asked for less motion: nothing here moves, blurs or waits. theme.css only
    shortens a duration, which would leave a delayed row invisible for its
-   delay; here the animation is taken off, so the final state is at once. */
+   delay; here the animation is taken off, so the final state is at once. A
+   view transition keeps a plain crossfade. */
 @media (prefers-reduced-motion: reduce) {
-  .m-rise, .m-stagger > *, .m-pop, .m-grow, .m-grow.x,
+  .m-enter, .m-rise, .m-stagger > *, .m-pop, .m-squish, .m-grow, .m-grow.x, .m-drift,
   .m-draw[pathLength], .m-draw [pathLength] {
     animation: none !important;
   }
+  ::view-transition-group(*), ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
 }

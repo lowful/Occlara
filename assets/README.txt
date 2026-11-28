@@ -12,7 +12,11 @@ What is in this folder, and where each file comes from.
                   picks it or tray-light.ico by the taskbar's theme.
   tray-light.ico  The crescent alone in #0A0B0E, for a light taskbar, the same
                   sizes.
-  fonts/          Geist 400 to 800 and Geist Mono 400 and 500, bundled so the
+  fonts/          Onest (onest-var.woff2, one variable file from 100 to 900,
+                  under the SIL Open Font License 1.1), the face everything
+                  read is set in since Orbit (Nov 2026); Geist Mono 400 and
+                  500 for eyebrows and columns of digits; Geist 400 to 800,
+                  kept for Wrapped, whose own look names it. Bundled so the
                   app renders offline (theme.css loads them).
   games/          Valorant's and League's own logos, the source of the game
                   picker's (shared/game-logos.js inlines their paths).

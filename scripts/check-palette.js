@@ -38,6 +38,17 @@
  * one SIGNAL_ALLOWED lists, and no script or page names it at all. A new place
  * for the signal is a deliberate edit to that list.
  *
+ * ORBIT (27 Nov 2026). The signal is the accent now, indigo #516AF6, and its
+ * places are Orbit's: Start and Stop, the recording dot, the selected round,
+ * the keyboard's ring and a card's eyebrow. The accent's own names (--accent,
+ * --accent-2, --accent-t, --accent-tint, --accent-rgb, and --btn, --btn-h,
+ * --btn-bar and --btn-bar-h, the indigo glass Start is filled with) are held
+ * to those places exactly as the signal's old names are, and their literals
+ * live in theme.css alone. A destructive action is coral, an outcome (--bad),
+ * never the accent. A gradient that only FADES something out (a mask-image
+ * over the agent's portrait or the star field) paints no colour, so it is not
+ * a decorative one; the medals' metal is drawn once, in the review's SVG defs.
+ *
  * GEIST MONO AT A WEIGHT IT SHIPS (8.6). The mono face ships 400 and 500, and
  * theme.css turns synthesis off, so a mono rule asking for 600 or 800 draws
  * at 500 and says something it does not do.
@@ -65,6 +76,11 @@ const BANNED = [
   ['the signal',  /rgba\(\s*229\s*,\s*56\s*,\s*59\s*,/g,    'rgba(var(--signal-rgb), …)'],
   ['Start hover', /#F04A4D\b/gi,                            'var(--red-2)'],
   ['Start press', /#C9302F\b/gi,                            'var(--red-3)'],
+  // Orbit's accent and its glass (27 Nov 2026), each by its token.
+  ['the accent',  /#516AF6\b/gi,                            'var(--accent)'],
+  ['the accent',  /#6F85FF\b/gi,                            'var(--accent-2)'],
+  ['the accent',  /rgba\(\s*81\s*,\s*106\s*,\s*246\s*,/g,   'rgba(var(--accent-rgb), ...)'],
+  ['Start glass', /#606AF7/gi,                              'var(--btn) or var(--btn-h)'],
 ];
 
 // No decorative gradients anywhere (CLAUDE.md). The kinds a renderer file can
@@ -88,13 +104,19 @@ const GRADIENT_ALLOWED = {
 const OWN_LOOK_FILES = ['wrapped/wrapped.css', 'wrapped/wrapped.js', 'wrapped/gl.js', 'wrapped/card.js', 'wrapped/index.html'];
 const OWN_LOOK_MARK = "/* palette: Wrapped's own";
 const ownLook = (rel) => OWN_LOOK_FILES.includes(rel);
+// A FADE IS NO PAINT (Orbit, 27 Nov 2026): a gradient in a mask (mask-image,
+// its -webkit- twin, or the mask shorthand) only says how much of an element
+// shows, never a colour, so its declaration is taken out before the css kind
+// is counted. A gradient anywhere else in the same rule still counts.
+const MASKS = /(?:-webkit-)?mask(?:-image)?\s*:[^;{}]*;/gi;
+const unmasked = (src) => src.replace(MASKS, '');
 /** The gradients a file draws past what it is allowed, [{ kind, n, allowed }]: none for Wrapped's own files. */
 function gradientFails(rel, src) {
   if (ownLook(rel)) return [];   // Wrapped's own look, written down above and on its stylesheet's first line
   const out = [];
   for (const [kind, re] of GRADIENTS) {
     re.lastIndex = 0;
-    const n = (src.match(re) || []).length;
+    const n = ((kind === 'css' ? unmasked(src) : src).match(re) || []).length;
     const allowed = ((GRADIENT_ALLOWED[rel] || {})[kind]) || 0;
     if (n > allowed) out.push({ kind, n, allowed });
   }
@@ -132,20 +154,29 @@ function rules(css) {
   return out;
 }
 
-// THE SIGNAL'S PLACES: the rules that may name it, by stylesheet.
-const SIGNAL = /--(?:red(?:-2|-3|-rgb)?|signal(?:-rgb)?|glow-red)\b/;
+// THE SIGNAL'S PLACES, which are the accent's (Orbit): the rules that may name
+// it, by stylesheet. The signal's old names and the accent's own, the indigo
+// glass included; a name that only begins the same (--redraw, --r-btn,
+// --btn-label) is not one of them.
+const SIGNAL = /--(?:red(?:-2|-3|-rgb)?|signal(?:-rgb)?|glow-red|accent(?:-2|-t|-tint|-rgb)?|btn(?:-h|-bar|-bar-h)?)(?![\w-])/;
+const FOCUS_RING = '.btn:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible, input:focus-visible, select:focus-visible';
 const SIGNAL_ALLOWED = {
+  // Start and Stop (.btn-rec and its record icon), the live dot, a card's
+  // eyebrow, and the keyboard's ring on a control, a card and an input.
   'shared/ui.css':         ['.btn-rec', '.btn-rec:hover:not(:disabled):not(.active)',
                             '.btn-rec:active:not(:disabled):not(.active)',
-                            '.btn-ghost.danger:hover:not(:disabled)', '.sig-dot'],
-  'shell/shell.css':       ['.rec.live', '.toggle.active .t-ico', '.win-btn.close:hover',
-                            '.sealed h1::before', '.top-notice.urgent::before',
-                            // Progress v3: the live status's still dot before Recording.
-                            '.live-dot'],
-  'settings/settings.css': ['.rec-clear.armed'],
-  // Progress v3: Home's Start strip is ringed in the signal at low opacity,
-  // the strip Start sits in, so the eye goes to it first. On purpose.
-  'home/home.css':         ['.start-strip'],
+                            '.btn-rec.active', '.btn-rec.active:hover:not(:disabled)',
+                            '.btn-rec:hover:not(:disabled):not(.active) .rec-ico::after',
+                            '.o-card.is-link:focus-visible', '.o-eyebrow', '.input:focus', '.sig-dot', FOCUS_RING],
+  // The bar's Start (the denser glass over the moon) and its hover; the
+  // keyboard's ring on a link, the profile button, a window button and a menu
+  // row; the Recording screen's still dot (held and live) and the round under
+  // way on the tape, the selected round's place.
+  'shell/shell.css':       ['.bar .btn-rec:not(.active):not(.ended)', '.bar .btn-rec:hover:not(:disabled):not(.active)',
+                            '.nav .nav-item:focus-visible', '.avatar-btn:focus-visible', '.win-btn:focus-visible',
+                            '.drawer .nav-item:focus-visible', '.sealed h1::before', '.live-dot', '.pip.now'],
+  // The keyboard's ring on a recent match's row.
+  'home/home.css':         ['.r-row:focus-visible'],
 };
 /** The rules of a stylesheet that name the signal and are not its places. */
 function strayReds(rel, css) {
@@ -205,6 +236,18 @@ const selfTest = [
   [SIGNAL, 'background: var(--red-3);', true],
   [SIGNAL, 'color: var(--bad); border-color: rgba(var(--bad-rgb), 0.4);', false],
   [SIGNAL, 'transition: var(--redraw-ms) var(--signalling);', false],
+  // Orbit: the accent's own names are the signal's, and look-alikes are not.
+  [SIGNAL, 'color: var(--accent-2);', true],
+  [SIGNAL, 'box-shadow: 0 0 0 3px var(--accent-t);', true],
+  [SIGNAL, 'background: rgba(var(--accent-rgb), 0.12);', true],
+  [SIGNAL, 'background: var(--btn-h);', true],
+  [SIGNAL, 'background: var(--btn);', true],
+  [SIGNAL, 'border-radius: var(--r-btn); color: var(--accented);', false],
+  [SIGNAL, 'width: var(--btn-label-w);', false],
+  [BANNED[12][1], 'background: #516af6;', true],
+  [BANNED[12][1], 'background: #516AF629;', false],
+  [BANNED[14][1], 'box-shadow: inset 0 0 8px rgba(81, 106, 246, 0.3);', true],
+  [BANNED[14][1], 'background: rgba(81, 106, 2460);', false],
 ];
 for (const [re, text, want] of selfTest) {
   re.lastIndex = 0;
@@ -227,6 +270,11 @@ const MONO_POS = '.a { font-family: var(--font-mono); font-weight: 600; }\n.b { 
 const MONO_NEG = '.a { font-family: var(--font-mono); font-weight: 500; }\n.b { font: 400 13px var(--font-mono); }\n.c { font-family: var(--font); font-weight: 700; }\n.d { font: 600 12px var(--font); }';
 if (monoWeights(MONO_POS).join(' | ') !== '.a (600) | .b (800) | .c (bold)') fail(`RULE BROKEN  the mono weight rule reads 600, 800 and bold as ${JSON.stringify(monoWeights(MONO_POS))}`);
 if (monoWeights(MONO_NEG).length) fail(`RULE BROKEN  Mono at 500 and 400 and Geist at 700 and 600 read as ${JSON.stringify(monoWeights(MONO_NEG))}`);
+// A fade is no paint: a mask's gradient passes, a painted one beside it fails.
+const FADE = '.a { -webkit-mask-image: linear-gradient(#000 58%, transparent 90%); mask-image: linear-gradient(#000 58%, transparent 90%); }\n.b { mask: radial-gradient(circle, #000, transparent) no-repeat; }';
+const PAINT = '.a { mask-image: linear-gradient(#000, transparent); background: linear-gradient(#000, #fff); }';
+if (gradientFails('home/home.css', FADE).length) fail(`RULE BROKEN  a mask's fade reads as a decorative gradient: ${JSON.stringify(gradientFails('home/home.css', FADE))}`);
+if (JSON.stringify(gradientFails('home/home.css', PAINT)) !== JSON.stringify([{ kind: 'css', n: 1, allowed: 0 }])) fail(`RULE BROKEN  a painted gradient beside a mask reads as ${JSON.stringify(gradientFails('home/home.css', PAINT))}`);
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -274,8 +322,8 @@ for (const f of files) {
   }
   if (css) {
     for (const sel of strayReds(r, src)) {
-      fail(`  signal  in ${r}: "${sel}" names the signal, which is only Start, the live card and its Stop, the live and urgent dots and a destructive hover`);
-      console.log('     an outcome is var(--bad), a fill or a selection the ink; a new place for the signal is an edit to SIGNAL_ALLOWED');
+      fail(`  signal  in ${r}: "${sel}" names the accent, which is only Start and Stop, the recording dot, the selected round, the keyboard's ring and a card's eyebrow`);
+      console.log('     an outcome or a destructive action is var(--bad), a fill or a selection the ink or the raised fill; a new place for the accent is an edit to SIGNAL_ALLOWED');
     }
     const pending = MONO_PENDING[r] || [];
     const wrong = monoWeights(src);
@@ -320,7 +368,10 @@ for (const f of ['shared/ui.css', 'shared/grade-view.css', 'shared/dropdown.css'
 const theme = fs.readFileSync(THEME, 'utf8');
 for (const t of ['--red-rgb', '--cyan-rgb', '--good', '--bad', '--warn', '--good-rgb', '--warn-rgb', '--on-accent',
   '--signal', '--signal-rgb', '--red-3', '--line', '--line-2', '--grid', '--paper', '--paper-ink', '--paper-ink-2', '--paper-ink-3',
-  '--paper-line', '--r-card', '--r-control', '--r-pill', '--t-press', '--track-display', '--lh-display', '--track-label']) {
+  '--paper-line', '--r-card', '--r-control', '--r-pill', '--t-press', '--track-display', '--lh-display', '--track-label',
+  // Orbit (27 Nov 2026): the accent, its glass, the card, the frame and the two springs.
+  '--accent', '--accent-2', '--accent-t', '--accent-rgb', '--btn', '--btn-h', '--glass', '--glass-h', '--card', '--raised',
+  '--r-btn', '--r-in', '--r-frame', '--spring-smooth', '--spring-gentle', '--ease-enter', '--ease-drawer']) {
   if (!new RegExp(`${t}\\s*:`).test(theme)) {
     problems++;
     console.log(`MISSING TOKEN  ${t} is not defined in shared/theme.css`);

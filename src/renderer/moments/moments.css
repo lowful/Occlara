@@ -46,7 +46,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   padding: var(--space-3) 0;
   background: transparent; border: 0; border-radius: 0; color: var(--text); font: inherit; cursor: pointer;
 }
-.mo-cpick:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
+.mo-cpick:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-frame); }
 .mo-ctitle { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: var(--space-2); }
 /* Chosen: a filled dot before the title, form before hue. */
 .mo-cpick[aria-pressed="true"] .mo-ctitle::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--text); flex: none; }
@@ -104,7 +104,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   text-align: left; padding: var(--space-3) 0;
   background: transparent; border: 0; border-radius: 0; color: var(--text); font: inherit; cursor: pointer;
 }
-.mo-open:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
+.mo-open:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-frame); }
 /* The round, a column of digits in the mono face. */
 .mo-round { font: 500 12px var(--font-mono); color: var(--text-mute); font-variant-numeric: tabular-nums; }
 /* The kind, a word in the outcome's tone with a mark before it: a death a
@@ -168,12 +168,12 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
    the framed picture, the timeline with the death marked, the controls); an
    empty stage keeps the picture's height so the panel does not jump. */
 .mo-pl-stage { display: flex; flex-direction: column; min-height: 0; }
-.mo-pl-stage:empty { aspect-ratio: 16 / 9; background: rgba(0, 0, 0, 0.6); border: 1px solid var(--line); border-radius: var(--r-card); }
+.mo-pl-stage:empty { aspect-ratio: 16 / 9; background: rgba(0, 0, 0, 0.6); border: 1px solid var(--line); border-radius: var(--r-frame); }
 .mo-pl-stage .v-clip { width: 100%; }
 /* Without the player's script, a bare video is drawn as its picture is. */
 .mo-pl-stage > video {
   display: block; width: 100%; aspect-ratio: 16 / 9; background: rgba(0, 0, 0, 0.6);
-  border: 1px solid var(--line); border-radius: var(--r-card);
+  border: 1px solid var(--line); border-radius: var(--r-frame);
 }
 .mo-pl-line { font-size: 14px; color: var(--text-dim); margin: 0; line-height: 1.5; }
 .mo-pl-controls { display: flex; align-items: center; gap: var(--space-2); }

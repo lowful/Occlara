@@ -1,191 +1,273 @@
 /* palette: tokens only */
-/* Shared UI primitives: buttons, keycaps, the mono label, the viewfinder,
-   the stat block, inputs. Held to the tokens by check:palette (the first line
-   above): no colour here but a token and the glass's neutral black and white,
-   and no gradient. */
+/* Shared UI primitives, ORBIT (27 Nov 2026): buttons, the card and its
+   eyebrow, inputs, the switch, keycaps, the segmented control, the stat
+   block. Held to the tokens by check:palette (the first line above): no
+   colour here but a token and the glass's neutral black and white, and no
+   gradient. The accent (--accent, --btn and the signal's old names) appears
+   only in the rules check:palette SIGNAL_ALLOWED lists for this file: Start
+   and Stop, the live dot, a card's eyebrow and the keyboard's ring. */
 
-/* ── Buttons (8.6) ──────────────────────────────────────────────────────────
-   FLAT. A control is a fill and a hairline: 44px, --r-control, Geist 500
-   15px. Before 8.6 a button had a lit top edge, two shadows, a lift under the
-   pointer and a light sweep across the primary, and together they read as a
-   game launcher rather than a tool. Under the pointer the fill moves toward
-   the ink and nothing else moves.
+/* ── Buttons ────────────────────────────────────────────────────────────────
+   GLASS AND A HAIRLINE. A button is a fill and a 1px --line (Start and the
+   white glass over a 12px blur, as they sit over art), radius 12, 44px (.lg 52, .md 36, .sm 30), Onest 600 15px.
+     .btn-rec      START, the loudest word in the app: the indigo glass, its
+                   label 15px 700 in white (17px at .xl, the hero size) and
+                   the record icon beside the word. Recording, it is Stop.
+     .btn-primary  the white glass, the view's main action that is not Start
+     .btn, .btn-ghost  the quiet glass, every other control
+     .btn-link     text alone, the quiet glass fading in under the pointer
+     .btn-ghost.danger  coral text and line, filled coral only while pressed
+   THE MOTION: a hover comes in over 120ms and leaves over 220, so a pointer
+   passing through never flashes; a press goes down to .97 in 90ms and
+   releases on the gentle spring. All of it transitions, so a hover leaving
+   mid way reverses from where it is. Transform, colour and opacity only.
 
-   A bare .btn is the secondary, the same as .btn-ghost: the bordered control
-   it always was. The hovers exclude a disabled control inside :where(), so
-   they weigh what .btn:hover weighed and a surface's own state (Settings'
-   armed Clear clips, Log out under the pointer, a button that says it is
-   done) still wins over them.
-
-   A keycap at the right end takes the end padding down to 6px:
-   <button class="btn btn-primary">Open review<kbd class="kbd">E</kbd></button> */
+   An arrow slides in under the pointer where the markup asks for one:
+   <button class="btn btn-rec"><span class="btn-label">Start</span><span class="btn-arrow">svg</span></button>
+   A keycap at the right end takes the end padding down to 8px. */
 .btn {
   -webkit-app-region: no-drag;
   position: relative;
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-  height: 40px; padding: 0 20px;
-  font-family: var(--font); font-size: 14px; font-weight: 500; line-height: 1; letter-spacing: -0.005em;
+  height: 44px; padding: 0 22px;
+  font-family: var(--font); font-size: 15px; font-weight: 600; line-height: 1; letter-spacing: -0.01em;
+  white-space: nowrap;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid var(--line-2);
+  background: var(--glass-q);
+  border: 1px solid var(--line);
   border-radius: var(--r-btn);
-  box-shadow: var(--hi), var(--drop);
   cursor: pointer;
+  transition-property: background-color, border-color, color, transform, opacity;
+  transition-duration: var(--dur-hover-out), var(--dur-hover-out), var(--dur-hover-out), var(--dur-spring), var(--dur-hover-out);
+  transition-timing-function: var(--ease-out), var(--ease-out), var(--ease-out), var(--spring-gentle), var(--ease-out);
 }
-/* Under the pointer a capsule rises a pixel and its shadow opens; pressed, it
-   goes down into its resting shadow and gives a hair of scale. Both on the
-   compositor (transform, shadow), none of it layout. */
-.btn:where(:not(:disabled)):hover { background: rgba(255, 255, 255, 0.095); box-shadow: var(--hi), var(--drop-hover); }
-/* The rise is a mouse's alone (8.9.2): a touch has no hover to lift under,
-   and asked for less motion the capsule changes its fill and nothing moves. */
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .btn:where(:not(:disabled)):hover { transform: translateY(-1px); }
+.btn:where(:not(:disabled)):hover {
+  background: var(--glass-q-h); border-color: var(--line-2);
+  transition-duration: var(--dur-hover-in), var(--dur-hover-in), var(--dur-hover-in), var(--dur-spring), var(--dur-hover-in);
 }
-/* The press landed (8.9.2): down to .97 over --dur-press, eased out, never
-   on a disabled control. Asked for less motion it keeps the inset shadow
-   and does not shrink (bottom of this file). */
-.btn:where(:not(:disabled)):active { transform: translateY(0) scale(0.97); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); transition-duration: var(--dur-press); transition-timing-function: var(--ease-out); }
-.btn:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+/* The press lands: .97 in 90ms, eased out; let go, the base rule's gentle
+   spring brings it back with a hair of overshoot. */
+.btn:where(:not(:disabled)):active {
+  transform: scale(0.97);
+  transition-duration: var(--dur-press);
+  transition-timing-function: var(--ease-out);
+}
+.btn:disabled { opacity: 0.4; cursor: default; }
 .btn:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child) { padding-right: 8px; }
-.btn.md { height: 36px; padding: 0 18px; }
-.btn.sm { height: 30px; padding: 0 14px; font-size: 13px; gap: var(--space-2); }
+.btn.lg { height: 52px; padding: 0 26px; }
+.btn.md { height: 36px; padding: 0 16px; font-size: 14px; }
+.btn.sm { height: 30px; padding: 0 12px; font-size: 13px; gap: 6px; border-radius: var(--r-control); }
 .btn.sm:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child) { padding-right: 6px; }
 .btn.sm .kbd, .btn.sm kbd { height: 20px; min-width: 20px; padding: 0 5px; font-size: 10.5px; }
 
-/* The primary: the ink capsule, the ground's colour on it, a lit top edge and a
-   dark bottom one. It is no longer the red: the signal is Start's alone. */
-.btn-primary { background: var(--text); border-color: transparent; color: var(--bg); box-shadow: var(--hi-ink), var(--drop); }
-.btn-primary:where(:not(:disabled)):hover { background: var(--cyan); box-shadow: var(--hi-ink), var(--drop-hover); }
-.btn-primary:where(:not(:disabled)):active { box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
-.btn-primary .kbd, .btn-primary kbd { border-color: rgba(0, 0, 0, 0.22); color: rgba(0, 0, 0, 0.62); }
-.btn-primary .kbd.is-pressed, .btn-primary kbd.is-pressed { border-color: rgba(0, 0, 0, 0.45); color: var(--bg); }
-
-/* The ghost: the dark capsule, the same lit edge. */
-.btn-ghost { background: rgba(255, 255, 255, 0.055); border-color: var(--line-2); color: var(--text); }
-.btn-ghost:where(:not(:disabled)):hover { background: rgba(255, 255, 255, 0.095); }
-
-/* A destructive action is a ghost until the pointer is on it: one of the
-   signal's places (check:palette SIGNAL_ALLOWED). */
-.btn-ghost.danger:hover:not(:disabled) {
-  color: var(--signal);
-  border-color: rgba(var(--signal-rgb), 0.5);
-  background: rgba(var(--signal-rgb), 0.08);
+/* The arrow. At rest the label sits 8px right of where it ends, so it reads
+   centred with the arrow's room unseen; under the pointer or the keyboard
+   the label moves into place and the arrow slides in from the right, 180ms
+   on the smooth spring. Transform and opacity alone, so nothing relays. */
+.btn:has(> .btn-arrow) { overflow: hidden; }
+.btn-label { display: inline-flex; align-items: center; gap: var(--space-2); transition: transform 180ms var(--spring-smooth); }
+.btn:has(> .btn-arrow) > .btn-label { transform: translateX(8px); }
+.btn-arrow {
+  display: inline-flex; align-items: center; justify-content: flex-end; flex: none;
+  width: 16px; opacity: 0; transform: translateX(10px);
+  transition: opacity 180ms var(--ease-out), transform 180ms var(--spring-smooth);
 }
+.btn-arrow svg { width: 16px; height: 16px; flex: none; }
+.btn:where(:not(:disabled)):is(:hover, :focus-visible) > .btn-label { transform: none; }
+.btn:where(:not(:disabled)):is(:hover, :focus-visible) > .btn-arrow { opacity: 1; transform: none; }
 
-/* The link: borderless, flat, words dim until the pointer is on it. It has no
-   depth, so it does not rise. */
+/* The white glass: the view's main action that is not Start. */
+.btn-primary { background: var(--glass); border-color: var(--line); color: var(--text); font-weight: 700; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.btn-primary:where(:not(:disabled)):hover { background: var(--glass-h); border-color: var(--line-2); }
+
+/* The quiet glass, the same as a bare .btn. */
+.btn-ghost { background: var(--glass-q); border-color: var(--line); color: var(--text); }
+.btn-ghost:where(:not(:disabled)):hover { background: var(--glass-q-h); }
+
+/* A destructive action: quiet coral text and line, a breath of coral under
+   the pointer, and filled coral only while it is pressed. An outcome's
+   colour (--bad), never the accent. */
+.btn-ghost.danger { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.3); background: rgba(var(--bad-rgb), 0.06); }
+.btn-ghost.danger:hover:not(:disabled) { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.45); background: rgba(var(--bad-rgb), 0.14); }
+.btn-ghost.danger:active:not(:disabled) { color: var(--bg); border-color: var(--bad); background: var(--bad); }
+
+/* The ghost of the spec: text alone, the quiet glass fading in under the
+   pointer. No border at rest. */
 .btn-link {
   height: auto; padding: var(--space-2) var(--space-3);
-  background: transparent; border-color: transparent; color: var(--text-dim); box-shadow: none;
+  background: transparent; border-color: transparent; color: var(--text-dim);
 }
-.btn-link:where(:not(:disabled)):hover { color: var(--text); background: rgba(255, 255, 255, 0.06); transform: none; box-shadow: none; }
-.btn-link:where(:not(:disabled)):active { transform: none; box-shadow: none; }
+.btn-link:where(:not(:disabled)):hover { color: var(--text); background: var(--glass-q); border-color: transparent; }
 
-/* START: the ONE saturated fill in the app, the signal, with the ground's
-   colour on it (4.65:1; white on it measures 4.23:1, under the 4.5 the label needs). Its hover and its press
-   leave Stop alone (.active): unscoped, the press rule outweighed
-   .toggle.active and flashed the signal across Stop as it was pressed. */
+/* START. The indigo glass over a 12px blur, the one indigo button in the
+   app, its label the loudest: 15px 700 white on -0.01em, 17px at the hero
+   size (.xl). The record icon sits beside the word (.rec-ico, below). Its
+   hover and press leave Stop (.active) alone. */
 .btn-rec {
-  height: 48px;
-  background: var(--red); border-color: transparent; color: var(--on-accent);
-  font-size: 18px; font-weight: 600; letter-spacing: -0.01em;
-  box-shadow: var(--hi-signal), var(--drop);
+  height: 44px; padding: 0 22px 0 18px; gap: 10px;
+  background: var(--btn); border-color: var(--line); color: var(--on-accent);
+  font-size: 15px; font-weight: 700; letter-spacing: -0.01em;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
-.btn-rec:hover:not(:disabled):not(.active) { background: var(--red-2); box-shadow: var(--hi-signal), var(--drop-hover); }
-.btn-rec:active:not(:disabled):not(.active) { background: var(--red-3); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
-/* PROGRESS V3: Home's Start strip carries Start at 60px, the loudest thing on
-   the page, a rounded block rather than a capsule so it reads as the one
-   action. Same fill, same states, only bigger: the class is .btn-rec, so the
-   signal stays in its place (check:palette). */
-.btn-rec.xl {
-  height: 60px; padding: 0 26px 0 24px; gap: 12px;
-  border-radius: var(--r-tile);
-  font-size: 21px; font-weight: 700; letter-spacing: -0.02em;
+.btn-rec:hover:not(:disabled):not(.active) { background: var(--btn-h); border-color: var(--line-2); }
+.btn-rec:active:not(:disabled):not(.active) { background: var(--btn-h); }
+/* The hero size, on Home: 52px, the label 17px. */
+.btn-rec.xl { height: 52px; padding: 0 28px 0 22px; gap: 12px; font-size: 17px; }
+/* STOP: the same glass, quieter, with an inset indigo glow round its edge.
+   The glow is still: nothing on the Recording screen moves but its arrival
+   (docs/claude/screen-silence.md), so the spec's breathing is held at its
+   midpoint while a match is recorded. */
+.btn-rec.active {
+  background: rgba(var(--accent-rgb), 0.12); border-color: rgba(var(--accent-rgb), 0.32); color: var(--on-accent);
+  box-shadow: inset 7px 7px 18px rgba(var(--accent-rgb), 0.24), inset -7px -7px 18px rgba(var(--accent-rgb), 0.24);
 }
-.btn-rec.xl svg { width: 16px; height: 16px; }
+.btn-rec.active:hover:not(:disabled) { background: rgba(var(--accent-rgb), 0.2); }
 
+/* THE RECORD ICON, beside Start's word (inside the button): a 14px ring of
+   1.5px in white at 70% holding a 6px dot in white. Under the pointer the
+   dot takes the accent's tint and grows to 7px over 160ms. Recording, the
+   same icon in Stop is the stop glyph: the dot squares off. */
+.rec-ico {
+  position: relative; flex: none; display: inline-block;
+  width: 14px; height: 14px; border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7);
+}
+.rec-ico::after {
+  content: ''; position: absolute; left: 4px; top: 4px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--on-accent);
+  transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), border-radius 220ms var(--ease-out);
+}
+.btn-rec:hover:not(:disabled):not(.active) .rec-ico::after { background: var(--accent-tint); transform: scale(1.1667); }
+.btn-rec.active .rec-ico { box-shadow: none; }
+.btn-rec.active .rec-ico::after { left: 2px; top: 2px; width: 10px; height: 10px; border-radius: 2.5px; }
+
+/* The icon button: 36px round in the quiet glass. A press squishes it to
+   .86 in 90ms and the gentle spring lets it back. */
 .icon-btn {
   -webkit-app-region: no-drag;
   position: relative;
   display: grid; place-items: center;
-  width: 34px; height: 34px;
-  border-radius: var(--r-btn);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: var(--hi), var(--drop);
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--glass-q);
+  border: 1px solid var(--line);
   color: var(--text-dim);
   cursor: pointer;
+  transition-property: background-color, border-color, color, transform;
+  transition-duration: var(--dur-hover-out), var(--dur-hover-out), var(--dur-hover-out), 420ms;
+  transition-timing-function: var(--ease-out), var(--ease-out), var(--ease-out), var(--spring-gentle);
 }
 .icon-btn:where(:not(:disabled)):hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: var(--hi), var(--drop-hover);
+  color: var(--text); background: var(--glass-q-h); border-color: var(--line-2);
+  transition-duration: var(--dur-hover-in), var(--dur-hover-in), var(--dur-hover-in), 420ms;
 }
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .icon-btn:where(:not(:disabled)):hover { transform: translateY(-1px); }
-}
-.icon-btn:where(:not(:disabled)):active { transform: translateY(0) scale(0.97); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); transition-duration: var(--dur-press); transition-timing-function: var(--ease-out); }
-.icon-btn:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+.icon-btn:where(:not(:disabled)):active { transform: scale(0.86); transition-duration: var(--dur-press); transition-timing-function: var(--ease-out); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
 
-/* The eye that opens one match's AI log (shared/log-eye.js), on its row in
-   Matches and in its review's header: an icon button a size down, beside rows
-   and small buttons. Disabled once the log no longer holds the match, and
-   still there, so its tooltip can say why; it does not light under the
-   pointer like a control that would do something. */
+/* The eye that opens one match's AI log (shared/log-eye.js). */
 .log-eye { flex: none; }
 .log-eye:not(.labelled) { width: 30px; height: 30px; }
 .log-eye:disabled { opacity: 0.4; cursor: default; }
-/* With its word beside it (log-eye.js labelled()), where it stands alone, on
-   Home's last match: a button of the class it carries, the size of the Open
-   review beside it, the eye leading the word. */
 .log-eye.labelled { display: inline-flex; align-items: center; gap: var(--space-2); }
+
+/* ── The card (bento) ───────────────────────────────────────────────────────
+   --card, radius 24, a 1px --line, 28px in. A card holds an eyebrow, a title
+   and one real fragment of the product; cards on a screen are never all one
+   size. Under the pointer a card that leads somewhere takes the stronger
+   hairline and lifts 1px over 200ms. contain: paint keeps its repaints its
+   own. */
+.o-card {
+  position: relative; display: flex; flex-direction: column; min-width: 0;
+  padding: 28px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  contain: paint;
+  transition: border-color 200ms var(--ease-out), transform 200ms var(--ease-out);
+}
+.o-card.is-link { cursor: pointer; }
+@media (hover: hover) and (pointer: fine) {
+  .o-card.is-link:hover { border-color: var(--line-2); transform: translateY(-1px); }
+}
+.o-card.is-link:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: var(--r-card); }
+/* The eyebrow: Geist Mono 500 12px, uppercase on .06em, in the accent's
+   lighter step. A label, so it stays uppercase where all else is sentence case. */
+.o-eyebrow {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; line-height: 1.2;
+  letter-spacing: var(--track-eyebrow); text-transform: uppercase;
+  color: var(--accent-2);
+}
+.o-title { margin-top: 10px; font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); line-height: 1.18; text-wrap: pretty; }
+/* The display line: Onest 700 40px (36 under 1100 wide) on -0.035em. Its
+   grey sub line under it. */
+.o-display { font-size: var(--t-display); font-weight: 700; letter-spacing: var(--track-display); line-height: var(--lh-display); text-wrap: pretty; }
+.o-sub { color: var(--text-2); font-weight: 600; }
+.o-small { font-size: 13px; color: var(--text-2); }
+/* A link that reads as words with an arrow, at a card's foot. */
+.o-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.o-link svg { width: 16px; height: 16px; transition: transform 160ms var(--ease-out); }
+.o-card.is-link:hover .o-link svg, .o-link:hover svg { transform: translateX(3px); }
 
 /* ── Inputs ──────────────────────────────────────────────────────────────── */
 .input {
   -webkit-app-region: no-drag;
   width: 100%; height: 44px;
-  padding: 0 14px;
+  padding: 0 16px;
   font-family: var(--font-mono);
   font-size: 14px;
   letter-spacing: 2px;
   color: var(--text);
-  background: transparent;
+  background: var(--card);
   border: 1px solid var(--line-2);
-  border-radius: var(--r-control);
+  border-radius: var(--r-in);
   outline: none;
-  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  transition: border-color var(--dur-hover-out) var(--ease-out), box-shadow var(--dur-hover-out) var(--ease-out);
 }
-.input:focus { border-color: rgba(var(--cyan-rgb), 0.5); box-shadow: var(--glow-cyan); }
+/* Focused, the hairline takes the accent and a ring of its tint: one of the
+   accent's places, the keyboard's. */
+.input:focus { border-color: var(--accent-2); box-shadow: 0 0 0 3px var(--accent-t); }
 .input::placeholder { color: var(--text-mute); letter-spacing: 1px; }
 
+/* ── The switch ──────────────────────────────────────────────────────────────
+   <button class="switch" role="switch" aria-checked="true">. A 44 by 26
+   track, a 20px knob that slides on the smooth spring and squeezes a hair
+   while pressed. On, the track is the ink and the knob the ground: the
+   accent stays in its places. */
+.switch {
+  -webkit-app-region: no-drag;
+  position: relative; flex: none;
+  width: 44px; height: 26px; border: 0; border-radius: 26px;
+  background: var(--glass-h);
+  cursor: pointer;
+  transition: background-color var(--dur-select) var(--ease-out);
+}
+.switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--text); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: transform var(--dur-select) var(--spring-smooth), background-color var(--dur-select) var(--ease-out);
+}
+.switch[aria-checked="true"] { background: var(--text); }
+.switch[aria-checked="true"]::after { transform: translateX(18px); background: var(--bg); }
+.switch:active:not(:disabled)::after { transform: scale(0.9); }
+.switch[aria-checked="true"]:active:not(:disabled)::after { transform: translateX(18px) scale(0.9); }
+.switch:disabled { opacity: 0.4; cursor: default; }
+
 /* ── Type ────────────────────────────────────────────────────────────────────
-   THE LABEL (8.7): every small label is Geist 12/500 in --text-mute, sentence
-   case, set by each surface. The mono uppercase kicker (.mono) and the
-   indexed eyebrow (.eyebrow, "[ 01 ]") are gone: Geist Mono is for columns
-   of digits, keycaps and the match id alone. */
-/* A title or a number set large: tight, on a line of its own height, its
-   figures all one width. */
+   A title or a number set large: tight, its figures all one width. */
 .display {
-  font-family: var(--font); font-weight: 600;
+  font-family: var(--font); font-weight: 700;
   letter-spacing: var(--track-display); line-height: var(--lh-display);
   font-variant-numeric: tabular-nums; color: var(--text);
 }
 
 /* ── Keycaps ─────────────────────────────────────────────────────────────────
-   One key: <kbd class="kbd">H</kbd>. A chord is a row of them, one key a
-   cap: <span class="keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>H</kbd></span>.
-   Only a shortcut the app has is ever drawn, and only while the key does
-   what the cap says. .is-pressed is set by the renderer for --t-press when it
-   handles that key itself. Every kbd in the app is this one: the surfaces'
-   own (Consolas, a 2px bottom edge) went in 8.6. */
+   One key: <kbd class="kbd">H</kbd>. A chord: <span class="keys"><kbd>Ctrl</kbd><kbd>H</kbd></span>.
+   Only a shortcut the app has is ever drawn. */
 kbd, .kbd {
   display: inline-flex; align-items: center; justify-content: center;
-  /* never shrunk by a flex row it sits in: its min-width replaces the auto
-     minimum, and a squeezed cap let its chord run out of its border */
   flex: none;
   height: 22px; min-width: 22px; padding: 0 6px;
-  border: 1px solid var(--line-2); border-radius: var(--r-card);
+  border: 1px solid var(--line-2); border-radius: var(--r-frame);
   background: transparent;
   font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1; letter-spacing: 0;
   color: var(--text-dim); white-space: nowrap;
@@ -194,32 +276,23 @@ kbd, .kbd {
 kbd.lg, .kbd.lg { height: 24px; min-width: 24px; }
 .keys { display: inline-flex; align-items: center; gap: 4px; }
 kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(--text-mute); color: var(--text); }
-/* A cap drawn from a control's data-keys, for a control whose text a test or
-   a screen reader reads: one cap holding the whole chord, the control's own
-   words untouched (the empty text after the slash keeps it out of its
-   accessible name) and the chord in its aria-keyshortcuts. Hidden until a
-   surface shows it under its own condition, on hover or focus, say:
-   .x[data-keys]:hover::after { display: inline-flex; } */
+/* A cap drawn from a control's data-keys: hidden until a surface shows it. */
 [data-keys]::after {
   content: attr(data-keys) / "";
   display: none; align-items: center; justify-content: center;
   height: 22px; min-width: 22px; padding: 0 6px;
-  border: 1px solid var(--line-2); border-radius: var(--r-card);
+  border: 1px solid var(--line-2); border-radius: var(--r-frame);
   font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1; letter-spacing: 0;
   color: var(--text-mute); white-space: nowrap;
 }
 
 /* ── The viewfinder ──────────────────────────────────────────────────────────
-   Only on a card that frames one moment (the last match, the Verdict, a clip,
-   the AI log's frame): no border, four 16px brackets, 1.5px of ink-2, 2px
-   outside the box, over a two point fill. ONE pseudo element draws all four:
-   a whole border clipped to its corners, never a gradient. Under the pointer
-   or with focus inside, the brackets open 2px further. It must not sit inside
-   an overflow: hidden ancestor, which cuts the brackets off. */
+   Only on what frames one moment: four 16px brackets from one border clipped
+   to its corners. Never inside an overflow: hidden ancestor. */
 .vf {
   position: relative;
   background: rgba(255, 255, 255, 0.02);
-  border-radius: var(--r-card);
+  border-radius: var(--r-frame);
 }
 .vf::before {
   content: '';
@@ -238,13 +311,12 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
 
 /* ── The stat block ──────────────────────────────────────────────────────────
    <div class="stats sm"><div class="stat"><b class="stat-n">7</b><span class="stat-l">Matches</span></div>...</div>
-   Columns divided by the hairline. Held under .stats, so the review's own
-   .stat tiles (review.css) are not touched. The app uses .sm and .xs. */
+   Columns divided by the hairline, the label an eyebrow in the grey. */
 .stats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 .stats > .stat { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: 0 var(--space-6); border-left: 1px solid var(--line); }
 .stats > .stat:first-child { padding-left: 0; border-left: 0; }
 .stats .stat-n {
-  font-family: var(--font); font-size: 64px; font-weight: 600;
+  font-family: var(--font); font-size: 64px; font-weight: 700;
   line-height: var(--lh-display); letter-spacing: var(--track-display);
   font-variant-numeric: tabular-nums; color: var(--text);
 }
@@ -255,12 +327,7 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
   letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-mute);
 }
 
-/* ── The column grid ─────────────────────────────────────────────────────────
-   Twelve 1px lines behind Home's header band, drawn as elements (a repeating
-   gradient is a gradient): <div class="colgrid" aria-hidden="true"><i></i> x 12</div>
-   as the first child of a position: relative band whose content sits above
-   it. It follows the page's centred column (html.embedded, below). Never
-   behind a review, a table or a frame. */
+/* ── The column grid ─────────────────────────────────────────────────────── */
 .colgrid {
   position: absolute;
   top: 0; bottom: 0;
@@ -274,31 +341,28 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
 .colgrid > i { border-left: 1px solid var(--grid); }
 .colgrid > i:last-child { border-right: 1px solid var(--grid); }
 
-/* ── The live dot and the urgent dot: two more of the signal's places ──── */
-.sig-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); }
-.sig-dot.off { background: var(--text-mute); }
+/* ── The live dot: one of the accent's places ───────────────────────────── */
+.sig-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.18); }
+.sig-dot.off { background: var(--text-mute); box-shadow: none; }
 
-/* ── The segmented capsule (8.7) ────────────────────────────────────────────
-   One capsule, one thumb. shared/seg.js (occlaraSeg) adds .seg-slide and an
-   aria-hidden .seg-thumb behind the buttons and slides it to the chosen one;
-   the buttons keep their own state (aria-pressed, .on, .active, .picked) and
-   are drawn flat and transparent over it, so the thumb is the only fill. */
-.seg-slide { position: relative; display: inline-flex; gap: 0; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: rgba(0, 0, 0, 0.32); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
-.seg-slide > button { position: relative; z-index: 1; height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-btn); background: transparent; color: var(--text-dim); font: 500 13px var(--font); cursor: pointer; transition: color var(--t-fast) var(--ease); }
-.seg-slide > button:hover:not(:disabled) { color: var(--text); }
-.seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked), .seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked):hover { color: var(--bg); }
-/* A page's own `.seg > button:hover:not(:disabled) { color: var(--text) }` (onboarding, settings, learn)
-   ties the rule above at 0,3,1 and loads after it, so the chosen button went white on its white thumb on
-   hover (8.8): this one, at 0,4,1, outweighs it, and the chosen label stays dark whatever the page says.
-   test-surfaces.js holds every page's hover rule under it. */
-.seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked):hover:not(:disabled) { color: var(--bg); }
-/* Transform and opacity alone (8.7): seg.js writes the new width before the
-   transform, so the thumb takes its size as the slide starts and only the
-   slide is animated; a width tween relaid the thumb out every frame. */
-/* The thumb SLIDES (8.9.2): a thing moving from one place on screen to
-   another, so --ease-in-out over --dur-move, slow at both ends where the eye
-   picks it up and sets it down. */
-.seg-thumb { position: absolute; top: 0; left: 0; z-index: 0; border-radius: var(--r-btn); background: var(--text); box-shadow: var(--hi-ink), var(--drop); opacity: 0; transition: transform var(--dur-move) var(--ease-in-out), opacity var(--t-fast) var(--ease); pointer-events: none; }
+/* ── The segmented control ───────────────────────────────────────────────────
+   One track on the card's fill and its hairline, 4px in, radius 12; one
+   thumb, the raised fill with the stronger hairline, radius 8, that slides
+   to the chosen button on the smooth spring over 240ms. shared/seg.js
+   (occlaraSeg) adds .seg-slide and the aria-hidden .seg-thumb; the buttons
+   keep their own state (aria-pressed, aria-selected, .on, .active, .picked)
+   and are drawn flat and transparent over it, so the thumb is the only fill. */
+.seg-slide { position: relative; display: inline-flex; gap: 0; padding: 4px; border: 1px solid var(--line); border-radius: var(--r-btn); background: var(--card); }
+.seg-slide > button { position: relative; z-index: 1; height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: transparent; color: var(--text-dim); font: 600 13px var(--font); letter-spacing: -0.005em; cursor: pointer; transition: color var(--dur-hover-out) var(--ease-out); }
+.seg-slide > button:hover:not(:disabled) { color: var(--text); transition-duration: var(--dur-hover-in); }
+.seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked), .seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked):hover { color: var(--text); }
+/* A page's own `.seg > button:hover:not(:disabled) { color: ... }` ties the
+   rule above at 0,3,1 and loads after it; this one, at 0,4,1, outweighs it,
+   so the chosen label keeps the ink on its thumb whatever the page says. */
+.seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked):hover:not(:disabled) { color: var(--text); }
+/* The thumb SLIDES: seg.js writes the new width before the transform, so only
+   the slide animates, a selection settling on the smooth spring. */
+.seg-thumb { position: absolute; top: 0; left: 0; z-index: 0; border-radius: 8px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); opacity: 0; transition: transform var(--dur-select) var(--spring-smooth), opacity var(--t-fast) var(--ease); pointer-events: none; }
 .seg-thumb.on { opacity: 1; }
 .seg-thumb.still { transition: opacity var(--t-fast) var(--ease); }
 
@@ -307,10 +371,8 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 /* ── Shared motion utilities ──────────────────────────────────────────────
-   Surfaces opt into these instead of redefining the same entrance five times.
-   Rows that arrive after load rise six pixels: enough to read as movement and
-   small enough never to look like a slide deck. Staggering is done with an
-   inline --i index on each row, 40ms apart (the caller caps it at eight). */
+   Rows that arrive after load rise six pixels, 40ms apart by an inline --i
+   (the caller caps it at eight). */
 .rise-in {
   animation: riseIn var(--t-slow) var(--ease-expo) both;
   animation-delay: calc(var(--i, 0) * 40ms);
@@ -320,12 +382,11 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
   to   { opacity: 1; transform: none; }
 }
 
-/* Cards that respond to the pointer: a small lift reads as depth without
-   moving neighbours, since transform does not affect layout. */
-.hover-lift { transition: transform var(--t-med) var(--ease-expo), border-color var(--t-med) var(--ease); }
-.hover-lift:hover { box-shadow: var(--lift); border-color: rgba(255,255,255,0.16); }
+/* A block that answers the pointer with a 1px lift and the stronger hairline. */
+.hover-lift { transition: transform 200ms var(--ease-out), border-color 200ms var(--ease-out); }
+.hover-lift:hover { border-color: var(--line-2); }
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .hover-lift:hover { transform: translateY(-2px); }
+  .hover-lift:hover { transform: translateY(-1px); }
 }
 
 /* Numbers that should feel earned rather than printed. */
@@ -336,73 +397,42 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
   color: transparent;
 }
 
-/* A control group that is inapplicable right now (for example the tip
-   transparency slider while the Minimal style is selected, which draws no
-   card to fade). Dimmed and inert, but its explanatory text stays readable so
-   the user can see WHY it is off. */
+/* A control group that does not apply right now: dimmed and inert, its words
+   still readable so the reason shows. */
 .disabled { opacity: 0.45; }
 .disabled input,
 .disabled button,
 .disabled select { pointer-events: none; }
 
-/* A button that presses in properly rather than just changing colour. */
-.press { transition: transform var(--dur-press) var(--ease-out); }
-.press:where(:not(:disabled)):active { transform: scale(0.97); }
+/* A thing that presses in properly rather than only changing colour. */
+.press { transition: transform var(--dur-spring) var(--spring-gentle); }
+.press:where(:not(:disabled)):active { transform: scale(0.97); transition-duration: var(--dur-press); transition-timing-function: var(--ease-out); }
 
-/* Icon buttons get a soft halo with the keyboard's focus, but one whose
-   ::after is its keycap ([data-keys], above). */
-.icon-btn:not([data-keys])::after {
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: inherit;
-  box-shadow: 0 0 0 0 rgba(var(--cyan-rgb), 0.28);
-  transition: box-shadow var(--t-med) var(--ease);
-  pointer-events: none;
-}
-.icon-btn:not([data-keys]):focus-visible::after { box-shadow: 0 0 0 3px rgba(var(--cyan-rgb), 0.18); }
-
-/* Numbers that count up rather than snapping into place. */
 @keyframes countIn {
   from { opacity: 0; transform: translateY(6px) scale(0.96); }
   to   { opacity: 1; transform: none; }
 }
-
-/* Window surfaces settle in rather than appearing. */
 @keyframes sheetIn {
   from { opacity: 0; transform: translateY(12px) scale(0.985); }
   to   { opacity: 1; transform: none; }
 }
 
 /* ── Motion ─────────────────────────────────────────────────────────────────
-   Restraint is the point: short durations, small distances, and nothing that
-   loops. Nothing here plays during a match, when the window shows only the
-   Recording screen, and nothing on that screen moves but its arrival.
+   Nothing here plays during a match, when the window shows only the
+   Recording screen, and nothing on that screen moves but its arrival. The
+   segmented buttons answer the pointer in their ink and press to .97. */
+.seg button { transition: color var(--dur-hover-out) var(--ease-out), transform var(--dur-spring) var(--spring-gentle); }
+.seg button:where(:not(:disabled)):active { transform: scale(0.97); transition-duration: var(--dur-press); transition-timing-function: var(--ease-out); }
 
-   prefers-reduced-motion is honoured at the bottom rather than per rule, so a
-   new animation cannot forget to opt in. */
-
-/* Controls answer the pointer in their fill and their ink. */
-.btn, .icon-btn, .seg button {
-  transition: background var(--t-fast) var(--ease),
-              border-color var(--t-fast) var(--ease),
-              color var(--t-fast) var(--ease),
-              transform var(--t-fast) var(--ease);
-}
-.seg button:where(:not(:disabled)):active { transform: scale(0.97); transition-duration: var(--dur-press); }
-
-/* THE FOCUS RING ARRIVES (8.9.2): the keyboard's ring comes in from 3px
-   further out and from nothing, over --dur-fast, so the eye catches where
-   the focus landed. Outline only, which never lays anything out. */
+/* THE FOCUS RING ARRIVES: from 3px further out and from nothing, outline only. */
 @keyframes focusIn { from { outline-color: transparent; outline-offset: 5px; } }
 @media (prefers-reduced-motion: no-preference) {
   .btn:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible,
   input:focus-visible, select:focus-visible { animation: focusIn var(--dur-fast) var(--ease-out); }
 }
 
-/* A LINK THAT READS AS TEXT (8.9.2): <a class="u-link"> or a button of that
-   class. Its underline draws in from the left under the pointer or the
-   keyboard's focus and leaves to the right, a 1px rule moved by scaleX,
-   never a text-decoration that would jump. */
+/* A LINK THAT READS AS TEXT: <a class="u-link">. Its underline draws in from
+   the left and leaves to the right, a 1px rule moved by scaleX. */
 .u-link { position: relative; color: var(--text-dim); text-decoration: none; cursor: pointer; transition: color var(--t-fast) var(--ease); }
 .u-link::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px;
@@ -416,10 +446,10 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
   .u-link:hover::after { transform: none; transform-origin: 0 50%; }
 }
 
-/* Focus is visible and uses the white accent, not a browser default outline. */
+/* The keyboard's ring: the accent's lighter step, one of its places. */
 .btn:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible,
 input:focus-visible, select:focus-visible {
-  outline: 2px solid rgba(var(--cyan-rgb), 0.55);
+  outline: 2px solid var(--accent-2);
   outline-offset: 2px;
 }
 
@@ -429,31 +459,24 @@ input:focus-visible, select:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  /* No movement at all (8.9.2): a press keeps its inset shadow and its fill
-     and does not shrink; the ring is simply there. */
+  /* No movement at all: a press keeps its fill and does not shrink, the
+     arrow is simply there or not, the ring simply there. */
   .btn:where(:not(:disabled)):active, .icon-btn:where(:not(:disabled)):active,
   .seg button:where(:not(:disabled)):active, .press:where(:not(:disabled)):active { transform: none; }
+  .btn:has(> .btn-arrow) > .btn-label, .btn-arrow { transform: none; }
 }
 
-/* Words for a screen reader alone: the label the shell's agent box has no
-   room to show, the sentence the library's "2:1" record stands for. Clipped
-   to nothing rather than display: none, which hides it from a screen reader
-   as well. */
+/* Words for a screen reader alone. */
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 
 /* ── A surface as a page of the main window ────────────────────────────────
-   Since 8.1 the library, the review, Settings, Stats and Ask Coach are pages
-   of one window (src/main/windows/main-window.js), each in a view of its own.
-   embed.js marks the page html.embedded, and the window chrome each surface
-   draws for itself goes: the transparent gutter and the glass card (the shell
-   owns the window's edge), the close button (the sidebar is how you leave a
-   page) and the drag region (the shell's top strip moves the window). The
-   page fills its view on the ground colour, and its header becomes the page
-   title the mockups set, larger and without the logo the sidebar already
-   carries. */
+   embed.js marks a page html.embedded, and the window chrome each surface
+   draws for itself goes: the gutter and the glass, the close button and the
+   drag region. The page fills its view on the ground, and its header becomes
+   the page title. */
 html.embedded, html.embedded body { background: var(--bg); }
 html.embedded .sheet.glass {
   margin: 0;
@@ -471,76 +494,62 @@ html.embedded .sheet > header {
   border-bottom: 0;
 }
 html.embedded .sheet > header .h-brand img { display: none; }
-/* The page title (8.6): Geist 600 at 24px on the app's own tracking. The size
-   is the record's beside it in Matches (matches.css), so the two stay one. */
-html.embedded .sheet > header .h-brand h2 { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); }
+/* The page title: Onest 700 at 28px on the display tracking, sentence case. */
+html.embedded .sheet > header .h-brand h2 { font-size: 28px; font-weight: 700; letter-spacing: var(--track-display); }
 html.embedded .sheet > header #close { display: none; }
-/* The page's title and content share one column, centred up to the width the
-   mockups set, so a maximised window does not stretch a line of text across a
-   whole monitor. */
+/* The page's title and content share one column, centred up to 1040px. */
 html.embedded .sheet > header,
 html.embedded .sheet > .body {
   padding-left: max(var(--space-8), calc((100% - 1040px) / 2));
   padding-right: max(var(--space-8), calc((100% - 1040px) / 2));
 }
-/* What sits below the scrolling body (Ask Coach's composer, Settings' footer)
-   keeps the same column. */
 html.embedded .sheet > .composer,
 html.embedded .sheet > footer {
   padding-left: max(var(--space-8), calc((100% - 1040px) / 2));
   padding-right: max(var(--space-8), calc((100% - 1040px) / 2));
 }
-/* A page comes in by the page motion below, so the card entrance a surface
-   plays as a window of its own would be a second one on top. */
+/* A page comes in by the page motion below, so a surface's own card
+   entrance as a window would be a second one on top. */
 html.embedded .sheet { animation: none; }
 
-/* ── Moving between pages (8.2) ───────────────────────────────────────────
+/* ── Moving between pages ─────────────────────────────────────────────────
    embed.js and main-window.js: a page is ARMED before it is shown (invisible,
-   12px toward the side it comes from: forward from the right, back from the
-   left), painted that way out of sight, and only then let in. Coming in is
-   the one transition, --t-med on --ease-expo, opacity and transform only, so
-   it stays on the compositor. The page it replaces fades as it goes, and is
-   usually taken away before the fade is through.
+   8px low), painted that way out of sight, and only then let in: it rises
+   8px and fades in over 380ms, the rise on the smooth spring. The page it
+   replaces fades out with a 4px blur in 160ms, and is usually taken away
+   before the fade is through. Opacity, transform and filter only.
 
-   Arming is instant (transition: none): the frame painted out of sight has to
-   be the armed one, not a step of an animation toward it. And never for good:
-   with no word from main within 1.2 seconds (a page loaded with no window to
-   show it in, a message lost), page-disarm lets the page in by itself.
+   Arming is instant (transition: none), and never for good: with no word
+   from main within 1.2 seconds, page-disarm lets the page in by itself.
 
-   The body moves, never html, whose ground stays put under it, so a page
-   moving in shows the same --bg at its edge rather than whatever is behind
-   the view. */
+   The body moves, never html, whose ground stays put under it. */
 html.embedded body {
-  transition: opacity var(--t-med) var(--ease-expo), transform var(--t-med) var(--ease-expo);
+  transition: opacity var(--dur-page-in) var(--ease-out), transform var(--dur-page-in) var(--spring-smooth);
 }
 html.page-leaving body {
   opacity: 0;
-  transition: opacity var(--t-fast) var(--ease);
+  filter: blur(4px);
+  transition: opacity var(--dur-page-out) var(--ease-out), filter var(--dur-page-out) var(--ease-out);
 }
 html.page-armed body {
   opacity: 0;
-  transform: translateX(var(--page-from, 0px));
+  transform: translateY(var(--page-from, 8px));
   transition: none;
   animation: page-disarm 0s linear 1.2s forwards;
 }
-html.page-armed[data-page-dir="forward"] { --page-from: 12px; }
-html.page-armed[data-page-dir="back"] { --page-from: -12px; }
+html.page-armed[data-page-dir="forward"] { --page-from: 8px; }
+html.page-armed[data-page-dir="back"] { --page-from: 8px; }
 @keyframes page-disarm { to { opacity: 1; transform: none; } }
-/* Asked for less motion, going from page to page is a plain cut. A page is
-   still painted out of sight before it is shown, which is what keeps a stale
-   frame off the screen, but painted as it is: an invisible armed page and the
-   fade out of the one leaving would only be a blank frame between the two. */
+/* Asked for less motion, going from page to page is a plain cut, still
+   painted out of sight first. */
 @media (prefers-reduced-motion: reduce) {
   html.page-armed body,
   html.page-leaving body { opacity: 1; transform: none; }
+  html.page-leaving body { filter: none; }
 }
 
-/* ── Opening in place by height (8.2) ────────────────────────────────────
-   For what opens under the thing that opened it (Stats' rank notes, a
-   breakdown row): a one row grid whose row grows from 0fr to 1fr, so it opens
-   to exactly its content's height and closes back, and nothing below jumps.
-   The visible box goes INSIDE .reveal-clip: a padding or border on the clip
-   itself would still show at 0fr. */
+/* ── Opening in place by height ───────────────────────────────────────────
+   A one row grid whose row grows from 0fr to 1fr. */
 .reveal {
   display: grid;
   grid-template-rows: 0fr;
@@ -548,3 +557,12 @@ html.page-armed[data-page-dir="back"] { --page-from: -12px; }
 }
 .reveal.open { grid-template-rows: 1fr; }
 .reveal > .reveal-clip { min-height: 0; overflow: hidden; }
+
+/* ── The sub switch: a page group's own pages ─────────────────────────────
+   Matches holds Matches, Patterns and Stats, Practice holds the drills and
+   the Trainer (shared/subnav.js): one segmented control at the head of each
+   of those pages, the current page chosen, the others a press away. */
+.subnav { display: flex; align-items: center; gap: var(--space-3); }
+.subnav .seg-slide > button { height: 30px; padding: 0 14px; }
+/* Beside the page's title, the rest of its head pushed to the right. */
+html.embedded .sheet > header .subnav { margin-left: var(--space-5); margin-right: auto; }

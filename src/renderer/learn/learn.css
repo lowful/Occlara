@@ -166,7 +166,7 @@ header h2 { font-size: 20px; font-weight: 600; letter-spacing: var(--track-displ
   background: none; border: 0; font-family: var(--font);
   cursor: pointer; padding: var(--space-3) var(--space-2);
   display: flex; align-items: center; gap: var(--space-3);
-  border-radius: var(--r-card);
+  border-radius: var(--r-frame);
 }
 .row-tick { padding-right: 0; }
 .row-open { flex: 1; text-align: left; min-width: 0; }
@@ -201,7 +201,7 @@ header h2 { font-size: 20px; font-weight: 600; letter-spacing: var(--track-displ
 .pick:last-child { border-bottom: 1px solid var(--line); }
 /* Riot's Data Dragon licenses these for third-party use, which is why League
    ships real portraits: the one framed image on the page. */
-.pick img { flex: none; width: 32px; height: 32px; border-radius: var(--r-card); background: rgba(0, 0, 0, 0.3); }
+.pick img { flex: none; width: 32px; height: 32px; border-radius: var(--r-frame); background: rgba(0, 0, 0, 0.3); }
 .pick-text { min-width: 0; }
 .pick-name { font-size: 14px; font-weight: 500; color: var(--text); }
 .pick-why { font-size: 12px; color: var(--text-mute); line-height: 1.4; }
@@ -215,7 +215,7 @@ header h2 { font-size: 20px; font-weight: 600; letter-spacing: var(--track-displ
   background: transparent; border: none; cursor: pointer;
   font-family: var(--font); font-size: 13px; font-weight: 500;
   color: var(--text-mute);
-  border-radius: var(--r-card);
+  border-radius: var(--r-frame);
   transition: color var(--t-fast) var(--ease);
 }
 .back-btn:hover { color: var(--text); }
@@ -255,7 +255,7 @@ header h2 { font-size: 20px; font-weight: 600; letter-spacing: var(--track-displ
 .opt:last-child { border-bottom: 1px solid var(--line); }
 .opt:hover:not(:disabled) { background: rgba(255, 255, 255, 0.035); color: var(--text); }
 .opt:disabled { cursor: default; }
-.opt:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
+.opt:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-frame); }
 /* Right and wrong carry a MARK as well as a colour, for the same reason the
    completion tick does. */
 .opt.right { color: var(--text); background: rgba(var(--good-rgb), 0.06); }
