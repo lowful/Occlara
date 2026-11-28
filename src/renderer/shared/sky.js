@@ -255,9 +255,10 @@
    * (html.rec-still, Motion.onAmbient), under reduced motion, or while an
    * ancestor holds it at no opacity (the shell's sky off Home): it draws one
    * frame where it stands and waits. The bake (once, a strip a frame) waits
-   * while the shell is sealed, so nothing heavy ever runs mid match, as the
-   * image moon was never drawn then; until it is done an image already kept
-   * is shown, or nothing.
+   * while the shell is sealed and while a match is recorded (html.rec-still,
+   * between matches too), so no canvas loop runs then, as the image moon was
+   * never drawn then; until it is done an image already kept is shown, or
+   * nothing, and it is taken up where it stopped once the recording ends.
    *
    * WHERE WEBGL IS MISSING (a test's DOM) or is the software renderer, the
    * image moon above stands in, as before.
@@ -424,7 +425,8 @@ void main() {
   const still = () => document.documentElement.classList.contains('rec-still');
   // Mid match the shell is sealed (and no page is on screen): nothing is
   // baked then, as the image moon was never drawn then. Between matches
-  // while recording (the Recording view, a page) it may be, once.
+  // while recording (the Recording view, a page) html.rec-still holds it
+  // too (9.1, the owner's item 9: every loop pauses while recording).
   const sealedHere = () => !!document.querySelector('.app.is-sealed');
   const ambientOn = () => (window.Motion && typeof window.Motion.ambientOn === 'function' ? window.Motion.ambientOn() : document.visibilityState !== 'hidden');
   const pageOut = () => {
@@ -569,11 +571,25 @@ void main() {
     }
     if (!setup()) return refuse();
 
-    /** One strip of the surface a frame, never while the shell is sealed. */
+    /** The bake waits: the shell sealed, or a match recorded (html.rec-still). */
+    const held = () => sealedHere() || still();
+    /** While it waits unbaked, the image moon stands in (mid match only one already kept). */
+    const standIn = () => { if (!st.baked) imageMoon(host, !sealedHere()); };
+
+    /**
+     * One strip of the surface a frame, never while the shell is sealed and
+     * never while a match is recorded (html.rec-still), between matches
+     * included: it is a canvas loop like any other (the owner's item 9).
+     * Held, the image moon stands in (between matches drawn once if none is
+     * kept, a still picture as in 9.0; sealed, only one already kept), and
+     * the bake is taken up where it stopped once the recording ends (the
+     * observer below: wake) or the shell is unsealed (the shell lays it out
+     * again: wake).
+     */
     function bakeStep() {
       st.bakeRaf = 0;
       if (st.lost || st.baked) return;
-      if (sealedHere()) return;   // taken up again once unsealed (the shell lays it out again: wake)
+      if (held()) { standIn(); return; }
       const rows = TEX_H / STRIPS;
       gl.bindFramebuffer(gl.FRAMEBUFFER, st.fb);
       gl.viewport(0, st.strip * rows, TEX_W, rows);
@@ -652,7 +668,11 @@ void main() {
     /** Back to work: the bake where it stopped, then the frames. */
     function wake() {
       if (st.lost) return;
-      if (!st.baked) { if (!st.bakeRaf && !sealedHere()) st.bakeRaf = requestAnimationFrame(bakeStep); return; }
+      if (!st.baked) {
+        if (held()) standIn();
+        else if (!st.bakeRaf) st.bakeRaf = requestAnimationFrame(bakeStep);
+        return;
+      }
       if (st.raf || st.park) return;
       if (moving()) st.raf = requestAnimationFrame(frame);
     }
@@ -690,13 +710,20 @@ void main() {
     });
 
     host.append(canvas);
-    // While a match is recorded before it is ready, an image already kept
-    // stands in; nothing is drawn.
-    if (still() || sealedHere()) imageMoon(host, false);
+    // While a match is recorded before it is ready, the image moon stands
+    // in: mid match (sealed) only one already kept, between matches drawn
+    // once if none is, a still picture and no loop.
+    if (held()) standIn();
     // The bake starts once the page is idle, after its own first paint.
     const begin = () => { if (!st.bakeRaf && !st.baked) wake(); };
     if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(begin, { timeout: 1500 }); else setTimeout(begin, 120);
-    return { layout, wake, stop: () => { cancelAnimationFrame(st.raf); st.raf = 0; }, ready: () => st.baked };
+    // stop() holds the frames, and the bake with them while a match is
+    // recorded (a bake a hidden window held is taken up by wake, as before).
+    const stop = () => {
+      cancelAnimationFrame(st.raf); st.raf = 0;
+      if (still()) { cancelAnimationFrame(st.bakeRaf); st.bakeRaf = 0; standIn(); }
+    };
+    return { layout, wake, stop, ready: () => st.baked };
   }
 
   // The moons of this document, by host.

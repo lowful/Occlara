@@ -59,7 +59,8 @@ wins. What phase 1 changed, and what to keep true:
   it meet with no seam. Since 9.1 the moon is a sphere on the GPU that turns
   slowly (below, "Home (9.1)"); where WebGL is missing it is the image moon,
   drawn once (a few hundred ms) and kept in localStorage, which every page
-  shares. It is never drawn or baked mid match.
+  shares. It is never drawn or baked mid match, nor baked while recording
+  between matches.
 - **The Recording screen** is one centred column over the sky (screen-silence.md).
 - **Home** is the fix as the hero (split at its colon into a headline and a grey
   sub line), Start and Open last review, the last match's agent STANDING in
@@ -1748,7 +1749,10 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   meet with no seam. 30 frames at most; no frame while ambient motion is off
   (a recording's html.rec-still, the window or page out of sight, reduced
   motion) or an ancestor holds it at no opacity; the bake waits while the
-  shell is sealed. The software renderer or no WebGL gets the image moon.
+  shell is sealed and while a match is recorded (html.rec-still, between
+  matches too, since it is a canvas loop like any other), an image already
+  kept standing in, and is taken up where it stopped once the recording
+  ends. The software renderer or no WebGL gets the image moon.
   `window.__occlaraMoonTime` (seconds) holds the clock for a picture.
 - **Pictures**: `scripts/shot-demo.js` scenes homerank, homeimmortal,
   homeradiant, homeiron, homeungraded, homefoot, homehover, hometip,

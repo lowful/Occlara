@@ -309,8 +309,17 @@ async function openHome(o) {
   ok(/Date\.now\(\) \/ 1000/.test(sky) && /const TURN_S = \d+/.test(sky) && Number(sky.match(/const TURN_S = (\d+)/)[1]) >= 600,
     'it turns by the wall clock, so every document agrees, and slowly (one turn in ten minutes or more)');
   ok(/const FPS = 30;/.test(sky) && /1000 \/ FPS/.test(sky), 'at 30 frames a second at most');
-  ok(/Motion\.onAmbient/.test(sky) && /ambientOn\(\)/.test(sky) && /rec-still/.test(sky) && /if \(sealedHere\(\)\) return;/.test(sky)
+  ok(/Motion\.onAmbient/.test(sky) && /ambientOn\(\)/.test(sky) && /rec-still/.test(sky) && /const held = \(\) => sealedHere\(\) \|\| still\(\);/.test(sky) && /if \(held\(\)\) \{ standIn\(\); return; \}/.test(sky)
     && /\.app\.is-sealed/.test(sky), 'still while a match is recorded (ambient off and html.rec-still), and never baked mid match (the shell sealed)');
+  // The bake is a canvas loop too (item 9): it waits under html.rec-still
+  // between matches as well, and is taken up again as the recording ends.
+  const wakeFn = sky.slice(sky.indexOf('function wake()'), sky.indexOf('function layout()'));
+  ok(/if \(held\(\)\) standIn\(\);\s+else if \(!st\.bakeRaf\) st\.bakeRaf = requestAnimationFrame\(bakeStep\);/.test(wakeFn),
+    'the bake never starts while a match is recorded, between matches included', wakeFn.slice(0, 200));
+  ok(/if \(still\(\)\) \{ cancelAnimationFrame\(st\.bakeRaf\); st\.bakeRaf = 0; standIn\(\); \}/.test(sky) && /if \(now\) m\.stop\(\); else m\.wake\(\);/.test(sky),
+    'a bake under way stops as a recording starts and is taken up where it stopped as it ends');
+  ok(/const standIn = \(\) => \{ if \(!st\.baked\) imageMoon\(host, !sealedHere\(\)\); \};/.test(sky),
+    'while it waits unbaked the image moon stands in, a still picture, mid match only one already kept');
   ok(/page-armed/.test(sky) && /page-leaving/.test(sky) && /visibilityState === 'hidden'/.test(sky) && /hiddenAbove\(host\)/.test(sky),
     'and while its page or window is out of sight, or an ancestor holds it at no opacity');
   ok(/software\(gl\)/.test(sky) && /imageMoon\(host, true\)/.test(sky), 'where WebGL is missing or is the software renderer, the image moon stands in');
