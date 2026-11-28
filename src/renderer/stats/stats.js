@@ -327,6 +327,66 @@ async function paintRankDelta(el) {
   el.title = 'RR from your last rated game';
 }
 
+/*
+ * THE RANK'S OWN ICON (9.1, the owner's item 10): the tier's icon from the
+ * bundled set (sync:rankicons; the preload names the file) before the tier,
+ * fading in once decoded; a name the ladder does not know, or a file that
+ * fails, leaves the words alone.
+ */
+function paintRankIcon(card, tier) {
+  const src = tier && typeof window.occlara.rankIcon === 'function' ? window.occlara.rankIcon(tier) : null;
+  const row = card.querySelector('.val-row');
+  if (!src || !row) return;
+  const img = document.createElement('img');
+  img.className = 'rank-icon';
+  img.alt = '';
+  img.decoding = 'async';
+  img.draggable = false;
+  img.addEventListener('load', () => img.classList.add('ready'), { once: true });
+  img.addEventListener('error', () => { img.remove(); row.classList.remove('with-icon'); }, { once: true });
+  img.src = src;
+  row.classList.add('with-icon');
+  row.prepend(img);
+}
+
+/*
+ * THE WAY TO THE NEXT TIER (9.1, item 10), under the rank: the RR in the tier
+ * as a bar and how far to the next ("43 RR to Diamond 2"), from the rank
+ * history's newest rated game, only when it is the tier the tile shows. From
+ * Immortal 1 the RR is not capped at 100: no bar, the RR and that the next
+ * rank follows the leaderboard.
+ */
+async function paintRankProgress(card, tier) {
+  if (!tier || typeof window.occlara.rankProgress !== 'function') return;
+  const points = await rrPoints();
+  const newest = [...points].reverse().find((p) => p && p.elo > 0 && p.tier && !/unrated|unranked/i.test(p.tier));
+  // The tile may have been built again meanwhile (the mode, Refresh): only the one on the page.
+  if (!newest || String(newest.tier).trim().toLowerCase() !== String(tier).trim().toLowerCase() || !cardsEl.contains(card)) return;
+  const prog = window.occlara.rankProgress(newest.tier, newest.elo);
+  if (!prog) return;
+  const box = document.createElement('div');
+  box.className = 'rank-progress' + (prog.capped ? '' : ' uncapped');
+  if (prog.capped) {
+    const bar = document.createElement('div');
+    bar.className = 'rank-bar';
+    const fill = document.createElement('i');
+    fill.style.width = `${Math.max(1, Math.min(100, prog.rr))}%`;
+    bar.append(fill);
+    box.append(bar);
+  }
+  const foot = document.createElement('div');
+  foot.className = 'rank-foot';
+  const a = document.createElement('span');
+  const b = document.createElement('span');
+  // Below Immortal the quiet line under it already says the RR: the foot says only how far to go.
+  a.textContent = prog.capped ? '' : `${prog.rr} RR`;
+  b.textContent = prog.capped ? `${100 - prog.rr} RR to ${prog.next || 'the next rank'}` : prog.next ? `${prog.next} follows the leaderboard` : 'The highest rank';
+  foot.append(a, b);
+  box.append(foot);
+  const sub = card.querySelector('.rank-sub');
+  if (sub) card.insertBefore(box, sub); else card.append(box);
+}
+
 /** Nothing to count yet: no rank and no number, as before a Riot ID is connected. */
 function nothingToShow(d) {
   const c = d.categories || {};
@@ -342,6 +402,11 @@ function renderCards(d) {
   rr.className = 'arrow rr';
   rr.textContent = '';
   paintRankDelta(rr);
+  // 9.1: the tier's icon beside it and the way to the next tier under it.
+  if (!nothingToShow(d)) {
+    paintRankIcon(rankCard, d.rank && d.rank.value);
+    paintRankProgress(rankCard, d.rank && d.rank.value);
+  }
   rankCard.classList.add('clickable');
   const chev = document.createElement('span');
   chev.className = 'rank-chev';

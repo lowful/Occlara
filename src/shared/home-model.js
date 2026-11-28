@@ -24,6 +24,7 @@
  */
 
 const { noSemicolons } = require('./plain-text');
+const Tiers = require('./rank-tiers');
 
 const TREND = 5;
 const RECENT = 5;
@@ -116,6 +117,10 @@ function homeModel({ rows, patterns, review, previous }) {
     // of game numbers) fills: none while the review is still being built,
     // since its numbers are not whole yet.
     kd: workOfRow(newest) ? null : kdOf(whole && whole.scoreline),
+    // 9.1, the owner's item 1: a newest match with no grade (a recording
+    // stopped after two rounds) says so plainly, and why, where its grade
+    // would be. Null for a graded match and one still being built.
+    noGrade: noGradeOf(newest, whole),
   } : null;
 
   // Out of the RECORDED matches the patterns counted it in: a match graded
@@ -128,10 +133,18 @@ function homeModel({ rows, patterns, review, previous }) {
     trend: first.trend || null,
   } : null;
   // Progress v3: the four most repeated, each with how often it happened
-  // (its total over the recorded matches) and in how many of them.
+  // (its total over the recorded matches) and in how many of them. 9.1, the
+  // owner's item 4: and which way it is going (patterns.js trendOf, the newer
+  // half of the recorded matches against the older), with the words its
+  // arrow's tooltip says.
+  const recorded = Number.isFinite(p.recorded) ? p.recorded : null;
   const mistakes = (Array.isArray(p.mistakes) ? p.mistakes : []).slice(0, 4)
     .filter((m) => m && typeof m.title === 'string' && m.title)
-    .map((m) => ({ title: m.title, total: Number.isFinite(m.total) ? m.total : null, matches: Number.isFinite(m.matches) ? m.matches : null }));
+    .map((m) => {
+      const way = WAYS[m.trend] || null;
+      return { title: m.title, total: Number.isFinite(m.total) ? m.total : null, matches: Number.isFinite(m.matches) ? m.matches : null,
+        trend: way, trendWords: way ? mistakeTrendWords(m, way, recorded) : null };
+    });
 
   const grades = Array.isArray(p.grades) ? p.grades : [];
   const trend = grades.slice(0, TREND).reverse().map((g) => {
@@ -141,18 +154,27 @@ function homeModel({ rows, patterns, review, previous }) {
 
   // THE FIX NEVER LEAVES THE PAGE (8.7): while the newest review is still
   // being written, the last whole review's fix stands in, and says so
-  // (focusPrevious), rather than Home opening on nothing to do.
+  // (focusPrevious), rather than Home opening on nothing to do. 9.1: and
+  // when the newest match has no grade and so no fix (a recording stopped
+  // after two rounds), the last graded match's fix stands in the same way.
   const ownFocus = whole && typeof whole.focus === 'string' && whole.focus.trim() ? whole.focus : null;
-  const prevFocus = !ownFocus && last && last.work && previous && typeof previous.focus === 'string' && previous.focus.trim()
+  const stands = last && (last.work || last.noGrade);
+  const prevFocus = !ownFocus && stands && previous && typeof previous.focus === 'string' && previous.focus.trim()
     ? previous.focus : null;
 
   return {
     last,
     focus: noSemicolons(ownFocus || prevFocus),
     focusPrevious: !!prevFocus,
+    // Why the fix is an older one's: 'writing' (the newest is still being
+    // built) or 'ungraded' (the newest has no grade), or null.
+    focusFrom: prevFocus ? (last.work ? 'writing' : 'ungraded') : null,
+    // 9.1, the owner's item 4: the grade's way over the last matches, for
+    // the trend card's arrow and its tooltip, or null below four grades.
+    gradeTrend: gradeTrendOf(grades),
     top,
     mistakes,
-    recorded: Number.isFinite(p.recorded) ? p.recorded : null,
+    recorded,
     trend,
     average: grades.length >= 2 && typeof p.average === 'number' ? p.average : null,
     // The newest match's first progress line (8.7, progress.js libraryProgress),
@@ -181,6 +203,88 @@ function kdOf(scoreline) {
   if (!whole(s.kills) || !whole(s.deaths)) return null;
   const ratio = s.deaths > 0 ? s.kills / s.deaths : s.kills;
   return { kills: s.kills, deaths: s.deaths, ratio: ratio.toFixed(2) };
+}
+
+/*
+ * WHY THE NEWEST MATCH HAS NO GRADE (9.1, the owner's item 1). The owner's
+ * Home said "Your last match is graded." over a two round Haven recording
+ * that had none. A grade needs enough of the match to speak (grade.js
+ * finish), so a recording stopped after a few rounds has none: it says how
+ * many rounds were recorded, from the review's own count. Riot's record
+ * having the player sit out every round says that. Anything else, plainly,
+ * that too little was seen. Null for a graded match or one still being
+ * built, whose grade is on its way.
+ */
+const FEW_ROUNDS = 6;
+function noGradeOf(row, review) {
+  if (!row || row.grade || workOfRow(row)) return null;
+  const w = review && review.watched && typeof review.watched === 'object' ? review.watched : null;
+  const n = w && Number.isInteger(w.rounds) && w.rounds >= 0 ? w.rounds : null;
+  if (n !== null && n <= FEW_ROUNDS) {
+    return { rounds: n, text: n === 0 ? 'No round was recorded, so there is nothing to grade.'
+      : `Only ${n} round${n === 1 ? ' was' : 's were'} recorded, too few to grade.` };
+  }
+  const notes = review && review.grade && Array.isArray(review.grade.notes) ? review.grade.notes : [];
+  const said = notes.find((s) => typeof s === 'string' && /nothing to grade/.test(s));
+  return { rounds: n, text: said || 'Too little of this match was seen to grade it.' };
+}
+
+/*
+ * WHICH WAY A REPEATED MISTAKE IS GOING (9.1, the owner's item 4): patterns.js
+ * trendOf compares how many of the newer half of the recorded matches it
+ * showed up in with the older half ('rising' is more often lately). An arrow
+ * up is getting worse, down getting better, a flat line steady, and its
+ * tooltip says exactly what was compared. A cause's trend is counted over the
+ * matches the coach looked at with one prompt (patterns.js), so its words
+ * give no counts that are not its own.
+ */
+const WAYS = { rising: 'up', falling: 'down', steady: 'flat' };
+function mistakeTrendWords(m, way, n) {
+  const lead = way === 'up' ? 'Getting worse' : way === 'down' ? 'Getting better' : 'Steady';
+  const newer = Number.isInteger(m.newer) ? m.newer : null;
+  const older = Number.isInteger(m.older) ? m.older : null;
+  const byLook = String(m.key || '').startsWith('cause:');
+  if (byLook || !Number.isInteger(n) || n < 4 || newer === null || older === null) {
+    return way === 'up' ? `${lead}: it shows up in more of your newer recorded matches than the ones before.`
+      : way === 'down' ? `${lead}: it shows up in fewer of your newer recorded matches than the ones before.`
+        : `${lead}: it shows up as often in your newer recorded matches as in the ones before.`;
+  }
+  const a = Math.ceil(n / 2), b = Math.floor(n / 2);
+  const now = `in ${newer} of your ${a} newest recorded matches`;
+  if (way === 'up') return `${lead}: ${now}, up from ${older} of the ${b} before them.`;
+  if (way === 'down') return `${lead}: ${now}, down from ${older} of the ${b} before them.`;
+  return `${lead}: ${now}, and ${older} of the ${b} before them.`;
+}
+
+/*
+ * WHICH WAY THE GRADE IS GOING (9.1, the owner's item 4), for the trend card:
+ * the average of the grades its line draws (the last TREND) against the
+ * average of the TREND before them, with two or more of those; else, with
+ * four or more drawn, the newer half of the line against the older half.
+ * Three points either way is steady: one match moves a grade more than that.
+ * Null below four grades, where no direction is honest. `words` is the
+ * arrow's tooltip, saying exactly what was compared.
+ */
+const GRADE_STEADY = 3;
+function gradeTrendOf(grades) {
+  const g = (Array.isArray(grades) ? grades : []).map((x) => Number(x && x.score)).filter((v) => Number.isFinite(v));
+  const avg = (xs) => Math.round(xs.reduce((s, v) => s + v, 0) / xs.length);
+  const shown = g.slice(0, TREND);
+  let a, b, said;
+  if (g.length - shown.length >= 2) {
+    const before = g.slice(TREND, TREND * 2);
+    a = avg(shown); b = avg(before);
+    said = `your last ${shown.length} graded matches average ${a}, the ${before.length} before them ${b}.`;
+  } else if (shown.length >= 4) {
+    const k = Math.ceil(shown.length / 2);
+    const newer = shown.slice(0, k), older = shown.slice(k);
+    a = avg(newer); b = avg(older);
+    said = `your newest ${newer.length} graded matches average ${a}, the ${older.length} before them ${b}.`;
+  } else return null;
+  const delta = a - b;
+  const way = delta >= GRADE_STEADY ? 'up' : delta <= -GRADE_STEADY ? 'down' : 'flat';
+  const lead = way === 'up' ? 'Getting better' : way === 'down' ? 'Getting worse' : 'Steady';
+  return { way, delta, recent: a, before: b, words: `${lead}: ${said}` };
 }
 
 /** One row's marks as main counted them: [{ kind, text }], never one without its text. */
@@ -228,7 +332,10 @@ const gameRR = (p) => typeof p.elo === 'number' && p.elo > 0 && Number.isFinite(
  *   oldest first, and empty below two points, because one point draws no line
  */
 function inTier(p) {
-  if (!p || typeof p.elo !== 'number' || /immortal|radiant/i.test(String(p.tier || ''))) return null;
+  if (!p || typeof p.elo !== 'number') return null;
+  // From Immortal 1 the RR is not capped at 100 (9.1, rank-tiers.js): the
+  // RR over the tier's own base, as the game shows it, or nothing.
+  if (/immortal|radiant/i.test(String(p.tier || ''))) return Tiers.rrOf(p.tier, p.elo);
   const rr = p.elo % 100;
   return Number.isInteger(rr) && rr >= 0 && rr < 100 ? rr : null;
 }
@@ -251,9 +358,15 @@ function rankModel(history) {
     games: journey.length,
     from: journey[0].tier,
     // The RR inside the tier (Progress v3, the rank card's bar): Riot's elo
-    // is the tier's place times 100 plus the RR, so the RR is its last two
-    // digits, and only below Immortal, where the RR is not capped at 100.
+    // is the tier's place times 100 plus the RR, so below Immortal the RR is
+    // its last two digits; from Immortal 1 it is the RR over the tier's base,
+    // uncapped (9.1).
     rr: inTier(rated[rated.length - 1]),
+    // 9.1, the owner's item 10: the tier after it ("Diamond 2"), null at
+    // Radiant, and whether the RR runs in steps of 100 (below Immortal), so
+    // the card shows the way to the next rank only where there is a fixed one.
+    next: Tiers.nextOf(rated[rated.length - 1].tier),
+    capped: Tiers.capped(rated[rated.length - 1].tier),
   };
 }
 
@@ -409,4 +522,5 @@ function rrWaitingFor(row, rr, now) {
   return typeof end === 'number' && Number.isFinite(end) && now - end <= RR_WAIT_MS;
 }
 
-module.exports = { homeModel, kdOf, winLoss, rankModel, rrForRows, pointForMatch, rrWaiting, rrWaitingFor, TREND, RECENT, RR_WINDOW_MS, RR_EXACT_MS, RR_WAIT_MS };
+module.exports = { homeModel, kdOf, winLoss, rankModel, rrForRows, pointForMatch, rrWaiting, rrWaitingFor, noGradeOf, gradeTrendOf, mistakeTrendWords,
+  TREND, RECENT, RR_WINDOW_MS, RR_EXACT_MS, RR_WAIT_MS };

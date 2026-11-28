@@ -65,38 +65,42 @@
          bar's, COACH_START, the loudest word in the app) and Open last
          review, and the line that the review opens when the match ends. Home
          is sealed mid match, so it is only ever seen ready, or recording
-         between matches, when Start goes and the line says so. -->
+         between matches, when Start goes and the line says so. 9.1 (the
+         owner's item 8): no "Your fix for next match" label over it (the
+         kicker speaks only when the fix is an older review's), and Start and
+         Open last review at 60px, each label centred with its arrow unseen. -->
     <section id="start-strip" class="card h-hero" aria-labelledby="h-fix">
       <div class="h-hero-copy">
-        <p id="h-kicker" class="h-kicker">Your fix for next match</p>
+        <p id="h-kicker" class="h-kicker" hidden></p>
         <h2 id="h-fix" class="o-display h-fix"><span id="h-fix-head" class="h-fix-head">Play one match and your first fix lands here.</span> <span id="h-fix-sub" class="h-fix-sub"></span></h2>
         <div class="h-actions">
-          <button id="h-start" class="btn btn-rec xl" type="button">
-            <span class="btn-label"><span class="rec-ico" aria-hidden="true"></span><span>Start</span></span><span class="btn-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          <button id="h-start" class="btn btn-rec xl h-big" type="button">
+            <span class="btn-label"><span class="rec-ico" aria-hidden="true"></span><span class="h-start-word">Start</span></span><span class="btn-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
           </button>
-          <button id="h-open" class="btn btn-primary lg" type="button" hidden>
+          <button id="h-open" class="btn btn-primary lg h-big" type="button" hidden>
             <span class="btn-label">Open last review</span><span class="btn-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
           </button>
-        </div>
-        <!-- THE LIVE RATING'S SWITCH (9.1, the owner's item 14), beside Start
-             so it is found before a match: the same switch as Settings',
-             past the same warning and confirm (docs/claude/screen-silence.md
-             "The live rating"). Valorant only; drawn by live-rating-switch.js,
-             main turning it on only for this page (LIVE_RATING_SET). Never on
-             the Recording screen. -->
-        <div id="h-lr" class="h-lr" hidden>
-          <div class="h-lr-pill">
-            <button id="h-lr-switch" class="switch h-lr-switch" type="button" role="switch" aria-checked="false" aria-labelledby="h-lr-label" aria-describedby="h-lr-hint"></button>
-            <span id="h-lr-label" class="h-lr-label">Live rating</span>
-            <span id="h-lr-hint" class="h-lr-hint">Off</span>
-          </div>
-          <div id="h-lr-confirm" class="h-lr-confirm" role="alertdialog" aria-labelledby="h-lr-confirm-title" aria-describedby="h-lr-confirm-body" hidden>
-            <p class="h-lr-confirm-title" id="h-lr-confirm-title">Show your rating while you play?</p>
-            <p class="h-lr-confirm-body" id="h-lr-confirm-body">It shows a number about your play while you play. Riot does not approve apps that show real-time data that changes how you play. Occlara shows a number and what happened, never what to do. Your choice.</p>
-            <div class="h-lr-confirm-actions">
-              <button id="h-lr-keep-off" class="btn btn-primary sm" type="button">Keep it off</button>
-              <button id="h-lr-turn-on" class="btn btn-ghost sm" type="button">Turn it on</button>
+          <!-- THE LIVE RATING'S SWITCH (9.1, the owner's item 14), beside
+               Start so it is found before a match: the same switch as
+               Settings', past the same warning and confirm
+               (docs/claude/screen-silence.md "The live rating"). Valorant
+               only; drawn by live-rating-switch.js, main turning it on only
+               for this page (LIVE_RATING_SET). Never on the Recording screen.
+               Its confirm opens under the row (#h-lr-confirm). -->
+          <div id="h-lr" class="h-lr" hidden>
+            <div class="h-lr-pill">
+              <button id="h-lr-switch" class="switch h-lr-switch" type="button" role="switch" aria-checked="false" aria-labelledby="h-lr-label" aria-describedby="h-lr-hint"></button>
+              <span id="h-lr-label" class="h-lr-label">Live rating</span>
+              <span id="h-lr-hint" class="h-lr-hint">Off</span>
             </div>
+          </div>
+        </div>
+        <div id="h-lr-confirm" class="h-lr-confirm" role="alertdialog" aria-labelledby="h-lr-confirm-title" aria-describedby="h-lr-confirm-body" hidden>
+          <p class="h-lr-confirm-title" id="h-lr-confirm-title">Show your rating while you play?</p>
+          <p class="h-lr-confirm-body" id="h-lr-confirm-body">It shows a number about your play while you play. Riot does not approve apps that show real-time data that changes how you play. Occlara shows a number and what happened, never what to do. Your choice.</p>
+          <div class="h-lr-confirm-actions">
+            <button id="h-lr-keep-off" class="btn btn-primary sm" type="button">Keep it off</button>
+            <button id="h-lr-turn-on" class="btn btn-ghost sm" type="button">Turn it on</button>
           </div>
         </div>
         <p class="h-note"><b class="ss-word sr-only">Ready</b><span class="ss-line">Press Start before you queue. Your review opens when the match ends.</span></p>
@@ -108,16 +112,22 @@
       <div id="h-agent" class="h-agent" aria-hidden="true" hidden></div>
     </section>
 
+    <!-- NOTHING YET (9.1): what lands here after the first match, not the
+         hero's line said again. -->
     <section id="empty" class="card o-card empty" hidden>
-      <p class="o-eyebrow">Fix for next match</p>
-      <h3 class="o-title">Play one match and your first fix lands here.</h3>
-      <p class="hint">Press Start before you queue. When the match ends its graded review opens here and is kept under Matches.</p>
+      <p class="o-eyebrow">After your first match</p>
+      <h3 class="o-title">Your grade, your trend and what repeats land here.</h3>
+      <p class="hint">Every review is kept under Matches, and its clips under Clips.</p>
     </section>
 
     <div id="content" class="rows" hidden>
       <!-- THE BENTO: the last match, the trend and what repeats, never all one size. -->
       <div class="bento">
-        <section id="last" class="card o-card last" aria-label="Last match"></section>
+        <!-- THE LAST MATCH (9.1, the owner's item 1): the whole card is the
+             way into its review, a link from the keyboard as well, and the
+             match is its body: the map and the agent, the result and the
+             score, the grade. No buttons. -->
+        <section id="last" class="card o-card last is-link" role="link" tabindex="0" aria-label="Last match"></section>
         <section id="trend" class="card o-card trend" aria-label="Trend" hidden></section>
         <section id="top" class="card o-card top" aria-label="What repeats" hidden>
           <p class="o-eyebrow">What repeats</p>
@@ -137,14 +147,24 @@
             <div class="fix-foot"><button id="fix-open" class="btn btn-primary sm" type="button">Open review</button></div>
           </div>
         </section>
+        <!-- THE RANK (9.1, the owner's item 10): the tier's own icon (the
+             bundled set, sync:rankicons), the tier, the RR in it, the last
+             game's RR, and the way to the next tier as a bar, from the rank
+             history alone. -->
         <section id="rank" class="card o-card rank" aria-label="Rank" hidden>
           <div class="card-head">
             <span class="label o-eyebrow">Rank</span>
             <button id="rank-more" class="btn btn-link sm" type="button">Rank journey</button>
           </div>
-          <div class="rank-now">
-            <b id="rank-tier" class="rank-tier"></b>
-            <span id="rank-rr" class="rr-chip" title="RR from your last rated game"></span>
+          <div class="rank-main">
+            <img id="rank-icon" class="rank-icon" alt="" decoding="async" draggable="false" hidden />
+            <div class="rank-text">
+              <div class="rank-now">
+                <b id="rank-tier" class="rank-tier"></b>
+                <span id="rank-rr" class="rr-chip" title="RR from your last rated game"></span>
+              </div>
+              <span id="rank-points" class="rank-points" hidden></span>
+            </div>
           </div>
           <div id="rank-bar" class="rank-bar" hidden><i id="rank-fill"></i></div>
           <div id="rank-foot" class="rank-foot" hidden><span id="rank-in"></span><span id="rank-to"></span></div>
@@ -165,7 +185,6 @@
   </main>
 
   <script src="../shared/grade-view.js"></script>
-  <script src="../shared/log-eye.js"></script>
   <script src="../review/clip-time.js"></script>
   <script src="../review/clip-player.js"></script>
   <script src="../shared/motion.js"></script>

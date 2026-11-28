@@ -75,6 +75,22 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
 /* The rank's quiet line under the tier (8.8.x, stats.js renderCards): peak,
    RR, shields, this act, one dim line, never a second hero. */
 .rank-sub { font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+/* 9.1, the owner's item 10: the tier's own icon before it, fading in once
+   decoded, and the way to the next tier under it, the bar Home draws. */
+.card .val-row.with-icon { align-items: center; gap: var(--space-3); }
+.card .rank-icon {
+  flex: none; width: 56px; height: 56px; object-fit: contain;
+  opacity: 0; transform: scale(0.94); transition: opacity 360ms var(--ease-out), transform 520ms var(--spring-gentle);
+  -webkit-user-drag: none; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+}
+.card .rank-icon.ready { opacity: 1; transform: none; }
+.rank-progress { display: flex; flex-direction: column; gap: 6px; max-width: 520px; margin-top: var(--space-1); }
+.rank-progress .rank-bar { position: relative; height: 4px; border-radius: 4px; background: var(--todo-bar); overflow: hidden; }
+.rank-progress .rank-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--won-bar); }
+.rank-progress .rank-foot { display: flex; justify-content: space-between; gap: var(--space-3); font-family: var(--font-mono); font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.rank-progress.uncapped .rank-foot { justify-content: flex-start; gap: var(--space-2); }
+.rank-progress.uncapped .rank-foot span:first-child::after { content: ''; display: inline-block; width: 3px; height: 3px; margin: 0 0 2px var(--space-2); border-radius: 50%; background: var(--text-3); }
+@media (prefers-reduced-motion: reduce) { .card .rank-icon { transition: none; transform: none; } }
 /* Opened and closed by height in place (#rank-reveal, .reveal in ui.css). */
 .rank-notes { padding: var(--space-3) 0 var(--space-2); }
 .rank-notes h4 { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: var(--space-2); }

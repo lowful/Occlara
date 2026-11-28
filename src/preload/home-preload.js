@@ -6,6 +6,7 @@ const GAMES = require('../shared/games');
 const { homeModel, rankModel, rrForRows, rrWaiting } = require('../shared/home-model');
 const { iconOf, mapArtOf } = require('../shared/agent-icons');
 const { portraitOf } = require('../shared/agent-portraits');
+const { iconFile } = require('../shared/rank-tiers');
 const { pageMotion } = require('./page-motion');
 
 /**
@@ -95,8 +96,13 @@ contextBridge.exposeInMainWorld('occlara', {
     const review = newest ? { ...newest, id: newest.id || list[0].id } : null;
     // While the newest is still being written (its row carries work), the
     // one before it lends its fix (home-model.js focusPrevious).
-    const writing = !!(list[0] && list[0].work) && !(review && typeof review.focus === 'string' && review.focus.trim());
-    const before = writing && list[1] ? await ipcRenderer.invoke(C.REVIEW_GET, list[1].id).catch(() => null) : null;
+    const fixless = !(review && typeof review.focus === 'string' && review.focus.trim());
+    const writing = !!(list[0] && list[0].work) && fixless;
+    // 9.1: a newest match with no grade (a recording stopped early) has no
+    // fix either, and the last graded match's lends its own the same way.
+    const ungraded = !!(list[0] && !list[0].work && !list[0].grade) && fixless;
+    const lender = writing ? list[1] : ungraded ? list.slice(1, 10).find((r) => r && r.grade && !r.work) : null;
+    const before = lender ? await ipcRenderer.invoke(C.REVIEW_GET, lender.id).catch(() => null) : null;
     const model = homeModel({ rows: list, patterns, review, previous: before });
     return { ...model, art: artOf(game, model), fix: fixClipOf(review) };
   },
@@ -115,7 +121,9 @@ contextBridge.exposeInMainWorld('occlara', {
       ipcRenderer.invoke(C.REVIEWS_LIST, 'valorant'),
     ]);
     const rr = rrForRows(rows, history);
-    return { card: rankModel(history), rr, waiting: rrWaiting(rows, rr, Date.now()) };
+    const card = rankModel(history);
+    // 9.1, the owner's item 10: the tier's own icon, bundled (sync:rankicons).
+    return { card: card ? { ...card, icon: asset(iconFile(card.tier)) } : null, rr, waiting: rrWaiting(rows, rr, Date.now()) };
   },
   games:      () => GAMES.list(true).map((g) => ({ id: g.id, label: g.label })),
   // A review, at one of its rounds when given (the Fix card's clip, as Moments opens one).

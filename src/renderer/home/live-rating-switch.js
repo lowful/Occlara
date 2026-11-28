@@ -29,6 +29,9 @@
 
   function paint() {
     host.hidden = game !== 'valorant';
+    // The confirm opens under the row, outside the pill's own box (9.1): it
+    // goes with the switch.
+    if (host.hidden) confirmBox.hidden = true;
     sw.setAttribute('aria-checked', String(on));
     sw.disabled = busy;
     host.classList.toggle('on', on);

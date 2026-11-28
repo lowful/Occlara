@@ -3023,42 +3023,29 @@ async function openShell(cfg, state, opts) {
   };
   const cssProp = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
 
-  // "There's no point of it saying 'from what the screen read'": the foot of
-  // the last match is the eye, View match, and Open review, and nothing else.
-  await section('Home\'s last match ends on two buttons, the eye\'s View match and Open review, and nothing else:', async () => {
+  // 9.1, the owner's item 1: "Remove View match and Open review." The last
+  // match card has no buttons; the whole card is the way into its review, by
+  // the pointer and by the keyboard. (The eye stays on the Matches rows.)
+  await section('Home\'s last match is one link to its review, with no buttons in it:', async () => {
     const h = await openHome();
-    const foot = h.document.querySelector('#last .last-foot');
-    const btns = foot ? foot.children : [];
-    const eye = btns[0];
-    ok(btns.length === 2 && btns.every((b) => b.tagName === 'BUTTON') && foot.textContent === 'View matchOpen review',
-      'the foot holds View match and Open review, and no other word', foot && foot.textContent);
-    ok(!/screen read|Riot's record|Graded from/i.test(h.$('last').textContent) && !h.document.querySelector('#last .checked'),
-      'the line saying where the grade came from is gone', h.$('last').textContent);
-    ok(eye && eye.classList.contains('log-eye') && !eye.disabled && eye.getAttribute('aria-label') === null && eye.title === LogEye.NAME
-      && eyeShape(eye.querySelector('svg')) === eyeShape(statsEye) && eye.querySelector('svg').getAttribute('aria-hidden') === 'true',
-    'View match is the eye the Matches rows draw, named by its word, its tooltip what it opens');
-    if (eye) eye.click();
-    ok(same(h.bridge.sent.filter((s) => s[0] === C.REVIEW_AILOG), [[C.REVIEW_AILOG, HOME_ROWS[0].id]]),
-      'pressed, it sends the match\'s review id alone over REVIEW_AILOG, as its row in Matches does', JSON.stringify(h.bridge.sent));
-    if (btns[1]) btns[1].click();
-    ok(same(h.bridge.sent.filter((s) => s[0] === C.REVIEW_OPEN), [[C.REVIEW_OPEN, HOME_ROWS[0].id]]), 'and Open review opens its review');
-    // The rule every eye keeps: disabled, with its reason, once the log no
-    // longer holds the match, and none where nothing was recorded.
-    const gone = await openHome({ rows: HOME_ROWS.slice(1) });
-    const gEye = gone.document.querySelector('#last .log-eye');
-    ok(gEye && gEye.disabled && gEye.title === LogEye.GONE && gEye.textContent === 'View match',
-      'the log no longer holding the match, the eye stays, disabled, its tooltip saying why');
-    if (gEye) gEye.click();
-    ok(!gone.bridge.sent.some((s) => s[0] === C.REVIEW_AILOG), 'and pressed, it sends nothing');
-    const riot = await openHome({ rows: HOME_ROWS.slice(3) });
-    const rFoot = riot.document.querySelector('#last .last-foot');
-    ok(!riot.document.querySelector('#last .log-eye') && rFoot && rFoot.children.length === 1 && rFoot.textContent === 'Open review',
-      'a match graded from Riot\'s record alone has no eye, only Open review');
-    ok(h.scripts.some((x) => /log-eye\.js$/.test(x)) && typeof h.bridge.api.openAiLog === 'function',
-      'the eye is shared/log-eye.js\'s, over a bridge that opens the AI log');
-    const pageEye = h.window.LogEye;
-    ok(pageEye.labelled(null, () => {}, 'View match') === null && pageEye.labelled('kept', null, 'View match').classList.contains('labelled'),
-      'labelled() follows button(): no word from main, no eye');
+    const last = h.$('last');
+    ok(last.querySelectorAll('button').length === 0 && !last.querySelector('.last-foot') && !last.querySelector('.log-eye'),
+      'no View match, no Open review, no button at all in it', last.textContent);
+    ok(last.getAttribute('role') === 'link' && last.tabIndex === 0 && last.classList.contains('is-link'),
+      'the card is a link in the tab order, drawn as one (ui.css .o-card.is-link)');
+    ok(last.getAttribute('aria-label') === 'Last match, Victory 13 : 9, Jett on Ascent, grade 83. Open its review',
+      'its name says the match and where it goes', last.getAttribute('aria-label'));
+    ok(!/screen read|Riot's record|Graded from/i.test(last.textContent) && !h.document.querySelector('#last .checked'),
+      'the line saying where the grade came from is gone', last.textContent);
+    ok(last.querySelector('.lm-result .result').textContent === 'Victory' && last.querySelector('.lm-result .score').textContent === '13 : 9'
+      && last.querySelector('.gv-score').textContent === '83', 'its body: the result and the score, large, and the grade', last.textContent);
+    last.click();
+    ok(same(h.bridge.sent.filter((s) => s[0] === C.REVIEW_OPEN), [[C.REVIEW_OPEN, HOME_ROWS[0].id]]), 'a click anywhere on it opens its review');
+    h.fire(last, 'keydown', { key: 'Enter' });
+    h.fire(last, 'keydown', { key: ' ' });
+    h.fire(last, 'keydown', { key: 'a' });
+    ok(h.bridge.sent.filter((s) => s[0] === C.REVIEW_OPEN).length === 3, 'and Enter or Space on it from the keyboard, and no other key');
+    ok(!h.bridge.sent.some((s) => s[0] === C.REVIEW_AILOG), 'and it never opens the AI log: the Matches row\'s eye does');
   });
 
   // A REVIEW STILL BEING BUILT (8.4.1), where its grade would show half done:
@@ -3077,8 +3064,9 @@ async function openShell(cfg, state, opts) {
       && /Riot publishes a match 1 to 4 minutes after it ends\. Its grade shows here once the review is complete\./.test(card.textContent)
       && card.querySelector('.gv-checking').textContent === 'Checking',
     'saying what it waits for and how long that usually takes', card && card.textContent);
-    ok(last.querySelector('.last-foot') && last.querySelector('.last-foot').textContent === 'View matchOpen review',
-      'its foot is as it was: the review opens on its loading screen');
+    last.click();
+    ok(same(h.bridge.sent.filter((s) => s[0] === C.REVIEW_OPEN), [[C.REVIEW_OPEN, HOME_ROWS[0].id]]),
+      'the card still opens its review: it opens on its loading screen');
     const first = h.$('recent-list').querySelector('.r-row');
     const second = h.$('recent-list').querySelectorAll('.r-row')[1];
     ok(first.querySelector('.gv-checking') && !first.querySelector('.r-score') && !first.querySelector('.gv-letter') && !first.querySelector('.r-res'),
@@ -3249,8 +3237,10 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(!h.$('rank').hidden && h.$('rank-tier').textContent === 'Diamond 1', 'the rank the newest rated game left', h.$('rank-tier').textContent);
     const rrEl = h.$('rank-rr');
     ok(!rrEl.hidden && rrEl.textContent === '+24 RR' && rrEl.classList.contains('gain'), 'the last game\'s RR, a gain in its colour', rrEl.textContent);
-    ok(!h.$('rank-bar').hidden && h.$('rank-fill').style.width === '44%' && h.$('rank-in').textContent === '44 RR' && h.$('rank-to').textContent === '56 to the next rank',
-      'the RR inside the tier as a bar, 44 of the 100 to the next rank', h.$('rank-fill').style.width);
+    ok(!h.$('rank-bar').hidden && h.$('rank-fill').style.width === '44%' && h.$('rank-in').textContent === '44 RR' && h.$('rank-to').textContent === '56 RR to Diamond 2',
+      'the RR inside the tier as a bar, 44 of the 100, and the 56 to the next tier, named', `${h.$('rank-fill').style.width} ${h.$('rank-to').textContent}`);
+    ok(!h.$('rank-icon').hidden && h.$('rank-icon').getAttribute('src') === '../../../assets/ranks/diamond-1.webp',
+      'and the tier\'s own icon beside it (9.1)', h.$('rank-icon').getAttribute('src'));
     const lastRR = h.document.querySelector('#last .last-rr');
     ok(lastRR && !lastRR.hidden && lastRR.textContent === 'RR +24', 'the last match card carries the RR its game moved', lastRR && lastRR.textContent);
     const rowRR = (x) => x.document.querySelectorAll('#recent-list .r-row').map((b) => {

@@ -407,7 +407,8 @@ setTimeout(async () => {
       if (process.env.OCCLARA_SHOTS === '1') {
         const homeWc = surfaces.find('/home/').webContents;
         await shot(homeWc, 'home');
-        await homeWc.executeJavaScript("[...document.querySelectorAll('#last button')].find((b) => b.textContent === 'Open review').click(); true");
+        // 9.1: the whole last match card opens its review; it has no buttons.
+        await homeWc.executeJavaScript("document.getElementById('last').click(); true");
         const page = await until(() => surfaces.find('/review/'), 8000);
         await wait(1500);
         await shot(page && page.webContents, 'review');

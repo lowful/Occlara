@@ -43,6 +43,13 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
   padding: var(--space-5) max(var(--space-8), calc((100% - 1176px) / 2)) var(--space-10);
   display: flex; flex-direction: column; gap: 20px;
 }
+/* NO SECTION SHRINKS (9.1). .home is a column of a fixed height that scrolls,
+   and a flex item shrinks by default down to its own min-height: the hero
+   (min-height 360px) was squeezed to that while its copy ran on below it,
+   about 60px into the bento, the more so with the live rating's switch and
+   the bigger buttons. Every section keeps its own height and the page
+   scrolls instead. */
+.home > * { flex-shrink: 0; }
 
 /* ── The head: the game, the player, the update line ────────────────────── */
 .h-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 28px; }
@@ -87,14 +94,33 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
    Start and Open last review, then the line that the review opens when the
    match ends. No frame of its own: the sky is its ground. */
 .h-hero { position: relative; display: flex; align-items: flex-start; min-height: 360px; padding: 28px 0 8px; }
-.h-hero-copy { position: relative; z-index: 2; max-width: 640px; }
+.h-hero-copy { position: relative; z-index: 2; max-width: 760px; }
+/* The kicker speaks only when the fix is an older review's (9.1, item 8). */
 .h-kicker { margin-bottom: 14px; font-size: 15px; font-weight: 500; color: var(--text-2); }
+.h-kicker[hidden] { display: none; }
 .h-fix { max-width: 640px; }
 .h-fix-head { color: var(--text); }
 .h-fix-sub { display: block; color: var(--text-2); }
 .h-fix-sub:empty { display: none; }
-.h-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
-.h-actions .btn { min-width: 200px; }
+/* START AND OPEN LAST REVIEW, BIGGER (9.1, the owner's item 8): 60px, Start's
+   word 19px, the other 17px, and the live rating's quiet pill beside them on
+   the same line. */
+.h-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 36px; }
+.h-actions .btn.h-big { height: 60px; min-width: 228px; padding: 0 30px; gap: 12px; border-radius: 14px; font-size: 17px; }
+.h-actions .btn-rec.h-big { font-size: 19px; letter-spacing: -0.015em; }
+.h-actions .btn-rec.h-big .rec-ico { width: 16px; height: 16px; }
+.h-actions .btn-rec.h-big .rec-ico::after { left: 4.5px; top: 4.5px; width: 7px; height: 7px; }
+/* CENTRED AS A GROUP (item 8: Start's icon sat too far left). At rest the
+   arrow is unseen and its room (the 12px gap and its 16px) sat at the
+   label's right, so the label was pushed left of the middle by 6px, ui.css
+   nudging it back only 8 of the 14. Here the label moves by exactly half that
+   room, so the icon and the word stand in the middle; under the pointer it
+   moves into place and the arrow slides in as before. */
+.h-actions .btn.h-big:has(> .btn-arrow) > .btn-label { transform: translateX(14px); }
+.h-actions .btn.h-big:where(:not(:disabled)):is(:hover, :focus-visible) > .btn-label { transform: none; }
+/* Start's word sits on the ring's centre line: Onest's figures ride a hair
+   high against a 16px circle. */
+.h-start-word { position: relative; top: -0.5px; }
 .h-note { margin-top: 18px; max-width: 460px; font-size: 13px; line-height: 1.5; color: var(--text-2); }
 /* Recording between matches (Home is sealed mid match): Start goes, the bar
    holds Stop, and the line says so. */
@@ -196,56 +222,168 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 .h-practice[hidden] { display: none; }
 .h-practice .btn-link { height: auto; padding: 2px var(--space-2); margin-left: calc(var(--space-2) * -1); font-size: 13px; color: var(--text-dim); }
 
-/* ── The last match ─────────────────────────────────────────────────────── */
-.last-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+/* ── The last match ─────────────────────────────────────────────────────────
+   9.1, the owner's item 1: the whole card is the way into the review (ui.css
+   .o-card.is-link: the stronger hairline and a 1px lift under the pointer,
+   the ring for the keyboard), and the match is its body. The map's picture
+   leads, the agent over its foot and the K/D at its top right; under it the
+   result and the score large beside the grade; one quiet line at the foot.
+   Under the pointer the picture eases in 3% and an arrow comes in at its
+   bottom right, both on transforms alone. */
+#last { gap: 0; container-type: inline-size; }
+.last-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 24px; }
 .last-head .last-rr { margin-left: auto; }
-.last-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.last-grade-row { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: var(--space-3) var(--space-4); margin-top: auto; }
-#last .gv-grade.last-grade { display: flex; flex-direction: row; align-items: flex-end; gap: 12px; }
+.last-when { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.02em; color: var(--text-2); white-space: nowrap; }
+.last-when::before { content: ''; display: inline-block; width: 3px; height: 3px; margin: 0 10px 3px 0; border-radius: 50%; background: var(--text-3); }
+.last-head .o-eyebrow { flex: none; }
+.last-head .last-when { margin-right: auto; }
+.lm-media {
+  position: relative; flex: 1 1 auto; min-height: 92px; margin-top: 14px;
+  border-radius: var(--r-in); overflow: hidden; background: var(--raised);
+  border: 1px solid var(--line);
+}
+.lm-map {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 40%;
+  transform: scale(1.001); transition: transform 600ms var(--spring-smooth);
+  -webkit-user-drag: none;
+}
+.lm-scrim { position: absolute; inset: 0; background: var(--scrim-soft); pointer-events: none; }
+.lm-agent {
+  position: absolute; left: 12px; bottom: 12px; width: 44px; height: 44px; border-radius: 50%;
+  object-fit: cover; background: var(--raised); border: 1px solid var(--line-2);
+  box-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.8);
+}
+/* The K/D over the picture's top right, on the scrim's glass. */
+#last .last-kd {
+  position: absolute; right: 10px; top: 10px;
+  display: inline-flex; align-items: baseline; gap: 8px;
+  height: 28px; padding: 0 10px; border-radius: var(--r-control);
+  background: var(--scrim-chip); border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+  line-height: 26px;
+}
+.kd-label { font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: var(--track-eyebrow); color: var(--text-2); }
+.kd-nums { display: inline-flex; align-items: baseline; gap: 6px; }
+.kd-ratio { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--text); }
+.kd-split { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The way in: an arrow in a glass circle, unseen at rest. */
+.lm-open {
+  position: absolute; right: 10px; bottom: 10px; width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center; color: var(--text);
+  background: var(--glass); border: 1px solid var(--line-2);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  opacity: 0; transform: translateX(-6px);
+  transition: opacity var(--dur-hover-out) var(--ease-out), transform var(--dur-hover-out) var(--spring-smooth);
+}
+.lm-open svg { width: 16px; height: 16px; }
+@media (hover: hover) and (pointer: fine) {
+  #last:hover .lm-map { transform: scale(1.03); }
+  #last:hover .lm-open { opacity: 1; transform: none; transition-duration: var(--dur-hover-in), 420ms; }
+}
+#last:focus-visible .lm-open { opacity: 1; transform: none; }
+#last:active { transform: scale(0.995); transition-duration: var(--dur-press); }
+
+/* The match: the result and the score large, who and when, the grade. */
+.lm-row { display: flex; align-items: flex-end; gap: 14px; margin-top: 16px; }
+.lm-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto; }
+.lm-result {
+  font-size: 24px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.1; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lm-meta .result.win { color: var(--good); }
+.lm-meta .result.loss { color: var(--bad); }
+.lm-who { font-size: 13px; line-height: 1.35; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.score { font-variant-numeric: tabular-nums; }
+#last .gv-grade.last-grade { flex: none; display: flex; flex-direction: row; align-items: flex-end; gap: 10px; }
 .gv-score.big {
-  font-size: 84px; font-weight: 700; line-height: 0.8; letter-spacing: -0.06em;
+  font-size: 56px; font-weight: 700; line-height: 0.82; letter-spacing: -0.055em;
   font-variant-numeric: tabular-nums; color: var(--text);
 }
+/* Not graded: a quiet chip where the grade would be. */
+.last-nograde { flex: none; height: 28px; padding: 0 12px; margin-bottom: 2px; font-size: 13px; }
 /* THE GRADE COUNTS UP ONCE (home.js playLast): CSS alone, an integer --hn run
    from 0 to --to and drawn by counter() over the real number, which stays the
    text for a test or a screen reader. --dur-count on --ease-out, after the
-   card's own delay (--d). */
+   card's own delay (--d). The count is drawn in the grade's own tone. */
 @property --hn { syntax: '<integer>'; initial-value: 0; inherits: false; }
+#last .gv-score.big { --hn-ink: var(--text); }
+#last .gv-score.big.good { --hn-ink: var(--good); }
+#last .gv-score.big.warn { --hn-ink: var(--warn); }
+#last .gv-score.big.bad { --hn-ink: var(--bad); }
 #last .gv-score.big.counting {
   position: relative; color: transparent; counter-reset: hn var(--hn);
   animation: hCount var(--dur-count) var(--ease-out) both;
   animation-delay: var(--d, 0ms);
 }
-#last .gv-score.big.counting::after { content: counter(hn); position: absolute; top: 0; right: 0; color: var(--text); }
+#last .gv-score.big.counting::after { content: counter(hn); position: absolute; top: 0; right: 0; color: var(--hn-ink); }
 @keyframes hCount { from { --hn: 0; } to { --hn: var(--to); } }
-.grade-side { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-bottom: 2px; }
-.grade-side .gv-letter { width: auto; height: auto; min-width: 0; padding: 0; border: 0; background: none; font-size: var(--t-title); font-weight: 700; line-height: 1; }
-.delta { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.grade-side { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding-bottom: 1px; }
+.grade-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.delta { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
 .delta.up { color: var(--good); }
 .delta.down { color: var(--bad); }
-/* The last game's K/D (9.0), at the right of the grade, on its baseline. */
-.last-kd { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding-bottom: 2px; }
-.kd-label { font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: var(--track-eyebrow); color: var(--text-2); }
-.kd-nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.kd-ratio { font-size: 26px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); }
-.kd-split { font-family: var(--font-mono); font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* The row under the grade: the map, the result and where, and the two buttons. */
-/* The foot drops under the result when the eye's View match and Open review
-   would squeeze the result to "Vic..." (the card is about 300px at 1280). */
-.lm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
-.lm-thumb { width: 56px; height: 38px; flex: none; border-radius: 10px; object-fit: cover; border: 1px solid var(--line); background: var(--raised); }
-.lm-meta { display: flex; flex-direction: column; min-width: 0; flex: 1 1 150px; font-size: 13px; color: var(--text-2); }
-.lm-meta b { color: var(--text); font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lm-meta span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lm-meta .result.win { color: var(--good); }
-.lm-meta .result.loss { color: var(--bad); }
-.score { font-variant-numeric: tabular-nums; }
-.last-foot { margin-left: auto; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 6px; }
-.last-foot .btn { height: 30px; padding: 0 10px; font-size: 13px; border-radius: var(--r-control); }
-/* Still being checked (8.4.1): the checking card where the grade would be. */
-.last-grade-row .gv-checking-card { flex: 1 1 100%; }
+/* The quiet line: main's progress line with its dot, or why there is no grade. */
+.lm-note {
+  display: flex; align-items: center; gap: 8px; margin: 12px 0 0;
+  font-size: 13px; line-height: 1.35; color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lm-note.mark::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-2); }
+.lm-note.mark.good::before { background: var(--good); }
+.lm-note.why { white-space: normal; }
+/* A narrower card (the window under about 1200 wide): the result and the
+   grade a step smaller, so "Victory 13 : 11" is never cut. */
+@container (max-width: 330px) {
+  .lm-result { font-size: 20px; }
+  .gv-score.big { font-size: 48px; }
+  .lm-row { gap: 10px; }
+}
+/* Still being checked (8.4.1): the checking card under the picture, which
+   gives it the room. */
+#last.checking .lm-media { flex: 0 0 64px; min-height: 64px; }
+#last .gv-checking-card { margin-top: 14px; }
+
+/* ── A trend's arrow (9.1, the owner's item 4) ──────────────────────────────
+   Up, down or a flat line in a small round, in the colour of what it means:
+   getting better in --good, worse in --bad, steady in the grey. Its words in
+   a tooltip of the app's own glass, which comes in under the pointer after a
+   breath and goes at once. */
+.way {
+  position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-width: 24px; height: 24px; padding: 0 6px; border-radius: var(--r-pill);
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1;
+}
+.way svg { width: 14px; height: 14px; flex: none; }
+.way:not(:has(.way-n)) { padding: 0; width: 24px; }
+.way.worse { color: var(--bad); background: rgba(var(--bad-rgb), 0.12); }
+.way.better { color: var(--good); background: rgba(var(--good-rgb), 0.12); }
+/* Steady is a grey line with no round behind it, so it never reads as a button. */
+.way.steady { color: var(--text-2); background: none; }
+.way.none { visibility: hidden; }
+.has-tip { cursor: default; }
+.has-tip::after {
+  content: attr(data-tip);
+  position: absolute; right: -8px; bottom: calc(100% + 8px); z-index: 5;
+  width: max-content; max-width: 236px; padding: 8px 11px;
+  border-radius: 10px; background: var(--raised); border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
+  font-size: 12px; font-weight: 500; line-height: 1.45; letter-spacing: 0; text-align: left; white-space: normal;
+  color: var(--text);
+  opacity: 0; transform: translateY(3px); pointer-events: none;
+  transition: opacity 120ms var(--ease-out), transform 120ms var(--ease-out);
+}
+.has-tip:hover::after { opacity: 1; transform: none; transition-duration: var(--dur-hover-in); transition-delay: 220ms; }
+/* The trend card's own arrow sits at its top, in the middle of a narrow card:
+   its words open below the whole title line, from the card's left, so they
+   are never cut by the card's edge. */
+.trend-head { position: relative; }
+.trend-head .way { position: static; }
+.trend-head .has-tip::after { left: 0; right: auto; bottom: auto; top: calc(100% + 8px); max-width: 100%; transform: translateY(-3px); }
+.trend-head .has-tip:hover::after { transform: none; }
 
 /* ── The trend ──────────────────────────────────────────────────────────── */
+.trend-head { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.trend-head .o-title { margin-top: 0; }
 .trend-host { margin-top: auto; padding-top: 8px; }
 .trend-host .grade-line { display: block; width: 100%; height: auto; overflow: visible; }
 .line-avg { display: block; margin-top: 6px; font-size: 12px; color: var(--text-2); }
@@ -261,13 +399,14 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 /* ── What repeats ───────────────────────────────────────────────────────── */
 .top-list { display: flex; flex-direction: column; margin-top: 12px; }
 .top-row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 5px 0; }
-.top-row.faded { opacity: 0.32; }
+/* Every row in the full ink (9.1, the owner's item 3: the fourth faded to grey). */
+.top-row .way { margin-right: -2px; }
 .top-bubble { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--raised); border: 1px solid var(--line); color: var(--text-dim); }
 .top-bubble svg { width: 16px; height: 16px; }
 .top-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .top-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top-sub { font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.top-n { flex: none; font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.top-n { flex: none; min-width: 22px; text-align: right; font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* ── The moment, over its picture ───────────────────────────────────────── */
 .focus { padding: 0; gap: 0; flex-direction: row; min-height: 220px; }
@@ -302,13 +441,31 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 .focus-text { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); line-height: 1.18; text-wrap: pretty; }
 .fix-foot { display: flex; gap: var(--space-2); margin-top: auto; }
 
-/* ── The rank ───────────────────────────────────────────────────────────── */
+/* ── The rank ───────────────────────────────────────────────────────────────
+   9.1, the owner's item 10: the tier's own icon at 64px beside the tier and
+   the last game's RR, the bar of the RR in the tier under them, and how far
+   to the next tier at its foot. */
 .rank { gap: var(--space-2); }
-.rank-now { display: flex; align-items: baseline; gap: var(--space-3); margin-top: 10px; }
+.rank-main { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+.rank-icon {
+  flex: none; width: 64px; height: 64px; object-fit: contain;
+  opacity: 0; transform: scale(0.94); transition: opacity 360ms var(--ease-out), transform 520ms var(--spring-gentle);
+  -webkit-user-drag: none; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+}
+.rank-icon.ready { opacity: 1; transform: none; }
+.rank-icon[hidden] { display: none; }
+.rank-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rank-now { display: flex; align-items: center; gap: var(--space-3); }
 .rank-tier { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); line-height: 1.1; white-space: nowrap; }
+.rank-points { font-size: 15px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.rank-points[hidden] { display: none; }
+.rank-rr.gain { color: var(--good); }
+.rank-rr.loss { color: var(--bad); }
+.rank-rr.even { color: var(--text-2); }
 .rank-bar { position: relative; height: 4px; margin-top: var(--space-4); border-radius: 4px; background: var(--todo-bar); overflow: hidden; }
 .rank-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--won-bar); }
-.rank-foot { display: flex; justify-content: space-between; gap: var(--space-3); font-family: var(--font-mono); font-size: 11px; color: var(--text-mute); }
+.rank-foot { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: 2px; font-family: var(--font-mono); font-size: 11px; color: var(--text-2); }
+.rank.uncapped .rank-foot { margin-top: var(--space-3); }
 
 /* ── The recent matches, a row each, opening its review ─────────────────── */
 .recent { gap: var(--space-2); padding: 22px 22px 14px; }
@@ -372,7 +529,9 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
   .card.card-in, .h-head.card-in, .recent.card-in .r-row, .top.card-in .top-row,
   .h-player.h-fade, .sky-twinkle, .h-agent-full,
   #trend .grade-line.h-dots .gl-dot, #trend .grade-line.h-dots .gl-num { animation: none !important; }
-  #last .gv-score.big.counting { animation: none !important; color: var(--text); }
+  #last .gv-score.big.counting { animation: none !important; color: var(--hn-ink, var(--text)); }
   #last .gv-score.big.counting::after { content: none; }
-  .play-mark { transition: none; }
+  .play-mark, .lm-map, .lm-open, .rank-icon, .has-tip::after { transition: none; }
+  #last:hover .lm-map { transform: none; }
+  .rank-icon { transform: none; }
 }

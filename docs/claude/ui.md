@@ -56,8 +56,10 @@ wins. What phase 1 changed, and what to keep true:
   of links is `topLinks`.
 - **The sky** (`shared/sky.js`): stars and the moon's lit limb, drawn in the
   window's own coordinates, so Home (a view 56px down) and the bar's strip of
-  it meet with no seam. The moon is drawn once (a few hundred ms) and kept in
-  localStorage, which every page shares; it is never drawn mid match.
+  it meet with no seam. Since 9.1 the moon is a sphere on the GPU that turns
+  slowly (below, "Home (9.1)"); where WebGL is missing it is the image moon,
+  drawn once (a few hundred ms) and kept in localStorage, which every page
+  shares. It is never drawn or baked mid match.
 - **The Recording screen** is one centred column over the sky (screen-silence.md).
 - **Home** is the fix as the hero (split at its colon into a headline and a grey
   sub line), Start and Open last review, the last match's agent STANDING in
@@ -1284,3 +1286,74 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   and `test:shellbar` (the control's states on the real shell). Pictures:
   `scripts/shot-demo.js` updating, updatingsoon, updateready, barall,
   barnarrow, updatefocus.
+### Home (9.1, the owner's items 1, 3, 4, 8, 9 and 10)
+
+- **The last match card is one link** (`#last`, `role="link"`, in the tab
+  order, ui.css `.o-card.is-link`): no View match and no Open review; a click,
+  Enter or Space anywhere on it opens the review (`home.js openLast`). The
+  match is its body: the map's picture with the agent and the K/D over it,
+  the result and the score large ("Victory 13 : 11"), who and the queue, the
+  grade in its tone with "Grade" and its change ("+7", the sentence in its
+  tooltip), and one quiet line, main's progress line. When it was is beside
+  the eyebrow ("Today 9:25 PM"). Under the pointer the picture eases in and
+  an arrow comes in; a narrower card (a container query under 330px) takes
+  the result and the grade a step smaller so the score is never cut. The AI
+  log's eye stays on the Matches rows.
+- **An ungraded newest match says so** (`home-model.js noGradeOf`): "Not
+  graded" where the grade would be, why on the line under ("Only 2 rounds
+  were recorded, too few to grade."), and it still opens. The hero says what
+  is true (`home.js heroWords`): graded, being checked, or not graded and why;
+  with an older graded match's fix it stands in (`focusFrom: 'ungraded'`, the
+  preload reading that review) under the one label the hero still has, "From
+  your last graded match".
+- **No "Your fix for next match" label** (`#h-kicker` speaks only for a lent
+  fix). Start and Open last review are 60px (`.h-big`), Start's word 19px, the
+  label moved by exactly half the unseen arrow's room (its 12px gap and 16px,
+  ui.css moved it 8 of 14) so the record icon and the word stand centred. The
+  live rating's pill stands beside them on their line, its confirm under the
+  line. **No section of Home shrinks** (`.home > * { flex-shrink: 0 }`): the
+  hero was squeezed to its 360px min-height while its copy ran about 60px into
+  the bento.
+- **What repeats**: every row in the full ink (the fourth was faded), and each
+  with its arrow (`wayMark`): up in `--bad` getting worse, down in `--good`
+  getting better, a grey line steady, from patterns.js `trendOf` (the newer
+  half of the recorded matches against the older), its words in a tooltip of
+  the app's glass (`.has-tip`, `data-tip`) and to a screen reader
+  (`home-model.js mistakeTrendWords`: "Getting worse: in 4 of your 5 newest
+  recorded matches, up from 1 of the 5 before them."). A cause's trend is one
+  prompt's, so its words carry no counts.
+- **The trend card**: its title is the average its line draws ("Averaging
+  73"; "Level over five matches" read oddly), the grade's own arrow beside it
+  (`gradeTrendOf`: the five drawn against the five before, else the halves of
+  the line; within 3 steady; none below four grades). Its axis names days
+  ("Today", "Yesterday", "Nov 22"), or times when every match is one day's,
+  the line under it saying so ("Your last five graded matches, all today").
+- **The rank card** (Home and Stats): the tier's own icon
+  (`assets/ranks/<tier>.webp`, 26 of them at 128px, `npm run sync:rankicons`
+  from valorant-api.com's newest tier table, written to a file, never a pipe),
+  the last game's RR, the RR in the tier as a bar and "43 RR to Diamond 2".
+  From Immortal 1 the RR is not capped at 100: the RR under the tier, no bar,
+  and "Immortal 3 follows the leaderboard" (Radiant: "The highest rank").
+  `src/shared/rank-tiers.js` holds the ladder (names in any case, the tier
+  after each, `rrOf` from a history point's elo, which is a place times 100
+  plus the RR, never printed); the Home and Stats preloads name the files.
+- **The moon turns** (`shared/sky.js`, "THE TURNING MOON"). The image moon was
+  1000px over a box 130% of the window wide, so it was pixelated at 1x and
+  worse at 2x. Now a WebGL sphere: its surface (maria, grain and four fields
+  of craters scattered in three dimensions, each a bowl and a raised rim kept
+  as albedo and slope) is baked once into a 4096 by 1024 texture, a strip a
+  frame while idle; each frame looks it up for the part of the moon this
+  document shows, at the device's own resolution (the shell's bar strip
+  alone on Home; a host turned by CSS, the Recording screen's moon, whole at
+  2048 at most), turned about an axis across the lit limb by the WALL CLOCK
+  (one turn in 24 minutes), so Home, the bar's strip and the review agree and
+  meet with no seam. 30 frames at most; no frame while ambient motion is off
+  (a recording's html.rec-still, the window or page out of sight, reduced
+  motion) or an ancestor holds it at no opacity; the bake waits while the
+  shell is sealed. The software renderer or no WebGL gets the image moon.
+  `window.__occlaraMoonTime` (seconds) holds the clock for a picture.
+- **Pictures**: `scripts/shot-demo.js` scenes homerank, homeimmortal,
+  homeradiant, homeiron, homeungraded, homefoot, homehover, hometip,
+  hometrendtip, home960, home1100, homelol, homerecording, statsrank,
+  rankicons, moont0 and moont1; `SHOT_DPR=2` for 2x. `test:home91` and
+  `test:rankicons` hold all of it.
