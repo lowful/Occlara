@@ -84,6 +84,17 @@ console.log('a clutch is won alive:');
   ok(withAlive && withAlive.evidence.includes('won 1 clutch'), 'and still credits one won alive', JSON.stringify(withAlive && withAlive.evidence));
   ok(/clutchWonAlive/.test(read('src/shared/insights.js')) && /r\.died === false/.test(read('src/shared/grade.js')),
     'the lists and the grade read the same rule');
+  // The owner's own Split of 4 Oct, Riot's record as kept in the repo: round 12 is the audit's case.
+  const verify = require('../src/shared/valorant-verify');
+  const split = verify.reconcile([], JSON.parse(read('scripts/fixtures/riot-split-13-7.json'))).rounds;
+  const r12 = split.find((r) => r.n === 12);
+  ok(r12 && r12.clutch && r12.clutch.won === true && r12.died === true && r12.result === 'won',
+    'Riot\'s record of the real Split: round 12 left the player last against 3, the player died, the round was won', JSON.stringify(r12 && r12.clutch));
+  const realIns = insights.valorant(split, { role: 'Duelist' });
+  const realDec = grade.valorant({ rounds: split, scoreline: { kills: 17, deaths: 16, assists: 8, acs: 279, adr: 181, headshotPct: 22 }, role: 'Duelist', history: [], totalRounds: 20 })
+    .categories.find((c) => c.key === 'decisions');
+  ok(!realIns.strengths.some((s) => s.key === 'clutch') && !realDec.evidence.some((e) => /clutch/.test(e)),
+    'and on it neither "Won as the last one standing" nor a clutch in Decisions', JSON.stringify(realDec.evidence));
 }
 
 // The sample library, served and presented as main presents it.

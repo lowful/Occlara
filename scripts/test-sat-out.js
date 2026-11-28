@@ -6,9 +6,15 @@
  * real Split match (scripts/fixtures/riot-split-13-7.json and the review
  * saved for it) with round 7 marked AFK: a lost round where the player died
  * first, untraded, to Reyna. Before 8.8 only the mistakes left it out, and
- * the grade (81, not 82), the misses, the card, the page's patterns, the
+ * the grade (80, not 81), the misses, the card, the page's patterns, the
  * counts sent to the coach, the round it picked for a line, Moments, Ask
  * Coach's enemy block and the paid death look all still counted it.
+ *
+ * 9.1: one point lower than 8.8's 81 and 82. This is the owner's Split of 4
+ * Oct, and its round 12 is the clutch the AI audit found: left last against
+ * three, planted, killed, the spike went off. Decisions credited it 4 points
+ * ("won 1 clutch"); a clutch is now won alive (insights.js clutchWonAlive,
+ * grade.js), so it credits none, and the grade is 80, 81 with round 7 left out.
  *
  * Also here: the untraded deaths told apart by Riot's nearest teammate
  * (insights.js, 'untraded' and 'untraded-close'), the team's buy line as a
@@ -81,16 +87,16 @@ ok(satOutNote([{ n: 7, afk: true }]) === 'Left out of every count: round 7, Riot
   const one = g({ [AFK]: { afk: true } });
   const surv = (x) => x.categories.find((c) => c.key === 'survival').evidence.join('; ');
   const team = (x) => x.categories.find((c) => c.key === 'teamplay').evidence.join('; ');
-  ok(none.score === 81 && one.score === 82, `the AFK round is not graded: 81 with it, 82 on the rounds played (${none.score}, ${one.score})`);
+  ok(none.score === 80 && one.score === 81, `the AFK round is not graded: 80 with it, 81 on the rounds played (${none.score}, ${one.score})`);
   ok(surv(one).includes('15 deaths in 19 rounds') && surv(one).includes('first to die and not traded in 3 of 19 rounds'),
     `Survival counts the rounds played (${surv(one)})`);
   ok(team(one).startsWith('2 of 14 deaths traded'), `and so does Teamplay (${team(one)})`);
   ok(one.notes.includes('Left out of every count: round 7, Riot marked you AFK.') && !none.notes.some((n) => /Left out/.test(n)),
     'a note names the round left out, and only when there is one');
   const spawn = g({ [AFK]: { inSpawn: true } });
-  ok(spawn.score === 82 && spawn.notes.includes('Left out of every count: round 7, Riot has you in spawn all round.'), 'a round in spawn the same way');
+  ok(spawn.score === 81 && spawn.notes.includes('Left out of every count: round 7, Riot has you in spawn all round.'), 'a round in spawn the same way');
   const forged = g({ [AFK]: { afk: 'yes' } });
-  ok(forged.score === 81, 'a flag that is not true changes nothing');
+  ok(forged.score === 80, 'a flag that is not true changes nothing');
   // Every verified round sat out (8.8 review): linked, so no "firms up once Riot's round record links", and no grade.
   const afkAll = grade.valorant({ rounds: Array.from({ length: 13 }, (_, i) => ({ n: i + 1, verified: true, died: true, afk: true })),
     totalRounds: 13, scoreline: { kills: 0, deaths: 13, assists: 0, acs: 20 } });
