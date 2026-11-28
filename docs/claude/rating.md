@@ -192,9 +192,22 @@ assisters now come with every match linked from the next server), and **bump
 
 ## The display and match length
 
+**Shown on the 100 scale (9.1, the owner's item 16).** Every figure a player
+sees is the value times ten, rounded, as the grade is out of 100: 6.0 shows
+60, 8.3 shows 83, a move of +0.6 shows +6 (`shared/display.js rating`,
+`ratingDelta`, `ratingMove`). Inside, everything below keeps the rating's
+own units, 3.0 to 10.0, and so does every test of the model. `viewOf`'s
+`shown`, its lobby's values and every `delta` it sends (a round's, a swing's,
+an event's) are already on the 100 scale, a move being the difference of the
+two shown numbers so a list of them adds up; `value` stays the rating's own.
+The live view (`live-rating.js view`, `live-rating-service.js` "Full time")
+sends the same, its `last.up` and `last.down` following the move shown, and
+the badge (`rating-badge.js`, which the stream widget inlines) writes and
+counts the whole number (`--rt`, one integer counter).
+
 Shown = 6.0 plus a squash of the net swing: above 6, 4 tanh(x / 3.2), so 10.0
 is reached only in the limit; below, 3 tanh(x / 2.6), a floor of 3.0. One
-decimal.
+decimal inside, shown times ten.
 
     x = net (24 + 12) / (E + 12) min(1, E / rounds)
 
@@ -384,7 +397,7 @@ a soft area under it, 6.0 dashed, the half dashed and labelled, a tick a
 round (won brighter), the swings' dots (a gain's `--good` above the line, a
 loss's `--bad` below). Pointing at a round, or focusing the line and using
 the arrow keys, shows its point, a cursor and one line under the chart:
-"Round 14, 7 : 7, +0.4, Triple kill with the opening kill". Then the three
+"Round 14, 7 : 7, +4, Triple kill with the opening kill". Then the three
 biggest round gains and losses side by side (a row opens its round's row
 through `goRound`, its clip with it), and "The lobby, by agent" closed. No
 card, tokens only.

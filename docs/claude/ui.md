@@ -42,7 +42,8 @@ wins. What phase 1 changed, and what to keep true:
   front of the moon (its full portrait, below), then the bento of the last
   match, the trend (the grade line, its own card now) and what repeats, then
   the moment the coach looked at beside the rank, then the recent matches.
-- **The review's hero**: the grade's number at 132px with its letter, "out of
+- **The review's hero**: the grade's number at 132px in its band's tone, its
+  name "Grade" with its tooltip (no letter since 9.1), "out of
   100" and the change on the last match (`.vd-delta`, from main's progress),
   the medals (`paintMedals`: real facts only, main's own, never another
   player's name), the fix in two tones, and Ask about this match (`#ask`, moved
@@ -200,11 +201,11 @@ are in both `main-window.js` and `shell.css`: change them together.
 ask: green, amber and white bars with no key "seem like random colors").
 `matches.js paintTrend` draws every bar in one neutral tone, the newest in
 the ink and named Latest under it, the first bar of each day its short date,
-the value over each bar in Mono, the letter floors (C 60, B 70, A 80, S 90,
-`grade.js letter()`) as labelled hairlines, the average as a dashed line,
+the value over each bar in Mono, the band floors labelled by their numbers
+(60, 70, 80, 90; no letters since 9.1) as hairlines, the average as a dashed line,
 one plain line above saying what it is, and a key under it naming every mark
 that is on it (latest, average, provisional, a record, a run). Never colour a
-bar by its letter again; the letter is on hover. The four categories under it
+bar by its band again. The four categories under it
 say they are averages over the window (`.p-cats-cap`) and each says in an
 arrow AND a word whether the last match was above or below (`.p-cat-vs`).
 `test:surfaces`, "the match library", holds all of it.
@@ -502,7 +503,7 @@ AI log and the weekly report ease in. `npm run test:surfaces` pins each.
 **The reveal (8.7).** The review the loading screen gives way to (the
 `wasBuilding` branch of `paint()` in review.js, `startReveal`) arrives in
 order, once per review id the page holds in memory: the number counts up over
-`--t-slow` twice, the letter stamps in after `--t-slow` (`vdStamp`, scale 1.35
+`--t-slow` twice, the grade's name stamps in after `--t-slow` (`vdStamp`, scale 1.35
 to 1 on `--ease-spring`), the fix for next match (`#v-focus-wrap`) rises in
 as the letter lands (`m-rise` after `--t-slow`), before the standout, the
 grade's bars fill from `scaleX(0)` one after another (`--i` from `gradeCard`'s

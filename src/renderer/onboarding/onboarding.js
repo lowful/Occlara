@@ -520,7 +520,8 @@ function paintBackfill(s) {
     const grade = document.createElement('span');
     const tone = x.grade && window.GradeView ? window.GradeView.gradeTone(x.grade) : '';
     grade.className = 'ob-bf-grade' + (tone ? ' ' + tone : '');
-    grade.textContent = x.grade ? `${x.grade.score} ${x.grade.letter}` : '';
+    grade.textContent = x.grade ? String(x.grade.score) : '';
+    if (x.grade) grade.title = `Grade ${x.grade.score}`;
     if (x.grade && x.grade.provisional) grade.title = 'Provisional: some of the record was missing';
     row.append(name, res, grade);
     bfList.append(row);

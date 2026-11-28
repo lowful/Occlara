@@ -838,9 +838,10 @@ async function openShell(cfg, state, opts) {
       },
     });
     await settle();
-    const letters = h.$('recent-list').querySelectorAll('.gv-letter');
-    ok(letters.length === 2 && toneOf(letters[0]) === toneFor(58) && letters[0].textContent === 'D'
-      && toneOf(letters[1]) === toneFor(82), 'each recent match takes the shared colour, with its letter beside it');
+    const nums = h.$('recent-list').querySelectorAll('.r-score');
+    ok(nums.length === 2 && toneOf(nums[0]) === toneFor(58) && nums[0].textContent === '58'
+      && toneOf(nums[1]) === toneFor(82) && !h.$('recent-list').querySelector('.gv-letter'),
+    'ONE SCORE: each recent match takes the shared colour on its number, and no letter is drawn');
     ok(h.scripts.some((x) => /grade-view\.js$/.test(x)), 'from shared/grade-view.js rather than a copy');
   });
 
@@ -884,9 +885,9 @@ async function openShell(cfg, state, opts) {
     ok(same(days, want) && /^[A-Z][a-z]{2} \d{1,2}$/.test(days[0]),
       'the first bar of each day carries its short date, as an axis is labelled', days.join(','));
     const guides = m.document.querySelectorAll('#p-trend .p-guide');
-    ok(same(guides.map((g) => g.textContent), ['S 90', 'A 80', 'B 70', 'C 60'])
+    ok(same(guides.map((g) => g.textContent), ['90', '80', '70', '60'])
       && same(guides.map((g) => g.style.getPropertyValue('--h')), ['90%', '80%', '70%', '60%']),
-      'each letter band is a labelled guide line at grade.js\'s floor');
+      'each band is a guide line labelled by its number, no letter, at grade.js\'s floor');
     ok(grade.letter(90) === 'S' && grade.letter(89) === 'A' && grade.letter(80) === 'A' && grade.letter(70) === 'B' && grade.letter(60) === 'C' && grade.letter(59) === 'D',
       'and those floors are grade.js\'s');
     const avgLine = m.document.querySelector('#p-trend .p-avgline');
@@ -917,9 +918,10 @@ async function openShell(cfg, state, opts) {
     ok(/height:\s*var\(--h/.test(rule('.p-bar i')) && /bottom:\s*calc\(var\(--h/.test(rule('.p-bar span')),
       'and both read the same --h');
 
-    const letters = m.document.querySelectorAll('#list .m-row .m-letter');
-    ok(letters.length === 5 && letters.every((el) => toneOf(el) === TONE[el.textContent]),
-      'the rows colour the same grades the same way');
+    const scores = m.document.querySelectorAll('#list .m-row .m-score');
+    ok(scores.length === 5 && scores.every((el) => toneOf(el) === toneFor(Number(el.textContent)))
+      && !m.document.querySelector('#list .m-row .m-letter'),
+      'the rows colour the same grades the same way, on the number, and draw no letter');
   });
 
   // 8.7: the milestones main counted (progress.js libraryProgress) on the
@@ -949,17 +951,17 @@ async function openShell(cfg, state, opts) {
     await settle();
     const items = m.document.querySelectorAll('#list .m-item');
     const marksOf = (n) => n.querySelectorAll('.m-mark').map((x) => x.textContent);
-    const byTitle = (n) => items.find((it) => it.querySelector('.m-letter') && it.querySelector('.m-score').textContent === String(n));
+    const byTitle = (n) => items.find((it) => it.querySelector('.m-score') && it.querySelector('.m-score').textContent === String(n));
     ok(same(marksOf(byTitle(88)), ['Best in 4', '2 in a row']), 'a row carries its marks as badges, in main\'s order', JSON.stringify(marksOf(byTitle(88))));
     ok(same(marksOf(byTitle(64)), ['2 without Died where nobody could trade']) && marksOf(byTitle(81)).length === 0,
       'a cleared habit on its own row, and a row with none carries none');
-    const checkingRow = items.find((it) => !it.querySelector('.m-letter'));
+    const checkingRow = items.find((it) => !it.querySelector('.m-score'));
     ok(checkingRow && marksOf(checkingRow).length === 0, 'a match still being checked shows no mark');
     const bars = m.document.querySelectorAll('#p-trend .p-bar');
     // Oldest on the left: 70, 64, 81, 88.
     ok(same(bars.map((b) => b.classList.contains('best')), [false, false, false, true]), 'the record\'s bar is outlined, and only it');
     ok(same(bars.map((b) => b.classList.contains('run')), [false, false, true, true]), 'the run\'s bars, the newest run.count, are marked');
-    ok(/Best in 4/.test(bars[3].title) && /One of 2 in a row at B or better/.test(bars[2].title), 'and each says so on hover', bars[3].title);
+    ok(/Best in 4/.test(bars[3].title) && /One of 2 in a row at 70 or better/.test(bars[2].title), 'and each says so on hover', bars[3].title);
     const hero = m.document.querySelector('#p-lists .gv-hero');
     const closed = m.document.querySelectorAll('#p-lists .gv-rowed details.gv-row');
     ok(hero && hero.querySelector('.gv-item-title').textContent === 'Peeked alone' && closed.length === 1,
@@ -2177,13 +2179,15 @@ async function openShell(cfg, state, opts) {
     };
     const v = await open(base);
     const want = verdictOf(base);
-    const letter = v.document.querySelector('#v-verdict .vd-letter');
-    ok(want && !v.$('v-grade').hidden && letter && letter.textContent === 'B' && toneOf(letter) === toneFor(78)
-      && v.document.querySelector('#v-verdict .vd-score').textContent === '78'
+    const named = v.document.querySelector('#v-verdict .vd-name');
+    const vscore = v.document.querySelector('#v-verdict .vd-score');
+    ok(want && !v.$('v-grade').hidden && named && named.textContent === 'Grade' && /out of 100/.test(named.title)
+      && !v.document.querySelector('#v-verdict .vd-letter')
+      && vscore.textContent === '78' && toneOf(vscore) === toneFor(78)
       && want.stat && !v.$('v-stat').hidden && v.$('v-stat').querySelector('.vd-stat-value').textContent === want.stat.value
       && v.$('v-stat').querySelector('.vd-stat-label').textContent === want.stat.label
       && !/verdict/i.test(v.$('v-verdict').querySelector('.vd-top').textContent) && !v.$('v-verdict').textContent.includes(want.reason),
-    'the Verdict first, as the share image draws it: its letter in the one grade colour, the number out of 100 and the standout, no VERDICT word and no reason line',
+    'the Verdict first, as the share image draws it: the number out of 100 in the one grade colour, named Grade with what it measures, no letter, the standout, no VERDICT word and no reason line',
     want && JSON.stringify(want.stat));
     // The tile's URL is VerdictCard.iconUrl's, resolved against the script's
     // own src: this stand in page has none, so no URL and no tile, and with
@@ -2343,8 +2347,8 @@ async function openShell(cfg, state, opts) {
       insights: { mistakes: [], strengths: [{ key: 'cs', title: 'CS at 10', detail: 'CS at 10:00: 70 this game, against your average of 61.' }], missed: [] },
       deaths: { headline: '', detail: '' }, deathList: [], moments: [], objectives: {}, scored: [], unmeasured: [], next: null, gamesRecorded: 0 };
     const lv = await open(lol, { [C.PROGRESS_GET]: () => ({ id: lol.id, lines: [PROGRESS.lines[0]] }) });
-    const lLetter = lv.document.querySelector('#r-verdict .vd-letter');
-    ok(!lv.$('r-verdict').hidden && lLetter && lLetter.textContent === 'A' && toneOf(lLetter) === toneFor(84)
+    const lScore = lv.document.querySelector('#r-verdict .vd-score');
+    ok(!lv.$('r-verdict').hidden && lScore && lScore.textContent === '84' && toneOf(lScore) === toneFor(84) && !lv.document.querySelector('#r-verdict .vd-letter')
       && lv.document.querySelector('#r-verdict .vd-stat-value').textContent === verdictOf(lol).stat.value
       && lv.document.querySelector('#r-verdict .vd-stat-label').textContent === verdictOf(lol).stat.label
       && !lv.document.querySelector('#r-verdict .vd-label') && !lv.document.querySelector('#r-verdict .vd-reason')
@@ -2419,8 +2423,8 @@ async function openShell(cfg, state, opts) {
       'whole, it is said ready first: the card, the review held back, nothing counted or heard', v.root().className);
     await v.after(READY_IN);
     ok(v.$('v-ready-time').textContent === 'now', 'made whole just now, the card says now', v.$('v-ready-time').textContent);
-    ok(v.$('v-ready').classList.contains('in') && v.$('v-ready-line').textContent === '78 B, Victory 13 : 11',
-      'the card drops in with the grade, its letter and, with nothing counted against the last match, the result', v.$('v-ready-line').textContent);
+    ok(v.$('v-ready').classList.contains('in') && v.$('v-ready-line').textContent === 'Grade 78, Victory 13 : 11',
+      'the card drops in with the grade by its name, no letter, and, with nothing counted against the last match, the result', v.$('v-ready-line').textContent);
     await v.after(READY_OPEN - READY_IN);
     await v.after(READY_PLAY);
     const sc = v.score();
@@ -2512,11 +2516,11 @@ async function openShell(cfg, state, opts) {
     // The card's line says how the grade moved, from main's progress alone.
     const up = await page({ progress: { ...PLAIN, vsLast: { delta: 4 } } });
     await up.whole();
-    ok(up.$('v-ready-line').textContent === '78 B, up 4 on your last match' && !!up.$('v-ready-line').querySelector('.v-ready-up'),
+    ok(up.$('v-ready-line').textContent === 'Grade 78, up 4 on your last match' && !!up.$('v-ready-line').querySelector('.v-ready-up'),
       'the card says the grade went up on the last match, beside a dot', up.$('v-ready-line').textContent);
     const down = await page({ progress: { ...PLAIN, vsLast: { delta: -3 } } });
     await down.whole();
-    ok(down.$('v-ready-line').textContent === '78 B, down 3 on your last match' && !down.$('v-ready-line').querySelector('.v-ready-up'),
+    ok(down.$('v-ready-line').textContent === 'Grade 78, down 3 on your last match' && !down.$('v-ready-line').querySelector('.v-ready-up'),
       'or that it went down, with no dot', down.$('v-ready-line').textContent);
 
     const best = await page({ progress: BEST });
@@ -2616,8 +2620,7 @@ async function openShell(cfg, state, opts) {
     const shown = () => chips().map((c) => `${c.textContent}:${toneOf(c)}`);
     ok(same(shown(), [`82:${toneFor(82)}`, `58:${toneFor(58)}`, `69:${toneFor(69)}`]),
       'each grade is its letter\'s colour: an 82 A green, a 58 D red, a 69 C a warning', shown().join(' '));
-    const letters = st.document.querySelectorAll('#session-list .grade-letter');
-    ok(letters.length === 3 && letters.every((l) => toneOf(l) === TONE[l.textContent]), 'and the letter beside it agrees');
+    ok(!st.document.querySelector('#session-list .grade-letter'), 'ONE SCORE: and no letter is drawn beside it');
     ok(st.scripts.some((x) => /grade-view\.js$/.test(x)), 'Stats loads the shared rule rather than keeping its own');
 
     // A review saved while the window is open, then improved, in a burst.
@@ -3079,7 +3082,7 @@ async function openShell(cfg, state, opts) {
     const second = h.$('recent-list').querySelectorAll('.r-row')[1];
     ok(first.querySelector('.gv-checking') && !first.querySelector('.r-score') && !first.querySelector('.gv-letter') && !first.querySelector('.r-res'),
       'its recent row: the pill where the grade and the result were');
-    ok(second.querySelector('.r-score') && second.querySelector('.gv-letter') && !second.querySelector('.gv-checking'), 'and every other row its grade');
+    ok(second.querySelector('.r-score') && !second.querySelector('.gv-letter') && !second.querySelector('.gv-checking'), 'and every other row its grade, its number and no letter');
     const asks = () => h.bridge.invoked.filter((x) => x[0] === C.REVIEWS_LIST).length;
     const before = asks();
     building = false;
@@ -6358,8 +6361,8 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     const head = q.document.querySelector('#mo-list .mo-match .mo-mhead');
     ok(head && /Victory 13-11/.test(head.querySelector('.mo-res').textContent) && head.querySelector('.mo-res').classList.contains('win')
       && /Jett on Abyss/.test(head.querySelector('.mo-who').textContent) && head.querySelector('.mo-score').textContent === String(rv.grade.score)
-      && head.querySelector('.gv-letter').textContent === rv.grade.letter,
-      'the match line: the result and score in its tone, the agent on the map, the grade as its number and letter', head && head.textContent);
+      && !head.querySelector('.gv-letter'),
+      'the match line: the result and score in its tone, the agent on the map, the grade as its number and no letter', head && head.textContent);
     ok(q.$('mo-counts').textContent === `${data.counts.deaths} deaths, ${data.counts.highlights} highlights, 2 clips across 2 matches`,
       'the counts line is main\'s counts', q.$('mo-counts').textContent);
     const rowOf = (id, n) => q.document.querySelector(`#mo-list .mo-row[data-key="${id}:r${n}"]`);

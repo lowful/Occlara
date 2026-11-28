@@ -264,10 +264,11 @@
       n.append(r);
       n.append(chart(s));
       const foot = el('div', 'letters');
-      for (const L of ['S', 'A', 'B', 'C', 'D', 'F']) {
-        if (!s.letters[L]) continue;
+      // One score, no letters (9.1): the year's grades by the band each fell in.
+      for (const band of Array.isArray(s.bands) ? s.bands : []) {
+        if (!band || !band.n) continue;
         const c = el('span', 'chip');
-        c.append(el('b', '', L), document.createTextNode(` ${s.letters[L]}`));
+        c.append(el('b', '', band.label), document.createTextNode(` ${band.n}`));
         foot.append(c);
       }
       if (s.bestMonth) {
@@ -287,8 +288,6 @@
       const left = el('div');
       left.append(line('p', 'k', 'Your match of the year', 80));
       const st = el('div', 'stamp');
-      const L = pop(el('span', 'letter grad', s.grade.letter || ''), 260);
-      st.append(L);
       const sc = el('div', 'score100');
       sc.append(count(s.grade.score, '', 420), el('small', '', 'of 100'));
       st.append(up(sc, 420));

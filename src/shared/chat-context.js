@@ -469,7 +469,7 @@ function rowOf(rows, label) {
     label: r.label, matches: fin(r.matches) ? r.matches : null,
     won: r.record ? r.record.won : null, lost: r.record ? r.record.lost : null, known: r.record ? r.record.known : null,
     winRate: r.winRate && fin(r.winRate.pct) ? r.winRate.pct : null,
-    grade: r.grade && fin(r.grade.avg) ? r.grade.avg : null, letter: r.grade ? r.grade.letter : null,
+    grade: r.grade && fin(r.grade.avg) ? r.grade.avg : null,
     kd: v(s.kd), acs: v(s.acs), adr: v(s.adr), hs: v(s.hs),
   };
 }
@@ -528,7 +528,7 @@ function valorantMatch(review) {
       hs: fin(sl.headshotPct) ? sl.headshotPct : null, mvp: sl.mvp || null } : null,
     against: (Array.isArray(review.against) ? review.against : []).map((a) => ({ label: a.label, value: a.value, baseline: a.baseline, games: a.games })),
     grade: review.grade && fin(review.grade.score) ? {
-      score: review.grade.score, letter: review.grade.letter, provisional: !!review.grade.provisional,
+      score: review.grade.score, provisional: !!review.grade.provisional,
       categories: (review.grade.categories || []).map((c) => ({ key: c.key, label: c.label, score: c.score, evidence: Array.isArray(c.evidence) ? c.evidence : [] })),
     } : null,
     lists: {
@@ -564,7 +564,7 @@ function lolMatch(review) {
     result: g.result || null,
     scoreline: { kills: sl.kills, deaths: sl.deaths, assists: sl.assists, cs: sl.cs, csAt10: sl.csAt10, ward: sl.ward, level: sl.level },
     grade: review.grade && fin(review.grade.score) ? {
-      score: review.grade.score, letter: review.grade.letter, provisional: !!review.grade.provisional,
+      score: review.grade.score, provisional: !!review.grade.provisional,
       categories: (review.grade.categories || []).map((c) => ({ key: c.key, label: c.label, score: c.score, evidence: Array.isArray(c.evidence) ? c.evidence : [] })),
     } : null,
     lists: {
@@ -728,7 +728,7 @@ function oldText(game, at, review) {
   if (typeof sl.kills === 'number') lines.push(`Scoreline ${sl.kills}/${sl.deaths}/${sl.assists}${sl.acs ? `, ACS ${sl.acs}` : ''}.`);
   const gr = r.grade;
   if (gr && gr.score !== null && gr.score !== undefined) {
-    lines.push(`Grade ${gr.score} (${gr.letter})${gr.provisional ? ', provisional' : ''}: `
+    lines.push(`Grade ${gr.score} of 100${gr.provisional ? ', provisional' : ''}: `
       + (gr.categories || []).filter((c) => c.score !== null).map((c) => `${c.label} ${c.score} (${c.evidence.join('; ')})`).join('. ') + '.');
   }
   const ins = r.insights || {};

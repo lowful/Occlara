@@ -200,7 +200,7 @@ function createLiveRatingService() {
     }
     const ft = g.fullTime;
     if (ft && typeof ft.value === 'number' && Number.isFinite(g.now) && g.now < ft.until) {
-      return { state: 'final', rating: { value: ft.value, shown: ft.value.toFixed(1), tier: rating.tierOf(ft.value) } };
+      return { state: 'final', rating: { value: ft.value, shown: rating.Display.rating(ft.value), tier: rating.tierOf(ft.value) } };
     }
     return { state: 'idle' };
   }

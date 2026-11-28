@@ -18,7 +18,8 @@
  * WHAT IT DRAWS, AND NOTHING ELSE: four corner brackets, the character's icon
  * (a bundled file, left out when there is none) with the agent and mode beside
  * it, the map, score and result (League's champion and the game's length),
- * the letter AND the number out of 100 with PROVISIONAL above it when it is,
+ * the grade's number out of 100 in its tone with "Grade" over "/100" beside it
+ * and PROVISIONAL with it when it is (one score, no letter since 9.1),
  * the one standout number with its line (verdict.js standout, 8.7.x, where
  * the reason was), up to four numbers (one the review does not have is left
  * out, never drawn as "--"), the moon from its path, even odd (square, never
@@ -332,19 +333,20 @@
     t.mono(sub, subX, 45, 11, P.ink);
     t.mono(v.right, W - pad, 45, 11, P.ink3, 'right');
 
-    /** The letter, then the number out of 100: the colour is never the only signal. */
+    /**
+     * The grade's number out of 100 in its tone, its name and "/100" beside
+     * it: one score, no letter (9.1). The colour is never the only signal.
+     */
     const gradeBlock = (base, px) => {
-      const letter = clean(v.letter);
-      // The letter's ink on the left margin, where the reason under it starts.
-      const at = t.sans(letter, 0, base, px, 600, null, F.display);
+      const score = clean(String(v.score));
+      const npx = px * 0.82;
+      // The number's ink on the left margin, where the standout under it starts.
+      const at = t.sans(score, 0, base, npx, 600, null, F.display);
       const x = pad + at.left;
-      t.sans(letter, x, base, px, 600, P.tone(toneOf(v)), F.display);
-      const nx = x + at.width + px * 0.1;
-      const spx = px * 0.42;
-      const score = t.sans(String(v.score), nx, base, spx, 600, P.ink2, F.display);
-      t.mono('/100', nx + score.width + 4, base, 10, P.ink3);
-      // Just above the number it qualifies: Geist's figures stand 0.71 of the size.
-      if (v.provisional) t.mono('Provisional', nx, base - spx * 0.71 - 12, 10, P.ink3);
+      t.sans(score, x, base, npx, 600, P.tone(toneOf(v)), F.display);
+      const nx = x + at.width + npx * 0.08;
+      t.mono('/100', nx, base, 10, P.ink3);
+      t.mono(v.provisional ? 'Grade, provisional' : 'Grade', nx, base - 16, 10, P.ink2);
     };
     /*
      * The standout under the grade (verdict.js standout), where the reason

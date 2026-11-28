@@ -290,23 +290,25 @@ function paintValorant(r, verdict) {
 }
 
 /*
- * THE VERDICT'S GRADE (8.7): the letter in its tone from GradeView, the one
- * grade colour rule, and the number out of 100 beside it, PROVISIONAL over the
- * number when the grade is. Both are the grade's own, as verdict.js passed
- * them. Each part keeps a class of its own (.vd-letter, .vd-score) for the
+ * THE VERDICT'S GRADE (8.7; one score, no letter since 9.1): the number out
+ * of 100 in its band's tone from GradeView, the one grade colour rule, its
+ * name "Grade" beside it with what it measures on hover, PROVISIONAL when the
+ * grade is. Each part keeps a class of its own (.vd-name, .vd-score) for the
  * reveal to find.
  */
 function verdictGrade(v) {
-  // ORBIT (27 Nov 2026): the number is the hero, at the left; beside it the
-  // letter in its tone, "out of 100" and, once main has counted it, the change
-  // on the last match (.vd-delta, paintProgress).
+  // ORBIT (27 Nov 2026): the number is the hero, at the left; beside it its
+  // name, "out of 100" and, once main has counted it, the change on the last
+  // match (.vd-delta, paintProgress).
   const box = el('div', 'vd-grade');
   const num = el('div', 'vd-num');
   const line = el('div', 'vd-num-line');
-  line.append(el('span', 'vd-score', v.score));
+  line.append(el('span', 'vd-score ' + (window.GradeView.gradeTone({ score: v.score }) || ''), v.score));
   num.append(line);
   const side = el('div', 'vd-side');
-  side.append(el('span', 'vd-letter ' + (window.GradeView.gradeTone({ score: v.score, letter: v.letter }) || 'none'), v.letter));
+  const name = el('span', 'vd-name', window.GradeView.GRADE_NAME);
+  name.title = window.GradeView.GRADE_TIP;
+  side.append(name);
   if (v.provisional) side.append(el('span', 'vd-prov', 'Provisional'));
   side.append(el('span', 'vd-out', 'out of 100'));
   const delta = el('span', 'vd-delta');
@@ -2103,13 +2105,13 @@ function readyFirst(mine) {
   mine.t.push(setTimeout(() => openReady(mine), READY_OPEN));
 }
 
-/** The card's line: "71 B, up 7 on your last match", or the result and score where nothing is counted. */
+/** The card's line: "Grade 71, up 7 on your last match", or the result and score where nothing is counted. */
 function readyLine(v, p) {
   const out = [];
   const vs = p && p.vsLast && typeof p.vsLast.delta === 'number' ? p.vsLast.delta : null;
   const g = (current && current.game) || {};
   const result = [g.result, String(g.score || '').split('-').join(' : ')].filter(Boolean).join(' ');
-  const graded = v && Number.isInteger(v.score) ? `${v.score}${v.letter ? ` ${v.letter}` : ''}` : '';
+  const graded = v && Number.isInteger(v.score) ? `Grade ${v.score}` : '';
   if (vs !== null && vs > 0) out.push(el('i', 'v-ready-up'));
   const moved = vs === null ? '' : vs > 0 ? `up ${vs} on your last match` : vs < 0 ? `down ${-vs} on your last match` : 'level with your last match';
   out.push(document.createTextNode([graded, moved || (graded ? result : '')].filter(Boolean).join(', ') || result || 'Your match is graded'));

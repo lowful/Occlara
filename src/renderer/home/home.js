@@ -119,10 +119,9 @@ function paintLast(last, model) {
   if (checking) row.append(checking);
   else if (last.grade) {
     const g = el('div', 'gv-grade last-grade');
-    g.title = 'Match grade, out of 100, from what the record shows';
+    g.title = `${GV.GRADE_NAME}. ${GV.GRADE_TIP}`;
     g.append(el('span', 'gv-score big', String(last.grade.score)));
     const side = el('span', 'grade-side');
-    side.append(GV.letter(last.grade, { size: 'sm' }));
     const d = deltaEl(deltaOf(model.trend || [], last.id));
     if (d) { d.title = 'Since the match before'; side.append(d); }
     g.append(side);
@@ -448,7 +447,7 @@ function paintRecent(recent, model) {
       title.append(el('span', 'r-res ' + (isWin(m.result) ? 'win' : isLoss(m.result) ? 'loss' : ''),
         [m.result, m.score].filter(Boolean).join(' ')));
     }
-    // Its marks (8.7, home-model.js marks): "Best in 23", "First A", "3 in a
+    // Its marks (8.7, home-model.js marks): "Best in 23", "First 80+", "3 in a
     // row". None while the match is still being checked.
     if (!m.work && Array.isArray(m.marks)) {
       for (const k of m.marks) {
@@ -468,8 +467,9 @@ function paintRecent(recent, model) {
     const g = m.grade;
     if (checking) b.append(checking);
     else {
-      b.append(el('span', 'r-score', g ? String(g.score) : '--'));
-      b.append(el('span', 'gv-letter ' + (g ? GV.gradeTone(g) : 'none'), g ? g.letter : '?'));
+      const sc = el('span', 'r-score' + (g ? ' ' + GV.gradeTone(g) : ''), g ? String(g.score) : '--');
+      if (g) sc.title = `${GV.GRADE_NAME} ${g.score}${g.provisional ? ', provisional' : ''}`;
+      b.append(sc);
     }
     b.addEventListener('click', () => window.occlara.openReview(m.id));
     host.append(b);

@@ -733,14 +733,11 @@ function sessionRow(s, i, settled) {
   const target = (s.grade && s.grade.score) || 0;
   const score = document.createElement('span');
   score.className = 'grade-chip';
-  score.title = s.grade && s.grade.provisional ? 'Match grade, provisional' : 'Match grade';
+  score.title = s.grade && s.grade.provisional ? 'Grade, provisional' : 'Grade';
   score.textContent = String(target);
   if (tone) score.classList.add(tone);
   if (!settled) revealScore(score, target, Math.min(i, 8) * 40);
-  const letter = document.createElement('span');
-  letter.className = 'grade-letter' + (tone ? ' ' + tone : '');
-  letter.textContent = s.grade ? s.grade.letter : '';
-  top.append(chev, place, sub, spacer, mvpSlot, score, letter);
+  top.append(chev, place, sub, spacer, mvpSlot, score);
 
   const detail = document.createElement('div');
   detail.className = 'detail';

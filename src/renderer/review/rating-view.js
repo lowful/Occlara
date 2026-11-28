@@ -138,7 +138,7 @@
   /*
    * A ROUND READ OFF THE LINE: the pointer over the plot, or the plot focused
    * and the arrow keys, shows that round's point, a cursor and its line under
-   * the chart: "Round 14, 7 : 7, +0.4, Triple kill with the opening kill".
+   * the chart: "Round 14, 7 : 7, +4, Triple kill with the opening kill".
    */
   function readable(c, view) {
     const plot = c.plot;
@@ -154,7 +154,7 @@
       const r = rounds[at];
       c.at(r.n, r.value);
       read.replaceChildren(el('span', 'rt-read-n', `Round ${r.n}`), el('span', 'rt-read-score', r.score),
-        el('span', `rt-read-d${/^\+/.test(r.delta) ? ' up' : /^-/.test(r.delta) ? ' down' : ''}`, r.delta),
+        el('span', `rt-read-d${moveCls(r.delta)}`, r.delta),
         el('span', 'rt-read-label', r.label || (r.won === true ? 'Round won' : r.won === false ? 'Round lost' : '')));
       read.classList.add('on');
     };
@@ -213,7 +213,7 @@
     $('rt-lobby').replaceChildren(...lobby.map((p) => {
       const li = el('li', `rt-lob${p.me ? ' me' : ''}`);
       const val = el('span', 'rt-lob-val', p.value);
-      setTier(val, p.tier || tierOf(Number(p.value)));
+      setTier(val, p.tier || tierOf(Number(p.value) / 10));
       li.append(el('span', 'rt-lob-agent', p.agent ? (p.me ? `${p.agent}, you` : p.agent) : (p.me ? 'You' : 'Unknown agent')),
         el('span', 'rt-lob-side', p.me ? 'Your team' : p.side === 'us' ? 'Your team' : 'Theirs'), val);
       return li;
@@ -252,6 +252,11 @@
     window.RatingBadge.setNumber($('rt-r-num'), $('rt-r-badge'), value);
   }
   // The move beside the badge, rising in green or falling in red.
+  /** ' up', ' down' or '' for a move as shown on the 100 scale ("+4", "-3", "0"). */
+  function moveCls(delta) {
+    const way = window.RatingBadge.wayOf(delta);
+    return way ? ` ${way}` : '';
+  }
   function setDelta(delta) {
     window.RatingBadge.setDelta($('rt-r-delta'), delta);
   }
@@ -259,7 +264,7 @@
     const f = $('rt-r-feed');
     const li = el('li', 'rt-f');
     li.append(el('span', 'rt-f-n', `R${e.round}`), el('span', 'rt-f-label', e.label),
-      el('span', `rt-f-d${/^\+/.test(e.delta) ? ' up' : /^-/.test(e.delta) && e.delta !== '-0.0' ? ' down' : ''}`, e.delta === '0.0' ? '' : e.delta));
+      el('span', `rt-f-d${moveCls(e.delta)}`, window.RatingBadge.wayOf(e.delta) ? e.delta : ''));
     f.prepend(li);
     while (f.children.length > FEED) f.lastElementChild.remove();
   }
@@ -282,7 +287,7 @@
     $('rt-r-feed').replaceChildren();
     $('rt-r-round').textContent = 'Kick off';
     $('rt-r-score').textContent = '0 : 0';
-    $('rt-r-label').textContent = 'From 6.0, every move is the change in your chance to win the round.';
+    $('rt-r-label').textContent = 'From 60, every move is the change in your chance to win the round.';
     $('rt-r-said').textContent = '';
     $('rt-r-skip').hidden = false;
     $('rt-r-close').hidden = true;

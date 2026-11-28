@@ -170,6 +170,45 @@ matches the newest look's prompt looked at (a look saved with no variant was a;
 a match never looked at, or by both, is none's), with no trend before four of
 them; its counts, in how many matches and how often, are every match's.
 
+### One score, no letters (9.1, the owner's item 16)
+
+The grade is shown as its number out of 100 and nothing else: no S, A, B, C,
+D or F anywhere a player looks, the review's hero, Matches (its rows, its
+breakdown and the chart's bands), Home, Clips, Stats, Profile, Players, Duos,
+onboarding's list, the share image, Wrapped, the review ready card, the Ask
+Coach context and the site export. The letter still exists inside
+(`grade.js letter()`, `progress.js` firsts and runs, `verdict.js`, the
+saved review), only for logic and for the band's colour; nothing draws it.
+
+- **One file says how a number is shown**: `src/shared/display.js` (a plain
+  file in both worlds: required in main and shared modules, loaded by a page
+  as `<script src="../../shared/display.js">`, `window.OcclaraDisplay`).
+  `grade()`, `gradeWords()`, `gradeDelta()`; `rating()`, `ratingDelta()`,
+  `ratingMove()`, `moveWay()`; `NAMES`, the two names and their tooltips:
+  **"Grade"** (how well you played this match, out of 100, by the coach's read)
+  and **"Match rating"** (how much you moved your team's chance to win each
+  round, out of 100, 60 is even). Every surface names the two with these words.
+- **GradeView** (`renderer/shared/grade-view.js`) has no `letter()`:
+  `scoreBadge(g, { size })` draws the number alone in its band's tone
+  (`.gv-num`, dashed when provisional), `GRADE_NAME` and `GRADE_TIP` are
+  display.js's words (`test:display` holds them the same), and the grade
+  card's top is the number in its tone and "Grade" with its tooltip.
+- **Progress says a band by its number**: a first S or A is "First 90 or
+  better" or "First 80 or better in your last N graded matches" (the mark
+  "First 80+"), a run "3 matches in a row at 70 or better" (`FLOOR`,
+  `firstLetter.floor`, `run.from`).
+- **Wrapped** counts the year's grades by band (`bands`: 90 and up, 80s,
+  70s, 60s, under 60) and its best match is its number.
+- `test:display` scans every page script and document for a letter drawn
+  (a `*-letter` class, a `.letter` interpolated or set as text).
+
+**A title inside a sentence** (9.1, the owner's item 1): a mistake's title is
+written as a heading, so put after a word it is lower cased first,
+`display.js inSentence()` ("2 without dying in the first 30 seconds"), and
+an agent, a map, a champion, an acronym, a word with a digit or a callout's
+site letter keeps its capital ("3 without Reyna kept winning"). Progress's
+cleared lines and marks use it; any new sentence that embeds a title must.
+
 **Progress (8.7, `src/shared/progress.js`)**, pure, from the same saved reviews
 newest first. `matchProgress(saved, id)` is one match against the ones before
 it: `vsLast` and `vsAverage` (2 or more graded before, up to `WINDOW`), `best`

@@ -277,7 +277,7 @@ const READ_HOME = `(() => { ${READ_HELPERS}
       milestone: newest ? list('.r-mark', newest) : [],
       change: delta ? T(delta) : '',
       changeLabel: delta ? String(delta.title || '') : '',
-      grade: { score: txt('.gv-score', last), letter: txt('.gv-letter', last),
+      grade: { score: txt('.gv-score', last),
         label: cut > 0 ? gTitle.slice(0, cut) : gTitle, sub: cut > 0 ? cap(gTitle.slice(cut + 2)) : '' },
       kd: kd ? { label: txt('.kd-label', kd), ratio: txt('.kd-ratio', kd), split: txt('.kd-split', kd) } : null,
       categories: [],
@@ -298,7 +298,7 @@ const READ_HOME = `(() => { ${READ_HELPERS}
       average: txt('.line-avg', trend), grades: list('.gl-num', trend) } : null,
     recentHeading: txt('#recent .card-head .label'),
     recent: QA('#recent-list .r-row').map((r) => ({ title: T(Q('.r-title', r).firstChild), result: txt('.r-res', r), marks: list('.r-mark', r),
-      meta: noDate(txt('.r-meta', r)), grade: txt('.r-score', r), letter: txt('.gv-letter', r) })),
+      meta: noDate(txt('.r-meta', r)), grade: txt('.r-score', r) })),
   };
 })()`;
 /*
@@ -349,12 +349,12 @@ const READ_MATCHES = `(() => { ${READ_HELPERS}
     heading: txt('#every .l-head h3'),
     rows: QA('#list .m-item').map((m) => ({ title: txt('.m-title', m), result: txt('.m-res', m), marks: list('.m-mark', m),
       meta: noDate(txt('.m-meta', m)), topMistake: txt('.m-top-mistake', m).replace(/^Top mistake:\\s*/, ''),
-      grade: txt('.m-score', m), letter: txt('.m-letter', m), change: txt('.m-delta', m) })),
+      grade: txt('.m-score', m), change: txt('.m-delta', m) })),
     chart: shown(Q('#m-chart')) ? { label: txt('.m-chart-label'), now: txt('#m-chart-big'), since: txt('#m-chart-since'), average: txt('#m-chart-avg') } : null };
 })()`;
 /*
- * PATTERNS, PROGRESS V3 (8.9): the chart of the grades with its letter bands
- * ("B 70"), its average line and its key; the four category averages, each
+ * PATTERNS, PROGRESS V3 (8.9): the chart of the grades with its bands by
+ * number ("70", one score and no letters since 9.1), its average line and its key; the four category averages, each
  * against the latest match; then the ranked lists, the top mistake a card
  * whose fix is its action line, every entry with its chips (how many of the
  * recorded matches, how many times, the trend word). The dates under the
@@ -392,7 +392,7 @@ const READ_MOMENTS = `(() => { ${READ_HELPERS}
     compilation: { heading: txt('#mo-comp-title'), rows: QA('#mo-comp-rows .mo-crow').map((r) => ({ title: txt('.mo-ctitle', r), line: txt('.mo-cline', r),
       action: shown(action(r)) ? T(action(r)) : '' })) },
     heading: txt('#mo-log-title'), counts: txt('#mo-counts'), filter: list('#mo-filter button'), note: shown(Q('#mo-note')) ? txt('#mo-note') : '',
-    matches: QA('#mo-list .mo-match').map((m) => ({ result: txt('.mo-res', m), who: txt('.mo-who', m), grade: txt('.mo-score', m), letter: txt('.mo-grade .gv-letter', m),
+    matches: QA('#mo-list .mo-match').map((m) => ({ result: txt('.mo-res', m), who: txt('.mo-who', m), grade: txt('.mo-score', m),
       moments: QA('.mo-row', m).map((x) => ({ round: txt('.mo-round', x), kind: txt('.mo-kind', x), title: txt('.mo-mtitle', x), line: txt('.mo-mline', x),
         marks: QA('.mo-mark', x).map((k) => ({ text: T(k), across: k.classList.contains('across') })), time: txt('.mo-time', x),
         // Play where a clip was kept, else the tag on its frame: why there is none.
@@ -409,13 +409,13 @@ const READ_REVIEW = `(() => { ${READ_HELPERS}
   // THE VERDICT SINCE 8.8 has no VERDICT word and no reason line: the page's
   // own heading ("Match review") is its label, and the standout's line, which
   // stands where the reason was, its reason. ORBIT's hero: the number with
-  // its letter and "out of 100", the result in sentence case ("Victory"),
+  // its name "Grade" (no letter since 9.1) and "out of 100", the result in sentence case ("Victory"),
   // the medals for real things, the fix in two tones (its head to the colon
   // and the rest), then Ask about this match and Every round.
   const visible = (sel) => QA(sel).filter((b) => shown(b) && !b.closest('[hidden]')).map(T).filter(Boolean);
   return {
     verdict: { label: txt('header .h-brand h2'), reason: txt('#v-stat .vd-stat-label'),
-      icon: shown(Q('#v-icon')) && !!Q('#v-icon .vd-icon-img'), letter: txt('#v-grade .vd-letter'), score: txt('#v-grade .vd-score'), out: txt('#v-grade .vd-out'),
+      icon: shown(Q('#v-icon')) && !!Q('#v-icon .vd-icon-img'), name: txt('#v-grade .vd-name'), score: txt('#v-grade .vd-score'), out: txt('#v-grade .vd-out'),
       provisional: !!Q('#v-grade .vd-prov'), stat: { value: txt('#v-stat .vd-stat-value'), label: txt('#v-stat .vd-stat-label') },
       result: txt('#v-result'), scoreline: txt('#v-score'), meta: txt('#v-meta'),
       stats: QA('#v-stats .v-stat').map((s) => ({ value: txt('.v-stat-value', s), label: txt('.v-stat-label', s), versus: txt('.v-stat-vs', s) })),
@@ -690,14 +690,14 @@ setTimeout(async () => {
     await until(() => rjs("document.querySelectorAll('#v-prog .gv-prog').length > 0"), 4000);
     await wait(500);
     out.review = await rjs(READ_REVIEW);
-    lines.push(`review: ${out.review.verdict.letter} ${out.review.verdict.score} "${out.review.verdict.stat.value} ${out.review.verdict.stat.label}" cats ${out.review.grade.categories.length} rounds ${out.review.rounds.rows.length} progress ${out.review.progress.length}`);
+    lines.push(`review: ${out.review.verdict.name} ${out.review.verdict.score} "${out.review.verdict.stat.value} ${out.review.verdict.stat.label}" cats ${out.review.grade.categories.length} rounds ${out.review.rounds.rows.length} progress ${out.review.progress.length}`);
     const v = out.review.verdict;
-    if (v.letter !== seeded.built.grade.letter || v.score !== String(seeded.built.grade.score) || out.review.grade.categories.length !== 4
+    if (v.name !== 'Grade' || v.score !== String(seeded.built.grade.score) || out.review.grade.categories.length !== 4
       || !out.review.rounds.rows.length || !out.review.fix.text || !out.review.read.lines.length) {
       return finish(false, `the review does not show the sample match whole: ${JSON.stringify({ v, cats: out.review.grade.categories.length })}`);
     }
     await rjs("document.querySelector('.body').scrollTo(0, 0); true");
-    await shot('review-top', 'The review: the hero with the number, its letter and its change on the last match, the result and the standout, the medals, the fix for next match in two tones, Ask about this match and Every round, and Riot\'s numbers');
+    await shot('review-top', 'The review: the hero with the number, its name and its change on the last match, the result and the standout, the medals, the fix for next match in two tones, Ask about this match and Every round, and Riot\'s numbers');
     // The hero's actions, its grade and its fix, where they sit on that picture.
     const rplaces = await steady(rjs, `(() => { ${READ_HELPERS}
       return { ask: placeOf(Q('#ask')), every: placeOf(Q('#v-every')), grade: placeOf(Q('#v-grade .vd-score')), fix: placeOf(Q('#v-focus')) };

@@ -15,9 +15,9 @@
  *       vsLast:    { delta, score, letter, at, provisional } | null,
  *       vsAverage: { delta, average, matches, of, left, provisional } | null,
  *       best: { grade: { over, matches } | null,
- *               firstLetter: { letter, over, matches } | null,
+ *               firstLetter: { letter, floor, over, matches } | null,
  *               categories: [{ key, label, score, previous, over, matches }] },
- *       run: { count, floor: 'B' } | null,
+ *       run: { count, floor: 'B', from: 70 } | null,
  *       cleared: [{ key, title, streak, before }],
  *       focus: { text, key, title, before, now, outcome, last } | null,
  *       lines: [{ kind, tone, text }] }
@@ -63,6 +63,7 @@
 const { WINDOW, MIN_MATCHES } = require('./patterns');
 const { countable } = require('./insights');
 const grade = require('./grade');
+const { inSentence } = require('./display');
 
 /** Graded matches a best needs before it. */
 const BEST_FLOOR = 3;
@@ -74,6 +75,12 @@ const STREAK_MIN = 2;
 /** The letters a first is worth a line for, best first. */
 const FIRSTS = ['S', 'A'];
 const ORDER = ['S', 'A', 'B', 'C', 'D'];
+/*
+ * ONE SCORE, NO LETTERS (9.1, the owner's item 16): a letter is never shown.
+ * A first S or A and a run of B or better are said by the number each band
+ * starts at (grade.js letter()): "First 80 or better", "at 70 or better".
+ */
+const FLOOR = { S: 90, A: 80, B: 70, C: 60, D: 0 };
 /** The most cleared habits one match lists. */
 const MAX_CLEARED = 3;
 
@@ -135,7 +142,7 @@ function bestOf(me, before) {
   // A first S, or a first A with neither an A nor an S before it in the window.
   if (FIRSTS.includes(me.letter)
     && before.every((g) => ORDER.indexOf(g.letter) > ORDER.indexOf(me.letter))) {
-    out.firstLetter = { letter: me.letter, over, matches: over + 1 };
+    out.firstLetter = { letter: me.letter, floor: FLOOR[me.letter], over, matches: over + 1 };
   }
   for (const c of me.categories) {
     const score = shown(c && c.score);
@@ -159,7 +166,7 @@ function runOf(graded, at) {
     if (g.provisional || !RUN_LETTERS.has(g.letter)) break;
     count++;
   }
-  return count >= STREAK_MIN ? { count, floor: RUN_FLOOR } : null;
+  return count >= STREAK_MIN ? { count, floor: RUN_FLOOR, from: FLOOR[RUN_FLOOR] } : null;
 }
 
 /**
@@ -204,11 +211,11 @@ function linesOf(p) {
   const lines = [];
   const b = p.best;
   if (b.firstLetter) {
-    lines.push({ kind: 'first', tone: 'good', text: `First ${b.firstLetter.letter} in your last ${b.firstLetter.matches} graded matches.` });
+    lines.push({ kind: 'first', tone: 'good', text: `First ${b.firstLetter.floor} or better in your last ${b.firstLetter.matches} graded matches.` });
   } else if (b.grade) {
     lines.push({ kind: 'best', tone: 'good', text: `Best grade in your last ${b.grade.matches} graded matches.` });
   }
-  if (p.run) lines.push({ kind: 'run', tone: 'good', text: `${p.run.count} matches in a row at ${p.run.floor} or better.` });
+  if (p.run) lines.push({ kind: 'run', tone: 'good', text: `${p.run.count} matches in a row at ${p.run.from} or better.` });
   if (p.vsLast) lines.push(deltaLine('last', p.vsLast.delta, 'your last match', p.vsLast.provisional));
   if (p.vsAverage) {
     const a = p.vsAverage;
@@ -221,7 +228,7 @@ function linesOf(p) {
     lines.push({ kind: 'category', tone: 'good', text: `Best ${c.label} in your last ${c.matches} matches: ${c.score}.` });
   }
   for (const c of p.cleared) {
-    lines.push({ kind: 'cleared', tone: 'good', text: `${plural(c.streak, 'recorded match', 'recorded matches')} in a row without ${c.title}.` });
+    lines.push({ kind: 'cleared', tone: 'good', text: `${plural(c.streak, 'recorded match', 'recorded matches')} in a row without ${inSentence(c.title)}.` });
   }
   if (p.focus) {
     const f = p.focus;
@@ -311,7 +318,7 @@ function libraryProgress(saved) {
   const newerOf = (i, keep) => { for (let j = i - 1; j >= 0; j--) if (keep(j)) return each[j]; return null; };
   each.forEach((p, i) => {
     const out = [];
-    if (p.best.firstLetter) out.push({ kind: 'first', text: `First ${p.best.firstLetter.letter}` });
+    if (p.best.firstLetter) out.push({ kind: 'first', text: `First ${p.best.firstLetter.floor}+` });
     else if (p.best.grade) out.push({ kind: 'best', text: `Best in ${p.best.grade.matches}` });
     const nextGraded = newerOf(i, (j) => each[j].score !== null);
     if (p.run && !(nextGraded && nextGraded.run && nextGraded.run.count === p.run.count + 1)) {
@@ -319,7 +326,7 @@ function libraryProgress(saved) {
     }
     const nextRecorded = newerOf(i, (j) => isRecorded(all[j]));
     const c = p.cleared.find((x) => !(nextRecorded && nextRecorded.cleared.some((y) => y.key === x.key && y.streak === x.streak + 1)));
-    if (c) out.push({ kind: 'cleared', text: `${c.streak} without ${c.title}` });
+    if (c) out.push({ kind: 'cleared', text: `${c.streak} without ${inSentence(c.title)}` });
     if (out.length) marks[p.id] = out;
   });
   const newest = each[0] || null;
@@ -328,4 +335,4 @@ function libraryProgress(saved) {
 
 // couldCount is read by practice.js too (the Practice page's "Is it working?"),
 // so a match that could not count a Riot only key is never counted as clean there.
-module.exports = { matchProgress, libraryProgress, couldCount, RUN_LETTERS, BEST_FLOOR, STREAK_MIN };
+module.exports = { matchProgress, libraryProgress, couldCount, RUN_LETTERS, BEST_FLOOR, STREAK_MIN, FLOOR };

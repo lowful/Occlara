@@ -393,8 +393,8 @@ function homeModel(me, matches, o = {}) {
 }
 
 function headWords(h) {
-  if (!h) return { agent: null, grade: null, letter: null };
-  return { agent: h.agent, grade: h.grade ? String(h.grade.score) : null, letter: h.grade ? h.grade.letter : null };
+  if (!h) return { agent: null, grade: null };
+  return { agent: h.agent, grade: h.grade ? String(h.grade.score) : null };
 }
 function matchRow(m, now) {
   const head = m.mine || m.theirs || {};
@@ -478,7 +478,7 @@ function matchModel(m, o = {}) {
   });
   const scoreOf = (s, flip) => (s && s.score ? (flip ? `${s.score.them}-${s.score.us}` : `${s.score.us}-${s.score.them}`) : null);
   const score = scoreOf(mine) || scoreOf(theirs, true);
-  const g = (s) => (s && s.grade ? { score: String(s.grade.score), letter: s.grade.letter } : null);
+  const g = (s) => (s && s.grade ? { score: String(s.grade.score) } : null);
   return {
     ref: m.ref, partner: m.partner, expiresAt: m.expiresAt || null,
     title: [head.map || 'A shared match', score].filter(Boolean).join(', '),

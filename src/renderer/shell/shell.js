@@ -682,7 +682,7 @@ function paintRating(r) {
   const changed = ratingShown !== null && r.value !== ratingShown;
   window.RatingBadge.setNumber($('lr-num'), $('lr-badge'), r.value);
   // The tier on the whole row too, so the glass tile's rim and the small dot
-  // beside "Rating" read the same --rt-tier (shell.css, Orbit glass).
+  // beside "Match rating" read the same --rt-tier (shell.css, Orbit glass).
   window.RatingBadge.setTier(box, window.RatingBadge.tierOf(r.value));
   const last = r.last && typeof r.last === 'object' ? r.last : null;
   if (changed || ratingShown === null) window.RatingBadge.setDelta($('lr-delta'), changed && last ? String(last.delta || '') : '');

@@ -89,7 +89,7 @@ console.log('\nOn: the recorder\'s rows with the reads\' context, and only the v
   ok(line && line.confirmed === 7.2 && line.liveKills === 1 && line.gap === Math.round((kept.value - 7.2) * 10) / 10, `set against the confirmed rating, gap ${line && line.gap}`);
   ok(s.compare(T0 + 1, { value: 7 }) === null, 'a match not rated live has nothing to set against');
   const ft = s.widget({ on: true, stream: true, inMatch: false, fullTime: { value: 7.2, until: now + 60000 }, now });
-  ok(ft && ft.state === 'final' && ft.rating.shown === '7.2' && Object.keys(ft.rating).sort().join() === 'shown,tier,value', '"Full time": the confirmed number, for a while');
+  ok(ft && ft.state === 'final' && ft.rating.shown === '72' && Object.keys(ft.rating).sort().join() === 'shown,tier,value', '"Full time": the confirmed number, for a while');
   s.feed(rec(later + 1000), ctx, { on: false });
   ok(s.view() === null && !s.active(), 'switched off: what was kept is gone');
 }

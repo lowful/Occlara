@@ -156,7 +156,7 @@ const brief = (evs) => evs.map((e) => (e.kind === 'kill' ? `${e.round}:${e.kille
   const p = planOf([{ t: 0, kind: 'round', round: 1, side: 'attacking' }, { t: 3, kind: 'kill', killer: 'me', victim: 'them' }, { t: 4, kind: 'kill', killer: 'us', victim: 'them' },
     { t: 7, kind: 'kill', killer: 'me', victim: 'them' }, { t: 9, kind: 'kill', killer: 'them', victim: 'me' }, { t: 20, kind: 'end', won: true }], {});
   const s = p.steps;
-  ok(s.length >= 3 && s[0].t === 3 && s[0].label === 'Opening kill' && s[0].delta.startsWith('+') && s[0].up && s[0].shown === s[0].value.toFixed(1),
+  ok(s.length >= 3 && s[0].t === 3 && s[0].label === 'Opening kill' && s[0].delta.startsWith('+') && s[0].up && s[0].shown === String(Math.round(s[0].value * 10)),
     `plan: the first kill rises, labelled "Opening kill" (${s.map((x) => `${x.t}:${x.delta}:${x.label}`).join(' ')})`);
   ok(s.every((x) => !/\d+v\d+/.test(x.label)), 'plan: no label carries the numbers standing');
   const death = s.find((x) => x.t === 9);

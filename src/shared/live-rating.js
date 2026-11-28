@@ -420,14 +420,21 @@ function createLiveRating(opts) {
     }
   }
 
-  /** What a window may show: the number, its tier, the last move and its label, the line. */
+  /** The last move as shown (100 scale): up and down follow the number shown, so "0" is neither. */
+  function moveOf(e) {
+    const delta = rating.signed(e.delta);
+    const way = rating.Display.moveWay(delta);
+    return { delta, up: way === 'up', down: way === 'down', label: e.label };
+  }
+
+  /** What a window may show: the number (shown on the 100 scale), its tier, the last move and its label, the line. */
   function view() {
     const value = r.value();
     return {
       value,
-      shown: value.toFixed(1),
+      shown: rating.Display.rating(value),
       tier: rating.tierOf(value),
-      last: last ? { delta: rating.signed(last.delta), up: last.delta > 0, down: last.delta < 0, label: last.label } : null,
+      last: last ? moveOf(last) : null,
       line: line.slice(),
     };
   }

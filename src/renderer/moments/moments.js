@@ -23,7 +23,7 @@
 
 const $ = (id) => document.getElementById(id);
 const api = window.occlara || {};
-const { el, letter } = window.GradeView;
+const { el, gradeTone } = window.GradeView;
 
 // The empty states' words; every other line on the page is main's
 // (moments.js NOTES and GONE come with the data).
@@ -137,8 +137,8 @@ function matchHead(m) {
   head.append(res, who, when);
   if (m.grade) {
     const g = el('span', 'mo-grade');
-    g.append(el('b', 'mo-score', m.grade.score), letter(m.grade, { size: 'sm' }));
-    g.title = m.grade.provisional ? 'Provisional grade' : 'Grade';
+    g.append(el('b', 'mo-score ' + gradeTone(m.grade), m.grade.score));
+    g.title = m.grade.provisional ? 'Grade, provisional' : 'Grade';
     head.append(g);
   }
   return head;

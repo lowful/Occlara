@@ -48,6 +48,8 @@ const SIDE = 5;
 const MIN_RECORDED = SIDE * 2;
 // A climb compares the first third of the graded matches with the last third, SIDE each at least.
 const CLIMB_MIN = 4;
+/** The bands a year's grades are counted in, by their numbers (one score, no letters, 9.1): [label, from, below]. */
+const BANDS = [['90 and up', 90, 101], ['80s', 80, 90], ['70s', 70, 80], ['60s', 60, 70], ['Under 60', 0, 60]];
 // A round is about 100 seconds (home-model.js puts a match back from its end by it).
 const SECONDS_A_ROUND = 100;
 const MAX_MINUTES = 240;
@@ -175,7 +177,7 @@ function rowOf(id, game, at, review, extra) {
   const info = r.game || {};
   const result = resultOf(info.result);
   const grade = r.grade && Number.isFinite(r.grade.score)
-    ? { score: Math.round(r.grade.score), letter: safe(r.grade.letter, 2), provisional: !!r.grade.provisional } : null;
+    ? { score: Math.round(r.grade.score), provisional: !!r.grade.provisional } : null;
   if (!result && !grade) return null;
   const sl = r.scoreline || {};
   const source = r.imported === true ? 'import' : r.source === 'riot' ? 'riot' : 'watched';
@@ -389,12 +391,13 @@ function gradesOf(rows) {
     const to = Math.round(sum(late) / late.length);
     climb = { from, to, by: to - from, each: third };
   }
-  const letters = {};
-  for (const r of graded) if (r.grade.letter) letters[r.grade.letter] = (letters[r.grade.letter] || 0) + 1;
+  // ONE SCORE, NO LETTERS (9.1): the year's grades counted by the band each
+  // fell in, named by its numbers, never a letter.
+  const bands = BANDS.map(([label, lo, hi]) => ({ label, n: graded.filter((r) => r.grade.score >= lo && r.grade.score < hi).length }));
   return {
     count: graded.length,
     avg: Math.round(sum(graded.map((r) => r.grade.score)) / graded.length),
-    months, bestMonth, climb, letters,
+    months, bestMonth, climb, bands,
     points: graded.map((r) => ({ at: r.at, score: r.grade.score })),
     small: graded.length < 12,
   };
@@ -655,7 +658,7 @@ function summaryOf(st) {
     figures.push({ n: v.time.matches, label: 'matches reviewed' });
     if (v.time.hours > 0) figures.push({ n: v.time.hours, label: v.time.estimated ? 'hours, about' : 'hours played' });
     if (v.agents[0]) figures.push({ n: v.agents[0].name, label: 'main agent', agent: v.agents[0].name });
-    if (v.best) figures.push({ n: v.best.grade.score, label: 'best grade', letter: v.best.grade.letter });
+    if (v.best) figures.push({ n: v.best.grade.score, label: 'best grade' });
     if (v.winRate !== null) figures.push({ n: `${v.winRate}%`, label: 'matches won' });
     const big = v.highlights ? v.highlights.threeK + v.highlights.fourK + v.highlights.aces : 0;
     if (big > 0) figures.push({ n: big, label: '3K or better' });

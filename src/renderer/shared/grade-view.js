@@ -4,8 +4,14 @@
  * The grade and the three insight lists, drawn the same way everywhere they
  * appear: the review, the match library and Home. A match graded from Riot's
  * record alone has one list of facts in place of the three. A row that has
- * room for the letter alone draws it with letter(), and Stats takes its
+ * room for the number alone draws it with scoreBadge(), and Stats takes its
  * colours from here.
+ *
+ * ONE SCORE, NO LETTERS (9.1, the owner's item 16): a grade is shown as its
+ * number out of 100 and nothing else. letterOf() and tone() stay, because the
+ * colour of a grade is still its band's, but no function here draws a letter.
+ * The name "Grade" and its tooltip are shared/display.js NAMES.grade, mirrored
+ * as GRADE_NAME and GRADE_TIP below (test:display holds the two the same).
  *
  * TEXT ONLY, never innerHTML. Detail lines carry agent names, callouts and the
  * coach's sentences about a frame, and none of that is ours to trust as markup.
@@ -68,20 +74,26 @@
     return scoreTone(g);
   }
 
+  /** The grade's name and what it measures, wherever it is named (display.js NAMES.grade). */
+  const GRADE_NAME = 'Grade';
+  const GRADE_TIP = "How well you played this match, out of 100, by the coach's read of your survival, impact, teamplay and decisions.";
+
   /**
-   * THE LETTER ALONE (8.6), for a row or a chip with no room for the card:
-   * the square in its tone with the letter in it, the one drawing the library,
-   * the breakdown and Stats use rather than a letter chip each. `g` is a
-   * score or a grade ({ score, letter }), whose own letter wins; `opts.size`
-   * is 'sm' (28px) or 'xs' (20px), the card's 40px without it. No grade is a
-   * '?' in no colour, never a D.
+   * THE NUMBER ALONE (9.1, in place of 8.6's letter), for a row or a chip with
+   * no room for the card: the grade's number in its tone, in the capsule the
+   * letter had. `g` is a score or a grade ({ score, provisional });
+   * `opts.size` is 'sm' or 'xs', the card's size without it. No grade is '--'
+   * in no colour, never a low number. Its title names it ("Grade 84").
    */
-  function letter(g, opts) {
+  function scoreBadge(g, opts) {
     const o = opts || {};
-    const grade = g && typeof g === 'object' ? g : { score: g, letter: letterOf(g) };
-    const l = grade.letter || letterOf(grade.score);
+    const grade = g && typeof g === 'object' ? g : { score: g };
+    const has = typeof grade.score === 'number' && Number.isFinite(grade.score);
     const size = o.size === 'sm' || o.size === 'xs' ? ' ' + o.size : '';
-    return el('span', 'gv-letter ' + (l ? gradeTone(grade) : 'none') + size, l || '?');
+    const b = el('span', 'gv-num ' + (has ? gradeTone(grade) : 'none') + size + (has && grade.provisional ? ' prov' : ''),
+      has ? String(Math.round(grade.score)) : '--');
+    b.title = has ? `${GRADE_NAME} ${Math.round(grade.score)}${grade.provisional ? ', provisional' : ''}. ${GRADE_TIP}` : 'No grade';
+    return b;
   }
 
   /*
@@ -102,10 +114,10 @@
   }
 
   /**
-   * The grade card: the number, the letter, and each category with the facts
+   * The grade card: the number, its name, and each category with the facts
    * it was built on. A category that could not be measured says so rather than
-   * showing a zero. `opts.compact` leaves out the row of the number and the
-   * letter, for a page that shows them already (the review, under its
+   * showing a zero. `opts.compact` leaves out the row of the number and its
+   * name, for a page that shows them already (the review, under its
    * Verdict); the categories and their evidence stay. `opts.reveal` gives each
    * bar its place in the order (--i), for the review's reveal to stagger by;
    * the card draws the same without it.
@@ -117,13 +129,14 @@
     if (!o.compact) {
       const top = el('div', 'gv-top');
       const hasScore = typeof grade.score === 'number';
-      const score = el('div', 'gv-score', hasScore ? grade.score : '--');
-      const mark = el('div', 'gv-letter ' + (hasScore ? tone(grade.letter) : 'none'), hasScore ? grade.letter : '?');
+      const score = el('div', 'gv-score' + (hasScore ? ' ' + gradeTone(grade) : ''), hasScore ? grade.score : '--');
       const meta = el('div', 'gv-meta');
-      meta.append(el('div', 'gv-label', o.label || 'Match grade'));
+      const label = el('div', 'gv-label', o.label || GRADE_NAME);
+      label.title = GRADE_TIP;
+      meta.append(label);
       meta.append(el('div', 'gv-sub', !hasScore ? 'Not enough measured to grade this match'
         : grade.provisional ? 'Provisional: some of the record is still missing' : 'Out of 100, from what the record shows'));
-      top.append(score, mark, meta);
+      top.append(score, meta);
       card.append(top);
     }
 
@@ -548,7 +561,7 @@
     return svg;
   }
 
-  const api = { gradeLine, gradeCard, insightLists, factList, roundChips, progressStrip, chip, LEAD_NUM, letter, letterOf, tone, scoreTone, gradeTone, checking, el };
+  const api = { gradeLine, gradeCard, insightLists, factList, roundChips, progressStrip, chip, LEAD_NUM, scoreBadge, GRADE_NAME, GRADE_TIP, letterOf, tone, scoreTone, gradeTone, checking, el };
   if (typeof window !== 'undefined') window.GradeView = api;
   // Node, for the test that holds the colour rule to grade.js. Nothing here
   // touches the DOM until a card is drawn, so requiring it is safe.

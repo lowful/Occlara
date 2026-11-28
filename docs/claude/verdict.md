@@ -186,16 +186,16 @@ throw, `fileName(v)` and `dateLabel(at)` name and date it.
 - **Paper by default**: `--paper` ground, every letter in `--paper-ink` (a
   grade's colours measure about 2.7:1 on paper, and the number beside it says
   the rest), text in `--paper-ink-2` and `-3`, brackets `--paper-ink-2`. Dark:
-  `--bg`, the letter in its tone from `GradeView.gradeTone`, the one grade
-  colour rule (S and A `--good`, B ink, C `--warn`, D `--bad`); without
-  GradeView on the page the letter is ink, since the card keeps no letter
-  table of its own.
+  `--bg`, the grade's number in its tone from `GradeView.gradeTone`, the one
+  grade colour rule (80 and up `--good`, 70s ink, 60s `--warn`, under 60
+  `--bad`); without GradeView on the page the number is ink, since the card
+  keeps no colour table of its own. No letter is drawn since 9.1.
 - **What it draws and nothing else** (8.7.x): four corner brackets as lines;
   on the top row the character's icon in a rounded tile (36 on the card and
   the post, 30 on Discord, `--paper-line` or `--bg-2` under it), the
   agent and mode beside it in ink (League: role and mode), and the right line
-  in `ink3`; the letter and the number out of 100, PROVISIONAL just above
-  the number when the grade is; the standout, its value in Geist 600 ink and
+  in `ink3`; the grade's number (0.82 of the size the letter had) in its
+  tone with "GRADE" over "/100" beside it, "GRADE, PROVISIONAL" when it is; the standout, its value in Geist 600 ink and
   its line in Geist 500 `ink2` beside it on the same baseline, or under it
   in up to two lines cut with an ellipsis when it does not fit; the numbers,
   nulls left out with their labels; the crescent (one scale on both axes, so

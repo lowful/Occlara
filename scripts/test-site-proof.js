@@ -65,8 +65,8 @@ ok(/^[0-9a-f]{40}$/.test(p.commit) && typeof p.dirty === 'boolean', 'the proof i
 ok(p.window && p.window.width === 1280 && p.window.height === 800 && p.window.scale === 2 && p.window.bar === 56,
   'the proof names the window its pictures are of, and the height of its top bar', JSON.stringify(p.window));
 const v = p.review && p.review.verdict;
-// Orbit's hero: "out of 100" beside the letter, the result in sentence case.
-ok(v && v.letter === 'B' && v.score === '71' && v.out === 'out of 100' && v.stat && v.stat.value && v.stat.label && v.result === 'Victory' && v.scoreline === '13 : 11',
+// Orbit's hero: "out of 100" beside the grade's name, no letter (9.1), the result in sentence case.
+ok(v && v.name === 'Grade' && !('letter' in v) && v.score === '71' && v.out === 'out of 100' && v.stat && v.stat.value && v.stat.label && v.result === 'Victory' && v.scoreline === '13 : 11',
   'the Verdict is a B of 71 on a 13 : 11 victory with its standout', JSON.stringify(v));
 ok(v && Array.isArray(v.medals) && v.medals.every((m) => typeof m === 'string' && m), "the hero's medals, each a line of its own", JSON.stringify(v && v.medals));
 ok(p.review.actions.includes('Ask about this match') && p.review.actions.includes('Every round') && p.review.fix.heading === 'Your fix for next match',
@@ -96,9 +96,9 @@ ok(mistakes && mistakes.items.slice(1).every((i) => i.fix), 'every mistake after
 ok(p.review.rounds.rows.length === 24 && p.review.rounds.halves.length === 2 && p.review.rounds.rows.every((r) => /^R\d+$/.test(r.n) && r.result && r.side),
   'every round as a row with its number, result and side, under two halves', `${p.review.rounds.rows.length} rows`);
 ok(p.review.rounds.rows.some((r) => r.tags.length > 2), 'the rounds carry their tags');
-ok(p.home.last.grade.score === '71' && p.home.last.grade.letter === 'B' && p.home.recent.length === 4 && p.home.trend.grades.join() === '58,61,64,71',
+ok(p.home.last.grade.score === '71' && !('letter' in p.home.last.grade) && p.home.recent.length === 4 && p.home.trend.grades.join() === '58,61,64,71',
   'Home: the last match a B of 71, four recent matches, the grade rising', JSON.stringify(p.home.trend));
-ok(p.home.recent.every((r) => r.result && r.grade && r.letter && !/\d{1,2}:\d{2}/.test(r.meta)), 'the recent rows carry no time');
+ok(p.home.recent.every((r) => r.result && r.grade && !('letter' in r) && !/\d{1,2}:\d{2}/.test(r.meta)), 'the recent rows carry no time');
 // Home as Orbit draws it: the last match card's parts, no empty one and one separator each.
 const last = p.home.last;
 ok(last.result === 'Victory' && last.score === '13 : 11' && last.meta === 'Jett · Abyss · Standard',
@@ -124,7 +124,7 @@ ok(p.matches.chart && p.matches.chart.now === '71' && p.matches.chart.average ==
 ok(p.patterns.lists.length >= 2 && p.patterns.lists[0].items[0].title === TOP, 'Patterns: the lists across the matches');
 ok(p.patterns.lists[0].items[0].hero && p.patterns.lists[0].items[0].fix && p.patterns.lists[0].items.every((i) => i.chips.length >= 2),
   'Patterns: the top mistake a card with its fix, every entry with its chips');
-ok(p.patterns.grades.join() === '58,61,64,71' && p.patterns.chart && p.patterns.chart.bands.join() === 'S 90,A 80,B 70,C 60'
+ok(p.patterns.grades.join() === '58,61,64,71' && p.patterns.chart && p.patterns.chart.bands.join() === '90,80,70,60'
   && p.patterns.chart.average === 'avg 64' && p.patterns.chart.key.includes('Latest match'), 'Patterns: the chart, its bands, its average and its key', JSON.stringify(p.patterns.chart));
 ok(p.patterns.categories.length === 4 && p.patterns.categories.every((c) => c.average && c.label && c.last && c.versus), 'Patterns: the four category averages');
 ok(v && v.label === 'Match review' && v.reason === v.stat.label, "the Verdict's label is the page's heading, its reason the standout's line", JSON.stringify([v.label, v.reason]));

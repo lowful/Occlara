@@ -27,6 +27,13 @@
  * 'them:Sova'), or a side alone ('us', 'them') when the agent is unknown, who
  * is counted in the numbers standing and credited nothing.
  *
+ * SHOWN ON THE 100 SCALE (9.1, the owner's item 16). Inside, the rating runs
+ * from 3.0 to 10.0 and every table and test here keeps those units; every
+ * figure a player sees is the value times ten, rounded (shared/display.js
+ * rating, ratingDelta, ratingMove): 8.3 shows 83, a move of +0.6 shows +6.
+ * viewOf's `shown`, its lobby's values and every `delta` it sends are
+ * already on that scale; `value` stays the rating's own.
+ *
  * Pure, deterministic, no I/O, no Electron.
  */
 
@@ -105,6 +112,7 @@ const W = Object.freeze({
  * counts its moves 36 / 21 = 1.71 times, which leaves its spread a little
  * under a full match's (rating.md, "Match length").
  */
+const Display = require('./display');
 const D = Object.freeze({ START: 6.0, UP: 4.0, DOWN: 3.0, A: 3.2, B: 2.6, REF: 24, K: 12 });
 const LENGTHS = Object.freeze({ standard: 24, swiftplay: 9, spikerush: 7 });
 
@@ -889,10 +897,9 @@ function placeLine(place) {
   return place && place.n > 0 && place.of > 0 ? `${ordinal(place.n)} of ${place.of}` : null;
 }
 
-/** "+0.3", "-0.2", "0.0": a move as the page writes it, one decimal. */
+/** "+3", "-2", "0": a move as the page writes it, on the 100 scale (display.js ratingDelta). */
 function signed(v) {
-  const t = Math.round(v * 10);
-  return t > 0 ? `+${(t / 10).toFixed(1)}` : t < 0 ? `-${(-t / 10).toFixed(1)}` : '0.0';
+  return Display.ratingDelta(v) || '0';
 }
 
 /*
@@ -936,24 +943,24 @@ function viewOf(r, opts) {
     if (e) v = e.value; else if (after.has(n)) v = after.get(n);
     const won = e && typeof e.won === 'boolean' ? e.won : results.has(n) ? results.get(n) : null;
     if (won === true) us++; else if (won === false) them++;
-    rounds.push({ n, value: v, delta: signed(v - before), label: e ? e.label : null, won, score: `${us} : ${them}` });
+    rounds.push({ n, value: v, delta: Display.ratingMove(v, before), label: e ? e.label : null, won, score: `${us} : ${them}` });
   }
   const sw = swings(r, 3);
-  const item = (e) => ({ round: e.n, label: e.label, delta: signed(e.delta), up: e.delta > 0 });
+  const item = (e) => ({ round: e.n, label: e.label, delta: num(e.value) !== null ? Display.ratingMove(e.value, e.value - e.delta) : signed(e.delta), up: e.delta > 0 });
   return {
     version: r.version,
     value: r.value,
-    shown: r.value.toFixed(1),
+    shown: Display.rating(r.value),
     tier: tierOf(r.value),
     place: placeLine(r.place),
-    lobby: Array.isArray(r.lobby) ? r.lobby.map((p) => ({ side: p.side, agent: p.agent || null, value: p.value.toFixed(1), tier: tierOf(p.value), me: !!p.me })) : null,
+    lobby: Array.isArray(r.lobby) ? r.lobby.map((p) => ({ side: p.side, agent: p.agent || null, value: Display.rating(p.value), tier: tierOf(p.value), me: !!p.me })) : null,
     half: num(o.half) && o.half < last ? o.half : null,
     line: [{ n: 0, value: D.START }, ...rounds.map((x) => ({ n: x.n, value: x.value }))],
     rounds,
     gains: sw.gains.map(item),
     losses: sw.losses.map(item),
     marks: [...sw.gains, ...sw.losses].map((e) => ({ round: e.n, up: e.delta > 0 })),
-    events: tl.map((e) => ({ round: e.round, kind: e.kind, label: e.label, value: e.value, delta: signed(e.delta), tier: tierOf(e.value) })),
+    events: tl.map((e, i) => ({ round: e.round, kind: e.kind, label: e.label, value: e.value, delta: Display.ratingMove(e.value, i ? tl[i - 1].value : D.START) || signed(e.delta), tier: tierOf(e.value) })),
     note: null,
   };
 }
@@ -961,5 +968,5 @@ function viewOf(r, opts) {
 module.exports = {
   VERSION, WP, W, D, LENGTHS, MIN_ROUNDS, WHY,
   winChance, display, lengthOf, createRating, eventsOfRound, fromRecord, roundsOfReview, lobbyOf, allKeyed,
-  ratingOfReview, swings, ordinal, placeLine, keyOf, viewOf, signed, tierOf, isGun, cleanSaved,
+  ratingOfReview, swings, ordinal, placeLine, keyOf, viewOf, signed, tierOf, isGun, cleanSaved, Display,
 };

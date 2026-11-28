@@ -233,19 +233,19 @@
           <ul id="v-summary" class="v-summary"></ul>
         </section>
 
-        <!-- THE MATCH RATING (docs/claude/rating.md, rating-view.js): 0.0 to
-             10.0 from 6.0, each move the change in the chance to win the
+        <!-- THE MATCH RATING (docs/claude/rating.md, rating-view.js): shown
+             out of 100 from 60 (3.0 to 10.0 from 6.0 inside), each move the change in the chance to win the
              round the player's action caused, from Riot's kill feed. The
              number, the line across the match by round with its biggest
              swings marked, the three biggest gains and losses (each opens its
              round), the place in the lobby by agent and number, and the
              replay. A review from the screen alone says what would rate it. -->
         <section class="block rt" id="v-rating-wrap" aria-labelledby="rt-title" hidden>
-          <h3 id="rt-title">Match rating</h3>
+          <h3 id="rt-title" title="How much you moved your team's chance to win each round, out of 100. 60 is an even match.">Match rating</h3>
           <div class="rt-head">
             <div class="rt-big">
               <span id="rt-value" class="rt-value"></span>
-              <span class="rt-out">out of 10</span>
+              <span class="rt-out">out of 100</span>
             </div>
             <div class="rt-side">
               <p id="rt-place" class="rt-place" hidden></p>
@@ -315,7 +315,7 @@
           </div>
           <div class="rt-r-mid">
             <div id="rt-r-badge" class="rt-r-badge t-fair">
-              <span id="rt-r-num" class="rt-r-num">6.0</span>
+              <span id="rt-r-num" class="rt-r-num">60</span>
             </div>
             <span id="rt-r-delta" class="rt-r-delta" aria-hidden="true"></span>
             <ol id="rt-r-feed" class="rt-r-feed" aria-hidden="true"></ol>

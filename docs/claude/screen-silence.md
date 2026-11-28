@@ -117,7 +117,7 @@ exactly as narrow as that choice:
   Recording screen, sealed or waiting: it only ever says the rating is on. A second switch, `liveRatingStream`, for the
   stream widget, locked while the first is off; turning the rating off turns
   it off. The Recording screen's own Choose cannot turn it on.
-- **What may show:** the rating (0.0 to 10.0) in its tier's badge, its last
+- **What may show:** the rating (shown out of 100 since 9.1) in its tier's badge, its last
   move (signed) with the engine's plain label of what happened ("First
   kill, 5v5", "Died first, 5v5"), a small line of the rating so far, marked
   "Live, provisional". After the match, on the widget only, "Full time" with

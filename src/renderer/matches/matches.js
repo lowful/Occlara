@@ -97,12 +97,12 @@ function paintTabs(games) {
  * ONE ENCODING (8.9.1): height is the grade, and nothing else changes with it.
  * The bars used to take their letter's colour, green, amber and white with no
  * key, and read as random. Every bar is one neutral tone now, the newest in
- * the ink and named under it, the letter bands are thin guide lines labelled
- * at the left (grade.js letter(): C from 60, B 70, A 80, S 90), the average is
- * a dashed line, the first bar of each day carries its date, and a key under the chart
- * names each mark that is on it. The letter is still on hover.
+ * the ink and named under it, the bands are thin guide lines labelled at the
+ * left by the number each starts at (60, 70, 80, 90: one score, no letters,
+ * 9.1), the average is a dashed line, the first bar of each day carries its
+ * date, and a key under the chart names each mark that is on it.
  */
-const BANDS = [['S', 90], ['A', 80], ['B', 70], ['C', 60]];
+const BANDS = [90, 80, 70, 60];
 const clampH = (n) => Math.max(0, Math.min(100, n));
 
 function shortDate(at) {
@@ -138,16 +138,16 @@ function paintTrend(grades, progress, average) {
 
   host.append(el('p', 'p-trend-cap',
     `Your grade in each of your last ${grades.length} graded matches, oldest on the left. `
-    + 'The lines mark where each letter starts.'));
+    + 'The lines mark 60, 70, 80 and 90.'));
 
   const plot = el('div', 'p-plot');
   plot.setAttribute('role', 'img');
   plot.setAttribute('aria-label', 'Grades, oldest first: ' + grades.slice().reverse().map((g) => g.score).join(', ')
     + (typeof average === 'number' ? `. Average ${average}.` : '.'));
-  for (const [letterName, at] of BANDS) {
+  for (const at of BANDS) {
     const guide = el('div', 'p-guide');
     guide.style.setProperty('--h', at + '%');
-    guide.append(el('span', null, `${letterName} ${at}`));
+    guide.append(el('span', null, String(at)));
     plot.append(guide);
   }
   if (typeof average === 'number') {
@@ -167,10 +167,10 @@ function paintTrend(grades, progress, average) {
     if (g.provisional) anyProv = true;
     const latest = g.id === newest;
     const bar = el('div', 'p-bar' + (latest ? ' latest' : '') + (record ? ' best' : '') + (inRun.has(g.id) ? ' run' : ''));
-    bar.title = `${fmtWhen(g.at)}: ${g.score} (${g.letter})${g.provisional ? ', provisional' : ''}`
+    bar.title = `${fmtWhen(g.at)}: grade ${g.score}${g.provisional ? ', provisional' : ''}`
       + (latest ? '. Your latest match' : '')
       + (record ? `. ${record.text}` : '')
-      + (inRun.has(g.id) ? `. One of ${run.count} in a row at ${run.floor || 'B'} or better` : '');
+      + (inRun.has(g.id) ? `. One of ${run.count} in a row at ${run.from || 70} or better` : '');
     bar.style.setProperty('--h', clampH(g.score) + '%');
     const fill = el('i', g.provisional ? 'prov' : null);
     // A date under the first bar of each day, as an axis is labelled; the
@@ -442,8 +442,7 @@ function cell(c, row) {
         return td;
       }
       const wrap = el('span', 'b-grade');
-      wrap.append(el('span', null, String(v.avg)),
-        el('span', 'b-letter ' + gradeTone({ score: v.avg, letter: v.letter }), v.letter));
+      wrap.append(el('span', 'b-num ' + gradeTone({ score: v.avg }), String(v.avg)));
       td.append(wrap);
       td.title = `Average of ${v.n} graded ${v.n === 1 ? 'match' : 'matches'}`
         + (v.provisional ? `, ${v.provisional} provisional left out` : '');
@@ -1055,10 +1054,9 @@ function row(m, gutter, marks, delta) {
   const g = m.grade;
   if (checking) grade.append(checking);
   else {
-    grade.append(el('span', 'm-score', g ? g.score : '--'));
-    // A provisional grade's capsule is dashed (matches.css): form before hue.
-    grade.append(el('span', 'm-letter ' + (g ? gradeTone(g) + (g.provisional ? ' prov' : '') : 'none'), g ? g.letter : '?'));
-    if (g && g.provisional) grade.title = 'Provisional: some of the record was missing';
+    // One score, no letter (9.1): the number in its band's tone, dashed when provisional.
+    grade.append(el('span', 'm-score' + (g ? ' ' + gradeTone(g) + (g.provisional ? ' prov' : '') : ''), g ? g.score : '--'));
+    grade.title = g ? `Grade ${g.score}${g.provisional ? ', provisional: some of the record was missing' : ''}. How well you played this match, out of 100, by the coach's read of your survival, impact, teamplay and decisions.` : 'No grade';
   }
   // The grade's change since the match before it (Progress v3), "First" for
   // the oldest graded one; nothing while it is still being checked.

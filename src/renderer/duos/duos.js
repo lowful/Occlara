@@ -215,7 +215,7 @@ function paintMatches(h) {
     const pair = el('span', 'du-pair');
     for (const [side, name] of [[m.me, 'You'], [m.them, m.partner]]) {
       const one = el('span', 'du-one');
-      one.append(face(side.agent, 'pl-face sm'), el('span', 'du-g', side.grade ? `${name} ${side.letter} ${side.grade}` : `${name}, no grade`));
+      one.append(face(side.agent, 'pl-face sm'), el('span', 'du-g', side.grade ? `${name} ${side.grade}` : `${name}, no grade`));
       pair.append(one);
     }
     b.append(mapPic(m.map), who, pair);
@@ -391,11 +391,9 @@ function paintMatch(m, names) {
   $('dm-paused').hidden = !m.pausedLine;
   $('dm-paused').textContent = m.pausedLine || '';
   $('dm-g-me').textContent = m.grades.me ? m.grades.me.score : '-';
-  $('dm-l-me').textContent = m.grades.me ? m.grades.me.letter : '';
   $('dm-a-me').textContent = m.grades.meAgent ? `You, ${m.grades.meAgent}` : 'You';
   $('dm-k-me').textContent = m.lines.me ? `${m.lines.me} K / D / A` : '';
   $('dm-g-them').textContent = m.grades.them ? m.grades.them.score : '-';
-  $('dm-l-them').textContent = m.grades.them ? m.grades.them.letter : '';
   $('dm-a-them').textContent = m.grades.themAgent ? `${m.partner}, ${m.grades.themAgent}` : m.partner;
   $('dm-k-them').textContent = m.lines.them ? `${m.lines.them} K / D / A` : '';
   const missing = [m.mineMissing, m.theirsMissing].filter(Boolean).join(' ');

@@ -154,9 +154,10 @@ header {
    largest. */
 /* Progress v3: the number is the hero at 84, the letter beside it at 40 in
    its tone. */
-.vd-letter {
-  font-family: var(--font); font-size: 40px; font-weight: 600; line-height: 0.8;
-  letter-spacing: -0.04em; color: var(--text);
+/* One score, no letter (9.1): the grade's name where the letter stood. */
+.vd-name {
+  font-family: var(--font); font-size: 20px; font-weight: 600; line-height: 1;
+  letter-spacing: -0.01em; color: var(--text); cursor: help;
 }
 /* ONE HEADER FOR EVERY STATE (8.7): a review with no grade to show, locked
    or measured too little, keeps the slot the letter takes, a dashed rule
@@ -169,9 +170,9 @@ header {
   padding-bottom: 6px; border-bottom: 1px dashed var(--text-mute);
   white-space: nowrap;
 }
-.vd-letter.good { color: var(--good); }
-.vd-letter.warn { color: var(--warn); }
-.vd-letter.bad  { color: var(--bad); }
+.vd-score.good { color: var(--good); }
+.vd-score.warn { color: var(--warn); }
+.vd-score.bad  { color: var(--bad); }
 .vd-num { display: flex; flex-direction: column; gap: 4px; padding-bottom: 4px; }
 .vd-num-line { display: flex; align-items: baseline; gap: 4px; }
 .vd-score {
@@ -200,7 +201,7 @@ header {
 #vreview.revealing:not(.reveal-done) .vd-score.counting {
   animation: vdCount calc(var(--t-slow) * 2) var(--ease-expo) both;
 }
-#vreview.revealing:not(.reveal-done) .vd-letter {
+#vreview.revealing:not(.reveal-done) .vd-name {
   animation: vdStamp var(--t-slow) var(--ease-spring) both;
   animation-delay: var(--t-slow);
 }
@@ -215,7 +216,7 @@ header {
 }
 /* Less motion: no count (review.js), and nothing waits. */
 @media (prefers-reduced-motion: reduce) {
-  #vreview.revealing:not(.reveal-done) .vd-letter, #vreview.revealing:not(.reveal-done) .vd-stat { animation-delay: 0s; transition-delay: 0s; }
+  #vreview.revealing:not(.reveal-done) .vd-name, #vreview.revealing:not(.reveal-done) .vd-stat { animation-delay: 0s; transition-delay: 0s; }
 }
 /* 8.9.2 (shared/motion.css): the fix for next match rises in as the letter
    lands, before the standout beside the letter (--t-slow 1.5), so the one
@@ -817,7 +818,7 @@ html.embedded .share {
 .vd-num { padding-bottom: 0; }
 .vd-score { font-size: 132px; font-weight: 700; line-height: 0.78; letter-spacing: -0.06em; margin-left: -6px; }
 .vd-side { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-bottom: 6px; }
-.vd-letter { font-size: var(--t-display); font-weight: 700; line-height: 0.9; letter-spacing: -0.02em; }
+.vd-name { font-size: 20px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
 .vd-out { font-family: var(--font); font-size: 13px; color: var(--text-2); }
 .vd-delta { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .vd-delta.up { color: var(--good); }

@@ -165,7 +165,6 @@ function paintProfile(p) {
   $('pv-rank-src').textContent = p.rank ? p.rank.label : '';
   $('pv-rank-src').classList.toggle('verified', !!(p.rank && p.rank.label === 'Verified'));
   $('pv-grade').textContent = p.grade ? p.grade.avg : '-';
-  $('pv-letter').textContent = p.grade ? p.grade.letter : '';
   $('pv-grade-n').textContent = p.grade ? p.grade.sample : 'No graded match yet';
   $('pv-record').textContent = p.record || '-';
   $('pv-matches').textContent = p.matches || '';

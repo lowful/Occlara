@@ -487,7 +487,7 @@ function paintSocial(s) {
     $('pr-preview-name').textContent = pv.username;
     $('pr-preview-riot').textContent = pv.riot || (w.riotProof ? 'No Riot ID shown' : '');
     $('pr-preview-riot').classList.toggle('none', !pv.riot);
-    const bits = [pv.rank ? pv.rank.current : null, pv.agents[0] ? pv.agents[0].name : null, pv.grade ? `${pv.grade.avg} ${pv.grade.letter}` : null].filter(Boolean);
+    const bits = [pv.rank ? pv.rank.current : null, pv.agents[0] ? pv.agents[0].name : null, pv.grade ? `grade ${pv.grade.avg}` : null].filter(Boolean);
     $('pr-preview-line').textContent = p.public ? (bits.join(', ') || 'No numbers yet') : 'Private: only you can see it';
   }
   const blocked = p && Array.isArray(p.blocked) ? p.blocked : [];

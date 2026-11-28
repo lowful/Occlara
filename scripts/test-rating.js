@@ -493,7 +493,7 @@ console.log('\nA damaged saved rating');
   let shown = null;
   try { shown = vr.served(base); } catch (e) { shown = { threw: e.message }; }
   ok(shown && !shown.threw && shown.ratingView && shown.ratingView.lobby === null, `a lobby value that is no number never fails the review (${JSON.stringify(shown && (shown.threw || shown.ratingView && shown.ratingView.shown))})`);
-  ok(vr.served({ ...base, rating: { ...base.rating, value: 99, lobby: null } }).ratingView.shown === '10.0', 'a saved 99 is shown as 10.0');
+  ok(vr.served({ ...base, rating: { ...base.rating, value: 99, lobby: null } }).ratingView.shown === '100', 'a saved 99 is shown as 100, the top of the 100 scale');
   ok(vr.served({ ...base, rating: { version: 1, value: 'x' } }).ratingView.value === null, 'a saved value that is no number is no saved rating, and a review with no feed says so');
   ok(rating.cleanSaved({ version: 1, value: 7, timeline: [{ round: 1, value: 7, delta: 0.3, swing: 0.2, label: 'A; B', kind: 'kill' }] }).timeline[0].label === 'A, B', 'a semicolon saved before is shown as a comma');
 }

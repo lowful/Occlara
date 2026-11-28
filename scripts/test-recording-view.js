@@ -89,12 +89,12 @@ const shown = (p, id) => { let e = p.$(id); while (e) { if (e.hidden) return fal
     // The match seen: the seal, the same screen, its facts.
     p.bridge.emit(C.PUSH_SHELL, { page: 'matches', shown: null, sealed: true, held: false, rec: true });
     p.bridge.emit(C.PUSH_LIVE, { state: 'live', startedAt: Date.now() - 60000, mode: 'standard', map: 'Abyss', agent: 'Jett', team: 3, enemy: 2, tape: ['W', 'L', 'W', 'W', 'L'], round: 6,
-      rating: { value: 6.6, shown: '6.6', tier: 'fair', last: { delta: '+0.3', up: true, down: false, label: 'Kill' }, line: [6, 6.3, 6.6] } });
+      rating: { value: 6.6, shown: '66', tier: 'fair', last: { delta: '+3', up: true, down: false, label: 'Kill' }, line: [6, 6.3, 6.6] } });
     await settle();
     ok(shown(p, 'live-main') && !shown(p, 'live-wait') && links.every((b) => b.disabled) && !p.$('sealed-note').hidden,
       'the match seen: sealed, the links locked, the facts in place of the wait');
-    ok(shown(p, 'live-rating') && p.$('lr-num').textContent === '6.6' && p.$('lr-label').textContent === 'Kill' && p.$('live').classList.contains('rated'),
-      "and the live rating row with its number and the engine's label, the column drawn in for it");
+    ok(shown(p, 'live-rating') && p.$('lr-num').textContent === '66' && p.$('lr-label').textContent === 'Kill' && p.$('live').classList.contains('rated'),
+      "and the live rating row with its number on the 100 scale and the engine's label, the column drawn in for it");
     ok(p.$('live-rating').classList.contains('t-fair') && p.$('lr-badge').classList.contains('t-fair'), "its tier on the row, for the glass tile's rim and the dot");
 
     // Over with no review asked for: the Recording view again.

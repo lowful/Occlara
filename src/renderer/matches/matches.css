@@ -360,7 +360,15 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .m-row > .m-delta { order: 1; }
 .m-row > .m-main { order: 2; }
 .m-row > .m-rr { order: 3; }
-.m-grade > .m-letter, .m-grade > .gv-checking { order: 4; }
+.m-grade > .gv-checking { order: 4; }
+/* One score, no letter (9.1): the number takes its band's tone, its rule dashed when provisional. */
+.m-score.good { color: var(--good); }
+.m-score.warn { color: var(--warn); }
+.m-score.bad  { color: var(--bad); }
+.m-score.prov { text-decoration: underline dashed var(--text-mute) 1px; text-underline-offset: 4px; }
+.b-num.good { color: var(--good); }
+.b-num.warn { color: var(--warn); }
+.b-num.bad  { color: var(--bad); }
 .m-letter {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   height: 26px; min-width: 26px; padding: 0 8px; border-radius: var(--r-btn);

@@ -14,7 +14,7 @@ const rating = require('../../src/shared/rating');
 const { liveLabel } = require('../../src/main/services/live-rating-service');
 
 function step(t, out, kind) {
-  return { t, kind, value: out.value, shown: out.value.toFixed(1), tier: rating.tierOf(out.value), delta: out.delta ? rating.signed(out.delta) : '', up: out.delta > 0, down: out.delta < 0, label: liveLabel(out.label) };
+  return { t, kind, value: out.value, shown: rating.Display.rating(out.value), tier: rating.tierOf(out.value), delta: out.delta ? rating.signed(out.delta) : '', up: rating.Display.moveWay(rating.signed(out.delta)) === 'up', down: rating.Display.moveWay(rating.signed(out.delta)) === 'down', label: liveLabel(out.label) };
 }
 
 /**

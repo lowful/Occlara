@@ -207,8 +207,11 @@ Settled decisions that keep getting reintroduced by accident:
   dark capsule with its stop icon in the signal. Ended, it is a ghost
   at full opacity (7.7:1), never the faded signal (2.40:1). It is the one
   control a player must find without looking, and the one saturated fill.
-- **A grade's colour is never its only signal.** The number and the letter are
-  always beside it.
+- **A grade's colour is never its only signal.** The number is always there,
+  and since 9.1 the number is all: no letter grade is drawn anywhere
+  (grade-breakdown.md, "One score, no letters"). Show a grade or a match
+  rating only through `shared/display.js` (or GradeView, which mirrors it),
+  and name them "Grade" and "Match rating" with display.js's tooltips.
 - **Motion is transform, opacity, shadow and clip**, never layout: feedback
   140 to 220ms, the one authored moment on a page 420ms, rows rising 6px with a
   40ms stagger capped at eight, once, when a list first appears and never on a

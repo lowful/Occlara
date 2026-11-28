@@ -253,11 +253,13 @@ const score = rule(gv, '.gv-score');
 ok(prop(score, 'font-family') === 'var(--font)' && prop(score, 'font-weight') === '600' && prop(score, 'font-size') === '44px'
   && prop(score, 'font-variant-numeric') === 'tabular-nums',
 'its score is Geist 600 44px with figures one width', score.trim());
-const lt = rule(gv, '.gv-letter');
-ok(prop(lt, 'width') === '40px' && prop(lt, 'height') === '40px' && prop(lt, 'border-radius') === 'var(--r-btn)' && prop(lt, 'font-weight') === '600'
-  && prop(rule(gv, '.gv-letter.good'), 'color') === 'var(--good)' && prop(rule(gv, '.gv-letter.mid'), 'color') === 'var(--text)'
-  && prop(rule(gv, '.gv-letter.warn'), 'color') === 'var(--warn)' && prop(rule(gv, '.gv-letter.bad'), 'color') === 'var(--bad)',
-'its letter is a 40px capsule on --r-btn (8.7, the same mark as the library\'s .m-letter), Geist 600, S and A --good, B ink, C --warn, D --bad');
+const lt = rule(gv, '.gv-num');
+ok(prop(lt, 'min-width') === '40px' && prop(lt, 'height') === '40px' && prop(lt, 'border-radius') === 'var(--r-btn)' && prop(lt, 'font-weight') === '600'
+  && prop(lt, 'font-variant-numeric') === 'tabular-nums'
+  && prop(rule(gv, '.gv-num.good'), 'color') === 'var(--good)' && prop(rule(gv, '.gv-num.mid'), 'color') === 'var(--text)'
+  && prop(rule(gv, '.gv-num.warn'), 'color') === 'var(--warn)' && prop(rule(gv, '.gv-num.bad'), 'color') === 'var(--bad)'
+  && !/\.gv-letter\b/.test(gv),
+'ONE SCORE (9.1): the grade alone in a row is its number in a 40px capsule on --r-btn, Geist 600, 80 and up --good, 70s ink, 60s --warn, under 60 --bad, and no letter capsule is left');
 ok(prop(rule(gv, '.gv-cat-score'), 'font-weight') === '600' && prop(rule(gv, '.gv-cat-score'), 'font-family') === 'var(--font)'
   && /^500 12px var\(--font-mono\)/.test(prop(rule(gv, '.gv-rchip'), 'font'))
   && prop(rule(gv, '.gv-label'), 'font-size') === '12px' && prop(rule(gv, '.gv-label'), 'font-weight') === '500' && prop(rule(gv, '.gv-label'), 'color') === 'var(--text-mute)'
@@ -269,22 +271,24 @@ global.window = undefined;
 const gvFile = path.join(RENDERER, 'shared', 'grade-view.js');
 delete require.cache[gvFile];
 const GV = require(gvFile);
-const L = (g, o) => (typeof GV.letter === 'function' ? GV.letter(g, o) : { className: 'no letter()', textContent: '' });
+const L = (g, o) => (typeof GV.scoreBadge === 'function' ? GV.scoreBadge(g, o) : { className: 'no scoreBadge()', textContent: '' });
 const a = L(84);
 const d = L({ score: 58, letter: 'D' }, { size: 'sm' });
 const b = L(71, { size: 'xs' });
 const none = L(null);
-ok(typeof GV.letter === 'function' && a.className === 'gv-letter good' && a.textContent === 'A'
-  && d.className === 'gv-letter bad sm' && d.textContent === 'D' && b.className === 'gv-letter mid xs' && b.textContent === 'B'
-  && none.className === 'gv-letter none' && none.textContent === '?' && L(95, { size: 'huge' }).className === 'gv-letter good',
-'GradeView.letter() draws the letter alone in its tone, at 40, 28 or 20px, and no grade as a ? in no colour',
-[a, d, b, none].map((n) => `${n.className}=${n.textContent}`).join(' '));
+const prov = L({ score: 66, provisional: true });
+ok(typeof GV.scoreBadge === 'function' && typeof GV.letter === 'undefined' && a.className === 'gv-num good' && a.textContent === '84'
+  && d.className === 'gv-num bad sm' && d.textContent === '58' && b.className === 'gv-num mid xs' && b.textContent === '71'
+  && none.className === 'gv-num none' && none.textContent === '--' && L(95, { size: 'huge' }).className === 'gv-num good'
+  && prov.className === 'gv-num warn prov' && /^Grade 66, provisional/.test(prov.title),
+'ONE SCORE (9.1): GradeView.scoreBadge() draws the number alone in its tone, at 40, 28 or 20px, dashed when provisional, no grade as -- in no colour, and there is no letter() any more',
+[a, d, b, none, prov].map((n) => `${n.className}=${n.textContent}`).join(' '));
 const G = { score: 61, letter: 'C', categories: [{ label: 'Impact', score: 70, evidence: ['First kill 3 times'] }] };
 const full = GV.gradeCard(G);
 const compact = GV.gradeCard(G, { compact: true });
 ok(full.querySelector('.gv-top') && full.querySelector('.gv-score').textContent === '61' && full.querySelectorAll('.gv-cat').length === 1,
   'the card has its score row and its categories');
-ok(!compact.querySelector('.gv-top') && !compact.querySelector('.gv-score') && !compact.querySelector('.gv-letter')
+ok(!compact.querySelector('.gv-top') && !compact.querySelector('.gv-score') && !compact.querySelector('.gv-num')
   && compact.querySelectorAll('.gv-cat').length === 1 && compact.querySelector('.gv-chips').textContent === 'First kill 3 times',
 'and compact, for the review under its Verdict, leaves out the score row and keeps the categories with their evidence');
 

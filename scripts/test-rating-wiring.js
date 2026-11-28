@@ -89,10 +89,10 @@ console.log('\nServed to the page');
 {
   const shown = valorantReview.served({ ...linked, id: 'valorant-1-a' });
   const v = shown.ratingView;
-  ok(v && v.value === linked.rating.value && v.shown === linked.rating.value.toFixed(1), `the page is sent the saved value (${v && v.shown})`);
+  ok(v && v.value === linked.rating.value && v.shown === String(Math.round(linked.rating.value * 10)), `the page is sent the saved value, shown on the 100 scale (${v && v.shown})`);
   ok(v.line.length === 25 && v.line[0].value === 6 && v.line[24].value === v.value, 'a line from 6.0 at round 0 to the final at round 24');
-  ok(v.gains.length === 3 && v.losses.length === 3 && v.gains.every((e) => /^\+\d\.\d$/.test(e.delta)) && v.losses.every((e) => /^-\d\.\d$/.test(e.delta)),
-    `three gains and three losses, each a signed move (${v.gains.map((e) => e.delta).join(' ')} / ${v.losses.map((e) => e.delta).join(' ')})`);
+  ok(v.gains.length === 3 && v.losses.length === 3 && v.gains.every((e) => /^\+\d+$/.test(e.delta)) && v.losses.every((e) => /^-\d+$/.test(e.delta)),
+    `three gains and three losses, each a signed move on the 100 scale (${v.gains.map((e) => e.delta).join(' ')} / ${v.losses.map((e) => e.delta).join(' ')})`);
   ok(v.events.length === linked.rating.timeline.length, 'every event for the replay');
   ok(!('ratingView' in linked), 'the view is never written onto the review held');
 

@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { matchProgress, libraryProgress, RUN_LETTERS, BEST_FLOOR } = require('../src/shared/progress');
 const { letter } = require('../src/shared/grade');
+const { inSentence } = require('../src/shared/display');
 
 let fails = 0;
 let checks = 0;
@@ -57,12 +58,12 @@ function numbersMatch(p) {
   if (p.vsLast) add(p.vsLast.delta);
   if (p.vsAverage) { add(p.vsAverage.delta); add(p.vsAverage.average); add(p.vsAverage.matches); add(p.vsAverage.of); }
   if (p.best.grade) add(p.best.grade.matches);
-  if (p.best.firstLetter) add(p.best.firstLetter.matches);
+  if (p.best.firstLetter) { add(p.best.firstLetter.matches); add(p.best.firstLetter.floor); }
   for (const c of p.best.categories) { add(c.matches); add(c.score); }
-  if (p.run) add(p.run.count);
+  if (p.run) { add(p.run.count); add(p.run.from); }
   for (const c of p.cleared) add(c.streak);
   if (p.focus) { add(p.focus.before); add(p.focus.now); }
-  const titles = [...p.cleared.map((c) => c.title), p.focus && p.focus.title].filter(Boolean);
+  const titles = [...p.cleared.map((c) => c.title), ...p.cleared.map((c) => inSentence(c.title)), p.focus && p.focus.title].filter(Boolean);
   return p.lines.every((l) => {
     let t = l.text;
     for (const x of titles) t = t.split(x).join('');
@@ -77,6 +78,7 @@ const check = (p, what) => {
     `${what}: every line has a kind, a tone and a text`);
   ok(p.lines.every((l) => !DASH.test(l.text)), `${what}: no dash in any line`);
   ok(numbersMatch(p), `${what}: every number in its lines is a field (${p.lines.map((l) => l.text).join(' | ')})`);
+  ok(p.lines.every((l) => !/\bFirst [SABCD]\b|\bat [SABCD] or better\b/.test(l.text)), `${what}: ONE SCORE, no letter grade in any line`);
   allLines.push(...p.lines);
 };
 
@@ -129,7 +131,7 @@ const check = (p, what) => {
   const p = matchProgress(three, three[0].id);
   ok(p.best.grade && p.best.grade.over === 3 && p.best.grade.matches === 4, `a best over 3 before it (${JSON.stringify(p.best.grade)})`);
   ok(p.best.firstLetter && p.best.firstLetter.letter === 'A', 'and the first A in the window');
-  ok(p.lines[0].kind === 'first' && p.lines[0].text === 'First A in your last 4 graded matches.', 'a first A leads the lines, naming its window');
+  ok(p.lines[0].kind === 'first' && p.lines[0].text === 'First 80 or better in your last 4 graded matches.', 'a first A leads the lines, naming its window by its number, no letter');
   ok(p.best.categories.length === 2 && p.best.categories[0].previous === 75 && p.best.categories[0].score === 85,
     `per category bests (${JSON.stringify(p.best.categories)})`);
   check(p, 'a best');
@@ -157,7 +159,7 @@ const check = (p, what) => {
   const saved = [rv(0, 81), rv(1, 74), rv(2, 90), rv(3, 65), rv(4, 88)];
   const p = matchProgress(saved, saved[0].id);
   ok(p.run && p.run.count === 3 && p.run.floor === 'B', `3 in a row, broken by the C before them (${JSON.stringify(p.run)})`);
-  ok(p.lines.some((l) => l.kind === 'run' && l.text === '3 matches in a row at B or better.'), 'the run line');
+  ok(p.lines.some((l) => l.kind === 'run' && l.text === '3 matches in a row at 70 or better.'), 'the run line, by its number, no letter');
   ok(matchProgress(saved, saved[3].id).run === null, 'the C itself has no run');
   ok(matchProgress(saved, saved[4].id).run === null, 'one match is no run');
   const prov = [rv(0, 81), rv(1, 80, { provisional: true }), rv(2, 85)];
@@ -179,7 +181,7 @@ const check = (p, what) => {
   ok(p.cleared.length === 1 && p.cleared[0].key === 'first-death' && p.cleared[0].streak === 2 && p.cleared[0].before === 2,
     `2 recorded matches without First to die (${JSON.stringify(p.cleared)})`);
   ok(!p.cleared.some((c) => c.key.startsWith('cause:') || c.key === 'look-x'), 'judged entries and cause: keys are skipped');
-  ok(p.lines.some((l) => l.kind === 'cleared' && l.text === '2 recorded matches in a row without Title first-death.'), 'the cleared line');
+  ok(p.lines.some((l) => l.kind === 'cleared' && l.text === '2 recorded matches in a row without title first-death.'), 'the cleared line, its title lower case inside the sentence');
   const once = [rv(0, 70), rv(1, 70), rv(2, 70, { mistakes: [m('first-death', 4)] })];
   ok(matchProgress(once, once[0].id).cleared.length === 0, 'a mistake seen once is no habit to clear');
   const riotBetween = [rv(0, 70), rv(1, 70, { source: 'riot', mistakes: [m('first-death', 4)] }), rv(2, 70),
@@ -246,7 +248,7 @@ const check = (p, what) => {
   ok(lib.run && lib.run.count === 3, `the library's run is the newest match's (${JSON.stringify(lib.run)})`);
   ok(lib.latest && lib.latest.kind === 'first' && lib.latest.text === matchProgress(saved, saved[0].id).lines[0].text, 'latest is the newest match\'s first line');
   const marks = lib.marks[saved[0].id] || [];
-  ok(marks.some((x) => x.kind === 'first' && x.text === 'First A') && marks.some((x) => x.kind === 'run' && x.text === '3 in a row'),
+  ok(marks.some((x) => x.kind === 'first' && x.text === 'First 80+') && marks.some((x) => x.kind === 'run' && x.text === '3 in a row'),
     `the newest row is marked (${JSON.stringify(marks)})`);
   ok(!(lib.marks[saved[1].id] || []).some((x) => x.kind === 'run'), 'a run is marked on its newest match only');
   ok(!lib.marks[saved[3].id], 'a C with nothing to mark has no marks');
@@ -255,7 +257,7 @@ const check = (p, what) => {
   ok(empty.run === null && empty.latest === null && Object.keys(empty.marks).length === 0, 'an empty library marks nothing');
   const clr = [rv(0, 70), rv(1, 70), rv(2, 70, { mistakes: [m('first-death', 4)] }), rv(3, 70, { mistakes: [m('first-death', 4)] })];
   const cl = libraryProgress(clr);
-  ok((cl.marks[clr[0].id] || []).some((x) => x.kind === 'cleared' && x.text === '2 without Title first-death'), 'a cleared habit is marked');
+  ok((cl.marks[clr[0].id] || []).some((x) => x.kind === 'cleared' && x.text === '2 without title first-death'), 'a cleared habit is marked, its title lower case');
 }
 
 // ── League: the grade alone ───────────────────────────────────────────────

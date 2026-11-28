@@ -571,8 +571,8 @@ const ABYSS_V = { ...av, at: AT };
       const weightOk = (f) => (f.includes(P['--font-mono']) ? /^500 /.test(f) : f.includes(P['--font']) && /^(500|600) /.test(f));
       ok(fontsUsed.length && fontsUsed.every(weightOk), `${where}: Geist 500 and 600 and Geist Mono 500 only, the token stacks`, fontsUsed.filter((f) => !weightOk(f)).join(' | '));
       const said = h.texts.map((x) => x.text);
-      const want = [`ABYSS${DOT}13-11${DOT}WIN`, 'B', '71', '/100', 'K/D/A', '31/21/4', 'ACS', '382', 'ADR', '243', `JETT${DOT}UNRATED`, 'occlara.app', '4 OCT 2026'];
-      ok(want.every((w) => said.includes(w)), `${where}: the right line, the letter, the score, /100, the numbers, the agent and mode, occlara.app and the date`,
+      const want = [`ABYSS${DOT}13-11${DOT}WIN`, 'GRADE', '71', '/100', 'K/D/A', '31/21/4', 'ACS', '382', 'ADR', '243', `JETT${DOT}UNRATED`, 'occlara.app', '4 OCT 2026'];
+      ok(want.every((w) => said.includes(w)), `${where}: the right line, the grade's name, its number, /100, the numbers, the agent and mode, occlara.app and the date`,
         want.filter((w) => !said.includes(w)).join(', '));
       ok(!said.some((s) => /verdict/i.test(s)), `${where}: no VERDICT word any more (8.7.x)`);
       const subAt = h.texts.find((x) => x.text === `JETT${DOT}UNRATED`);
@@ -587,9 +587,9 @@ const ABYSS_V = { ...av, at: AT };
       const ground = h.calls.find((c) => c[0] === 'fillRect');
       ok(ground && ground[1] === (paper ? P['--paper'] || '#E9EBF0' : P['--bg']) && ground[2] === 0 && ground[3] === 0,
         `${where}: the ground is ${paper ? '--paper' : '--bg'}`, ground && ground[1]);
-      const letter = h.texts.find((x) => x.text === 'B');
-      ok(letter && letter.fill === (paper ? P['--paper-ink'] || '#0A0B0E' : P['--text']) && /^600 /.test(letter.font),
-        `${where}: the B in Geist 600, ${paper ? 'ink on paper' : 'ink on the dark ground, a B is neutral'}`, letter && `${letter.fill} ${letter.font}`);
+      const num = h.texts.find((x) => x.text === '71' && /^600 /.test(x.font));
+      ok(num && num.fill === (paper ? P['--paper-ink'] || '#0A0B0E' : P['--text']) && !said.includes('B'),
+        `${where}: ONE SCORE: the 71 in Geist 600, ${paper ? 'ink on paper' : 'ink on the dark ground, a 71 is neutral'}, and no letter drawn`, num && `${num.fill} ${num.font}`);
       const scales = h.calls.filter((c) => c[0] === 'scale');
       ok(scales.length >= 2 && scales.every((c) => c[1] === c[2]), `${where}: every scale is the same on both axes, so the mark is never stretched`);
       ok(h.calls.some((c) => c[0] === 'fill' && c[2] === VC.MARK && c[3] === 'evenodd'), `${where}: the mark is drawn from its path, even odd, so its seas are cut`);
@@ -602,22 +602,23 @@ const ABYSS_V = { ...av, at: AT };
   VC.draw(ABYSS_V, { size: 'billboard' });
   ok(h.canvases[h.canvases.length - 1].width === 1586, 'an unknown size is the card');
 
-  // The letter's tone, dark, by the one grade colour rule; on paper, ink.
+  // The number's tone, dark, by the one grade colour rule; on paper, ink. No letter is drawn.
   const toneCases = [['S', 97, '--good'], ['A', 84, '--good'], ['B', 71, '--text'], ['C', 61, '--warn'], ['D', 52, '--bad']];
   for (const [letter, score, token] of toneCases) {
     h.reset();
     VC.draw({ ...ABYSS_V, letter, score }, { paper: false });
-    const dark = h.texts.find((x) => x.text === letter);
+    const dark = h.texts.find((x) => x.text === String(score) && /^600 /.test(x.font));
+    const darkLetter = h.texts.some((x) => x.text === letter);
     h.reset();
     VC.draw({ ...ABYSS_V, letter, score }, { paper: true });
-    const light = h.texts.find((x) => x.text === letter);
-    ok(dark && dark.fill === TOKENS[token] && light && light.fill === (TOKENS['--paper-ink'] || '#0A0B0E') && h.texts.some((x) => x.text === String(score)),
-      `${letter} ${score}: ${token} on the dark ground, ink on paper, the number beside it`, `${dark && dark.fill} / ${light && light.fill}`);
+    const light = h.texts.find((x) => x.text === String(score) && /^600 /.test(x.font));
+    ok(dark && dark.fill === TOKENS[token] && light && light.fill === (TOKENS['--paper-ink'] || '#0A0B0E') && !darkLetter && !h.texts.some((x) => x.text === letter),
+      `${score} (a ${letter} inside): ${token} on the dark ground, ink on paper, and no letter drawn`, `${dark && dark.fill} / ${light && light.fill}`);
   }
   const bare = harness({ gradeView: false });
   bare.VC.draw({ ...ABYSS_V, letter: 'D', score: 52 }, { paper: false });
-  const bareD = bare.texts.find((x) => x.text === 'D');
-  ok(bareD && bareD.fill === TOKENS['--text'], 'without GradeView the letter is ink: the card keeps no grade colour table of its own', bareD && bareD.fill);
+  const bareD = bare.texts.find((x) => x.text === '52' && /^600 /.test(x.font));
+  ok(bareD && bareD.fill === TOKENS['--text'], 'without GradeView the number is ink: the card keeps no grade colour table of its own', bareD && bareD.fill);
   const COPY = /letter\s*===\s*'[SABCD]'/;
   ok(COPY.test("v.letter === 'S'") && !COPY.test(fs.readFileSync(CARD, 'utf8')), 'and none is written in it (the detector matches a copy)');
 
@@ -632,7 +633,7 @@ const ABYSS_V = { ...av, at: AT };
     const val = h.texts.find((x) => x.text === '4K');
     ok(ls.length === 2 && ls[1].text.endsWith('…') && val && ls[0].y > val.y && ls[0].x === 32,
       `${size}: a long standout line goes under its value in 2 lines, the last cut with an ellipsis`, ls.map((x) => x.text).join(' / '));
-    ok(h.texts.some((x) => x.text === 'PROVISIONAL'), `${size}: PROVISIONAL when the grade is`);
+    ok(h.texts.some((x) => /PROVISIONAL/.test(x.text)), `${size}: PROVISIONAL when the grade is`);
     h.reset();
     VC.draw({ ...ABYSS_V, stat: { value: '2', label: 'First kills' } }, { size });
     const short = labelLines();
@@ -691,12 +692,12 @@ const ABYSS_V = { ...av, at: AT };
     "the icon loads from assets/, beside this script's own folder, and nothing else does", VC.iconUrl('valorant/agents/Jett.png'));
   h.reset();
   VC.draw(ABYSS_V);
-  const bigB = h.texts.find((x) => x.text === 'B');
-  ok(bigB && bigB.spacing === `${Number((112 * parseFloat(TOKENS['--track-display'] || '-0.02em')).toFixed(2))}px`,
-    'the letter is tracked at --track-display', bigB && bigB.spacing);
+  const bigN = h.texts.find((x) => x.text === '71' && /^600 /.test(x.font));
+  ok(bigN && bigN.spacing === `${Number((112 * 0.82 * parseFloat(TOKENS['--track-display'] || '-0.02em')).toFixed(2))}px`,
+    'the grade\'s number is tracked at --track-display', bigN && bigN.spacing);
   h.reset();
   VC.draw({ ...ABYSS_V, reason: null, stats: [], sub: '' });
-  ok(!h.texts.some((x) => x.text === '' || x.text === 'null') && h.texts.some((x) => x.text === 'B'), 'with no reason, no numbers and no sub line it draws the rest and nothing empty');
+  ok(!h.texts.some((x) => x.text === '' || x.text === 'null') && h.texts.some((x) => x.text === '71'), 'with no reason, no numbers and no sub line it draws the rest and nothing empty');
   h.reset();
   VC.draw({ ...ABYSS_V, at: null });
   ok(!h.texts.some((x) => /\d{4}$/.test(x.text) && /OCT|SEP|NOV/.test(x.text)), 'with no date it draws none');
@@ -712,7 +713,8 @@ const ABYSS_V = { ...av, at: AT };
   ok(g2 && g2[1] === '#E9EBF0', 'a token that still reads as a var() gives its fallback, the token\'s own value', g2 && g2[1]);
   broken.reset();
   broken.VC.draw(ABYSS_V, { paper: false });
-  ok(broken.texts.find((x) => x.text === 'B').fill === '#F5F5F7', 'the same for the ink on the dark ground');
+  const bn = broken.texts.find((x) => x.text === '71' && /^600 /.test(x.font));
+  ok(bn && bn.fill === '#F5F5F7', 'the same for the ink on the dark ground', bn && bn.fill);
   const verdictLabel = broken.texts.find((x) => x.text === `JETT${DOT}UNRATED`);
   ok(verdictLabel && verdictLabel.spacing === '0.88px' && /Geist Mono/.test(verdictLabel.font),
     'a tracking token that is not in ems gives the app\'s 0.08em, and a missing mono stack its fallback', verdictLabel && `${verdictLabel.spacing} ${verdictLabel.font}`);

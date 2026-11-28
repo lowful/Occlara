@@ -194,7 +194,8 @@
     "test:gdigrab": "node scripts/test-gdigrab.js",
     "test:importvideo": "node scripts/test-import-video.js",
     "test:importserver": "node scripts/test-import-server.js",
-    "check:importclip": "node scripts/check-import-clip.js"
+    "check:importclip": "node scripts/check-import-clip.js",
+    "test:display": "node scripts/test-display.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

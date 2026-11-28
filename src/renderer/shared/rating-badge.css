@@ -24,22 +24,18 @@
   box-shadow: var(--drop); transition: background-color var(--t-slow) var(--ease-out);
 }
 
-/* THE COUNT: the value in tenths, --rt, which the page sets; its whole part
-   rounded down by the integer type (--rt less 5, over 10) and its tenth what
-   is left, drawn by counter() over the real number, which stays the text. */
+/* THE COUNT: the value on the 100 scale (9.1, one score: 8.3 is 83), --rt,
+   which the page sets; drawn by counter() over the real number, which stays
+   the text, so it counts as it moves. */
 @property --rt { syntax: '<integer>'; initial-value: 60; inherits: true; }
-@property --rt-w { syntax: '<integer>'; initial-value: 6; inherits: true; }
-@property --rt-d { syntax: '<integer>'; initial-value: 0; inherits: true; }
 .rt-r-num {
   position: relative; color: transparent;
   font-family: var(--font); font-size: 104px; font-weight: 700; line-height: 0.9;
   letter-spacing: -0.055em; font-variant-numeric: tabular-nums;
-  --rt-w: calc((var(--rt) - 5) / 10);
-  --rt-d: calc(var(--rt) - var(--rt-w) * 10);
-  counter-reset: rtw var(--rt-w) rtd var(--rt-d);
+  counter-reset: rtv var(--rt);
   transition: --rt var(--t-slow) var(--ease-out);
 }
-.rt-r-num::after { content: counter(rtw) "." counter(rtd); position: absolute; left: 0; top: 0; color: var(--on-accent); }
+.rt-r-num::after { content: counter(rtv); position: absolute; left: 0; top: 0; color: var(--on-accent); }
 
 /* The move beside it: up rises in green, down falls in red. */
 .rt-r-delta { min-width: 4ch; font-family: var(--font-mono); font-size: 28px; font-weight: 500; color: var(--text-mute); font-variant-numeric: tabular-nums; opacity: 0; }

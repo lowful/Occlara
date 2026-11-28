@@ -318,7 +318,7 @@ ok(clockLeft('1:39') === 99 && clockLeft('0:05') === 5 && clockLeft('buy') === n
   const v = g.live.view();
   ok(Object.keys(v).sort().join() === 'last,line,shown,tier,value' && Object.keys(v.last).sort().join() === 'delta,down,label,up',
     `the view is the value, its tier, the last move and its label, and the line (${Object.keys(v).join(', ')})`);
-  ok(v.shown === v.value.toFixed(1) && v.line[0] === 6 && v.line[v.line.length - 1] === v.value && /^\+\d\.\d$/.test(v.last.delta), `"${v.shown}", ${v.last.delta}, the line from 6.0 (${v.line.join(' ')})`);
+  ok(v.shown === String(Math.round(v.value * 10)) && v.line[0] === 6 && v.line[v.line.length - 1] === v.value && /^\+\d+$/.test(v.last.delta) && v.last.up === true, `"${v.shown}", ${v.last.delta}, on the 100 scale, the line from 6.0 inside (${v.line.join(' ')})`);
   const s = JSON.stringify(v);
   ok(!/hp|credit|spot|enemy|alive|spike|map|agent/i.test(s.replace(/"label":"[^"]*"/, '')), 'nothing of the reader\'s context is in it');
   // Swiftplay: the shorter match's length rule.

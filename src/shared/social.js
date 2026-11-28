@@ -18,7 +18,6 @@
  *                        say, finished here so the pages count nothing
  */
 
-const { letter } = require('./grade');
 
 // ── RULES START (word for word the same in src/shared/social.js) ──────────
 const USERNAME_MIN = 3;
@@ -313,7 +312,7 @@ function challengeLine(result, c) {
 /** What others see, said in plain words for the public switch (the Riot ID only while the proof is open). */
 const PUBLIC_EXPLAIN = 'Signed in Occlara players can find you by your username, and by your whole Riot ID once you prove it is yours.';
 const PUBLIC_EXPLAIN_NAME = 'Signed in Occlara players can find you by your username.';
-const PUBLIC_MORE = 'They see your rank, your average grade and its letter, your record, K/D and headshots, your main agents and maps, your last 10 matches, multi kills, clutches and your Wrapped title. Never your mistakes, your reviews, your clips or your email. Turned off, your profile leaves search at once and its numbers are deleted from the server.';
+const PUBLIC_MORE = 'They see your rank, your average grade, your record, K/D and headshots, your main agents and maps, your last 10 matches, multi kills, clutches and your Wrapped title. Never your mistakes, your reviews, your clips or your email. Turned off, your profile leaves search at once and its numbers are deleted from the server.';
 // Discoverable, said by what it does (docs/claude/duos.md): with Duos open,
 // what a teammate sees; with it off, no word of Duos at all.
 const DISCOVER_EXPLAIN = 'After a match you played on one team, a teammate who also uses Occlara and turned this on too sees your username and the agent you played, and you see theirs, so either of you can invite the other to a duo. Never an opponent, never anyone else, never your Riot ID. It does not let anyone invite you by typing your username: that reaches public profiles only.';
@@ -349,7 +348,7 @@ function profileModel(p) {
     riot: riotText(p.riot),
     riotNote: p.riot ? 'Verified' : p.verified ? null : 'No Riot ID shown',
     rank: rk ? { current: rk.current || 'Unranked', peak: rk.peak || null, label: RANK_LABEL[rk.source] || RANK_LABEL.pc } : null,
-    grade: g ? { avg: String(g.avg), letter: g.letter || letter(g.avg), sample: `over ${plural(g.n, 'graded match', 'graded matches')}`, trend: Array.isArray(g.trend) ? g.trend : [] } : null,
+    grade: g ? { avg: String(g.avg), sample: `over ${plural(g.n, 'graded match', 'graded matches')}`, trend: Array.isArray(g.trend) ? g.trend : [] } : null,
     matches: s ? plural(s.matches, 'match reviewed', 'matches reviewed') : null,
     record: s ? recordLine(s) : null,
     kd: s && Number.isFinite(s.kd) ? s.kd.toFixed(2) : null,
@@ -359,7 +358,7 @@ function profileModel(p) {
     multi: s ? [['2K', s.multi.k2], ['3K', s.multi.k3], ['4K', s.multi.k4], ['Ace', s.multi.k5], ['Clutches won', s.clutches]]
       .map(([label, n]) => ({ label, n: String(n) })) : [],
     recent: s ? s.recent.map((r) => ({ r: r.r, word: r.r === 'W' ? 'Win' : r.r === 'L' ? 'Loss' : 'Draw', agent: r.agent, map: r.map,
-      grade: Number.isFinite(r.grade) ? `${r.grade} ${r.letter || letter(r.grade)}` : null })) : [],
+      grade: Number.isFinite(r.grade) ? String(r.grade) : null })) : [],
     title: s && s.title ? s.title.name : null,
     empty: !s ? (p.self ? 'Your numbers upload when your profile is public and you save a review.' : 'No numbers yet. They show once this player saves a review with their profile public.') : null,
     fromPc: s ? (p.self ? FROM_MY_PC : FROM_PC) : null,
@@ -371,7 +370,7 @@ function profileModel(p) {
 function resultModel(r) {
   if (!r || typeof r.username !== 'string') return null;
   const rank = r.rank && r.rank.tier ? `${r.rank.tier}${r.rank.source === 'verified' ? '' : ' (own PC)'}` : null;
-  const bits = [rank, r.agent, r.grade ? `${r.grade.avg} ${r.grade.letter}` : null].filter(Boolean);
+  const bits = [rank, r.agent, r.grade ? `grade ${r.grade.avg}` : null].filter(Boolean);
   return { username: r.username, riot: riotText(r.riot), line: bits.join(', ') || 'No numbers yet', agent: r.agent || null };
 }
 

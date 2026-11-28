@@ -110,11 +110,12 @@ The slides as shipped, in order:
 4. **grades**: needs 5 counted grades (`MIN_GRADED`; provisional grades never
    count). The climb is the first third of the counted grades against the
    last third, 4 a side at least (`CLIMB_MIN`), else the average; a line of
-   monthly averages drawn on; the letters; the best month among months with 3
+   monthly averages drawn on; the grades by band (`bands`: 90 and up, 80s,
+   70s, 60s, under 60; no letters since 9.1); the best month among months with 3
    grades (`MONTH_MIN`) when two such months exist. Under 12 graded it says
    the sample is small.
-5. **best**: the highest counted grade, the newest of equals: the letter
-   stamped, the score, map, agent, score line, K/D/A, the day, and its best
+5. **best**: the highest counted grade, the newest of equals: the score
+   (no letter since 9.1), map, agent, score line, K/D/A, the day, and its best
    highlight clip playing muted if the file is still on disk (the cap and Clear
    clips take clips; a missing file is no clip, checked as the story is built
    and again by the page's `error`), else the agent.
