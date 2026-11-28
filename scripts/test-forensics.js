@@ -34,6 +34,10 @@
  * parse, b's labels on its looks, and the route's gate on its own source:
  * served only beside the admin password, or promoted to 8.5.0 and later.
  *
+ * And 9.1's, for every client: utility the player's own agent lacks asked
+ * of a teammate in the look as in the review (fact-gates.js ownUtilityFix),
+ * the third gate a client before 8.5.0 may see beside 8.4.4's reply.
+ *
  * Run: npm run test:forensics
  */
 
@@ -162,6 +166,38 @@ ok(!/\u2014/.test(df.parse('{"cause": "isolated", "what": "You held alone \u2014
   ok(/Iso's Q/.test(scr) && !/Phoenix's/.test(scr), 'from the screen alone, no killer, so only the player\'s lines');
   ok(!/in the game's own words/.test(ask({ ...isoBody(), agent: null, deaths: [{ n: 10, frames: [frame] }], source: 'screen' }, 'b2')), 'no agent known, no block');
   ok(!new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)};]`).test(df.kitBlockFor(iso, iso.deaths[0])), 'the block carries no dash and no semicolon');
+}
+
+// ── Utility the player's own agent does not have, in the look (9.1) ────────
+// The AI audit's open follow up: the review's gate (fact-gates.js
+// ownUtilityFix) over each look sentence, every variant. The bench's own
+// haiku reply to a Jett on Sunset, round 3, is the case.
+{
+  const body = (agent, extra) => ({ agent, map: 'Sunset', ...(extra || {}), deaths: [{ n: 3, side: 'attacking', sec: 18, killer: 'Cypher', weapon: 'Vandal',
+    traded: false, frames: [frame] }] });
+  const THROW = 'Hold the angle from cover or throw a flash before you peek A Main, so you can see the Cypher before he sees you.';
+  const reply = JSON.stringify({ cause: 'dry-peek', what: 'You swung A Main with nothing thrown.', better: THROW });
+  for (const variant of ['a', 'b2']) {
+    const jett = df.normalise(body('Jett'), { variant });
+    const r = variant === 'a' ? reply : JSON.stringify({ what: 'You swung A Main with nothing thrown.', fight: 'wrong-time', better: THROW, change: 'utility', cause: 'dry-peek', alt: 'none' });
+    const look = df.parse(r, jett, jett.deaths[0]);
+    ok(look.better === THROW.replace('throw a flash', "wait for a teammate's flash") && look.cause === 'dry-peek' && look.what
+      && look.notes.some((x) => /better own utility/.test(x)) && !look.dropped.length,
+    `CAUGHT (${variant}): "throw a flash before you peek" to a Jett is "wait for a teammate's flash", the label and the what kept (${look.better})`);
+    ok(!('notes' in df.replyOf(look)) && JSON.stringify(df.replyOf(look)).indexOf('own utility') < 0, 'and the note is only logged, never in the reply');
+  }
+  const kept = (agent, text, extra) => {
+    const x = df.normalise(body(agent, extra));
+    return df.parse(JSON.stringify({ cause: 'dry-peek', what: 'You swung A Main with nothing thrown.', better: text }), x, x.deaths[0]).better;
+  };
+  ok(kept('Phoenix', THROW) === THROW, "KEPT: the same line to a Phoenix, whose Curveball is a flash");
+  ok(kept('Jett', 'Use a flash from a teammate before you peek A Main.') === 'Use a flash from a teammate before you peek A Main.'
+    && kept('Jett', "Use your Breach's flash before you peek A Main.") === "Use your Breach's flash before you peek A Main."
+    && kept('Jett', 'Dash in behind a cloudburst or wait for the flash.') === 'Dash in behind a cloudburst or wait for the flash.',
+  "KEPT: a flash already asked of a teammate, one with its owner named, and Jett's own smoke");
+  ok(kept('Jett', 'Lanza un flash antes de asomarte.', { language: 'es' }) === 'Lanza un flash antes de asomarte.', 'KEPT: another language, which the gate cannot read');
+  const screen = df.normalise({ ...body(null), source: 'screen' });
+  ok(df.parse(reply, screen, screen.deaths[0]).better === THROW, 'KEPT: no agent known (from the screen, one never locked off the HUD), nothing judged');
 }
 
 // ── The map gate ────────────────────────────────────────────────────────────
@@ -943,6 +979,8 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
   let same = 0;
   const unexplained = [];
   let gated = 0;
+  let ownSeen = 0;
+  const fg = require('../server/services/fact-gates');
   for (const body of bodies.filter((x, i) => i % 5 === 0)) {
     const now = live(body);
     const then = shipped.normalise(body);
@@ -952,15 +990,23 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
       delete old.dropped;
       const reply = df.replyOf(got);
       if (JSON.stringify(reply) === JSON.stringify(old)) { same++; continue; }
-      // Only the two gates every client gets may tell them apart.
+      // Only the gates every client gets may tell them apart: a name, Riot's
+      // trade, and (9.1) utility the player's own agent lacks, asked of a
+      // teammate in the review gate's own words (fact-gates.js ownUtilityFix).
       const byName = got.dropped.some((d) => d.gate === 'name');
       const byTrade = got.dropped.some((d) => d.gate === 'traded');
+      const byOwn = got.notes.some((x) => /own utility/.test(x));
+      const ownWords = (t) => (fg.ownUtilityFix(t, { language: 'en', game: 'valorant', agent: body.agent }) || {}).rewrite;
       const explained = (byTrade && old.cause === 'isolated' && reply.cause === 'unclear' && reply.what === null && reply.better === null)
-        || (byName && !byTrade && ['what', 'better'].some((f) => old[f] && reply[f] === null));
+        || (byName && !byTrade && ['what', 'better'].some((f) => old[f] && reply[f] === null))
+        || (byOwn && !byTrade && !byName && reply.cause === old.cause
+          && ['what', 'better'].every((f) => reply[f] === old[f] || (old[f] && reply[f] === ownWords(old[f]))));
+      if (byOwn && explained) ownSeen++;
       if (explained) gated++; else unexplained.push(text.slice(0, 60));
     }
   }
-  ok(!unexplained.length && same > 4000, `every reply reads as 8.4.4 read it (${same} the same), or differs only by a name or Riot's trade (${gated}); unexplained ${unexplained.length}${unexplained.length ? `: ${unexplained.slice(0, 3).join(' | ')}` : ''}`);
+  ok(!unexplained.length && same > 4000, `every reply reads as 8.4.4 read it (${same} the same), or differs only by a name, Riot's trade or utility the agent lacks (${gated}, ${ownSeen} of them the last); unexplained ${unexplained.length}${unexplained.length ? `: ${unexplained.slice(0, 3).join(' | ')}` : ''}`);
+  ok(ownSeen > 0, `and the utility rewrite is one of them, on a Jett told to throw a flash in the bench's own replies (${ownSeen})`);
   const plainBody = bodies[0];
   const plain = df.replyOf(df.parse(replies[0], live(plainBody), live(plainBody).deaths[0]));
   ok(Object.keys(plain).join() === 'n,cause,what,better', `its look carries no new field (${Object.keys(plain).join()})`);

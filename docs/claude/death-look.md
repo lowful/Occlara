@@ -528,6 +528,25 @@ requestBody, each condition held, the lever and the gates), `test:forensics`
 must not catch, the look's gate on defence, attack and a retake).
 
 
+### The look's own kit and its spelling (9.1)
+
+The AI audit of the owner's library (item 20) left follow ups for the look,
+all in `death-forensics.js`, every variant and every client:
+
+- **Utility the player's own agent lacks** (`ownUtility`, the review's
+  `fact-gates.js ownUtilityFix`): a what or better sentence that passed every
+  other gate and tells the player to "throw a flash" or "use a drone" their
+  agent does not have is asked of a teammate, "wait for a teammate's flash".
+  The look is never sent the comp, so it rewrites and never drops; the review
+  and Ask Coach, which know the comp, drop where nobody on the team has it.
+  Logged as a note, never in the reply. The bench's own haiku replies to a
+  Jett ("throw a flash before you peek A Vent") are the 8.4.4 check's case.
+- **Practice, never practise** (`plain-text.js practiceSpelling`) on each
+  sentence kept, as the client shows it.
+
+Tests: `test:forensics` ("in the look (9.1)").
+
+
 ### Chains of mistakes (Nov 2026)
 
 The owner's goal: the coach reads a death as the TRUE mistake or mistakes and

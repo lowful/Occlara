@@ -4674,5 +4674,42 @@ console.log('\nround 8, the game facts gates:');
   ok(rows.some((x) => x.kind === 'earlier' && x.reason), 'and it runs among the readers, as earlier', JSON.stringify(rows));
 }
 
+// ── Utility the player's own agent does not have, in Ask Coach (9.1) ───────
+// The AI audit's open follow up: the review's gate (fact-gates.js
+// ownUtilityFix) over every sentence of an answer, before the team gate.
+{
+  console.log('\nutility the player\'s own agent does not have, in Ask Coach (9.1):');
+  const served = (paras, f) => cp.gateReply(paras, { ...f, language: 'en' }, {});
+  const one = (s, f) => served([s], f)[0];
+  const card = (o) => ({ side: 'attacking', result: 'lost', died: true, verified: true, watched: true, pistol: false, ...o });
+  const match = (agent, us, ask) => factsFor(cp.normalise({ v: 2, game: 'valorant', language: 'en', advanced: false,
+    match: { result: 'Victory', verified: true, at: AT, id: 'valorant-1790000000000-split91', map: 'Split', agent, mode: 'Swiftplay', score: '5-2', rounds: 7,
+      scoreline: { kills: 11, deaths: 5, assists: 2 },
+      comps: { us: us.map((a) => ({ agent: a })), them: ['Chamber', 'Clove', 'Deadlock', 'Hush', 'Neon'].map((a) => ({ agent: a })) },
+      cards: [card({ n: 1, riot: { sec: 52, killer: 'Hush', weapon: 'Sheriff', traded: true, kills: 0 } })] }, player: {}, ask: {} }),
+  [{ role: 'user', content: ask || 'How should I have played round 1?' }], STAND_IN);
+  // The Split swiftplay of 23 Nov, round 1, as Ask Coach could say it.
+  const SPLIT = 'At Mid Vent, use a flash or drone before dropping, because a defender can hold the close angle.';
+  const jett = match('Jett', ['Brimstone', 'Jett', 'Phoenix', 'Reyna', 'Tejo']);
+  const r = one(SPLIT, jett);
+  ok(!r.drop && r.s === SPLIT.replace('use a flash or drone', "wait for a teammate's flash or drone") && r.rewritten === 'own-utility-rewrite',
+    `CAUGHT: "use a flash or drone" to a Jett with Phoenix's flash and Tejo's drone beside her is "wait for a teammate's flash or drone" (${r.s})`, JSON.stringify(r));
+  const thin = one(SPLIT, match('Jett', ['Brimstone', 'Jett', 'Phoenix', 'Reyna', 'Sage']));
+  ok(!thin.drop && thin.s === SPLIT.replace('use a flash or drone', "wait for a teammate's flash") && thin.logged.includes('own-utility-rewrite') && thin.logged.includes('utility-rewrite'),
+    `and the team gate then holds it to the comp: a drone nobody on the team has comes out of the list (${thin.s})`, JSON.stringify(thin));
+  const nobody = one(SPLIT, match('Jett', ['Chamber', 'Iso', 'Jett', 'Neon', 'Raze']));
+  ok(nobody.drop && nobody.drop.gate === 'own-utility', 'and to a team where nobody has a flash or a drone the sentence goes', JSON.stringify(nobody.drop));
+  ok(one(SPLIT, match('Phoenix', ['Brimstone', 'Jett', 'Phoenix', 'Reyna', 'Tejo'])).s === SPLIT, "KEPT: the same to a Phoenix, whose Curveball is a flash");
+  const sova = match('Jett', ['Brimstone', 'Jett', 'Phoenix', 'Reyna', 'Tejo'], 'If I played Sova on Split, how would I take Mid Vent?');
+  ok(one('Send a drone in first, then drop.', sova).s === 'Send a drone in first, then drop.',
+    "KEPT: an answer to a question naming another agent, which may be of that agent's kit");
+  ok(one("Use your Phoenix's flash before you drop.", jett).s === "Use your Phoenix's flash before you drop." && !one("Use your Phoenix's flash before you drop.", jett).rewritten,
+    'KEPT: a teammate named as its owner');
+  const es = cp.gateReply([SPLIT], { ...jett, language: 'es' }, {})[0];
+  ok(es.s === SPLIT && !es.rewritten, 'KEPT: another language, which the gate cannot read');
+  ok(cp.ownUtilityAsked(jett) && !cp.ownUtilityAsked(sova) && !cp.ownUtilityAsked({ ...jett, game: 'lol' }) && !cp.ownUtilityAsked({ ...jett, agent: null }),
+    'ownUtilityAsked: the player\'s own Valorant agent known and no other asked, both ways');
+}
+
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');
 process.exit(fails ? 1 : 0);

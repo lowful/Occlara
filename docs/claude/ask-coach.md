@@ -1025,8 +1025,16 @@ a true one.
   to the comp; with the comp known and nobody on it owning any of the list, a round line goes
   whole (`own-utility`) and a summary or focus sentence alone. Never an enemy's ("Their Sova will
   use a drone"), a named owner's ("your Sova's drone"), one already asked of a teammate, or an
-  agent the table does not know. The review only; the look and Ask Coach do not run it yet
-  (`test:valorantreview`, "utility the player's own agent does not have").
+  agent the table does not know (`test:valorantreview`, "utility the player's own agent does not
+  have"). Since 9.1's item 20 it runs in Ask Coach and the look too. In Ask Coach
+  (`chat-prompt.js gateReply`, before the team gate, logged `own-utility-rewrite`, a drop gate
+  `own-utility`) only for an English Valorant answer with the player's agent known and a question
+  that names no other agent (`ownUtilityAsked`): "If I played Sova, how would I take Mid Vent?"
+  is answered of Sova's kit (`test:chatgates`, "in Ask Coach (9.1)"). In the look
+  (`death-forensics.js ownUtility`, every variant and every client, after the other gates, a note
+  only) it rewrites and never drops, since the look is never sent the comp (`test:forensics`,
+  "in the look (9.1)"; the 8.4.4 byte for byte check counts it as the third gate a client before
+  8.5.0 may see).
 - **How many deaths the coach looked at** (`fact-gates.js gateLookCount`, gate `looks`, last):
   "The coach looked at one of your deaths" where it looked at all 3 (Fracture Asc and Plat aim),
   and the looked at total of "1 of the 2 deaths the coach looked at", held to the deaths with a

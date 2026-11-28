@@ -3474,22 +3474,50 @@ const FALLBACK_KEPT = 3;
  * a bare verdict whose next sentence was dropped dropped with it (VERDICT).
  * parseReply's reading of a reply, and bench:chat's.
  */
+/*
+ * WHEN ASK COACH'S ANSWER IS HELD TO THE PLAYER'S OWN KIT (9.1, the AI
+ * audit): a Valorant answer in English, with the player's agent known, and a
+ * question that names no other agent. "What would a Sova do here?" is
+ * answered "send a drone first" of Sova's kit, never the player's, so a
+ * question naming another agent is never judged.
+ */
+function ownUtilityAsked(facts) {
+  const f = facts || {};
+  if (f.game === 'lol' || (f.language || 'en') !== 'en' || !f.agent) return false;
+  const own = lower(f.agent);
+  return !(f.askedAgents || []).some((a) => lower(a) !== own);
+}
+
 function gateReply(paras, facts, nameOpts) {
   const rows = [];
   (Array.isArray(paras) ? paras : []).forEach((p, i) => {
     for (const s0 of gates.sentencesOf(p)) {
+      // Utility the player's own agent does not have, told to the player
+      // ("throw a flash before you peek" to a Jett), is asked of a teammate,
+      // as the review and the look ask it, and the team gate below holds it
+      // to the comp; where the comp is known and nobody on it has any of it
+      // either, the sentence goes (fact-gates.js ownUtilityFix, the AI audit
+      // of 9.1, ownUtilityAsked).
+      let s = s0;
+      let fixed = false;
+      let ownFixed = false;
+      let ownDrop = null;
+      if (typeof gates.ownUtilityFix === 'function' && ownUtilityAsked(facts)) {
+        let own = null;
+        try { own = gates.ownUtilityFix(gates.straighten(s0), facts); } catch { own = null; }
+        if (own && own.rewrite) { s = own.rewrite; ownFixed = true; } else if (own && own.gate) ownDrop = own;
+      }
       // A drone or a dart the team lacks, listed beside utility it has, is
       // taken out of the list and the sentence kept (fact-gates.js
       // teamUtilityFix, the blind audit of round 8, stream C).
-      let s = s0;
-      let fixed = false;
-      if (typeof gates.teamUtilityFix === 'function') {
+      if (!ownDrop && typeof gates.teamUtilityFix === 'function') {
         let fix = null;
-        try { fix = gates.teamUtilityFix(gates.straighten(s0), facts); } catch { fix = null; }
+        try { fix = gates.teamUtilityFix(ownFixed ? s : gates.straighten(s0), facts); } catch { fix = null; }
         if (fix && fix.rewrite) { s = fix.rewrite; fixed = true; }
       }
-      const res = gates.check(s, facts, nameOpts);
-      rows.push({ p: i, s, drop: res.drop, logged: fixed && !res.drop ? [...res.logged, 'utility-rewrite'] : res.logged, ...(fixed && !res.drop ? { rewritten: 'utility-rewrite' } : {}) });
+      const res = ownDrop ? { drop: ownDrop, logged: [] } : gates.check(s, facts, nameOpts);
+      const tags = [...(ownFixed ? ['own-utility-rewrite'] : []), ...(fixed ? ['utility-rewrite'] : [])];
+      rows.push({ p: i, s, drop: res.drop, logged: tags.length && !res.drop ? [...res.logged, ...tags] : res.logged, ...(tags.length && !res.drop ? { rewritten: tags[0] } : {}) });
     }
   });
   // The death in one sentence, the standing it left in the next ("Tejo killed
@@ -3872,7 +3900,7 @@ function retryParts(parts, reasons) {
 module.exports = {
   normalise, buildPrompt, buildParts, parseReply, retryPrompt, retryParts, HONEST_LINE,
   // The parts, for the tests and bench:chat.
-  factsOf, cleanReply, gateReply, askedRounds, matchName, pickNotes, casesFor, enemiesOf, CASE_GROWTH, primerFacts, normEntry, echoOf, gateText, stated, standingsOf, deathStandingsOf, LEANS_REASON,
+  factsOf, cleanReply, gateReply, ownUtilityAsked, askedRounds, matchName, pickNotes, casesFor, enemiesOf, CASE_GROWTH, primerFacts, normEntry, echoOf, gateText, stated, standingsOf, deathStandingsOf, LEANS_REASON,
   renderPlayer, renderMatch, renderAsked, renderEarlier, renderSlices, staticPrefix, languageLine, gunsInCore,
   UNTRADED_TITLE, OLD_UNTRADED_TITLE, CLIENT_UNTRADED_TITLE,
   VALORANT_RULES, LEAGUE_RULES, RIOT_ONLY, NO_MATCH, DYNAMIC_MAX_CHARS, MATCH_MAX_CHARS, MAX_CHARS, MAX_ASKED_ROUNDS, VERDICT, VERDICT_REASON,

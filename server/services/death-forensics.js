@@ -116,7 +116,8 @@
  * promoted (FORENSICS_PROMPT=b or b2), or to an admin bench naming it with
  * the password, and `input.variant` 'b' or 'b2' then (VARIANTS). Anything
  * else is a: a client before 8.5.0 is answered with today's prompt and parse
- * exactly, but for the two gates above, and never sees b's words or fields.
+ * exactly, but for the two gates above and 9.1's own utility gate
+ * (ownUtility, below), and never sees b's words or fields.
  * test:forensics holds variant a to the look as 8.4.4 shipped it
  * (scripts/fixtures/death-forensics-844.js), byte for byte.
  */
@@ -127,6 +128,35 @@ const nameGate = require('./name-gate');
 // is not deployed checks nothing and adds no line, and the look is as before.
 let abilityFacts = null;
 try { abilityFacts = require('./ability-facts'); } catch { abilityFacts = null; }
+
+const { practiceSpelling } = require('./plain-text');
+
+/*
+ * UTILITY THE PLAYER'S OWN AGENT DOES NOT HAVE, IN THE LOOK (9.1, the AI
+ * audit's open follow up): the review's gate (fact-gates.js ownUtilityFix,
+ * match-review.js ownUtilityGates) over each look sentence that passed the
+ * rest. "Use a flash or drone before dropping" to a Jett, whose kit has
+ * neither, becomes "wait for a teammate's flash or drone"; a sentence that
+ * already asks a teammate, names an owner, or is said to an agent who has it
+ * is left as written. The look is never sent the comp, so it never knows
+ * that nobody on the team has it either, and never drops on that ground (the
+ * review does, where its comp is known). English only, Valorant only, and
+ * only with the player's agent known (from the screen, only one locked off
+ * the HUD, index.js askForensics). A module that is not deployed, or a check
+ * that throws, changes nothing.
+ */
+let factGates;
+function ownUtility(s, input) {
+  if (!input || !input.agent || gateLanguage(input) !== 'en') return null;
+  if (factGates === undefined) { try { factGates = require('./fact-gates'); } catch { factGates = null; } }
+  if (!factGates || typeof factGates.ownUtilityFix !== 'function') return null;
+  try {
+    const f = factGates.ownUtilityFix(s, { language: 'en', game: 'valorant', agent: input.agent });
+    if (f && f.rewrite) return { rewrite: f.rewrite };
+    if (f && f.gate) return { drop: f.gate };
+  } catch { return null; }
+  return null;
+}
 
 // "a Vandal", "an Outlaw". The prompt's own grammar is what the model copies,
 // and "with a Outlaw" came back in its sentences.
@@ -819,7 +849,14 @@ function parse(text, input, death) {
       out.dropped.push({ field, why: 'a name', gate: 'name' });
       continue;
     }
-    out[field] = s;
+    // UTILITY THE PLAYER'S OWN AGENT DOES NOT HAVE (9.1, ownUtility): "use a
+    // flash before you peek" to a Jett is "wait for a teammate's flash",
+    // as the review says it. Only logged, as a note.
+    const own = ownUtility(s, input);
+    if (own && own.drop) { out.dropped.push({ field, why: 'utility the agent lacks', gate: 'own-utility' }); continue; }
+    if (own && own.rewrite) { s = own.rewrite; out.notes.push(`${field} own utility asked of a teammate`); }
+    // PRACTICE, NEVER PRACTISE (9.1, plain-text.js practiceSpelling), as the client shows it.
+    out[field] = practiceSpelling(s);
   }
   // ISOLATED IS "too far from teammates to be traded", and a death Riot
   // records as traded was not (8.5.0, every client): Riot's facts win, and the
