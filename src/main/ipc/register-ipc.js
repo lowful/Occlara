@@ -260,6 +260,11 @@ function registerIpc(deps) {
   safeHandle(C.AILOG_ASK, async (_e, payload) => controller.askAboutFrame(payload));
   safeHandle(C.APP_VERSION, async () => updater.getStatus());
   safeHandle(C.APP_UPDATE_CHECK, async () => updater.checkNow());
+  // THE UPDATER IN THE BAR (9.1): what its control may show (null while the
+  // player is playing), and its "Restart to update", taken from the bar's own
+  // document alone (the main window, registry 'main') and refused mid match.
+  safeHandle(C.UPDATE_GET, async () => updater.view());
+  safeHandle(C.UPDATE_INSTALL, async (e) => (fromPage(e, 'main') ? updater.install() : { ok: false, error: 'not-ready' }));
 
   // ── fire-and-forget commands ──────────────────────────────────────────────
   ipcMain.on(C.COACH_START,    () => guard('start',    () => controller.start()));

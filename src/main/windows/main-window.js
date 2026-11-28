@@ -37,7 +37,7 @@ const { pageOf, createNav, createMotion, createHistory } = require('../../shared
  * recorded, a review still being built or a League game's death clips still
  * being cut. Kept open, the window stays as it was. A
  * quit already under way (before-quit: the tray's Quit, Settings', an update's
- * Restart now) and Windows ending its session let it close for real.
+ * Restart to update) and Windows ending its session let it close for real.
  * Ctrl+Shift+M still hides it to the corner mark.
  *
  * Not always on top and in the taskbar, unlike the panel it replaces: it sits

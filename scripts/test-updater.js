@@ -1,18 +1,30 @@
 'use strict';
 
 /**
- * The update's restart question is never asked while the player is playing
- * (src/main/updater.js). The download lands whenever it lands, a check every
- * six hours, and the question came up over the game mid round, a window
- * nothing may put on the screen while a match is played, where "Restart now"
- * quit the recording and the review still being built with it.
+ * THE UPDATER IN THE BAR (9.1, the owner's item 22; src/main/updater.js).
+ * The native restart question is gone: the bar's green control says it
+ * instead, a download arrow with the download's progress round it, then
+ * "Restart to update", which is the one way the app restarts to install.
  *
- * The real updater.js, with Electron and electron-updater as stand ins: no
- * window, no network.
+ * What is held here, on the real updater.js with Electron and
+ * electron-updater stood in for (no window, no network):
+ *   - electron-updater's flow is unchanged: autoDownload and
+ *     autoInstallOnAppQuit on, quitAndInstall the install, no question box;
+ *   - the bar is told (push) only when what it may show changes: downloading
+ *     with its whole percent (null before electron-updater gives one), ready,
+ *     installing, and null while the player is playing (busy), the watch
+ *     telling it again the moment that changes;
+ *   - nothing installs by itself, however long a download sits ready, and
+ *     install() refuses mid match, before a download is whole, and twice;
+ *   - a check finding the version already downloaded leaves it ready, a
+ *     newer one supersedes it, a failed check never hides one that is ready;
+ *   - index.js says playing as it did, and tells the bar's own document
+ *     alone; register-ipc.js takes the install from the bar alone.
  *
  * Run: npm run test:updater
  */
 
+const fs = require('fs');
 const path = require('path');
 const Module = require('module');
 const EventEmitter = require('events');
@@ -23,16 +35,20 @@ function ok(cond, what, detail) {
   if (cond) { passed++; console.log(`ok    ${what}`); } else { failed++; console.log(`FAIL  ${what}${detail ? ` (${detail})` : ''}`); }
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const ROOT = path.join(__dirname, '..');
+const FILE = path.join(ROOT, 'src', 'main', 'updater.js');
 
 const asked = [];
-let answer = 1;
 const electron = {
-  app: { isPackaged: true, getVersion: () => '8.3.0' },
-  dialog: { showMessageBox: async (o) => { asked.push(o); return { response: answer }; } },
+  app: { isPackaged: true, getVersion: () => '9.1.0' },
+  // Were a question box still asked, it would be seen here.
+  dialog: { showMessageBox: async (o) => { asked.push(o); return { response: 0 }; } },
 };
 const autoUpdater = new EventEmitter();
 let installs = 0;
-autoUpdater.checkForUpdates = async () => null;
+let checks = 0;
+autoUpdater.checkForUpdates = async () => { checks++; return null; };
 autoUpdater.quitAndInstall = () => { installs += 1; };
 const realLoad = Module._load;
 Module._load = function patched(request, parent, isMain) {
@@ -40,112 +56,153 @@ Module._load = function patched(request, parent, isMain) {
   if (request === 'electron-updater') return { autoUpdater };
   return realLoad(request, parent, isMain);
 };
-const updater = require(path.join(__dirname, '..', 'src', 'main', 'updater.js'));
+/** A fresh updater.js, its listeners on a clean stand in. */
+function fresh() {
+  delete require.cache[require.resolve(FILE)];
+  autoUpdater.removeAllListeners();
+  return require(FILE);
+}
 
 (async () => {
   const quiet = console.log;
-  let busy = true;
-  let throwing = false;
-  updater.init({ busy: () => { if (throwing) throw new Error('state gone'); return busy; }, retryMs: 20 });
-  console.log = (...a) => { if (!String(a[0]).startsWith('[updater]')) quiet(...a); };
+  const hush = () => { console.log = (...a) => { if (!String(a[0]).startsWith('[updater]')) quiet(...a); }; };
+  const loud = () => { console.log = quiet; };
 
-  autoUpdater.emit('update-downloaded', { version: '8.3.1' });
-  await wait(120);
-  ok(asked.length === 0 && updater.getStatus().state === 'ready',
-    'an update downloaded while the player is playing: ready, and nothing asked, for as long as it lasts', `${asked.length} asked`);
-  // A session can outlast the six hour check: a newer release downloaded
-  // meanwhile is the one a restart installs, and the one the question names.
-  autoUpdater.emit('update-downloaded', { version: '8.3.2' });
-  busy = false;
-  await wait(120);
-  ok(asked.length === 1 && /Occlara 8\.3\.2 is ready/.test(asked[0].message) && installs === 0,
-    'asked once the player stops playing, once however often one was downloaded, naming the newest, and "Later" restarts nothing',
-    `${asked.length} asked: ${asked.map((a) => a.message).join(' | ')}`);
-  console.log = quiet;
-
-  // A busy() that throws is not a reason to hold the question for ever.
-  for (const k of Object.keys(require.cache)) if (k.endsWith(`${path.sep}updater.js`)) delete require.cache[k];
-  const again = require(path.join(__dirname, '..', 'src', 'main', 'updater.js'));
-  answer = 0;
-  throwing = true;
-  console.log = (...a) => { if (!String(a[0]).startsWith('[updater]')) quiet(...a); };
-  autoUpdater.removeAllListeners();
-  again.init({ busy: () => { if (throwing) throw new Error('state gone'); return busy; }, retryMs: 20 });
-  autoUpdater.emit('update-downloaded', { version: '8.3.2' });
-  await wait(60);
-  console.log = quiet;
-  ok(asked.length === 2 && installs === 1, 'a busy() that throws counts as not playing, and "Restart now" installs', `${asked.length} asked, ${installs} installs`);
-
-  // C2 (2026-11-04): the question opened while the player was idle, stayed
-  // open as a match began, and "Restart now" pressed mid match quit it at once.
-  // An answer is checked against playing again, and the box closes itself the
-  // moment a match starts, to be asked again once it is over.
-  const fresh = () => {
-    for (const k of Object.keys(require.cache)) if (k.endsWith(`${path.sep}updater.js`)) delete require.cache[k];
-    autoUpdater.removeAllListeners();
-    return require(path.join(__dirname, '..', 'src', 'main', 'updater.js'));
-  };
+  // ── The flow, as the bar sees it ───────────────────────────────────────────
   {
-    const held = [];
-    electron.dialog.showMessageBox = (o) => new Promise((resolve) => {
-      held.push({ o, resolve });
-      asked.push(o);
-    });
-    throwing = false;
-    busy = false;
-    const before = installs;
-    const asksBefore = asked.length;
+    hush();
+    let busy = false;
+    const pushed = [];
     const u = fresh();
-    console.log = (...a) => { if (!String(a[0]).startsWith('[updater]')) quiet(...a); };
-    u.init({ busy: () => busy, retryMs: 20 });
-    autoUpdater.emit('update-downloaded', { version: '8.3.3' });
-    await wait(10);
+    u.init({ busy: () => busy, push: (v) => pushed.push(v), watchMs: 10 });
+    loud();
+    ok(autoUpdater.autoDownload === true && autoUpdater.autoInstallOnAppQuit === true && checks === 1,
+      'electron-updater as it was: it downloads by itself, installs on quit, and checks as the app opens');
+    ok(u.view() === null && pushed.length === 0, 'nothing to show: the bar is told nothing');
+    hush();
+    autoUpdater.emit('checking-for-update');
+    autoUpdater.emit('update-available', { version: '9.1.1' });
+    loud();
+    ok(same(u.view(), { state: 'downloading', version: '9.1.1', percent: null }) && same(pushed[pushed.length - 1], u.view()),
+      'a new version found: downloading, no percent yet, and the bar told', JSON.stringify(pushed));
+    autoUpdater.emit('download-progress', { percent: 41.6 });
+    autoUpdater.emit('download-progress', { percent: 41.9 });
+    autoUpdater.emit('download-progress', { percent: 42.2 });
+    ok(same(u.view(), { state: 'downloading', version: '9.1.1', percent: 42 })
+      && pushed.filter((v) => v && v.percent === 41).length === 1 && pushed.filter((v) => v && v.percent === 42).length === 1,
+      'its whole percent, the bar told once a whole percent, not on every chunk', JSON.stringify(pushed.map((v) => v && v.percent)));
+    autoUpdater.emit('download-progress', { percent: NaN });
+    autoUpdater.emit('download-progress', null);
+    ok(u.view().percent === 42, 'a progress event with no number changes nothing');
+
+    // A match starts: the bar is told null at once, and again once it ends.
+    const before = pushed.length;
     busy = true;
-    held[0].resolve({ response: 0 });
-    await wait(60);
-    ok(installs === before, '"Restart now" answered after a match began installs nothing while it is played', `${installs - before} installs`);
+    await wait(40);
+    ok(u.view() === null && pushed.length === before + 1 && pushed[pushed.length - 1] === null,
+      'a match starting mid download: nothing on the bar, told within the watch, once', JSON.stringify(pushed.slice(before)));
+    hush();
+    autoUpdater.emit('update-downloaded', { version: '9.1.1' });
+    loud();
+    await wait(40);
+    ok(u.view() === null && installs === 0 && pushed[pushed.length - 1] === null,
+      'downloaded while the player is playing: still nothing shown, nothing installed');
+    ok(same(u.install(), { ok: false, error: 'match' }) && installs === 0, '"Restart to update" asked mid match is refused');
     busy = false;
-    await wait(80);
-    ok(asked.length === asksBefore + 2 && installs === before,
-      'and the question is asked again once the match is over, nothing installed meanwhile', `${asked.length - asksBefore} asked`);
-    held[1].resolve({ response: 0 });
+    await wait(40);
+    ok(same(u.view(), { state: 'ready', version: '9.1.1' }) && same(pushed[pushed.length - 1], { state: 'ready', version: '9.1.1' }),
+      'the match over: ready, and the bar told', JSON.stringify(pushed[pushed.length - 1]));
+    await wait(120);
+    ok(installs === 0 && asked.length === 0, 'ready for as long as it sits there, nothing installs by itself and no question is asked');
+    ok(u.getStatus().state === 'ready' && u.getStatus().version === '9.1.1' && u.getStatus().current === '9.1.0' && u.getStatus().packaged === true,
+      'Settings reads the same: ready, the version, the one running', JSON.stringify(u.getStatus()));
+
+    // The six hour check finding the same version: ready still, the bar not told again.
+    const n = pushed.length;
+    hush();
+    autoUpdater.emit('checking-for-update');
+    autoUpdater.emit('update-available', { version: '9.1.1' });
+    autoUpdater.emit('update-not-available', {});
+    autoUpdater.emit('error', new Error('offline'));
+    loud();
+    ok(same(u.view(), { state: 'ready', version: '9.1.1' }) && pushed.length === n && u.getStatus().state === 'ready',
+      'a later check, finding it again, nothing new or failing, leaves it ready, the bar not told again', JSON.stringify(pushed.slice(n)));
+
+    // Pressed: installs once, and says so.
+    const r = u.install();
+    ok(same(r, { ok: true }) && installs === 0, 'pressed: taken, the install a moment after the answer');
+    ok(same(u.view(), { state: 'installing', version: '9.1.1' }) && same(pushed[pushed.length - 1], u.view()), 'and the bar told it is restarting');
+    await wait(10);
+    ok(installs === 1, 'quitAndInstall, once', `${installs}`);
+    ok(same(u.install(), { ok: false, error: 'installing' }) && installs === 1, 'pressed again: nothing more');
+  }
+
+  // ── A newer version, and what is refused ───────────────────────────────────
+  {
+    hush();
+    const pushed = [];
+    const u = fresh();
+    installs = 0;
+    u.init({ busy: () => false, push: (v) => pushed.push(v), watchMs: 10 });
+    ok(same(u.install(), { ok: false, error: 'not-ready' }), 'nothing downloaded: refused');
+    autoUpdater.emit('update-available', { version: '9.1.1' });
+    autoUpdater.emit('download-progress', { percent: 60 });
+    ok(same(u.install(), { ok: false, error: 'not-ready' }) && installs === 0, 'mid download: refused');
+    autoUpdater.emit('update-downloaded', { version: '9.1.1' });
+    autoUpdater.emit('update-available', { version: '9.1.2' });
+    loud();
+    ok(same(u.view(), { state: 'downloading', version: '9.1.2', percent: null }) && same(u.install(), { ok: false, error: 'not-ready' }),
+      'a newer version found while one is ready: that one downloads, and is the one a restart will install', JSON.stringify(u.view()));
+    hush();
+    autoUpdater.emit('error', new Error('feed gone'));
+    loud();
+    ok(u.view() === null && pushed[pushed.length - 1] === null && u.getStatus().state === 'offline',
+      'its download failing: nothing shown (the one it superseded is not offered), and Settings says it could not reach the feed');
+    hush();
+    autoUpdater.emit('update-available', { version: '9.1.2' });
+    autoUpdater.emit('update-downloaded', { version: '9.1.2' });
+    loud();
+    ok(same(u.view(), { state: 'ready', version: '9.1.2' }), 'the next check downloads it: ready');
+    const throwing = fresh();
+    hush();
+    throwing.init({ busy: () => { throw new Error('state gone'); }, push: () => {}, watchMs: 10 });
+    autoUpdater.emit('update-downloaded', { version: '9.1.3' });
+    loud();
+    ok(same(throwing.view(), { state: 'ready', version: '9.1.3' }), 'a busy() that throws counts as not playing');
     await wait(30);
-    ok(installs === before + 1, 'and "Restart now" then installs', `${installs - before} installs`);
-    console.log = quiet;
-  }
-  {
-    // The box closes itself as a match starts, by its signal.
-    const held = [];
-    electron.dialog.showMessageBox = (o) => new Promise((resolve) => {
-      held.push({ o, resolve });
-      asked.push(o);
-      if (o.signal) o.signal.addEventListener('abort', () => resolve({ response: o.cancelId }));
-    });
-    busy = false;
-    const before = installs;
-    const u = fresh();
-    console.log = (...a) => { if (!String(a[0]).startsWith('[updater]')) quiet(...a); };
-    u.init({ busy: () => busy, retryMs: 20 });
-    autoUpdater.emit('update-downloaded', { version: '8.3.4' });
-    await wait(10);
-    const first = held[0];
-    busy = true;
-    await wait(80);
-    ok(first && first.o.signal && first.o.signal.aborted && held.length === 1,
-      'a question left open as a match starts closes itself, and is not asked again while it is played', `${held.length} asked`);
-    busy = false;
-    await wait(80);
-    ok(held.length === 2 && installs === before, 'and is asked again once it is over', `${held.length} asked`);
-    console.log = quiet;
   }
 
-  // What playing is, as index.js hands it over.
-  const idx = require('fs').readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8');
-  const call = /updater\.init\(\{\s*busy:\s*\(\)\s*=>\s*([^}]+)\}\)/.exec(idx);
+  // ── A run from the repo ────────────────────────────────────────────────────
+  {
+    electron.app.isPackaged = false;
+    const u = fresh();
+    const pushed = [];
+    u.init({ busy: () => false, push: (v) => pushed.push(v) });
+    autoUpdater.emit('update-downloaded', { version: '9.9.9' });
+    ok(u.view() === null && same(u.install(), { ok: false, error: 'dev' }) && pushed.length === 0 && u.getStatus().state === 'dev',
+      'npm start: never a check, never a control, never an install');
+    electron.app.isPackaged = true;
+  }
+
+  // ── The code ───────────────────────────────────────────────────────────────
+  const src = fs.readFileSync(FILE, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  ok(!/showMessageBox|\bdialog\b/.test(src), 'updater.js asks no question box', (src.match(/showMessageBox|\bdialog\b/) || [''])[0]);
+  ok((src.match(/quitAndInstall\(/g) || []).length === 1 && /function install\(\)[\s\S]*quitAndInstall\(\)/.test(src),
+    'quitAndInstall is called in one place, install(), the bar\'s press');
+  ok(/showMessageBox/.test('dialog.showMessageBox({})') && !/showMessageBox|\bdialog\b/.test('autoUpdater.quitAndInstall()'), 'the question detector finds a question box');
+
+  const idx = fs.readFileSync(path.join(ROOT, 'src', 'main', 'index.js'), 'utf8');
+  const call = /updater\.init\(\{\s*busy:\s*\(\)\s*=>\s*([^\n]+?),\s*push:\s*\(v\)\s*=>\s*registry\.sendTo\('main', C\.PUSH_UPDATE, v\)\s*\}\)/.exec(idx);
   ok(call && /state\.isCoaching/.test(call[1]) && /sealHeld/.test(call[1]) && /reviewBeingBuilt\(\)/.test(call[1])
     && /function reviewBeingBuilt\([^)]*\) \{[\s\S]*?HOLD_MAX_MS[\s\S]*?\n\}/.test(idx),
-    'index.js says the player is playing while a session runs, a stop mid match holds the seal, or a review is still being built',
-    call ? call[1].trim() : 'no busy() handed over');
+    'index.js says the player is playing while a session runs, a stop mid match holds the seal, or a review is still being built, and tells the bar alone',
+    call ? call[1].trim() : 'no busy() and push handed over');
+  const reg = fs.readFileSync(path.join(ROOT, 'src', 'main', 'ipc', 'register-ipc.js'), 'utf8');
+  ok(/safeHandle\(C\.UPDATE_GET, async \(\) => updater\.view\(\)\)/.test(reg)
+    && /safeHandle\(C\.UPDATE_INSTALL, async \(e\) => \(fromPage\(e, 'main'\) \? updater\.install\(\) : \{ ok: false, error: 'not-ready' \}\)\)/.test(reg),
+  'register-ipc.js answers the bar with view(), and takes the install from the bar\'s own document alone');
+  const C = require('../src/shared/channels');
+  ok(C.UPDATE_GET && C.UPDATE_INSTALL && C.PUSH_LIST.includes(C.PUSH_UPDATE), 'the channels are in channels.js, the push on its list');
 
   console.log(failed ? `FAIL: ${failed} of ${passed + failed} updater checks failed` : `PASS: all ${passed} updater checks passed`);
   process.exit(failed ? 1 : 0);
