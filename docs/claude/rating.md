@@ -946,8 +946,11 @@ the dark ink (counted to its new value in 0.42 s, the badge's colour turning
 with it), the move rising in green or falling in red at the event (sliding 14
 px and fading after 2.8 s), the short label without the numbers standing
 (`liveLabel`, rising 6 px, held 4 s; a kill that moves the shown number less
-than 0.05 keeps its label and shows no move), and the crescent with
-"Occlara". The app ships Geist only as woff2 and this ffmpeg's freetype cannot
+than 0.05 keeps its label and shows no move), and the moon with
+"Occlara" (9.1: drawn from the mark's one source, scripts/moon, each outline
+run against the one it lies in so libass cuts the seas and craters as the
+SVG's even odd rule does, `ass.js moonMark`; the stream widget signs with the
+same moon inline). The app ships Geist only as woff2 and this ffmpeg's freetype cannot
 read woff2, so `scripts/rating-video/woff2.js` decodes the app's own files to
 TrueType in pure node (brotli from node's zlib, the glyf and loca transform
 rebuilt), into a temporary folder each run: checked against fontTools, all 783

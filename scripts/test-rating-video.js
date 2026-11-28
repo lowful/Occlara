@@ -213,9 +213,18 @@ const brief = (evs) => evs.map((e) => (e.kind === 'kill' ? `${e.round}:${e.kille
   ok(d[d.length - 1].shown === '5.9' && d[d.length - 1].t <= 5.2 + 1e-9, 'overlay: a count cut short by the next move still lands on its value');
   ok(A.ts(0) === '0:00:00.00' && A.ts(61.234) === '0:01:01.23' && A.ts(3725.5) === '1:02:05.50', 'overlay: ASS times');
   ok(A.col('#52C88A') === '&H8AC852&', 'overlay: colours in ASS\'s blue green red');
-  const cr = A.crescent(120).split(/ (?=[ml] )/);
-  ok(cr.length > 60 && cr[0] === 'm 67.4 10.3' && cr[36] === 'l 107.9 80.3' && cr[cr.length - 1] === 'l 67.4 10.3',
-    'overlay: the crescent drawn from generate-icon.js\'s two circles, through assets/logo-mark.svg\'s own crossings');
+  // 9.1: the full moon, from its one source, its holes cut under either fill rule.
+  const moonD = require('./moon/moon-art').FLAT_D;
+  const mm = A.moonMark(120);
+  const loops = A.moonLoops();
+  const nested = loops.slice(1).every((pts, i) => {
+    const holder = loops.filter((o, m) => m !== i + 1 && A.inLoop(pts[0], o));
+    const depth = holder.length;
+    return (A.loopArea(pts) > 0) === (depth % 2 === 0 ? A.loopArea(loops[0]) > 0 : A.loopArea(loops[0]) <= 0);
+  });
+  ok(loops.length === moonD.split('M').length - 1 && mm.split(' m ').length === loops.length && mm.startsWith('m 110 60')
+    && mm.split(' ').filter((w) => w !== 'm' && w !== 'l').every((v) => Number(v) >= 0 && Number(v) <= 120) && nested,
+  'overlay: the moon drawn from its one source, the disc and every sea and crater, each outline run against the one it lies in');
 
   const plan = { start: 6, final: 6.2, steps: [
     { t: 3.1, value: 6.3, shown: '6.3', tier: 'fair', delta: '+0.3', up: true, down: false, label: 'Opening kill' },

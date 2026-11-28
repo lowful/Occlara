@@ -8,7 +8,7 @@
  * (renderer/rating-widget): one plate on the app's surface with its rim and
  * shadow, the number on its tier's colour in the dark ink, the move rising in
  * green or falling in red at the event's moment, the short label, and the
- * crescent with "Occlara" so a clip carries the brand.
+ * moon with "Occlara" so a clip carries the brand.
  *
  * Motion, as the widget's: the number counts to its new value in 0.42 s
  * (ease out), the badge's colour turns with it, the move slides in 14 px and
@@ -65,41 +65,59 @@ function roundRect(w, h, r) {
 }
 
 /*
- * THE CRESCENT, a sixth drawing of the logo from the same two circles
- * scripts/generate-icon.js draws every icon from (OUTER less INNER, on the
- * 120 unit grid, held to assets/logo-mark.svg by test:mark), so a change to
- * the mark reaches the badge too. The outline runs from where the circles
- * cross nearer the top (P1) round the long way of the outer circle to the
- * other crossing (P2), and back along the inner one. Scaled to `size` pixels.
+ * THE MOON, a sixth drawing of the logo from its one source (scripts/moon,
+ * the flat mark assets/logo-mark.svg is written from and test:mark holds it
+ * to), so a change to the mark reaches the badge too: the disc of radius 50
+ * at (60, 60) on the 120 unit grid, and its seas and craters cut from it.
+ * The SVG cuts them by the even odd rule; an ASS drawing is filled by the
+ * winding of its outlines, so each outline is turned to run against the one
+ * it lies in, which cuts the same holes under either rule (a crater's ring
+ * is a hole with its floor back inside it). The disc's two arcs are drawn as
+ * 64 straight sides. Scaled to `size` pixels. (9.1: the full moon took the
+ * crescent's place in every drawing of the mark.)
  */
-const { OUTER, INNER } = require('../generate-icon');
-function crossings(a, b) {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const d = Math.hypot(dx, dy);
-  const along = (a.r * a.r - b.r * b.r + d * d) / (2 * d);
-  const h = Math.sqrt(Math.max(0, a.r * a.r - along * along));
-  const mx = a.x + (along * dx) / d;
-  const my = a.y + (along * dy) / d;
-  const p = [mx + (h * dy) / d, my - (h * dx) / d];
-  const q = [mx - (h * dy) / d, my + (h * dx) / d];
-  return p[1] < q[1] ? [p, q] : [q, p];
+const { FLAT_D } = require('../moon/moon-art');
+const MOON_LOOPS = FLAT_D.split('M').filter((p) => p.trim()).map((part) => {
+  const p = part.trim().replace(/Z$/, '');
+  if (p.includes('a')) {
+    const pts = [];
+    for (let i = 0; i < 64; i++) { const a = (i / 64) * 2 * Math.PI; pts.push([60 + 50 * Math.cos(a), 60 + 50 * Math.sin(a)]); }
+    return pts;
+  }
+  return p.split('L').map((xy) => xy.trim().split(' ').map(Number));
+});
+/** Twice the signed area of a loop: its sign is the way it runs. */
+function loopArea(pts) {
+  let s = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i];
+    const [x2, y2] = pts[(i + 1) % pts.length];
+    s += x1 * y2 - x2 * y1;
+  }
+  return s;
 }
-function crescent(size) {
+/** Whether a point lies inside a loop (the crossing rule). */
+function inLoop(pt, pts) {
+  let c = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i];
+    const [xj, yj] = pts[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+}
+/** The loops as they are drawn: each run against the one it lies in. */
+function moonLoops() {
+  const disc = loopArea(MOON_LOOPS[0]) > 0;
+  return MOON_LOOPS.map((pts, n) => {
+    const depth = MOON_LOOPS.filter((o, m) => m !== n && inLoop(pts[0], o)).length;
+    const want = depth % 2 === 0 ? disc : !disc;
+    return (loopArea(pts) > 0) === want ? pts : pts.slice().reverse();
+  });
+}
+function moonMark(size) {
   const k = size / 120;
-  const pts = [];
-  const arc = (c, a0, a1, n) => { for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * (i / n); pts.push([c.x + c.r * Math.cos(a), c.y + c.r * Math.sin(a)]); } };
-  const ang = (c, p) => Math.atan2(p[1] - c.y, p[0] - c.x);
-  const [P1, P2] = crossings(OUTER, INNER);
-  const o0 = ang(OUTER, P1);
-  let o1 = ang(OUTER, P2);
-  if (o1 > o0) o1 -= 2 * Math.PI;          // the long way, against the clock in the SVG's y down space
-  arc(OUTER, o0, o1, 36);
-  const i0 = ang(INNER, P2);
-  let i1 = ang(INNER, P1);
-  if (i1 < i0) i1 += 2 * Math.PI;          // back with the clock, the long way
-  arc(INNER, i0, i1, 30);
-  return pts.map(([x, y], i) => `${i ? 'l' : 'm'} ${f1(x * k)} ${f1(y * k)}`).join(' ');
+  return moonLoops().map((pts) => pts.map(([x, y], i) => `${i ? 'l' : 'm'} ${f1(x * k)} ${f1(y * k)}`).join(' ')).join(' ');
 }
 
 /**
@@ -183,12 +201,12 @@ function assOf(plan, W, H, duration, opts) {
   ev(0, 0, end, `{\\an7\\pos(${P.x},${P.y + Math.round(8 * L.s)})\\p1\\bord0\\shad0\\blur${Math.round(14 * L.s)}\\1c&H000000&\\1a&H70&}${roundRect(P.w, P.h, P.r)}`);
   ev(1, 0, end, `{\\an7\\pos(${P.x},${P.y})\\p1\\bord${Math.max(1, Math.round(L.s))}\\shad0\\1c${col(TOKENS.s1)}\\1a&H14&\\3c&HFFFFFF&\\3a&HEC&}${roundRect(P.w, P.h, P.r)}`);
 
-  // The brand: the crescent and the word, on the move's line at the right.
+  // The brand: the moon and the word, on the move's line at the right.
   const cs = Math.round(L.brand.size * 0.95);
   const word = 'Occlara';
   const wordW = labelWidth(word, L.brand.size) * 0.98;
   ev(3, 0, end, `{\\an6\\pos(${L.brand.x},${L.brand.y})\\fn${FONT.medium}\\fs${L.brand.size}\\bord0\\shad0\\1c${col(TOKENS.mute)}}${word}`);
-  ev(3, 0, end, `{\\an7\\pos(${Math.round(L.brand.x - wordW - cs - 6 * L.s)},${Math.round(L.brand.y - cs / 2)})\\p1\\bord0\\shad0\\1c${col(TOKENS.mute)}}${crescent(cs)}`);
+  ev(3, 0, end, `{\\an7\\pos(${Math.round(L.brand.x - wordW - cs - 6 * L.s)},${Math.round(L.brand.y - cs / 2)})\\p1\\bord0\\shad0\\1c${col(TOKENS.mute)}}${moonMark(cs)}`);
 
   // The number and the badge: a segment a shown value, each count frame its own.
   const B = L.badge;
@@ -256,4 +274,4 @@ function esc(s) {
 const FONT = Object.freeze({ regular: 'Geist', medium: 'Geist Medium', semi: 'Geist SemiBold', bold: 'Geist', mono: 'Geist Mono Medium' });
 const FONT_FILES = Object.freeze(['geist-400', 'geist-500', 'geist-600', 'geist-700', 'geistmono-500']);
 
-module.exports = { assOf, layoutOf, roundRect, crescent, countSteps, labelWidth, col, ts, tierOf, TOKENS, FONT, FONT_FILES, COUNT_S, MOVE_HOLD_S, LABEL_HOLD_S };
+module.exports = { assOf, layoutOf, roundRect, moonMark, moonLoops, loopArea, inLoop, countSteps, labelWidth, col, ts, tierOf, TOKENS, FONT, FONT_FILES, COUNT_S, MOVE_HOLD_S, LABEL_HOLD_S };
