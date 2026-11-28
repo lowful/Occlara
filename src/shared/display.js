@@ -24,6 +24,13 @@
  *   Agent and map names, an acronym, a word with a digit, a callout's site
  *   letter ("B Main") and a few of the game's own names keep their capital.
  *
+ *   WHEN A MATCH WAS PLAYED (item 4, after the 9.1 review). One way on every
+ *   page: "Today, 9:25 PM", "Yesterday, 9:25 PM" or "Nov 22, 9:25 PM"
+ *   (matchWhen), and its day alone where a line holds no time: "Today",
+ *   "Yesterday", "Nov 22" (matchDay). Home, Matches, Clips, Practice, Stats
+ *   and the trend chart all say it with these two, where Clips said
+ *   "Nov 28, 8:24 AM" and Practice "Sat, Nov 28" for a match played today.
+ *
  * A plain file in both worlds, like killfeed.js: required in main, shared
  * modules and the tests, and loaded by a page as
  *   <script src="../../shared/display.js"></script>
@@ -187,9 +194,44 @@
     return first[0].toLowerCase() + t.slice(1);
   }
 
+  // ── When a match was played ─────────────────────────────────────────────
+
+  /** A time as milliseconds: a number, a Date or a date string; NaN when none. */
+  function msOf(at) {
+    if (at instanceof Date) return at.getTime();
+    if (typeof at === 'number') return at;
+    if (typeof at === 'string' && at.trim()) return /^\d+$/.test(at.trim()) ? Number(at) : Date.parse(at);
+    return NaN;
+  }
+  const dayKey = (t) => new Date(t).toDateString();
+
+  /**
+   * The day a match was played: "Today", "Yesterday" or "Nov 22", '' with no
+   * time. `now` is the time Today is measured from (Date.now()). Yesterday is
+   * the calendar day before, so a change of the clocks never moves it.
+   */
+  function matchDay(at, now) {
+    const t = msOf(at);
+    if (!Number.isFinite(t)) return '';
+    const n = Number.isFinite(msOf(now)) ? msOf(now) : Date.now();
+    if (dayKey(t) === dayKey(n)) return 'Today';
+    const y = new Date(n);
+    y.setDate(y.getDate() - 1);
+    if (dayKey(t) === dayKey(y.getTime())) return 'Yesterday';
+    return new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  /** When a match was played: "Today, 9:25 PM", "Yesterday, 9:25 PM", "Nov 22, 9:25 PM"; '' with no time. */
+  function matchWhen(at, now) {
+    const t = msOf(at);
+    if (!Number.isFinite(t)) return '';
+    return `${matchDay(t, now)}, ${new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  }
+
   return {
     NAMES, grade, gradeWords, gradeDelta,
     ratingPoints, rating, ratingDelta, ratingMove, moveWay, ratingWords,
     inSentence, addNames, AGENTS, MAPS,
+    matchDay, matchWhen,
   };
 });

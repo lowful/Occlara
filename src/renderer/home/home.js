@@ -41,10 +41,12 @@ const RANK_AGAIN_TRIES = 2;
 let rankAgain = null;
 let rankTries = 0;
 
-function when(at) {
-  if (!at) return '';
-  return new Date(at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-}
+/*
+ * WHEN A MATCH WAS PLAYED, said the one way every page says it (9.1,
+ * shared/display.js): "Today, 9:25 PM", "Yesterday, 9:25 PM", "Nov 22, 9:25
+ * PM", and the day alone, "Today", "Yesterday", "Nov 22".
+ */
+const when = (at) => window.OcclaraDisplay.matchWhen(at);
 const isWin = (result) => /vict|win/i.test(String(result || ''));
 const isLoss = (result) => /defeat|loss/i.test(String(result || ''));
 
@@ -130,11 +132,8 @@ function paintLast(last, model) {
 
   const head = el('div', 'last-head');
   head.append(el('p', 'o-eyebrow', 'Last match'));
-  // When, beside the eyebrow in the mono of times: "Today 9:25 PM", "Nov 22, 9:34 PM".
-  if (last.at) {
-    const day = dayWord(last.at);
-    head.append(el('span', 'last-when', /^(Today|Yesterday)$/.test(day) ? `${day} ${timeWord(last.at)}` : when(last.at)));
-  }
+  // When, beside the eyebrow in the mono of times: "Today, 9:25 PM", "Nov 22, 9:34 PM".
+  if (last.at) head.append(el('span', 'last-when', when(last.at)));
   // The RR the match moved, once the rank has answered (fillRank), and
   // nothing at all where Riot's record has none.
   const rrChip = el('span', 'rr-chip last-rr');
@@ -226,16 +225,18 @@ $('last').addEventListener('keydown', (e) => {
 });
 
 /*
- * A TREND'S ARROW (9.1, the owner's item 4): up, down or a flat line, in the
+ * A TREND'S ARROW (9.1, the owner's item 4): up, down or sideways, in the
  * colour of what it means (getting better in --good, worse in --bad, steady
  * in the grey), and its words in a tooltip that says exactly what was
  * compared (home-model.js). `better` is the way that is good: up for the
- * grade, down for a mistake.
+ * grade, down for a mistake. Steady is an arrow pointing on, never a bare
+ * line, which in its round before a count read as a minus or a remove
+ * button.
  */
 const WAY_PATH = {
   up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
-  flat: '<path d="M5 12h14"/>',
+  flat: '<path d="M5 12h14M13 6l6 6-6 6"/>',
 };
 function wayMark(way, better, words, label) {
   const tone = way === 'flat' ? 'steady' : way === better ? 'better' : 'worse';
@@ -253,20 +254,12 @@ function wayMark(way, better, words, label) {
 
 /*
  * A DAY IN WORDS (9.1, the owner's item 4: the axis showed times of day for
- * matches on different days): "Today", "Yesterday" or "Nov 22", for the last
- * match's eyebrow and the line under the trend. The trend's own axis names
- * each day once under its matches (shared/trend-chart.js), the time in its
- * tooltip.
+ * matches on different days): "Today", "Yesterday" or "Nov 22", for the line
+ * under the trend (display.js matchDay). The trend's own axis names each day
+ * once under its matches (shared/trend-chart.js), the time in its tooltip.
  */
 const dayKey = (at) => new Date(at).toDateString();
-function dayWord(at) {
-  const d = new Date(at), now = new Date();
-  if (dayKey(d) === dayKey(now)) return 'Today';
-  const y = new Date(now); y.setDate(now.getDate() - 1);
-  if (dayKey(d) === dayKey(y)) return 'Yesterday';
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-const timeWord = (at) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const dayWord = (at) => window.OcclaraDisplay.matchDay(at);
 
 /*
  * THE TREND (Orbit; 9.1): the last grades as the shared trend chart Matches
@@ -614,10 +607,7 @@ function rowFace(art) {
   return img;
 }
 /** "Today, 9:25 PM", "Yesterday, 9:25 PM", "Nov 22, 9:25 PM": the Matches row's date. */
-function rowWhen(at) {
-  const TC = window.TrendChart;
-  return TC && typeof TC.whenWord === 'function' ? TC.whenWord(at) : when(at);
-}
+const rowWhen = (at) => when(at);
 /** What the row leaves to its tooltip: the queue, where the grade came from, the milestones. */
 function rowRest(m) {
   const source = m.imported ? (m.matchId || m.verified ? 'Imported recording' : "Imported, not matched to Riot's record")

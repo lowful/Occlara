@@ -72,9 +72,17 @@ const openIds = new Set();
 let logAll = false;
 const LOG_SHOWN = 5;
 
-function fmtDay(at) {
-  return new Date(at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-}
+/*
+ * SAID AS EVERY PAGE SAYS IT (9.1, shared/display.js): the day a clip's match
+ * was played and a day of the log, "Today", "Yesterday", "Nov 22"
+ * (matchDay), as Clips' own hero says a clip's day, where this page said
+ * "Sat, Nov 28" for a match the rest of the app called "Today, 8:26 AM". The
+ * clip's caption is a tile wide, so its day stands without the time, which
+ * there broke before its AM.
+ */
+const fmtDay = (at) => (window.OcclaraDisplay ? window.OcclaraDisplay.matchDay(at) : '');
+/** The day inside a sentence: "today", "yesterday", "Nov 22". */
+const dayInSentence = (at) => { const d = fmtDay(at); return /^(?:Today|Yesterday)$/.test(d) ? d.toLowerCase() : d; };
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 /** The play mark, the clip player's own shape, filled. */
@@ -102,7 +110,8 @@ const GLYPH = {
   check: '<path d="M5 12.5l4.2 4.2L19 7"/>',
   down: '<path d="M12 5v14M6.5 13.5L12 19l5.5-5.5"/>',
   up: '<path d="M12 19V5M6.5 10.5L12 5l5.5 5.5"/>',
-  same: '<path d="M5 12h14"/>',
+  // Steady is an arrow pointing on, never a bare line, which read as a dash (9.1).
+  same: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   close: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
 };
@@ -599,7 +608,7 @@ function paintLog() {
     const del = el('button', 'icon-btn pc-del');
     del.type = 'button';
     del.title = 'Take this out of the log';
-    del.setAttribute('aria-label', `Take ${inSentence(e.title)}, ${fmtDay(e.at)}, out of the log`);
+    del.setAttribute('aria-label', `Take ${inSentence(e.title)}, ${dayInSentence(e.at)}, out of the log`);
     del.append(glyph('close', null, 2.2));
     del.addEventListener('click', () => removeEntry(e.id, del));
     row.append(del);

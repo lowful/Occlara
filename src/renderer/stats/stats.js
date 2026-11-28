@@ -9,16 +9,17 @@ const updatedEl      = document.getElementById('updated');
 const refreshBtn     = document.getElementById('refresh');
 
 /*
- * A TILE'S WAY (9.1): up, down or a flat line in a round of its own, the
+ * A TILE'S WAY (9.1): up, down or sideways in a round of its own, the
  * marks Home's What repeats and trend draw, each with words saying what was
  * compared (main's trendDirection: this read of your stats against the one
  * before). A flat trend was a middle dot after the number ("64 ·"), read as
- * a stray full stop; a bare line would read as a minus.
+ * a stray full stop, then a bare line, which read as a minus or a remove
+ * button: steady is an arrow pointing on.
  */
 const WAY_PATH = {
   up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
-  flat: '<path d="M5 12h14"/>',
+  flat: '<path d="M5 12h14M13 6l6 6-6 6"/>',
 };
 const WAY_WORDS = {
   up: 'Up on the read of your stats before this one',
@@ -800,22 +801,8 @@ function tickRefresh() {
 setInterval(tickRefresh, 1000);
 
 // ── Coaching sessions ─────────────────────────────────────────────────────────
-function fmtDate(ts) {
-  const d = new Date(ts);
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
-         d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
-/** "Today, 9:25 PM", "Yesterday, 9:25 PM" or "Nov 22, 9:25 PM", as a Matches row dates a match (9.1). */
-function dayWhen(ts) {
-  const d = new Date(ts);
-  if (!Number.isFinite(d.getTime())) return '';
-  const day = (t) => new Date(t).toDateString();
-  const now = Date.now();
-  const word = day(ts) === day(now) ? 'Today' : day(ts) === day(now - 86400000) ? 'Yesterday'
-    : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  return `${word}, ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-}
+/** "Today, 9:25 PM", "Yesterday, 9:25 PM" or "Nov 22, 9:25 PM": when a match was played, as every page says it (9.1, shared/display.js matchWhen). */
+const dayWhen = (ts) => (window.OcclaraDisplay ? window.OcclaraDisplay.matchWhen(ts) : '');
 
 /** The grade counts up from 0 as the review's does, in CSS alone (stats.css
  *  .grade-chip.counting, @property --n): the real number is the text from the
@@ -853,7 +840,7 @@ function sessionRow(s, i, settled) {
   // "Jett on Abyss", "Today, 7:00 AM" and "Victory 13 : 11" in its tone.
   const place = document.createElement('span');
   place.className = 'place';
-  place.textContent = s.title && s.map ? `${s.title} on ${s.map}` : (s.title || s.map || fmtDate(s.at));
+  place.textContent = s.title && s.map ? `${s.title} on ${s.map}` : (s.title || s.map || dayWhen(s.at));
   const sub = document.createElement('span');
   sub.className = 'sub';
   sub.textContent = s.title || s.map ? dayWhen(s.at) : '';

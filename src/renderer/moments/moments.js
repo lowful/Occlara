@@ -71,12 +71,17 @@ let ask = 0;
 const state = { kind: 'all', pattern: null, map: '', agent: '', result: '' };
 let risen = null;   // the game whose rows have risen once
 
-function fmtWhen(at) {
-  const d = new Date(at);
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', '
-    + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-const fmtDay = (at) => new Date(at).toLocaleDateString([], { month: 'short', day: 'numeric' });
+/*
+ * SAID AS EVERY PAGE SAYS IT (9.1, shared/display.js): when a match was
+ * played, "Today, 9:25 PM" (matchWhen) and its day alone, "Today" or "Nov 22"
+ * (matchDay), where Clips said "Nov 28, 8:24 AM" for a match played today;
+ * and a mistake's title inside a sentence starts lower case (inSentence):
+ * "Play all 17 clips of deaths nobody traded".
+ */
+const D = window.OcclaraDisplay || null;
+const fmtWhen = (at) => (D ? D.matchWhen(at) : '');
+const fmtDay = (at) => (D ? D.matchDay(at) : '');
+const inSentence = (t) => (D && typeof D.inSentence === 'function' ? D.inSentence(t) : String(t || ''));
 
 const resultClass = (r) => {
   const s = String(r || '').toLowerCase();
@@ -144,7 +149,7 @@ function paintCompilation() {
     if (c.clips > 0) {
       const play = el('button', 'btn btn-ghost sm', 'Play all');
       play.type = 'button';
-      play.setAttribute('aria-label', `Play all ${c.clips} clips of ${c.title}`);
+      play.setAttribute('aria-label', `Play all ${c.clips} clips of ${inSentence(c.title)}`);
       play.addEventListener('click', () => openPlayer(c));
       row.append(play);
     } else {

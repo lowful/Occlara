@@ -78,7 +78,8 @@ async function openHome(o) {
     ok(last.querySelector('.gv-score').textContent === '84' && last.querySelector('.grade-name').textContent === 'Grade'
       && last.querySelector('.delta').textContent === '+19' && last.querySelector('.delta').title === 'Up 19 on your last match',
     'the grade, its name and its change on the match before, the sentence in its tooltip');
-    ok(/^Today /.test(last.querySelector('.last-when').textContent), 'when, beside its eyebrow, "Today" and the time', last.querySelector('.last-when').textContent);
+    // Said as every page says a match's time (display.js matchWhen): "Today, 9:25 PM".
+    ok(/^Today, \d{1,2}:\d{2}\s?[AP]M$/.test(last.querySelector('.last-when').textContent), 'when, beside its eyebrow, "Today" and the time, as every page says it', last.querySelector('.last-when').textContent);
     last.click();
     ok(same(h.bridge.sent.filter((s) => s[0] === C.REVIEW_OPEN), [[C.REVIEW_OPEN, 'valorant-1-a']]), 'and the whole card opens its review');
     ok(h.$('h-kicker').hidden && h.$('h-kicker').textContent === '' && h.$('h-fix-head').textContent === 'Enter second'

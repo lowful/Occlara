@@ -146,6 +146,42 @@ ok(JSON.stringify([...D.MAPS].sort()) === JSON.stringify([...data.maps].sort()),
   ok(P.inSentence('Teemo shrooms') === 'Teemo shrooms', 'and a page may add the names it knows');
 }
 
+// ── When a match was played ───────────────────────────────────────────────────
+// One way on every page (9.1): Clips said "Nov 28, 8:24 AM" and Practice
+// "Sat, Nov 28" for the match Home and Matches called "Today, 8:26 AM".
+{
+  const now = new Date(2026, 10, 28, 12, 0).getTime();
+  const at = (d, h, m) => new Date(2026, 10, d, h, m).getTime();
+  const clock = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const nov22 = new Date(at(22, 21, 25)).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  ok(D.matchWhen(at(28, 8, 26), now) === `Today, ${clock(at(28, 8, 26))}` && D.matchWhen(at(27, 21, 25), now) === `Yesterday, ${clock(at(27, 21, 25))}`
+    && D.matchWhen(at(22, 21, 25), now) === `${nov22}, ${clock(at(22, 21, 25))}`,
+  'matchWhen: "Today, 8:26 AM", "Yesterday, 9:25 PM", "Nov 22, 9:25 PM"', [D.matchWhen(at(28, 8, 26), now), D.matchWhen(at(22, 21, 25), now)].join(' | '));
+  ok(D.matchDay(at(28, 0, 1), now) === 'Today' && D.matchDay(at(27, 23, 59), now) === 'Yesterday' && D.matchDay(at(22, 9, 0), now) === nov22,
+    'matchDay: the day alone, by the calendar');
+  ok(D.matchDay(new Date(at(28, 8, 26)), now) === 'Today' && D.matchDay(String(at(28, 8, 26)), now) === 'Today'
+    && D.matchDay(new Date(at(28, 8, 26)).toISOString(), now) === 'Today',
+  'a time as a number, a Date, digits or a date string');
+  ok(D.matchWhen(null) === '' && D.matchWhen(undefined) === '' && D.matchDay('') === '' && D.matchDay('not a date') === '' && D.matchWhen(NaN) === '',
+    'no time, no words');
+  // Every page that dates a match says it with these, and none keeps a format of its own.
+  const own = /toLocale(?:Date|Time)?String\(\s*(?:\[\]|undefined)\s*,\s*\{[^}]*(?:month|weekday|hour)/;
+  const pages = ['src/renderer/home/home.js', 'src/renderer/matches/matches.js', 'src/renderer/moments/moments.js',
+    'src/renderer/practice/practice.js', 'src/renderer/stats/stats.js', 'src/renderer/shared/trend-chart.js'];
+  const keep = pages.filter((f) => own.test(fs.readFileSync(path.join(ROOT, f), 'utf8')));
+  ok(keep.length === 0, "Home, Matches, Clips, Practice, Stats and the trend date a match with display.js alone", keep.join(', '));
+  ok(own.test("new Date(at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })"),
+    'and the scan finds a format of its own when there is one');
+  for (const f of ['src/renderer/home/index.html', 'src/renderer/matches/index.html', 'src/renderer/moments/index.html',
+    'src/renderer/practice/index.html', 'src/renderer/stats/index.html']) {
+    const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const d = html.indexOf('../../shared/display.js');
+    const page = html.indexOf(`src="${path.basename(path.dirname(f))}.js"`);
+    const tc = html.indexOf('../shared/trend-chart.js');
+    ok(d > 0 && (page < 0 || d < page) && (tc < 0 || d < tc), `${path.dirname(f).split('/').pop()} loads display.js before the scripts that use it`);
+  }
+}
+
 // ── No page draws a letter grade ─────────────────────────────────────────────
 {
   const files = [];

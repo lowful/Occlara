@@ -56,7 +56,6 @@
  */
 (function (root) {
   const SVGNS = 'http://www.w3.org/2000/svg';
-  const DAY_MS = 24 * 3600 * 1000;
   const PAD = { L: 30, R: 18, T: 18, B: 28 };
   const DRAW_MS = 900;
   /*
@@ -107,19 +106,21 @@
   /** The day a time falls on, for grouping: "Mon Nov 24 2026". */
   const dayKey = (at) => (fin(at) ? new Date(at).toDateString() : '');
 
+  /*
+   * WHEN A MATCH WAS PLAYED is shared/display.js's (matchDay, matchWhen), the
+   * one way every page says it (9.1): a page loads display.js before this
+   * file, and node requires it.
+   */
+  const display = () => root.OcclaraDisplay || (typeof require === 'function' ? require('../../shared/display') : null);
+
   /** A day as the foot says it: "Today", "Yesterday", "Nov 22". */
   function dayWord(at, now) {
-    if (!fin(at)) return '';
-    const n = fin(now) ? now : Date.now();
-    if (dayKey(at) === dayKey(n)) return 'Today';
-    if (dayKey(at) === dayKey(n - DAY_MS)) return 'Yesterday';
-    return new Date(at).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return fin(at) ? display().matchDay(at, now) : '';
   }
 
   /** "Today, 9:25 PM", "Yesterday, 9:25 PM", "Nov 22, 9:25 PM". */
   function whenWord(at, now) {
-    if (!fin(at)) return '';
-    return `${dayWord(at, now)}, ${new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    return fin(at) ? display().matchWhen(at, now) : '';
   }
 
   /*

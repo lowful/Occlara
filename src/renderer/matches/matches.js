@@ -68,12 +68,6 @@ function countOnce(host, key, el, value) {
   entrance(host, key, () => { if (el.isConnected) countUp(el, value); });
 }
 
-function fmtWhen(at) {
-  const d = new Date(at);
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', '
-    + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
 function paintTabs(games) {
   const host = $('tabs');
   host.replaceChildren();
@@ -860,7 +854,8 @@ const clockOf = (sec) => {
 };
 
 function matchOption(m) {
-  const day = Number.isFinite(m.startedAt) ? new Date(m.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  // The day it was played, as every page says it (display.js matchDay).
+  const day = Number.isFinite(m.startedAt) && D ? D.matchDay(m.startedAt) : '';
   const o = document.createElement('option');
   o.value = m.matchId;
   o.textContent = [m.map, m.agent, m.score, day, m.taken ? 'already in your library' : ''].filter(Boolean).join(', ');
@@ -989,12 +984,8 @@ const nameOf = (m) => (m.title && m.map ? `${m.title} on ${m.map}` : (m.title ||
 /** 'win', 'loss' or '' from a result. */
 const outcomeOf = (r) => (/^(?:vict|win)/i.test(r || '') ? 'win' : /^(?:defeat|loss)/i.test(r || '') ? 'loss' : '');
 
-/** A row's date: "Today, 9:25 PM", "Yesterday, 9:25 PM" or "Nov 22, 9:25 PM". */
-function whenOf(at) {
-  const TC = window.TrendChart;
-  if (TC && typeof TC.whenWord === 'function') return TC.whenWord(at);
-  return fmtWhen(at);
-}
+/** A row's date: "Today, 9:25 PM", "Yesterday, 9:25 PM" or "Nov 22, 9:25 PM", as every page says it (display.js matchWhen). */
+const whenOf = (at) => (D ? D.matchWhen(at) : '');
 
 /**
  * Why a row has no grade: [short, long], GradeView's one rule, the same words
