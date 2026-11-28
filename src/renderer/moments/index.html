@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="../shared/motion.css" />
   <link rel="stylesheet" href="../shared/grade-view.css" />
+  <link rel="stylesheet" href="../shared/dropdown.css" />
   <link rel="stylesheet" href="../review/clip-player.css" />
   <link rel="stylesheet" href="moments.css" />
 </head>
@@ -29,8 +30,28 @@
         <h2>Clips</h2>
       </div>
       <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+      <!-- STORAGE (9.1, the owner's item 18): what Occlara keeps on this PC, a
+           press away. The pill says the total with a small bar of its parts;
+           pressed, the card under it says each part, what can be cleared and
+           how, and the room left on the drive (main's STORAGE_GET). -->
+      <button id="mo-store-btn" class="btn btn-ghost md mo-store-btn no-drag" type="button" aria-expanded="false" aria-controls="mo-store" hidden>
+        <span id="mo-store-mini" class="mo-store-mini" aria-hidden="true"></span>
+        <span class="mo-store-word">Storage</span>
+        <span id="mo-store-btn-text" class="mo-store-size"></span>
+      </button>
       <!-- ORBIT: the page's grey sub line under its title. -->
       <p class="page-sub">Every death and highlight from your matches, the clips kept beside them.</p>
+      <section id="mo-store" class="mo-store" role="dialog" aria-modal="false" aria-labelledby="mo-store-title" hidden>
+        <div class="mo-store-head">
+          <h3 id="mo-store-title" class="mo-title">Storage</h3>
+          <button id="mo-store-close" class="icon-btn mo-store-x" type="button" title="Close (Esc)" aria-label="Close storage"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+        </div>
+        <p class="mo-store-sum"><b id="mo-store-total"></b><span id="mo-store-where"></span></p>
+        <div id="mo-store-bar" class="mo-store-bar" role="img"></div>
+        <div id="mo-store-rows" class="mo-store-rows"></div>
+        <div id="mo-store-cap" class="mo-store-cap"></div>
+        <p id="mo-store-warn" class="mo-store-warn" hidden></p>
+      </section>
     </header>
 
     <main class="body">
@@ -43,11 +64,13 @@
         <p id="mo-empty-hint" class="mo-hint"></p>
       </section>
 
-      <!-- THE HERO (Orbit's Clips, 28 Nov 2026): the newest match's best moment,
-           a highlight with a clip kept before a death with one, large, with
-           the next two beside it; each its clip's poster, or the map's art
-           dimmed and "No clip kept" where none was kept. -->
-      <section id="mo-hero" class="mo-hero" aria-label="Your latest moments" hidden></section>
+      <!-- THE HERO (9.1, the owner's item 13): ONE, the player's best recent
+           clip, large (main's moments.js bestOf: the best highlight kept from
+           the last ten matches, else a death worth another look). Its clip
+           plays muted in a loop while the page is on screen, held still under
+           reduced motion and while a match is recorded; pressed, it plays in
+           the player. With no clip kept in those matches there is no hero. -->
+      <section id="mo-hero" class="mo-hero" aria-label="Your best recent clip" hidden></section>
 
       <!-- THE HIGHLIGHTS REEL (8.17): every highlight clip kept, back to back,
            in the same player as the compilation's. Its row shows only the
@@ -72,11 +95,21 @@
           <h3 id="mo-log-title" class="mo-title">Every moment</h3>
           <span id="mo-counts" class="mo-counts"></span>
         </div>
-        <!-- One capsule, one sliding thumb (shared/seg.js occlaraSeg). -->
-        <div id="mo-filter" class="seg mo-filter" role="group" aria-label="Show">
-          <button type="button" data-kind="all" aria-pressed="true">All</button>
-          <button type="button" data-kind="death" aria-pressed="false">Deaths</button>
-          <button type="button" data-kind="highlight" aria-pressed="false">Highlights</button>
+        <!-- THE FILTERS (9.1, the owner's item 12): the kind as one capsule
+             with one sliding thumb (shared/seg.js occlaraSeg), then the map,
+             the agent, the result and the repeated mistake, each the app's
+             own dropdown (shared/dropdown.js), and a way back to everything. -->
+        <div class="mo-filters" role="group" aria-label="Filter the moments">
+          <div id="mo-filter" class="seg mo-filter" role="group" aria-label="Show">
+            <button type="button" data-kind="all" aria-pressed="true">All</button>
+            <button type="button" data-kind="death" aria-pressed="false">Deaths</button>
+            <button type="button" data-kind="highlight" aria-pressed="false">Highlights</button>
+          </div>
+          <div id="mo-f-map" class="mo-dd" data-filter="map"></div>
+          <div id="mo-f-agent" class="mo-dd" data-filter="agent"></div>
+          <div id="mo-f-result" class="mo-dd" data-filter="result"></div>
+          <div id="mo-f-mistake" class="mo-dd" data-filter="mistake"></div>
+          <button id="mo-f-clear" class="btn btn-link sm mo-f-clear" type="button" hidden>Clear filters</button>
         </div>
         <!-- Why no clip was kept, said once. -->
         <p id="mo-note" class="mo-note" hidden></p>
@@ -84,6 +117,31 @@
         <p id="mo-none" class="mo-hint" hidden></p>
       </section>
     </main>
+
+    <!-- A CLIP'S MENU (9.1, the owner's item 12): open its file location on
+         this PC (main's CLIP_REVEAL, by the review's id and the clip's name,
+         never a path) and delete it, after the confirm below. One menu for
+         the page, opened from a clip's more button. -->
+    <div id="mo-menu" class="mo-menu" role="menu" aria-label="Clip" hidden>
+      <button type="button" role="menuitem" class="mo-mi" data-act="reveal" tabindex="-1"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span>Open file location</span></button>
+      <button type="button" role="menuitem" class="mo-mi danger" data-act="delete" tabindex="-1"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 7h15"/><path d="M9.5 7V5.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V7"/><path d="M6.5 7l.9 11.6a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7"/></svg><span>Delete clip</span></button>
+    </div>
+
+    <!-- THE CONFIRM (9.1): deleting a clip asks first, plainly; the safe
+         answer has the keyboard. The page behind is inert while it is open. -->
+    <div id="mo-confirm" class="mo-confirm" role="alertdialog" aria-modal="true" aria-labelledby="mo-cf-title" aria-describedby="mo-cf-body" hidden>
+      <div class="mo-cf-panel">
+        <h3 id="mo-cf-title" class="mo-cf-title"></h3>
+        <p id="mo-cf-body" class="mo-cf-body"></p>
+        <div class="mo-cf-acts">
+          <button id="mo-cf-no" class="btn btn-ghost md" type="button">Keep it</button>
+          <button id="mo-cf-yes" class="btn btn-ghost danger md" type="button">Delete clip</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- What a delete or an open did, said once, then gone. -->
+    <p id="mo-toast" class="mo-toast" role="status" aria-live="polite" hidden></p>
 
     <!-- THE COMPILATION PLAYER: one pattern's kept clips, back to back, over
          the page, each in the review's own clip player (review/clip-player.js:
@@ -115,6 +173,7 @@
   </div>
 
   <script src="../shared/seg.js"></script>
+  <script src="../shared/dropdown.js"></script>
   <script src="../shared/grade-view.js"></script>
   <script src="../review/clip-time.js"></script>
   <script src="../review/clip-player.js"></script>

@@ -1,111 +1,283 @@
 /* palette: tokens only */
-/* The Moments page (8.7), an entry of the training log: the player's deaths
-   and highlights under each match's ruled line, the compilation by repeated
-   mistake over them, and its player. No card anywhere: a section is a
-   heading, a hint and rows parted by the hairline; a row's hover is a faint
-   fill across it. The only framed thing is the clip playing, which is an
-   image. Every button is ui.css's capsule. */
+/* The Moments page (8.7), called Clips: the player's best recent clip as the
+   one hero, the reel and the repeated mistakes as chips, the filters, then
+   each match's moments as a calm grid of frames, and over the page its
+   player, a clip's menu, the confirm and the toast. The ids, the rows'
+   classes and every channel stay the Moments page's. Every button is
+   ui.css's glass. */
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
-.sheet { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-.sheet > header { display: flex; align-items: center; padding: var(--space-4); }
+/* THE PAGE SCROLLS AS ONE (9.1, the owner's item 12: "the bar cuts off the
+   top here too"). The title and its sub line used to stay put over a body
+   that scrolled under them, so the hero and the chips were cut by a hard
+   edge part way down the page. Now the sheet scrolls, title and all, and a
+   short fade at its top lets what passes under the bar dissolve into the
+   ground rather than being sliced. */
+.sheet { height: 100%; display: block; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
+.sheet::before {
+  content: ''; position: sticky; top: 0; z-index: 6; display: block;
+  height: 18px; margin-bottom: -18px; pointer-events: none;
+  background: var(--bg);
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent);
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+.sheet > header { position: relative; display: flex; align-items: center; padding: var(--space-4); }
 .h-brand { display: flex; align-items: center; gap: var(--space-2); }
 .h-brand h2 { font-size: 15.5px; font-weight: 700; }
 #close { margin-left: auto; }
 
 .body {
-  flex: 1 1 auto; min-height: 0; overflow-y: auto;
   padding: var(--space-2) var(--space-4) var(--space-10);
-  display: flex; flex-direction: column; gap: var(--space-10);
+  display: flex; flex-direction: column; gap: var(--space-4);
 }
-.body::-webkit-scrollbar { width: 8px; }
-.body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 4px; }
 
 .mo-wait { font-size: 14px; color: var(--text-mute); }
-.mo-sec { display: flex; flex-direction: column; gap: var(--space-3); }
+.mo-sec { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); }
 .mo-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); margin: 0; }
 .mo-hint { font-size: 13px; line-height: 1.5; color: var(--text-dim); margin: 0; max-width: 72ch; }
 /* The one note on clips, quiet and once. */
 .mo-note { font-size: 13px; line-height: 1.5; color: var(--text-mute); margin: 0; max-width: 72ch; }
 
-/* ── The compilation ──────────────────────────────────────────────────────
-   One ruled row per pattern: its title and its count as a button that
-   chooses it (the list below shows only its deaths), Play all at its end
-   where clips were kept, else a quiet word. */
-.mo-comp-rows { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
-.mo-crow {
-  display: flex; align-items: center; gap: var(--space-3);
-  border-bottom: 1px solid var(--line);
-  transition: background var(--t-fast) var(--ease);
+/* ORBIT (27 Nov 2026): each card's heading is its eyebrow (check:palette
+   SIGNAL_ALLOWED); the empty page's line and the player's title keep the
+   card title's size. */
+.mo-title:not(#mo-empty-title):not(#mo-pl-title) { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
+#mo-empty-title, #mo-pl-title { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); }
+
+/* ── Storage (9.1, the owner's item 18) ──────────────────────────────────
+   A glass pill at the title's right: the total Occlara keeps on this PC and
+   a small bar of its four parts. Pressed, a card drops from it: the total
+   and the room left on the drive, the parts as one bar, each part with what
+   it is and how it is cleared, and the clips against the limit Settings
+   holds. The parts are the ink at four strengths, no hue: the accent is not
+   a chart colour. */
+.mo-store-btn { margin-left: auto; gap: 10px; padding: 0 14px 0 12px; font-size: 13px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.mo-store-word { color: var(--text-2); font-weight: 500; margin-left: 2px; margin-right: -4px; transition: color var(--dur-hover-out) var(--ease-out); }
+.mo-store-btn:where(:hover, [aria-expanded="true"]) .mo-store-word { color: var(--text); transition-duration: var(--dur-hover-in); }
+.mo-store-mini { display: flex; gap: 2px; width: 44px; height: 6px; border-radius: 3px; overflow: hidden; background: var(--glass-q); }
+.mo-store-mini .mo-seg { min-width: 3px; }
+.mo-store-btn.low .mo-store-mini { box-shadow: 0 0 0 1px rgba(var(--warn-rgb), 0.7); }
+.mo-seg { display: block; flex: 1 1 0; height: 100%; }
+.mo-seg.clips, .mo-swatch.clips { background: var(--text); }
+.mo-seg.recordings, .mo-swatch.recordings { background: rgba(255, 255, 255, 0.56); }
+.mo-seg.frames, .mo-swatch.frames { background: rgba(255, 255, 255, 0.32); }
+.mo-seg.other, .mo-swatch.other { background: rgba(255, 255, 255, 0.17); }
+
+.mo-store {
+  position: absolute; z-index: 30; right: var(--space-8); top: 88px;
+  width: min(460px, calc(100vw - 48px));
+  padding: 20px 24px 24px;
+  border-radius: var(--r-card);
+  background: var(--glass-fill); border: 1px solid var(--line-2); box-shadow: var(--lift);
+  -webkit-backdrop-filter: blur(20px) saturate(140%); backdrop-filter: blur(20px) saturate(140%);
+  opacity: 0; transform: translateY(-6px) scale(0.985); transform-origin: top right;
+  transition: opacity var(--dur-page-out) var(--ease-out), transform var(--dur-slow) var(--spring-smooth);
 }
-.mo-crow:hover { background: rgba(255, 255, 255, 0.035); }
+.mo-store.open { opacity: 1; transform: none; transition-duration: var(--dur-base), var(--dur-slow); }
+.mo-store-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.mo-store-x { width: 30px; height: 30px; }
+.mo-store-sum { margin: 10px 0 0; font-size: 13px; color: var(--text-2); }
+.mo-store-sum b { font-size: 30px; font-weight: 700; letter-spacing: var(--track-title); color: var(--text); font-variant-numeric: tabular-nums; }
+.mo-store-bar { display: flex; gap: 3px; height: 10px; margin-top: 14px; border-radius: 5px; overflow: hidden; background: var(--glass-q); }
+.mo-store-bar .mo-seg { min-width: 4px; transform-origin: 0 50%; }
+.mo-store.open .mo-store-bar .mo-seg { animation: m-grow-x var(--dur-enter) var(--spring-smooth) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+.mo-store-rows { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
+.mo-srow { display: grid; grid-template-columns: 10px minmax(0, 1fr); column-gap: 12px; align-items: start; }
+.mo-swatch { display: block; width: 10px; height: 10px; margin-top: 5px; border-radius: 3px; }
+.mo-swords { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mo-stop { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.mo-sname { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.mo-sbytes { font-size: 13px; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mo-sline { font-size: 12.5px; line-height: 1.45; color: var(--text-2); }
+.mo-store-cap { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.mo-cap-line { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); font-size: 12.5px; color: var(--text-2); }
+.mo-cap-num { color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mo-cap-meter { height: 4px; border-radius: 2px; overflow: hidden; background: var(--glass-q); }
+.mo-cap-fill { display: block; height: 100%; background: var(--text); transform-origin: 0 50%; transition: transform var(--dur-enter) var(--spring-smooth); }
+.mo-cap-set { align-self: flex-start; margin-top: 2px; }
+.mo-store-warn { margin: 14px 0 0; padding-left: 10px; border-left: 2px solid var(--warn); font-size: 12.5px; line-height: 1.45; color: var(--text); }
+
+/* ── The frame ───────────────────────────────────────────────────────────
+   16:9, the picture under a flat dimming, the caption on it: the clip's own
+   poster, or the map's splash dimmed with "No clip kept" (or why it went). */
+.mo-frame { position: relative; aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; background: var(--bg-2); border: 1px solid var(--line); contain: paint; }
+.mo-frame-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 700ms var(--spring-smooth), opacity var(--dur-hover-out) var(--ease-out); }
+.mo-frame.art .mo-frame-img { opacity: 0.28; filter: grayscale(0.4); }
+.mo-frame::after { content: ''; position: absolute; inset: 0; background: var(--scrim-soft); pointer-events: none; }
+.mo-frame-cap { position: absolute; left: 12px; bottom: 10px; z-index: 2; font-size: 13px; font-weight: 600; color: var(--text); }
+.mo-frame-tag, .mo-frame .mo-gone {
+  position: absolute; left: 12px; top: 12px; z-index: 2;
+  padding: 3px 7px; border-radius: var(--r-frame); background: var(--scrim-chip);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-2); white-space: nowrap;
+}
+
+/* THE PLAY MARK (9.1): glass in the frame's middle, the triangle in it
+   centred as the eye measures it (moments.js PLAY_PATH, its centroid on the
+   circle's centre). A kept clip shows it; under the pointer it brightens and
+   grows a little, pressed it gives, and lets go on the gentle spring. */
+.mo-frame .mo-clip { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; }
+.mo-frame .mo-clip > * { pointer-events: auto; }
+.mo-frame .mo-play {
+  width: 46px; height: 46px; color: var(--text);
+  background: var(--glass); border-color: var(--line-2);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  transition-property: background-color, border-color, color, transform;
+  transition-duration: var(--dur-hover-out), var(--dur-hover-out), var(--dur-hover-out), var(--dur-spring);
+  transition-timing-function: var(--ease-out), var(--ease-out), var(--ease-out), var(--spring-gentle);
+}
+.mo-frame .mo-play svg { display: block; }
+.mo-row:hover .mo-play, .mo-frame .mo-play:hover { background: var(--glass-h); transform: scale(1.06); }
+.mo-frame .mo-play:where(:not(:disabled)):active { transform: scale(0.92); transition-duration: var(--dur-press); transition-timing-function: var(--ease-out); }
+
+/* A KEPT CLIP'S MORE BUTTON (9.1): small glass at the frame's top right,
+   there under the pointer, the keyboard, or while its menu is open. */
+.mo-more {
+  width: 32px; height: 32px; color: var(--text);
+  background: var(--scrim-chip); border-color: var(--line);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  transition-property: opacity, background-color, border-color, transform;
+  transition-duration: var(--dur-hover-out), var(--dur-hover-out), var(--dur-hover-out), var(--dur-spring);
+  transition-timing-function: var(--ease-out), var(--ease-out), var(--ease-out), var(--spring-gentle);
+}
+.mo-more:where(:not(:disabled)):hover, .mo-more.on { background: var(--raised); border-color: var(--line-2); color: var(--text); }
+.mo-frame > .mo-more { position: absolute; top: 10px; right: 10px; z-index: 3; opacity: 0; transform: scale(0.9); }
+.mo-row:hover .mo-frame > .mo-more, .mo-frame > .mo-more:focus-visible, .mo-frame > .mo-more.on { opacity: 1; transform: none; }
+.mo-more:where(:not(:disabled)):active { transform: scale(0.86); transition-duration: var(--dur-press); }
+
+/* ── The hero (9.1, the owner's item 13) ─────────────────────────────────
+   ONE, the best recent clip, full width and wide: its poster, then its own
+   clip faded in over it once it shows a frame (sharp at any size, where the
+   480 wide poster is not), a shade rising from the foot for the words, the
+   play mark in the middle, main's eyebrow and the moment's title large at
+   the lower left, Open its review and the more button at the lower right. */
+.mo-hero { display: block; margin-bottom: 14px; }
+.mo-hero[hidden] { display: none; }
+.mo-hcard { display: block; min-width: 0; color: inherit; border-radius: var(--r-card); }
+.mo-hcard .mo-frame { width: 100%; aspect-ratio: 21 / 9; min-height: 300px; max-height: min(520px, 62vh); border-radius: var(--r-card); }
+.mo-hcard .mo-frame::after { display: none; }
+.mo-hcard .mo-frame.art .mo-frame-img { opacity: 0.42; }
+.mo-hvideo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--dur-slow) var(--ease-out), transform 900ms var(--spring-smooth); }
+.mo-frame.live .mo-hvideo { opacity: 1; }
+.mo-hcard:hover .mo-frame-img, .mo-hcard:hover .mo-hvideo { transform: scale(1.02); }
+.mo-hshade {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: var(--scrim);
+  -webkit-mask-image: linear-gradient(to top, black 0%, rgba(0, 0, 0, 0.62) 30%, transparent 64%);
+  mask-image: linear-gradient(to top, black 0%, rgba(0, 0, 0, 0.62) 30%, transparent 64%);
+}
+.mo-hplay { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 0; border: 0; border-radius: inherit; background: transparent; color: var(--text); cursor: pointer; }
+.mo-hplay:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.6); outline-offset: -4px; }
+.mo-frame-play {
+  display: grid; place-items: center; width: 76px; height: 76px; border-radius: 50%;
+  color: var(--text); background: var(--glass); border: 1px solid var(--line-2);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  transition: background-color var(--dur-hover-out) var(--ease-out), border-color var(--dur-hover-out) var(--ease-out), transform var(--dur-spring) var(--spring-gentle);
+}
+.mo-frame-play svg { display: block; }
+.mo-hplay:hover .mo-frame-play { background: var(--glass-h); border-color: var(--line-2); transform: scale(1.06); transition-duration: var(--dur-hover-in), var(--dur-hover-in), var(--dur-spring); }
+.mo-hplay:active .mo-frame-play { transform: scale(0.94); transition-duration: var(--dur-press); transition-timing-function: var(--ease-out); }
+.mo-hcap { position: absolute; left: 28px; right: 300px; bottom: 24px; z-index: 3; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; pointer-events: none; }
+.mo-heyebrow { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-tint); }
+.mo-hcap .mo-htitle { max-width: 100%; font-size: var(--t-display); font-weight: 700; letter-spacing: var(--track-display); line-height: var(--lh-display); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mo-hmeta { display: flex; flex-wrap: wrap; align-items: center; row-gap: 2px; font-size: 14px; color: var(--text); }
+.mo-hmeta > span { white-space: nowrap; }
+.mo-hmeta > span + span::before { content: ''; display: inline-block; width: 3px; height: 3px; margin: 0 9px; border-radius: 50%; background: currentColor; opacity: 0.45; vertical-align: middle; }
+.mo-hmeta .mo-hround { font-weight: 600; }
+.mo-hres.win { color: var(--good); }
+.mo-hres.loss { color: var(--bad); }
+.mo-hmeta .mo-htime { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.mo-hline { font-size: 13px; color: var(--text-2); }
+.mo-hacts { position: absolute; right: 20px; bottom: 20px; z-index: 3; display: flex; align-items: center; gap: 8px; }
+.mo-hacts .mo-more { width: 30px; height: 30px; }
+
+/* ── The reel and the repeated mistakes: chips on the ground ─────────────
+   One chip a pattern: its title and its count as a button that chooses it
+   (the list below shows only its deaths), Play all at its end where clips
+   were kept. A chip chosen is the raised fill, a dot before its title. */
+#mo-comp, #mo-reel { padding: 0; background: transparent; box-shadow: none; border: 0; }
+#mo-comp .mo-hint { display: none; }
+.mo-comp-rows { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; }
+.mo-crow {
+  display: flex; align-items: center; gap: 0; padding: 0 4px 0 0;
+  border: 1px solid var(--line); border-radius: var(--r-btn); background: var(--card);
+  transition: background-color var(--dur-hover-out) var(--ease-out), border-color var(--dur-hover-out) var(--ease-out);
+}
+.mo-crow:hover { background: var(--raised); transition-duration: var(--dur-hover-in); }
+.mo-crow:has(.mo-cpick[aria-pressed="true"]) { background: var(--raised); border-color: var(--line-2); }
 .mo-cpick {
   flex: 1 1 auto; min-width: 0;
-  display: flex; flex-direction: column; gap: 2px; text-align: left;
-  padding: var(--space-3) 0;
-  background: transparent; border: 0; border-radius: 0; color: var(--text); font: inherit; cursor: pointer;
+  display: flex; flex-direction: row; align-items: baseline; gap: 8px; padding: 8px 12px 8px 14px; text-align: left;
+  background: transparent; border: 0; border-radius: var(--r-btn); color: var(--text); font: inherit; cursor: pointer;
 }
-.mo-cpick:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-frame); }
-.mo-ctitle { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: var(--space-2); }
-/* Chosen: a filled dot before the title, form before hue. */
+.mo-cpick:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
+.mo-ctitle { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: var(--space-2); }
 .mo-cpick[aria-pressed="true"] .mo-ctitle::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--text); flex: none; }
-.mo-cline { font-size: 13px; color: var(--text-dim); }
-.mo-cnone { flex: none; font-size: 12px; color: var(--text-mute); }
+.mo-cline { font-size: 12px; color: var(--text-2); }
+.mo-cnone { display: none; }
+.mo-crow .btn.sm { height: 28px; }
 
-/* ── The filter and the counts ────────────────────────────────────────── */
+/* ── The filters (9.1) ───────────────────────────────────────────────────
+   One row: the kind's capsule, then four dropdowns drawn as the capsule is
+   (the card's fill, a hairline, 42px), a chosen one raised and in full ink,
+   and Clear filters while any is set. */
 .mo-log-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
 .mo-counts { font-size: 13px; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.mo-filter { align-self: flex-start; display: inline-flex; gap: 2px; }
+.mo-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mo-filter { display: inline-flex; gap: 2px; margin-right: 4px; }
 /* Drawn flat until seg.js adds the sliding thumb; the chosen button filled either way. */
 .seg:not(.seg-slide) > button {
   height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-btn); background: transparent;
   color: var(--text-dim); font: 500 13px var(--font); cursor: pointer;
 }
 .seg:not(.seg-slide) > button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
-#mo-filter > button:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
-
-/* ── The matches and their moments ────────────────────────────────────── */
-.mo-list { display: flex; flex-direction: column; gap: var(--space-8); }
-.mo-match { display: flex; flex-direction: column; }
-/* The match's line: the result and the score in the outcome's tone, who and
-   where, the date, the grade at the right as its number and its letter. */
-.mo-mhead {
-  display: flex; align-items: baseline; gap: var(--space-3);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--line);
+.mo-dd { min-width: 0; }
+.mo-dd .dd-btn {
+  height: 42px; min-width: 128px; max-width: 240px; gap: 10px; padding: 0 12px 0 14px;
+  font: 600 13px var(--font); letter-spacing: -0.005em; color: var(--text-2);
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-btn); box-shadow: none;
+  transition: background-color var(--dur-hover-out) var(--ease-out), border-color var(--dur-hover-out) var(--ease-out), color var(--dur-hover-out) var(--ease-out), transform var(--dur-spring) var(--spring-gentle);
 }
+.mo-dd .dd-btn:hover { background: var(--raised); color: var(--text); transform: none; box-shadow: none; transition-duration: var(--dur-hover-in), var(--dur-hover-in), var(--dur-hover-in), var(--dur-spring); }
+.mo-dd .dd-btn:active, .mo-dd.dd-open .dd-btn { transform: scale(0.97); box-shadow: none; transition-duration: var(--dur-press); }
+.mo-dd.on .dd-btn { background: var(--raised); border-color: var(--line-2); color: var(--text); }
+.mo-dd.on .dd-chev { color: var(--text); }
+.mo-f-clear { margin-left: 2px; }
+/* The list, portalled to the page's body while open: Orbit's raised menu. */
+body > .dd-list { padding: 6px; border-radius: 14px; background: var(--raised); max-width: 300px; max-height: 320px; }
+body > .dd-list .dd-opt { height: 34px; border-radius: 8px; }
+
+/* ── The matches and their moments ───────────────────────────────────────
+   A match's line (its result and score in the outcome's tone, who and where,
+   the date, the grade at the right), then its moments as frames, each with
+   its kind, its title and what killed the player, its line, its marks and
+   its time under it. */
+#mo-log { padding: 0; background: transparent; box-shadow: none; border: 0; border-radius: 0; }
+.mo-list { display: flex; flex-direction: column; gap: 36px; }
+.mo-match { display: flex; flex-direction: column; }
+.mo-mhead { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-3) 0 0; }
 .mo-res { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; flex: none; font-variant-numeric: tabular-nums; }
 .mo-res.win { color: var(--good); }
 .mo-res.loss { color: var(--bad); }
 .mo-who { font-size: 14px; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mo-when { font-size: 12px; color: var(--text-mute); white-space: nowrap; }
 .mo-grade { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); flex: none; }
-.mo-score {
-  font-family: var(--font); font-size: 20px; font-weight: 600; line-height: 1;
-  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text);
-}
+.mo-score { font-family: var(--font); font-size: 20px; font-weight: 600; line-height: 1; letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text); }
 
-.mo-rows { display: flex; flex-direction: column; }
-.mo-row {
-  display: flex; align-items: center; gap: var(--space-3);
-  border-bottom: 1px solid var(--line);
-  transition: background var(--t-fast) var(--ease);
-}
-.mo-row:hover { background: rgba(255, 255, 255, 0.035); }
+.mo-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 22px 18px; margin-top: 14px; }
+.mo-row { display: flex; flex-direction: column; align-items: stretch; gap: 10px; border-radius: 18px; }
+.mo-row:hover .mo-frame-img { transform: scale(1.035); }
 /* The rows rise once, as the list first appears on screen (moments.js),
    --stagger apart and capped at the sixth (8.9.2, the shared m-rise); a
    repaint draws them as they are. */
 .mo-row.rise { animation: m-rise var(--dur-slow) var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 5) * var(--stagger)); }
-/* The row is a button that opens the review at the round. */
+/* The row's words are a button that opens the review at the round. */
 .mo-open {
-  flex: 1 1 auto; min-width: 0;
-  display: grid; grid-template-columns: 44px 76px minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-3);
-  text-align: left; padding: var(--space-3) 0;
-  background: transparent; border: 0; border-radius: 0; color: var(--text); font: inherit; cursor: pointer;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding: 0 4px;
+  text-align: left; background: transparent; border: 0; border-radius: var(--r-frame); color: var(--text); font: inherit; cursor: pointer;
 }
-.mo-open:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-frame); }
-/* The round, a column of digits in the mono face. */
+.mo-open:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+.mo-open .mo-round { display: none; }
 .mo-round { font: 500 12px var(--font-mono); color: var(--text-mute); font-variant-numeric: tabular-nums; }
 /* The kind, a word in the outcome's tone with a mark before it: a death a
    ringed dot in --bad, a highlight a filled dot in --good. */
@@ -115,7 +287,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .mo-kind.death::before { border: 1.5px solid currentColor; }
 .mo-kind.highlight { color: var(--good); }
 .mo-kind.highlight::before { background: currentColor; }
-.mo-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mo-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; width: 100%; }
 .mo-mtitle { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* A death's title with what killed the player beside it (the gun's kill feed icon, or the ability's). */
 .mo-titlerow { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
@@ -128,19 +300,64 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .mo-mark { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--text-mute); white-space: nowrap; }
 .mo-mark::before { content: ''; flex: none; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .mo-mark.across { color: var(--text-dim); }
-.mo-time { font: 500 12px var(--font-mono); color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
-/* The clip at the row's end: a play capsule, or a quiet word for one gone.
-   The column is there only while a clip is kept in these matches (.clips,
-   set by moments.js), sized to the capsule so the times line up across the
-   rows; with no clip at all the time is the last column, on the rule, as the
-   last column is on every page of the log. */
-.mo-clip { flex: none; display: flex; justify-content: flex-end; align-items: center; }
-.mo-clip:empty { display: none; }
-.mo-list.clips .mo-clip { display: flex; min-width: 32px; }
+.mo-time { font: 500 11px var(--font-mono); color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mo-gone { font-size: 12px; color: var(--text-mute); white-space: nowrap; }
 
-/* ── The compilation player ────────────────────────────────────────────── */
-/* Over the page on a dark veil, its panel one column: the title line, the
+/* ── A clip's menu (9.1) ─────────────────────────────────────────────────
+   Orbit's raised menu, under its more button, its right edge on the
+   button's; it opens on the smooth spring from a hair smaller. */
+.mo-menu {
+  position: fixed; z-index: 40; min-width: 212px; padding: 6px;
+  border-radius: 14px; background: var(--raised); border: 1px solid var(--line-2); box-shadow: var(--lift);
+  opacity: 0; transform: translateY(-4px) scale(0.98); transform-origin: top right;
+  transition: opacity var(--dur-hover-in) var(--ease-out), transform var(--dur-slow) var(--spring-smooth);
+}
+.mo-menu.up { transform-origin: bottom right; transform: translateY(4px) scale(0.98); }
+.mo-menu.open { opacity: 1; transform: none; }
+.mo-mi {
+  display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 12px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text);
+  font: 500 13.5px var(--font); letter-spacing: -0.005em; text-align: left; white-space: nowrap; cursor: pointer;
+  transition: background-color var(--dur-hover-out) var(--ease-out);
+}
+.mo-mi svg { flex: none; color: var(--text-2); }
+.mo-mi:hover, .mo-mi:focus-visible { background: var(--glass-q-h); outline: none; transition-duration: var(--dur-hover-in); }
+.mo-mi.danger, .mo-mi.danger svg { color: var(--bad); }
+.mo-mi.danger:hover, .mo-mi.danger:focus-visible { background: rgba(var(--bad-rgb), 0.12); }
+
+/* ── The confirm (9.1) ───────────────────────────────────────────────────
+   A small glass card over a dimmed page; it rises on the gentle spring. */
+.mo-confirm {
+  position: fixed; inset: 0; z-index: 35; display: grid; place-items: center; padding: var(--space-6);
+  background: rgba(0, 0, 0, 0.56);
+  opacity: 0; transition: opacity var(--dur-base) var(--ease-out);
+}
+.mo-confirm.open { opacity: 1; }
+.mo-cf-panel {
+  width: min(440px, 100%); padding: 24px 24px 20px;
+  border-radius: 20px; background: var(--glass-fill); border: 1px solid var(--line-2); box-shadow: var(--lift);
+  -webkit-backdrop-filter: blur(20px) saturate(140%); backdrop-filter: blur(20px) saturate(140%);
+  transform: translateY(10px) scale(0.985);
+  transition: transform var(--dur-spring) var(--spring-gentle);
+}
+.mo-confirm.open .mo-cf-panel { transform: none; }
+.mo-cf-title { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); line-height: 1.2; }
+.mo-cf-body { margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: var(--text-2); text-wrap: pretty; }
+.mo-cf-acts { margin-top: 22px; display: flex; justify-content: flex-end; gap: 8px; }
+
+/* What a delete or an open did: a short line at the foot of the page. */
+.mo-toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 45; margin: 0;
+  padding: 11px 18px; border-radius: 14px; background: var(--raised); border: 1px solid var(--line-2); box-shadow: var(--lift);
+  font-size: 13.5px; font-weight: 500; color: var(--text); white-space: nowrap;
+  opacity: 0; transform: translate(-50%, 8px);
+  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-enter) var(--spring-smooth);
+}
+.mo-toast.on { opacity: 1; transform: translate(-50%, 0); }
+.mo-toast.bad { color: var(--bad); }
+
+/* ── The compilation player ──────────────────────────────────────────────
+   Over the page on a dark veil, its panel one column: the title line, the
    clip framed as a clip image is, the moment's line, the controls. It opens
    with a short fade (transform and opacity only). */
 .mo-player {
@@ -181,108 +398,31 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 /* A clip that could not be played says so where the line is. */
 .mo-pl-line.bad { color: var(--bad); }
 /* 8.9.2: the moment's line and count fade in as a new clip takes the stage,
-   and a card fades up once per visit (moments.js). */
+   and a card fades up once per visit (moments.js); the hero enters as
+   Orbit's entrance, from 8px low, .985 and a 6px blur. */
 .mo-swap { animation: mo-swap var(--dur-base) var(--ease-out); }
 @keyframes mo-swap { from { opacity: 0; } to { opacity: 1; } }
 .mo-sec.mo-in { animation: m-rise var(--dur-slow) var(--ease-out) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+.mo-hero.mo-in { animation: m-enter var(--dur-enter) var(--spring-smooth) both; }
 
-@media (max-width: 700px) {
-  .mo-open { grid-template-columns: 36px 1fr auto; }
-  .mo-kind { display: none; }
-  .mo-clip { width: auto; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .mo-row, .mo-row.rise, .mo-swap, .mo-sec.mo-in { animation: none; transition: none; }
-  .mo-player, .mo-pl-panel { transition: none; }
-  .mo-pl-panel { transform: none; }
-}
-
-/* PROGRESS V3: a section is a card on the ground, as Home's are. */
-.mo-sec { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }
-.body { gap: var(--space-4); }
-
-/* ── ORBIT (27 Nov 2026) ─────────────────────────────────────────────────
-   The page is Clips to the player. Each card's heading is its eyebrow
-   (check:palette SIGNAL_ALLOWED); the empty page's line and the player's
-   title keep the card title's size. */
-.mo-title:not(#mo-empty-title):not(#mo-pl-title) { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
-#mo-empty-title, #mo-pl-title { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); }
-
-/* ── ORBIT'S CLIPS (28 Nov 2026), the reference's layout ──────────────────
-   A hero of the newest match's best moments (the first large, the next two
-   beside it), the mistakes and the reel as chips that filter the grid, then
-   each match's moments as a calm grid of frames: the clip's own poster, or
-   the map's splash dimmed with "No clip kept" (or why its clip went). The
-   ids, the rows' classes and every channel stay the Moments page's. */
-
-/* The frame: 16:9, the picture under a flat dimming, the caption on it. */
-.mo-frame { position: relative; aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; background: var(--bg-2); border: 1px solid var(--line); contain: paint; }
-.mo-frame-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 700ms var(--spring-smooth), opacity var(--dur-hover-out) var(--ease-out); }
-.mo-frame.art .mo-frame-img { opacity: 0.28; filter: grayscale(0.4); }
-.mo-frame::after { content: ''; position: absolute; inset: 0; background: var(--scrim-soft); pointer-events: none; }
-.mo-frame-cap { position: absolute; left: 12px; bottom: 10px; z-index: 2; font-size: 13px; font-weight: 600; color: var(--text); }
-.mo-frame-tag, .mo-frame .mo-gone {
-  position: absolute; left: 12px; top: 12px; z-index: 2;
-  padding: 3px 7px; border-radius: var(--r-frame); background: var(--scrim-chip);
-  font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-2); white-space: nowrap;
-}
-/* The play mark, glass in the frame's middle: shown on a kept clip, brighter under the pointer. */
-.mo-frame .mo-clip { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; }
-.mo-frame .mo-clip > * { pointer-events: auto; }
-.mo-frame .mo-play { width: 44px; height: 44px; border-radius: 50%; background: var(--glass); border-color: var(--line-2); color: var(--text); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-.mo-frame-play { position: absolute; left: 50%; top: 50%; z-index: 2; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: var(--glass); border: 1px solid var(--line-2); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-.mo-frame-play::after { content: ''; position: absolute; left: 22px; top: 18px; border-left: 15px solid var(--text); border-top: 10px solid transparent; border-bottom: 10px solid transparent; }
-
-/* The hero. */
-.mo-hero { display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); gap: 20px; }
-.mo-hero.solo { grid-template-columns: minmax(0, 1fr); }
-.mo-hero[hidden] { display: none; }
-.mo-hside { display: grid; grid-template-rows: 1fr 1fr; gap: 20px; min-width: 0; }
-.mo-hcard { display: block; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 18px; }
-.mo-hcard .mo-frame { height: 100%; }
-.mo-hcard.big .mo-frame { aspect-ratio: auto; min-height: 300px; }
-.mo-hside .mo-frame { aspect-ratio: auto; min-height: 140px; }
-.mo-hcap { position: absolute; left: 18px; right: 18px; bottom: 14px; z-index: 2; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.mo-hround { font-size: 15px; font-weight: 700; white-space: nowrap; }
-.mo-hcard.big .mo-hround { font-size: var(--t-title); letter-spacing: var(--track-title); }
-.mo-htitle { min-width: 0; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mo-htime { margin-left: auto; flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--text-2); }
-.mo-hcard:hover .mo-frame-img, .mo-row:hover .mo-frame-img { transform: scale(1.035); }
-.mo-hcard:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
-
-/* The mistakes and the reel: chips on the ground, no card round them; a chip
-   chosen is the raised fill. Each chip's line stays its title on hover. */
-#mo-comp, #mo-reel { padding: 0; background: transparent; box-shadow: none; border: 0; }
-#mo-comp .mo-hint { display: none; }
-.mo-comp-rows { flex-direction: row; flex-wrap: wrap; gap: 8px; border-top: 0; }
-.mo-crow { gap: 0; padding: 0 4px 0 0; border: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: var(--r-btn); background: var(--card); }
-.mo-crow:hover { background: var(--raised); }
-.mo-crow:has(.mo-cpick[aria-pressed="true"]) { background: var(--raised); border-color: var(--line-2); }
-.mo-cpick { flex-direction: row; align-items: baseline; gap: 8px; padding: 8px 12px 8px 14px; }
-.mo-cpick .mo-ctitle { font-size: 13px; font-weight: 600; }
-.mo-cpick .mo-cline { font-size: 12px; color: var(--text-2); }
-.mo-cnone { display: none; }
-.mo-crow .btn.sm { height: 28px; }
-
-/* The grid of every moment, a match's head over its frames. */
-.mo-list { gap: 36px; }
-.mo-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 22px 18px; margin-top: 14px; }
-.mo-row { flex-direction: column; align-items: stretch; gap: 10px; border-bottom: 0; background: transparent; border-radius: 18px; }
-.mo-row:hover { background: transparent; }
-.mo-open { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 0 4px; }
-.mo-open .mo-round { display: none; }
-.mo-open .mo-main { width: 100%; }
-.mo-open .mo-time { font-size: 11px; }
-.mo-open .mo-marks { margin-top: 2px; }
-.mo-mhead { border-bottom: 0; padding-bottom: 0; }
-
+/* The window's least (960 wide) leaves the caption 550px beside the
+   actions; a narrower page (a window of its own) stacks them. */
 @media (max-width: 1000px) {
-  .mo-hero { grid-template-columns: minmax(0, 1fr); }
-  .mo-hside { grid-template-rows: none; grid-template-columns: 1fr 1fr; }
+  .mo-hcap { right: 260px; }
+  .mo-hcap .mo-htitle { font-size: 34px; }
+  .mo-frame-play { width: 68px; height: 68px; }
+}
+@media (max-width: 760px) {
+  .mo-hcap { right: 24px; bottom: 76px; }
+}
+@media (max-width: 700px) {
+  .mo-kind { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mo-frame-img { transition: none; }
+  .mo-row, .mo-row.rise, .mo-swap, .mo-sec.mo-in, .mo-hero.mo-in, .mo-store.open .mo-store-bar .mo-seg { animation: none; transition: none; }
+  .mo-player, .mo-pl-panel, .mo-confirm, .mo-cf-panel, .mo-menu, .mo-store, .mo-toast, .mo-cap-fill { transition: opacity var(--dur-base) var(--ease-out); }
+  .mo-pl-panel, .mo-cf-panel, .mo-menu, .mo-store { transform: none; }
+  .mo-toast { transform: translate(-50%, 0); }
+  .mo-frame-img, .mo-hvideo, .mo-frame-play, .mo-play, .mo-more { transition: opacity var(--dur-base) var(--ease-out); }
+  .mo-hcard:hover .mo-frame-img, .mo-hcard:hover .mo-hvideo, .mo-row:hover .mo-frame-img { transform: none; }
 }
-/* The grid sits on the ground: its frames are the cards, so no card holds them. */
-#mo-log { padding: 0; background: transparent; box-shadow: none; border: 0; border-radius: 0; }
-#mo-hero + #mo-reel, #mo-hero + #mo-comp { margin-top: 12px; }
