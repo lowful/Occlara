@@ -749,10 +749,12 @@ window.addEventListener('resize', () => { clearTimeout(skyResize); skyResize = s
  * Recording screen, where nothing moves but its arrival, they are simply there.
  */
 const barEnd = document.querySelector('.bar-end');
+// Not before the bar's first paint: the window opening is no move.
+let barSettled = false;
 const laidOut = (el) => !el.hidden && (typeof el.getClientRects !== 'function' || el.getClientRects().length > 0);
 function flipBar(change) {
   const kids = barEnd ? [...barEnd.children] : [];
-  const canPlay = kids.length > 0 && typeof kids[0].animate === 'function' && !reducedMotion() && !onRecordingScreen();
+  const canPlay = barSettled && kids.length > 0 && typeof kids[0].animate === 'function' && !reducedMotion() && !onRecordingScreen();
   const before = new Map();
   if (canPlay) for (const el of kids) if (laidOut(el)) before.set(el, el.getBoundingClientRect().left);
   change();
@@ -820,7 +822,9 @@ const barQuiet = () => isCoaching || onRecordingScreen();
  * (main pushes null). Main answers null while recording, mid match or sealed
  * and pushes it once the seal lifts; the bar hides it while recording too. It
  * counts as seen (CHANGELOG_SEEN, so the next launch is quiet) only once it is
- * on screen: shown with the window visible.
+ * on screen: shown with the window visible and in front. A window made hidden
+ * still reads visible on its first load (Electron's paintWhenInitiallyHidden),
+ * so being in front is what says the player can see it.
  */
 let news = null;
 let newsSeenFor = '';
@@ -839,10 +843,12 @@ function paintNews() {
 function newsOnScreen() {
   if (!news || typeof news.version !== 'string' || newsSeenFor === news.version) return;
   if ($('news').hidden || document.visibilityState === 'hidden') return;
+  if (typeof document.hasFocus === 'function' && !document.hasFocus()) return;
   newsSeenFor = news.version;
   if (typeof window.occlara.newsSeen === 'function') window.occlara.newsSeen(news.version);
 }
 document.addEventListener('visibilitychange', newsOnScreen);
+window.addEventListener('focus', newsOnScreen);
 $('news').addEventListener('click', () => { if (typeof window.occlara.openWhatsNew === 'function') window.occlara.openWhatsNew(); });
 // A push is newer than an answer asked for before it.
 let newsPushes = 0;
@@ -1099,6 +1105,8 @@ document.querySelector('.bar').addEventListener('dblclick', (e) => {
   // What's new and the updater as main has them now (9.1).
   askNews();
   askUpdate();
+  // From the next frame on, what moves in the bar's right group glides.
+  requestAnimationFrame(() => { barSettled = true; });
   // The avatar pops in once, as the window first opens (8.9.2), and never
   // when it opens on the Recording screen: nothing there moves but its arrival.
   if (!shell.sealed && !reducedMotion()) {

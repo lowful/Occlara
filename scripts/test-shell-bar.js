@@ -133,6 +133,23 @@ const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\
     away.document.visibilityState = 'visible';
     for (const fn of away.document._listeners.visibilitychange || []) fn();
     ok(same(away.sentOn(C.CHANGELOG_SEEN), [[C.CHANGELOG_SEEN, '9.1.0']]), 'the window shown: seen then');
+    // A window made hidden reads visible on its first load: in front is what counts.
+    const behind = loadSurface('shell', {
+      handlers: {
+        [C.STATE_GET]: () => ({ ...BASE }), [C.CONFIG_GET]: () => ({ language: 'en' }),
+        [C.SHELL_GET]: () => ({ page: 'home', shown: 'home', sealed: false, maximized: false }),
+        [C.CHANGELOG_NOTICE]: () => NEWS,
+      },
+    });
+    let front = false;
+    behind.document.hasFocus = () => front;
+    behind.sentOn = (ch) => behind.bridge.sent.filter(([c]) => c === ch);
+    await settle();
+    ok(!behind.$('news').hidden && !behind.sentOn(C.CHANGELOG_SEEN).length, 'painted with the window not in front: not yet seen');
+    front = true;
+    for (const fn of behind.window._listeners.focus || []) fn();
+    await settle();
+    ok(same(behind.sentOn(C.CHANGELOG_SEEN), [[C.CHANGELOG_SEEN, '9.1.0']]), 'the window brought to the front: seen then, once');
 
     // Held until the seal lifted: the push paints it then.
     const late = await openShell();

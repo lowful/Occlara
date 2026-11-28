@@ -33,7 +33,8 @@
  * update, on Home; updating and updatingsoon the updater downloading (with a
  * percent, and before main has one), on Matches; updateready "Restart to
  * update" on Home; barall both and the game picker on Matches, barnarrow the
- * same at the window's least width and barmid at 1100; updatefocus the
+ * same at the window's least width and barmid at 1100, homenarrow Home
+ * with both at the least width; updatefocus the
  * keyboard's ring on Restart to update. Scenes also take news, update and
  * sact (JS run in the bar's own document before the picture).
  */
@@ -115,6 +116,8 @@ const SCENES = {
   barnarrow: { page: 'matches', news: NEWS, update: { state: 'ready', version: '9.1.1' }, w: 960, h: 640 },
   barmid: { page: 'matches', news: NEWS, update: { state: 'ready', version: '9.1.1' }, w: 1100 },
   updatefocus: { page: 'matches', update: { state: 'ready', version: '9.1.1' }, sact: "document.getElementById('upd').focus(); true" },
+  // Home at the window's least width, What's new and the update ready.
+  homenarrow: { page: 'home', news: NEWS, update: { state: 'ready', version: '9.1.1' }, w: 960, h: 640 },
   // Mid match the bar shows neither, even were main to answer (leak).
   sealedbar: { page: null, sealed: true, coaching: true, live: 'live', leak: true, news: NEWS, update: { state: 'ready', version: '9.1.1' } },
 };

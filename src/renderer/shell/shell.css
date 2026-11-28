@@ -104,9 +104,11 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .bar-pill:where(:not(:disabled)):hover { background: color-mix(in srgb, var(--glass-fill-2), var(--text) 7%); border-color: var(--line-2); }
 /* An item of the right group arriving (the pills, Start leaving Home): it
    rises out of a small blur once, on the smooth spring. A keyframe, as a one
-   shot moment; its leaving is shell.js's (showBarItem). */
+   shot moment, a beat after the others start to make room for it, so it
+   never rises over one still gliding away; its leaving is shell.js's
+   (showBarItem). */
 @keyframes barIn { from { opacity: 0; transform: scale(0.94); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
-.bar-in { animation: barIn var(--dur-enter) var(--spring-smooth) both; }
+.bar-in { animation: barIn var(--dur-enter) var(--spring-smooth) 120ms both; }
 @media (prefers-reduced-motion: reduce) { .bar-in, .rec:not(.recording) { animation: none; } }
 
 /* WHAT'S NEW (9.1): the update line as a pill in the bar, on the bar's own
@@ -240,7 +242,7 @@ html.rec-still .upd.unsure .upd-arc, html.ambient-off .upd.unsure .upd-arc { ani
    gliding into place (shell.js flipBar). Back on another page it arrives
    again, once (barIn). */
 .app.home-page .rec:not(.recording) { display: none; }
-.rec:not(.recording) { animation: barIn var(--dur-enter) var(--spring-smooth) both; }
+.rec:not(.recording) { animation: barIn var(--dur-enter) var(--spring-smooth) 120ms both; }
 /* Mid match Stop is the Recording screen's (#live-stop); the bar keeps the
    pause button. So on the Recording view Start opens (9.1). */
 .app.sealed-live .toggle { display: none; }

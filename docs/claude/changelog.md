@@ -95,7 +95,8 @@ recording, mid match or sealed, and the line is pushed (`PUSH_CHANGELOG`)
 once from `flushAccountWaits`, the same wait as the cap's notice; the bar
 hides it while recording, sealed or on the Recording view besides. The bar
 tells main it was seen (`CHANGELOG_SEEN`) only once it is on screen with
-the window visible (`newsOnScreen`), which stores the version, so the next
+the window visible and in front (`newsOnScreen`: a window made hidden reads
+visible on its first load), which stores the version, so the next
 launch is quiet. Pressed, it opens What's new, which stores it too and takes
 the pill away at once (a null push). Home has no copy. `check:mainwindow`
 boots as an update and reads it in the bar; `test:shellbar` holds the pill.

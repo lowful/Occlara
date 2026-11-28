@@ -46,7 +46,7 @@ wins. What phase 1 changed, and what to keep true:
   See what's new") whole in its title, the version dropped under 1180px and
   the words under 1040 (the spark alone). Main's rules are unchanged
   (changelog.md, "The update line"); the bar marks it seen only with the
-  window on screen (`newsOnScreen`). Neither pill is ever on the bar while
+  window on screen and in front (`newsOnScreen`). Neither pill is ever on the bar while
   recording, sealed or on the Recording view (`barQuiet`, and shell.css hides
   them there too). Pictures: `scripts/shot-demo.js` news, updating,
   updatingsoon, updateready, barall, barmid, barnarrow and sealedbar. Tests:
