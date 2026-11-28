@@ -525,11 +525,14 @@ void main() {
     const opts = { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false, powerPreference: 'low-power' };
     let gl = null;
     try { gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts); } catch (e) { gl = null; }
-    if (!gl || software(gl)) return null;
+    if (!gl) return null;
+    // A context refused for this moon is let go at once, not left to the collector.
+    const refuse = () => { try { const x = gl.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); } catch (e) { /* gone */ } return null; };
+    if (software(gl)) return refuse();
     const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 0;
-    if (maxTex < TEX_W) return null;
+    if (maxTex < TEX_W) return refuse();
     const bake = program(gl, BAKE), draw = program(gl, DRAW);
-    if (!bake || !draw) return null;
+    if (!bake || !draw) return refuse();
 
     canvas.className = 'sky-moon-img sky-moon-gl';
     canvas.setAttribute('aria-hidden', 'true');
@@ -564,9 +567,9 @@ void main() {
       st.baked = false;
       return ok;
     }
-    if (!setup()) return null;
+    if (!setup()) return refuse();
 
-    /** One strip of the surface a frame, never while a match is recorded. */
+    /** One strip of the surface a frame, never while the shell is sealed. */
     function bakeStep() {
       st.bakeRaf = 0;
       if (st.lost || st.baked) return;
