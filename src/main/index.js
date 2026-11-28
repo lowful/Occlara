@@ -2443,6 +2443,7 @@ function onValorantMatchEnded(snap) {
   // The live rating's final of this match, kept for its review's confirmed
   // rating to be logged against (logLiveFinal). An import has none.
   if (!snap.importRun) { try { liveRating.end(snap.startedAt); } catch { /* nothing kept */ } }
+  feedSlow = false;   // the next match reads the corner again, right after the rating's end (test:liveratingwiring)
   // WHEN THE SCREEN SAW THIS MATCH START (9.1, the owner's item 15: when the
   // player plays): from the first round its ledger read, kept on the review
   // as watchedFrom (buildValorantReview), so a match never linked to Riot's
@@ -2459,7 +2460,6 @@ function onValorantMatchEnded(snap) {
       if (Number.isFinite(at) && at > 0) snap.watchedFrom = at;
     } catch { /* no start kept */ }
   }
-  feedSlow = false;   // the next match reads the corner again
   // Two reviews of one match only happen when it resumed: the newer one is the
   // whole match, and the older one goes, from the library too.
   const prior = reviewJobs.get(snap.startedAt);
