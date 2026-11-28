@@ -53,7 +53,9 @@
  * opened, practicetrainer the Trainer under Mechanics, practicesmall at 960 by
  * 640, practiceblank with no matches yet, practiceasked and practiceinplan
  * opened from a review, practicetrend a plan made before every sample match
- * with a log of seven marks, and trainerstill the arena its still is cut from.
+ * with a log of seven marks, and trainerstill the arena its still is cut from;
+ * practiceclip and practiceclipposter a focus's clip whose look kept no frame,
+ * before its Clips poster is made (the map's art) and after.
  */
 const { app, BrowserWindow, ipcMain, protocol, nativeImage } = require('electron');
 const path = require('path');
@@ -110,6 +112,11 @@ const SCENES = {
   practiceinplan: { page: 'practice', asked: { key: 'untraded', title: 'Deaths nobody traded' } },
   // A plan made before every sample match, so Is it working has something to say, and a log of seven marks.
   practicetrend: { page: 'practice', practiceState: 'old', h: 2400 },
+  // 9.1, the final critic: a focus's own clip whose look kept no frame, with
+  // no poster made yet (the map's art, dimmed, named) and with the Clips
+  // page's poster of it.
+  practiceclip: { page: 'practice', practiceClip: 'art' },
+  practiceclipposter: { page: 'practice', practiceClip: 'poster' },
   // The Trainer's arena alone, its panel hidden: the still Practice shows under Mechanics (src/renderer/practice/trainer-still.jpg).
   trainerstill: { page: 'trainer', settle: 3000, act: "(() => { const r = document.querySelector('.tr-item[data-id=\"site-preaim-easy\"]'); if (r) r.click(); setTimeout(() => { document.getElementById('detail').style.visibility = 'hidden'; }, 200); return true; })()" },
   clips: { page: 'moments' },
@@ -337,6 +344,34 @@ async function demoMedia(store, id, review) {
   return r;
 }
 
+/*
+ * A FOCUS'S OWN CLIP ON PRACTICE (9.1): round 3 of the newest sample match,
+ * counted in both of the plan's mistakes, given a look with a clip and no
+ * frame of the coach's, saved back to the run's store. `poster` also makes
+ * the Clips page's still of it, as services/clip-posters.js would.
+ */
+function practiceClip(store, id, withPoster) {
+  const ffmpeg = require('ffmpeg-static');
+  const { execFileSync } = require('child_process');
+  const e = store.get(id);
+  const r = JSON.parse(JSON.stringify(e.review));
+  const c = r.rounds.find((x) => x.n === 3);
+  if (c) c.forensics = { cause: 'isolated', what: 'You swung the angle alone.', better: 'Wait for a teammate before you swing.', source: 'riot', at: Date.now(), clip: 'r3-clip.mkv', clipDeath: 11000 };
+  store.save({ id, game: e.game, at: e.at, review: r });
+  if (!store.hasClip(id, 'r3-clip.mkv')) {
+    const out = path.join(os.tmpdir(), `occlara-demo-${process.pid}-r3-clip.mkv`);
+    execFileSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', '-loop', '1', '-i', path.join(ROOT, 'assets', 'valorant', 'maps', `${(r.game && r.game.map) || 'Abyss'}.jpg`),
+      '-vf', 'scale=1280:-2,format=yuv420p', '-t', '15', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-an', out]);
+    store.saveClip(id, 'r3-clip.mkv', fs.readFileSync(out));
+    try { fs.unlinkSync(out); } catch { /* temp */ }
+  }
+  if (withPoster && !store.poster(id, 'r3-clip.mkv')) {
+    const jpg = execFileSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-ss', '10.2', '-i', store.clipFile(id, 'r3-clip.mkv'), '-frames:v', '1',
+      '-vf', 'scale=480:-2', '-q:v', '5', '-f', 'image2', '-vcodec', 'mjpeg', 'pipe:1']);
+    store.savePoster(id, 'r3-clip.mkv', jpg);
+  }
+}
+
 function liveOf(kind) {
   if (!kind) return null;
   const startedAt = Date.now() - 24 * 60 * 1000;
@@ -498,6 +533,8 @@ app.whenReady().then(async () => {
     recent: (g) => (scene.blank ? [] : store.recent(g, patterns.LOOK_BACK)), summarise: (s) => patterns.summarise(s),
     band: () => null, riotId: () => '', busy: () => false, game: () => 'valorant', gameLabel: () => 'Valorant',
     open: () => {}, changed: () => {}, reviews: store,
+    // The Clips page's poster where one is made (index.js practicePoster), never made here on demand.
+    clipPoster: (id, name) => { const b = store.poster(id, name); return b ? `data:image/jpeg;base64,${b}` : null; },
   });
   const profileModel = require('../src/shared/profile');
   for (const [ch, fn] of Object.entries(handlers)) if (ch && ch !== 'undefined') ipcMain.handle(ch, async (e, ...a) => fn(e, ...a));
@@ -510,6 +547,7 @@ app.whenReady().then(async () => {
     if (!scene) { console.log(`skip ${name}: no such scene`); continue; }
     // The review's Practice this, answered by the page's first ask.
     if (scene.asked) practice.open(scene.asked.key, scene.asked.title);
+    if (scene.practiceClip) practiceClip(store, seeded.ids[0], scene.practiceClip === 'poster');
     if (scene.practiceState === 'old') {
       const day = 24 * 3600 * 1000;
       memo.set('practice', { v: 1, plans: { valorant: { madeAt: 1, focus: [

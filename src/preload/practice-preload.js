@@ -3,6 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const GAMES = require('../shared/games');
+const { mapArtOf } = require('../shared/agent-icons');
 const { pageMotion, subnav } = require('./page-motion');
 
 /**
@@ -39,6 +40,8 @@ contextBridge.exposeInMainWorld('occlara', {
   onReviews:   (cb) => subscribe(C.PUSH_REVIEWS, cb),
   onGame:      (cb) => subscribe(C.PUSH_GAME, cb),
   games:       () => GAMES.list(true).map((g) => ({ id: g.id, label: g.label })),
+  /** A map's bundled splash, for a clip with no picture of its own yet (9.1), as Clips shows it. */
+  mapArt:      (name) => { const r = mapArtOf(name); return r ? `../../../assets/${r}` : null; },
   go:          (page) => ipcRenderer.send(C.SHELL_NAV, page),
   close:       () => window.close(),
 });

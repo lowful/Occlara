@@ -40,6 +40,10 @@ const reviewClips = require('./review-clips');
  *                        frame), for the player's own clip of each mistake
  *                        (8.11, practice.js clipFor). Without it no clip is
  *                        shown and the page is as before.
+ * @param deps.clipPoster (id, clipName, atSec) => the Clips page's poster of a
+ *                        clip as a data URL, or null while it is made (index.js
+ *                        practicePoster asks for it once and tells the page
+ *                        when it lands). Optional.
  *
  * THE PLAYER'S OWN CLIP (8.11). Each mistake on the page carries the newest
  * clip kept of it, found by the Moments page's join over what is on disk
@@ -47,7 +51,9 @@ const reviewClips = require('./review-clips');
  * oldest clips whenever a new one is kept). Its URL is occlara-clip's
  * (clip-scheme.js urlFor), served from the reviews' own folders and nowhere
  * else; its frames are main's read (review-clips.js frameTimes); its poster
- * the look's own frame, as a data URL. Nothing a page hands in names a file.
+ * the look's own frame, as a data URL, else the Clips page's poster of the
+ * clip (deps.clipPoster), else none, and the page shows the map's art dimmed
+ * with a label (9.1). Nothing a page hands in names a file.
  */
 const LIBRARY = path.join(__dirname, '..', '..', 'shared', 'drill-library.json');
 const KEY = 'practice';
@@ -87,6 +93,7 @@ function createPractice(deps) {
         const b64 = typeof r.frame === 'function' ? r.frame(id, name) : null;
         return b64 ? `data:image/jpeg;base64,${b64}` : null;
       },
+      ...(typeof d.clipPoster === 'function' ? { clipPoster: (id, name, atSec) => d.clipPoster(id, name, atSec) } : {}),
     };
     return (key) => P.clipFor(saved, key, io);
   }

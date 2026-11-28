@@ -1366,7 +1366,7 @@ const clipPosters = require('./services/clip-posters').createPosters({
   store: reviewStore,
   ffmpeg: importVideo.ffmpegPath({ packaged: app.isPackaged, resourcesPath: process.resourcesPath }),
   busy: () => matchInProgress() || windowSealed(),
-  made: () => { registry.sendTo('moments', C.PUSH_REVIEWS, { posters: true }); reviewPostersLanded(); },
+  made: () => { registry.sendTo('moments', C.PUSH_REVIEWS, { posters: true }); reviewPostersLanded(); practicePostersLanded(); },
 });
 function withPosters(model) {
   if (!model || !Array.isArray(model.matches)) return model;
@@ -1408,6 +1408,32 @@ function reviewPostersLanded() {
     posters.push({ url: clipScheme.urlFor(w.id, w.name), poster });
   }
   if (posters.length) registry.sendTo('review', C.PUSH_CLIP_POSTERS, { id: shown, posters });
+}
+/*
+ * PRACTICE'S POSTERS (9.1, the final critic): a mistake's clip on the
+ * Practice page whose look kept no frame shows the same poster (practice.js
+ * clipFor), asked for once here where none is made yet; once one lands, the
+ * Practice page is told to ask again (it keeps a clip being watched across
+ * the repaint). Meanwhile the page shows the map's art, dimmed, with a label.
+ */
+const practicePosterWants = new Set();
+function practicePoster(id, name, atSec) {
+  const url = clipPosters.dataUrl(id, name);
+  if (url) return url;
+  practicePosterWants.add(`${id}/${name}`);
+  clipPosters.want(id, name, atSec);
+  return null;
+}
+function practicePostersLanded() {
+  if (!practicePosterWants.size) return;
+  let landed = false;
+  for (const key of practicePosterWants) {
+    const cut = key.indexOf('/');
+    if (clipPosters.dataUrl(key.slice(0, cut), key.slice(cut + 1))) { practicePosterWants.delete(key); landed = true; }
+  }
+  // Asked of a page that is gone or a clip that failed: let go, the next ask asks again.
+  if (!landed) practicePosterWants.clear();
+  if (landed) registry.sendTo('practice', C.PUSH_PRACTICE, null);
 }
 
 function setReviewJump(id, round) {
@@ -5877,6 +5903,8 @@ const practiceIpc = createPractice({
   // The player's own clip of each mistake (8.11): the clips kept beside each
   // review, their frames and the look's poster frame, read in main only.
   reviews: reviewStore,
+  // Where the look kept no frame, the Clips page's poster of the clip (9.1).
+  clipPoster: (id, name, atSec) => practicePoster(id, name, atSec),
   // The drill library, or a stand in for it in a dev run (check:mainwindow).
   ...(!app.isPackaged && process.env.OCCLARA_DRILLS ? { library: process.env.OCCLARA_DRILLS } : {}),
 });

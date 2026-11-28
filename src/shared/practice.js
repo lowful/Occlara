@@ -24,8 +24,9 @@
  * IS IT WORKING, honestly: for each focus, how many of the last WINDOW
  * recorded matches since the plan was made carried the mistake against the
  * WINDOW before them, as counts ("Down from 5 of 5 to 2 of 5"), never a
- * percentage or a claim beyond them, and "Not enough matches yet" under
- * ENOUGH matches since the plan. A match that could not have counted a Riot
+ * percentage or a claim beyond them, and under ENOUGH matches since the plan
+ * how many there are and how many more it needs ("1 match since the plan
+ * began, 2 more to tell if it is shrinking"). A match that could not have counted a Riot
  * only key (progress.js couldCount) is left out of both windows.
  *
  * EVERYTHING HERE IS LOCAL. The plan, the log and the streak live in the
@@ -55,6 +56,8 @@ const { validBand } = require('./rank-band');
 // the rounds a review counted the mistake in, and the clip kept of the death
 // there while it is on disk.
 const { mistakesAt, clipOf } = require('./moments');
+// Where in a clip the Clips page takes its poster: one rule for every page (clips.js).
+const { posterAt } = require('./clips');
 
 const SCHEMA = 1;
 const FOCUS_N = 2;      // mistakes in the plan
@@ -408,12 +411,18 @@ const recordedOf = (saved) => (Array.isArray(saved) ? saved : [])
 function progressOf(saved, key, since) {
   const all = recordedOf(saved).filter((s) => couldCount(s.review, key));
   const after = all.filter((s) => s.at >= (since || 0));
+  // Too few matches SINCE THE PLAN BEGAN, said in the row itself (9.1, the
+  // final critic): beside "In 4 of your last 4 recorded matches" a bare "Not
+  // enough matches yet" read as a contradiction, its real meaning only in the
+  // tooltip. The row says which matches it waits for and how many more.
   if (after.length < ENOUGH) {
     const n = after.length;
+    const more = ENOUGH - n;
     return {
-      enough: false, tone: 'even', trend: null, recent: null, before: null, text: 'Not enough matches yet',
-      over: n === 0 ? `After ${ENOUGH} matches since the plan, this says whether it is shrinking`
-        : `${n} of the ${ENOUGH} matches it needs since the plan`,
+      enough: false, tone: 'even', trend: null, recent: null, before: null,
+      text: n === 0 ? `No match since the plan began, ${ENOUGH} to tell if it is shrinking`
+        : `${n === 1 ? '1 match' : `${n} matches`} since the plan began, ${more} more to tell if it is shrinking`,
+      over: `Whether it is shrinking is read from the matches you play after the plan began, once there are ${ENOUGH}`,
     };
   }
   const recent = all.slice(0, Math.min(WINDOW, after.length));
@@ -469,7 +478,11 @@ function posterName(f) {
  * @param io.url     (id, name) => the URL the page plays it by
  * @param io.frames  (id, name) => its frames ({ times, end }), or none
  * @param io.poster  (id, frameName) => a picture URL of that frame, or none
- * @returns {{ url, name, death, frames, round, map, at, id, poster, title, line, label } | null}
+ * @param io.clipPoster  (id, clipName, atSec) => the Clips page's poster of
+ *                   that clip as a data URL, or none while it is made (asked
+ *                   for at atSec, clips.js posterAt); optional
+ * @returns {{ url, name, death, frames, round, map, at, id, poster, posterOf, title, line, label } | null}
+ *          posterOf: 'frame' (the coach's), 'clip' (the Clips poster) or null (none yet, the page shows the map's art)
  */
 function clipFor(saved, key, io) {
   const o = io || {};
@@ -493,14 +506,25 @@ function clipFor(saved, key, io) {
       if (!clip) continue;
       const g = review.game || {};
       const map = typeof g.map === 'string' && g.map ? clean(g.map, 40) : null;
+      // ITS PICTURE (9.1, the review's own chain, review.js clipPicture): the
+      // coach's frame, else the poster the Clips page makes of the clip
+      // (main's clipPosters, asked for once where none is made yet), else
+      // none, and the page shows the map's art dimmed with a label. Never an
+      // empty box.
       let poster = null;
+      let posterOf = null;
       const pn = posterName(f);
       if (pn && typeof o.poster === 'function') {
         try { poster = o.poster(s.id, pn) || null; } catch { poster = null; }
+        if (poster) posterOf = 'frame';
+      }
+      if (!poster && typeof o.clipPoster === 'function') {
+        try { poster = o.clipPoster(s.id, clip.name, posterAt({ death: clip.death })) || null; } catch { poster = null; }
+        if (poster) posterOf = 'clip';
       }
       return {
         url: clip.url, name: clip.name, death: clip.death, frames: clip.frames,
-        round: c.n, map, at: s.at, id: s.id, poster,
+        round: c.n, map, at: s.at, id: s.id, poster, posterOf,
         title: 'Your newest clip of this mistake',
         line: map ? `Round ${c.n} on ${map}` : `Round ${c.n}`,
         label: `The clip of round ${c.n}`,

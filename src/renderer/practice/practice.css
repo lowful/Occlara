@@ -102,6 +102,15 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .pc-clip-tile:hover { border-color: var(--line-2); transition-duration: var(--dur-hover-in); }
 .pc-clip-poster { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform var(--dur-slow) var(--spring-smooth); }
 .pc-clip-tile:hover .pc-clip-poster { transform: scale(1.03); }
+/* No picture of the clip yet (9.1): the map's art, dimmed as Clips dims it,
+   and the map named in the corner, so the tile is never an empty box. */
+.pc-clip-tile.art .pc-clip-art { opacity: 0.28; filter: grayscale(0.4); }
+.pc-clip-tag {
+  position: absolute; left: 8px; top: 8px; z-index: 1;
+  padding: 3px 7px; border-radius: var(--r-frame); background: var(--scrim-chip);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
+  color: var(--text-2); white-space: nowrap; max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis;
+}
 .pc-clip-mark {
   position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px;
   display: grid; place-items: center;

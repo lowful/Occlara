@@ -162,7 +162,7 @@ function openClip(box, c, play) {
   cap.append(el('span', 'pc-label', c.title), el('span', 'pc-clip-line', c.at ? `${c.line}, ${fmtDay(c.at)}` : c.line));
   box.append(cap);
   if (!window.ClipPlayer || typeof window.ClipPlayer.create !== 'function') return;
-  const p = window.ClipPlayer.create({ url: c.url, death: c.death, frames: c.frames || null, label: c.label, poster: c.poster || null });
+  const p = window.ClipPlayer.create({ url: c.url, death: c.death, frames: c.frames || null, label: c.label, poster: c.poster || mapArt(c.map) || null });
   box.append(p.el);
   if (!play) return;
   // Grown in place from the tile: the whole player brought into view.
@@ -178,7 +178,30 @@ function openClip(box, c, play) {
   }
 }
 
-/** The tile: the look's own frame with the play mark, the round, map and day under it. Null with no clip. */
+/*
+ * A CLIP'S PICTURE BEFORE IT PLAYS (9.1, the review's own chain, review.js
+ * clipPicture): main's poster, the coach's frame or else the Clips page's
+ * still of the clip (practice.js clipFor); with neither yet, the map's art
+ * dimmed, as Clips shows it, with the map named on it, so the tile is never
+ * an empty box. A picture that fails to load falls back to the art, and the
+ * label stays whatever happens.
+ */
+const mapArt = (map) => (map && typeof api.mapArt === 'function' ? api.mapArt(map) : null);
+function artOn(tile, c) {
+  tile.classList.add('art');
+  const src = mapArt(c.map);
+  if (src) {
+    const img = el('img', 'pc-clip-poster pc-clip-art');
+    img.alt = '';
+    img.decoding = 'async';
+    img.addEventListener('error', () => img.remove());
+    img.src = src;
+    tile.prepend(img);
+  }
+  if (!tile.querySelector('.pc-clip-tag')) tile.append(el('span', 'pc-clip-tag', c.map || `Round ${c.round}`));
+}
+
+/** The tile: its picture with the play mark, the round, map and day under it. Null with no clip. */
 function clipBlock(c) {
   if (!c || !c.url) return null;
   const kept = openClips.get(c.url);
@@ -193,9 +216,11 @@ function clipBlock(c) {
     const img = el('img', 'pc-clip-poster');
     img.alt = '';
     img.decoding = 'async';
-    img.addEventListener('error', () => img.remove());
+    img.addEventListener('error', () => { img.remove(); artOn(tile, c); });
     img.src = c.poster;
     tile.append(img);
+  } else {
+    artOn(tile, c);
   }
   const mark = el('span', 'pc-clip-mark');
   mark.append(playMark('pc-clip-icon'));

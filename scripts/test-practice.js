@@ -345,9 +345,12 @@ const series = (after, before) => [
 ];
 {
   let p = P.progressOf(series([], [true, true]), KEY, day(0));
-  ok(!p.enough && p.text === 'Not enough matches yet' && p.over === 'After 3 matches since the plan, this says whether it is shrinking', 'no match since the plan: not enough matches yet', JSON.stringify(p));
+  ok(!p.enough && p.text === 'No match since the plan began, 3 to tell if it is shrinking' && p.over === 'Whether it is shrinking is read from the matches you play after the plan began, once there are 3',
+    'no match since the plan: the row says it waits for matches since the plan began, never a bare "not enough" beside the count', JSON.stringify(p));
   p = P.progressOf(series([true, false], [true]), KEY, day(0));
-  ok(!p.enough && p.text === 'Not enough matches yet' && p.over === '2 of the 3 matches it needs since the plan', 'two since the plan: still not enough, and says how many', p.over);
+  ok(!p.enough && p.text === '2 matches since the plan began, 1 more to tell if it is shrinking', 'two since the plan: still too few, and the row says how many and how many more', p.text);
+  p = P.progressOf(series([true], [true]), KEY, day(0));
+  ok(!p.enough && p.text === '1 match since the plan began, 2 more to tell if it is shrinking', 'one since the plan: one match, said in the singular', p.text);
   p = P.progressOf(series([false, true, false, false, true], [true, true, true, true, true]), KEY, day(0));
   ok(p.enough && p.trend === 'down' && p.tone === 'good' && p.text === 'Down from 5 of 5 to 2 of 5' && p.over === 'Your last 5 matches against the 5 before',
     'down: the counts as they are', JSON.stringify(p));
@@ -435,6 +438,19 @@ const posterIs = (c, id, name) => c && c.poster === `data:image/jpeg;base64,${Bu
   const nf = P.clipFor([noFrames], CK, clipIo(disk));
   ok(nf && nf.poster === null && nf.death === null, 'a look with no frames has no poster, and a clip with no place for the death has none either');
   ok(P.clipFor([newer], CK, { ...clipIo(disk), poster: () => null }).poster === null, 'and a frame gone from disk is no poster, the clip still shown');
+  // 9.1, the final critic: the review's own chain, the coach's frame, else the Clips page's poster, else none (the page shows the map's art).
+  const wants = [];
+  const clipsPoster = (id, name, atSec) => { wants.push({ id, name, atSec }); return `data:image/jpeg;base64,${Buffer.from(`clips:${id}/${name}`).toString('base64')}`; };
+  const own = P.clipFor([newer], CK, { ...clipIo(disk), clipPoster: clipsPoster });
+  ok(posterIs(own, cid(1), 'r7-a.jpg') && own.posterOf === 'frame' && !wants.length, 'POSTER CHAIN: the coach\'s frame first, the Clips poster never asked for');
+  const fromClips = P.clipFor([noFrames], CK, { ...clipIo(disk), clipPoster: clipsPoster });
+  ok(fromClips && fromClips.poster === `data:image/jpeg;base64,${Buffer.from(`clips:${cid(1)}/r3-clip.mkv`).toString('base64')}` && fromClips.posterOf === 'clip'
+    && wants.length === 1 && wants[0].name === 'r3-clip.mkv' && wants[0].atSec === 1,
+  'no frame of the coach\'s: the Clips page\'s poster of that clip, asked for at its own rule (clips.js posterAt)', JSON.stringify(wants));
+  const lost = P.clipFor([newer], CK, { ...clipIo(disk), poster: () => null, clipPoster: (id, name, atSec) => { wants.push({ id, name, atSec }); return null; } });
+  ok(lost && lost.poster === null && lost.posterOf === null && wants[wants.length - 1].atSec === 10.2 && lost.map === 'Ascent',
+    'neither yet: no poster, the map named for the page\'s art, and the poster asked for just before the death', JSON.stringify(wants[wants.length - 1]));
+  ok(P.clipFor([noFrames], CK, { ...clipIo(disk), clipPoster: () => { throw new Error('ffmpeg'); } }).poster === null, 'a Clips poster that throws is none, the clip still shown');
   ok(P.clipFor([newer], CK, null) === null && P.clipFor([newer], null, clipIo(disk)) === null && P.clipFor(null, CK, clipIo(disk)) === null,
     'with nothing to ask, nothing is shown, never a throw');
   ok(P.clipFor([newer], CK, { ...clipIo(disk), clips: () => { throw new Error('disk'); } }) === null, 'and a disk that throws is no clip');
@@ -630,7 +646,7 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     const blocks = q.document.querySelectorAll('.pc-focus');
     ok(blocks.length === 2 && blocks[0].querySelector('.pc-focus-title').textContent === 'Deaths nobody traded'
       && blocks[0].querySelector('.pc-count').textContent === 'In 6 of your last 6 recorded matches', 'YOUR FOCUS: two mistakes at the top, each with its count', blocks.length);
-    ok(blocks.every((b) => b.querySelector('.pc-trend') && /Not enough matches yet/.test(b.querySelector('.pc-trend').textContent) && b.querySelector('.pc-trend').classList.contains('wait')),
+    ok(blocks.every((b) => b.querySelector('.pc-trend') && /^No match since the plan began, 3 to tell if it is shrinking$/.test(b.querySelector('.pc-trend').textContent) && b.querySelector('.pc-trend').classList.contains('wait')),
       'IS IT WORKING beside each, honest with no match since the plan');
     ok(blocks.every((b) => /^Fix /.test(b.querySelector('.pc-fix').textContent)), 'and its fix under it');
     // THE THREE GROUPS (9.1): Mechanics with the Trainer, Game sense, Awareness.
@@ -851,6 +867,26 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     await settle(10);
     ok(!q.document.querySelectorAll('.pc-clip').length && !open.querySelector('video').getAttribute('src'),
       'and once no clip is kept the tile goes, the open one let go');
+    // NEVER AN EMPTY BOX (9.1, the final critic): a clip with no picture of
+    // its own yet shows the map's art, dimmed, with the map named on it.
+    const artView = JSON.parse(JSON.stringify(v));
+    artView.focus.find((f) => f.key === 'untraded').clip.poster = null;
+    const qa = loadSurface('practice', { handlers: { [C.STATE_GET]: () => ({ gameId: 'valorant' }), [C.PRACTICE_GET]: () => artView } });
+    await settle(10);
+    const artTile = qa.document.querySelectorAll('.pc-focus').find((b) => b.dataset.key === 'untraded').querySelector('.pc-clip-tile');
+    const artImg = artTile && artTile.querySelector('img.pc-clip-art');
+    ok(artTile && artTile.classList.contains('art') && artImg && /assets\/valorant\/maps\/Bind\.jpg$/.test(artImg.src)
+      && artTile.querySelector('.pc-clip-tag').textContent === 'Bind' && artTile.querySelector('.pc-clip-mark'),
+    'NO POSTER YET: the map\'s art under the play mark, marked as art (dimmed), and the map named on it', artImg && artImg.src);
+    const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'practice', 'practice.css'), 'utf8');
+    ok(/\.pc-clip-tile\.art \.pc-clip-art \{[^}]*opacity:\s*0\.28/.test(css), 'the art is dimmed as the Clips page dims it');
+    // A poster that fails to load falls back to the same art and label.
+    const posterView = JSON.parse(JSON.stringify(v));
+    const qp = loadSurface('practice', { handlers: { [C.STATE_GET]: () => ({ gameId: 'valorant' }), [C.PRACTICE_GET]: () => posterView } });
+    await settle(10);
+    const pTile = qp.document.querySelectorAll('.pc-focus').find((b) => b.dataset.key === 'untraded').querySelector('.pc-clip-tile');
+    qp.fire(pTile.querySelector('.pc-clip-poster'), 'error');
+    ok(pTile.classList.contains('art') && pTile.querySelector('img.pc-clip-art') && pTile.querySelector('.pc-clip-tag'), 'a poster that fails to load gives way to the art and its label, never an empty box');
     // Without the review store wired, the page is as it was.
     const bare = mk(false).get('valorant');
     ok(bare.focus.every((f) => f.clip === null), 'without the review store handed in, no clip, and the page as before');

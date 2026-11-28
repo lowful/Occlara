@@ -1390,7 +1390,14 @@ sent anywhere; the page says so at its foot.
   handed (`deps.reviews`, index.js `practiceIpc`: `reviews: reviewStore`;
   without it no clip, the page as before): the URL is `clip-scheme.js urlFor`,
   the frames `review-clips.js frameTimes`, the poster the look's own frame
-  nearest the death from before it as a data URL, and the words main's ("Your
+  nearest the death from before it as a data URL, else (9.1, the review's own
+  chain, `review.js clipPicture`) the Clips page's poster of the clip
+  (`deps.clipPoster`, index.js `practicePoster`: asked for once at `clips.js
+  posterAt` where none is made, and the page told to ask again when it lands,
+  `practicePostersLanded`), else none, `posterOf` saying which; with none the
+  tile shows the map's art dimmed as Clips dims it, the map named in its
+  corner (`.pc-clip-tile.art`, `.pc-clip-tag`), and a poster that fails to
+  load gives way to the same, so the tile is never an empty box. The words main's ("Your
   newest clip of this mistake", "Round 7 on Ascent", "The clip of round 7").
   Nothing the page hands in names a file. The page draws a tile beside the
   mistake (9.1: `.pc-aside` > `.pc-clip`, the poster with the play mark and
@@ -1426,8 +1433,12 @@ sent anywhere; the page says so at its foot.
   "Up from 1 of 5 to 3 of 3", "Same, 2 of 5 both times", "Same rate, 2 of 4
   against 1 of 2", "Nothing earlier to compare yet" (quiet, the count in its
   title) when every recorded match is since the plan, since the line beside it
-  already says how often and a second count in bold said it twice, and "Not
-  enough matches yet" under three since the plan. A match that
+  already says how often and a second count in bold said it twice, and under
+  three since the plan how many there are and how many more it needs, "No
+  match since the plan began, 3 to tell if it is shrinking", "1 match since
+  the plan began, 2 more to tell if it is shrinking" (9.1, the final critic: a
+  bare "Not enough matches yet" beside "In 4 of your last 4 recorded matches"
+  read as a contradiction, its meaning only in the tooltip). A match that
   could not count a Riot only key (`progress.js couldCount`, now exported) is in
   neither window. Since 9.1 it sits beside each mistake at the top, no section
   of its own; the days practiced in a row and the minutes in all sit quietly
