@@ -291,6 +291,21 @@ async function open(review, handlers) {
     ok(v.$('v-hl-round').textContent === 'Round 17, 4K' && v.$('v-hl-video').hasAttribute('muted') && v.$('v-hl-video').hasAttribute('loop'),
       'its line is Riot\'s facts of the round, and it is muted and looping', v.$('v-hl-round').textContent);
     ok(/\.vd\.has-hl > \.vd-agent \{ display: none; \}/.test(read('src/renderer/review/review.css')), 'in the agent\'s place');
+    // 9.1 fix: the round's row holds its highlight's clip, so the line at the
+    // top opens a round with something in it (it opened a bare line).
+    const row17 = v.$('round-17');
+    const body17 = row17.querySelector('.v-round-body');
+    const player17 = row17.querySelector('.v-hl-moment video');
+    ok(row17.classList.contains('fold') && !row17.classList.contains('quiet') && body17 && body17.hidden && player17
+      && player17.getAttribute('src') === `occlara-clip://review/${ID}/h17-clip.mkv`
+      && row17.querySelector('.v-fold').getAttribute('aria-label') === 'Round 17, show the highlight'
+      && row17.querySelector('.v-hl-moment .v-look-what').textContent === '4K',
+    'a round whose highlight was kept folds to its line, its clip and "4K" in it', row17.className);
+    ok(!v.$('round-11').querySelector('.v-hl-moment'), 'a highlight whose clip is not on disk adds nothing to its row');
+    v.$('v-hl-round').click();
+    ok(!body17.hidden && row17.classList.contains('open') && v.document.activeElement === row17, 'the best highlight\'s line opens its round, the clip there');
+    const bareRow = (await open(sample())).$('round-17');
+    ok(bareRow.classList.contains('quiet') && !bareRow.querySelector('.v-hl-moment'), 'with nothing kept the round stays one quiet line');
     // The order is clips.js highlightRank's.
     // A card says whether the player died in its round; these lived unless told.
     const R = (n, kills, clutch, extra) => ({ n, died: false, riot: { kills, clutch: clutch || null }, highlight: { clip: `h${n}-clip.mkv`, clipUrl: `u${n}`, kills: [] }, ...extra });

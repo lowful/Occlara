@@ -513,6 +513,32 @@ function highlightTitle(c) {
   else if (kills === 1) parts.push('a kill');
   return parts.join(', ');
 }
+/*
+ * THE ROUND'S HIGHLIGHT IN ITS ROW (9.1): where a highlight's clip was kept,
+ * its player under the round's own words, its kills and its cuts marked on
+ * the timeline (clip-player.js, 8.17), beside the same line of Riot's facts
+ * the hero's card says ("4K", "An ace"). So the best highlight's line at the
+ * top, and Clips' way into a round, open a row with its clip in it. Null
+ * with none kept.
+ */
+function highlightPart(c) {
+  const h = c && c.highlight;
+  if (!h || typeof h.clipUrl !== 'string' || !h.clipUrl || !window.ClipPlayer) return null;
+  const box = el('div', 'v-moment has-clip v-hl-moment');
+  const media = el('div', 'v-media');
+  media.append(window.ClipPlayer.create({
+    url: h.clipUrl, label: `The highlight of round ${c.n}`, frames: h.clipFrames,
+    kills: Array.isArray(h.kills) ? h.kills : [], cuts: Array.isArray(h.cuts) ? h.cuts : [],
+  }).el);
+  const side = el('div', 'v-advice');
+  const tag = el('div', 'v-look-tag');
+  tag.append(el('span', 'gv-fix-label', 'Your highlight'));
+  const words = highlightTitle(c).split(', ').slice(1).join(', ');
+  side.append(tag);
+  if (words) side.append(el('p', 'v-look-what', words.charAt(0).toUpperCase() + words.slice(1)));
+  box.append(media, side);
+  return box;
+}
 const hl = { url: null, user: null, inView: true, watch: null, stall: null };
 const HL_STALL_MS = 8000;
 function paintHighlight(r) {
@@ -1267,7 +1293,9 @@ function roundRow(r, c, frames) {
   const chain = chainEl(c.chain);
   // A flagged death's clip and Further explain (8.13).
   const extra = deathExtras(r, c);
-  const row = el('article', 'v-round' + (f || why || killerOnly || chain || extra ? '' : ' quiet'));
+  // The round's highlight, where its clip was kept (9.1, highlightPart).
+  const hlPart = highlightPart(c);
+  const row = el('article', 'v-round' + (f || why || killerOnly || chain || extra || hlPart ? '' : ' quiet'));
   row.id = `round-${c.n}`;
   const head = el('div', 'v-round-head');
   // The number is the row's anchor (8.7): a click brings the row into view
@@ -1294,7 +1322,7 @@ function roundRow(r, c, frames) {
     head.append(mark);
   }
   row.append(head);
-  if (!f && !why && !killerOnly && !chain && !extra) {
+  if (!f && !why && !killerOnly && !chain && !extra && !hlPart) {
     const facts = factsOf(c, 'span');
     if (facts) head.append(facts);
     return row;
@@ -1311,8 +1339,12 @@ function roundRow(r, c, frames) {
     said.append(chain);
     if (plain) said.append(plain);
   }
-  // The flagged clip and Further explain sit under the row's own words.
-  const parts = [said, extra].filter(Boolean);
+  // The flagged clip and Further explain sit under the row's own words, the
+  // round's highlight last.
+  const parts = [said, extra, hlPart].filter(Boolean);
+  // A row whose highlight is all it has folds to its line until asked (9.1):
+  // six open players down the page would bury the rounds.
+  const onlyHl = !said && !extra && !!hlPart;
   /*
    * A ROUND NOT OPEN IS ONE LINE UNTIL ASKED (8.7): served() opens a round
    * with a look or a why, or one of the top mistake's, and the rest of the
@@ -1320,7 +1352,7 @@ function roundRow(r, c, frames) {
    * opened by a click anywhere on the line or the chevron's own key. A row
    * served before there was `open` is open.
    */
-  if (c.open === false) {
+  if (c.open === false || onlyHl) {
     const facts = factsOf(c, 'span');
     if (facts) head.append(facts);
     if (eye) head.append(eye);
@@ -1333,7 +1365,7 @@ function roundRow(r, c, frames) {
     more.setAttribute('aria-expanded', 'false');
     more.setAttribute('aria-controls', body.id);
     more.setAttribute('aria-label', killerOnly ? `Round ${c.n}, show what killed you`
-      : said ? `Round ${c.n}, show what the coach said` : `Round ${c.n}, show Further explain`);
+      : said ? `Round ${c.n}, show what the coach said` : extra ? `Round ${c.n}, show Further explain` : `Round ${c.n}, show the highlight`);
     head.append(more);
     row.classList.add('fold');
     head.addEventListener('click', (e) => {
