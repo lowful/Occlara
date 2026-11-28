@@ -330,8 +330,12 @@
         dot.setAttribute('cy', cy.toFixed(1));
       }
       host.classList.add('tc-active');
+      // Shown from nothing, the card appears where it belongs; it glides
+      // only from match to match, never in from where it last was.
+      const fresh = tip.hidden;
       tip.replaceChildren(tipOf(points[i], opts.now));
       tip.hidden = false;
+      if (fresh) tip.style.transition = 'none';
       // Beside the dot, on whichever side has room, and over it unless that
       // leaves the top.
       const tw = tip.offsetWidth || 180, th = tip.offsetHeight || 96;
@@ -339,6 +343,7 @@
       const left = right ? cx + 14 : Math.max(0, cx - 14 - tw);
       const top = Math.max(0, Math.min(geo.h - th, cy - th / 2));
       tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+      if (fresh) { void tip.offsetWidth; tip.style.transition = ''; }
       if (say) live.textContent = sayOf(points[i], opts.now);
     }
 
