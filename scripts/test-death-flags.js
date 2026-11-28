@@ -191,6 +191,20 @@ ok(reviewClips.namedClips(saved).includes('r3-clip.mkv'), 'and a late link keeps
   ok(parsed.explain.instead.startsWith('Fall back'), 'the fix stands');
   ok(serverExplain.refusal('You can see the angle was open.', input, input.death) === 'sight', 'with no picture it claims no sight');
   ok(serverExplain.parse('no json', input).explain === null, 'a reply that is not JSON is nothing');
+  // UTILITY THE PLAYER'S OWN AGENT DOES NOT HAVE (9.1, the final critic): the
+  // look's own gate (death-forensics.js ownUtility) over Further explain too.
+  const THROW = 'Hold the angle from cover or throw a flash before you peek A Main.';
+  const explainTo = (agent, extra) => serverExplain.normalise({ agent, map: 'Sunset', language: 'en', source: 'riot', ...(extra || {}),
+    death: { n: 3, side: 'attacking', sec: 18, killer: 'Cypher', weapon: 'Vandal', traded: false, frames: [] } });
+  const asked = (agent, text, extra) => serverExplain.parse(JSON.stringify({ happened: 'You swung A Main alone.', why: 'Nobody could trade you.', instead: text }), explainTo(agent, extra));
+  const jett = asked('Jett', THROW);
+  ok(jett.explain.instead === THROW.replace('throw a flash', "wait for a teammate's flash") && jett.explain.happened === 'You swung A Main alone.' && !jett.dropped.length,
+    `OWN KIT: "throw a flash before you peek" to a Jett is "wait for a teammate's flash", the rest as written (${jett.explain.instead})`);
+  ok(asked('Phoenix', THROW).explain.instead === THROW, 'KEPT: the same line to a Phoenix, whose Curveball is a flash');
+  ok(asked('Jett', 'Use a flash from a teammate before you peek A Main.').explain.instead === 'Use a flash from a teammate before you peek A Main.',
+    'KEPT: a flash already asked of a teammate');
+  ok(asked('Jett', 'Lanza un flash antes de asomarte.', { language: 'es' }).explain.instead === 'Lanza un flash antes de asomarte.', 'KEPT: another language, which the gate cannot read');
+  ok(asked(null, THROW).explain.instead === THROW, 'KEPT: no agent known, nothing judged');
   ok(forensics.normalise({ deaths: Array.from({ length: 7 }, (_, i) => ({ n: i + 1, frames: ['x'.repeat(2000)] })) }, { maxDeaths: 6 }).deaths.length === 6, 'a flagging client may send six looks');
   ok(forensics.normalise({ deaths: Array.from({ length: 7 }, (_, i) => ({ n: i + 1, frames: ['x'.repeat(2000)] })) }, {}).deaths.length === 4, 'every other client stays at four');
 

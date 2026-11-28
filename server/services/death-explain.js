@@ -10,6 +10,15 @@
  * on defence, the kit, a player's name), and a sentence that fails is dropped,
  * never rewritten. With no picture, one that speaks of seeing goes too. The
  * economy is out of scope, as it is for Ask Coach.
+ *
+ * UTILITY THE PLAYER'S OWN AGENT DOES NOT HAVE (9.1, the final critic): the
+ * look's own gate (death-forensics.js ownUtility, fact-gates.js
+ * ownUtilityFix) over each sentence that stood the rest, the one sentence a
+ * gate here may reword, exactly as the look and the review do: "throw a flash
+ * before you peek" to a Jett, whose kit has none, becomes "wait for a
+ * teammate's flash"; one the gate cannot turn is dropped. A sentence already
+ * asking a teammate, naming an owner, said to an agent who has it, in another
+ * language or with no agent known is left as written.
  */
 
 const forensics = require('./death-forensics');
@@ -121,7 +130,11 @@ function parse(raw, input) {
       if (!s) continue;
       if (!/[.!?]$/.test(s)) s += '.';
       const why = refusal(s, input, d);
-      if (why) dropped.push({ field, why }); else kept.push(s);
+      if (why) { dropped.push({ field, why }); continue; }
+      // The player's own kit (forensics.ownUtility): asked of a teammate, or dropped.
+      const own = forensics.ownUtility(s, input);
+      if (own && own.drop) { dropped.push({ field, why: 'own-utility' }); continue; }
+      kept.push(own && own.rewrite ? own.rewrite : s);
     }
     out[field] = kept.join(' ').slice(0, FIELD_MAX) || null;
   }
