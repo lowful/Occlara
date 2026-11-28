@@ -205,11 +205,35 @@ const check = (p, what) => {
   const la = matchProgress(linkedAgain, linkedAgain[0].id);
   ok(la.cleared.some((c) => c.key === 'first-death' && c.streak === 2), 'two verified matches without it still clear it');
   const partial = rv(1, 70, { verified: false, mistakes: [early] });
-  partial.review.rounds = [{ n: 1, verified: true }, { n: 2, verified: false }];
+  // Three rounds at least, as a match whose lists could count anything has (9.1, listsCounted).
+  partial.review.rounds = [{ n: 1, verified: true }, { n: 2, verified: false }, { n: 3, verified: false }];
   const mixed = [rv(0, 70, { mistakes: [early] }), partial, ...unlinked.slice(2)];
   ok(matchProgress(mixed, mixed[0].id).cleared.some((c) => c.key === 'first-death' && c.streak === 2),
     'and one with Riot\'s rounds laid over some of it counts');
   check(p, 'cleared');
+  // 9.1, the owner's Home: two recordings stopped after two rounds (no grade,
+  // no list, as the two Haven ones are) counted as matches "without" dying
+  // early, and three real matches read as "5 recorded matches in a row".
+  const rounds = (n) => Array.from({ length: n }, (_, i) => ({ n: i + 1, verified: true }));
+  const stub = (i) => { const x = rv(i, null, { verified: false }); x.review.rounds = rounds(2); return x; };
+  const real = (i, mistakes) => { const x = rv(i, 70, { mistakes }); x.review.rounds = rounds(13); return x; };
+  const dying = m('early', 3, { title: 'Dying in the first 30 seconds' });
+  const home = [stub(0), real(1, []), stub(2), real(3, []), real(4, []), real(5, [dying]), real(6, [dying])];
+  const h1 = matchProgress(home, home[1].id).cleared.find((c) => c.key === 'early');
+  ok(h1 && h1.streak === 3, `the three real matches are the streak, the two short recordings passed over (${JSON.stringify(h1)})`);
+  ok(matchProgress(home, home[0].id).cleared.length === 0 && matchProgress(home, home[2].id).cleared.length === 0,
+    'and a recording that counted nothing clears nothing itself');
+  const hm = libraryProgress(home).marks;
+  ok((hm[home[1].id] || []).some((x) => x.kind === 'cleared' && x.text === '3 without Dying in the first 30 seconds')
+    && !Object.values(hm).some((xs) => xs.some((x) => /^5 without/.test(x.text))),
+  `the library marks 3 without it on the newest real match, never 5 (${JSON.stringify(hm)})`);
+  ok(!require('../src/shared/progress').couldCount(stub(0).review, 'early') && require('../src/shared/progress').couldCount(real(1, []).review, 'early'),
+    'couldCount: a two round recording could count no key, Practice\'s "Is it working?" included');
+  // A streak is without the key: one named from a match goes by its general title (insights.repeatTitle).
+  const killer = (a) => m('same-killer', 3, { title: `${a} kept winning`, agent: a });
+  const named = [real(0, []), real(1, []), real(2, [killer('Reyna')]), real(3, [killer('Omen')])];
+  const nk = matchProgress(named, named[0].id).cleared.find((c) => c.key === 'same-killer');
+  ok(nk && nk.title === 'One enemy agent kept winning', `"without Reyna kept winning" of a key that counted Reyna and Omen is "without One enemy agent kept winning" (${JSON.stringify(nk)})`);
 }
 
 // ── Focus ─────────────────────────────────────────────────────────────────

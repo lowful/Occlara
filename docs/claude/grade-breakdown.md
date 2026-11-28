@@ -199,7 +199,16 @@ as `milestone` (home-model.js). Main serves it as `PROGRESS_GET` (index.js
 `lost-advantage` and `untraded` are counted on verified rounds only, so a
 recorded match the Riot link never reached (no round verified) holds none of
 them whatever happened, and two such matches said "2 recorded matches in a
-row without First to die". **The average leaves a provisional grade out**
+row without First to die". **A recording too short to count is no match
+without anything** (9.1, `listsCounted`): insights.js counts nothing under
+three rounds, and two Haven recordings stopped after two rounds made Home say
+"5 recorded matches in a row without Dying in the first 30 seconds" over three
+real matches. A review with fewer than three rounds clears nothing, a streak
+passes over it, the focus compares with the recorded match before it that
+counted its lists, and `couldCount` is false for it (Practice's "Is it
+working?" too). A cleared key named from one match ("Reyna kept winning")
+goes by its general title (`repeatTitle`, "One enemy agent kept winning"),
+since the streak is without the key. **The average leaves a provisional grade out**
 once `MIN_MATCHES` final grades are in its window, as `breakdown.js gradeOf`
 does; with fewer it is every grade's and flagged provisional. In progress
 `vsAverage` carries `of` and `left`, and a line with grades left out says

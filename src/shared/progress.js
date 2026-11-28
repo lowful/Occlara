@@ -61,7 +61,7 @@
  */
 
 const { WINDOW, MIN_MATCHES } = require('./patterns');
-const { countable } = require('./insights');
+const { countable, repeatTitle } = require('./insights');
 const grade = require('./grade');
 
 /** Graded matches a best needs before it. */
@@ -105,7 +105,20 @@ const isRecorded = (s) => !!(s && s.review && s.review.source !== 'riot');
 const RIOT_KEYS = new Set(['first-death', 'lost-advantage', 'untraded', 'low-headshots']);
 const riotReached = (review) => !!(review && (review.verified === true
   || (Array.isArray(review.rounds) && review.rounds.some((r) => r && r.verified === true))));
-const couldCount = (review, key) => !RIOT_KEYS.has(key) || riotReached(review);
+/*
+ * A RECORDING TOO SHORT TO COUNT ANYTHING IS NO MATCH "WITHOUT" A MISTAKE
+ * (9.1, the owner's Home): insights.js counts nothing under three rounds, and
+ * two Haven recordings stopped after two rounds each, no grade and no list,
+ * made Home say "5 recorded matches in a row without Dying in the first 30
+ * seconds" over three real matches. A review whose rounds are fewer than
+ * that could count no key, and a streak passes over it (clearedOf), as it
+ * passes over a match graded from Riot's record alone. A review with no
+ * rounds field at all says nothing either way and counts as before.
+ */
+const LIST_FLOOR = 3;
+const listsCounted = (review) => !review || !Array.isArray(review.rounds)
+  || review.rounds.filter((r) => r && typeof r === 'object').length >= LIST_FLOOR;
+const couldCount = (review, key) => listsCounted(review) && (!RIOT_KEYS.has(key) || riotReached(review));
 const isValorant = (s) => !!(s && s.review && (s.review.kind === 'valorant' || s.game === 'valorant'));
 
 /** The counted, unjudged mistakes of one review, by key: { key: { title, count } }. */
@@ -168,10 +181,19 @@ function runOf(graded, at) {
  * one of the streak, which ends at this match. Over WINDOW recorded matches.
  */
 function clearedOf(recorded, at) {
-  const reviews = recorded.slice(at, at + WINDOW).map((s) => s.review);
+  // A recording that counted nothing clears nothing, and a streak passes over one (listsCounted).
+  if (!recorded[at] || !listsCounted(recorded[at].review)) return [];
+  const reviews = recorded.slice(at).map((s) => s.review).filter(listsCounted).slice(0, WINDOW);
   const span = reviews.map(counted);
   const keys = new Map();
-  for (const m of span.slice(1)) for (const e of m.values()) if (!keys.has(e.key)) keys.set(e.key, e.title);
+  // A streak is without the KEY, so a key named from one match ("Reyna kept
+  // winning", "Dying at B Main") goes by its general title, as a count across
+  // matches does (insights.repeatTitle): the owner's library said "3 without
+  // Reyna kept winning" of a key that had counted five different agents (9.1).
+  const general = (key, title) => {
+    try { return repeatTitle(key, 'mistakes', { title }, new Set(['a', 'b'])).title || title; } catch { return title; }
+  };
+  for (const m of span.slice(1)) for (const e of m.values()) if (!keys.has(e.key)) keys.set(e.key, general(e.key, e.title));
   const out = [];
   for (const [key, title] of keys) {
     // A match that could not have counted the key ends the streak (RIOT_KEYS).
@@ -188,6 +210,8 @@ function clearedOf(recorded, at) {
 /** Last recorded match's top counted mistake, and how many times it came back. */
 function focusOf(me, prev) {
   if (!me || !prev || !me.review.verified || !prev.review.verified) return null;
+  // A recording too short to count a list has no "now" for the mistake (listsCounted).
+  if (!listsCounted(me.review) || !listsCounted(prev.review)) return null;
   const top = [...counted(prev.review).values()].find((e) => num(e.count) !== null && e.count > 0);
   if (!top) return null;
   const mine = counted(me.review).get(top.key);
@@ -284,7 +308,9 @@ function matchProgress(saved, id) {
     const recorded = all.filter(isRecorded);
     const rAt = recorded.indexOf(s);
     out.cleared = clearedOf(recorded, rAt);
-    const prev = recorded[rAt + 1] || null;
+    // The recorded match before it that counted its lists: a recording stopped
+    // after two rounds has no top mistake to follow (listsCounted).
+    const prev = recorded.slice(rAt + 1).find((x) => listsCounted(x.review)) || null;
     out.focus = focusOf(s, prev);
     // "Last match's" only when it was the match just before; a match graded
     // from Riot's record alone in between makes it the last RECORDED one.
