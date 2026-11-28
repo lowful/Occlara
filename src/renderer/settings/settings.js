@@ -530,7 +530,9 @@ const UPDATE_TEXT = {
   checking:    'checking for updates...',
   current:     'up to date',
   downloading: (v) => `downloading ${v}...`,
-  ready:       (v) => `${v} ready, restart to apply`,
+  // 9.1: the bar's updater installs it (its "Restart to update"), so the
+  // line says where, in the bar's own words.
+  ready:       (v) => `${v} ready, restart to update from the bar`,
   offline:     'could not reach the update server',
   dev:         'dev build',
   idle:        '',

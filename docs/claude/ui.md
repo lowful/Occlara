@@ -1512,7 +1512,8 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   A check finding the version already downloaded leaves it ready, a newer one
   supersedes it (the control goes back to downloading for that one), and a
   failed check never hides one that is ready. Settings' version line reads the
-  same status (`APP_VERSION`, now with `percent`).
+  same status (`APP_VERSION`, now with `percent`) and says a ready one in the
+  bar's words, "9.1.1 ready, restart to update from the bar" (`test:surfaces`).
 - Channels: `UPDATE_GET`, `UPDATE_INSTALL`, `PUSH_UPDATE` (to the bar alone,
   `registry.sendTo('main')`). Tests: `test:updater` (the module on stand ins)
   and `test:shellbar` (the control's states on the real shell). Pictures:

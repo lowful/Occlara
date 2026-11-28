@@ -3500,6 +3500,24 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(connected.shown && /Gold 2/.test(connected.text), 'connected, it is, with its rank', JSON.stringify(connected));
   });
 
+  // THE VERSION LINE (9.1, the owner's item 22): a downloaded update is
+  // installed from the bar's updater, "Restart to update", so Settings says
+  // so in the bar's words, never "restart to apply".
+  await section('Settings, the version line names the bar\'s updater:', async () => {
+    const se = loadSurface('settings', {
+      handlers: {
+        [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', devGames: false }),
+        [C.LICENSE_GET]: () => ({}), [C.STATE_GET]: () => ({}),
+        [C.APP_VERSION]: () => ({ current: '9.1.0', state: 'ready', version: '9.1.1' }),
+      },
+    });
+    await settle();
+    const line = se.$('update-state').textContent;
+    const bar = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.js'), 'utf8');
+    ok(line === '9.1.1 ready, restart to update from the bar' && se.$('update-state').classList.contains('new') && /'Restart to update'/.test(bar),
+      'a downloaded update: ready, restart to update from the bar, the words of the bar\'s own control', line);
+  });
+
   // RECORD MATCH VIDEO (8.3): On or Off, as the player asked for a setting
   // that toggles recording, stored as the 'auto' and 'off' it shipped with.
   // Turned off by itself it says so, with a way to try again, and main can
