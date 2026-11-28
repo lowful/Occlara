@@ -419,6 +419,43 @@ Only full time is announced (a live region of its own). Under reduced motion
 it opens at full time. A page hidden stops it. A window under 720 wide puts
 the feed under the badge; one under 720 high tightens the stage.
 
+**Since 9.1 the replay is a player** (the owner's item 16, rating-view.js):
+- pause and play (the larger button, Space or K), the previous and the next
+  event (the arrows, or J and L), Home to kick off, End to full time, and a
+  round on its line clicked goes to that round's first event. Every step is
+  drawn whole from the steps before it (`render(i)`), so a step back is as
+  true as a step on: the line, the score, the number, the move, the label,
+  the feed's last four, the swings' dots of the rounds ended. A step taken
+  by hand is announced ("Round 7, First kill, 5v5, +3. Match rating 64."),
+  the steps it plays by itself are not, full time is. "Round won" shows the
+  round's score with it, not a step after. Esc and a click on the ground go
+  to full time and then close, as before; any other key does nothing. At
+  full time play is Watch again; the previous event steps back from it.
+- THE MOMENT beside the badge (16:9): what was kept of the current event on
+  this PC, by `review.js mediaOf(e, role, nth)`: the player's death, the
+  round's death clip from 1.8 s before the death (the coach's look, else a
+  flagged death's), else the look's frame nearest before it; the player's
+  kill, the round's highlight clip at that kill (its nth of the round, on
+  the clip's own timeline). An event with its clip holds 2.8 s while it
+  plays, one with a frame 1.8 s. With nothing kept the match's map shows,
+  dimmed, under "No clip or frame of this moment was kept". At full time the
+  match's best highlight loops there. The clip plays only while the replay
+  does and is let go when it closes.
+- WHAT AN EVENT WAS (`roleOf`): the opening of rating.js's own words, death
+  ("Died", "Killed by a teammate", "Your ultimate ran out"), kill ("First
+  kill", "Kill", "Traded a teammate"), assist, plant, defuse, revive, traded,
+  teamkill; `end` by its kind; anything else none. `test:reviewpage` holds
+  every label on the four sample matches to a role, and each round's kills
+  by role to Riot's count. A new label in rating.js with a new opening needs
+  its line in `ROLES`.
+- The stage is two columns (the badge, the event's words and the feed; the
+  moment) to 980 wide, one under 760. It sits outside the page's scroll.
+
+**Every round's line** in "Round by round" carries its move (9.1, item 16,
+`review.js placeMove`): the engine's label of the round, grey, and the
+round's move on the 100 scale, from `ratingView.rounds`, whose moves add up
+to the match (60 and the moves is the number shown).
+
 **Matches and Home were left alone**: neither has an obvious slot for one
 more number beside the grade and the RR chip.
 
