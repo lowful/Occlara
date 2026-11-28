@@ -524,8 +524,9 @@ result): a League moment is named by its death and its clock (`lolOf`,
 `placeOf`, `clipTitle`): its frame says "At 5:10", the hero has no round,
 the delete confirm says "your death at 5:10 on Summoner's Rift", the player
 "Ahri on Summoner's Rift: Death 2 at 5:10", and no label says round. A match
-with no result shows none (never "No result"), League's kind capsule and
-highlights count are not drawn, and its sub line says deaths only. THE
+with no result shows none (never "No result"), League's kind capsule, the
+kind word on its rows and its highlights count are not drawn, and its sub
+line says deaths only. THE
 FILTERS offer no choice of one: a dropdown whose matches all hold one value
 (or none) is hidden unless it is the one chosen, and the row goes when
 nothing is left in it; a repeated mistake chosen under Highlights takes the
@@ -536,12 +537,14 @@ and a match's grade is `GradeView.scoreBadge` (its tone, dashed while
 provisional, the grade's name and tip as its title). THE PLAYER FITS THE
 PAGE: `.mo-pl-panel` is no wider than the height left over its chrome
 (`--pl-chrome`) allows at 16:9, so at 960 by 640 the title, Close, the line
-and the controls stay on screen; the veil scrolls if it still cannot fit.
+and the controls stay on screen (shot-demo `clipsplayer960`); the veil
+scrolls if it still cannot fit, and it is the theme's `--scrim`, so no word
+of the page reads through the line and the buttons, which have no card.
 After a delete the keyboard lands on the same moment's row (still listed,
 its clip gone) or the hero that took the deleted one's place, never the
 body, also when main's push repaints a moment later (`refocus`). With the
 drive under the recorder's floor, the warning also shows under the page's
-title (`#mo-low`), not only a press away, and a drive is "drive C", never
+title (`#mo-low`, shot-demo `clipslow960`), not only a press away, and a drive is "drive C", never
 "C:," before a comma. Every keyboard ring on the page is `--accent-2`, as on
 every `.btn` (`check:palette` lists the rule).
 
@@ -1192,7 +1195,11 @@ sent anywhere; the page says so at its foot.
   (`reason`); a group the plan leaves empty takes one drill for the next
   repeated mistake of its kind, unfinished, else one drill for every player
   ("For every player, as nothing of this kind repeats in your matches"); with
-  no plan at all, two for every player in each ("For every player"). A drill
+  no plan at all, two for every player in each, the rows carrying no reason
+  (the empty card above says once that they help every player; a row saying
+  "For every player" six times was the clutter item 17 named). A drill that
+  starts from a review (the library's `needs: "review"`, "Play the review's
+  one fix") is not offered before the first recorded match. A drill
   shows once on the page, four at most in a group. THE TRAINER sits first
   under Mechanics (`.pc-trainer`, `trainerView`): "Aim trainer", what it is, a
   real still of its own arena (`trainer-still.jpg`, cut from the Trainer page
@@ -1223,9 +1230,14 @@ sent anywhere; the page says so at its foot.
 - **A drill row, opening in place** (9.1): closed, a row (`.pc-drill`, its
   head an `h4` holding a button with `aria-expanded` and `aria-controls`):
   the place's glyph, the title, WHY IT IS HERE (`.pc-reason`: the mistake's
-  coral dot, its title and "In 4 of your last 6 matches", or the line for
-  every player), the place and minutes in mono, how far along ("1 of 3",
-  "Practiced today" in green, "Finished") and a chevron. WHAT TO DO IS ONE
+  coral dot, its title and "In 4 of your last 6 recorded matches", the one
+  phrasing the page has for the count, or the line for every player). The
+  reason runs as text with the dot inline inside the title (`.pc-r-title >
+  .pc-r-dot`), so a long title wraps under itself and never leaves the dot
+  alone on a line. Then the place and minutes in mono, how far along ("1 of 3",
+  "Practiced today" in green, "Finished") in a column of a fixed 112px, and a
+  chevron pinned to the last column, so the meta, the state and the chevron
+  line up down a card whether a row has progress or not. WHAT TO DO IS ONE
   STEP AWAY: a press opens it in place (`.pc-d-body`, a one row grid from 0fr
   to 1fr on the smooth spring, the words fading in a moment behind it, all
   transitions so a second press mid way reverses; closed it is
@@ -1280,8 +1292,10 @@ sent anywhere; the page says so at its foot.
 - **Is it working?** For each focus, the last five recorded matches since the
   plan against the five before them, as counts: "Down from 5 of 5 to 2 of 5",
   "Up from 1 of 5 to 3 of 3", "Same, 2 of 5 both times", "Same rate, 2 of 4
-  against 1 of 2", "In 2 of your 3 matches since the plan" with nothing before
-  it, and "Not enough matches yet" under three since the plan. A match that
+  against 1 of 2", "Nothing earlier to compare yet" (quiet, the count in its
+  title) when every recorded match is since the plan, since the line beside it
+  already says how often and a second count in bold said it twice, and "Not
+  enough matches yet" under three since the plan. A match that
   could not count a Riot only key (`progress.js couldCount`, now exported) is in
   neither window. Since 9.1 it sits beside each mistake at the top, no section
   of its own; the days practiced in a row and the minutes in all sit quietly
@@ -1290,7 +1304,17 @@ sent anywhere; the page says so at its foot.
   newest five and Show all (9.1).
 - **Empty states**: League shows the panel naming the game; no drill library a
   calm line and the log; no matches yet and no repeated mistakes yet each say
-  why and show the `general` drills at the band. Without a Riot ID the band line
+  why and show the `general` drills at the band. THE SUB LINE under the title
+  is main's (`planView sub`), true of what the page shows: "Drills picked from
+  what keeps repeating in your matches." only with a plan, "Drills for every
+  player, until a mistake repeats in your matches." without one, and none for
+  League or with no drill library. The privacy line names a plan only when
+  there is one.
+- **The page scrolls as one** (9.1, as Clips does for item 12): the sheet
+  scrolls, title and sub line included, under an 18px sticky fade
+  (`.sheet::before`), so nothing is sliced at the edge of a fixed title.
+  `.body` does not scroll; a script that scrolls the page sets the
+  `.sheet`'s `scrollTop`. Without a Riot ID the band line
   says the drills fit every level, with Connect your Riot ID (Settings).
 - **Home's line**: "Today's practice: <drill>, 20 minutes" under the Fix card
   (`#h-practice`, `PRACTICE_TODAY`), the first unfinished drill of the first

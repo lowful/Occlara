@@ -250,6 +250,11 @@ const SCENES = {
   // The keyboard's ring on the hero's play mark, then on a clip's more button.
   clipsfocus: { page: 'moments', clips: 'rich', storage: 'some', act: "document.querySelector('#mo-hero .mo-hplay').focus(); true" },
   clipsfocus2: { page: 'moments', clips: 'rich', storage: 'some', act: "(() => { const b = document.querySelectorAll('#mo-list .mo-row .mo-more')[0]; b.closest('.mo-row').scrollIntoView({ block: 'center' }); b.focus(); return true; })()" },
+  // After the 9.1 review: the player at the window's least, whole (its title,
+  // Close, the line and the controls on screen), and the drive too full to
+  // record said under the title at the same size.
+  clipsplayer960: { page: 'moments', clips: 'rich', storage: 'some', video: true, w: 960, h: 640, act: "document.querySelector('#mo-hero .mo-hplay').click(); true", after: 2500 },
+  clipslow960: { page: 'moments', clips: 'rich', storage: 'low', w: 960, h: 640 },
 };
 
 /** A rank history whose newest rated game is `r.tier` at `r.rr` RR, the last game `r.change` (rank-tiers.js: elo is the place times 100 plus the RR). */
