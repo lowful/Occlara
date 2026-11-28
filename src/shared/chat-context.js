@@ -728,7 +728,7 @@ function oldText(game, at, review) {
   if (typeof sl.kills === 'number') lines.push(`Scoreline ${sl.kills}/${sl.deaths}/${sl.assists}${sl.acs ? `, ACS ${sl.acs}` : ''}.`);
   const gr = r.grade;
   if (gr && gr.score !== null && gr.score !== undefined) {
-    lines.push(`Grade ${gr.score} of 100${gr.provisional ? ', provisional' : ''}: `
+    lines.push(`Grade ${gr.score}${gr.provisional ? ', provisional' : ''}: `
       + (gr.categories || []).filter((c) => c.score !== null).map((c) => `${c.label} ${c.score} (${c.evidence.join('; ')})`).join('. ') + '.');
   }
   const ins = r.insights || {};
