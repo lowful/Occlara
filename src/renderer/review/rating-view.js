@@ -370,9 +370,11 @@
         try { v.currentTime = start; } catch (err) { /* not seekable yet */ }
         syncVideo();
       };
-      v.classList.add('loading');
       v.onseeked = () => v.classList.remove('loading');
       v.onerror = () => { if (run && run.mediaKey === key) { fig.classList.remove('has-clip'); $('rt-r-cap').textContent = NONE_KEPT; } };
+      // Another clip is held out until it shows its frame; the next kill in the
+      // same clip is a cut within it, as the game's own.
+      if (v.dataset.src !== m.clip) v.classList.add('loading');
       if (v.dataset.src !== m.clip) {
         v.dataset.src = m.clip;
         v.onloadedmetadata = go;
