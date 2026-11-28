@@ -55,10 +55,15 @@ reversal, kept as narrow as that choice allows.
   the same Stop as the bar's), "Your review opens when the match ends.", and
   at the foot the player's own choice of what shows. The map's art behind the
   card went (the sky is the ground) and so did the locked ring beside it.
-  ORBIT-SPEC.md asks for Stop to glow-pulse and the dot to breathe; this rule
-  holds them still (Stop's inset glow at its midpoint, the dot plain), and the
-  moon and stars behind are drawn once, still, never drawn mid match (an image
-  already kept is put up). Changing that is the owner's call.
+  ORBIT-SPEC.md asks for Stop to glow-pulse and the dot to breathe; THE OWNER
+  DECIDED (28 Nov 2026) THE RECORDING SCREEN NEVER PULSES: Stop's inset glow
+  is still at its midpoint, the dot plain, and the moon and stars behind are
+  drawn once, still, never drawn mid match (an image already kept is put up).
+  `npm run test:recordingstill` holds it from the CSS: nothing on the screen
+  repeats an animation, the dot and Stop name none, and the one keyframe is
+  the screen's arrival. The review's "Review ready" card (ui.md) is never on
+  this screen: it waits for the seal to lift and the review's page to be
+  shown, like the reveal it leads.
 - `check:mainwindow` plays a match by and holds the screen to the four facts
   and the tape, and to none of the HP, credits, players alive, spot and spike
   the reader's context also held.

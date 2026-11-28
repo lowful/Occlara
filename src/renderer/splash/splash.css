@@ -1,12 +1,18 @@
 /* Launch animation, about 2.4s (MIN_MS in splash-window.js; check:splash
    holds it).
 
-   The moon comes out of its own shadow, once. The shade, the inner disc of
-   the mark held in a mask, starts a little larger than the moon and on top of
-   it, so nothing shows; it drifts 18 units up and to the right and shrinks to
-   its own radius, so a sliver lights at the lower left and grows to the
-   crescent: occlusion lifting, which is the name. Then the name settles under
-   it. Nothing rotates, pulses or loops. */
+   ORBIT (Nov 2026): the app's icon come alive. The card is the icon's own
+   ground (assets/splash/ground.png: the indigo falling to the indigo black,
+   its haze at the top left, a few faint stars), and the moon is the icon's
+   glass crescent. It comes out of its own shadow, once: the shade, the inner
+   disc of the mark held in a mask, starts a little larger than the moon and
+   on top of it, so nothing shows; it drifts 18 units up and to the right and
+   shrinks to its own radius, so a sliver lights at the lower left and grows
+   to the crescent: occlusion lifting, which is the name. As it comes to rest
+   its indigo glow settles under it, then the name settles under both.
+   Nothing rotates, pulses or loops. The pictures are drawn by
+   scripts/generate-icon.js, because the splash draws no gradient and runs no
+   script of its own. */
 
 html, body {
   margin: 0;
@@ -23,33 +29,29 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  gap: 24px;
 
-  /* A CARD, not a pool.
-     This was a radial ellipse fading to fully transparent at 100%, meant to
-     mask the edge of a transparent window. It did that, and it also ate the
-     corners: measured over a light desktop the centre read rgb(11,12,12) while
-     all four corners read EXACTLY the desktop behind them, so a square window
-     rendered as an oval blob.
-
-     It now matches every other surface in the app: a 10px transparent gutter so
-     --shadow-win has room to fall, an 18px radius like .panel, and a solid --bg
-     fill. The window is square, so the card is square. */
+  /* A CARD, not a pool: a 10px transparent gutter so --shadow-win has room to
+     fall, Orbit's card radius, and the icon's ground filling it. A radial
+     fade to transparent once ate the corners over a light desktop, so the
+     ground is a picture that fills the card to its edges. */
   margin: 10px;
   height: calc(100% - 20px);
-  border-radius: 18px;
-  background: var(--bg);
+  border-radius: var(--r-card);
+  background: var(--bg) url('../../../assets/splash/ground.png') center / cover no-repeat;
   border: 1px solid var(--line);
   box-shadow: var(--shadow-win);
-  /* The fade-out starts AFTER the last beat lands, not during it. */
-  animation: stageIn 380ms var(--ease) both, stageOut 320ms 2080ms var(--ease) forwards;
+  overflow: hidden;
+  /* The fade out starts AFTER the last beat lands, not during it. */
+  animation: stageIn 380ms var(--ease-out) both, stageOut 320ms 2080ms var(--ease-out) forwards;
 }
 
-@keyframes stageIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes stageIn  { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
 @keyframes stageOut { to { opacity: 0; } }
 
-/* White on near black needs no glow. */
-.mark { color: var(--text); display: block; }
+/* The glass needs no glow of CSS's: its own settles under it (.glow). The
+   colour is the fallback a missing picture leaves, the ink. */
+.mark { color: var(--text); display: block; overflow: visible; }
 
 /* The shade: from over the whole moon to its place. SVG geometry is CSS here
    (cx, cy, r), in the mark's own units. The markup carries the END state, so
@@ -60,24 +62,30 @@ html, body {
   to   { cx: 77.738px; cy: 51px; r: 42px; }
 }
 
+/* The glow under the crescent, settling in as the moon comes to rest. */
+.glow { opacity: 0; animation: glowIn 700ms 1050ms var(--ease-out) forwards; }
+@keyframes glowIn { to { opacity: 1; } }
+
+/* The name: Onest 700 on the wordmark's tracking, as the bar sets it. */
 .wordmark {
   color: var(--text);
   font-family: var(--font);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: var(--track-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.045em;
   line-height: 1;
   opacity: 0;
   animation: wordIn 600ms 900ms var(--ease-expo) forwards;
 }
 @keyframes wordIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(6px); filter: blur(4px); }
+  to   { opacity: 1; transform: none; filter: none; }
 }
 
-/* Reduced motion: the finished mark and name, in and out, nothing moving. */
+/* Reduced motion: the finished mark, its glow and the name, in and out, nothing moving. */
 @media (prefers-reduced-motion: reduce) {
   .stage { animation: stageIn 200ms both, stageOut 300ms 1600ms linear forwards; }
   .shade { animation: none; }
+  .glow { animation: none; opacity: 1; }
   .wordmark { animation: none; opacity: 1; }
 }

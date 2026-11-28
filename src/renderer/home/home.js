@@ -336,19 +336,51 @@ function paintHero(model) {
   $('h-fix-head').textContent = fix ? fix.head : has ? 'Your last match is graded.' : 'Play one match and your first fix lands here.';
   $('h-fix-sub').textContent = fix ? fix.sub : has ? 'Open its review for every round.' : '';
   $('h-open').hidden = !has;
-  // The agent in front of the moon: the last match's, the bundled portrait.
+  // The agent in front of the moon: the last match's, standing (its full
+  // portrait), or its head icon in the ring when there is no portrait.
   const host = $('h-agent');
-  const src = has && model.art && model.art.last ? model.art.last.agent : null;
-  if ((host.dataset[AGENT_KEY] || '') !== (src || '')) {
+  const art = has && model.art && model.art.last ? model.art.last : null;
+  const full = art ? art.full || null : null;
+  const face = art ? art.agent || null : null;
+  const key = `${full || ''}|${face || ''}`;
+  if ((host.dataset[AGENT_KEY] || '') !== key) {
+    host.dataset[AGENT_KEY] = key;
+    putAgent(host, full, face);
+  }
+}
+
+/*
+ * THE AGENT, STANDING (Orbit): the full portrait (assets/agents-full, cut to
+ * the figure, sync:agentportraits) in front of the moon's lit limb, fading in
+ * once it has decoded and floating slowly (motion.css m-drift, still while a
+ * match is recorded, the window is hidden or less motion is asked for). A
+ * portrait that fails to load gives way to the head icon in its ring, and an
+ * icon that fails too leaves nothing.
+ */
+function putAgent(host, full, face) {
+  const ring = () => {
     host.replaceChildren();
-    host.dataset[AGENT_KEY] = src || '';
-    const img = portrait(src, 'h-agent-face m-drift', '');
+    host.classList.remove('full');
+    const img = portrait(face, 'h-agent-face m-drift', '');
     if (img) {
       img.addEventListener('error', () => { host.hidden = true; });
       host.append(img);
     }
-  }
-  host.hidden = !host.querySelector('img');
+    host.hidden = !host.querySelector('img');
+  };
+  if (!full) { ring(); return; }
+  host.replaceChildren();
+  host.classList.add('full');
+  const img = document.createElement('img');
+  img.className = 'h-agent-full m-drift';
+  img.alt = '';
+  img.decoding = 'async';
+  img.draggable = false;
+  img.addEventListener('load', () => img.classList.add('ready'), { once: true });
+  img.addEventListener('error', ring, { once: true });
+  img.src = full;
+  host.append(img);
+  host.hidden = false;
 }
 $('h-open').addEventListener('click', () => { if (lastId) window.occlara.openReview(lastId); });
 

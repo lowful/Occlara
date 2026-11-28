@@ -4,9 +4,18 @@ What is in this folder, and where each file comes from.
                   shows it through an <img>, which is why it carries
                   color="#F5F5F7" on its root (an SVG in an img is its own
                   document, and currentColor would be black there).
-  icon.png        512x512, the crescent on its rounded #0A0B0E tile.
+  icon.png        512x512, Orbit's tile: a glass crescent on an indigo black
+                  squircle (scripts/generate-icon.js, ORBIT).
   icon.ico        The same tile at 16 20 24 32 40 48 64 96 128 256: the
                   installer, the taskbar and Explorer (package.json "icon").
+                  Glass from 64, the plain crescent on the ground at 32 to 48,
+                  and a crisp flat crescent in #9AA8FF on #14132A at 16 to 24.
+  splash/         The splash's three pictures, drawn by generate-icon.js from
+                  the same circles: ground.png (the icon's ground and a few
+                  stars), glass.png (the whole disc lit as the icon's crescent,
+                  which the splash's mask reveals) and glow.png (the indigo
+                  glow under the crescent). The splash draws no gradient and
+                  runs no script, so its glass is these.
   tray-dark.ico   The crescent alone in #F5F5F7, for a dark taskbar, at
                   16 20 24 32 40 48 (100 to 300% scaling). src/main/tray.js
                   picks it or tray-light.ico by the taskbar's theme.
@@ -18,6 +27,13 @@ What is in this folder, and where each file comes from.
                   500 for eyebrows and columns of digits; Geist 400 to 800,
                   kept for Wrapped, whose own look names it. Bundled so the
                   app renders offline (theme.css loads them).
+  agents-full/    Each Valorant agent's full portrait, cut to the figure and
+                  720 pixels tall, WebP with its transparency, written by npm
+                  run sync:agentportraits from valorant-api.com (about 1.6 MB
+                  for all of them). Home's hero and the review's show the
+                  player's agent in front of the moon (shared/agent-portraits.js);
+                  the head icon in valorant/agents is the fallback. Never used
+                  by the Trainer, which ships nothing of Riot's.
   games/          Valorant's and League's own logos, the source of the game
                   picker's (shared/game-logos.js inlines their paths).
   lol/champions/  League's champion icons, written by npm run sync:lol.

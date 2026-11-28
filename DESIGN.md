@@ -206,11 +206,32 @@ match the whole sky is behind the Recording screen, the moon resting low and sti
   opens when the match ends.", with the player's own choice of what shows at its foot.
 - **Home** (`home/`): the sky; the fix for the next match as the hero, split at its
   colon into a headline and a grey sub line, Start and Open last review and the line
-  that the review opens when the match ends, the last match's agent (the bundled
-  portrait, round, in its orbit ring) floating in front of the moon; the bento of the
-  last match, the trend and what repeats; the moment the coach looked at beside the
-  rank; the recent matches.
-- **The review's hero** (`review/`): see `docs/claude/ui.md`, "The review's hero".
+  that the review opens when the match ends, the last match's agent standing in front
+  of the moon (its full portrait, `assets/agents-full`; the head icon in its orbit ring
+  where there is none), floating slowly; the bento of the last match, the trend and
+  what repeats; the moment the coach looked at beside the rank; the recent matches.
+- **The review's hero** (`review/`): see `docs/claude/ui.md`, "The review's hero": the
+  sky behind it, the agent standing at its right as on Home.
+
+## Built on feat/orbit-art (phase 2, Nov 2026)
+
+- **Review ready**, the signature: as the review's loading screen gives way to the
+  whole review, the loading screen falls away, a card drops in on the gentle spring
+  (the app's icon, "Review ready", the grade and how it moved on the last match), holds
+  a beat and opens into the review, which grows out of its corners; then the count,
+  the stamp and the medals. Only once the review is whole and on screen, never mid
+  match, never under less motion (`docs/claude/ui.md`, "REVIEW READY").
+- **The app icon**: a glass crescent on an indigo black squircle (exponent 5), lit from
+  its top left, with its indigo glow, from 64px; the crescent and ground alone at 32 to
+  48; a crisp flat crescent in `#9AA8FF` on `#14132A` at 16 to 24. The tray stays the
+  flat crescent in the ink or the ground. All drawn by `scripts/generate-icon.js`.
+- **The splash**: the icon come alive. Its ground, the glass disc its mask reveals and
+  the glow under the crescent are pictures the same script draws (`assets/splash`),
+  since the splash draws no gradient and runs no script; the moon waxes out of its
+  shadow, the glow settles, "Occlara" lands in Onest 700. **The dock** arrives and
+  floats on Orbit's motion.
+- **The Recording screen never pulses** (the owner's decision): Stop's glow and the dot
+  are still, held by `test:recordingstill`.
 
 ## What never to do
 

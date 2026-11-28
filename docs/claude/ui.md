@@ -38,27 +38,68 @@ wins. What phase 1 changed, and what to keep true:
   localStorage, which every page shares; it is never drawn mid match.
 - **The Recording screen** is one centred column over the sky (screen-silence.md).
 - **Home** is the fix as the hero (split at its colon into a headline and a grey
-  sub line), Start and Open last review, the last match's agent floating in
-  front of the moon (the bundled 256px icon, round: the app ships no full
-  portrait), then the bento of the last match, the trend (the grade line, its
-  own card now) and what repeats, then the moment the coach looked at beside
-  the rank, then the recent matches.
+  sub line), Start and Open last review, the last match's agent STANDING in
+  front of the moon (its full portrait, below), then the bento of the last
+  match, the trend (the grade line, its own card now) and what repeats, then
+  the moment the coach looked at beside the rank, then the recent matches.
 - **The review's hero**: the grade's number at 132px with its letter, "out of
   100" and the change on the last match (`.vd-delta`, from main's progress),
   the medals (`paintMedals`: real facts only, main's own, never another
   player's name), the fix in two tones, and Ask about this match (`#ask`, moved
   out of the header) beside Every round. The result reads in sentence case.
+  Behind a Valorant review and its loading screen is the sky (`review.js
+  paintSky`, shared/sky.js, put up only once the page is on screen, its top
+  fading out of the bar, sliding up at 0.6 of the page's scroll), and the
+  agent stands at the hero's right. League keeps the plain ground.
 - **Phase 2, every other page** (DESIGN.md, "What is built"): the page head is
   the title at the display size and a grey sub line (`.page-sub`, the header's
   last child; Matches and Patterns set theirs from `matches.js SECTION_SUBS`), one
   hero per page, groups as cards with a mono eyebrow, no card inside a card. The
   Moments page is titled Clips everywhere the player sees it (`shell-nav.js`
   label, its title, its window title); its id, files and channels keep moments.
+- **THE AGENT'S FULL PORTRAIT (Orbit phase 2).** `npm run sync:agentportraits`
+  (`scripts/sync-agent-portraits.js`, plain node and the bundled ffmpeg) takes
+  every playable agent's `fullPortrait` from valorant-api.com, cuts it to its
+  drawn pixels and writes `assets/agents-full/<Agent>.webp`, 720px tall with
+  its alpha, 1.55 MB for all 30; `test:agentportraits` holds every agent the
+  data knows, the size, the alpha, the budget, and that the Trainer asks for
+  none (it ships nothing of Riot's). `shared/agent-portraits.js` names the
+  path (`portraitOf`, `portraitOfIcon` from a head icon's path, a Riot ID or a
+  name the data does not know gets nothing); Home's preload gives the last
+  match's as `art.last.full`, the review's preload `agentPortrait(icon)`. Both
+  pages fade it in once decoded, float it on `m-drift` (still while a match is
+  recorded, the window is hidden or less motion is asked) and fall back to the
+  head icon in its ring when it fails to load. TRAP: the WebP is written to a
+  file, never a pipe: ffmpeg's muxer writes the RIFF size by seeking back, a
+  pipe leaves it 0, and Chromium refuses the picture while every other
+  decoder shows it (the test holds the RIFF size to the file's length).
+- **REVIEW READY, the signature (Orbit phase 2, `review.js readyFirst`).** As the
+  loading screen gives way to the whole review (the `wasBuilding` branch, so
+  only once its work is null: Riot's record laid over and the read rewritten,
+  the link given up, or the screen's own review done), the loading screen
+  falls away (`ghostBuilding`), a card drops in on the gentle spring, the
+  app's icon, "Review ready" and the grade with how it moved on the last
+  match ("71 B, up 7 on your last match", main's own progress; without one,
+  the result), holds 1.28 s, then opens into the review: the review grows out
+  of the card's corners (a clip-path on `#vreview` over the card's ground
+  fading) and the count, the stamp, the bars and the medals play as before,
+  90ms after it starts opening. Honest about time: a review that waited for
+  the seal to lift or its page to be opened says "2 min ago", never "now".
+  It runs inside `occlaraOnShown`, so never mid match, never on a page off
+  screen, never for a review opened later from the library or Home, never
+  for a stop in the middle of a match (no review opens then) and never for
+  League (whole at the end, no loading screen). Under less motion there is
+  no card. A click or a key ends all of it at once. `test:surfaces` holds
+  each.
 - **Looking at it**: `env -u ELECTRON_RUN_AS_NODE npx electron
   scripts/shot-demo.js home review recording` boots the shell and a page each
   with its real preload, answers their IPC from the sample library and writes
-  `dist-surface-shots/demo-<scene>.png` (scenes: home, matches, patterns, trainer, coach, settings, profile, invite, whatsnew, feedback, players, duos,
-  stats, practice, clips, review, stop, recording, waiting, held). Dev only.
+  `dist-surface-shots/demo-<scene>.png` (scenes: home, matches, patterns,
+  stats, practice, trainer, clips, coach, settings, profile, invite, whatsnew,
+  feedback, players, duos, review, stop, recording, waiting, held, and the
+  review's building, then ready and opening, timed from the push that makes
+  it whole; `SHOT_W` for another width, `SHOT_EVAL` to read the laid out
+  pages). Dev only.
 
 **Top navigation (Progress v3).** The sidebar is gone. The shell is a 64px bar
 across the window (`main-window.js` `SIDEBAR_W` 0, `TOP_H` 64): the crescent

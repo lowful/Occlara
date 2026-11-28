@@ -123,6 +123,21 @@ html.ambient-off .sky-twinkle { animation-play-state: paused; }
   background: var(--raised); border: 1px solid var(--line-2);
   box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.95);
 }
+/* THE AGENT, STANDING (home.js putAgent): the full portrait, no ring, its
+   head up under the bar and its feet fading out as the bento begins, in front
+   of the moon's lit limb. It fades in once decoded and floats with the face
+   (m-drift). The bento and the rows below sit over its faded foot. */
+.h-agent.full { display: block; width: auto; height: auto; top: -76px; right: max(1%, calc(50% - 600px)); }
+.h-agent.full::before { content: none; }
+.h-agent-full {
+  display: block; height: 540px; width: auto; max-width: none;
+  opacity: 0; transition: opacity 900ms var(--ease-out);
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 1) 58%, transparent 92%);
+          mask-image: linear-gradient(rgba(0, 0, 0, 1) 58%, transparent 92%);
+  -webkit-user-drag: none;
+}
+.h-agent-full.ready { opacity: 1; }
+#content { position: relative; z-index: 2; }
 
 /* ── A card on Home ─────────────────────────────────────────────────────────
    The shared card (ui.css .o-card): --card, radius 24, the hairline, 28px in. */
@@ -341,6 +356,7 @@ html.ambient-off .sky-twinkle { animation-play-state: paused; }
 
 @media (max-width: 1100px) {
   .h-agent { right: 0; transform: scale(0.86); transform-origin: top right; }
+  .h-agent.full { right: -2%; }
 }
 @media (max-width: 1040px) {
   .bento { gap: 14px; }
@@ -357,7 +373,7 @@ html.ambient-off .sky-twinkle { animation-play-state: paused; }
 /* Less motion: every entrance is its end state at once. */
 @media (prefers-reduced-motion: reduce) {
   .card.card-in, .h-head.card-in, .recent.card-in .r-row, .top.card-in .top-row,
-  .h-news.h-slide, .h-player.h-fade, .sky-twinkle,
+  .h-news.h-slide, .h-player.h-fade, .sky-twinkle, .h-agent-full,
   #trend .grade-line.h-dots .gl-dot, #trend .grade-line.h-dots .gl-num { animation: none !important; }
   #last .gv-score.big.counting { animation: none !important; color: var(--text); }
   #last .gv-score.big.counting::after { content: none; }

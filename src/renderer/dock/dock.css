@@ -1,19 +1,21 @@
 html, body { width: 100%; height: 100%; background: transparent !important; overflow: hidden; pointer-events: none; }
 
+/* THE CORNER MARK (Orbit): the crescent alone in the ink, as crisp as the
+   tray's, on whatever the desktop is. A one pixel dark rim, then the soft
+   fall: white on a light desktop kept only its blur, and the rim is what
+   gives it an edge there. It arrives as every element of Orbit arrives, from
+   a little lower and a soft blur, on the smooth spring. */
 .dock {
   position: relative;
   width: 100%; height: 100%;
   display: grid; place-items: center;
-  /* A one pixel dark rim, then the soft fall: white on a light desktop kept
-     only its blur, and the rim is what gives it an edge there. */
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
-  animation: dockIn var(--t-slow) var(--ease-expo) both;
+  animation: dockIn var(--dur-enter) var(--spring-smooth) both;
 }
-/* A slow drift of two pixels, the moon's own pace: the mark is a presence
-   between matches, and stillness read as crashed. It is gone mid match, and
-   asked for less motion it holds still (theme.css). */
-.mark { color: var(--text); animation: drift 6s ease-in-out infinite alternate; }
+/* A slow float of two pixels, the agent's own pace on Home (7s): the mark is
+   a presence between matches, and stillness read as crashed. It is gone mid
+   match (placeMark), and asked for less motion it holds still. */
+.mark { color: var(--text); animation: drift 7s ease-in-out infinite alternate; }
 @keyframes drift { from { transform: translateY(0); } to { transform: translateY(-2px); } }
-/* It arrives as the rest of the app does: up six pixels and in, on the
-   arrival curve, never a scale from nothing. */
-@keyframes dockIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes dockIn { from { opacity: 0; transform: translateY(6px) scale(0.985); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .mark, .dock { animation: none; } }

@@ -5,6 +5,7 @@ const C = require('../shared/channels');
 const { pageMotion } = require('./page-motion');
 const verdict = require('../shared/verdict');
 const { mapArtOf } = require('../shared/agent-icons');
+const { portraitOfIcon } = require('../shared/agent-portraits');
 
 /**
  * Bridge for the post-game review.
@@ -48,6 +49,13 @@ contextBridge.exposeInMainWorld('occlara', {
   // a map the generated data lists gets one (agent-icons.js mapArtOf).
   mapArt: (name) => {
     const rel = mapArtOf(name);
+    return rel ? `../../../assets/${rel}` : null;
+  },
+  // The agent's full portrait for the hero (Orbit), from the Verdict's head
+  // icon path, or null: only an agent the generated data knows gets one
+  // (agent-portraits.js). The page falls back to the head icon on an error.
+  agentPortrait: (icon) => {
+    const rel = portraitOfIcon(icon);
     return rel ? `../../../assets/${rel}` : null;
   },
   // This review against the ones before it (8.7, shared/progress.js): its
