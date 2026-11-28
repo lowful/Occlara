@@ -850,6 +850,6 @@ html.embedded .share {
 .vd-agent::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 1px dashed var(--line-2); }
 .vd-agent-img { width: 188px; height: 188px; border-radius: 50%; object-fit: cover; background: var(--raised); border: 1px solid var(--line-2); box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.95); }
 /* Riot's scoreboard under the hero, a card. */
-.vd .v-stats-wrap { margin-top: 44px; padding: 22px 28px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); }
+.vd .v-stats-wrap { margin-top: 44px; padding: 22px 28px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--card); }
 .vd .v-verified, .vd .v-flags { margin-top: var(--space-4); }
 @media (max-width: 900px) { .vd-agent { display: none; } .vd-score { font-size: 112px; } }
