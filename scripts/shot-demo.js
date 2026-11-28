@@ -186,6 +186,14 @@ app.whenReady().then(async () => {
       }
       // Fonts, the moon and every entrance settle before the picture.
       await wait(Number(process.env.SHOT_WAIT) || 3600);
+      // SHOT_EVAL=<module>: a module that reads the laid out pages (the site
+      // proof's readers, say) gets the scene's two webContents, and what it
+      // returns is written beside the picture as demo-<scene>.json.
+      if (process.env.SHOT_EVAL) {
+        const read = require(path.resolve(process.env.SHOT_EVAL));
+        const got = await read({ scene: name, shell: shellWin.webContents, page: pageWin ? pageWin.webContents : null }).catch((e) => ({ error: String(e && e.stack || e) }));
+        fs.writeFileSync(path.join(OUT, `demo-${name}.json`), JSON.stringify(got, null, 2) + '\n');
+      }
       const a = await capture(shellWin.webContents);
       const b = pageWin ? await capture(pageWin.webContents) : null;
       if (!a) { console.log(`FAILED ${name}: no picture`); continue; }
