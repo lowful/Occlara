@@ -592,8 +592,8 @@ function groupsView(o) {
       }
     }
     if (!list.length) {
-      const line = plan ? 'Nothing of this kind repeats in your matches, so a drill for every player.'
-        : 'A drill for every player, until your matches show a repeated mistake.';
+      // Short: the page's head already says why there is no plan yet.
+      const line = plan ? 'For every player, as nothing of this kind repeats in your matches' : 'For every player';
       for (const d of drillsFor(library, GENERAL, band, log)) {
         if (list.length >= (plan ? 1 : 2)) break;
         if (d.group !== g.id || seen.has(d.id)) continue;

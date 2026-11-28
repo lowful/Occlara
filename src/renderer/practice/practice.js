@@ -442,9 +442,19 @@ function trainerRow(t) {
     if (why) main.append(why);
   }
   if (t.line) main.append(el('p', 'pc-t-line', t.line));
-  const canOpen = typeof api.openTrainer === 'function';
-  if (canOpen && (t.scenarios || []).length) {
-    const chips = el('div', 'pc-t-chips');
+  const openPage = () => { if (typeof api.go === 'function') api.go('trainer'); };
+  // The way in, then a few of its scenarios to start on.
+  const acts = el('div', 'pc-t-chips');
+  const go = el('button', 'btn btn-primary sm pc-t-open');
+  go.type = 'button';
+  const label = el('span', 'btn-label', 'Open the Trainer');
+  const arrow = el('span', 'btn-arrow');
+  arrow.append(glyph('arrow', null, 2));
+  go.append(label, arrow);
+  go.addEventListener('click', openPage);
+  acts.append(go);
+  if (typeof api.openTrainer === 'function' && (t.scenarios || []).length) {
+    const chips = el('div', 'pc-t-scen');
     chips.setAttribute('role', 'group');
     chips.setAttribute('aria-label', 'Start the Trainer on');
     for (const s of t.scenarios) {
@@ -455,16 +465,23 @@ function trainerRow(t) {
       c.addEventListener('click', () => api.openTrainer(s.id));
       chips.append(c);
     }
-    main.append(chips);
+    acts.append(chips);
   }
-  const go = el('button', 'btn btn-primary sm pc-t-open');
-  go.type = 'button';
-  const label = el('span', 'btn-label', 'Open the Trainer');
-  const arrow = el('span', 'btn-arrow');
-  arrow.append(glyph('arrow', null, 2));
-  go.append(label, arrow);
-  go.addEventListener('click', () => { if (typeof api.go === 'function') api.go('trainer'); });
-  row.append(ico, main, go);
+  main.append(acts);
+  // A real still of the Trainer's own arena, not a drawing of one: a press opens it.
+  const still = el('button', 'pc-t-still');
+  still.type = 'button';
+  // The button beside it says the same, so the picture is the pointer's alone.
+  still.setAttribute('aria-hidden', 'true');
+  still.tabIndex = -1;
+  const img = el('img', 'pc-t-img');
+  img.alt = '';
+  img.decoding = 'async';
+  img.addEventListener('error', () => still.remove());
+  img.src = 'trainer-still.jpg';
+  still.append(img);
+  still.addEventListener('click', openPage);
+  row.append(ico, main, still);
   return row;
 }
 

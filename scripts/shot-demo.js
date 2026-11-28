@@ -72,6 +72,8 @@ const SCENES = {
   practiceblank: { page: 'practice', blank: true, h: 1400 },
   practiceasked: { page: 'practice', asked: { key: 'cause:repeek', title: 'Repeeked the same angle' }, h: 1200 },
   practiceinplan: { page: 'practice', asked: { key: 'untraded', title: 'Deaths nobody traded' } },
+  // The Trainer's arena alone, its panel hidden: the still Practice shows under Mechanics (src/renderer/practice/trainer-still.jpg).
+  trainerstill: { page: 'trainer', settle: 3000, act: "(() => { const r = document.querySelector('.tr-item[data-id=\"site-preaim-easy\"]'); if (r) r.click(); setTimeout(() => { document.getElementById('detail').style.visibility = 'hidden'; }, 200); return true; })()" },
   clips: { page: 'moments' },
   trainer: { page: 'trainer' },
   coach: { page: 'coach' },
@@ -251,7 +253,7 @@ app.whenReady().then(async () => {
       // scene timed from a review made whole is taken at its own moment).
       if (!scene.whole) await wait(Number(process.env.SHOT_WAIT) || 3600);
       // A scene's own act in its page (a click, a scroll), then a moment to settle.
-      if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(900); }
+      if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(scene.settle || 900); }
       // SHOT_EVAL=<module>: a module that reads the laid out pages (the site
       // proof's readers, say) gets the scene's two webContents, and what it
       // returns is written beside the picture as demo-<scene>.json.

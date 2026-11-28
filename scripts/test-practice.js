@@ -233,13 +233,13 @@ const pats = (list, recorded) => ({ enough: true, recorded: recorded || 6, mista
   const st9c = P.choosePlan({ patterns: p9c, library: lib9b, band: null, state: P.emptyState(), now: day(0) }).state;
   const v9c = P.planView({ patterns: p9c, library: lib9b, band: null, state: st9c, now: day(0), saved: [] });
   const mc = v9c.groups.find((g) => g.id === 'mechanics').drills;
-  ok(mc.map((d) => d.id).join() === 'gm' && mc[0].reason.kind === 'general' && mc[0].reason.title === null && /for every player/.test(mc[0].reason.line),
+  ok(mc.map((d) => d.id).join() === 'gm' && mc[0].reason.kind === 'general' && mc[0].reason.title === null && mc[0].reason.line === 'For every player, as nothing of this kind repeats in your matches',
     'and with none, one drill for every player of that kind, its reason saying so', JSON.stringify(mc.map((d) => [d.id, d.reason])));
   // No plan at all: two for every player in each group, where the library has them.
   const v9d = P.planView({ patterns: { enough: false, recorded: 0, mistakes: [] }, library: lib9, band: null, state: P.emptyState(), now: day(0), saved: [] });
   ok(v9d.status === 'nomatches' && v9d.groups.find((g) => g.id === 'sense').drills.map((d) => d.id).join() === 'gs,gs2'
     && v9d.groups.find((g) => g.id === 'awareness').drills.map((d) => d.id).join() === 'ga'
-    && v9d.groups.every((g) => g.drills.every((d) => d.reason.kind === 'general' && /until your matches show a repeated mistake/.test(d.reason.line))),
+    && v9d.groups.every((g) => g.drills.every((d) => d.reason.kind === 'general' && d.reason.line === 'For every player')),
   'NO PLAN: drills for every player in each group, two at most, saying why');
   // The Trainer: always under Mechanics, alone there, its scenarios the group's drills' first.
   const tr = v9.groups.find((g) => g.id === 'mechanics').trainer;
@@ -621,7 +621,7 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
         && r.querySelector('.pc-r-line').textContent === 'In 6 of your last 6 matches';
     }), 'WHY IT IS HERE: every drill of the plan names its repeated mistake and how often, on its row', planned.length);
     const fill = cards.find((c) => c.dataset.reason === 'general');
-    ok(fill && fill.dataset.group === 'mechanics' && /for every player/.test(fill.querySelector('.pc-reason').textContent) && fill.querySelector('.pc-reason').classList.contains('is-general'),
+    ok(fill && fill.dataset.group === 'mechanics' && /^For every player, as nothing of this kind repeats/.test(fill.querySelector('.pc-reason').textContent) && fill.querySelector('.pc-reason').classList.contains('is-general'),
       'a group the plan leaves empty takes one drill for every player, and says so', fill && fill.dataset.drill);
     ok(cards[0].querySelectorAll('.pc-fact dt').map((d) => d.textContent).join() === 'Goal,How you will know', 'with its goal and how you will know');
     // WHAT TO DO, ONE STEP AWAY: closed, a press opens it in place, a second closes it.
