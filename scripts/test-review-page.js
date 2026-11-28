@@ -167,6 +167,8 @@ async function open(review, handlers) {
       'and clear of the loading screen\'s column while the review is made');
     ok(/\.sheet > \.body\.scrolled \{ --v-fade: 28px; \}/.test(css) && /classList\.toggle\('scrolled'/.test(read('src/renderer/review/review.js')),
       'what scrolls under the head fades through a soft edge once the page has moved');
+    ok(/\.sheet \{ overflow: clip; \}/.test(css) && /\.medal-defs \{ position: absolute; width: 0; height: 0;/.test(css),
+      'the page never scrolls but its own scroller: the sheet clips, and the medals\' defs take no line (it slid the head 21px under the bar)');
     const replayAt = html.indexOf('id="rt-replay"');
     ok(replayAt > html.indexOf('</main>'), 'the replay sits outside the scroll, so the soft edge never fades it');
   }

@@ -71,7 +71,12 @@ wins. What phase 1 changed, and what to keep true:
   agent stands inside the hero's box (`top: 0`). Once the page has moved,
   what scrolls under the head leaves through a 28px soft edge (`.body.scrolled`,
   a mask, `--v-fade`), never a cut; the replay and the delete confirm sit
-  outside the scroller so the edge never fades them. DELETE MATCH: the
+  outside the scroller so the edge never fades them. NOTHING BUT THE PAGE'S
+  SCROLLER EVER SCROLLS: the medals' SVG defs, empty, took a 21px line before
+  the sheet, and the document's 21px of room let scrollIntoView (Every
+  round, a round jumped to, a swing of the rating) slide the whole page,
+  head included, under the bar; the defs are out of flow now and the sheet
+  clips (`overflow: clip`, which no script can scroll). DELETE MATCH: the
   menu's one row, then a confirm ("Delete this match?", what goes, "This
   cannot be undone.", Keep it focused, Delete match in coral) and
   `deleteMatch(id)` (MATCH_DELETE); main takes the page back where the
