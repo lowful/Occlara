@@ -18,6 +18,13 @@ What is in this folder, and where each file comes from.
                   500 for eyebrows and columns of digits; Geist 400 to 800,
                   kept for Wrapped, whose own look names it. Bundled so the
                   app renders offline (theme.css loads them).
+  agents-full/    Each Valorant agent's full portrait, cut to the figure and
+                  720 pixels tall, WebP with its transparency, written by npm
+                  run sync:agentportraits from valorant-api.com (about 1.6 MB
+                  for all of them). Home's hero and the review's show the
+                  player's agent in front of the moon (shared/agent-portraits.js);
+                  the head icon in valorant/agents is the fallback. Never used
+                  by the Trainer, which ships nothing of Riot's.
   games/          Valorant's and League's own logos, the source of the game
                   picker's (shared/game-logos.js inlines their paths).
   lol/champions/  League's champion icons, written by npm run sync:lol.
