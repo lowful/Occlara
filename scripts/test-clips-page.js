@@ -197,6 +197,15 @@ const GB = 1024 * 1024 * 1024;
   $('mo-f-clear').click();
   ok(rows().length === all && $('mo-f-clear').hidden && !D.querySelector('#mo-f-agent').classList.contains('on'), 'Clear filters: every moment, every control back to Any');
   const top = model.compilation[0];
+  // A title inside a sentence starts lower case (display.js inSentence): "Play
+  // all 17 clips of deaths nobody traded", never "of Deaths nobody traded".
+  {
+    const withClips = model.compilation.find((c) => c.clips > 0);
+    const playAll = withClips && D.querySelector(`#mo-comp-rows .mo-cpick[data-key="${withClips.key}"]`).closest('.mo-crow').querySelector('button.btn');
+    const said = playAll ? playAll.getAttribute('aria-label') : '';
+    ok(withClips && said === `Play all ${withClips.clips} clips of ${withClips.title[0].toLowerCase()}${withClips.title.slice(1)}`,
+      "Play all names the mistake inside its sentence, lower case", said);
+  }
   choose('mistake', top.title);
   const pick = D.querySelector(`#mo-comp-rows .mo-cpick[data-key="${top.key}"]`);
   ok(pick.getAttribute('aria-pressed') === 'true' && rows().length > 0 && rows().every((r) => r.querySelector('.mo-kind').classList.contains('death')),
@@ -362,6 +371,28 @@ const GB = 1024 * 1024 * 1024;
     const focusAt = st.document.activeElement;
     ok(asked >= 1 && scrolled === 1 && focusAt && (focusAt === st.$('clip-clear') || st.$('clipcap').contains(focusAt)),
       'Settings, asked once as it shows, brings the Clips row into view with the keyboard on it', `${asked} ${scrolled} ${focusAt && (focusAt.id || focusAt.textContent)}`);
+    // The first open took the row as the page loaded, before every group
+    // above it had landed: as main lets the page in, it is brought into view
+    // again, once.
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'none' });
+    await settle();
+    ok(scrolled === 2, 'and again as main lets the page in, the groups above it landed', String(scrolled));
+    // Settings already open from before, shown again at the row: main hands
+    // it as the page is let in. Shown again with nothing asked, it stays put.
+    asked = 0;
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'none' });
+    await settle();
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'none' });
+    await settle();
+    ok(scrolled === 3, 'Settings open from before comes to the row when asked, and stays where it was when not', String(scrolled));
+    // No clip to clear: the keyboard goes to the limit chosen, not the first size.
+    const none = loadSurface('settings', { handlers: { [C.SETTINGS_AT]: () => 'clips',
+      [C.CLIPS_USAGE]: () => ({ bytes: 0, clips: 0, reviews: 0, capGB: 20 }), [C.CONFIG_GET]: () => ({ clipCapGB: 20 }) } });
+    none.$('clip-clear').closest('.row').scrollIntoView = () => {};
+    await settle();
+    const onCap = none.document.activeElement;
+    ok(none.$('clip-clear').disabled && onCap && onCap.dataset && onCap.dataset.val === '20',
+      'with no clip to clear, the keyboard on the limit chosen (20 GB)', onCap && (onCap.id || onCap.textContent));
     const idx = read('src/main/index.js');
     ok(/settingsAtWant = at === 'clips'/.test(idx) && /return w && Date\.now\(\) <= w\.until \? w\.at : null;/.test(idx)
       && /safeHandle\(C\.SETTINGS_AT/.test(read('src/main/ipc/register-ipc.js')),

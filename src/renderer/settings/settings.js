@@ -461,20 +461,31 @@ window.occlara.onReviews(() => readClips());
  * and puts the keyboard on its first control, rather than leaving the
  * player at the top to find it.
  */
-async function goToAskedRow() {
+// The row taken as the page first loaded, { at, until }: brought into view
+// again as the page is let in, once the groups above it have landed.
+let askedAtLoad = null;
+async function goToAskedRow(phase) {
   if (typeof window.occlara.settingsAt !== 'function') return;
   let at = null;
   try { at = await window.occlara.settingsAt(); } catch { at = null; }
+  if (!at && phase === 'enter' && askedAtLoad && Date.now() <= askedAtLoad.until) at = askedAtLoad.at;
+  askedAtLoad = phase === 'load' && at ? { at, until: Date.now() + 5000 } : null;
   if (at !== 'clips') return;
+  // The row as it is now (readClips waits a beat), so the keyboard lands on
+  // Clear clips when there are clips, else on the limit the player has
+  // chosen (markSeg's .active), never on the first size in the row.
+  try { paintClips(await window.occlara.getClipsUsage()); } catch { /* the row as painted */ }
   const row = clipClear.closest('.row') || clipClear;
   row.scrollIntoView({ block: 'center' });
-  const first = clipClear.disabled ? clipCapSeg.querySelector('button.on, button[aria-checked="true"], button') : clipClear;
+  const first = clipClear.disabled
+    ? (clipCapSeg.querySelector('button.active') || clipCapSeg.querySelector('button'))
+    : clipClear;
   if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
 }
 if (typeof window.occlara.onPage === 'function') {
-  window.occlara.onPage((m) => { if (m && m.phase === 'enter') goToAskedRow(); });
+  window.occlara.onPage((m) => { if (m && m.phase === 'enter') goToAskedRow('enter'); });
 }
-goToAskedRow();
+goToAskedRow('load');
 
 /**
  * Game picker, built from the shared registry rather than hand-written markup.
