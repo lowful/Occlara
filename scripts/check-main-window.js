@@ -179,20 +179,19 @@ setTimeout(async () => {
     if (String(gradeNum) !== String(built.grade.score)) return report(false, `Home's grade reads ${gradeNum}, the review ${built.grade.score}`);
     if (recent !== SEEDED) return report(false, `Home lists ${recent} recent matches, ${SEEDED} were saved`);
     if (!/^Enter second/.test(focus)) return report(false, 'Home has no focus for the next match');
-    // 8.2.1: the last match ends on the eye's View match and Open review and
-    // nothing else (these matches were saved with no AI log kept, so the eye
-    // is there, disabled); no Riot ID, so no rank card; and the record card
-    // has no status word over its buttons.
+    // 9.1 (the owner's item 1): the last match card has no buttons, the whole
+    // card is the link to its review (role link, in the tab order); no Riot
+    // ID, so no rank card; and the record card has no status word over its
+    // buttons.
     const foot = await hjs(`(() => {
-      const f = document.querySelector('#last .last-foot');
-      const eye = f && f.querySelector('.log-eye');
-      return f ? { text: f.textContent, buttons: f.querySelectorAll('button').length, eye: !!eye, eyeOff: !!(eye && eye.disabled),
+      const l = document.getElementById('last');
+      return l ? { buttons: l.querySelectorAll('button').length, role: l.getAttribute('role'), tab: l.tabIndex,
         rank: document.getElementById('rank').hidden } : null;
     })()`);
     const statusRow = await sjs("!!document.getElementById('status-text') || !!document.querySelector('#rec .rec-state')");
-    lines.push(`home foot: ${JSON.stringify(foot)} | record card status row=${statusRow}`);
-    if (!foot || foot.text !== 'View matchOpen review' || foot.buttons !== 2 || !foot.eye || !foot.eyeOff) {
-      return report(false, `Home's last match ends on ${JSON.stringify(foot)}, not the eye's View match and Open review alone`);
+    lines.push(`home last card: ${JSON.stringify(foot)} | record card status row=${statusRow}`);
+    if (!foot || foot.buttons !== 0 || foot.role !== 'link' || foot.tab !== 0) {
+      return report(false, `Home's last match card is ${JSON.stringify(foot)}, not one link with no buttons`);
     }
     if (!foot.rank) return report(false, 'Home shows a rank card with no Riot ID');
     if (statusRow) return report(false, 'the record card still has its status row');
@@ -242,7 +241,8 @@ setTimeout(async () => {
       const nums = svg ? [...svg.querySelectorAll('.gl-num')].map((t) => t.textContent) : [];
       const box = trend.getBoundingClientRect();
       const lb = svg ? svg.getBoundingClientRect() : null;
-      const map = last.querySelector('.lm-thumb');
+      // 9.1: the map is the last match card's picture (.lm-map).
+      const map = last.querySelector('.lm-map');
       // Orbit: the agent stands as its full portrait (agents-full), or as the
       // head icon in its ring when the portrait cannot load.
       const face = document.querySelector('#h-agent .h-agent-full') || document.querySelector('#h-agent .h-agent-face');

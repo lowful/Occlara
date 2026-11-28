@@ -82,51 +82,70 @@ function deltaOf(trend, id) {
   const a = Number(trend[i].score), b = Number(trend[i - 1].score);
   return Number.isFinite(a) && Number.isFinite(b) ? a - b : null;
 }
-/** "+7 on your last match", in --good up and --bad down, or null with no match before. */
+/**
+ * The grade's change on the match before: "+7" in --good, "-4" in --bad,
+ * "Level" in the grey, under the grade's name, with the whole sentence in
+ * its tooltip. Null with no match before.
+ */
 function deltaEl(d) {
   if (d === null) return null;
-  const words = d > 0 ? `+${d} on your last match` : d < 0 ? `${d} on your last match` : 'Level with your last match';
-  return el('span', 'delta ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'even'), words);
+  const words = d > 0 ? `+${d}` : d < 0 ? `${d}` : 'Level';
+  const s = el('span', 'delta ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'even'), words);
+  s.title = d > 0 ? `Up ${d} on your last match` : d < 0 ? `Down ${-d} on your last match` : 'Level with your last match';
+  return s;
 }
 
+/** "13 : 11" from a saved "13-11", or '' without one. */
+const scoreText = (score) => (score ? String(score).split('-').map((x) => x.trim()).join(' : ') : '');
+
 /**
- * THE LAST MATCH (Orbit): an eyebrow, a title that is a fact (main's own
- * progress line when it counted one, "Best grade in your last 4", else the
- * agent and the map), the grade at 84px with its letter and its change on
- * the match before, the K/D at its right, and one ruled row: the map, the
- * result and the score, who and when, the eye and Open review. The RR the
- * match moved waits at the top right for the rank. STILL BEING CHECKED
- * (8.4.1): its result, score and grade are the screen's until the review is
- * whole, so the card says what it waits for in their place.
+ * THE LAST MATCH (9.1, the owner's item 1). The whole card opens the match's
+ * review (it is a link, from the keyboard too: home.js wires it once, below),
+ * and the match is its body, with no buttons and no dead space: the map's
+ * picture with the agent and the K/D over it; under it the result and the
+ * score large ("Victory 13 : 11") with the agent, the map, the queue and
+ * when; the grade at the right with its name and its change on the match
+ * before; and one quiet line under all of it, main's own progress line
+ * ("Best grade in your last 4") when it counted one. The RR the match moved
+ * waits at the top right for the rank.
+ *
+ * NOT GRADED (9.1): a newest match with no grade (a recording stopped after
+ * two rounds) says so where the grade would be, and why on the line under
+ * (home-model.js noGradeOf), and still opens. STILL BEING CHECKED (8.4.1):
+ * its result, score and grade are the screen's until the review is whole,
+ * so the card says what it waits for in their place.
  */
 function paintLast(last, model) {
   const host = $('last');
   host.replaceChildren();
   const art = (model.art && model.art.last) || {};
   const checking = last.work ? GV.checking(last.work, { full: true }) : null;
+  const who = [last.title, last.map].filter(Boolean).join(' on ');
+  host.classList.toggle('checking', !!checking);
+  host.classList.toggle('ungraded', !checking && !last.grade);
+
   const head = el('div', 'last-head');
   head.append(el('p', 'o-eyebrow', 'Last match'));
+  // When, beside the eyebrow in the mono of times: "Today 9:25 PM", "Nov 22, 9:34 PM".
+  if (last.at) {
+    const day = dayWord(last.at);
+    head.append(el('span', 'last-when', /^(Today|Yesterday)$/.test(day) ? `${day} ${timeWord(last.at)}` : when(last.at)));
+  }
   // The RR the match moved, once the rank has answered (fillRank), and
   // nothing at all where Riot's record has none.
   const rrChip = el('span', 'rr-chip last-rr');
   rrChip.hidden = true;
   head.append(rrChip);
   host.append(head);
-  const milestone = !checking && model.milestone && typeof model.milestone.text === 'string' && model.milestone.text ? model.milestone.text : null;
-  host.append(el('h3', 'o-title last-title', milestone || [last.title, last.map].filter(Boolean).join(' on ') || 'Your last match'));
 
-  const row = el('div', 'last-grade-row');
-  if (checking) row.append(checking);
-  else if (last.grade) {
-    const g = el('div', 'gv-grade last-grade');
-    g.title = `${GV.GRADE_NAME}. ${GV.GRADE_TIP}`;
-    g.append(el('span', 'gv-score big', String(last.grade.score)));
-    const side = el('span', 'grade-side');
-    const d = deltaEl(deltaOf(model.trend || [], last.id));
-    if (d) { d.title = 'Since the match before'; side.append(d); }
-    g.append(side);
-    row.append(g);
-  }
+  // THE PICTURE: the map, the agent's head over its foot, the K/D at its top
+  // right, and the way in, an arrow that comes in under the pointer.
+  const media = el('div', 'lm-media' + (art.map ? '' : ' no-map'));
+  const map = portrait(art.map, 'lm-map', '');
+  if (map) media.append(map);
+  media.append(el('span', 'lm-scrim'));
+  const face = portrait(art.agent, 'lm-agent', '');
+  if (face) media.append(face);
   // THE K/D OF THE LAST GAME (9.0, the player's ask): kills over deaths from
   // the review's own scoreline (home-model.js kdOf), and nothing at all
   // without one or while the review is still being checked.
@@ -138,45 +157,115 @@ function paintLast(last, model) {
     const nums = el('span', 'kd-nums');
     nums.append(el('b', 'kd-ratio', kd.ratio), el('span', 'kd-split', `${kd.kills} / ${kd.deaths}`));
     box.append(nums);
-    row.append(box);
+    media.append(box);
   }
-  /*
-   * THE FOOT CARRIES TWO BUTTONS AND NOTHING ELSE (8.2.1): the eye, "View
-   * match", which opens the match's AI log as its row in Matches does, and
-   * Open review. No eye where nothing was recorded, a match graded from
-   * Riot's record alone, and a disabled one with its reason once the log no
-   * longer holds the match: the rule every eye follows (shared/log-eye.js).
-   */
-  const foot = el('div', 'last-foot');
-  const eye = window.LogEye ? window.LogEye.labelled(last.aiLog, () => window.occlara.openAiLog(last.id), 'View match') : null;
-  if (eye) foot.append(eye);
-  const open = el('button', 'btn btn-ghost sm', 'Open review');
-  open.type = 'button';
-  open.addEventListener('click', () => window.occlara.openReview(last.id));
-  foot.append(open);
-  host.append(row);
+  const cue = el('span', 'lm-open');
+  cue.setAttribute('aria-hidden', 'true');
+  cue.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+  media.append(cue);
+  host.append(media);
 
-  // The ruled row: the map's picture, the result and the score (the
-  // screen's are not said while the review is checked), who and when.
-  const lm = el('div', 'lm-row');
-  const thumb = portrait(art.map, 'lm-thumb', '');
-  if (thumb) lm.append(thumb);
-  const meta = el('div', 'lm-meta');
-  const line = el('b');
-  if (last.result && !last.work) {
-    line.append(el('span', 'result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''), last.result));
-    if (last.score) line.append(document.createTextNode(' '), el('span', 'score', String(last.score).split('-').map((x) => x.trim()).join(' : ')));
-  } else line.textContent = [last.title, last.map].filter(Boolean).join(' on ') || 'Your last match';
-  meta.append(line, el('span', null, [[last.title, last.map].filter(Boolean).join(' on '), last.mode, when(last.at)].filter(Boolean).join(', ')));
-  lm.append(meta, foot);
-  host.append(lm);
+  if (checking) {
+    host.append(checking);
+  } else {
+    // THE MATCH: the result and the score in their own line, large, then
+    // who, the queue and when; the grade at the right.
+    const lm = el('div', 'lm-row');
+    const meta = el('div', 'lm-meta');
+    const line = el('b', 'lm-result');
+    if (last.result) {
+      line.append(el('span', 'result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''), last.result));
+      if (last.score) line.append(document.createTextNode(' '), el('span', 'score', scoreText(last.score)));
+    } else line.textContent = who || 'Your last match';
+    // Who, the queue and when; who only once, when the line above is not already it.
+    meta.append(line, el('span', 'lm-who', [last.result ? who : null, last.mode].filter(Boolean).join(', ') || 'Recorded match'));
+    lm.append(meta);
+    if (last.grade) {
+      const g = el('div', 'gv-grade last-grade');
+      g.title = `${GV.GRADE_NAME}. ${GV.GRADE_TIP}`;
+      const tone = GV.gradeTone(last.grade);
+      g.append(el('span', 'gv-score big' + (tone ? ' ' + tone : '') + (last.grade.provisional ? ' prov' : ''), String(last.grade.score)));
+      const side = el('span', 'grade-side');
+      side.append(el('span', 'grade-name', GV.GRADE_NAME));
+      const d = deltaEl(deltaOf(model.trend || [], last.id));
+      if (d) side.append(d);
+      g.append(side);
+      lm.append(g);
+    } else {
+      // Not graded, said plainly where the grade would be; why, on the line under.
+      const g = el('span', 'last-nograde chip quiet', 'Not graded');
+      g.title = last.noGrade ? last.noGrade.text : 'This match has no grade';
+      lm.append(g);
+    }
+    host.append(lm);
+    // ONE QUIET LINE: why there is no grade, or main's own progress line.
+    const milestone = model.milestone && typeof model.milestone.text === 'string' && model.milestone.text ? model.milestone.text : null;
+    const note = !last.grade ? (last.noGrade ? last.noGrade.text : null) : milestone;
+    if (note) {
+      const p = el('p', 'lm-note' + (last.grade ? ' last-title mark ' + ((model.milestone && model.milestone.tone) || 'even') : ' why'), note);
+      p.title = note;
+      host.append(p);
+    }
+  }
+  // Said whole to a screen reader: what the card is and where it goes.
+  const said = checking ? 'being checked' : [last.result ? [last.result, scoreText(last.score)].filter(Boolean).join(' ') : null, who,
+    last.grade ? `${GV.GRADE_NAME.toLowerCase()} ${last.grade.score}` : 'not graded'].filter(Boolean).join(', ');
+  host.setAttribute('aria-label', `Last match, ${said}. Open its review`);
+}
+// THE WHOLE CARD OPENS THE REVIEW (9.1), the pointer or Enter or Space.
+function openLast() { if (lastId) window.occlara.openReview(lastId); }
+$('last').addEventListener('click', openLast);
+$('last').addEventListener('keydown', (e) => {
+  if (e.target !== $('last') || (e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  openLast();
+});
+
+/*
+ * A TREND'S ARROW (9.1, the owner's item 4): up, down or a flat line, in the
+ * colour of what it means (getting better in --good, worse in --bad, steady
+ * in the grey), and its words in a tooltip that says exactly what was
+ * compared (home-model.js). `better` is the way that is good: up for the
+ * grade, down for a mistake.
+ */
+const WAY_PATH = {
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  flat: '<path d="M5 12h14"/>',
+};
+function wayMark(way, better, words, label) {
+  const tone = way === 'flat' ? 'steady' : way === better ? 'better' : 'worse';
+  const m = el('span', `way ${way} ${tone} has-tip`);
+  m.setAttribute('role', 'img');
+  m.setAttribute('aria-label', words);
+  m.dataset.tip = words;
+  m.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${WAY_PATH[way]}</svg>`;
+  if (label) m.append(el('span', 'way-n', label));
+  return m;
 }
 
 /*
- * THE TREND (Orbit): the last grades as one line, a dot a match, the newest
- * filled (GradeView.gradeLine, the one drawing of it), under a title that is
- * the fact it shows: up or down by how much over how many matches, from the
- * first of them to the newest. With one graded match, the card goes.
+ * EACH DOT'S DAY UNDER IT (9.1, the owner's item 4: the axis showed times of
+ * day for matches on different days). Matches on different days are named by
+ * their day, "Today", "Yesterday" or "Nov 22"; all on one day, by their time,
+ * and the line under the chart names the day.
+ */
+const dayKey = (at) => new Date(at).toDateString();
+function dayWord(at) {
+  const d = new Date(at), now = new Date();
+  if (dayKey(d) === dayKey(now)) return 'Today';
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (dayKey(d) === dayKey(y)) return 'Yesterday';
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+const timeWord = (at) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+/*
+ * THE TREND (Orbit; 9.1): the last grades as one line, a dot a match, the
+ * newest filled (GradeView.gradeLine, the one drawing of it), each dot's day
+ * under it, under a title that is the fact it shows, their average, with the
+ * grade's own arrow beside it (home-model.js gradeTrendOf). With one graded
+ * match, the card goes.
  */
 function paintTrend(model) {
   const host = $('trend');
@@ -185,16 +274,35 @@ function paintTrend(model) {
   host.replaceChildren();
   host.hidden = !last || !!last.work || trend.length < 2;
   if (host.hidden) return;
-  const first = Number(trend[0].score);
-  const newest = Number(trend[trend.length - 1].score);
-  const d = newest - first;
   const n = trend.length;
-  const over = `over ${n === 2 ? 'two' : n === 3 ? 'three' : n === 4 ? 'four' : n === 5 ? 'five' : n} matches`;
-  host.append(el('p', 'o-eyebrow', 'Trend'), el('h3', 'o-title', d > 0 ? `Up ${d} ${over}` : d < 0 ? `Down ${-d} ${over}` : `Level ${over}`));
+  const mean = Math.round(trend.reduce((s, t) => s + Number(t.score), 0) / n);
+  const head = el('div', 'trend-head');
+  head.append(el('h3', 'o-title', `Averaging ${mean}`));
+  const gt = model.gradeTrend;
+  if (gt && WAY_PATH[gt.way]) {
+    const label = gt.way === 'flat' ? 'Steady' : String(Math.abs(gt.delta));
+    head.append(wayMark(gt.way, 'up', gt.words, label));
+  }
+  host.append(el('p', 'o-eyebrow', 'Trend'), head);
   const lineHost = el('div', 'trend-host');
-  const svg = GV.gradeLine(trend, 300, 150);
-  if (svg) lineHost.append(svg);
-  if (svg && typeof model.average === 'number') lineHost.append(el('span', 'line-avg', `Average ${model.average}`));
+  const dated = trend.every((t) => typeof t.at === 'number' && Number.isFinite(t.at));
+  const oneDay = dated && trend.every((t) => dayKey(t.at) === dayKey(trend[0].at));
+  const foot = !dated ? undefined : oneDay ? (t) => timeWord(t.at) : (t) => dayWord(t.at);
+  const svg = GV.gradeLine(trend, 300, 150, foot ? { foot } : undefined);
+  if (svg) {
+    // Each dot says its grade and when, under the pointer.
+    svg.querySelectorAll('.gl-dot').forEach((c, i) => {
+      const t = trend[i];
+      if (!t) return;
+      const tip = document.createElementNS(SVG, 'title');
+      tip.textContent = `${GV.GRADE_NAME} ${t.score}${dated ? `, ${dayWord(t.at)} ${timeWord(t.at)}` : ''}`;
+      c.append(tip);
+    });
+    lineHost.append(svg);
+  }
+  const day = oneDay ? dayWord(trend[0].at) : null;
+  const span = !day ? '' : day === 'Today' || day === 'Yesterday' ? `, all ${day.toLowerCase()}` : `, all on ${day}`;
+  if (svg) lineHost.append(el('span', 'line-avg', `Your last ${n === 2 ? 'two' : n === 3 ? 'three' : n === 4 ? 'four' : n === 5 ? 'five' : n} graded matches${span}`));
   host.append(lineHost);
 }
 
@@ -327,13 +435,29 @@ function splitFix(text) {
   const sub = s.slice(at + 1).trim();
   return { head: s.slice(0, at).trim(), sub: sub.charAt(0).toUpperCase() + sub.slice(1) };
 }
+/*
+ * THE HERO'S WORDS WITHOUT A FIX (9.1). The owner's Home said "Your last
+ * match is graded." over a two round recording with no grade. Each case says
+ * what is true: graded, still being checked, or not graded and why.
+ */
+function heroWords(model) {
+  const last = model && model.last;
+  if (!last) return { head: 'Play one match and your first fix lands here.', sub: '' };
+  if (last.work) return { head: 'Your last match is being checked.', sub: 'Its grade and your fix land here when the review is done.' };
+  if (!last.grade) return { head: 'Your last match was not graded.', sub: last.noGrade ? last.noGrade.text : 'Play a full match for a grade and a fix.' };
+  return { head: 'Your last match is graded.', sub: 'Open its review for every round.' };
+}
 function paintHero(model) {
   const has = !!(model && model.last);
   const fix = has && model.focus ? splitFix(model.focus) : null;
-  $('h-kicker').textContent = !has ? 'Ready when you are'
-    : model.focusPrevious ? 'Your fix for next match, from the last review' : 'Your fix for next match';
-  $('h-fix-head').textContent = fix ? fix.head : has ? 'Your last match is graded.' : 'Play one match and your first fix lands here.';
-  $('h-fix-sub').textContent = fix ? fix.sub : has ? 'Open its review for every round.' : '';
+  // 9.1, the owner's item 8: no "Your fix for next match" label. The kicker
+  // speaks only when the fix is an older review's, and says whose.
+  const from = has && fix && model.focusPrevious ? model.focusFrom : null;
+  $('h-kicker').textContent = from === 'ungraded' ? 'From your last graded match' : from === 'writing' ? 'From your last review, while this one is checked' : '';
+  $('h-kicker').hidden = !from;
+  const words = fix || heroWords(model);
+  $('h-fix-head').textContent = words.head;
+  $('h-fix-sub').textContent = words.sub;
   $('h-open').hidden = !has;
   // The agent in front of the moon: the last match's, standing (its full
   // portrait), or its head icon in the ring when there is no portrait.
@@ -398,14 +522,21 @@ function mistakeIcon(title) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MISTAKE_ICO[k]}</svg>`;
 }
 
-/** The most repeated mistakes, each with how often it happened and in how many matches. */
+/**
+ * The most repeated mistakes, each with how often it happened and in how many
+ * matches, every row in the full ink (9.1, the owner's item 3: the fourth
+ * faded to grey), and each with its arrow (item 4): up getting worse, down
+ * getting better, flat steady, its tooltip saying what it compares.
+ */
 function paintMistakes(model) {
   const list = Array.isArray(model.mistakes) ? model.mistakes : [];
   $('top').hidden = !list.length;
   const host = $('top-list');
   host.replaceChildren();
+  // Every row keeps the arrow's room when any has one, so the counts line up.
+  const anyWay = list.some((m) => m && WAY_PATH[m.trend]);
   list.forEach((m, j) => {
-    const row = el('div', 'top-row' + (j === 3 ? ' faded' : ''));
+    const row = el('div', 'top-row');
     row.setAttribute('role', 'listitem');
     // Its place (--j), for the rows to rise one after another as the section
     // arrives (home.css), never on a repaint.
@@ -416,6 +547,8 @@ function paintMistakes(model) {
     text.append(el('span', 'top-title', m.title));
     if (typeof m.matches === 'number' && typeof model.recorded === 'number') text.append(el('span', 'top-sub', `In ${m.matches} of your last ${model.recorded} matches`));
     row.append(bubble, text);
+    if (WAY_PATH[m.trend]) row.append(wayMark(m.trend, 'down', m.trendWords || '', null));
+    else if (anyWay) row.append(el('span', 'way none'));
     if (typeof m.total === 'number') {
       const n = el('span', 'top-n', String(m.total));
       n.title = `${m.total} times${typeof m.matches === 'number' && typeof model.recorded === 'number' ? `, in ${m.matches} of your last ${model.recorded} recorded matches` : ''}`;
@@ -506,29 +639,58 @@ function paintRowRR() {
  * Stats. Filled in once the page is painted, because the history can be a
  * network read away, and gone without a rated game. RR only, never MMR.
  */
+/*
+ * 9.1, the owner's item 10: the tier's own icon beside it (the bundled set,
+ * sync:rankicons; the preload names the file), the RR in the tier under the
+ * tier, the last game's RR beside it, and the way to the next tier as a bar
+ * with how far it is and what it is ("43 RR to Diamond 2"). From Immortal 1
+ * the RR is not capped at 100 and the next rank follows the leaderboard, so
+ * there is no bar, only the RR and that line. Every tier draws its own icon;
+ * one that fails to load leaves the words alone.
+ */
 function paintRank(card) {
   const host = $('rank');
   const was = host.hidden;
   host.hidden = !card;
   if (card) {
     $('rank-tier').textContent = card.tier;
+    const icon = $('rank-icon');
+    const src = typeof card.icon === 'string' && card.icon ? card.icon : null;
+    if (!src) { icon.hidden = true; icon.removeAttribute('src'); }
+    else if (icon.getAttribute('src') !== src) {
+      icon.hidden = false;
+      icon.classList.remove('ready');
+      icon.setAttribute('src', src);
+    }
+    icon.title = card.tier;
     const span = $('rank-rr');
     const known = typeof card.change === 'number' && Number.isFinite(card.change);
     span.hidden = !known;
     span.textContent = known ? rrText(card.change) : '';
     span.className = 'rr-chip rank-rr' + (known ? ' ' + rrTone(card.change) : '');
     const inTier = typeof card.rr === 'number' && Number.isFinite(card.rr) ? card.rr : null;
-    $('rank-bar').hidden = inTier === null;
+    // Below Immortal unless the model says otherwise (a model from before 9.1 has no `capped`).
+    const capped = card.capped !== false;
+    // Below Immortal the RR is the bar's, under it; from Immortal 1, with no
+    // bar, it stands under the tier.
+    $('rank-points').hidden = inTier === null || capped;
+    $('rank-points').textContent = inTier === null || capped ? '' : `${inTier} RR`;
+    $('rank-bar').hidden = inTier === null || !capped;
     $('rank-foot').hidden = inTier === null;
+    host.classList.toggle('uncapped', !capped);
     if (inTier !== null) {
       $('rank-fill').style.width = `${Math.max(1, Math.min(100, inTier))}%`;
-      $('rank-in').textContent = `${inTier} RR`;
-      $('rank-to').textContent = `${100 - inTier} to the next rank`;
+      // From Immortal 1 the foot says why there is no bar, on the left.
+      $('rank-in').textContent = capped ? `${inTier} RR` : card.next ? `${card.next} follows the leaderboard` : 'The highest rank';
+      $('rank-to').textContent = capped ? `${100 - inTier} RR to ${card.next || 'the next rank'}` : '';
     }
   }
   closeUp();
   if (was && card) rise(host);
 }
+// The icon fades in once decoded, and a file that fails leaves the words alone.
+$('rank-icon').addEventListener('load', () => $('rank-icon').classList.add('ready'));
+$('rank-icon').addEventListener('error', () => { $('rank-icon').hidden = true; });
 
 /** The row of the rank and the mistakes closes up as its cards go. */
 function closeUp() {

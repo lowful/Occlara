@@ -3,6 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
+const RankTiers = require('../shared/rank-tiers');
 const { pageMotion, subnav } = require('./page-motion');
 
 /**
@@ -28,6 +29,17 @@ contextBridge.exposeInMainWorld('occlara', {
   refreshMatches:  (mode) => ipcRenderer.invoke(C.STATS_REFRESH, mode),
   matchesFor:      (mode) => ipcRenderer.invoke(C.STATS_MATCHES, mode),
   rankHistory:     (force) => ipcRenderer.invoke(C.STATS_RANK_HISTORY, force),
+  // 9.1, the owner's item 10: the tier's own bundled icon (sync:rankicons),
+  // or null for a name the ladder does not know; and the way to the next tier
+  // from a rank history point (rank-tiers.js), the RR as the game shows it.
+  rankIcon:        (tier) => { const f = RankTiers.iconFile(tier); return f ? `../../../assets/${f}` : null; },
+  rankProgress:    (tier, elo) => {
+    if (RankTiers.placeOf(tier) === null || typeof elo !== 'number' || !Number.isFinite(elo) || elo <= 0) return null;
+    // Below Immortal the RR is the elo's last two digits, as Home reads it (home-model.js inTier).
+    const capped = RankTiers.capped(tier);
+    const rr = capped ? Math.round(elo) % 100 : RankTiers.rrOf(tier, elo);
+    return rr === null ? null : { rr, next: RankTiers.nextOf(tier), capped };
+  },
   // What the page was opened to show, taken once: 'journey' from Home's Rank
   // journey, else null (8.4.1).
   openedFor:       () => ipcRenderer.invoke(C.STATS_OPENED_FOR),

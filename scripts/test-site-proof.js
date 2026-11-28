@@ -81,8 +81,9 @@ ok(p.review.read.heading === "The coach's read" && p.review.read.lines.length ==
 ok(p.home.fix && p.review.fix.head === `${p.home.fix}:` && p.home.fixSub && p.home.fixSub.toLowerCase() === p.review.fix.sub.toLowerCase()
   && p.review.fix.text === `${p.review.fix.head} ${p.review.fix.sub}` && p.review.fix.text.length > 20,
   'the fix line, the same on Home (a headline and its sub line) and the review', JSON.stringify([p.home.fix, p.home.fixSub, p.review.fix.text]));
-ok(p.home.fixLabel === 'Your fix for next match' && p.home.start.button === 'Start' && p.home.start.open === 'Open last review',
-  "Home's hero: its label, Start and Open last review", JSON.stringify([p.home.fixLabel, p.home.start]));
+// 9.1, the owner's item 8: no "Your fix for next match" label over Home's hero.
+ok(p.home.fixLabel === '' && p.home.start.button === 'Start' && p.home.start.open === 'Open last review',
+  "Home's hero: no label, Start and Open last review", JSON.stringify([p.home.fixLabel, p.home.start]));
 ok(p.review.progress.length >= 3 && p.review.progress.every((l) => l.text && l.tone), 'the progress lines', JSON.stringify(p.review.progress));
 const mistakes = p.review.lists.find((l) => l.heading === 'Your repeated mistakes');
 // The top mistake, ranked with the count capped (Nov 2026, insights.js
@@ -104,8 +105,9 @@ const last = p.home.last;
 ok(last.result === 'Victory' && last.score === '13 : 11' && last.meta === 'Jett · Abyss · Standard',
   "Home's last match: the result, the score and the agent, map and queue, one separator each", JSON.stringify([last.result, last.score, last.meta]));
 ok(last.grade.label === 'Grade' && last.grade.sub === require('../src/shared/display').NAMES.grade.tip, "Home's grade: its name and what it measures (display.js NAMES.grade)", JSON.stringify(last.grade));
-ok(last.milestone.join() === 'Best in 4' && last.change === '+7 on your last match' && last.label === 'Last match' && last.title,
-  "Home's last match: its eyebrow, its title, its mark and its change since the match before", JSON.stringify([last.label, last.title, last.milestone, last.change]));
+// 9.1: the change is "+7" under the grade's name, its sentence in its tooltip.
+ok(last.milestone.join() === 'Best in 4' && last.change === '+7' && last.changeLabel === 'Up 7 on your last match' && last.label === 'Last match' && last.title,
+  "Home's last match: its eyebrow, its line, its mark and its change since the match before", JSON.stringify([last.label, last.title, last.milestone, last.change, last.changeLabel]));
 ok(last.kd && last.kd.label === 'K/D' && last.kd.ratio === (31 / 21).toFixed(2) &&last.kd.split === '31 / 21', "Home's K/D of the last match", JSON.stringify(last.kd));
 ok(p.home.player.idShown === false && p.home.player.connect === 'Connect your Riot ID', 'Home shows no Riot ID, the Connect link in its place', JSON.stringify(p.home.player));
 ok(p.home.top && p.home.top.title === TOP && /^In \d of your last \d matches$/.test(p.home.top.detail)
@@ -113,8 +115,11 @@ ok(p.home.top && p.home.top.title === TOP && /^In \d of your last \d matches$/.t
 ok(p.home.mistakes.length >= 3 && p.home.mistakes.every((m) => m.title && /^\d+$/.test(m.count) && /^In \d of your last \d matches$/.test(m.sub)),
   "Home's repeated mistakes, each counted and in how many matches", JSON.stringify(p.home.mistakes));
 ok(p.home.mistakesHeading === 'What repeats' && p.home.mistakesTitle, "Home's card of what repeats, its eyebrow and its title", JSON.stringify([p.home.mistakesHeading, p.home.mistakesTitle]));
-ok(p.home.trend.label === 'Trend' && /^Up \d+ over four matches$/.test(p.home.trend.title) && p.home.trend.average === 'Average 64' && p.home.last.average === 'Average 64',
-  "Home's trend card: its eyebrow, the fact it shows and the average", JSON.stringify(p.home.trend));
+// 9.1, the owner's item 4: the title is the average the line draws ("Level
+// over five matches" read oddly), and the line under it says what it is of.
+ok(p.home.trend.label === 'Trend' && p.home.trend.title === 'Averaging 64' && /^Your last four graded matches/.test(p.home.trend.average)
+  && p.home.last.average === p.home.trend.average,
+  "Home's trend card: its eyebrow, the average it shows and what it is of", JSON.stringify(p.home.trend));
 ok(/^Grade over your last \d$/.test(p.matches.chart.label), "the Matches chart's label", p.matches.chart.label);
 ok(p.matches.title === 'Matches' && p.matches.sub && p.matches.subnav.map((s) => s.page).join() === 'Matches,Patterns,Stats' && p.matches.subnav[0].current,
   'Matches: its title, its sub line and the sub switch to Patterns and Stats, Matches pressed', JSON.stringify([p.matches.title, p.matches.subnav]));
