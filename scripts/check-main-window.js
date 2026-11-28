@@ -1385,6 +1385,20 @@ setTimeout(async () => {
     })()`;
     await wait(1500);
     const recCard = await sjs(CARD_NOW);
+    // START LANDS ON THE RECORDING SCREEN (9.1, the owner's item 14): the
+    // Recording view, its waiting state, Stop on it, no seal and no page.
+    const RECVIEW_NOW = `(() => {
+      const seen = (id) => { const n = document.getElementById(id); return !!n && !n.hidden && !n.closest('[hidden]') && n.offsetParent !== null; };
+      return { wait: seen('live-wait'), stop: seen('live-stop'), facts: seen('live-main'), back: seen('rec-back'),
+        locked: [...document.querySelectorAll('#nav .nav-item')].some((b) => b.disabled), view: document.querySelector('.app').classList.contains('rec-view') };
+    })()`;
+    const recView = { nav: mainWindow.current(), screen: await sjs(RECVIEW_NOW) };
+    lines.push(`after Start: ${JSON.stringify(recView)}`);
+    if (!recView.nav.rec || recView.nav.sealed || recView.nav.shown !== null || !recView.screen.wait || !recView.screen.stop
+      || recView.screen.facts || recView.screen.back || recView.screen.locked || !recView.screen.view) {
+      return report(false, `Start did not land on the Recording screen's waiting state, unsealed: ${JSON.stringify(recView)}`);
+    }
+    await shot('recording-waiting', mainWindow, win);
     reader.inLobby = false;
     ipc.emit(CH5.SHELL_NAV, { sender: null }, 'home');
     const inMatch = await until(() => mainWindow.current().sealed, 3000);
@@ -1396,7 +1410,8 @@ setTimeout(async () => {
     const twoButtons = (c, text) => c.kids === 'rec-controls' && c.buttons === 2 && c.text === text && !c.agent && c.height >= 32 && c.height <= 44;
     if (!inMatch) return report(false, 'recording, a match in progress did not seal the window');
     const liveStop = await sjs("(() => { const b = document.getElementById('live-stop'); return !!b && b.offsetParent !== null && b.textContent.trim() === 'Stop'; })()");
-    if (!twoButtons(recCard, 'Stop') || !twoButtons(matchCard, '') || !liveStop) {
+    // On the Recording view Start lands on, Stop is the screen's own too (9.1).
+    if (!twoButtons(recCard, '') || !twoButtons(matchCard, '') || !liveStop) {
       return report(false, `recording, the record controls are not Stop and pause alone: ${JSON.stringify({ recCard, matchCard })}`);
     }
     // THE LIVE STATUS (Progress v3, the owner's choice): mid match the

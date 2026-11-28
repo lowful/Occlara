@@ -96,7 +96,17 @@ class StandInValorant extends EventEmitter {
     this.opts = opts || {};
     this.endWatch = { ended: false };
     this.ledger = { size: () => 0 };
-    this.inLobby = true;
+    // What the real reader sets on its first countable read (coaching-engine.js
+    // sawGame): a stand-in taken out of the lobby has seen a game, so the
+    // Recording screen shows the match's facts rather than its wait (9.1,
+    // index.js liveView waits until the reader has seen one).
+    this.sawGame = false;
+    let lobby = true;
+    Object.defineProperty(this, 'inLobby', {
+      get: () => lobby,
+      set: (v) => { lobby = !!v; if (!lobby) this.sawGame = true; },
+      enumerable: true,
+    });
     readers.push(this);
   }
   start() { this.emit('status', 'coaching'); }
