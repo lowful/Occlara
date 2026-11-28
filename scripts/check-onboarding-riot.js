@@ -213,7 +213,9 @@ const typeInto = (run, id, value) => run(`(() => {
   el.dispatchEvent(new Event('input', { bubbles: true }));
   return true;
 })()`);
-const GRADED = /^\d{1,3} [SABCD]$/;
+// One score, no letter (9.1): a graded row says its number alone, so a row
+// that still drew a letter beside it fails here.
+const GRADED = /^\d{1,3}$/;
 const failedReds = (s) => s.reds.join() !== 'ob-connect';
 const connectedReds = (s) => s.reds.join() !== 'next';
 
@@ -632,7 +634,9 @@ setTimeout(async () => {
     await wait(500);
     const two = await page();
     lines.push(`a loss and a win: ${JSON.stringify(two.rows.map((r) => r.resTone + '|' + r.res + '|' + r.grade))}`);
-    if (!/\bloss\b/.test((two.rows[0] || {}).resTone || '') || (two.rows[0] || {}).grade !== '58 D') {
+    // The pushed grade still carries the letter grade.js keeps internally; the
+    // row must draw the number alone (one score, no letter, 9.1).
+    if (!/\bloss\b/.test((two.rows[0] || {}).resTone || '') || (two.rows[0] || {}).grade !== '58') {
       return report(false, 'a Defeat is not painted as a loss with its grade');
     }
     if (!/\bwin\b/.test((two.rows[1] || {}).resTone || '')) return report(false, 'a Victory is not marked as a win');

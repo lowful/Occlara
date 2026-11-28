@@ -432,7 +432,7 @@ const READ_REVIEW = `(() => { ${READ_HELPERS}
   return {
     verdict: { label: txt('header .h-brand h2'), reason: txt('#v-stat .vd-stat-label'),
       icon: shown(Q('#v-icon')) && !!Q('#v-icon .vd-icon-img'), name: txt('#v-grade .vd-name'), score: txt('#v-grade .vd-score'), out: txt('#v-grade .vd-out'),
-      provisional: !!Q('#v-grade .vd-prov'), stat: { value: txt('#v-stat .vd-stat-value'), label: txt('#v-stat .vd-stat-label') },
+      provisional: !!Q('#v-grade .vd-prov'), delta: shown(Q('#v-grade .vd-delta')) ? txt('#v-grade .vd-delta') : '', stat: { value: txt('#v-stat .vd-stat-value'), label: txt('#v-stat .vd-stat-label') },
       result: txt('#v-result'), scoreline: txt('#v-score'), meta: txt('#v-meta'),
       stats: QA('#v-stats .v-stat').map((s) => ({ value: txt('.v-stat-value', s), label: txt('.v-stat-label', s), versus: txt('.v-stat-vs', s) })),
       verified: shown(Q('#v-verified')) ? txt('#v-verified') : '',

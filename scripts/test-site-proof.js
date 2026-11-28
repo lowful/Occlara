@@ -84,7 +84,15 @@ ok(p.home.fix && p.review.fix.head === `${p.home.fix}:` && p.home.fixSub && p.ho
 // 9.1, the owner's item 8: no "Your fix for next match" label over Home's hero.
 ok(p.home.fixLabel === '' && p.home.start.button === 'Start' && p.home.start.open === 'Open last review',
   "Home's hero: no label, Start and Open last review", JSON.stringify([p.home.fixLabel, p.home.start]));
-ok(p.review.progress.length >= 3 && p.review.progress.every((l) => l.text && l.tone), 'the progress lines', JSON.stringify(p.review.progress));
+// ONCE ON THE PAGE (9.1, review.js paintProgress): a line a medal says and
+// the change on the last match the hero's delta says are not said again in
+// the strip under the hero, which carries the rest (here the average).
+const said = (v && v.medals || []).map((m) => m.toLowerCase());
+ok(v && v.delta === '+7 on your last match', "the hero's change on the last match, beside the grade", JSON.stringify(v && v.delta));
+ok(p.review.progress.length >= 1 && p.review.progress.every((l) => l.text && l.tone)
+  && p.review.progress.some((l) => /\byour average of \d+\b/.test(l.text))
+  && p.review.progress.every((l) => !/on your last match/i.test(l.text) && !said.some((m) => l.text.toLowerCase().includes(m))),
+  'the progress lines: the average, and no medal or change on the last match said twice', JSON.stringify(p.review.progress));
 const mistakes = p.review.lists.find((l) => l.heading === 'Your repeated mistakes');
 // The top mistake, ranked with the count capped (Nov 2026, insights.js
 // RANK_CAP): the advantage given back in 6 rounds (weight 3) leads the 20
