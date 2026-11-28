@@ -588,3 +588,9 @@ it is the seek that lands a frame either side.
   match) and PUSH_REVIEWS `{ ratings: true }` asks Home and Matches to list again.
 - The cap and Clear clips are unchanged: a deleted clip is simply not on disk
   for them to count. `test:storage` holds all of it.
+- **On the Clips page** (9.1, ui.md "Clips, 9.1"): each kept clip's menu
+  opens its file location or deletes it after a confirm; Storage is a press
+  from the title, and STORAGE_GET also carries `recordNeeds`, the recorder's
+  own floor (`DISK_START_BYTES`, 8 GB), so the page says when the drive is
+  too full to record. Clear all clips stays in Settings, where the limit is.
+  `test:clipspage` holds the page.

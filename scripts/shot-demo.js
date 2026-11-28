@@ -117,6 +117,9 @@ const SCENES = {
   clipsscroll: { page: 'moments', clips: 'rich', storage: 'some', act: "document.querySelector('.sheet').scrollTop = 250; true" },
   clipssmall: { page: 'moments', clips: 'rich', storage: 'some', w: 960, h: 640 },
   clipsplay: { page: 'moments', clips: 'rich', storage: 'some', video: true },
+  // A filter's list open, and the line a delete leaves.
+  clipsdd: { page: 'moments', clips: 'rich', storage: 'some', act: "(() => { document.getElementById('mo-log').scrollIntoView({ block: 'start' }); setTimeout(() => document.querySelector('#mo-f-agent .dd-btn').click(), 300); return true; })()" },
+  clipsdeleted: { page: 'moments', clips: 'rich', storage: 'some', act: "(() => { document.querySelector('#mo-hero .mo-more').click(); setTimeout(() => { document.querySelector('#mo-menu [data-act=\"delete\"]').click(); setTimeout(() => document.getElementById('mo-cf-yes').click(), 200); }, 200); return true; })()" },
   // The keyboard's ring on the hero's play mark, then on a clip's more button.
   clipsfocus: { page: 'moments', clips: 'rich', storage: 'some', act: "document.querySelector('#mo-hero .mo-hplay').focus(); true" },
   clipsfocus2: { page: 'moments', clips: 'rich', storage: 'some', act: "(() => { const b = document.querySelectorAll('#mo-list .mo-row .mo-more')[0]; b.closest('.mo-row').scrollIntoView({ block: 'center' }); b.focus(); return true; })()" },
@@ -212,6 +215,9 @@ app.whenReady().then(async () => {
     [C.HISTORY_GET]: () => ({ back: true, forward: false, backTo: 'matches', forwardTo: null, backLabel: 'Matches', forwardLabel: null, at: 1, length: 2 }),
     [C.HISTORY_GO]: () => null,
     [C.STORAGE_GET]: () => (scene.storage ? clipsDemo.storage(scene.storage) : null),
+    // Nothing on disk is touched: a delete and an open only answer as main would.
+    [C.CLIP_DELETE]: (_e, rid, name) => ({ ok: true, id: rid, clip: name, bytes: 24 * 1024 * 1024 }),
+    [C.CLIP_REVEAL]: () => ({ ok: true }),
   };
   // A clips scene that plays: every clip URL is the generated canvas recording
   // (fixtures/recording-canvas.mkv), served by the app's own handler.
