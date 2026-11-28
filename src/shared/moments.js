@@ -371,7 +371,7 @@ function build(game, saved, opts) {
 
   return {
     game, matches, compilation, reel,
-    best: bestOf(matches, compilation),
+    best: bestOf(matches, compilation, game),
     counts: { matches: matches.length, deaths, highlights, clips },
     clipsNote, clipsNoteText: clipsNote ? NOTES[clipsNote] : null,
     enough: !!patterns.enough,
@@ -398,12 +398,13 @@ function weightOf(x) {
  *   - the kept highlight worth the most (weightOf), the newer of two alike;
  *   - else the newest kept death of the most repeated mistake across matches
  *     (the compilation's first that has one), "worth another look";
- *   - else the newest kept death.
+ *   - else the newest kept death (in League, which has no highlights to
+ *     miss, with no line under it).
  * { key, kind, label, line }: the moment's key, and the words over it, main's
  * like every sentence on the page. Null with no clip kept in those matches.
  */
 const RECENT = WINDOW;
-function bestOf(matches, compilation) {
+function bestOf(matches, compilation, game) {
   const recent = (Array.isArray(matches) ? matches : []).slice(0, RECENT);
   const kept = [];
   recent.forEach((m, mi) => (m.moments || []).forEach((x) => { if (x && x.clip) kept.push({ x, mi }); }));
@@ -421,7 +422,7 @@ function bestOf(matches, compilation) {
     if (hit) return { key: hit.x.key, kind: 'death', label: 'Worth another look', line: `${c.title}, one of your repeated mistakes.` };
   }
   const x = deaths[0].x;
-  return { key: x.key, kind: 'death', label: 'Your latest clip', line: `No highlight clip was kept from ${lastN}.` };
+  return { key: x.key, kind: 'death', label: 'Your latest clip', line: game === 'lol' ? null : `No highlight clip was kept from ${lastN}.` };
 }
 
 /** The sentence the page says for a clips note, and for a clip that is gone: written here, so the page counts and words nothing. */

@@ -1207,10 +1207,12 @@ $('close').addEventListener('click', closeWindow);
   refreshStorage(true);
   // A review saved or improved (Riot's record landing, a look taken, a clip
   // cut or deleted) repaints the page; so does a change of game.
-  // A poster made (Orbit): the page shows it, unless the player is open, where a repaint would cut in.
+  // A poster made (Orbit): the page shows it, unless the player, a clip's
+  // menu or the confirm is open, where a repaint would cut in (the next one
+  // brings it).
   if (typeof api.onReviews === 'function') {
     api.onReviews((msg) => {
-      if (msg && msg.posters && !$('mo-player').hidden) return;
+      if (msg && msg.posters && (!$('mo-player').hidden || menu.open || cf.open)) return;
       load();
       if (!(msg && msg.posters)) refreshStorage(!!(msg && msg.removed));
     });

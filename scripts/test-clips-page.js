@@ -72,6 +72,8 @@ const GB = 1024 * 1024 * 1024;
   b = moments.bestOf([match(0, [death(id(0), 2)]), match(1, [death(id(1), 6)])], comp);
   ok(b && b.key === `${id(0)}:r2` && b.label === 'Your latest clip' && b.line === 'No highlight clip was kept from your last 2 matches.',
     'and with none of a pattern, the newest kept death, saying why', JSON.stringify(b));
+  b = moments.bestOf([match(0, [death(id(0), 2)])], [], 'lol');
+  ok(b && b.label === 'Your latest clip' && b.line === null, 'in League, which has no highlights to miss, no line under the latest clip', JSON.stringify(b));
   ok(moments.bestOf([match(0, [death(id(0), 2, [], false)])], []) === null && moments.bestOf([], []) === null, 'no clip kept: no hero at all');
   const eleven = Array.from({ length: 11 }, (_v, i) => match(i, i === 10 ? [hl(id(10), 4, 5)] : [death(id(i), 3, [], i === 0)]));
   b = moments.bestOf(eleven, []);
@@ -183,6 +185,11 @@ const GB = 1024 * 1024 * 1024;
   more.click();
   ok(!$('mo-menu').hidden && more.getAttribute('aria-expanded') === 'true' && D.activeElement === $('mo-menu').querySelector('[data-act="reveal"]'),
     'pressed, its menu opens with the keyboard on its first item');
+  const asked = q.bridge.invoked.filter(([ch]) => ch === C.MOMENTS_GET).length;
+  q.bridge.emit(C.PUSH_REVIEWS, { posters: true });
+  await settle();
+  ok(!$('mo-menu').hidden && q.bridge.invoked.filter(([ch]) => ch === C.MOMENTS_GET).length === asked,
+    'a poster landing does not repaint the page under an open menu');
   q.fire(D.activeElement, 'keydown', { key: 'ArrowDown' });
   ok(D.activeElement === $('mo-menu').querySelector('[data-act="delete"]'), 'the arrows move inside it');
   q.fire(D.activeElement, 'keydown', { key: 'Escape' });
