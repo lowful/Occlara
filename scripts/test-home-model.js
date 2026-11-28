@@ -72,6 +72,18 @@ const summary = patterns.summarise(saved);
     `the trend is the last five grades, oldest first (${m.trend.map((t) => t.score).join(', ')})`);
   ok(m.average === summary.average, `the average is the patterns' (${m.average})`);
   ok(m.recent.length === 5 && m.recent[0].id === saved[0].id, 'and five recent matches, newest first');
+  // 9.1 (item 11): each recent row carries its change on the graded match
+  // before it in the whole library, as the Matches list counts it, and the
+  // oldest graded is 'first'.
+  const want = rows.map((r, i) => (rows[i + 1] ? r.grade.score - rows[i + 1].grade.score : 'first'));
+  ok(m.recent.every((r, i) => r.delta === want[i]), 'each recent row its change on the graded match before, as Matches counts it',
+    JSON.stringify(m.recent.map((r) => r.delta)));
+  const short = [{ id: 'valorant-9-x', game: 'valorant', at: 9, title: null, map: 'Haven', result: null, score: null, grade: null, stoppedLive: true },
+    { id: 'valorant-8-y', game: 'valorant', at: 8, title: null, map: 'Bind', result: null, score: null, grade: null, locked: true }, ...rows];
+  const ms = homeModel({ rows: short, patterns: patterns.summarise([]), review: null });
+  ok(ms.recent[0].delta === null && ms.recent[0].stoppedLive === true && ms.recent[0].locked === false && ms.recent[1].locked === true
+    && ms.recent[0].game === 'valorant' && ms.recent[2].delta === want[0],
+  'an ungraded row has no change and says why it has no grade (stopped early, no games left), and the graded one after it keeps its change');
 }
 {
   const m = homeModel({ rows: [], patterns: patterns.summarise([]), review: null });

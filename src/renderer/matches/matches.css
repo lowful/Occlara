@@ -281,6 +281,10 @@ html[data-section="patterns"] .imp-go { display: none; }
 }
 .m-row:focus-visible { outline-offset: -2px; border-radius: var(--r-in); }
 .m-face { flex: none; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--s3); box-shadow: var(--rim-2); }
+/* No agent read: the map's picture in the circle, else a quiet pin (9.1). */
+.m-face.map { filter: saturate(0.8) brightness(0.9); }
+.m-face.blank { display: inline-flex; align-items: center; justify-content: center; color: var(--text-mute); }
+.m-face.blank svg { width: 18px; height: 18px; }
 .m-name { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .m-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-when { font-size: 13px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }

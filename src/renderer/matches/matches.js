@@ -14,8 +14,9 @@
  */
 
 const $ = (id) => document.getElementById(id);
-// Every grade here is coloured by its letter through GradeView.gradeTone, the
-// same rule the review, the panel and Stats use.
+// Every grade here is coloured by its score through GradeView.gradeTone (80
+// and up good, 70 to 79 the ink, 60 to 69 a warning, below 60 a problem), the
+// same rule the review, Home, Clips and Stats use, never by a saved letter.
 const { el, gradeTone } = window.GradeView;
 
 let game = null;
@@ -990,18 +991,41 @@ function whenOf(at) {
 }
 
 /**
- * Why a row has no grade: [short, long]. The short one stands in the row, the
- * long one is its tooltip; both say only what the row itself shows.
+ * Why a row has no grade: [short, long], GradeView's one rule, the same words
+ * Home's recent matches use. The short one stands in the row, the long one is
+ * its tooltip; both say only what the row itself shows.
  */
-function whyUngraded(m) {
-  if (m.locked) return ['No games left, not graded', 'Saved while your account had no games left, so it was not graded. Open it for what Riot recorded.'];
-  if (m.stoppedLive && !m.result) return ['Stopped early, not graded', 'Stop was pressed before this match ended, so too little of it was read to grade. Open it for what was read.'];
-  if (!m.result && !m.score) return ['Too little read to grade', 'Too little of this match was read to grade it: its score was never on screen long enough. Open it for what was read.'];
-  if (m.imported && !m.matchId && !m.verified) return ["Not matched to Riot's record", "This recording was not matched to Riot's record of a match, and a full grade needs it. Open it for what the screen showed."];
-  return ['Not enough measured to grade', 'Not enough of this match was measured to grade it. Open it to see what was.'];
-}
+const whyUngraded = (m) => window.GradeView.whyUngraded({ ...m, game: m.game || game });
 
 let peekSeq = 0;
+
+/** The neutral mark a face with no picture at all holds: a map's pin. */
+const PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>';
+/**
+ * A row's face: the agent's portrait, else the map's picture cropped into the
+ * circle (a recording too short to read the agent, as Home's last match card
+ * draws its map), else a quiet pin, never an empty grey circle that reads as
+ * an image that failed (9.1, the owner's 9.0 screenshot of the Haven rows).
+ */
+function faceOf(m) {
+  const art = (fn, name) => (typeof window.occlara[fn] === 'function' ? window.occlara[fn](game, name) : null);
+  const agent = art('agentArt', m.title);
+  const map = agent ? null : art('mapArt', m.map);
+  const blank = () => {
+    const s = el('span', 'm-face blank');
+    s.innerHTML = PIN;
+    s.setAttribute('aria-hidden', 'true');
+    return s;
+  };
+  const src = agent || map;
+  if (!src) return blank();
+  const img = el('img', 'm-face' + (map ? ' map' : ''));
+  img.src = src;
+  img.alt = '';
+  img.setAttribute('aria-hidden', 'true');
+  img.addEventListener('error', () => img.replaceWith(blank()));
+  return img;
+}
 
 /**
  * @param m       the library row
@@ -1018,14 +1042,7 @@ function row(m, o) {
   item.dataset.id = m.id;
   const b = el('button', 'm-row');
   b.type = 'button';
-  const src = typeof window.occlara.agentArt === 'function' ? window.occlara.agentArt(game, m.title) : null;
-  const face = el(src ? 'img' : 'span', 'm-face');
-  if (src) {
-    face.src = src;
-    face.alt = '';
-    face.addEventListener('error', () => face.replaceWith(el('span', 'm-face')));
-  }
-  face.setAttribute('aria-hidden', 'true');
+  const face = faceOf(m);
 
   const name = el('div', 'm-name');
   name.append(el('span', 'm-title', nameOf(m)), el('span', 'm-when', whenOf(m.at)));

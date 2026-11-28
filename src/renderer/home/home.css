@@ -196,11 +196,9 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
   white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .rr-chip[hidden] { display: none; }
-
-/* An agent's portrait, a ringed circle. */
-.agent-face { flex: none; border-radius: 50%; object-fit: cover; background: var(--raised); border: 1px solid var(--line); }
-.agent-face.lg { width: 40px; height: 40px; }
-.agent-face.sm { width: 34px; height: 34px; }
+.rr-chip.gain { color: var(--good); }
+.rr-chip.loss { color: var(--bad); }
+.rr-chip.even { color: var(--text-2); }
 
 /* ── Nothing yet ────────────────────────────────────────────────────────── */
 .empty { gap: var(--space-3); max-width: 620px; }
@@ -498,19 +496,23 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 .rank.uncapped .rank-foot { margin-top: var(--space-3); }
 
 /* ── The recent matches, a row each, opening its review ─────────────────── */
+/* THE MATCHES ROW (9.1, the owner's item 11): five things in columns, as
+   matches.css draws them, so Home and Matches read alike: the portrait, the
+   agent and the map over the day, the result, the grade, its change. */
 .recent { gap: var(--space-2); padding: 22px 22px 14px; }
 .recent .card-head { padding: 0 6px 8px; }
 .recent-list { display: flex; flex-direction: column; }
 .r-row {
   position: relative;
-  display: flex; align-items: center; gap: 14px;
-  min-height: 62px; padding: 10px;
-  border: 0; border-radius: 16px;
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(150px, 210px) 52px 52px;
+  align-items: center; column-gap: var(--space-4);
+  min-height: 64px; padding: 12px 10px 12px 12px;
+  border: 0; border-radius: var(--r-in);
   background: transparent; color: var(--text); text-align: left;
   font: inherit; cursor: pointer;
   transition: background-color var(--dur-hover-out) var(--ease-out);
 }
-.r-row + .r-row::before { content: ''; position: absolute; left: 10px; right: 10px; top: 0; height: 1px; background: var(--line); transition: opacity var(--dur-hover-out) var(--ease-out); }
+.r-row + .r-row::before { content: ''; position: absolute; left: 66px; right: 14px; top: 0; height: 1px; background: var(--line); transition: opacity var(--dur-hover-out) var(--ease-out); }
 .r-row:hover { background: var(--glass-q); transition-duration: 0s; }
 .r-row:hover::before, .r-row:hover + .r-row::before { opacity: 0; transition-duration: 0s; }
 .r-row:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
@@ -519,24 +521,47 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
   animation: m-enter var(--dur-enter) var(--spring-smooth) both;
   animation-delay: calc(min(var(--i, 0) + 1, 5) * var(--stagger) + min(var(--j, 0), 5) * var(--stagger));
 }
-.r-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.r-title { font-size: 15px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); }
-.r-res { font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.r-face { flex: none; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--s3); box-shadow: var(--rim-2); }
+/* No agent read: the map's picture in the circle, else a quiet pin. */
+.r-face.map { filter: saturate(0.8) brightness(0.9); }
+.r-face.blank { display: inline-flex; align-items: center; justify-content: center; color: var(--text-mute); }
+.r-face.blank svg { width: 18px; height: 18px; }
+.r-name { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.r-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r-when { font-size: 13px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.r-result { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* The result and the score, one word and one number, in the outcome's tone. */
+.r-res { font-size: 14px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .r-res.win { color: var(--good); }
 .r-res.loss { color: var(--bad); }
-/* A mark beside the result (8.7, home-model.js marks): "Best in 23". */
-.r-mark { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--good); white-space: nowrap; }
-.r-mark::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.r-mark.run, .r-mark.cleared { color: var(--text-dim); }
-.r-meta { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A rated match's RR beside its grade. */
-.r-rr { flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums;
-  height: 24px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: var(--r-control); background: var(--raised); color: var(--text-mute); }
-.r-rr[hidden] { display: none; }
-.r-rr.gain { color: var(--good); }
-.r-rr.loss { color: var(--bad); }
-.r-score { font-size: var(--t-title); font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; min-width: 32px; text-align: right; }
-.r-row .gv-letter { width: 14px; min-width: 0; height: auto; padding: 0; border: 0; background: none; font-size: 13px; color: var(--text-2); }
+/* No result kept (League): the queue, quiet. */
+.r-res.quiet { font-weight: 500; color: var(--text-mute); }
+/* Why a row has no grade, where its result and grade would read. */
+.r-why { font-size: 13px; line-height: 1.35; color: var(--text-2); }
+.r-grade { display: flex; justify-content: flex-end; min-width: 0; }
+.r-score {
+  font-size: 26px; font-weight: 700; line-height: 1; letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums; color: var(--text);
+}
+/* One score, no letter (9.1): the number in its band's tone (GradeView.gradeTone, by the score), dashed when provisional. */
+.r-score.good { color: var(--good); }
+.r-score.warn { color: var(--warn); }
+.r-score.bad  { color: var(--bad); }
+.r-score.prov { text-decoration: underline dashed var(--text-mute) 1px; text-underline-offset: 5px; }
+.r-score.none { color: var(--text-3); font-weight: 600; letter-spacing: 0.02em; }
+.r-delta {
+  justify-self: end;
+  min-width: 44px; height: 24px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums;
+  background: var(--s3); color: var(--text-dim);
+}
+.r-delta.none { background: transparent; }
+.r-delta.first { font-family: var(--font); background: transparent; box-shadow: var(--rim-2); color: var(--text-mute); }
+.r-delta.up { background: rgba(var(--good-rgb), 0.14); color: var(--good); }
+.r-delta.down { background: rgba(var(--bad-rgb), 0.14); color: var(--bad); }
+.r-grade > .gv-checking { justify-self: end; }
+.r-row.ungraded .r-face { opacity: 0.7; }
 
 @media (max-width: 1100px) {
   .h-agent { right: 0; transform: scale(0.86); transform-origin: top right; }

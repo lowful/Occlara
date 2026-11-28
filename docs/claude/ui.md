@@ -388,10 +388,23 @@ you play best, then every match as one grouped card of rows.
   by its name and the RR (`.m-rr`, filled by `paintRR`). The peek shows after
   a 520ms rest of the pointer, at once for the keyboard's focus, over the row
   near the list's foot (`.peek-up`), and never takes the pointer. A row with
-  no grade says why where its result would be (`whyUngraded`): too little
-  read, saved with no games left, stopped early, an import not matched to
-  Riot's record, or not enough measured, the long reason its tooltip and in
-  its peek. Mistake titles inside a line go through `OcclaraDisplay.inSentence`.
+  no grade says why where its result would be (`GradeView.whyUngraded`, one
+  rule with Home's recent rows): too little read, saved with no games left,
+  stopped early, an import not matched to Riot's record, or not enough
+  measured (a League game always the last, never told its score was not on
+  screen), the long reason its tooltip and in its peek. A row with no agent
+  read shows its map's picture in the face (`matches-preload.js mapArt`),
+  else a quiet pin, never an empty grey circle. Mistake titles inside a line
+  go through `OcclaraDisplay.inSentence`.
+- **Home's Recent matches are this row** (9.1 fix, `home.js paintRecent`,
+  `home.css .r-row` on the same five columns): the face, the agent on the map
+  over the day (`TrendChart.whenWord`), the result in its tone, the grade by
+  its score's band, its change (home-model.js gives each recent row `delta`,
+  the same arithmetic as this list over the same library). Home has no peek,
+  so the rest (the queue, the source, the milestones and the RR the match
+  moved) is the row's tooltip and its name, kept as `data-meta`,
+  `data-marks` and `data-rr` for the site proof's reader; the RR shows on the
+  last match card and the rank card.
 - **Delete a match (item 18).** Each row has a menu button (`.m-more`,
   `aria-haspopup="menu"`) beside the row, never inside it: Open review, Open
   AI log (where kept) and Delete match (none while still being checked). Delete

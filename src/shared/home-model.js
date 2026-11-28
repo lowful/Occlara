@@ -91,7 +91,29 @@ function rowOf(r) {
     // 'kept', 'gone', or null when nothing was recorded (shared/log-eye.js).
     aiLog: r.aiLog === 'kept' || r.aiLog === 'gone' ? r.aiLog : null,
     work: workOfRow(r),
+    // Why a recent row has no grade, as Matches says it (9.1, GradeView
+    // whyUngraded): saved with no games left, or stopped before the end.
+    game: r.game || null,
+    locked: r.locked === true,
+    stoppedLive: !!r.stoppedLive,
   };
+}
+
+/*
+ * EACH RECENT ROW'S CHANGE (9.1, the owner's item 11: Home's rows are the
+ * Matches row): the grade's change on the graded match before it in the
+ * whole library, 'first' for the oldest graded one, null for a row with no
+ * grade or one still being built. The same arithmetic as the Matches list
+ * (matches.js load), over the same rows, so the two pages agree on a match.
+ */
+function changesOf(list) {
+  const graded = list.filter((r) => !workOfRow(r) && r.grade && Number.isFinite(Number(r.grade.score)));
+  const out = new Map();
+  graded.forEach((r, i) => {
+    const older = graded[i + 1];
+    out.set(r.id, older ? Number(r.grade.score) - Number(older.grade.score) : 'first');
+  });
+  return out;
 }
 
 /**
@@ -147,6 +169,7 @@ function homeModel({ rows, patterns, review, previous }) {
     });
 
   const grades = Array.isArray(p.grades) ? p.grades : [];
+  const changes = changesOf(list);
   // 9.1: each point carries what the shared trend chart's tooltip says (the
   // agent, the map, the result and the score, a provisional grade).
   const trend = grades.slice(0, TREND).reverse().map((g) => {
@@ -187,7 +210,7 @@ function homeModel({ rows, patterns, review, previous }) {
     // Each recent row's marks (8.7, progress.js libraryProgress marks[id]),
     // the badges the library draws, "Best in 23", "First A", "3 in a row":
     // read whole, as main counted them, and [] where it counted none.
-    recent: list.slice(0, RECENT).map((r) => ({ ...rowOf(r), marks: marksOf(p.progress, r.id) })),
+    recent: list.slice(0, RECENT).map((r) => ({ ...rowOf(r), marks: marksOf(p.progress, r.id), delta: changes.has(r.id) ? changes.get(r.id) : null })),
   };
 }
 

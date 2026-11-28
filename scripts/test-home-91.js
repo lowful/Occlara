@@ -99,6 +99,41 @@ async function openHome(o) {
     ok(same(res, ['Victory 13 : 11', 'Victory 5 : 2']), 'recent matches write the score as the last match card does, "13 : 11"', JSON.stringify(res));
   }
   {
+    // ITEM 11 ON HOME: a recent row is the Matches row, five columns, the
+    // rest one step away in its tooltip; a row with no grade says why.
+    const rows = [
+      row('valorant-1-r', 60000, { grade: { score: 84, letter: 'B' } }),
+      row('valorant-2-r', DAY, { grade: { score: 66, provisional: true }, result: 'Defeat', score: '9-13' }),
+      row('valorant-3-r', 2 * DAY, { title: null, map: 'Haven', mode: null, result: null, score: null, grade: null, verified: false }),
+      row('valorant-4-r', 3 * DAY, { grade: { score: 70 } }),
+    ];
+    const h = await openHome({ rows });
+    const items = h.document.querySelectorAll('#recent-list .r-row');
+    const kids = (b) => b.children.map((c) => c.className.split(' ')[0]);
+    ok(items.length === 4 && items.every((b) => same(kids(b), ['r-face', 'r-name', 'r-result', 'r-grade', 'r-delta'])),
+      'item 11: each row the Matches row, the face, the agent on the map over the day, the result, the grade, its change', JSON.stringify(kids(items[0])));
+    const t = (b, sel) => (b.querySelector(sel) ? b.querySelector(sel).textContent : null);
+    ok(t(items[0], '.r-title') === 'Jett on Split' && /^Today, /.test(t(items[0], '.r-when')) && t(items[0], '.r-res') === 'Victory 5 : 2'
+      && items[0].querySelector('.r-res').classList.contains('win'), 'the agent on the map, "Today, 9:25 PM", the result in its tone', t(items[0], '.r-when'));
+    ok(t(items[0], '.r-score') === '84' && items[0].querySelector('.r-score').classList.contains('good')
+      && items[1].querySelector('.r-score').classList.contains('warn') && items[1].querySelector('.r-score').classList.contains('prov'),
+    "the grade in its score's band whatever letter it saved, dashed when provisional");
+    ok(t(items[0], '.r-delta') === '+18' && items[0].querySelector('.r-delta').classList.contains('up') && t(items[1], '.r-delta') === '-4'
+      && t(items[3], '.r-delta') === 'First', 'its change on the graded match before, the oldest graded "First"',
+    JSON.stringify(items.map((b) => t(b, '.r-delta'))));
+    ok(t(items[2], '.r-why') === 'Too little read to grade' && t(items[2], '.r-score') === '--' && items[2].classList.contains('ungraded')
+      && /never on screen long enough/.test(items[2].querySelector('.r-why').title), 'a row with no grade says why, as Matches says it', t(items[2], '.r-why'));
+    const nf = items[2].querySelector('.r-face');
+    ok(nf && (nf.classList.contains('map') || (nf.classList.contains('blank') && nf.querySelector('svg'))), 'and with no agent read, the map or a pin in its circle, never an empty portrait', nf && nf.className);
+    ok(!h.document.querySelector('#recent-list .r-meta, #recent-list .r-mark, #recent-list .r-rr')
+      && /Swiftplay/.test(items[0].title) && /Victory 5 : 2/.test(items[0].getAttribute('aria-label')),
+    'nothing else in the row: the queue, the source, the milestones and the RR one step away, in its tooltip', items[0].title);
+    const css = read('src', 'renderer', 'home', 'home.css');
+    const mcss = read('src', 'renderer', 'matches', 'matches.css');
+    const cols = (text, sel) => ((text.match(new RegExp(sel.replace('.', '\\.') + ' \\{[^}]*grid-template-columns: ([^;]+);')) || [])[1] || '');
+    ok(cols(css, '.r-row') && cols(css, '.r-row') === cols(mcss, '.m-row'), 'its columns are the Matches row\'s own', `${cols(css, '.r-row')} | ${cols(mcss, '.m-row')}`);
+  }
+  {
     // The owner's library: a two round Haven recording, ungraded, the newest.
     const rows = [row('valorant-1-h', 60000, { title: null, map: 'Haven', mode: null, result: null, score: null, grade: null, verified: false }),
       row('valorant-2-s', DAY, { grade: { score: 84 } })];

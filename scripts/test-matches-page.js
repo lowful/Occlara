@@ -145,6 +145,13 @@ const row = (over) => ({ id: `valorant-${NOW}-r`, game: 'valorant', at: NOW - HO
       && /not graded/.test(by(id).querySelector('.m-row').getAttribute('aria-label'))), 'each with -- for its grade, and said to a screen reader');
     ok(by('chk').querySelector('.m-grade .gv-checking') && !by('chk').querySelector('.m-why'), 'one still being checked has its pill, no reason');
     ok(['part', 'lock', 'stop', 'imp', 'thin'].every((id) => by(id).querySelector('.m-peek-note')), 'and each peek says the long reason');
+    // 9.1: a row with no agent read shows its map in the circle, never an
+    // empty grey circle that reads as a picture that failed.
+    const pf = by('part').querySelector('.m-face');
+    ok(pf && pf.tagName === 'IMG' && pf.classList.contains('map') && /maps\//.test(String(pf.src || pf.getAttribute('src') || '')), "no agent read: the map's picture in the face", pf && `${pf.className} ${pf.src}`);
+    const nowhere = await open({ rows: [row({ id: 'nw', title: null, map: 'Nowhere', result: null, score: null, grade: null })] });
+    const nf = nowhere.document.querySelector('#list .m-face');
+    ok(nf && nf.classList.contains('blank') && nf.querySelector('svg'), 'and with no map picture either, a quiet pin', nf && nf.className);
   }
 
   console.log('\nitem 11, a League row, which keeps no result:');
@@ -154,6 +161,10 @@ const row = (over) => ({ id: `valorant-${NOW}-r`, game: 'valorant', at: NOW - HO
     const res = r.querySelector('.m-result .m-res');
     ok(res && res.textContent === 'Ranked Solo' && res.classList.contains('quiet'), 'its queue stands quietly where the result would be, never an empty column', res && res.textContent);
     ok(r.querySelector('.m-score').textContent === '72', 'and its grade beside it');
+    const why = await open({ game: 'lol', rows: [row({ id: 'l2', game: 'lol', title: 'Ahri', map: "Summoner's Rift", mode: 'Ranked Solo', result: null, score: null, grade: null })] });
+    const w = why.document.querySelector('#list .m-why');
+    ok(w && w.textContent === 'Not enough measured to grade' && /this game/.test(w.title) && !/score was never on screen/.test(w.title),
+      "an ungraded League row is never told its score was not on screen, a Valorant reason", w && w.title);
   }
 
   console.log('\nitem 18, a row\'s menu and Delete match, asked first:');

@@ -218,7 +218,8 @@ const READ_HELPERS = `
   const centre = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
   // And only of what shows: a hidden element has no place on a picture.
   const placeOf = (el) => (el && shown(el) && el.getClientRects().length ? centre(el) : null);
-  const noDate = (s) => s.split(/\\s+\\u00b7\\s+/).slice(1).join(' \\u00b7 ');
+  // A recent row's marks, which its tooltip says (home.js paintRecent).
+  const marksOf = (r) => String((r && r.dataset.marks) || '').split('|').filter(Boolean);
 `;
 /*
  * HOME, ORBIT (27 Nov 2026): the hero is the fix for the next match, split
@@ -275,7 +276,9 @@ const READ_HOME = `(() => { ${READ_HELPERS}
       result: txt('.lm-meta .result', last), score: txt('.lm-meta .score', last),
       agent, map, queue: queue.join(' \\u00b7 '),
       meta: [agent, map, ...queue].filter(Boolean).join(' \\u00b7 '),
-      milestone: newest ? list('.r-mark', newest) : [],
+      // 9.1 (item 11): a recent row is the Matches row, its marks one step
+      // away in its tooltip, kept on the row as data-marks.
+      milestone: newest ? marksOf(newest) : [],
       change: delta ? T(delta) : '',
       changeLabel: delta ? String(delta.title || '') : '',
       grade: { score: txt('.gv-score', last),
@@ -300,8 +303,8 @@ const READ_HOME = `(() => { ${READ_HELPERS}
     trend: trend && shown(trend) && Q('svg.tc-svg', trend) ? { label: txt('.o-eyebrow', trend), title: txt('.o-title', trend),
       average: txt('.line-avg', trend), grades: (Q('.trend-chart', trend) ? Q('.trend-chart', trend).dataset.grades || '' : '').split(',').filter(Boolean) } : null,
     recentHeading: txt('#recent .card-head .label'),
-    recent: QA('#recent-list .r-row').map((r) => ({ title: T(Q('.r-title', r).firstChild), result: txt('.r-res', r), marks: list('.r-mark', r),
-      meta: noDate(txt('.r-meta', r)), grade: txt('.r-score', r) })),
+    recent: QA('#recent-list .r-row').map((r) => ({ title: txt('.r-title', r), result: txt('.r-res', r), marks: marksOf(r),
+      meta: String(r.dataset.meta || '').split(/\\s+\\u00b7\\s+/).filter(Boolean).join(' \\u00b7 '), grade: txt('.r-score', r) })),
   };
 })()`;
 /*

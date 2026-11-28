@@ -575,6 +575,44 @@ function paintMistakes(model) {
   });
 }
 
+/*
+ * THE RECENT MATCHES (9.1, the owner's item 11): the Matches row, so the two
+ * lists read alike. Five things in columns: the agent's portrait (the map's
+ * picture without one), the agent on the map over the day and time, the
+ * result and the score in the outcome's tone, the grade in its band's tone
+ * (dashed when provisional), its change on the graded match before. The rest
+ * (the queue, where the grade came from, the milestones, the RR the match
+ * moved) is one step away, in the row's tooltip, or in the review. A row with
+ * no grade says why where its result would read (GradeView.whyUngraded, the
+ * Matches words), and one still being checked has its pill.
+ */
+const PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>';
+/** A row's face: the agent, else the map's picture, else a quiet pin, never an empty circle. */
+function rowFace(art) {
+  const blank = () => { const s = el('span', 'r-face blank'); s.innerHTML = PIN; s.setAttribute('aria-hidden', 'true'); return s; };
+  const src = (art && (art.agent || art.map)) || null;
+  if (!src) return blank();
+  const img = el('img', 'r-face' + (art.agent ? '' : ' map'));
+  img.src = src;
+  img.alt = '';
+  img.decoding = 'async';
+  img.setAttribute('aria-hidden', 'true');
+  img.addEventListener('error', () => img.replaceWith(blank()));
+  return img;
+}
+/** "Today, 9:25 PM", "Yesterday, 9:25 PM", "Nov 22, 9:25 PM": the Matches row's date. */
+function rowWhen(at) {
+  const TC = window.TrendChart;
+  return TC && typeof TC.whenWord === 'function' ? TC.whenWord(at) : when(at);
+}
+/** What the row leaves to its tooltip: the queue, where the grade came from, the milestones. */
+function rowRest(m) {
+  const source = m.imported ? (m.matchId || m.verified ? 'Imported recording' : "Imported, not matched to Riot's record")
+    : m.source === 'riot' ? "From Riot's record" : m.verified ? "Checked against Riot's record" : null;
+  const marks = !m.work && Array.isArray(m.marks) ? m.marks.filter((k) => k && typeof k.text === 'string' && k.text).map((k) => k.text) : [];
+  return { meta: [m.mode, source].filter(Boolean).join('  ·  '), marks };
+}
+
 function paintRecent(recent, model) {
   const host = $('recent-list');
   host.replaceChildren();
@@ -587,65 +625,77 @@ function paintRecent(recent, model) {
     // Its place in the list (--j), for the rows to rise one after another as
     // the section arrives (home.css), and never on a repaint.
     b.style.setProperty('--j', String(j));
-    const face = portrait(rows[m.id] && rows[m.id].agent, 'agent-face sm', m.title || '');
-    if (face) b.append(face);
-    const main = el('span', 'r-main');
-    const title = el('span', 'r-title', [m.title, m.map].filter(Boolean).join(' on ') || 'Match');
+    const name = el('span', 'r-name');
+    const who = [m.title, m.map].filter(Boolean).join(' on ') || 'Match';
+    name.append(el('span', 'r-title', who), el('span', 'r-when', rowWhen(m.at)));
     // Still being checked (8.4.1): the screen's result and grade are not said
     // until Riot's record has had its say, the pill in their place.
-    if (m.result && !m.work) {
-      // The score as the last match card and Matches write it, "13 : 11".
-      title.append(el('span', 'r-res ' + (isWin(m.result) ? 'win' : isLoss(m.result) ? 'loss' : ''),
-        [m.result, scoreText(m.score)].filter(Boolean).join(' ')));
-    }
-    // Its marks (8.7, home-model.js marks): "Best in 23", "First 80+", "3 in a
-    // row". None while the match is still being checked.
-    if (!m.work && Array.isArray(m.marks)) {
-      for (const k of m.marks) {
-        if (!k || typeof k.text !== 'string' || !k.text) continue;
-        const mark = el('span', 'r-mark' + (k.kind ? ' ' + k.kind : ''), k.text);
-        mark.title = k.text;
-        title.append(mark);
-      }
-    }
-    main.append(title);
-    main.append(el('span', 'r-meta', [when(m.at), m.mode, m.imported ? (m.matchId || m.verified ? 'imported recording' : "imported, not matched to Riot's record") : null,
-      m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null].filter(Boolean).join('  ·  ')));
-    b.append(main);
-    // The RR the match moved, beside its grade, once the rank has answered.
-    b.append(el('span', 'r-rr'));
     const checking = m.work ? GV.checking(m.work) : null;
-    const g = m.grade;
-    if (checking) b.append(checking);
-    else {
-      const sc = el('span', 'r-score' + (g ? ' ' + GV.gradeTone(g) : ''), g ? String(g.score) : '--');
-      if (g) sc.title = `${GV.GRADE_NAME} ${g.score}${g.provisional ? ', provisional' : ''}`;
-      b.append(sc);
+    const g = checking ? null : m.grade;
+    const res = el('span', 'r-result');
+    const grade = el('span', 'r-grade');
+    let delta = el('span', 'r-delta none');
+    const resText = m.result ? [m.result, scoreText(m.score)].filter(Boolean).join(' ') : '';
+    if (checking) grade.append(checking);
+    else if (g) {
+      // The score as the last match card and Matches write it, "13 : 11".
+      if (resText) res.append(el('span', 'r-res ' + (isWin(m.result) ? 'win' : isLoss(m.result) ? 'loss' : ''), resText));
+      else if (m.mode) res.append(el('span', 'r-res quiet', m.mode));
+      const sc = el('span', 'r-score ' + GV.gradeTone(g) + (g.provisional ? ' prov' : ''), String(g.score));
+      sc.title = `${GV.GRADE_NAME} ${g.score}${g.provisional ? ', provisional: some of the record was missing' : ''}. ${GV.GRADE_TIP}`;
+      grade.append(sc);
+      if (m.delta === 'first') delta = el('span', 'r-delta first', 'First');
+      else if (typeof m.delta === 'number' && Number.isFinite(m.delta)) {
+        delta = el('span', 'r-delta ' + (m.delta > 0 ? 'up' : m.delta < 0 ? 'down' : 'even'), m.delta > 0 ? `+${m.delta}` : String(m.delta));
+        delta.title = 'Since the graded match before';
+      }
+    } else {
+      const [short, long] = GV.whyUngraded(m);
+      if (resText) res.append(el('span', 'r-res ' + (isWin(m.result) ? 'win' : isLoss(m.result) ? 'loss' : ''), resText));
+      const why = el('span', 'r-why', short);
+      why.title = long;
+      res.append(why);
+      grade.append(el('span', 'r-score none', '--'));
+      b.classList.add('ungraded');
     }
+    b.append(rowFace(rows[m.id]), name, res, grade, delta);
+    const rest = rowRest(m);
+    b.dataset.marks = rest.marks.join('|');
+    b.dataset.meta = rest.meta;
+    // Said whole to a screen reader, as the Matches row is: what the eye sees across it.
+    b.dataset.label = [who, rowWhen(m.at), checking ? 'still being checked' : null, !checking && resText ? resText : null,
+      g ? `grade ${g.score}${g.provisional ? ', provisional' : ''}` : checking ? null : 'not graded',
+      g && typeof m.delta === 'number' ? `${m.delta > 0 ? '+' : ''}${m.delta} on the match before` : null].filter(Boolean).join(', ');
     b.addEventListener('click', () => window.occlara.openReview(m.id));
     host.append(b);
   });
   paintRowRR();
 }
 
-/** Each recent match's RR, and the last match's chip, from the last rank answer; nothing where none is known. */
+/**
+ * Each recent match's RR, and the last match's chip, from the last rank
+ * answer; nothing where none is known. A row keeps it one step away, in its
+ * tooltip with the queue and the milestones (data-rr for a reader), and the
+ * last match card shows it.
+ */
 function paintRowRR() {
   for (const b of $('recent-list').querySelectorAll('.r-row')) {
-    const span = b.querySelector('.r-rr');
-    if (!span) continue;
     const change = rr[b.dataset.id];
     const known = typeof change === 'number' && Number.isFinite(change);
-    span.hidden = !known;
-    span.textContent = known ? rrText(change) : '';
-    span.className = 'r-rr' + (known ? ' ' + rrTone(change) : '');
-    span.title = known ? 'RR from this match' : '';
+    if (known) { b.dataset.rr = rrText(change); b.dataset.rrTone = rrTone(change); } else { delete b.dataset.rr; delete b.dataset.rrTone; }
+    const marks = (b.dataset.marks || '').split('|').filter(Boolean);
+    const tip = [b.dataset.meta, ...marks, known ? `${rrText(change)} from this match` : null].filter(Boolean);
+    b.title = tip.join('. ') + (tip.length ? '.' : '');
+    b.setAttribute('aria-label', [b.dataset.label, ...marks, known ? `${rrText(change)}` : null].filter(Boolean).join(', ') + '. Open its review');
   }
   const chip = document.querySelector('#last .last-rr');
   if (chip) {
     const change = lastId ? rr[lastId] : null;
     const known = typeof change === 'number' && Number.isFinite(change);
     chip.hidden = !known;
-    chip.textContent = known ? `RR ${change > 0 ? '+' : ''}${change}` : '';
+    // "+11 RR", as the rank card and the rows write it.
+    chip.textContent = known ? rrText(change) : '';
+    chip.className = 'rr-chip last-rr' + (known ? ' ' + rrTone(change) : '');
     chip.title = known ? 'RR from this match' : '';
   }
 }

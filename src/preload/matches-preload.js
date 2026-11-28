@@ -3,7 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const GAMES = require('../shared/games');
-const { iconOf } = require('../shared/agent-icons');
+const { iconOf, mapArtOf } = require('../shared/agent-icons');
 const { pageMotion, subnav } = require('./page-motion');
 
 /**
@@ -33,6 +33,12 @@ contextBridge.exposeInMainWorld('occlara', {
   // only a name the generated data knows gets one (agent-icons.js).
   agentArt:     (game, name) => {
     const rel = iconOf(game, name);
+    return rel ? `../../../assets/${rel}` : null;
+  },
+  // A Valorant map's bundled picture (sync:mapart), or null: the face of a
+  // row with no agent (a recording too short to read one), as Home draws it.
+  mapArt:       (game, name) => {
+    const rel = game === 'valorant' ? mapArtOf(name) : null;
     return rel ? `../../../assets/${rel}` : null;
   },
   getPatterns:  (game) => ipcRenderer.invoke(C.PATTERNS_GET, game || null),

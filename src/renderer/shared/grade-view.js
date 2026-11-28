@@ -78,6 +78,25 @@
     return scoreTone(g && typeof g === 'object' ? g.score : g);
   }
 
+  /**
+   * WHY A ROW HAS NO GRADE (9.1, the owner's item 11: "rows with no grade say
+   * why"): [short, long] for a library row (review-store.js metaOf), the
+   * short one standing in the row where its result and grade would read, the
+   * long one its tooltip; both say only what the row itself shows. One rule
+   * for Matches and Home's recent matches, so the two never word one row two
+   * ways. League keeps no result or score, so its row is never "too little
+   * read" for want of one (`m.game === 'lol'`).
+   */
+  function whyUngraded(m) {
+    const r = m || {};
+    if (r.locked) return ['No games left, not graded', 'Saved while your account had no games left, so it was not graded. Open it for what Riot recorded.'];
+    if (r.stoppedLive && !r.result) return ['Stopped early, not graded', 'Stop was pressed before this match ended, so too little of it was read to grade. Open it for what was read.'];
+    if (r.game === 'lol') return ['Not enough measured to grade', 'Not enough of this game was measured to grade it. Open it to see what was.'];
+    if (!r.result && !r.score) return ['Too little read to grade', 'Too little of this match was read to grade it: its score was never on screen long enough. Open it for what was read.'];
+    if (r.imported && !r.matchId && !r.verified) return ["Not matched to Riot's record", "This recording was not matched to Riot's record of a match, and a full grade needs it. Open it for what the screen showed."];
+    return ['Not enough measured to grade', 'Not enough of this match was measured to grade it. Open it to see what was.'];
+  }
+
   /** The grade's name and what it measures, wherever it is named (display.js NAMES.grade). */
   const GRADE_NAME = 'Grade';
   const GRADE_TIP = "How well you played this match, out of 100, by the coach's read of your survival, impact, teamplay and decisions.";
@@ -565,7 +584,7 @@
     return svg;
   }
 
-  const api = { gradeLine, gradeCard, insightLists, factList, roundChips, progressStrip, chip, LEAD_NUM, scoreBadge, GRADE_NAME, GRADE_TIP, letterOf, tone, scoreTone, gradeTone, checking, el };
+  const api = { gradeLine, gradeCard, insightLists, factList, roundChips, progressStrip, chip, LEAD_NUM, scoreBadge, GRADE_NAME, GRADE_TIP, letterOf, tone, scoreTone, gradeTone, whyUngraded, checking, el };
   if (typeof window !== 'undefined') window.GradeView = api;
   // Node, for the test that holds the colour rule to grade.js. Nothing here
   // touches the DOM until a card is drawn, so requiring it is safe.

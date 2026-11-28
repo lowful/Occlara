@@ -1008,7 +1008,10 @@ async function openShell(cfg, state, opts) {
     // milestone line; the milestones stay as the marks on the recent rows.
     ok(!h.$('last').querySelector('.gv-progs') && h.$('last').querySelector('.gv-score'),
       "Home's last match card carries its grade and no milestone line, the marks being the recent rows");
-    ok(h.$('recent-list').querySelectorAll('.r-mark').some((m) => /Best/.test(m.textContent)), 'and the milestone is a mark on its recent row');
+    // 9.1 (item 11): the row is the Matches row, its marks one step away in its tooltip.
+    const markRow = h.$('recent-list').querySelector('.r-row');
+    ok(/Best/.test(markRow.dataset.marks || '') && /Best/.test(markRow.title || '') && !h.$('recent-list').querySelector('.r-mark'),
+      'and the milestone is its recent row\'s, in the row\'s tooltip, not drawn in the row', `${markRow.dataset.marks} | ${markRow.title}`);
     const busy = home(progress, [{ ...homeRows[0], work: { path: 'riot' } }, ...homeRows.slice(1)]);
     await settle();
     ok(!busy.$('last').querySelector('.gv-score') && !!busy.$('last').querySelector('.gv-checking-card'), 'nor a grade while the last match is still being checked, the checking card in its place');
@@ -3249,13 +3252,16 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(!h.$('rank-icon').hidden && h.$('rank-icon').getAttribute('src') === '../../../assets/ranks/diamond-1.webp',
       'and the tier\'s own icon beside it (9.1)', h.$('rank-icon').getAttribute('src'));
     const lastRR = h.document.querySelector('#last .last-rr');
-    ok(lastRR && !lastRR.hidden && lastRR.textContent === 'RR +24', 'the last match card carries the RR its game moved', lastRR && lastRR.textContent);
-    const rowRR = (x) => x.document.querySelectorAll('#recent-list .r-row').map((b) => {
-      const s = b.querySelector('.r-rr');
-      return !s || s.hidden ? '' : `${s.textContent}:${['gain', 'loss', 'even'].find((t) => s.classList.contains(t)) || ''}`;
-    });
+    ok(lastRR && !lastRR.hidden && lastRR.textContent === '+24 RR' && lastRR.classList.contains('gain'),
+      'the last match card carries the RR its game moved, written as the rank card writes it', lastRR && lastRR.textContent);
+    // 9.1 (item 11): a recent row is the Matches row, its RR one step away in
+    // its tooltip (data-rr for a reader) and in its name, never a chip in it.
+    const rowRR = (x) => x.document.querySelectorAll('#recent-list .r-row').map((b) => (b.dataset.rr ? `${b.dataset.rr}:${b.dataset.rrTone || ''}` : ''));
     ok(same(rowRR(h), ['+24 RR:gain', '-16 RR:loss', '', '+21 RR:gain', '']),
-      'each Competitive match shows the RR its own game moved; Unrated and Swiftplay none', JSON.stringify(rowRR(h)));
+      'each Competitive match carries the RR its own game moved; Unrated and Swiftplay none', JSON.stringify(rowRR(h)));
+    const rrRows = h.document.querySelectorAll('#recent-list .r-row');
+    ok(/\+24 RR from this match/.test(rrRows[0].title) && /\+24 RR/.test(rrRows[0].getAttribute('aria-label')) && !/RR/.test(rrRows[2].title)
+      && !h.document.querySelector('#recent-list .r-rr'), 'said in the row\'s tooltip and its name, and no RR chip drawn in a row', rrRows[0].title);
     h.$('rank-more').click();
     // With the journey open (8.4.1): it opened Stats with the journey folded
     // in the Rank tile. Stats' half is 'Stats, opened from Home's Rank journey'.
@@ -3305,7 +3311,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(none.$('rank').hidden && none.$('focus').hidden && !none.$('last').hidden,
       'no rated game: no rank card and no RR chip, and with no focus either the last match takes the row');
     const error = await openHome({ history: () => ({ error: 'no-riot-id' }) });
-    ok(error.$('rank').hidden && error.document.querySelectorAll('#recent-list .r-rr').every((s) => s.hidden), 'a history that did not answer: none');
+    ok(error.$('rank').hidden && error.document.querySelectorAll('#recent-list .r-row').every((b) => !b.dataset.rr), 'a history that did not answer: none');
     const league = await openHome({ game: 'lol' });
     ok(league.$('rank').hidden && !asked(league), 'League of Legends: no rank card, and nothing asked');
     const emptyLib = await openHome({ rows: [] });
@@ -3318,7 +3324,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(!h.$('rank').hidden && h.$('rank').style.getPropertyValue('--i') === '0', 'the setup: the rank rose in by itself, after the others');
     h.bridge.emit(C.PUSH_GAME, { id: 'lol', label: 'League of Legends' });
     await settle();
-    ok(h.$('rank').hidden && h.document.querySelectorAll('#recent-list .r-rr').every((s) => s.hidden) && h.$('rank').style.getPropertyValue('--i') === '0',
+    ok(h.$('rank').hidden && h.document.querySelectorAll('#recent-list .r-row').every((b) => !b.dataset.rr) && h.$('rank').style.getPropertyValue('--i') === '0',
       'switched to League of Legends, the rank and the RR are gone before the cards arrive, and the rank takes no place among them',
       `--i ${h.$('rank').style.getPropertyValue('--i')}`);
     // A Riot ID taken out in Settings takes its rank with it; a state push
@@ -3332,7 +3338,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     s.cfg.riotId = '';
     s.bridge.emit(C.PUSH_STATE, { ...BASE, riotId: '' });
     await settle();
-    ok(s.$('rank').hidden && s.document.querySelectorAll('#recent-list .r-rr').every((x) => x.hidden) && lists() > before,
+    ok(s.$('rank').hidden && s.document.querySelectorAll('#recent-list .r-row').every((b) => !b.dataset.rr) && lists() > before,
       'the Riot ID taken out in Settings, Home paints again, with no rank');
   });
 
@@ -3344,7 +3350,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
   await section('Home follows a change of game made while it is still reading:', async () => {
     const named = (x) => x.$('h-game').textContent;
     const listed = (x, g) => x.bridge.invoked.filter((c) => c[0] === C.REVIEWS_LIST && c[1] === g).length;
-    const noRank = (x) => x.$('rank').hidden && x.document.querySelectorAll('#recent-list .r-rr').every((r) => r.hidden);
+    const noRank = (x) => x.$('rank').hidden && x.document.querySelectorAll('#recent-list .r-row').every((b) => !b.dataset.rr);
     // The first rank answer held, as a slow history holds it.
     let first = null;
     const h = await openHome({ history: () => new Promise((r) => { if (!first) first = r; }) });
@@ -3419,10 +3425,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
   await section('Home asks again for the RR of a match Riot had not put in the rank history yet:', async () => {
     const AGAIN = 6 * 60 * 1000;
     const now = Date.now();
-    const rowRR = (x) => x.document.querySelectorAll('#recent-list .r-row').map((b) => {
-      const sp = b.querySelector('.r-rr');
-      return !sp || sp.hidden ? '' : sp.textContent;
-    });
+    const rowRR = (x) => x.document.querySelectorAll('#recent-list .r-row').map((b) => b.dataset.rr || '');
     const ROWS = [
       { ...homeRow('valorant-1760000000000-newa', 0, 'Ascent', 'Competitive', '13-9', 83), at: now - 3 * MIN },
       { ...homeRow('valorant-1759990000000-oldb', 0, 'Bind', 'Competitive', '10-13', 64, { result: 'Defeat' }), at: now - 75 * MIN },
