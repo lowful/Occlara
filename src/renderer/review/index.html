@@ -50,7 +50,20 @@
       <div class="v-ready-text"><b>Review ready</b><span id="v-ready-line"></span></div>
       <span id="v-ready-time" class="v-ready-time">now</span>
     </div>
-    <header class="drag">
+    <!-- THE HEAD (9.1, the owner's items 6, 7 and 18): a slim row of glass
+         controls over the sky, nothing in it large enough to be cut. At the
+         left the way back to where the player came from (review.js goBack,
+         the history's back with Matches as the fallback, named by the
+         history's backLabel); at the right the eye, Share image and the
+         match's own menu, which holds Delete match behind a confirm. The
+         page's name stays its heading for a screen reader and the site's
+         proof (export-site-proof.js reads it), the hero under it says which
+         match this is. -->
+    <header class="drag v-head">
+      <button id="back" class="btn v-back no-drag" type="button" aria-label="Back to Matches" title="Back to Matches">
+        <svg class="v-back-ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+        <span id="back-label" class="v-back-label">Matches</span>
+      </button>
       <div class="h-brand">
         <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
         <h2>Match review</h2>
@@ -63,11 +76,33 @@
         <!-- The Verdict as an image (8.7, docs/claude/verdict.md): drawn on
              this PC, saved or copied from here, never uploaded. Shown only
              beside a Verdict. -->
-        <button id="share" class="btn btn-ghost sm no-drag" aria-expanded="false" aria-controls="share-sheet" hidden>Share image</button>
-        <button id="matches" class="btn btn-ghost sm no-drag">All matches</button>
+        <button id="share" class="btn btn-ghost sm v-glass no-drag" aria-expanded="false" aria-controls="share-sheet" hidden><svg class="v-share-ic" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13"/></svg>Share image</button>
+        <!-- THE MATCH'S MENU (9.1, item 18): Delete match, behind a confirm
+             (review.js openMore, askDelete). Shown with a saved review. -->
+        <div class="v-more-wrap no-drag">
+          <button id="more" class="icon-btn v-glass v-more-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu" aria-label="More for this match" title="More" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg></button>
+          <div id="more-menu" class="v-menu" role="menu" aria-label="This match" hidden>
+            <button id="delete-match" class="v-menu-item danger" type="button" role="menuitem"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 7h15M9.5 7V5.2c0-.7.5-1.2 1.2-1.2h2.6c.7 0 1.2.5 1.2 1.2V7M6.5 7l.8 11.6c.1 1 .9 1.4 1.7 1.4h6c.8 0 1.6-.4 1.7-1.4L17.5 7M10.2 11v5M13.8 11v5"/></svg>Delete match</button>
+          </div>
+        </div>
       </div>
       <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
     </header>
+
+    <!-- DELETE MATCH, ITS CONFIRM (9.1, item 18): what goes, said plainly,
+         Keep it first and focused, Delete match in coral. On delete, main
+         takes the page back where the player came from, or to Matches. -->
+    <div id="del-scrim" class="v-del-scrim" hidden>
+      <section id="del-dialog" class="v-del" role="alertdialog" aria-modal="true" aria-labelledby="del-title" aria-describedby="del-body">
+        <h3 id="del-title" class="v-del-title">Delete this match?</h3>
+        <p id="del-body" class="v-del-body">Its review, its clips and the frames kept of it are removed from this PC. This cannot be undone.</p>
+        <p id="del-said" class="v-del-said" role="status" hidden></p>
+        <div class="v-del-acts">
+          <button id="del-keep" class="btn btn-ghost md" type="button">Keep it</button>
+          <button id="del-go" class="btn btn-ghost danger md" type="button">Delete match</button>
+        </div>
+      </section>
+    </div>
 
     <!-- THE SHARE SHEET, under the header (8.7, review.js openShare): the
          image as it will be saved, its three sizes and two grounds, and Save
@@ -215,6 +250,22 @@
           </div>
           <!-- THE AGENT, floating at the hero's right: the bundled portrait. -->
           <div id="v-agent" class="vd-agent" aria-hidden="true" hidden></div>
+          <!-- THE BEST HIGHLIGHT (9.1, the owner's item 16): where a highlight's
+               clip was kept, the best of the match (review.js bestHighlight,
+               clips.js highlightRank's order) plays here, muted, in a loop,
+               in the agent's place; nothing where none was kept. Still while
+               a match is recorded, the window is hidden, it is out of view or
+               less motion is asked; its own button pauses it. -->
+          <figure id="v-hl" class="vd-hl" hidden>
+            <div class="vd-hl-frame">
+              <video id="v-hl-video" class="vd-hl-video" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true"></video>
+              <button id="v-hl-toggle" class="icon-btn vd-hl-toggle" type="button" aria-label="Pause the highlight" title="Pause"><svg class="vd-hl-ic-pause" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5.5" width="3.6" height="13" rx="1"/><rect x="13.9" y="5.5" width="3.6" height="13" rx="1"/></svg><svg class="vd-hl-ic-play" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8.2 5.4v13.2a.8.8 0 0 0 1.22.68l10.3-6.6a.8.8 0 0 0 0-1.36L9.42 4.72A.8.8 0 0 0 8.2 5.4z"/></svg></button>
+            </div>
+            <figcaption class="vd-hl-cap">
+              <span class="o-eyebrow">Best highlight</span>
+              <button id="v-hl-round" class="vd-hl-round" type="button"></button>
+            </figcaption>
+          </figure>
           <div id="v-stats-wrap" class="v-stats-wrap" hidden>
             <div id="v-stats" class="v-stats"></div>
             <p id="v-against-note" class="v-against-note" hidden></p>
@@ -302,36 +353,6 @@
         <p class="v-foot">Read silently. Nothing was coached on your screen while you played.</p>
       </div>
 
-      <!-- THE RATING'S REPLAY (rating-view.js play): the rating from 6.0
-           through the match, event by event, a few seconds a round. Over the
-           page, skippable by Skip, a click on the ground, Esc or any key.
-           Played only on screen, never mid match. -->
-      <section id="rt-replay" class="rt-replay" role="dialog" aria-modal="true" aria-labelledby="rt-r-title" hidden>
-        <div class="rt-stage">
-          <div class="rt-r-top">
-            <span id="rt-r-title" class="rt-r-title">Match rating</span>
-            <span id="rt-r-round" class="rt-r-round"></span>
-            <span id="rt-r-score" class="rt-r-score">0 : 0</span>
-          </div>
-          <div class="rt-r-mid">
-            <div id="rt-r-badge" class="rt-r-badge t-fair">
-              <span id="rt-r-num" class="rt-r-num">60</span>
-            </div>
-            <span id="rt-r-delta" class="rt-r-delta" aria-hidden="true"></span>
-            <ol id="rt-r-feed" class="rt-r-feed" aria-hidden="true"></ol>
-          </div>
-          <p id="rt-r-label" class="rt-r-label"></p>
-          <div id="rt-r-line" class="rt-line rt-r-line" aria-hidden="true"></div>
-          <div class="rt-r-acts">
-            <button id="rt-r-skip" class="btn btn-ghost sm" type="button">Skip</button>
-            <button id="rt-r-close" class="btn btn-ghost sm" type="button" hidden>Close</button>
-            <button id="rt-r-again" class="btn btn-ghost sm" type="button" hidden>Watch again</button>
-          </div>
-          <!-- Only full time is announced; the steps are seen, not read out. -->
-          <p id="rt-r-said" class="sr-only" aria-live="polite"></p>
-        </div>
-      </section>
-
       <div id="review" hidden>
         <!-- WHAT WAS PLAYED. First, and named, so the player can tell at a
              glance that the recorder followed the right game and the right
@@ -393,6 +414,59 @@
         </section>
       </div>
     </main>
+
+    <!-- THE RATING'S REPLAY (rating-view.js play): the rating from 60
+         through the match, event by event, a few seconds a round, over the
+         page and outside its scroll. Since 9.1 (the owner's item 16) a
+         player: pause and play, the previous and the next event, full time,
+         and beside the badge the moment itself, its kept clip from just
+         before it, or its kept frame, where one exists (review.js mediaOf).
+         Played only on screen, never mid match. -->
+    <section id="rt-replay" class="rt-replay" role="dialog" aria-modal="true" aria-labelledby="rt-r-title" hidden>
+      <div class="rt-stage">
+        <div class="rt-r-top">
+          <span id="rt-r-title" class="rt-r-title">Match rating</span>
+          <span id="rt-r-round" class="rt-r-round"></span>
+          <span id="rt-r-score" class="rt-r-score">0 : 0</span>
+        </div>
+        <div class="rt-r-body">
+          <div class="rt-r-left">
+            <div class="rt-r-mid">
+              <div id="rt-r-badge" class="rt-r-badge t-fair">
+                <span id="rt-r-num" class="rt-r-num">60</span>
+              </div>
+              <span id="rt-r-delta" class="rt-r-delta" aria-hidden="true"></span>
+            </div>
+            <p id="rt-r-label" class="rt-r-label"></p>
+            <ol id="rt-r-feed" class="rt-r-feed" aria-hidden="true"></ol>
+          </div>
+          <!-- The moment: its clip or its frame, or the map with a line saying none was kept. -->
+          <figure id="rt-r-media" class="rt-r-media" aria-hidden="true">
+            <div id="rt-r-art" class="rt-r-art"></div>
+            <img id="rt-r-frame" class="rt-r-frame" alt="" />
+            <video id="rt-r-video" class="rt-r-video" muted playsinline preload="none" disablepictureinpicture></video>
+            <figcaption id="rt-r-cap" class="rt-r-cap"></figcaption>
+          </figure>
+        </div>
+        <div id="rt-r-line" class="rt-line rt-r-line" aria-hidden="true"></div>
+        <div class="rt-r-acts">
+          <div class="rt-r-transport" role="group" aria-label="Replay controls">
+            <button id="rt-r-prev" class="icon-btn rt-r-tbtn" type="button" aria-label="Previous event" title="Previous event (Left arrow)" aria-keyshortcuts="ArrowLeft"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M6 5.5h2.2v13H6zM18.5 5.6v12.8a.6.6 0 0 1-.92.5L9.4 12.5a.6.6 0 0 1 0-1l8.18-6.4a.6.6 0 0 1 .92.5z"/></svg></button>
+            <button id="rt-r-toggle" class="icon-btn rt-r-tbtn rt-r-play" type="button" aria-label="Pause" title="Pause (Space)" aria-keyshortcuts="Space"><svg class="rt-ic-pause" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5.5" width="3.6" height="13" rx="1"/><rect x="13.9" y="5.5" width="3.6" height="13" rx="1"/></svg><svg class="rt-ic-play" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8.2 5.4v13.2a.8.8 0 0 0 1.22.68l10.3-6.6a.8.8 0 0 0 0-1.36L9.42 4.72A.8.8 0 0 0 8.2 5.4z"/></svg></button>
+            <button id="rt-r-next" class="icon-btn rt-r-tbtn" type="button" aria-label="Next event" title="Next event (Right arrow)" aria-keyshortcuts="ArrowRight"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M15.8 5.5H18v13h-2.2zM5.5 5.6v12.8a.6.6 0 0 0 .92.5l8.18-6.4a.6.6 0 0 0 0-1L6.42 5.1a.6.6 0 0 0-.92.5z"/></svg></button>
+            <span class="rt-r-keys" aria-hidden="true">Space plays and pauses, the arrows step</span>
+          </div>
+          <div class="rt-r-end">
+            <button id="rt-r-skip" class="btn btn-ghost sm" type="button">Full time</button>
+            <button id="rt-r-again" class="btn btn-ghost sm" type="button" hidden>Watch again</button>
+            <button id="rt-r-close" class="btn btn-ghost sm" type="button">Close</button>
+          </div>
+        </div>
+        <!-- Full time is announced, and a step the player takes by hand; the
+             steps it plays by itself are seen, not read out. -->
+        <p id="rt-r-said" class="sr-only" aria-live="polite"></p>
+      </div>
+    </section>
   </div>
 
   <script src="../shared/i18n-apply.js"></script>

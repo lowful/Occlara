@@ -122,6 +122,7 @@
     "test:readscore": "node scripts/test-read-score.js",
     "test:scoreguards": "node scripts/test-score-guards.js",
     "test:reviewreplay": "node scripts/test-review-replay.js",
+    "test:reviewpage": "node scripts/test-review-page.js",
     "test:recorder": "node scripts/test-recorder.js",
     "test:riotreview": "node scripts/test-riot-review.js",
     "test:riotrecord": "node scripts/test-riot-record.js",

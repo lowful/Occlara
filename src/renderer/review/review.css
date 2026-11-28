@@ -934,3 +934,215 @@ html.embedded .share {
 .b-ghost { position: fixed; z-index: 4; margin: 0; pointer-events: none; animation: none; transition: opacity 300ms var(--ease-out), transform 360ms var(--ease-out), filter 300ms var(--ease-out); }
 .b-ghost.b-out { opacity: 0; transform: translateY(14px) scale(0.97); filter: blur(8px); }
 @media (prefers-reduced-motion: reduce) { .v-ready, .b-ghost { display: none; } }
+
+/* ── 9.1, THE HEAD: GLASS CONTROLS, NOTHING CUT (the owner's items 6, 7, 18) ─
+   The page's head is a slim row over the sky: the way back at the left, the
+   eye, Share image and the match's menu at the right, each a glass button
+   that reads over the moon as well as over the ground (a dark glass, a
+   brighter hairline, the ink). The page's name stays its heading for a
+   screen reader and the hero under it says which match this is, so the head
+   holds nothing large enough to be cut. The moon sits whole below the head,
+   the agent below it too, and what scrolls under the head fades out over its
+   last 28px (.body.scrolled) rather than meeting a hard edge. */
+html.embedded .sheet > header.v-head {
+  flex-wrap: nowrap; row-gap: 0; min-height: 64px;
+  padding-top: 14px; padding-bottom: 14px;
+}
+.v-head { gap: 10px; }
+.v-head .h-actions { margin-left: auto; gap: 10px; }
+html.embedded .v-head .h-brand {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; flex: none;
+}
+/* Outside the main window (a test, a picture of the surface) the page has
+   its own close and its name shows as before. */
+html:not(.embedded) .v-back { display: none; }
+
+/* The glass every control of the head wears: dark enough that its ink holds
+   over the moon's brightest limb, blurred so the sky still reads through. */
+.v-back, .v-head .v-glass, .v-head .eye-host .log-eye {
+  color: var(--text);
+  background: rgba(18, 17, 26, 0.58);
+  border: 1px solid var(--line-2);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+          backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 28px -14px rgba(0, 0, 0, 0.9);
+}
+.v-back:where(:not(:disabled)):hover, .v-head .v-glass:where(:not(:disabled)):hover,
+.v-head .eye-host .log-eye:where(:not(:disabled)):hover {
+  color: var(--text);
+  background: rgba(30, 29, 44, 0.74);
+  border-color: rgba(203, 208, 235, 0.3);
+}
+.v-head .eye-host .log-eye:disabled { opacity: 0.5; }
+/* Back: the arrow and where it goes, 36px like the rest of the row. The arrow
+   leans the way it goes under the pointer, on the smooth spring. */
+.btn.v-back { height: 36px; padding: 0 15px 0 11px; gap: 8px; font-size: 14px; font-weight: 600; border-radius: var(--r-btn); }
+.v-back-ic { flex: none; transition: transform 260ms var(--spring-smooth); }
+.v-back:where(:not(:disabled)):hover .v-back-ic { transform: translateX(-2px); }
+.v-back-label { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+/* Share image at the row's height, its mark beside the word. */
+.v-head .btn.sm.v-glass { height: 36px; padding: 0 15px 0 12px; gap: 8px; font-size: 14px; border-radius: var(--r-btn); }
+.v-share-ic { flex: none; opacity: 0.9; }
+.v-head .eye-host .log-eye, .v-head .v-more-btn { width: 36px; height: 36px; }
+.v-head .v-more-btn[hidden] { display: none; }
+
+/* THE MATCH'S MENU: under its button, right aligned, the dark glass of the
+   bar's own menu. It opens on the gentle spring from its corner and closes
+   the way it came (a transition both ways: @starting-style in, display kept
+   for the fade out). */
+.v-more-wrap { position: relative; display: flex; }
+.v-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 30;
+  min-width: 208px; padding: 6px; display: flex; flex-direction: column;
+  border-radius: 14px; background: var(--glass-fill); border: 1px solid var(--line-2);
+  -webkit-backdrop-filter: blur(20px) saturate(140%); backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.85);
+  transform-origin: top right;
+  opacity: 1; transform: none; filter: none;
+  transition: opacity 180ms var(--ease-out), transform 420ms var(--spring-gentle), filter 180ms var(--ease-out),
+    display 180ms allow-discrete;
+}
+@starting-style { .v-menu { opacity: 0; transform: translateY(-4px) scale(0.96); filter: blur(4px); } }
+.v-menu[hidden] {
+  opacity: 0; transform: translateY(-4px) scale(0.97); filter: blur(4px);
+  transition: opacity 140ms var(--ease-out), transform 180ms var(--ease-out), filter 140ms var(--ease-out), display 180ms allow-discrete;
+}
+.v-menu-item {
+  appearance: none; border: 0; background: transparent; font: inherit; margin: 0;
+  display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px;
+  border-radius: 9px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--text);
+  text-align: left; cursor: pointer;
+  transition: background-color var(--dur-hover-out) var(--ease-out);
+}
+.v-menu-item svg { flex: none; }
+.v-menu-item.danger { color: var(--bad); }
+.v-menu-item:hover, .v-menu-item:focus-visible { background: rgba(var(--bad-rgb), 0.12); transition-duration: var(--dur-hover-in); }
+.v-menu-item:focus-visible { outline: 2px solid rgba(var(--bad-rgb), 0.55); outline-offset: -2px; }
+
+/* DELETE MATCH, ITS CONFIRM: an alert card over a dimmed page, dropping in on
+   the gentle spring; Keep it first, Delete match in coral (an outcome's
+   colour, filled only while pressed). */
+.v-del-scrim {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: var(--space-6);
+  background: rgba(6, 5, 16, 0.62);
+  opacity: 1; transition: opacity 200ms var(--ease-out), display 200ms allow-discrete;
+}
+@starting-style { .v-del-scrim { opacity: 0; } }
+.v-del-scrim[hidden] { opacity: 0; }
+.v-del {
+  width: min(420px, 100%); padding: 24px 24px 20px; border-radius: 20px;
+  background: rgba(22, 21, 34, 0.94); border: 1px solid var(--line-2);
+  -webkit-backdrop-filter: blur(20px) saturate(140%); backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.9);
+  transform: none; filter: none;
+  transition: transform 520ms var(--spring-gentle), filter 200ms var(--ease-out);
+}
+@starting-style { .v-del { transform: translateY(8px) scale(0.96); filter: blur(6px); } }
+.v-del-title { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; color: var(--text); }
+.v-del-body { margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: var(--text-2); text-wrap: pretty; }
+.v-del-said { margin: 12px 0 0; font-size: 13px; line-height: 1.45; color: var(--bad); }
+.v-del-said[hidden] { display: none; }
+.v-del-acts { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.v-del-acts .btn { min-width: 112px; }
+
+/* THE MOON WHOLE, BELOW THE HEAD: a disc behind the agent, its lit limb the
+   logo's crescent at its lower left, its top under the head's row. Centred
+   on where the agent stands: the content column's right edge (the page's
+   column, 1040 at most, 32px from the window's edge) less half the agent. */
+.v-sky { --moon: clamp(440px, 44vw, 640px); --col-r: calc(50% + min(520px, 50% - 32px)); }
+.v-moon { left: calc(var(--col-r) - 160px - var(--moon) / 2); top: 66px; width: var(--moon); transform: none; }
+.v-moon > * { display: block; width: 100%; height: 100%; }
+/* The agent stands inside the hero's box: its head never above the page. */
+.vd > .vd-agent.full { top: 0; }
+
+/* What scrolls under the head fades out over its last 28px: the hero's
+   number and the agent leave through a soft edge, never a cut. Only once
+   the page has moved, so at rest nothing is faded. */
+@property --v-fade { syntax: '<length>'; initial-value: 0px; inherits: false; }
+.sheet > .body {
+  --v-fade: 0px;
+  -webkit-mask-image: linear-gradient(transparent 0, rgba(0, 0, 0, 1) var(--v-fade));
+          mask-image: linear-gradient(transparent 0, rgba(0, 0, 0, 1) var(--v-fade));
+  transition: --v-fade 260ms var(--ease-out);
+}
+.sheet > .body.scrolled { --v-fade: 28px; }
+@media (prefers-reduced-motion: reduce) {
+  .v-menu, .v-menu[hidden], .v-del-scrim, .v-del, .v-back-ic, .sheet > .body { transition: none; }
+}
+
+/* ── 9.1, WHAT MOVED THE RATING IN EACH ROUND (item 16, review.js placeMove) ─
+   On every round's line, at its right before the round's own controls: the
+   engine's words for what happened, grey, and the move on the 100 scale in
+   a column of its own, its sign the text and its colour the way it went. The
+   words give way to the facts beside them (an ellipsis, the whole on the
+   hover) and in a narrow column take a line of their own. */
+.v-rt-move {
+  flex: 0 1 auto; min-width: 0; max-width: 46%; margin-left: auto;
+  display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 12px;
+}
+.v-round-head > .v-tags + .v-rt-move, .v-round-head > .v-facts + .v-rt-move { margin-left: var(--space-3); }
+.v-rt-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 1.4; color: var(--text-2); }
+.v-rt-d {
+  flex: none; min-width: 3ch; text-align: right;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text-mute); font-variant-numeric: tabular-nums;
+}
+.v-rt-move.up .v-rt-d { color: var(--good); }
+.v-rt-move.down .v-rt-d { color: var(--bad); }
+/* A folded or open round keeps its controls at the far right, after the move. */
+.v-round-head .v-rt-move + .log-eye, .v-round-head .v-rt-move + .v-fold { margin-left: 0; }
+@container rounds (max-width: 600px) {
+  .v-round.has-move .v-round-head { flex-wrap: wrap; }
+  .v-rt-move { flex: 1 0 100%; max-width: none; margin-left: 0; justify-content: space-between; order: 5; }
+}
+
+/* ── 9.1, THE BEST HIGHLIGHT (item 16, review.js paintHighlight) ────────────
+   A card at the hero's right in the agent's place, in front of the moon: the
+   clip, 16:9, muted and looping, under a hairline frame, and under it its
+   eyebrow and its round, which opens the round's row. Its pause button sits
+   on the picture, in the dark glass, shown on the hover or the keyboard and
+   always while it is paused. The left of the hero keeps clear of it. */
+.vd { --hl-w: clamp(300px, 36%, 420px); }
+.vd.has-hl > .vd-agent { display: none; }
+.vd > .vd-hl { position: absolute; z-index: 1; right: 0; top: 62px; width: var(--hl-w); margin: 0; }
+.vd-hl[hidden] { display: none; }
+.vd.has-hl > .vd-main, .vd.has-hl > .vd-medals, .vd.has-hl > .v-focus { max-width: calc(100% - var(--hl-w) - 40px); }
+.vd-hl {
+  display: flex; flex-direction: column; gap: 12px;
+  opacity: 0; transform: translateY(8px) scale(0.985); filter: blur(6px);
+  transition: opacity 480ms var(--ease-out), transform 520ms var(--spring-smooth), filter 420ms var(--ease-out);
+}
+.vd-hl.ready { opacity: 1; transform: none; filter: none; }
+.vd-hl-frame {
+  position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 18px;
+  background: var(--card); border: 1px solid var(--line-2);
+  box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.vd-hl-video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.vd-hl-toggle {
+  position: absolute; right: 10px; bottom: 10px; width: 32px; height: 32px; color: var(--text);
+  background: rgba(10, 9, 18, 0.6); border-color: var(--line-2);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  opacity: 0; transition-property: opacity, background-color, border-color, color, transform;
+  transition-duration: var(--dur-hover-out), var(--dur-hover-out), var(--dur-hover-out), var(--dur-hover-out), 420ms;
+}
+.vd-hl-frame:hover .vd-hl-toggle, .vd-hl-toggle:focus-visible, .vd-hl.paused .vd-hl-toggle { opacity: 1; transition-duration: var(--dur-hover-in), var(--dur-hover-in), var(--dur-hover-in), var(--dur-hover-in), 420ms; }
+.vd-hl:not(.paused) .vd-hl-ic-play, .vd-hl.paused .vd-hl-ic-pause { display: none; }
+.vd-hl-cap { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 4px; }
+.vd-hl-round {
+  appearance: none; border: 0; background: none; padding: 0; margin: 0; font: inherit; cursor: pointer;
+  font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--text);
+  text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px;
+  transition: text-decoration-color var(--dur-hover-out) var(--ease-out);
+}
+.vd-hl-round:hover { text-decoration-color: var(--line-2); transition-duration: var(--dur-hover-in); }
+.vd-hl-round:focus-visible { outline: 2px solid var(--line-2); outline-offset: 3px; border-radius: 4px; }
+/* A narrower window: the card joins the hero's column under its actions. */
+@media (max-width: 980px) {
+  .vd > .vd-hl { position: static; width: min(100%, 520px); margin-top: 32px; order: 0; }
+  .vd.has-hl > .vd-main, .vd.has-hl > .vd-medals, .vd.has-hl > .v-focus { max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vd-hl, .vd-hl-toggle, .vd-hl-round { transition: none; }
+  .vd-hl { transform: none; filter: none; }
+}

@@ -100,8 +100,9 @@
 }
 .rt-replay[hidden] { display: none; }
 .rt-stage {
-  width: min(760px, 100%); max-height: 100%; overflow: hidden; display: flex; flex-direction: column; gap: var(--space-5);
+  width: min(980px, 100%); max-height: 100%; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-5);
   padding: var(--space-8); border-radius: var(--r-panel); background: var(--s1); box-shadow: var(--rim);
+  border: 1px solid var(--line);
   animation: rtRise var(--t-slow) var(--ease-expo) both;
 }
 .rt-r-top { display: flex; align-items: baseline; gap: var(--space-4); }
@@ -114,12 +115,42 @@
 .rt-r-score.tick { animation: rtTick var(--t-med) var(--ease-spring) both; }
 .rt-replay.done .rt-r-round { color: var(--text); font-weight: 500; }
 
-.rt-r-mid { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: var(--space-5); min-height: 132px; }
+/* 9.1: the body is two columns, the badge, the event's words and the feed at
+   the left, the moment at the right (16:9, the clip or the frame kept of it,
+   else the map, dimmed, and a plain line). One column in a narrow window. */
+.rt-r-body { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: var(--space-6); align-items: start; }
+.rt-r-left { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.rt-r-mid { display: flex; align-items: center; gap: var(--space-5); min-height: 0; }
+.rt-r-badge { min-width: 176px; }
 
 .rt-replay.done .rt-r-badge { animation: rtStamp var(--t-slow) var(--ease-spring) both; }
 
+/* The moment: a framed 16:9 picture. The clip and the frame fade in over the
+   map, a clip that is seeking held out until it shows its frame. */
+.rt-r-media {
+  position: relative; margin: 0; aspect-ratio: 16 / 9; overflow: hidden;
+  border-radius: var(--r-tile, 16px); background: var(--bg); border: 1px solid var(--line);
+  box-shadow: 0 20px 50px -28px rgba(0, 0, 0, 0.9);
+}
+.rt-r-art, .rt-r-art img, .rt-r-video, .rt-r-frame { position: absolute; inset: 0; width: 100%; height: 100%; }
+.rt-r-art img { object-fit: cover; opacity: 0.22; filter: saturate(0.6); }
+.rt-r-video, .rt-r-frame { display: block; object-fit: cover; background: var(--bg); opacity: 0; transition: opacity 280ms var(--ease-out); }
+.rt-r-media.has-clip .rt-r-video:not(.loading), .rt-r-media.has-frame .rt-r-frame { opacity: 1; }
+.rt-r-cap {
+  position: absolute; left: 12px; bottom: 12px; max-width: calc(100% - 24px);
+  padding: 5px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.55);
+  font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rt-r-cap:empty { display: none; }
+/* None kept: the line in the middle of the map, quiet. */
+.rt-r-media:not(.has-clip):not(.has-frame) .rt-r-cap {
+  left: 50%; bottom: auto; top: 50%; transform: translate(-50%, -50%);
+  background: transparent; color: var(--text-2); font-weight: 500; font-size: 13px; text-align: center;
+}
+
 /* The running feed: the newest on top, the older quieter. */
-.rt-r-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; align-self: stretch; justify-content: center; }
+.rt-r-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 96px; }
 .rt-f { display: flex; align-items: baseline; gap: var(--space-2); font-size: 13px; color: var(--text-dim); min-width: 0; }
 .rt-f:first-child { color: var(--text); animation: rtRise var(--t-med) var(--ease-out) both; }
 .rt-f:nth-child(3) { opacity: 0.7; }
@@ -137,25 +168,45 @@
 .rt-r-line .rt-mark { opacity: 0; transition: opacity var(--t-med) var(--ease-out); }
 .rt-r-line .rt-mark.on { opacity: 1; }
 .rt-r-line .rt-now.ping { animation: rtPing var(--t-slow) var(--ease-out) both; }
-.rt-r-acts { display: flex; justify-content: flex-end; gap: var(--space-2); }
+/* A round on the replay's line goes to it. */
+.rt-r-line .rt-plot.seek { cursor: pointer; }
 
-/* A narrow window: the feed under the badge. */
-@media (max-width: 720px) {
+/* 9.1, THE PLAYER'S CONTROLS: the previous event, play and pause (the one
+   that matters most, larger and in the white glass), the next event, the
+   keys in a quiet line; Full time, Watch again and Close at the right. */
+.rt-r-acts { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.rt-r-transport { display: flex; align-items: center; gap: 8px; }
+.rt-r-tbtn { width: 40px; height: 40px; color: var(--text); }
+.rt-r-tbtn:disabled { opacity: 0.3; }
+.rt-r-play { width: 48px; height: 48px; background: var(--glass); border-color: var(--line-2); }
+.rt-r-play:where(:not(:disabled)):hover { background: var(--glass-h); }
+.rt-r-play svg { transition: transform 260ms var(--spring-gentle), opacity 140ms var(--ease-out); }
+.rt-replay:not(.paused) .rt-ic-play, .rt-replay.paused .rt-ic-pause { display: none; }
+.rt-r-keys { margin-left: 6px; font-size: 12px; color: var(--text-mute); white-space: nowrap; }
+.rt-r-end { display: flex; align-items: center; gap: var(--space-2); }
+
+/* A narrow window: one column, the moment under the words. */
+@media (max-width: 760px) {
   .rt-stage { padding: var(--space-5); gap: var(--space-4); }
-  .rt-r-mid { grid-template-columns: auto 1fr; min-height: 0; }
-  .rt-r-feed { grid-column: 1 / -1; }
-  .rt-r-badge { min-width: 150px; }
-  .rt-r-num { font-size: 76px; }
+  .rt-r-body { grid-template-columns: minmax(0, 1fr); }
+  .rt-r-badge { min-width: 140px; }
+  .rt-r-num { font-size: 72px; }
   .rt-r-label { font-size: 19px; }
-  .rt-r-line .rt-plot { height: 110px; }
+  .rt-r-feed { min-height: 0; }
+  .rt-r-line .rt-plot { height: 96px; }
+  .rt-r-keys { display: none; }
 }
 
-/* A short window (the main window's least is 640 high): the stage tighter. */
-@media (max-height: 720px) {
+/* A short window (the main window's least is 640 high): the stage tighter,
+   the badge smaller, the feed three rows. */
+@media (max-height: 760px) {
   .rt-stage { padding: var(--space-6); gap: var(--space-3); }
-  .rt-r-mid { min-height: 0; }
-  .rt-r-num { font-size: 80px; }
-  .rt-r-line .rt-plot { height: 96px; }
+  .rt-r-num { font-size: 76px; }
+  .rt-r-badge { padding: var(--space-3) var(--space-5); }
+  .rt-r-label { font-size: 20px; }
+  .rt-r-feed { min-height: 0; }
+  .rt-r-feed .rt-f:nth-child(4) { display: none; }
+  .rt-r-line .rt-plot { height: 88px; }
 }
 
 @keyframes rtFade { from { opacity: 0; } to { opacity: 1; } }
