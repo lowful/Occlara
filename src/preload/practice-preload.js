@@ -9,7 +9,7 @@ const { pageMotion, subnav } = require('./page-motion');
  * Bridge for the Practice page (src/renderer/practice/): the plan from the
  * player's own repeated mistakes, its drills, the log and whether it is
  * working, every line of it written by main (src/shared/practice.js
- * planView). The page only paints. Its writes are a drill marked practised
+ * planView). The page only paints. Its writes are a drill marked practiced
  * and an entry taken out of the log, both kept on this PC, and both refused
  * mid match by main.
  */
@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld('occlara', {
   /** The page for one game, or null mid match; `asked` the mistake this visit opened on. */
   getPractice: (game, asked) => ipcRenderer.invoke(C.PRACTICE_GET, game || null,
     asked && typeof asked.key === 'string' ? { key: asked.key, title: typeof asked.title === 'string' ? asked.title : null } : null),
-  /** A drill marked practised today: { ok } or { ok: false, error }. */
+  /** A drill marked practiced today: { ok } or { ok: false, error }. */
   mark:        (id) => ipcRenderer.invoke(C.PRACTICE_MARK, String(id || '')),
   /** An entry taken out of the log. */
   remove:      (id) => ipcRenderer.invoke(C.PRACTICE_REMOVE, String(id || '')),

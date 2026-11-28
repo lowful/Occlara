@@ -9,7 +9,7 @@
  * places retrieval must serve them.
  *
  * 1. The shape: version 1, unique ids, a cause the app can name or 'general',
- *    a real place to practise, 5 to 20 minutes, the four bands, 3 to 6 steps,
+ *    a real place to practice, 5 to 20 minutes, the four bands, 3 to 6 steps,
  *    one goal with a number, one why, one check that names something Occlara
  *    measures. An optional demo (8.11) is the site's <id>.webm and <id>.webp
  *    under occlara.app/drills/, 6 to 12 seconds, kept as is by practice.js.
@@ -143,7 +143,7 @@ for (const c of named) ok((byCause.get(c) || 0) >= 3, `the cause "${c}" has at l
 ok(drills.filter((d) => d.cause === 'general').length >= 8, `at least 8 general drills (${drills.filter((d) => d.cause === 'general').length})`);
 for (const c of [...named, 'general']) {
   const ds = drills.filter((d) => causesOf(d).includes(c));
-  ok(ds.length < 3 || new Set(ds.map((d) => d.where)).size >= 2, `the drills for "${c}" use more than one place to practise`);
+  ok(ds.length < 3 || new Set(ds.map((d) => d.where)).size >= 2, `the drills for "${c}" use more than one place to practice`);
 }
 // Shots landing below the head reaches the aim drills, the Practice page's way (practice.js normaliseLibrary, drillsFor).
 {

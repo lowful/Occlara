@@ -713,7 +713,7 @@ distance on attack and the crossfire partner on defence (isolated); a death that
 named by its earliest decision and fixed there (`the first mistake in the chain`); what this enemy did last
 time at your spot (topic `starting positions`, so the spot pattern's study list carries it); abilities still
 in hand at death (dry-peek); one rank priorities note per band, each for that band alone; up in numbers on
-defence (overextend); and practise the counted mistake. **2 cases**: k206, the first kill on defence with the
+defence (overextend); and practice the counted mistake. **2 cases**: k206, the first kill on defence with the
 attack close behind (mid, repeek), and k207, up a player early on defence (early, overextend).
 
 Measured with `retrieve()` seeded (the test): every defence note is served in 18 or more of 20 draws in its

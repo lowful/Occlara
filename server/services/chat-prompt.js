@@ -1352,7 +1352,7 @@ ${ECONOMY_RULE}
 
 HOW TO ANSWER
 - Answer the question in your first sentence, and answer the question that was asked. A question about aim, practice, an agent, the mental side or comms is answered about that, and a counted mistake comes in only where it bears on it. Never turn every answer into the same habit. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
-- A general question (the biggest mistake, how to improve or climb, what to practise, how to warm up) needs no single round: answer it from the counted mistakes, the patterns across matches, the player's own numbers and their rank, with the one lever that matters most at that level. Never answer it with only that you cannot tell.
+- A general question (the biggest mistake, how to improve or climb, what to practice, how to warm up) needs no single round: answer it from the counted mistakes, the patterns across matches, the player's own numbers and their rank, with the one lever that matters most at that level. Never answer it with only that you cannot tell.
 - About a round, a death or a play: tell it in order from the record (the side and the kind of round, the opening, the plant, the death with the numbers standing, how it ended), then the decision that decided it for the player, judged by what they could see at that moment, then what to do instead, written as the real situation to notice and the real move to make in it, concretely enough to do next round, and why it works in game terms: the guns and the range, the numbers standing, the clock and the spike, the kit. Rule out the larger causes before the shot: whether the fight needed taking, whether anyone could trade it, whether the player had information or utility first. When a death had both a decision and a shot that went wrong, name the decision first, then the one mechanic, in one sentence. Call a death lost on the shot only where the coach's look called the fight fair and lost on the shot.
 - A fair fight is one taken from where it should be taken, at a range the gun can fight. Whether a teammate could trade it is a separate question.
 - A death a teammate traded is not a mistake by itself, so never call the trade the problem. In a round the team lost, still judge whether the fight was needed, and never praise a death as a good or sound choice.
@@ -1364,7 +1364,7 @@ HOW TO ANSWER
 - About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, teach that one and leave the others out. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it and leave trading out unless THE LEVER is trading.
 - Quote a counted line's numbers as given, the deaths nobody traded included: that count leaves out a death as the last one alive, which nobody could trade, so never count the rounds yourself into a total of your own.
 - End on the last real point of the answer. Never close by saying what can wait or what comes later, and never on a stock closer such as "the other things can wait", "the rest can wait", "everything else can wait" or "nothing else needs fixing first". Never make the team's record after the plant the player's own mistake in rounds the facts say they died before the plant, and never say the player beat or killed an agent in a round Riot's record does not have them killing.
-- A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practised in a match, with what to do when nobody answers the call, and Deathmatch has no abilities and neither mode has this match's enemy agents, so an agent's kit or a matchup is never practised in Deathmatch.
+- A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practiced in a match, with what to do when nobody answers the call, and Deathmatch has no abilities and neither mode has this match's enemy agents, so an agent's kit or a matchup is never practiced in Deathmatch.
 - When something went right, say what the player did and why it worked in game terms, from the record: a trade they made, a fight they took beside a teammate, a round they saved or won on the clock. Never praise a scoreboard number, never open with praise as a cushion, and never call the player unlucky or blame a teammate.
 - Asked about their aim, answer from the deaths and the player's headshot rate against their own average. Where the coach's look called fights fair and lost on the shot, say so and give one aim habit. Answer about the shot first: the headshot rate against their own average, the fights the look called lost on the shot, and the guns of the aim facts where they are given, then one habit of the shot sized to their rank. Mention position or trading at most once, in one sentence after the habit, and only for a round line that shows it. The drill is one for the shot, in the Range or Deathmatch. Where the coach looked at no death, say the look cannot tell whether the fights were lost on the shot. Never say aim is not the problem, or that aim can wait, unless the coach's looks called those deaths something else. Never praise the aim where the headshot rate is under their own average, and never call a fight the look called fair one that should not have been taken.
 - Before advice about a round, read its side and whether the spike was down when the player died: on attack with no spike down the defenders never have to come to you, so waiting for them is no plan, and on defence with the spike down the defenders must retake.
@@ -2418,7 +2418,7 @@ function casesFor(input, messages) {
  * match with no look. Each topic here has the question's words (`ask`) and the
  * words of a note that answers it (`note`, over its text and its topic), read
  * in English only. A general question (the biggest mistake, how to improve or
- * climb, what to practise) also takes the band's own fundamentals.
+ * climb, what to practice) also takes the band's own fundamentals.
  */
 const QUESTION_TOPICS = [
   { key: 'aim', ask: /\baim(?:ing)?\b|\bcrosshair|\bhead ?shots?\b|\bhs\b|\bflick|\bspray|\brecoil|\bmechanic|\bgunplay|\bmiss(?:ing)? (?:my )?shots/i,
@@ -2459,7 +2459,7 @@ function questionTopics(input, messages) {
    * blame the agent picks"), the band's fundamentals and three trade notes of
    * the counted patterns filled the aim answer, at every band. With aim asked,
    * climbing is no topic of it, and it is general only where practice is
-   * asked as well ("what should I practise for my aim").
+   * asked as well ("what should I practice for my aim").
    */
   let general = GENERAL_ASK.test(q);
   if (keys.has('aim')) { keys.delete('climb'); general = general && keys.has('practice'); }
@@ -2718,7 +2718,7 @@ function fitsSituation(note, sit) {
 /*
  * THE LEVER (the re-audit of 8.7.7, Nov 2026). "How do I improve at my rank"
  * opened on the trade habit 9 times in 10, Iron and Ascendant alike, and the
- * biggest mistake and what to practise 8 and 6 times: the untraded line is
+ * biggest mistake and what to practice 8 and 6 times: the untraded line is
  * counted in almost every match, so it was always the largest count. A general
  * question now names one lever chosen in code from this match's own counted
  * facts, weighed by what decides rounds at the player's band, a finished line
@@ -3597,7 +3597,7 @@ function gateReply(paras, facts, nameOpts) {
   }
   /*
    * A DRILL OF "THAT" AFTER A TEAM HABIT (round 8, Split Asc aim): "If nobody
-   * is, hold the angle from cover instead of swinging alone. Practise that in
+   * is, hold the angle from cover instead of swinging alone. Practice that in
    * Deathmatch, where you have no teammates". The drill points at the team
    * habit before it, which Deathmatch cannot train, the disclaimer
    * notwithstanding (game-claims.js pronounDrill). Gate `mode`.
@@ -3689,7 +3689,7 @@ const tradeOnly = (t) => TRADE_SENT.test(t) && !AIM_TOPIC.note.test(t);
 // Retried where the kept sentences about trading are over this share of an aim answer.
 const FOCUS_SHARE = 0.5;
 /** A kept sentence that leans on a dropped one goes with it (leansOn), in English, run again after a later pass dropped more. */
-const DRILL_FRAME_REASON = 'your reply gave a drill for Deathmatch or the Range and then a rule that needs teammates, which those modes never have; give a drill the player can do alone, and practise a team habit in a match';
+const DRILL_FRAME_REASON = 'your reply gave a drill for Deathmatch or the Range and then a rule that needs teammates, which those modes never have; give a drill the player can do alone, and practice a team habit in a match';
 /*
  * A HE OR A SHE THE ASKED AGENT CAN BE IS NO LEAN (round 8, the Pearl Silver
  * Cypher answer of round 7): "His Trapwire tethers you and reveals you after
@@ -3835,7 +3835,7 @@ function parseReply(raw, input, opts) {
   /*
    * THE FALLBACK (the round 3 audit, Nov 2026). Eight of sixty answers, the
    * plainest questions among them (the biggest mistake, how to climb, what to
-   * practise), were the honest line because the first sentence of the reply
+   * practice), were the honest line because the first sentence of the reply
    * and of its retry was dropped, though the retry kept 16 of 17. Every
    * sentence kept passed every gate: a reply that keeps FALLBACK_KEPT or more
    * is still an answer, and the route shows it when the retry fails again

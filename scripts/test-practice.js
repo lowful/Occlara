@@ -19,7 +19,7 @@
  *                 a drill is marked today and back the next day
  *   the page      its dom hooks, its plan, its League panel, a mark and a
  *                 removal through its bridge, nothing painted mid match
- *   the review    its Practise this link, opening the page on that mistake
+ *   the review    its Practice this link, opening the page on that mistake
  *   own clip      (8.11) the newest kept clip of each mistake, the Moments
  *                 page's join over a real review store in a temp folder: the
  *                 newest match and its latest round win, a clip gone from
@@ -358,13 +358,13 @@ const posterIs = (c, id, name) => c && c.poster === `data:image/jpeg;base64,${Bu
 {
   const e = (id, at, minutes) => ({ id, drill: 'd' + id, title: 'T', minutes, at });
   let s = P.streakOf([], day(5));
-  ok(s.days === 0 && s.line === 'Nothing practised yet.', 'nothing practised yet');
+  ok(s.days === 0 && s.line === 'Nothing practiced yet.', 'nothing practiced yet');
   s = P.streakOf([e('a', day(5), 10), e('b', day(4), 15), e('c', day(3), 5), e('d', day(1), 10)], day(5));
-  ok(s.days === 3 && s.minutes === 40 && s.line === 'Practised 3 days in a row, 40 minutes in all.', 'three days running, every minute counted', s.line);
+  ok(s.days === 3 && s.minutes === 40 && s.line === 'Practiced 3 days in a row, 40 minutes in all.', 'three days running, every minute counted', s.line);
   s = P.streakOf([e('b', day(4), 15), e('c', day(3), 5)], day(5));
   ok(s.days === 2, 'before today\'s first mark, yesterday still holds the run');
   s = P.streakOf([e('c', day(2), 5)], day(5));
-  ok(s.days === 0 && s.line === '5 minutes practised in all.', 'a run broken says the minutes alone');
+  ok(s.days === 0 && s.line === '5 minutes practiced in all.', 'a run broken says the minutes alone');
 }
 
 // ── The store ─────────────────────────────────────────────────────────────
@@ -433,7 +433,7 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     busy = false;
     const m = s.svc.mark(t0.drill);
     ok(m.ok && s.pushes.length === 1 && s.data.practice.log.length === 1, 'a mark is stored and the pages are told');
-    ok(s.svc.today() === null, 'ONCE A DAY: practised today, no line on Home');
+    ok(s.svc.today() === null, 'ONCE A DAY: practiced today, no line on Home');
     ok(s.svc.mark(t0.drill).error === 'today', 'and the same drill twice in a day is refused');
     ok(s.svc.mark('no-such-drill').error === 'drill', 'a drill the library does not have is refused');
     s.at(day(1));
@@ -446,7 +446,7 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     game = 'valorant';
     const entry = s.data.practice.log[0].id;
     ok(s.svc.remove(entry).ok && s.data.practice.log.length === 0 && s.svc.remove(entry).error === 'entry', 'an entry deleted from the log, once');
-    // The review's Practise this: the page opened on that mistake, answered once.
+    // The review's Practice this: the page opened on that mistake, answered once.
     s.svc.open('cause:repeek', 'Repeeks');
     ok(s.opened.join() === 'practice', 'the review\'s link opens the Practice page');
     const o1 = s.svc.get('valorant');
@@ -519,7 +519,7 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
       && blocks[0].querySelector('.pc-count').textContent === 'In 6 of your last 6 recorded matches', 'two mistakes, each with its count', blocks.length);
     const cards = q.document.querySelectorAll('.pc-drill');
     ok(cards.length >= 4 && cards.every((c) => c.querySelector('.pc-d-title') && c.querySelectorAll('.pc-steps li').length >= 1 && c.querySelector('.pc-mark')),
-      'each drill a card: title, steps and Mark as practised', cards.length);
+      'each drill a card: title, steps and Mark as practiced', cards.length);
     ok(cards[0].querySelectorAll('.pc-fact dt').map((d) => d.textContent).join() === 'Goal,How you will know', 'with its goal and how you will know');
     ok(!$('pc-working').hidden && q.document.querySelectorAll('#pc-trend .pc-trow').length === 2 && /Not enough matches yet/.test($('pc-trend').textContent),
       'Is it working, honest with no match since the plan');
@@ -528,9 +528,9 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     const id = first.dataset.drill;
     q.fire(first.querySelector('.pc-mark'), 'click');
     await settle(10);
-    ok(q.bridge.invoked.some(([ch, x]) => ch === C.PRACTICE_MARK && x === id), 'Mark as practised asks main to mark that drill');
+    ok(q.bridge.invoked.some(([ch, x]) => ch === C.PRACTICE_MARK && x === id), 'Mark as practiced asks main to mark that drill');
     const again = q.document.querySelector(`.pc-drill[data-drill="${id}"] .pc-mark`);
-    ok(again && again.disabled && again.textContent === 'Practised today', 'and the card says it was practised today');
+    ok(again && again.disabled && again.textContent === 'Practiced today', 'and the card says it was practiced today');
     const rows = q.document.querySelectorAll('#pc-log .pc-lrow');
     ok(rows.length === 1 && $('pc-log-none').hidden && /min/.test(rows[0].textContent), 'the log lists it, dated');
     q.fire(rows[0].querySelector('.pc-del'), 'click');
@@ -564,9 +564,9 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     const card = cards.find((c) => c.dataset.drill === tagged);
     const btn = card && card.querySelector('.pc-train');
     ok(btn && btn.textContent === 'Train this' && btn.className === 'btn btn-ghost sm pc-train' && btn.title === 'Opens the Trainer on Counter-strafe',
-      'TRAIN THIS: a tagged drill\'s card has it, the shared capsule at Mark as practised\'s size, its title naming the scenario', btn && `${btn.className} | ${btn.title}`);
+      'TRAIN THIS: a tagged drill\'s card has it, the shared capsule at Mark as practiced\'s size, its title naming the scenario', btn && `${btn.className} | ${btn.title}`);
     const foot = card.querySelector('.pc-d-foot');
-    ok(foot.children[0].classList.contains('pc-mark') && foot.children[foot.children.length - 1] === btn, 'beside Mark as practised, last in the foot, so nothing before it moves');
+    ok(foot.children[0].classList.contains('pc-mark') && foot.children[foot.children.length - 1] === btn, 'beside Mark as practiced, last in the foot, so nothing before it moves');
     ok(cards.filter((c) => c !== card).every((c) => !c.querySelector('.pc-train')), 'and a drill with no scenario has none', String(cards.length));
     q.fire(btn, 'click');
     ok(q.bridge.sent.some(([ch, id]) => ch === C.TRAINER_OPEN && id === 'counter-strafe'), 'a click asks main to open the Trainer on that scenario, by TRAINER_OPEN');
@@ -748,14 +748,14 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     today = null;
     h.bridge.emit(C.PUSH_PRACTICE, null);
     await settle(10);
-    ok(h.$('h-practice').hidden, 'practised today (or mid match, or League): main answers null and the line goes');
+    ok(h.$('h-practice').hidden, 'practiced today (or mid match, or League): main answers null and the line goes');
   }
 
   // ── The review's link ───────────────────────────────────────────────────
   {
     const rjs = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'review', 'review.js'), 'utf8');
     const rpre = fs.readFileSync(path.join(ROOT, 'src', 'preload', 'review-preload.js'), 'utf8');
-    ok(/Practise this/.test(rjs) && /openPractice/.test(rjs) && /PRACTICE_OPEN/.test(rpre), 'the review\'s Fix card has Practise this, through PRACTICE_OPEN');
+    ok(/Practice this/.test(rjs) && /openPractice/.test(rjs) && /PRACTICE_OPEN/.test(rpre), 'the review\'s Fix card has Practice this, through PRACTICE_OPEN');
   }
 
   console.log(`\n${checks - fails} of ${checks} checks passed`);

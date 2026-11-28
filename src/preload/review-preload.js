@@ -92,7 +92,7 @@ contextBridge.exposeInMainWorld('occlara', {
   // The grade's empty state offers the Riot ID (Settings), and asks the config
   // whether one is set already, so the button is only drawn without one.
   openSettings: () => ipcRenderer.send(C.SHELL_NAV, 'settings'),
-  // The Fix card's Practise this: the Practice page, opened on that mistake.
+  // The Fix card's Practice this: the Practice page, opened on that mistake.
   openPractice: (key, title) => ipcRenderer.send(C.PRACTICE_OPEN, String(key || ''), typeof title === 'string' ? title : null),
   // A death's Fight it again: the Trainer, opened on that death's replay by
   // the id main put on its row (shared/trainer-replay.js). Main checks it.

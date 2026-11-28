@@ -291,7 +291,7 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   the number gate had dropped now kept. Each pinned in test:chatgates,
   section 15, on the live sentence and a true variant:
   - THE LEVER (`chat-prompt.js leverLine`, `leversOf`, `LEVER_WEIGHTS`): a
-    general question (biggest mistake, improve, climb, practise, not aim, no
+    general question (biggest mistake, improve, climb, practice, not aim, no
     agent) from a client that sends a band gets one lever chosen in code from
     this match's counted facts (the mistakes, the early and retake or post
     plant patterns, the grade's "first to die in N of M", the headshot rate
@@ -355,7 +355,7 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   parse`, `recordGates` and `seamGates`, every client, English only). Replayed
   offline over the audit's 60 raw replies and its 24 reviews: every sentence
   removed is one a judge flagged or a stock closer, none of the 8.7.7 or 8.7.6
-  replies lost a sentence to the new record gate, and five true "practise it
+  replies lost a sentence to the new record gate, and five true "practice it
   in your next match rather than in Deathmatch" sentences the mode gate had
   dropped now stay. Each pinned in test:chatgates (the audit's sentence caught,
   a true one kept) and the review's in test:valorantreview.
@@ -414,7 +414,7 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
     what can wait (since 8.7.9's audit: never close on what can wait), never
     blame the team's record after the plant where the player died before it,
     never a kill the record does not have, and no agent's kit or matchup
-    practised in Deathmatch.
+    practiced in Deathmatch.
 - **The blind audit of 8.7.9 and what changed (Nov 2026, stream B)**. The 84
   items of 8.7.9 judged blind against 8.7.7 and 8.7.8: Plat chat recovered,
   Asc+ chat got worse on real errors, "The trade check can wait" closed 29 of
@@ -869,8 +869,8 @@ and `test:chatgates`. Four gates run after every gate before (`GATES`, last four
 
 **Deathmatch and the Range, past one sentence.** `gateMode` now reads the sentence with its
 disclaimer taken out (`stripDisclaimer`: "where there are no teammates", "Deathmatch has no
-teammates"), so "practise in Deathmatch, where there are no teammates: ask whether a teammate
-could trade you" goes; the wider absence words (`NO_TEAM_SAID`: "do not practise trades there")
+teammates"), so "practice in Deathmatch, where there are no teammates: ask whether a teammate
+could trade you" goes; the wider absence words (`NO_TEAM_SAID`: "do not practice trades there")
 apply only where a disclaimer was taken out, so nothing the old gate dropped passes. `TEAM_WORDS`
 is the shared one of `game-claims.js`, "backs you up" added. `gateReply` then runs
 `soloDrillFrame` after the record pass: a sentence naming the mode opens a frame to the end of its
@@ -926,7 +926,7 @@ generic, and the Plat and Asc improve answers were one trade template. Every pie
   about trading or a teammate's distance (`TRADE_SENT`) is kept and every later one goes, unless it
   also teaches the shot (`tradeOnly`). `parseReply` retries where those sentences were over half of
   what the reply said (`FOCUS_SHARE`).
-- **A drill of "that" after a team habit** (`game-claims.js pronounDrill`, gate `mode`): "Practise
+- **A drill of "that" after a team habit** (`game-claims.js pronounDrill`, gate `mode`): "Practice
   that in Deathmatch, where you have no teammates" right after a team habit goes, the disclaimer
   notwithstanding. Its case is spelled, no 'i' flag (8.8 review), as in `MODE_AWAY`: "the range
   you died from" is a distance, not the Range.

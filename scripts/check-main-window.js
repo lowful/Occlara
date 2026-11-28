@@ -1224,7 +1224,7 @@ setTimeout(async () => {
     lines.push(`home's practice line: ${JSON.stringify(practiceLine)}`);
     if (!practiceLine || !/^Today's practice: .+, \d+ minutes$/.test(practiceLine)) return report(false, `Home has no practice line: ${practiceLine}`);
     await shot('home-practice', mainWindow, win);
-    // A drill marked practised: in the log, dated, the card says so, Home's
+    // A drill marked practiced: in the log, dated, the card says so, Home's
     // line goes for the day; deleted, it is out of the log and the line is back.
     mainWindow.show('practice');
     if (!await until(settled('practice'), 4000)) return report(false, 'the Practice page did not come back');
@@ -1234,8 +1234,8 @@ setTimeout(async () => {
       const b = document.querySelector('.pc-drill .pc-mark');
       return rows.length === 1 && b.disabled ? { row: rows[0].textContent, button: b.textContent, streak: document.getElementById('pc-streak').textContent } : null;
     })()`), 4000);
-    lines.push(`a drill marked practised: ${JSON.stringify(marked)}`);
-    if (!marked || marked.button !== 'Practised today') return report(false, `marking a drill did not reach the log: ${JSON.stringify(marked)}`);
+    lines.push(`a drill marked practiced: ${JSON.stringify(marked)}`);
+    if (!marked || marked.button !== 'Practiced today') return report(false, `marking a drill did not reach the log: ${JSON.stringify(marked)}`);
     if (process.env.OCCLARA_SHOTS === '1') {
       await pcjs("document.getElementById('pc-working').scrollIntoView({ block: 'start' }); true");
       await shot('practice-marked', mainWindow, win);
@@ -1244,7 +1244,7 @@ setTimeout(async () => {
     await pcjs("document.querySelector('#pc-log .pc-del').click(); true");
     const unmarked = await until(() => pcjs("document.querySelectorAll('#pc-log .pc-lrow').length === 0 && !document.getElementById('pc-log-none').hidden"), 4000);
     const lineBack = await until(() => hjs("!document.getElementById('h-practice').hidden"), 4000);
-    lines.push(`home's line once practised today: gone=${!!lineGone} | the entry deleted: ${!!unmarked} | the line back=${!!lineBack}`);
+    lines.push(`home's line once practiced today: gone=${!!lineGone} | the entry deleted: ${!!unmarked} | the line back=${!!lineBack}`);
     if (!lineGone || !unmarked || !lineBack) return report(false, 'marking or deleting a drill did not move the log and Home\'s line');
     await pcjs("document.querySelector('.body').scrollTop = 0; true");
     // THE TRAINER PAGE (docs/claude/trainer.md), right after Practice: it
@@ -1323,25 +1323,25 @@ setTimeout(async () => {
         return report(false, `at 960 the bar does not fit its four links: ${JSON.stringify(bar)}`);
       }
     }
-    // The review's Practise this, under its fix: the Practice page, opened on
+    // The review's Practice this, under its fix: the Practice page, opened on
     // the review's top mistake, marked in the plan where it is one of its two.
     mainWindow.show('review');
-    if (!await until(settled('review'), 4000)) return report(false, 'the review did not come back for Practise this');
+    if (!await until(settled('review'), 4000)) return report(false, 'the review did not come back for Practice this');
     if (process.env.OCCLARA_SHOTS === '1') {
       await rvjs("document.getElementById('v-focus-wrap').scrollIntoView({ block: 'center' }); true");
-      await shot('review-practise', mainWindow, win);
+      await shot('review-practice', mainWindow, win);
     }
-    const practise = await until(() => rvjs("(() => { const b = document.querySelector('#v-focus-wrap .v-practise'); return b && !b.hidden ? b.dataset.key : null; })()"), 4000);
-    if (!practise) return report(false, "the review's fix has no Practise this");
-    await rvjs("document.querySelector('#v-focus-wrap .v-practise').click(); true");
-    if (!await until(settled('practice'), 4000)) return report(false, 'Practise this did not open the Practice page');
+    const practice = await until(() => rvjs("(() => { const b = document.querySelector('#v-focus-wrap .v-practice'); return b && !b.hidden ? b.dataset.key : null; })()"), 4000);
+    if (!practice) return report(false, "the review's fix has no Practice this");
+    await rvjs("document.querySelector('#v-focus-wrap .v-practice').click(); true");
+    if (!await until(settled('practice'), 4000)) return report(false, 'Practice this did not open the Practice page');
     const openedOn = await until(() => pcjs(`(() => {
       const f = document.querySelector('.pc-focus.opened');
       const a = document.getElementById('pc-asked');
       return f ? 'plan:' + f.dataset.key : !a.hidden ? 'asked:' + document.getElementById('pc-asked-title').textContent : null;
     })()`), 4000);
-    lines.push(`review's Practise this (${practise}): the Practice page opened on ${openedOn}`);
-    if (!openedOn) return report(false, `Practise this opened the Practice page on nothing: ${practise}`);
+    lines.push(`review's Practice this (${practice}): the Practice page opened on ${openedOn}`);
+    if (!openedOn) return report(false, `Practice this opened the Practice page on nothing: ${practice}`);
     await shot('practice-opened', mainWindow, win);
 
     if (process.env.OCCLARA_SHOTS === '1') {

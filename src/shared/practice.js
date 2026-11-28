@@ -17,7 +17,7 @@
  * IT DOES NOT CHURN. A mistake stays the focus while it is still a repeated
  * mistake, whatever the order of the list below it; a focus is replaced only
  * once its mistake has left the patterns' list, and a drill only once the
- * player has finished it (marked it practised FINISH times), by the next one
+ * player has finished it (marked it practiced FINISH times), by the next one
  * for that cause. Which mistakes were the focus and since when is stored
  * (`practice` in the store, schema SCHEMA), so a restart keeps it.
  *
@@ -245,10 +245,10 @@ function dayKey(at) {
 }
 const timesDone = (log, id) => log.filter((e) => e.drill === id).length;
 const doneToday = (log, id, now) => log.some((e) => e.drill === id && dayKey(e.at) === dayKey(now));
-const practisedToday = (log, now) => log.some((e) => dayKey(e.at) === dayKey(now));
+const practicedToday = (log, now) => log.some((e) => dayKey(e.at) === dayKey(now));
 
 /**
- * Days practised in a row, ending today or, before today's first mark,
+ * Days practiced in a row, ending today or, before today's first mark,
  * yesterday; and the minutes of every entry in the log.
  */
 function streakOf(log, now) {
@@ -262,9 +262,9 @@ function streakOf(log, now) {
   let run = 0;
   while (days.has(dayKey(at))) { run++; at -= day; }
   let line;
-  if (!log.length) line = 'Nothing practised yet.';
-  else if (run >= 2) line = `Practised ${run} days in a row, ${minutes} minutes in all.`;
-  else line = `${minutes} minutes practised in all.`;
+  if (!log.length) line = 'Nothing practiced yet.';
+  else if (run >= 2) line = `Practiced ${run} days in a row, ${minutes} minutes in all.`;
+  else line = `${minutes} minutes practiced in all.`;
   return { days: run, minutes, entries: log.length, line };
 }
 
@@ -488,7 +488,7 @@ function titleOfKey(key, given) {
  */
 function todayOf(state, library, now, game) {
   const plan = state && state.plans && state.plans[game || 'valorant'];
-  if (!plan || !library || practisedToday(state.log, now)) return null;
+  if (!plan || !library || practicedToday(state.log, now)) return null;
   const byId = new Map(library.drills.map((d) => [d.id, d]));
   for (const f of plan.focus) {
     for (const id of f.drills) {
@@ -559,13 +559,13 @@ function planView(o) {
       : 'These drills fit every level until your rank is known.';
 
   const empty = status === 'nolibrary'
-    ? { title: 'No drills in this build', hint: 'The drill library is not available, so there is nothing to practise from here yet. Your log below is kept.' }
+    ? { title: 'No drills in this build', hint: 'The drill library is not available, so there is nothing to practice from here yet. Your log below is kept.' }
     : status === 'nomatches'
       ? { title: 'No matches yet', hint: 'Press Start and play a match. Once two recorded matches show the same mistake, your plan is built from it. Until then, these drills help every player.' }
       : status === 'norepeats'
         ? { title: 'No repeated mistakes yet', hint: mistakes.length
           ? 'None of your repeated mistakes has a drill in the library yet. Until one does, these drills help every player.'
-          : 'A mistake needs to show up in two recorded matches before it is a habit to practise. Until then, these drills help every player.' }
+          : 'A mistake needs to show up in two recorded matches before it is a habit to practice. Until then, these drills help every player.' }
         : null;
 
   return {
@@ -580,7 +580,7 @@ function planView(o) {
 // ── Writing the log ────────────────────────────────────────────────────────
 
 /**
- * A drill marked practised: one dated entry, once a day a drill. Null when it
+ * A drill marked practiced: one dated entry, once a day a drill. Null when it
  * was already marked today.
  */
 function mark(state, drill, now, id, cause) {

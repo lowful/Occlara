@@ -87,7 +87,7 @@ userData/wrapped/state.json        { v, backfilledAt, rows }: the one time fill
   player's own included.
 - **Counted from their own stores, not the record**: Trainer runs this year
   (the store's `trainer`, kept to the last 500 runs, so a heavy year is
-  undercounted and the slide never claims more) and drills practised (the
+  undercounted and the slide never claims more) and drills practiced (the
   store's `practice` log, its last 400). Ask Coach keeps no store of the
   questions asked, so they are not counted rather than a new hook added.
 

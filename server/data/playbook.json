@@ -9390,7 +9390,7 @@
     "why": "Team plans need teammates who follow them, mechanics only need you."
   },
   {
-    "text": "If you spray first and correct after, practise with the Sheriff or the Guardian for a while, because those guns punish anything but a stopped, aimed first shot.",
+    "text": "If you spray first and correct after, practice with the Sheriff or the Guardian for a while, because those guns punish anything but a stopped, aimed first shot.",
     "weight": 2,
     "tier": "core",
     "source": {
@@ -9428,7 +9428,7 @@
     "why": "A player above you sees the decisions you do not know are decisions."
   },
   {
-    "text": "When you lead near the end of a map, or in overtime, play the simple, practised rounds that built the lead, and expect the trailing team to rush and force, so slow down, keep your structure and treat every round, anti ecos included, at full attention instead of gambling to finish.",
+    "text": "When you lead near the end of a map, or in overtime, play the simple, practiced rounds that built the lead, and expect the trailing team to rush and force, so slow down, keep your structure and treat every round, anti ecos included, at full attention instead of gambling to finish.",
     "ranks": [
       "silver_gold",
       "plat_diamond",
@@ -10531,7 +10531,7 @@
     "why": "A tucked defender beats a flash by turning away, a burning one has to move first."
   },
   {
-    "text": "In solo queue and in rank up games, play an agent you have many recent games on, and do not instalock a specialist such as Astra, Harbor, Viper or Yoru unless you have practised it, because their value comes from practised setups and timings.",
+    "text": "In solo queue and in rank up games, play an agent you have many recent games on, and do not instalock a specialist such as Astra, Harbor, Viper or Yoru unless you have practiced it, because their value comes from practiced setups and timings.",
     "phase": "buy",
     "ranks": [
       "silver_gold",
@@ -11478,7 +11478,7 @@
     "why": "A routine the player cannot keep is worth nothing."
   },
   {
-    "text": "Trading cannot be practised alone, deathmatch has no teammates, so drill the solo half there, peeking one spot at a time from further off the wall so only one enemy can see you, and practise the team half in your matches with one glance at the minimap for your nearest teammate before each swing.",
+    "text": "Trading cannot be practiced alone, deathmatch has no teammates, so drill the solo half there, peeking one spot at a time from further off the wall so only one enemy can see you, and practice the team half in your matches with one glance at the minimap for your nearest teammate before each swing.",
     "cause": [
       "isolated"
     ],
@@ -11496,7 +11496,7 @@
     "why": "The coach invented a deathmatch drill that needs teammates, this is the doable version."
   },
   {
-    "text": "From high Ascendant up, aim is rarely what separates you from the next level unless your own deaths show lost even duels, the gap is decisions: play the economy and ultimates, read the enemy's habits and call on them, plan the post plant before you reach the site, and practise that structure in Premier with a fixed group.",
+    "text": "From high Ascendant up, aim is rarely what separates you from the next level unless your own deaths show lost even duels, the gap is decisions: play the economy and ultimates, read the enemy's habits and call on them, plan the post plant before you reach the site, and practice that structure in Premier with a fixed group.",
     "ranks": [
       "asc_plus"
     ],
@@ -12320,14 +12320,14 @@
     "why": "A numbers advantage on defence is kept by holding, since the attack must still come into the site."
   },
   {
-    "text": "Practise the mistake your reviews count most, one drill at a time: a short Range or Deathmatch block on that one habit, then a match played with it in mind, then a look at that count in the next review, because practice aimed at the mistake that costs you rounds is what moves your rank, and general aim practice alone often does not.",
+    "text": "Practice the mistake your reviews count most, one drill at a time: a short Range or Deathmatch block on that one habit, then a match played with it in mind, then a look at that count in the next review, because practice aimed at the mistake that costs you rounds is what moves your rank, and general aim practice alone often does not.",
     "weight": 3,
     "tier": "core",
     "source": {
       "kind": "guide",
       "topic": "practice the counted mistake"
     },
-    "when": "A player asks how to practise or what to drill before the next match.",
+    "when": "A player asks how to practice or what to drill before the next match.",
     "why": "Practice tied to a measured mistake can be checked, and a habit that is checked is one that changes."
   }
 ]

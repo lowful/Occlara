@@ -1,6 +1,6 @@
 # Occlara
 
-Occlara is a post-match coach for Valorant. It watches your screen while you play, shows nothing during the match, and when the match ends it opens a graded review: a score out of 100, your repeated mistakes with a fix for each, what went well, and drills to practise.
+Occlara is a post-match coach for Valorant. It watches your screen while you play, shows nothing during the match, and when the match ends it opens a graded review: a score out of 100, your repeated mistakes with a fix for each, what went well, and drills to practice.
 
 **Download:** [Occlara-Setup.exe](https://github.com/lowful/Occlara/releases/download/Release/Occlara-Setup.exe) or [occlara.app](https://occlara.app)
 

@@ -998,7 +998,7 @@
     },
     "signal": "You lost a duel you felt you should have won, and you have the Shooting Error graph on (Settings, Video, Stats) while recording.",
     "decision": "Pause at the duel and read the graph. If the missed shots show movement error, the fix is stopping before you shoot. If the bars are clean and the shots still missed, the fix is crosshair placement or the flick. Note the range of the duel and whether your burst length fit that range.",
-    "why": "Separating movement error from aim error tells you what to practise, and most lost duels at this level turn out to be technique, not aim.",
+    "why": "Separating movement error from aim error tells you what to practice, and most lost duels at this level turn out to be technique, not aim.",
     "mistakeToAvoid": "Conclude it was bad aim and spend the next session in an aim trainer while the real cause, shooting on the move or spraying at long range, stays untouched.",
     "cause": [
       "lost-duel"

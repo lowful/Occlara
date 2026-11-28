@@ -345,7 +345,7 @@
         "Start a custom game with Allow Cheats and Infinite Abilities on, playing the agent you use on defence.",
         "On each site, find where the spike is usually planted.",
         "Find the one smoke, wall or flash of your agent that blocks the main post plant angle on that spot.",
-        "Throw it from cover 3 times in a row, then practise stepping onto the spike as it lands."
+        "Throw it from cover 3 times in a row, then practice stepping onto the spike as it lands."
       ],
       "goal": "One ability per site that blocks the main post plant angle, landed 3 times in a row.",
       "why": "A defuse in the open is a free kill, and one ability on the right angle makes it a fight they have to take.",
@@ -523,7 +523,7 @@
       "steps": [
         "Start a custom game with Allow Cheats and Infinite Abilities on, playing your agent.",
         "Pick 3 entrances you use on attack.",
-        "Throw your flash, recon or smoke at each, and practise the timing of swinging out right as it takes effect.",
+        "Throw your flash, recon or smoke at each, and practice the timing of swinging out right as it takes effect.",
         "Repeat each entrance until the swing and the ability land together every time."
       ],
       "goal": "10 swings in a row out of cover as the ability takes effect.",
@@ -814,11 +814,11 @@
       "bands": [],
       "steps": [
         "Start a custom game with Allow Cheats and Infinite Abilities on, playing your agent.",
-        "On each site, practise one use of your ultimate on attack and one on defence or a retake.",
+        "On each site, practice one use of your ultimate on attack and one on defence or a retake.",
         "Cast each from cover 3 times until you know where to stand.",
         "Write down when in a round each one goes."
       ],
-      "goal": "1 practised use of your ultimate per site on each side, cast from cover 3 times.",
+      "goal": "1 practiced use of your ultimate per site on each side, cast from cover 3 times.",
       "why": "An ultimate is held to the death when there is no plan for it, and a planned use goes in the round it is ready.",
       "check": "No death with your ultimate ready."
     },
@@ -850,9 +850,9 @@
         "Start a custom game with Allow Cheats and Infinite Abilities on.",
         "Pick 2 fights on attack and 2 on a retake that you lose often.",
         "For each, find how your ultimate makes that fight easier.",
-        "Practise casting it from cover and then taking the fight."
+        "Practice casting it from cover and then taking the fight."
       ],
-      "goal": "4 fights you lose often, each with a practised ultimate that makes it easier.",
+      "goal": "4 fights you lose often, each with a practiced ultimate that makes it easier.",
       "why": "The ultimate is worth most in the fight you would otherwise lose, not after it.",
       "check": "No death with your ultimate ready, and more retakes won."
     },
@@ -901,7 +901,7 @@
       "steps": [
         "Start a custom game with Allow Cheats on, then set a key for Ghost in the Cheats tab and turn it on.",
         "On each site, find 2 spots near the spike where only one entrance can see you.",
-        "From each, practise checking the angles one at a time with cover between them.",
+        "From each, practice checking the angles one at a time with cover between them.",
         "Repeat for the attacker side after a plant."
       ],
       "goal": "2 spots per site that only one entrance can see, on both sides.",
@@ -1009,7 +1009,7 @@
         "Ignore every other habit until the 8 rounds are over."
       ],
       "goal": "Do the fix in at least 6 of the 8 rounds.",
-      "why": "One habit practised on purpose sticks, five at once do not.",
+      "why": "One habit practiced on purpose sticks, five at once do not.",
       "check": "The repeated mistake the fix was for appears less in the next review."
     },
     {

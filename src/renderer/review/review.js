@@ -252,19 +252,19 @@ function paintValorant(r, verdict) {
     const listed = r.kind === 'valorant' && r.insights && Array.isArray(r.insights.mistakes)
       ? r.insights.mistakes.filter((m) => m && typeof m.key === 'string' && m.key) : [];
     const top = (typeof r.focusKey === 'string' && r.focusKey && listed.find((m) => m.key === r.focusKey)) || listed[0] || null;
-    let practise = $('v-focus-wrap').querySelector('.v-practise');
-    if (!practise) {
-      practise = el('button', 'btn btn-link sm v-practise', 'Practise this');
-      practise.type = 'button';
-      practise.addEventListener('click', () => {
-        if (practise.dataset.key) window.occlara.openPractice(practise.dataset.key, practise.dataset.title || null);
+    let practice = $('v-focus-wrap').querySelector('.v-practice');
+    if (!practice) {
+      practice = el('button', 'btn btn-link sm v-practice', 'Practice this');
+      practice.type = 'button';
+      practice.addEventListener('click', () => {
+        if (practice.dataset.key) window.occlara.openPractice(practice.dataset.key, practice.dataset.title || null);
       });
-      $('v-focus').after(practise);
+      $('v-focus').after(practice);
     }
     const can = !!top && typeof window.occlara.openPractice === 'function';
-    practise.hidden = !can;
-    practise.dataset.key = can ? top.key : '';
-    practise.dataset.title = can && typeof top.title === 'string' ? top.title : '';
+    practice.hidden = !can;
+    practice.dataset.key = can ? top.key : '';
+    practice.dataset.title = can && typeof top.title === 'string' ? top.title : '';
   }
   // Last match's result on its top mistake comes with the progress, after.
   $('v-focus-was').hidden = true;

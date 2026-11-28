@@ -2479,7 +2479,7 @@ const SOLO_MODE = /(?<![Tt]eam\s)(?<![A-Za-z])(?:[Dd]eath ?[Mm]atch|DEATHMATCH|t
 // that fight", both told for Deathmatch.
 // Since round 8 the shared one of game-claims.js, a teammate backing you up added.
 const TEAM_WORDS = claims.TEAM_WORDS;
-// And the drill sent away from the mode (the blind audit of 8.7.8): "Practise
+// And the drill sent away from the mode (the blind audit of 8.7.8): "Practice
 // it in your next match rather than in Deathmatch, because it needs teammates"
 // is the rule itself, and was dropped five times over the 8.7.7 replies.
 const NO_TEAM = /\b(?:no|without|never|not|nobody|no one)\b[^.;:]{0,30}\b(?:teammates?|team|allies|ally|trade|anyone)\b|\bon your own\b|\balone\b|\bin (?:a |your )?(?:match|matches|unrated|competitive|swiftplay)\b|\bin (?:a |your )?(?:next |own )?(?:ranked |unrated |competitive |swiftplay )?(?:match|matches|game|games)\b|\b(?:rather than|instead of|not|never)\s+(?:in\s+)?(?:a\s+|the\s+|your\s+)?(?:[Dd]eath ?[Mm]atch|Range)\b/i;
@@ -2494,7 +2494,7 @@ function gateMode(s, facts) {
   // The wider absence words only where a disclaimer was read out, where the
   // old NO_TEAM read "no teammates" in it and let the sentence stand.
   if (!SOLO_MODE.test(t) || !TEAM_WORDS.test(u) || NO_TEAM.test(u) || (u !== t && claims.NO_TEAM_SAID.test(u))) return null;
-  return drop('mode', 'your reply gave a drill for Deathmatch or the Range that needs teammates, which those modes never have; give a drill the player can do alone, and practise a team habit in a match');
+  return drop('mode', 'your reply gave a drill for Deathmatch or the Range that needs teammates, which those modes never have; give a drill the player can do alone, and practice a team habit in a match');
 }
 
 /*

@@ -2853,7 +2853,7 @@ const CROSS_MATCH = /\bof your last (?:\d+|two|three|four|five|six|seven|eight|n
 const COME_TO_YOU = /\b(?:let|make|letting|making|have|force|forcing)\s+(?:the\s+)?(?:enemy|enemies|defenders?|attackers?|them|him|her|the other team|opponents?)\s+(?:\w+\s+)?(?:come|walk|push|swing)\s+(?:to|into|onto|at)\s+you\b|\bwait(?:ing)? for (?:them|the enemy|the enemies|the defenders?|him|her) to (?:come|push|swing)\b/i;
 const CLOCK_YOURS = /\b(?:the clock|time) (?:is|was) (?:on )?(?:your|our) side\b|\bplay(?:ing)? (?:for|out) the (?:clock|time)\b|\b(?:use|using) the clock\b|\brun(?:ning)? (?:down )?the clock\b|\blet(?:ting)? (?:the clock|time) (?:work|run) for you\b|\bthe clock (?:works|is working) for you\b/i;
 const SPIKE_NEEDED = /\b(?:after (?:the|your|their|a) plant|after (?:you|they|your team) plant(?:ed)?|once (?:the spike|it) (?:is|was|goes) (?:down|planted)|post plant|(?:hold|holding|guard|guarding|watch|watching|play|playing) (?:the|their|your) (?:spike|plant)|(?:off|near|around|over|onto) the spike|defus(?:e|ed|es|ing|al)|the planted spike|spike (?:is|was) (?:down|planted))\b/i;
-// A drill avoided is no drill: "practise it in your next match rather than in Deathmatch".
+// A drill avoided is no drill: "practice it in your next match rather than in Deathmatch".
 const DRILL_AVOIDED = /\b(?:rather than|instead of|not|never|outside(?: of)?)\s+(?:in\s+|at\s+|on\s+|from\s+)?(?:a\s+|the\s+)?(?:[Dd]eath ?[Mm]atch|Range)\b/;
 // "whether anyone could help you": a teammate in other words.
 const DRILL_HELP = /\b(?:anyone|someone|somebody|nobody|no one) (?:could|can|is able to|would|will) (?:help|follow|see|trade|swing|answer)\b|\ba second (?:player|person)\b|\bfollows? you in\b|\bclose enough to (?:kill|trade|shoot|follow)\b/i;

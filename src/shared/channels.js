@@ -164,7 +164,7 @@ const CHANNELS = {
   PRACTICE_MARK:   'practice:mark',      // (drillId) -> { ok } | { ok: false, error: 'match' | 'drill' | 'today' }
   PRACTICE_REMOVE: 'practice:remove',    // (entryId) -> { ok } | { ok: false, error }
   PRACTICE_TODAY:  'practice:today',     // () -> Home's line { drill, cause, title, minutes, text } | null
-  PRACTICE_OPEN:   'practice:open',      // send (key, title) the page, opened on one mistake (the review's Practise this)
+  PRACTICE_OPEN:   'practice:open',      // send (key, title) the page, opened on one mistake (the review's Practice this)
   PUSH_PRACTICE:   'push:practice',      // main -> pages: the plan or the log moved; ask again
   PUSH_SOCIAL:     'push:social',        // main -> Profile, Players: { open?: username } the public profile moved, or open this one
   PUSH_DUOS:       'push:duos',          // main -> Duos, shell: the duos or the uploads moved; ask again

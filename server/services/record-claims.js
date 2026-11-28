@@ -583,7 +583,7 @@ function checkTeamBlame(sentence, ctx) {
 
 /*
  * A DRILL ABOUT AN AGENT IN A MODE WHERE IT CANNOT BE LEARNT. "Take Iso into
- * Deathmatch" to practise against their Omen: Deathmatch turns every ability
+ * Deathmatch" to practice against their Omen: Deathmatch turns every ability
  * off, so the agent taken there changes nothing, and neither Deathmatch nor
  * the Range has an enemy Omen to learn. A sentence that says not to, or that
  * the mode has none, is the rule itself.
@@ -605,12 +605,12 @@ function checkDrill(sentence, ctx) {
   if (dm) {
     for (const m of t.matchAll(AGENT_RE)) {
       const a = canon(m[1]);
-      if (enemy(a)) return `your reply gave a Deathmatch drill about ${a}, an agent with no abilities there and no enemy of the player's to learn; practise a matchup in a match`;
+      if (enemy(a)) return `your reply gave a Deathmatch drill about ${a}, an agent with no abilities there and no enemy of the player's to learn; practice a matchup in a match`;
     }
     return null;
   }
   const fought = RANGE_AGAINST.exec(t);
-  if (fought && enemy(canon(fought[1]))) return `your reply gave a Range drill against ${canon(fought[1])}, where the Range has bots and no enemy agent; practise a matchup in a match`;
+  if (fought && enemy(canon(fought[1]))) return `your reply gave a Range drill against ${canon(fought[1])}, where the Range has bots and no enemy agent; practice a matchup in a match`;
   return null;
 }
 const RANGE_AGAINST = new RegExp(`\\b(?:against|fight(?:ing)?|beat(?:ing)?|track(?:ing)?|duel(?:ling)?)\\s+(?:their\\s+|the\\s+|an?\\s+|enemy\\s+)?(${AGENT_ALT})(?![A-Za-z0-9])`, 'i');

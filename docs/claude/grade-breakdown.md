@@ -143,7 +143,7 @@ Decisions.
     `low-headshots` "goes away at 13 percent or more". The review page shows
     the top card's under its fix (`review.js paintTarget`, `.v-target`); a
     review saved before has none.
-  - **Practise this follows the focus**: the review keeps the server's
+  - **Practice this follows the focus**: the review keeps the server's
     `focusKey` when it is a key (`valorant-review.js build`,
     `/^[a-z0-9:-]{1,40}$/`), and `review.js` opens Practice on that mistake
     when the list holds it, else on the first card.

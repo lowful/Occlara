@@ -3,12 +3,12 @@
 /*
  * THE PRACTICE PAGE. Paints what main wrote (src/shared/practice.js
  * planView): the plan from the player's own repeated mistakes, the drills
- * under each as cards, whether each mistake is shrinking, the days practised
+ * under each as cards, whether each mistake is shrinking, the days practiced
  * and the log. Nothing here counts or words a fact: every title, line and
  * number is main's. textContent only, since a mistake's title and fix come
  * from reviews a model helped write.
  *
- * Its two writes are a drill marked practised and a log entry taken out,
+ * Its two writes are a drill marked practiced and a log entry taken out,
  * both kept on this PC, and both refused by main mid match (the page is
  * locked by the seal then anyway). A drill tagged with a Trainer scenario
  * (main's `trainer`, `trainerTitle`) has Train this, which asks main to open
@@ -259,10 +259,10 @@ function drillCard(d) {
   fact('How you will know', d.check);
   if (facts.children.length) card.append(facts);
   const foot = el('div', 'pc-d-foot');
-  const btn = el('button', 'btn btn-ghost sm pc-mark', d.today ? 'Practised today' : 'Mark as practised');
+  const btn = el('button', 'btn btn-ghost sm pc-mark', d.today ? 'Practiced today' : 'Mark as practiced');
   btn.type = 'button';
   btn.disabled = !!d.today;
-  btn.setAttribute('aria-label', d.today ? `${d.title}, practised today` : `Mark ${d.title} as practised today`);
+  btn.setAttribute('aria-label', d.today ? `${d.title}, practiced today` : `Mark ${d.title} as practiced today`);
   btn.addEventListener('click', () => markDrill(d.id, btn));
   foot.append(btn);
   if (d.doneLine) foot.append(el('span', 'pc-done' + (d.finished ? ' finished' : ''), d.doneLine));
@@ -342,7 +342,7 @@ function paintTrend() {
     row.append(left, el('span', 'pc-tval ' + (p.tone || 'even') + (p.enough ? '' : ' wait'), p.text || ''));
     host.append(row);
   }
-  // The days practised, quiet, once there are any.
+  // The days practiced, quiet, once there are any.
   const st = view.streak && view.streak.entries ? view.streak.line : '';
   $('pc-streak').hidden = !st;
   $('pc-streak').textContent = st;
@@ -444,7 +444,7 @@ async function load() {
   const n = ++ask;
   let v = null;
   try { v = typeof api.getPractice === 'function' ? await api.getPractice(game, asked) : null; } catch { v = null; }
-  // The review's Practise this is answered once: kept even by an answer
+  // The review's Practice this is answered once: kept even by an answer
   // overtaken, and asked again with it.
   if (v && v.opened && v.opened.key) {
     asked = { key: v.opened.key, title: v.opened.title || null };
@@ -469,7 +469,7 @@ $('close').addEventListener('click', closeWindow);
   const st = typeof api.getState === 'function' ? await api.getState().catch(() => null) : null;
   game = (st && st.gameId) || 'valorant';
   // A review saved, a drill marked, the game switched, or the page coming
-  // back (a new day, the review's Practise this): asked again.
+  // back (a new day, the review's Practice this): asked again.
   if (typeof api.onPractice === 'function') api.onPractice(() => load());
   if (typeof api.onReviews === 'function') api.onReviews(() => load());
   if (typeof api.onGame === 'function') api.onGame((g) => { if (g && g.id) { game = g.id; load(); } });

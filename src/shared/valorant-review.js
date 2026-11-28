@@ -1130,7 +1130,7 @@ function build(input) {
     summary: ai.summary || null,
     focus: ai.focus || null,
     // The key of the counted mistake the focus is about (Nov 2026), when the
-    // server names one: the review's Practise this opens on it. A key only.
+    // server names one: the review's Practice this opens on it. A key only.
     ...(typeof ai.focusKey === 'string' && /^[a-z0-9:-]{1,40}$/.test(ai.focusKey) ? { focusKey: ai.focusKey } : {}),
     // A study note is kept as its text alone. A server from before 8.2 sent
     // the name of whoever a note was imported from with it, and the app never

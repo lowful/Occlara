@@ -109,7 +109,7 @@ function createPractice(deps) {
      * The page, or null mid match. League gets its panel. `asked` is the
      * mistake the page is already open on for this visit ({ key, title }),
      * which the page hands back so a repaint keeps it; the review's newest
-     * Practise this wins over it, and is answered once as `opened`.
+     * Practice this wins over it, and is answered once as `opened`.
      */
     get(game, asked) {
       if (busy()) return null;
@@ -129,7 +129,7 @@ function createPractice(deps) {
       return { game: 'valorant', ...P.planView({ ...c, library: c.lib, now: c.t, riotId, focus, clipOf: clipsOver(c.saved) }), opened: fresh || null };
     },
 
-    /** A drill marked practised today: { ok } or { ok: false, error }. */
+    /** A drill marked practiced today: { ok } or { ok: false, error }. */
     mark(id) {
       if (busy()) return { ok: false, error: 'match' };
       const lib = library();
@@ -166,7 +166,7 @@ function createPractice(deps) {
       return P.todayOf(c.state, c.lib, c.t, 'valorant');
     },
 
-    /** The review's "Practise this": the page, opened on that mistake. */
+    /** The review's "Practice this": the page, opened on that mistake. */
     open(key, title) {
       if (busy() || typeof key !== 'string' || !key || key.length > 80) return;
       pending = { key, title: typeof title === 'string' ? title.slice(0, 120) : null };

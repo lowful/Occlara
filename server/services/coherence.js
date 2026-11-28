@@ -114,7 +114,7 @@ const ITEM_VERB = /\b(?:you|your|he|she|they|it|was|were|is|are|had|has|killed|d
  * naming the three abilities gone; "Same story in round 7 at B site with
  * Reyna." with the rounds it compared to gone; "The fights you choose are."
  * with "Your mechanics are not the problem" gone, a short sentence ending on
- * its verb; "You will not have one, so practise ..." with the teammate it
+ * its verb; "You will not have one, so practice ..." with the teammate it
  * meant gone, a bare "one" standing for a noun. "All three of your deaths",
  * "the same angle" and "one more shot" carry their own nouns.
  */

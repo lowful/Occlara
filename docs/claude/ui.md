@@ -961,7 +961,7 @@ sent anywhere; the page says so at its foot.
   plan.
 - **A drill card**: where, minutes, title, the why, 3 to 6 steps, the goal and
   "How you will know" (the drill's check line, what the next review will show),
-  and Mark as practised: one dated entry, once a day a drill ("Practised
+  and Mark as practiced: one dated entry, once a day a drill ("Practiced
   today"), "Done 2 of 3 times" under it.
 - **The player's own clip of it** (8.11, the owner's ask: show the mistake,
   do not only tell it). Each focus, and the review's link to a mistake not in
@@ -1010,7 +1010,7 @@ sent anywhere; the page says so at its foot.
   against 1 of 2", "In 2 of your 3 matches since the plan" with nothing before
   it, and "Not enough matches yet" under three since the plan. A match that
   could not count a Riot only key (`progress.js couldCount`, now exported) is in
-  neither window. Under it, quiet, the days practised in a row and the minutes
+  neither window. Under it, quiet, the days practiced in a row and the minutes
   in all, once there are any.
 - **The log**: every mark, dated, each deletable (`PRACTICE_REMOVE`).
 - **Empty states**: League shows the panel naming the game; no drill library a
@@ -1020,7 +1020,7 @@ sent anywhere; the page says so at its foot.
 - **Home's line**: "Today's practice: <drill>, 20 minutes" under the Fix card
   (`#h-practice`, `PRACTICE_TODAY`), the first unfinished drill of the first
   focus, only with a plan and before the day's first mark; it opens the page.
-- **The review's Practise this** (`.v-practise` under the fix, `review.js`
+- **The review's Practice this** (`.v-practice` under the fix, `review.js`
   one block): `PRACTICE_OPEN` with the review's top mistake opens the page on
   it, the focus marked "from your review" where it is in the plan, else its
   drills shown on their own above the plan and not stored. Main answers it
@@ -1028,7 +1028,7 @@ sent anywhere; the page says so at its foot.
 - **Never mid match** (screen-silence.md): the page is a tab like the others,
   locked by `syncSeal`; `PRACTICE_GET` and `PRACTICE_TODAY` answer null and
   `PRACTICE_MARK` and `PRACTICE_REMOVE` `{ ok: false, error: 'match' }` mid
-  match or sealed, and Practise this opens nothing (`check:seal`).
+  match or sealed, and Practice this opens nothing (`check:seal`).
   `PUSH_PRACTICE` tells the pages to ask again after a mark or a removal.
 - **Train this** (trainer.md): a drill may carry `trainer: "<scenario id>"`,
   the Trainer scenario that truly trains what it asks (the drill library tags
@@ -1038,7 +1038,7 @@ sent anywhere; the page says so at its foot.
   page `trainer` and `trainerTitle`, the scenario's name as the Trainer writes
   it ("Micro flicks", "Site retake, Hard"). The card's foot then ends with
   Train this (`btn btn-ghost sm pc-train`, the same capsule and size as Mark
-  as practised, appended last so nothing before it moves), titled "Opens the
+  as practiced, appended last so nothing before it moves), titled "Opens the
   Trainer on <trainerTitle>"; a click is `practice-preload.js openTrainer(id)`,
   `TRAINER_OPEN`, and main opens the Trainer page on that scenario
   (`trainer-store.js open`, refused mid match or sealed and for an unknown id).
@@ -1062,11 +1062,11 @@ sent anywhere; the page says so at its foot.
   unchanged offline, the hover and reduced motion, and the CSP),
   `test:shellnav` and `test:surfaces` (the tab), `check:seal`,
   `check:mainwindow` (the plan on the sample library, a mark and its removal
-  moving the log and Home's line, the review's Practise this, the bar at 960;
+  moving the log and Home's line, the review's Practice this, the bar at 960;
   `OCCLARA_SHOTS=1` writes `main-practice.png`, `main-practice-working.png`,
   `main-practice-marked.png`, `main-bar-960.png`,
   `main-bar-1280.png`, `main-practice-opened.png`,
-  `main-home-practice.png` and `main-review-practise.png`). Train this:
+  `main-home-practice.png` and `main-review-practice.png`). Train this:
   `test:practice` (the tag kept only when valid, the view's name for it, the
   button on a tagged card alone and its `TRAINER_OPEN`) and
   `test:drilllibrary` (every tag a known scenario, only on aim drills).

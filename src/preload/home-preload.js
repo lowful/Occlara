@@ -148,7 +148,7 @@ contextBridge.exposeInMainWorld('occlara', {
   newsSeen:     (version) => ipcRenderer.send(C.CHANGELOG_SEEN, String(version || '')),
   openWhatsNew: () => ipcRenderer.send(C.SHELL_NAV, 'whatsnew'),
   // Today's practice (the Practice page): main's line { text, ... } or null,
-  // null with no plan, once practised today, for League and mid match.
+  // null with no plan, once practiced today, for League and mid match.
   getPracticeToday: () => ipcRenderer.invoke(C.PRACTICE_TODAY),
   // Occlara Wrapped (docs/claude/wrapped.md): main's words, or null (out of its
   // window Home shows nothing, and mid match main says nothing); main opens it.

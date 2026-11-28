@@ -6,7 +6,7 @@
  * EVERY EVENT RULE GETS A KNOWN POSITIVE AND A KNOWN NEGATIVE, the same
  * discipline as the tip glyph lexicon, where the negatives are what caught both
  * real bugs. A grader is worse than useless if it is confidently wrong: the
- * player is being told what to practise next, and a false failure sends them to
+ * player is being told what to practice next, and a false failure sends them to
  * work on something that was never the problem.
  *
  * The assertions that matter most are the ones about ABSENCE. A metric with no

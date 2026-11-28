@@ -4014,7 +4014,7 @@ router.post('/match-review', async (req, res) => {
         // 3 rules alone: one before it is listed its notes as before.
         study: matchReview.study(input, 3, { lines: [...Object.values(rounds), clean(parsed.focus)] }),
         variant: input.variant,
-        // The insight the focus is about (8.10.3), so Practise this opens the
+        // The insight the focus is about (8.10.3), so Practice this opens the
         // drills for the mistake the focus names. Absent when there is none.
         ...(() => { if (!clientAtLeast(req, V85)) return {}; let k = null; try { k = matchReview.focusKeyOf(input, parsed); } catch { k = null; } return k ? { focusKey: k } : {}; })(),
         // What the gates dropped, counted by kind (round 8, match-review.js

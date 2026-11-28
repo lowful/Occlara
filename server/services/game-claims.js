@@ -293,7 +293,7 @@ function soloDrillFrame(rows) {
 /*
  * A drill of "that" in Deathmatch or the Range right after a team habit
  * (round 8, Split Asc aim): "If nobody is, hold the angle from cover instead
- * of swinging alone." then "Practise that in Deathmatch, where you have no
+ * of swinging alone." then "Practice that in Deathmatch, where you have no
  * teammates". The pronoun points at the team habit, which the mode cannot
  * train; the disclaimer does not change what it points at.
  */

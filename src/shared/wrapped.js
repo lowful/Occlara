@@ -665,7 +665,7 @@ function summaryOf(st) {
     if (!v && l.champion) figures.push({ n: l.champion.name, label: 'main champion' });
   }
   if (st.extras.trainer) figures.push({ n: st.extras.trainer, label: 'Trainer runs' });
-  if (st.extras.drills) figures.push({ n: st.extras.drills, label: 'drills practised' });
+  if (st.extras.drills) figures.push({ n: st.extras.drills, label: 'drills practiced' });
   return { title: v ? { id: v.title.id, name: v.title.name } : null, figures: figures.slice(0, 6), agent: v && v.agents[0] ? v.agents[0].name : null, champion: !v && l && l.champion ? l.champion.name : null };
 }
 
