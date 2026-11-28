@@ -594,8 +594,10 @@ setTimeout(async () => {
     if (mainWindow.current().shown !== 'review') return report(false, `the page showing is ${mainWindow.current().shown}, not the review`);
     const rjs = (s) => rwin.webContents.executeJavaScript(s);
     const shown = await rjs("!document.getElementById('vreview').hidden");
-    // The letter is the Verdict's since 8.7, the grade card under it compact.
+    // The grade is the Verdict's number since 8.7, the grade card under it
+    // compact; one score and no letter since 9.1 (the owner's item 16).
     const letter = await rjs("(document.querySelector('#v-verdict .vd-letter') || document.querySelector('.gv-letter') || {}).textContent || ''");
+    const graded = await rjs("((document.querySelector('#v-verdict .vd-score') || {}).textContent || '').trim()");
     // The kept frame is painted in round 2's own row (8.3.1), where it was a
     // section of its own at the bottom of the review with a link down from
     // the round. Every round has its row, and no raw read is shown.
@@ -621,7 +623,8 @@ setTimeout(async () => {
     lines.push(`review shown=${shown} letter=${letter} frame=${img.slice(0, 30)} ask=${ask} eye=${JSON.stringify(reye)}`);
     lines.push(`round 2's look: ${JSON.stringify(look)}`);
     if (!shown) return report(false, 'the review window opened empty');
-    if (letter !== built.grade.letter) return report(false, `the review painted grade ${letter}, expected ${built.grade.letter}`);
+    if (letter) return report(false, `the review painted a letter grade, ${letter}: one score, no letters`);
+    if (graded !== String(built.grade.score)) return report(false, `the review painted grade ${graded}, expected ${built.grade.score}`);
     if (!img.startsWith('data:image/jpeg;base64,')) return report(false, 'the kept frame did not reach round 2\'s row');
     if (!look.inRound || look.oldSection || look.link) {
       return report(false, `round 2's look is ${JSON.stringify(look)}, not inside its round with no section at the bottom and no link down`);

@@ -745,7 +745,8 @@ setTimeout(async () => {
     for (const r of done.rows.filter((x) => !x.failed)) {
       const map = order.find((m) => r.name.startsWith(m));
       const meta = saved.find((m) => m.map === map && m.source === 'riot');
-      const want = meta && meta.grade ? `${meta.grade.score} ${meta.grade.letter}` : null;
+      // One score, no letter (9.1): the row says the number alone.
+      const want = meta && meta.grade ? String(meta.grade.score) : null;
       if (!want || r.grade !== want) return report(false, `${map}: the row says "${r.grade}", the review the run saved says "${want}"`);
       if (r.res !== 'Victory 13-11' || !/\bwin\b/.test(r.resTone)) return report(false, `${map}: the result reads "${r.res}"`);
     }

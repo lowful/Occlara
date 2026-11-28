@@ -784,7 +784,7 @@ setTimeout(async () => {
         title: document.getElementById('lk-title').textContent, body: document.getElementById('lk-body').textContent,
         upgrade: shown('lk-upgrade') ? document.getElementById('lk-upgrade').textContent : null, invite: shown('lk-invite'),
         stats: shown('v-stats-wrap') ? document.querySelectorAll('#v-stats .v-stat').length : 0, score: document.getElementById('v-score').textContent,
-        verdict: !!document.querySelector('#v-grade .vd-letter') || !!document.querySelector('#v-grade .vd-score') || shown('v-focus-wrap'),
+        verdict: !!document.querySelector('#v-grade .vd-name') || !!document.querySelector('#v-grade .vd-score') || shown('v-focus-wrap'),
         share: shown('share'), prog: shown('v-prog'), grade: shown('grade-host') || shown('common'),
         read: shown('v-summary-wrap'), rounds: shown('v-rounds-wrap'), ask: shown('ask'),
         revealing: document.getElementById('vreview').classList.contains('revealing'),
