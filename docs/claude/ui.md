@@ -581,7 +581,21 @@ through ffmpeg under 3 MB in all, the share image from the review page's own
 `test:siteproof` runs it twice with `--json-only` and holds the JSON to the
 same bytes and to those rules. The window's size is asked for again less the
 delta the frameless window adds at scale 2, and `--json-only` skips the scale
-and the pictures.
+and the pictures. Since Orbit (28 Nov 2026) the walk takes the four links
+(Home, Matches, Practice, Clips) and reaches Patterns by the sub switch on
+Matches; the JSON names the bar's height (`window.bar`, `TOP_H`, 56) and
+`places` holds where the site's pointer goes on each picture, read once the
+picture is taken: the links (`tabs`), the sub switch and the rows on Matches,
+the compilation's chips and their Play all (`moments`, an action null on a
+chip with no clip kept, which shows none), the hero and the filter on Clips,
+and the review's grade, fix, Ask about this match and Every round. A place
+off its picture, or of a thing that does not show, is null. The ambient loops
+(the agent's drift, the twinkling stars) are held (`Motion.ambient(false)`)
+before each picture, or two captures never agree. The site's two clips of
+real matches (`clip.mp4`, `clip2.mp4`, their posters and `clip-review.json`,
+`clip2-review.json`) are NOT this export's: they come from the owner's own
+library by hand, and a new export is copied over them, never in place of the
+folder.
 
 **Home (8.2.1), as the player asked for it.** Every section is read from the
 library or the rank history, nothing invented (`src/shared/home-model.js`).

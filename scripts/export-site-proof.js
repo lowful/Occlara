@@ -25,6 +25,25 @@
  *                          page's own verdict-card.js.
  *   mark.json              the crescent's path and the ground and ink tokens.
  *
+ * ORBIT (28 Nov 2026): the top bar is four links (Home, Matches, Practice,
+ * Clips), Matches holding Patterns and Stats behind its sub switch, so the
+ * walk reaches Patterns by that switch as a player does. The JSON names the
+ * bar's height (window.bar, main-window.js TOP_H) for the site to lay a page
+ * under a picture's bar, and `places` holds where the site's pointer goes on
+ * each picture, read off the laid out pages: the four links, the sub switch
+ * and the rows on Matches, the chips of the compilation and their Play all,
+ * the hero and the filter on Clips, and Ask about this match, Every round,
+ * the grade and the fix on the review. The ambient loops (the agent's drift,
+ * the twinkling stars) are paused before each picture, or two captures never
+ * agree.
+ *
+ * NOT WRITTEN HERE: the site's two clips of real matches (clip.mp4,
+ * clip2.mp4, their posters and their clip-review.json, clip2-review.json).
+ * The sample library's one kept clip is a stub of a few bytes, and no clip or
+ * frame of a real session ever reaches this repo, so those six files are put
+ * beside this export by hand from the owner's own library, and a new export
+ * must be copied over them, never in place of the folder.
+ *
  * Everything that leaves the repo is labelled "Sample match". The PNGs are
  * converted to WebP with ffmpeg; the whole set must stay under 3 MB.
  *
@@ -197,75 +216,97 @@ const READ_HELPERS = `
   const list = (sel, root) => QA(sel, root).map(T).filter(Boolean);
   // The middle of an element, in the CSS pixels of its own document.
   const centre = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+  // And only of what shows: a hidden element has no place on a picture.
+  const placeOf = (el) => (el && shown(el) && el.getClientRects().length ? centre(el) : null);
   const noDate = (s) => s.split(/\\s+\\u00b7\\s+/).slice(1).join(' \\u00b7 ');
 `;
 /*
- * HOME, PROGRESS V3 (8.9): the Start strip; the last match as an art led
- * card (the result chip and its score, the map chip, the agent and the
- * queue, the grade with its change since the match before, the K/D, the
- * grade line and its average, View match and Open review); the fix for the
- * next match; the repeated mistakes as a counted list; the recent matches.
- * The old keys stay, filled from what the new card says in their place: the
- * meta is the agent, the map and the queue with one separator each, the
- * grade's label and line are the two halves of its own title ("Match grade,
- * out of 100, ..."), and the milestone is the newest row's marks ("Best in
- * 4"). The categories are not on Home any more and stay empty. The player's
- * Riot ID chip is never read: only whether it shows, and the Connect link's
- * words when it is the link that shows.
+ * HOME, ORBIT (27 Nov 2026): the hero is the fix for the next match, split
+ * at its colon into a headline and a grey sub line (home.js splitFix), with
+ * Start and Open last review; then the bento of the last match (its eyebrow,
+ * a title that is a fact, the grade with its change on the match before, the
+ * K/D, and one ruled row of the result and the score, who and the queue, the
+ * eye and Open review), the trend card (the grade line and its average) and
+ * what repeats (the mistakes, each with how many matches and how many
+ * times); then the moment the coach looked at, the rank, the recent matches.
+ * The old keys stay where the page still says them: `fix` is the hero's
+ * headline and `fixSub` its sub line, the meta is the agent, the map and the
+ * queue with one separator each (the ruled row's own "Jett on Abyss,
+ * Standard", its time left off), the grade's label and line are the two
+ * halves of its own title ("Match grade, out of 100, ..."), the change is the
+ * card's own words ("+7 on your last match"), and the milestone is the newest
+ * row's marks ("Best in 4"). The categories are not on Home and stay empty.
+ * The player's Riot ID chip is never read: only whether it shows, and the
+ * Connect link's words when it is the link that shows.
  */
 const READ_HOME = `(() => { ${READ_HELPERS}
   const last = Q('#last');
-  const res = Q('.chip.result', last);
   const g = Q('.last-grade', last);
   const gTitle = g ? String(g.title || '').trim() : '';
   const cut = gTitle.indexOf(', ');
   const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
-  const agent = txt('.who-name', last);
-  const map = txt('.last-head .chip:not(.result):not(.quiet)', last);
-  // The who line is "Your last agent \\u00b7 Standard": the queue alone.
-  const queue = txt('.who-sub', last).split(/\\s*\\u00b7\\s*/).filter((s) => s && s !== 'Your last agent');
+  // The ruled row says "Jett on Abyss, Standard, Oct 24, 7:30 PM": who and
+  // the queue are the parts before the first with a digit, which is its time.
+  const parts = txt('.lm-meta > span', last).split(/,\\s*/);
+  const timeAt = parts.findIndex((s) => /\\d/.test(s));
+  const said = timeAt < 0 ? parts : parts.slice(0, timeAt);
+  const who = String(said[0] || '');
+  const on = who.indexOf(' on ');
+  const agent = on > 0 ? who.slice(0, on) : who;
+  const map = on > 0 ? who.slice(on + 4) : '';
+  const queue = said.slice(1).filter(Boolean);
   const kd = Q('.last-kd', last);
   const newest = Q('#recent-list .r-row');
-  const topN = Q('#top-list .top-n');
+  const delta = Q('.last-grade .delta', last);
+  const trend = Q('#trend');
   return {
-    fix: txt('#focus-text'),
-    fixLabel: txt('#focus .label'),
-    start: { word: txt('#start-strip .ss-word'), line: txt('#start-strip .ss-line'), button: txt('#h-start') },
+    fix: txt('#h-fix-head'),
+    fixSub: txt('#h-fix-sub'),
+    fixLabel: txt('#h-kicker'),
+    start: { word: txt('#start-strip .ss-word'), line: txt('#start-strip .ss-line'), button: txt('#h-start'),
+      open: shown(Q('#h-open')) ? txt('#h-open') : '' },
     player: { idShown: shown(Q('#h-player')), connect: shown(Q('#h-player-connect')) ? txt('#h-player-connect') : '' },
+    // The moment behind the fix: the first death the coach looked at.
+    moment: shown(Q('#focus')) ? { label: txt('#focus .label'), text: txt('#focus-text') } : null,
     last: {
-      label: txt('.last-head .label', last).split(',')[0],
-      result: res ? T(res.firstChild) : '', score: txt('.chip.result .score', last),
+      label: txt('.last-head .o-eyebrow', last),
+      title: txt('.last-title', last),
+      result: txt('.lm-meta .result', last), score: txt('.lm-meta .score', last),
       agent, map, queue: queue.join(' \\u00b7 '),
       meta: [agent, map, ...queue].filter(Boolean).join(' \\u00b7 '),
       milestone: newest ? list('.r-mark', newest) : [],
-      change: txt('.last-grade .delta', last),
-      changeLabel: Q('.last-grade .delta', last) ? String(Q('.last-grade .delta', last).title || '') : '',
+      change: delta ? T(delta) : '',
+      changeLabel: delta ? String(delta.title || '') : '',
       grade: { score: txt('.gv-score', last), letter: txt('.gv-letter', last),
         label: cut > 0 ? gTitle.slice(0, cut) : gTitle, sub: cut > 0 ? cap(gTitle.slice(cut + 2)) : '' },
       kd: kd ? { label: txt('.kd-label', kd), ratio: txt('.kd-ratio', kd), split: txt('.kd-split', kd) } : null,
       categories: [],
-      average: txt('.line-avg', last),
+      // The average is the trend card's now, beside the line it is of.
+      average: txt('#trend .line-avg'),
       buttons: list('.last-foot button', last),
     },
-    // The top of the counted list; its trend and fix are the Patterns
-    // page's own for the same mistake, filled in once that page is read.
+    // The top of what repeats; its trend and fix are the Patterns page's own
+    // for the same mistake, filled in once that page is read.
     top: shown(Q('#top')) ? { title: txt('#top-list .top-title'), count: txt('#top-list .top-n'),
-      detail: topN && topN.title ? String(topN.title).trim() + '.' : '', trend: '', fix: '' } : null,
-    mistakesHeading: txt('#top .card-head .label'),
-    mistakes: QA('#top-list .top-row').map((r) => ({ title: txt('.top-title', r), count: txt('.top-n', r) })),
-    // The label is the Matches page's chart's ("Grade over your last 4"),
-    // filled in once that page is read; Home's line says it only to a reader.
-    trend: Q('#last .grade-line') ? { label: '', average: txt('#last .line-avg'), grades: list('#last .gl-num') } : null,
+      detail: txt('#top-list .top-sub'), trend: '', fix: '' } : null,
+    mistakesHeading: txt('#top .o-eyebrow'),
+    mistakesTitle: txt('#top .o-title'),
+    mistakes: QA('#top-list .top-row').map((r) => ({ title: txt('.top-title', r), sub: txt('.top-sub', r), count: txt('.top-n', r) })),
+    // The trend card: its eyebrow, its title (the fact the line shows), the
+    // average and the grades as the line labels them.
+    trend: trend && shown(trend) && Q('.grade-line', trend) ? { label: txt('.o-eyebrow', trend), title: txt('.o-title', trend),
+      average: txt('.line-avg', trend), grades: list('.gl-num', trend) } : null,
     recentHeading: txt('#recent .card-head .label'),
     recent: QA('#recent-list .r-row').map((r) => ({ title: T(Q('.r-title', r).firstChild), result: txt('.r-res', r), marks: list('.r-mark', r),
       meta: noDate(txt('.r-meta', r)), grade: txt('.r-score', r), letter: txt('.gv-letter', r) })),
   };
 })()`;
 /*
- * THE SHELL, PROGRESS V3 (8.9): the top bar's pill tabs and Start. The
- * account menu (8.9.1) is a view of its own over the page, drawing the
- * shell's rows: its rows and its games line are read from that view while it
- * is open (READ_MENU), never the account row itself.
+ * THE SHELL, ORBIT (27 Nov 2026): the top bar's four links (shell-nav.js
+ * TOP: Home, Matches, Practice, Clips) and Start. The account menu (8.9.1)
+ * is a view of its own over the page, drawing the shell's rows: its rows and
+ * its games line are read from that view while it is open (READ_MENU), never
+ * the account row itself.
  */
 const READ_SHELL = `(() => { ${READ_HELPERS}
   return { pages: list('#nav .nav-item'), start: txt('#toggle .t-label'), brand: txt('.bar .brand .name'),
@@ -279,13 +320,18 @@ const READ_MENU = `(() => { ${READ_HELPERS}
 const READ_SEALED = `(() => { ${READ_HELPERS}
   // Progress v3: in a Valorant match the screen is the live status, here
   // before the match is under way (the stand-in reader has no round), so its
-  // facts are what it says while it waits and the locked review beside it.
-  // The four facts are the switches under "Shown while recording" (map,
-  // agent, score, round); the time it started is never read.
+  // facts are what it says while it waits and the line that the review opens
+  // when the match ends. The four facts are the switches under "Shown while
+  // recording" (map, agent, score, round); the time it started is never read.
+  // ORBIT'S RECORDING SCREEN has no tape note: the tape and its round label
+  // ("Round") show only once a round is under way, so while it waits the
+  // tape is said not shown. The mode chip is the queue, empty until then.
+  const tape = Q('#live-tape-block');
   return { title: txt('.live-word'), sub: txt('.live-wait p'),
     facts: [{ label: txt('.live-review-title'), text: txt('.live-review-sub') }],
     mode: txt('#live-mode'), shownLabel: txt('.live-choose .live-note'), shown: list('#live-chips button'),
-    tape: { label: txt('.live-tape-head .live-label'), note: txt('.live-tape-head .live-note') },
+    stop: txt('#live-stop'),
+    tape: { shown: shown(tape), roundLabel: txt('#live-round-block .live-label') },
     quiet: { title: txt('#sealed-title'), sub: txt('#sealed-sub'),
       facts: QA('#sealed-facts li').map((li) => ({ label: txt('b', li), text: txt('span', li) })) } };
 })()`;
@@ -293,10 +339,14 @@ const READ_SEALED = `(() => { ${READ_HELPERS}
  * MATCHES, PROGRESS V3 (8.9): every row is "Jett on Abyss" with its result,
  * its marks, the queue and whether Riot's record checked it, its top mistake,
  * its grade and its change since the match before; beside the rows, the
- * chart card of the grade over the last matches.
+ * chart card of the grade over the last matches. ORBIT: the page's title and
+ * its grey sub line, and the sub switch of the pages the Matches link holds
+ * (Matches, Patterns, Stats), the current one pressed.
  */
 const READ_MATCHES = `(() => { ${READ_HELPERS}
-  return { heading: txt('#every .l-head h3'),
+  return { title: txt('.sheet > header .h-brand h2'), sub: txt('.sheet > header .page-sub'),
+    subnav: QA('.subnav button').map((b) => ({ page: T(b), current: b.getAttribute('aria-pressed') === 'true' })),
+    heading: txt('#every .l-head h3'),
     rows: QA('#list .m-item').map((m) => ({ title: txt('.m-title', m), result: txt('.m-res', m), marks: list('.m-mark', m),
       meta: noDate(txt('.m-meta', m)), topMistake: txt('.m-top-mistake', m).replace(/^Top mistake:\\s*/, ''),
       grade: txt('.m-score', m), letter: txt('.m-letter', m), change: txt('.m-delta', m) })),
@@ -323,15 +373,30 @@ const READ_PATTERNS = `(() => { ${READ_HELPERS}
     categories: QA('#p-cats .p-cat').map((c) => ({ average: txt('b', c), label: txt('span', c), last: txt('small', c), versus: txt('em', c) })),
     lists: QA('#p-lists .gv-block').map((b) => ({ heading: txt('h3', b), items: QA('.gv-item', b).map(item) })) };
 })()`;
+/*
+ * CLIPS, ORBIT (28 Nov 2026), the page whose id stays "moments": the title
+ * and its sub line; the hero, the newest match's best moments, the first
+ * large, each its clip's poster or the map's art with "No clip kept"; the
+ * compilation as chips, each a repeated mistake and its line, with Play all
+ * where a clip was kept (a chip without one shows no action, so none is
+ * read); then every moment under its match, as frames.
+ */
 const READ_MOMENTS = `(() => { ${READ_HELPERS}
+  const action = (r) => Q('button.btn', r) || Q('.mo-cnone', r);
   return {
+    title: txt('.sheet > header .h-brand h2'), sub: txt('.sheet > header .page-sub'),
+    hero: QA('#mo-hero .mo-hcard').map((c) => ({ big: c.classList.contains('big'), round: txt('.mo-hround', c), title: txt('.mo-htitle', c),
+      time: txt('.mo-htime', c), clip: !!Q('.mo-frame-play', c), tag: txt('.mo-frame-tag', c), poster: !!Q('.mo-frame:not(.art) .mo-frame-img', c) })),
+    reel: shown(Q('#mo-reel')) ? { heading: txt('#mo-reel-title'), rows: QA('#mo-reel-rows .mo-crow').map((r) => ({ title: txt('.mo-ctitle', r), line: txt('.mo-cline', r),
+      action: shown(action(r)) ? T(action(r)) : '' })) } : null,
     compilation: { heading: txt('#mo-comp-title'), rows: QA('#mo-comp-rows .mo-crow').map((r) => ({ title: txt('.mo-ctitle', r), line: txt('.mo-cline', r),
-      action: txt('button.btn', r) || txt('.mo-cnone', r) })) },
+      action: shown(action(r)) ? T(action(r)) : '' })) },
     heading: txt('#mo-log-title'), counts: txt('#mo-counts'), filter: list('#mo-filter button'), note: shown(Q('#mo-note')) ? txt('#mo-note') : '',
     matches: QA('#mo-list .mo-match').map((m) => ({ result: txt('.mo-res', m), who: txt('.mo-who', m), grade: txt('.mo-score', m), letter: txt('.mo-grade .gv-letter', m),
       moments: QA('.mo-row', m).map((x) => ({ round: txt('.mo-round', x), kind: txt('.mo-kind', x), title: txt('.mo-mtitle', x), line: txt('.mo-mline', x),
         marks: QA('.mo-mark', x).map((k) => ({ text: T(k), across: k.classList.contains('across') })), time: txt('.mo-time', x),
-        clip: Q('.mo-play', x) ? 'Play' : txt('.mo-gone', x) || '' })) })),
+        // Play where a clip was kept, else the tag on its frame: why there is none.
+        clip: Q('.mo-play', x) ? 'Play' : txt('.mo-clip .mo-frame-tag', x) || '' })) })),
   };
 })()`;
 const READ_REVIEW = `(() => { ${READ_HELPERS}
@@ -343,16 +408,23 @@ const READ_REVIEW = `(() => { ${READ_HELPERS}
     read: txt('.v-why', r), folded: r.classList.contains('fold') && !r.classList.contains('open') });
   // THE VERDICT SINCE 8.8 has no VERDICT word and no reason line: the page's
   // own heading ("Match review") is its label, and the standout's line, which
-  // stands where the reason was, its reason.
+  // stands where the reason was, its reason. ORBIT's hero: the number with
+  // its letter and "out of 100", the result in sentence case ("Victory"),
+  // the medals for real things, the fix in two tones (its head to the colon
+  // and the rest), then Ask about this match and Every round.
+  const visible = (sel) => QA(sel).filter((b) => shown(b) && !b.closest('[hidden]')).map(T).filter(Boolean);
   return {
     verdict: { label: txt('header .h-brand h2'), reason: txt('#v-stat .vd-stat-label'),
       icon: shown(Q('#v-icon')) && !!Q('#v-icon .vd-icon-img'), letter: txt('#v-grade .vd-letter'), score: txt('#v-grade .vd-score'), out: txt('#v-grade .vd-out'),
       provisional: !!Q('#v-grade .vd-prov'), stat: { value: txt('#v-stat .vd-stat-value'), label: txt('#v-stat .vd-stat-label') },
       result: txt('#v-result'), scoreline: txt('#v-score'), meta: txt('#v-meta'),
       stats: QA('#v-stats .v-stat').map((s) => ({ value: txt('.v-stat-value', s), label: txt('.v-stat-label', s), versus: txt('.v-stat-vs', s) })),
-      verified: shown(Q('#v-verified')) ? txt('#v-verified') : '' },
-    fix: { heading: txt('#v-focus-wrap > .v-focus-label'), text: txt('#v-focus'), was: shown(Q('#v-focus-was')) ? txt('#v-focus-was') : '',
+      verified: shown(Q('#v-verified')) ? txt('#v-verified') : '',
+      medals: shown(Q('#v-medals')) ? list('#v-medals .medal-text') : [] },
+    fix: { heading: txt('#v-focus-wrap > .v-focus-label'), text: txt('#v-focus'), head: txt('#v-focus .vf-head'), sub: txt('#v-focus .vf-sub'),
+      was: shown(Q('#v-focus-was')) ? txt('#v-focus-was') : '',
       wasHeading: shown(Q('#v-focus-was-wrap')) ? txt('#v-focus-was-wrap .v-focus-label') : '' },
+    actions: visible('#v-verdict .vd-actions button'),
     progress: QA('#v-prog .gv-prog').map((p) => ({ text: T(p), tone: [...p.classList].find((c) => ['good', 'bad', 'warn', 'even'].includes(c)) || 'even' })),
     read: { heading: txt('#v-summary-wrap h3, #v-summary-wrap .label'), lines: list('#v-summary li:not(.v-chain-main)'), repeat: txt('#v-summary li.v-chain-main') },
     grade: { categories: QA('#grade-host .gv-cat').map((c) => ({ name: txt('.gv-cat-name', c), score: txt('.gv-cat-score', c), evidence: list('.gv-chip', c) })) },
@@ -360,7 +432,7 @@ const READ_REVIEW = `(() => { ${READ_HELPERS}
     comps: txt('#v-comps'), patterns: list('#v-patterns li'),
     rounds: { heading: txt('#v-rounds-wrap h3, #v-rounds-wrap .label'), halves: list('#v-rounds .v-half-side'), rows: QA('#v-rounds .v-round').map(round) },
     study: list('#v-study li'), refused: list('#v-refused li'),
-    buttons: list('header button, .top button').filter((b) => b && b !== 'Close'),
+    buttons: visible('header button').filter((b) => b !== 'Close'),
   };
 })()`;
 const READ_INVITE = `(() => { ${READ_HELPERS}
@@ -425,6 +497,15 @@ setTimeout(async () => {
       if (m && m.open && m.view) views.push(m.view);
       const t = typeof mainWindow.toastState === 'function' ? mainWindow.toastState() : null;
       if (t && t.shown && t.view) views.push(t.view);
+      // NOTHING DRIFTING IN A PICTURE (Orbit): the agent's float and the
+      // twinkling stars loop for ever (motion.css m-drift, home.css
+      // sky-twinkle), so two captures a beat apart would never agree. Every
+      // surface holds its ambient motion where it stands (motion.js
+      // Motion.ambient(false), html.ambient-off), as it does mid match.
+      for (const v of views) {
+        if (v.webContents.isDestroyed()) continue;
+        await v.webContents.executeJavaScript("(() => { if (window.Motion && typeof window.Motion.ambient === 'function') window.Motion.ambient(false); return true; })()").catch(() => null);
+      }
       for (const v of views) {
         if (v.webContents.isDestroyed()) continue;
         v.webContents.sendInputEvent({ type: 'mouseMove', x: -1000, y: -1000 });
@@ -449,18 +530,38 @@ setTimeout(async () => {
     const out = { label: proof.SAMPLE_LABEL,
       note: 'Every string here was read off the real pages of the app, booted on the sample library in scripts/fixtures/proof-reviews.js: a Jett on Abyss, 13 to 11, built from a real match and its Riot record. Nothing is written by hand. No player name, no Riot ID, no date.',
       commit: process.env.OCCLARA_PROOF_COMMIT || '', dirty: process.env.OCCLARA_PROOF_DIRTY === '1',
-      version: require(path.join(REPO, 'package.json')).version, window: WIN };
+      version: require(path.join(REPO, 'package.json')).version,
+      // The bar's height in the window's own pixels (main-window.js TOP_H):
+      // a page sits under it, so the site lays a page it draws there too.
+      window: { ...WIN, bar: mainWindow.TOP_H } };
 
     /*
      * WHERE THINGS SIT ON THE PICTURES, for the site's pointer: the middle of
-     * each tab in the top bar and of each compilation row and its Play all,
-     * as fractions of the window (the pictures are the window at twice the
-     * size), read off the laid out pages and never measured by hand.
+     * each link in the top bar, of the sub switch and the rows on Matches, of
+     * each chip of the compilation and its Play all and of the hero and the
+     * filter on Clips, and of the review's actions, its grade and its fix, as
+     * fractions of the window (the pictures are the window at twice the
+     * size), read off the laid out pages once a picture is taken and never
+     * measured by hand. A place off its picture, or of a thing that does not
+     * show, is null.
      */
     const places = {};
     const frac = (n) => Math.round(n * 10000) / 10000;
     const inWindow = (p, onPage) => (p ? { x: frac((p.x + (onPage ? mainWindow.SIDEBAR_W : 0)) / WIN.width),
       y: frac((p.y + (onPage ? mainWindow.TOP_H : 0)) / WIN.height) } : null);
+    const onPicture = (p) => (p && p.x > 0 && p.x < 1 && p.y > 0 && p.y < 1 ? p : null);
+    const onPage = (p) => onPicture(inWindow(p, true));
+    /** A page's places, read until two reads a beat apart agree: nothing moving under them, in either mode. */
+    const steady = async (js, script) => {
+      let a = await js(script);
+      for (let i = 0; i < 12; i++) {
+        await wait(250);
+        const b = await js(script);
+        if (JSON.stringify(a) === JSON.stringify(b)) return b;
+        a = b;
+      }
+      return a;
+    };
 
     // 1. The shell and Home, the page the window opens on.
     const home = await until(() => surfaces.find('/home/'), 6000);
@@ -472,8 +573,6 @@ setTimeout(async () => {
     await until(() => hjs("document.querySelectorAll('.home .card.card-in').length >= 3 && !document.documentElement.classList.contains('page-armed')"), 4000);
     await until(() => sjs("(() => { const g = document.getElementById('rail-games'); return g && !g.hidden && g.textContent; })()"), 3000);
     out.shell = await sjs(READ_SHELL);
-    const tabs = await sjs(`(() => { ${READ_HELPERS} return QA('#nav .nav-item').map((b) => ({ page: T(b), at: centre(b) })); })()`);
-    places.tabs = Object.fromEntries(tabs.map((t) => [t.page, inWindow(t.at, false)]));
     // The K/D counts up to its two places as the card arrives (Motion.countUp):
     // read once it has landed, the same text a beat apart.
     // Landed means its text is the final one countUp keeps in data-value, not
@@ -486,7 +585,10 @@ setTimeout(async () => {
       return finish(false, `Home does not show the sample library: ${JSON.stringify(out.home.last)}`);
     }
     if (out.home.player.idShown) return finish(false, 'Home shows a Riot ID chip, and the sample library has none');
-    await shot('home', 'Home: the top bar, the Start strip, the last match with its grade, change, K/D and grade line, the fix for next match, the repeated mistakes and the recent matches');
+    await shot('home', 'Home: the top bar with its four links, the fix for next match as the hero with Start and Open last review, the agent before the moon, the last match with its grade, change and K/D, the trend and what repeats');
+    // The four links of the top bar, where they sit on every picture.
+    const tabs = await steady(sjs, `(() => { ${READ_HELPERS} return QA('#nav .nav-item').map((b) => ({ page: T(b), at: placeOf(b) })); })()`);
+    places.tabs = Object.fromEntries(tabs.map((t) => [t.page, onPicture(inWindow(t.at, false))]));
 
     // 1b. The account menu, opened from the avatar as a player opens it: its
     // rows and the games line are read off the menu's own view, then it shuts.
@@ -501,7 +603,7 @@ setTimeout(async () => {
     if (!await until(() => !mainWindow.menuState().open, 3000)) return finish(false, 'the account menu never shut');
     lines.push(`menu: ${menu.foot.join(', ')} | ${menu.games}`);
 
-    // 2. Matches, from its tab in the top bar.
+    // 2. Matches, from its link in the top bar.
     await sjs("document.querySelector('#nav .nav-item[data-page=\"matches\"]').click(); true");
     if (!await until(settled('matches'), 6000)) return finish(false, 'Matches never came in');
     const mjs = pjs('matches');
@@ -510,45 +612,64 @@ setTimeout(async () => {
     out.matches = await mjs(READ_MATCHES);
     lines.push(`matches: ${out.matches.rows.length} rows`);
     if (out.matches.rows.length !== seeded.SEEDED) return finish(false, `Matches lists ${out.matches.rows.length} rows`);
-    await shot('matches', 'Matches: every saved match as a row with its result, top mistake, grade and change, beside the chart of the grade over the last matches');
+    await shot('matches', 'Matches: its title and sub line, the sub switch to Patterns and Stats, every saved match as a row with its result, top mistake, grade and change, beside the chart of the grade over the last matches');
+    // The sub switch (Matches, Patterns, Stats) and the rows, where they sit on its picture.
+    const mplaces = await steady(mjs, `(() => { ${READ_HELPERS}
+      return { subnav: QA('.subnav button').map((b) => ({ page: T(b), at: placeOf(b) })),
+        rows: QA('#list .m-item').map((m) => placeOf(Q('.m-title', m) || m)) };
+    })()`);
+    places.matches = { subnav: Object.fromEntries(mplaces.subnav.map((b) => [b.page, onPage(b.at)])), rows: mplaces.rows.map(onPage) };
 
-    // 3. Patterns, for the JSON alone.
-    const pajs = await show('patterns');
+    // 3. Patterns, for the JSON alone, reached as a player reaches it: by the
+    // sub switch at the head of Matches (Orbit), not by a link of its own.
+    const toPatterns = await mjs("(() => { const b = document.querySelector('.subnav button[data-page=\"patterns\"]'); if (!b) return false; b.click(); return true; })()");
+    if (!toPatterns) return finish(false, 'Matches draws no sub switch to Patterns');
+    if (!await until(settled('patterns'), 6000)) return finish(false, 'Patterns never came in from the sub switch');
+    await wait(400);
+    const pajs = pjs('patterns');
     await until(() => pajs("document.querySelectorAll('#p-lists .gv-item').length > 0"), 6000);
     await until(() => pajs("document.querySelectorAll('#p-trend .p-bar').length > 0"), 4000);
     await wait(800);   // the bars grown, the averages counted up
     out.patterns = await pajs(READ_PATTERNS);
     lines.push(`patterns: ${out.patterns.lists.map((l) => `${l.heading} ${l.items.length}`).join(', ')}`);
     if (!out.patterns.lists.length) return finish(false, 'Patterns lists nothing');
-    // Home's old keys, from the pages that say them now: the top mistake's
-    // trend word and fix as Patterns says them, the trend's label as the
-    // Matches chart says it.
+    // Home's old keys, from the page that says them now: the top mistake's
+    // trend word and fix as Patterns says them. (The trend card on Home has
+    // words of its own since Orbit, so its label is no longer borrowed.)
     const ptop = out.patterns.lists[0].items[0];
     if (out.home.top && ptop && ptop.title === out.home.top.title) {
       out.home.top.trend = (ptop.chips.find((c) => /^(?:steady|more often lately|less often lately)$/.test(c)) || '');
       out.home.top.fix = ptop.fix;
       out.home.top.chips = ptop.chips;
     }
-    if (out.home.trend && out.matches.chart) out.home.trend.label = out.matches.chart.label;
 
-    // 4. Moments.
-    const mojs = await show('moments');
+    // 4. Clips (the page's id stays "moments"), from its link in the top bar.
+    await sjs("document.querySelector('#nav .nav-item[data-page=\"moments\"]').click(); true");
+    if (!await until(settled('moments'), 6000)) return finish(false, 'Clips never came in from its link');
+    await wait(400);
+    const mojs = pjs('moments');
     if (!await until(() => mojs("!document.getElementById('mo-log').hidden && document.querySelectorAll('#mo-list .mo-row').length > 0"), 8000)) {
-      return finish(false, 'the Moments page never listed its moments');
+      return finish(false, 'the Clips page never listed its moments');
     }
     await wait(800);   // the rows risen
     out.moments = await mojs(READ_MOMENTS);
-    // Where the compilation's rows and their Play all sit on the picture, as
-    // the page lays them out at the top of the page, moved by where the page
-    // sits in the window (under the top bar).
-    const crows = await mojs(`(() => {
+    lines.push(`clips: ${out.moments.counts} | hero ${out.moments.hero.length} | ${out.moments.compilation.rows.length} compilation chips`);
+    if (out.moments.matches.length !== seeded.SEEDED || !out.moments.compilation.rows.length) return finish(false, `Clips: ${JSON.stringify(out.moments.counts)}`);
+    if (!out.moments.hero.length) return finish(false, 'the Clips page drew no hero');
+    await shot('moments', 'Clips: its title and sub line, the hero of the newest match\'s best moments, the repeated mistakes as chips with Play all where a clip was kept, the filter, and every death and highlight as a frame under its match');
+    // Where the compilation's chips and their Play all sit on the picture, as
+    // the page lays them out, moved by where the page sits in the window
+    // (under the top bar); a chip with no clip kept has no Play all, and so
+    // no action place. And the hero's cards and the filter's buttons.
+    const cplaces = await steady(mojs, `(() => {
       ${READ_HELPERS}
-      return QA('#mo-comp-rows .mo-crow').map((r) => ({ title: txt('.mo-ctitle', r), row: centre(Q('.mo-ctitle', r)), action: centre(Q('button.btn', r) || Q('.mo-cnone', r)) }));
+      return { rows: QA('#mo-comp-rows .mo-crow').map((r) => ({ title: txt('.mo-ctitle', r), row: placeOf(Q('.mo-ctitle', r)), action: placeOf(Q('button.btn', r)) })),
+        hero: QA('#mo-hero .mo-hcard').map((c) => ({ round: txt('.mo-hround', c), title: txt('.mo-htitle', c), at: placeOf(c) })),
+        filter: QA('#mo-filter button').map((b) => ({ kind: T(b), at: placeOf(b) })) };
     })()`);
-    places.moments = crows.map((c) => ({ title: c.title, row: inWindow(c.row, true), action: inWindow(c.action, true) }));
-    lines.push(`moments: ${out.moments.counts} | ${out.moments.compilation.rows.length} compilation rows`);
-    if (out.moments.matches.length !== seeded.SEEDED || !out.moments.compilation.rows.length) return finish(false, `Moments: ${JSON.stringify(out.moments.counts)}`);
-    await shot('moments', 'Moments: the compilation by repeated mistake, the filter capsule, and every death and highlight under its match');
+    places.moments = cplaces.rows.map((c) => ({ title: c.title, row: onPage(c.row), action: onPage(c.action) }));
+    places.clips = { hero: cplaces.hero.map((h) => ({ round: h.round, title: h.title, at: onPage(h.at) })),
+      filter: Object.fromEntries(cplaces.filter.map((f) => [f.kind, onPage(f.at)])) };
 
     // 5. The review, opened from Home's first recent match, as a player opens it.
     await show('home');
@@ -571,7 +692,12 @@ setTimeout(async () => {
       return finish(false, `the review does not show the sample match whole: ${JSON.stringify({ v, cats: out.review.grade.categories.length })}`);
     }
     await rjs("document.querySelector('.body').scrollTo(0, 0); true");
-    await shot('review-top', 'The review: the Verdict with its icon, letter, number and standout, Riot\'s numbers, the fix for next match, the progress lines and the four categories');
+    await shot('review-top', 'The review: the hero with the number, its letter and its change on the last match, the result and the standout, the medals, the fix for next match in two tones, Ask about this match and Every round, and Riot\'s numbers');
+    // The hero's actions, its grade and its fix, where they sit on that picture.
+    const rplaces = await steady(rjs, `(() => { ${READ_HELPERS}
+      return { ask: placeOf(Q('#ask')), every: placeOf(Q('#v-every')), grade: placeOf(Q('#v-grade .vd-score')), fix: placeOf(Q('#v-focus')) };
+    })()`);
+    places.review = Object.fromEntries(Object.entries(rplaces).map(([k, p]) => [k, onPage(p)]));
     await rjs("document.getElementById('v-rounds-wrap').scrollIntoView({ block: 'start' }); true");
     await shot('review-rounds', 'The review\'s rounds: the two halves headed by their side, every round a ruled row with its tags, the rounds with something to say opened');
     await rjs("document.querySelector('.body').scrollTo(0, 0); true");
@@ -593,7 +719,7 @@ setTimeout(async () => {
     const setjs = await show('settings');
     await until(() => setjs("(() => { const n = document.getElementById('acct-email'); return n && !n.hidden && n.textContent; })()"), 6000);
     await setjs("document.querySelector('.body').scrollTop = 0; true");
-    await shot('settings', 'Settings: each group a heading, one line and its capsule control, the first group the page\'s hero');
+    await shot('settings', 'Settings: its title and grey sub line, then each group with its heading, its line and its control');
     const ijs = await show('invite');
     await until(() => ijs("!document.getElementById('inv-body').hidden"), 6000);
     out.invite = await ijs(READ_INVITE);
@@ -607,7 +733,7 @@ setTimeout(async () => {
     const anyShown = [...mainWindow.pageViews().values()].some((x) => x.getVisible());
     if (!sealedUp || anyShown) return finish(false, 'sealed, a page still shows or the Recording screen is down');
     out.sealed = await sjs(READ_SEALED);
-    await shot('sealed', 'The Recording screen: the live status waiting for the match to begin, what it shows while recording, and the review locked beside it, every tab locked, as the window is mid match');
+    await shot('sealed', 'The Recording screen: the live status waiting for the match to begin, Stop, the line that the review opens when the match ends and what shows while recording, the links locked, as the window is mid match');
     mainWindow.setSealed(false);
     await wait(400);
 
