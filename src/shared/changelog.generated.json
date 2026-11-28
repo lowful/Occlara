@@ -1,5 +1,25 @@
 [
   {
+    "version": "9.0.1",
+    "date": "2026-11-28",
+    "title": "A new moon",
+    "summary": "Occlara has a new logo, a full moon in the night sky, and a calmer loading screen.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "A new logo: a full moon with its seas and craters, lit from the upper left and falling to indigo, on the app icon, in the top bar and on the Recording screen."
+      },
+      {
+        "kind": "improved",
+        "text": "The loading screen is one calm motion: the moon comes out of the night, then the name fades in beneath it."
+      },
+      {
+        "kind": "improved",
+        "text": "The tray icon shows the moon, and while a match records it turns into the same ring and dot as the Start button."
+      }
+    ]
+  },
+  {
     "version": "9.0.0",
     "date": "2026-11-28",
     "title": "A new look",
