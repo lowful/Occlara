@@ -32,7 +32,8 @@
  * Practice (9.1, item 17): practicetall the page whole, practiceopen a drill
  * opened, practicetrainer the Trainer under Mechanics, practicesmall at 960 by
  * 640, practiceblank with no matches yet, practiceasked and practiceinplan
- * opened from a review, and trainerstill the arena its still is cut from.
+ * opened from a review, practicetrend a plan made before every sample match
+ * with a log of seven marks, and trainerstill the arena its still is cut from.
  */
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
@@ -76,6 +77,8 @@ const SCENES = {
   practiceblank: { page: 'practice', blank: true, h: 1400 },
   practiceasked: { page: 'practice', asked: { key: 'cause:repeek', title: 'Repeeked the same angle' }, h: 1200 },
   practiceinplan: { page: 'practice', asked: { key: 'untraded', title: 'Deaths nobody traded' } },
+  // A plan made before every sample match, so Is it working has something to say, and a log of seven marks.
+  practicetrend: { page: 'practice', practiceState: 'old', h: 2400 },
   // The Trainer's arena alone, its panel hidden: the still Practice shows under Mechanics (src/renderer/practice/trainer-still.jpg).
   trainerstill: { page: 'trainer', settle: 3000, act: "(() => { const r = document.querySelector('.tr-item[data-id=\"site-preaim-easy\"]'); if (r) r.click(); setTimeout(() => { document.getElementById('detail').style.visibility = 'hidden'; }, 200); return true; })()" },
   clips: { page: 'moments' },
@@ -223,6 +226,14 @@ app.whenReady().then(async () => {
     if (!scene) { console.log(`skip ${name}: no such scene`); continue; }
     // The review's Practice this, answered by the page's first ask.
     if (scene.asked) practice.open(scene.asked.key, scene.asked.title);
+    if (scene.practiceState === 'old') {
+      const day = 24 * 3600 * 1000;
+      memo.set('practice', { v: 1, plans: { valorant: { madeAt: 1, focus: [
+        { key: 'lost-advantage', title: 'Gave back the advantage', since: 1, drills: [] },
+        { key: 'untraded', title: 'Deaths nobody traded', since: 1, drills: [] },
+      ] } }, log: Array.from({ length: 7 }, (_v, i) => ({ id: 'demo' + i, drill: i % 2 ? 'untraded-swing-after' : 'lost-advantage-move-together',
+        title: i % 2 ? 'Swing right after your teammate' : 'Up in numbers, move together', minutes: 20, at: Date.now() - (i + 1) * day })) });
+    }
     const sw = scene.w || W, sh = scene.h || H;
     const shellWin = makeWindow(sw, sh, path.join(ROOT, 'src', 'preload', 'shell-preload.js'));
     let pageWin = null;
