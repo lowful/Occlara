@@ -35,6 +35,8 @@ const path = require('path');
 const { CLIP_RE, posterNameOf } = require('../../shared/clips');
 const { isRetired } = require('../../shared/games');
 const { clipNames } = require('../../shared/death-flags');
+const { cleanSaved } = require('../../shared/rating');
+const Display = require('../../shared/display');
 
 const MAX_REVIEWS = 300;          // about a season of daily play
 const ID_RE = /^[a-z]+-\d{10,}-[a-z0-9]{4,}$/;
@@ -79,6 +81,12 @@ function newId(game, at = Date.now()) {
 }
 
 /** The row the list shows, from a whole review. */
+/** A saved rating as a row carries it: { value, shown } on the 100 scale, or null. */
+function rowRating(saved) {
+  const s = cleanSaved(saved);
+  return s ? { value: s.value, shown: Display.rating(s.value) } : null;
+}
+
 function metaOf(id, game, review, at) {
   const r = review || {};
   const g = r.game || {};
@@ -95,6 +103,12 @@ function metaOf(id, game, review, at) {
     grade: grade && grade.score !== null && grade.score !== undefined
       ? { score: grade.score, letter: grade.letter, provisional: !!grade.provisional } : null,
     topMistake: top ? top.title : null,
+    // THE MATCH RATING on the row (9.1, the owner's item 16: Home and Matches
+    // show it beside the grade): the saved one, as its page shows it, on the
+    // 100 scale. A Valorant review with none saved is null; League has no key.
+    // A row saved before 9.1 has no key either, and index.js rates it once
+    // in the background (fillRowRatings).
+    ...(game === 'valorant' ? { rating: rowRating(r.rating) } : {}),
     verified: !!r.verified,
     // The Riot match it is linked to, so the match link never gives the same
     // match to a second review.

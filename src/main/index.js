@@ -1074,6 +1074,47 @@ function openPage(id, opts) {
 }
 
 /*
+ * THE MATCH RATING ON A LIBRARY ROW (9.1, the owner's item 16): Home and
+ * Matches show each match's rating beside its grade, `rating: { value, shown }`
+ * on REVIEWS_LIST's rows (shown on the 100 scale), null where a Valorant match
+ * has none. A review saved since 9.1 carries it in its row (review-store.js
+ * metaOf); one saved before is rated once, in the background after the first
+ * list, from its saved review (rating.js ratingOfReview, the number its page
+ * shows), kept in memory for the session, and the pages are told to list
+ * again (PUSH_REVIEWS { ratings: true }). Four reviews a turn, and none while
+ * a match is played.
+ */
+const rowRatings = new Map();
+let rowRatingsRunning = false;
+function fillRowRatings(rows) {
+  if (rowRatingsRunning) return;
+  const todo = (rows || []).filter((r) => r && r.game === 'valorant' && r.rating === undefined && !rowRatings.has(r.id)).map((r) => r.id);
+  if (!todo.length) return;
+  rowRatingsRunning = true;
+  const ratingOf = require('../shared/rating');
+  const Display = require('../shared/display');
+  let found = 0;
+  const step = () => {
+    if (matchInProgress()) { setTimeout(step, 5000); return; }
+    for (let n = 0; n < 4 && todo.length; n++) {
+      const id = todo.shift();
+      let out = null;
+      try {
+        const e = reviewStore.get(id);
+        const r = e && e.review ? ratingOf.ratingOfReview(e.review).rating : null;
+        out = r && typeof r.value === 'number' ? { value: r.value, shown: Display.rating(r.value) } : null;
+      } catch { out = null; }
+      rowRatings.set(id, out);
+      if (out) found += 1;
+    }
+    if (todo.length) { setImmediate(step); return; }
+    rowRatingsRunning = false;
+    if (found) registry.broadcast(C.PUSH_REVIEWS, { ratings: true });
+  };
+  setImmediate(step);
+}
+
+/*
  * STILL WHILE RECORDING (9.1, the owner's item 9): every animation in the app
  * pauses while a match is recorded and plays again after. Main says so to
  * every surface (PUSH_STILL, and STILL_GET for a document loading), each puts
@@ -3295,7 +3336,10 @@ const controller = {
    * match say it is being checked where its grade would be, half done.
    */
   listReviews(game) {
-    return reviewStore.list(game || null).map((row) => ({ ...row, aiLog: aiLogStateOf(rowLogEntry(row)), work: workForId(row.id) }));
+    const rows = reviewStore.list(game || null);
+    fillRowRatings(rows);
+    return rows.map((row) => ({ ...row, aiLog: aiLogStateOf(rowLogEntry(row)), work: workForId(row.id),
+      ...(row.rating === undefined && rowRatings.has(row.id) ? { rating: rowRatings.get(row.id) } : {}) }));
   },
   getReview(id) {
     const e = reviewStore.get(id);

@@ -124,6 +124,19 @@ const write = (file, bytes) => { fs.mkdirSync(path.dirname(file), { recursive: t
       'Clips can delete and reveal a clip and read the storage; Matches and the review can delete a match');
   }
 
+  // THE MATCH RATING ON A LIBRARY ROW (9.1, item 16): Home and Matches read it off REVIEWS_LIST.
+  {
+    const { metaOf } = require('../src/main/services/review-store');
+    const row = metaOf('valorant-1790000000000-aaaa', 'valorant', { rating: { version: 1, value: 8.34, rounds: 20, timeline: [] } }, 1);
+    ok(row.rating && row.rating.value === 8.3 && row.rating.shown === '83', 'a row carries its match rating, shown on the 100 scale', JSON.stringify(row.rating));
+    ok(metaOf('valorant-1790000000000-aaaa', 'valorant', {}, 1).rating === null && !('rating' in metaOf('lol-1790000000000-aaaa', 'lol', {}, 1)),
+      'null for a Valorant match with none, no key for League');
+    const idx = read('src/main/index.js');
+    const fill = idx.slice(idx.indexOf('function fillRowRatings('), idx.indexOf('function fillRowRatings(') + 1500);
+    ok(fill.includes('if (matchInProgress()) { setTimeout(step, 5000); return; }') && fill.includes('ratingOf.ratingOfReview(e.review)') && fill.includes('C.PUSH_REVIEWS, { ratings: true }'),
+      'an older row is rated in the background, never mid match, from the same rating its page shows, and the pages told');
+  }
+
   console.log(`\n${fails ? `FAIL: ${fails} of ${checks}` : `all ${checks} storage checks passed`}`);
   process.exit(fails ? 1 : 0);
 })();

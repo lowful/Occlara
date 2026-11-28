@@ -581,5 +581,10 @@ it is the seek that lands a frame either side.
   match. Only clips are the player's to clear (CLIPS_CLEAR or one at a time):
   the recordings are held only until a match's clips are cut and go at every
   quit, and the frames are thinned by the log itself.
+- **The match rating on a library row** (item 16): REVIEWS_LIST rows carry
+  `rating: { value, shown }` (shown on the 100 scale) or null, from the saved
+  rating (`review-store.js metaOf`); a row saved before 9.1 is rated once in
+  the background after the first list (`index.js fillRowRatings`, never mid
+  match) and PUSH_REVIEWS `{ ratings: true }` asks the pages to list again.
 - The cap and Clear clips are unchanged: a deleted clip is simply not on disk
   for them to count. `test:storage` holds all of it.
