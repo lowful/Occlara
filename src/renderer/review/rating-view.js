@@ -399,8 +399,10 @@
   function syncVideo() {
     const v = $('rt-r-video');
     if (!run || !$('rt-r-media').classList.contains('has-clip')) return;
-    // Full time's highlight loops on its own, the replay over.
-    const go = run.playing || (run.done && v.loop === true);
+    // Full time's highlight loops on its own, the replay over, unless less
+    // motion is asked (then it holds its first frame) or ambient motion is off.
+    const calm = lessMotion() || (window.Motion && typeof window.Motion.ambientOn === 'function' && !window.Motion.ambientOn());
+    const go = run.playing || (run.done && v.loop === true && !calm);
     if (go && v.paused && typeof v.play === 'function') { const p = v.play(); if (p && typeof p.catch === 'function') p.catch(() => {}); }
     else if (!go && !v.paused && typeof v.pause === 'function') v.pause();
   }
