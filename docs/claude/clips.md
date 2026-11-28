@@ -625,6 +625,10 @@ it is the seek that lands a frame either side.
   and the card's "Clear clips or change the limit" opens Settings AT its
   Clips row (9.1: OPEN_SETTINGS carries 'clips', main keeps it five seconds,
   `controller.settingsAt` hands it once over SETTINGS_AT, and Settings brings
-  the row into view with the keyboard on Clear clips as it shows; it came up
-  at its top before).
+  the row into view with the keyboard on Clear clips as it shows, or with no
+  clip to clear on the limit chosen; it came up at its top before). Settings
+  asks as it first loads and on every `enter` of the page motion, so an open
+  of a Settings already loaded comes to the row too; the row taken as it
+  first loaded is brought into view once more as main lets it in, the groups
+  above it landed by then.
   `test:clipspage` holds the page.

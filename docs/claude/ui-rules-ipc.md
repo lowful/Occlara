@@ -223,6 +223,27 @@ Settled decisions that keep getting reintroduced by accident:
   (grade-breakdown.md, "One score, no letters"). Show a grade or a match
   rating only through `shared/display.js` (or GradeView, which mirrors it),
   and name them "Grade" and "Match rating" with display.js's tooltips.
+- **When a match was played is said one way** (9.1): `display.js matchWhen`
+  ("Today, 9:25 PM", "Yesterday, 9:25 PM", "Nov 22, 9:25 PM") and
+  `matchDay` ("Today", "Yesterday", "Nov 22"), on Home, Matches, Clips,
+  Practice, Stats and the trend chart (`TrendChart.whenWord` and `dayWord`
+  call them). A page that dates a match loads `../../shared/display.js`
+  before its own script, and keeps no `toLocaleDateString` format of its
+  own: `test:display` fails one that does. A mistake's title inside a
+  sentence goes through `inSentence`.
+- **A trend's steady mark is a sideways arrow** in the same round as up and
+  down (Home's What repeats and trend, Stats' tiles, Practice's focus),
+  never a bare line, which read as a minus or a remove button.
+- **Nothing is sliced at a page's top edge** (9.1). A page body that scrolls
+  under a fixed title fades what passes through a mask that follows its
+  own scroll (`ui.css` `edge-soft`, `animation-timeline: scroll(self)`):
+  nothing at rest, a 28px soft edge once scrolled. The mask lives in the
+  keyframes alone, so a body that does not scroll has no timeline and no
+  mask, and nothing it holds (a menu, an overlay) is clipped by one. Home's
+  `.home` uses it over the sky with `--edge-fade: 48px`. Clips, Practice,
+  Matches and Stats scroll the sheet, title and all, under a sticky 18px
+  fade instead; the review and Settings keep their own edge and set their
+  body's `animation: none`. A new scrolling page gets it for free.
 - **Motion is transform, opacity, shadow and clip**, never layout: feedback
   140 to 220ms, the one authored moment on a page 420ms, rows rising 6px with a
   40ms stagger capped at eight, once, when a list first appears and never on a
