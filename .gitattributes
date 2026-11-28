@@ -1,0 +1,7 @@
+# The logo's SVG files are written by scripts/generate-icon.js with LF line
+# ends, and test:mark holds each byte for byte to what the script draws. A
+# checkout with core.autocrlf (Git for Windows' default) gave them CRLF and
+# failed the test on a clean clone, so they keep LF in every working tree.
+assets/logo-mark.svg text eol=lf
+assets/mark-bar.svg text eol=lf
+assets/splash/moon.svg text eol=lf
