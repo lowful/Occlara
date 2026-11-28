@@ -163,13 +163,9 @@ function keyOf(s) {
 }
 // ── RULES END ──────────────────────────────────────────────────────────────
 
-// ── The grade letter, the titles and the tiers (the app's own, held equal) ─
-
-/** S 90+, A 80+, B 70+, C 60+, D below (src/shared/grade.js letter). */
-function letter(score) {
-  if (!Number.isFinite(score)) return null;
-  return score >= 90 ? 'S' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'D';
-}
+// ── The titles and the tiers (the app's own, held equal) ───────────────────
+// ONE SCORE, NO LETTERS (9.1, the owner's item 16): a grade is its number out
+// of 100 everywhere, the public profile too, so no letter is made or sent here.
 
 /** Wrapped's titles by id and name (src/shared/wrapped.js titleOf). */
 const TITLES = Object.freeze({
@@ -244,7 +240,7 @@ function cleanSnapshot(input) {
     if (avg === undefined || bad(avg) || n === undefined || bad(n) || !Array.isArray(trendIn)) return no;
     const trend = trendIn.slice(0, 20).map((x) => int(x, 0, 100));
     if (trend.some((x) => x === undefined || bad(x)) || trend.length > n) return no;
-    grade = { avg, letter: letter(avg), n, trend };
+    grade = { avg, n, trend };
   }
 
   let kd = null;
@@ -297,7 +293,7 @@ function cleanSnapshot(input) {
     if (!isObj(r) || !RESULTS.has(r.r)) return no;
     const g = int(r.grade, 0, 100);
     if (bad(g)) return no;
-    recent.push({ r: r.r, agent: agentOf(r.agent), map: mapOf(r.map), grade: g === undefined ? null : g, letter: g === undefined ? null : letter(g) });
+    recent.push({ r: r.r, agent: agentOf(r.agent), map: mapOf(r.map), grade: g === undefined ? null : g });
   }
   const count = (x) => recent.filter((r) => r.r === x).length;
   if (count('W') > wins || count('L') > losses || count('D') > draws) return no;
@@ -421,7 +417,7 @@ function resultView(row, o = {}) {
     riot: verified ? riotOf(row.riot_name, row.riot_tag) : null,
     rank: tier ? { tier, source: verified ? 'verified' : 'pc' } : null,
     agent: agentOf(row.agent),
-    grade: g === null || g < 0 || g > 100 ? null : { avg: g, letter: letter(g) },
+    grade: g === null || g < 0 || g > 100 ? null : { avg: g },
   };
 }
 
@@ -598,7 +594,7 @@ const riotProofOn = (env = process.env) => String((env && env.SOCIAL_RIOT_PROOF)
 module.exports = {
   USERNAME_MIN, USERNAME_MAX, CHANGE_DAYS, HOLD_DAYS, RANK_MS, SNAPSHOT_MAX_BYTES, SEARCH_MAX, SEARCH_MIN, BLOCK_MAX, STATUS_MS,
   CHALLENGE, BASE_AGENTS, RESERVED_LONG, RESERVED_SHORT, RESERVED_START, WORDS_ANYWHERE, WORDS_WHOLE, FOLD_PAIRS, FOLD_ONE,
-  TITLES, LADDER, checkUsername, wordPattern, fold, forms, keyOf, letter, tierOf, cleanSnapshot, statsOut, meView,
+  TITLES, LADDER, checkUsername, wordPattern, fold, forms, keyOf, tierOf, cleanSnapshot, statsOut, meView,
   profileView, resultView, challengeView, rankFor, riotIdOf, queryOf, sequences, candidatesFor, judge, createStore, agentOf, mapOf,
   riotProofOn,
 };

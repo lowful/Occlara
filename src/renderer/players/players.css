@@ -102,7 +102,6 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .pv-word { font-size: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stats.sm .stat-n.pv-word { font-size: 24px; line-height: 36px; }
 .pv-word.dim, .stat-n.dim { color: var(--text-mute); }
-.pv-letter { font-size: 20px; font-weight: 600; color: var(--text-dim); }
 .pv-sub { font-size: 13px; color: var(--text-dim); }
 .pv-src { font-size: 12px; font-weight: 500; color: var(--text-mute); }
 .pv-src.verified { color: var(--text-dim); }

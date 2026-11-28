@@ -55,7 +55,6 @@ const routes = require(path.join(ROOT, 'server', 'routes', 'social.js'));
 const rateLimits = require(path.join(ROOT, 'server', 'services', 'rate-limits.js'));
 const freeAllowance = require(path.join(ROOT, 'server', 'services', 'free-allowance.js'));
 const C = require(path.join(ROOT, 'src', 'shared', 'social.js'));
-const grade = require(path.join(ROOT, 'src', 'shared', 'grade.js'));
 const wrapped = require(path.join(ROOT, 'src', 'shared', 'wrapped.js'));
 const valorantData = require(path.join(ROOT, 'server', 'valorant-data.generated.json'));
 const pg = require('./fixtures/pglite-social');
@@ -110,7 +109,7 @@ const blockOf = (raw) => { const t = raw.split(String.fromCharCode(13)).join('')
   ok(corpus.every((n) => JSON.stringify(S.checkUsername(n)) === JSON.stringify(C.checkUsername(n))), 'the app and the server answer every name the same');
   ok(S.fold('OccIara') === S.fold('Occlara') && S.fold('Occ1ara') === S.fold('occlara') && S.fold('rn') === 'm' && S.fold('vv') === 'w' && S.fold('ph') === 'f' && S.fold('v') === 'u',
     'the fold: I, l and 1 one letter, 0 an o, rn an m, vv a w, ph an f, v a u');
-  ok([0, 59, 60, 69.9, 70, 80, 89, 90, 100].every((x) => S.letter(x) === grade.letter(x)), 'the server letter is grade.js letter');
+  ok(S.letter === undefined, 'ONE SCORE, NO LETTERS (9.1): the server makes no grade letter at all');
   ok(JSON.stringify(Object.keys(S.TITLES)) === JSON.stringify(wrapped.TITLES), 'the server knows the titles Wrapped can give');
   ok(S.BASE_AGENTS.every((a) => Object.prototype.hasOwnProperty.call(valorantData.agents, a)), 'the five owned agents are agents the game data names');
 
@@ -126,8 +125,13 @@ const blockOf = (raw) => { const t = raw.split(String.fromCharCode(13)).join('')
     clutches: 2, recent: [{ r: 'W', agent: 'Jett', map: 'Bind', grade: 81 }, { r: 'L', agent: 'Sova', map: 'Lotus' }], title: 'student',
     rank: { current: 'Gold 2', peak: 'Platinum 1' } };
   let c = S.cleanSnapshot(good);
-  ok(c.ok && c.snapshot.agents[0].name === 'Jett' && c.snapshot.kd === 1.23 && c.snapshot.grade.letter === 'B' && c.snapshot.title.name === 'The Student'
-    && c.snapshot.recent[0].letter === 'A' && c.snapshot.rank.current === 'Gold 2', 'a real snapshot is kept, its rank tier too', c);
+  ok(c.ok && c.snapshot.agents[0].name === 'Jett' && c.snapshot.kd === 1.23 && c.snapshot.grade.avg === 74 && c.snapshot.title.name === 'The Student'
+    && c.snapshot.recent[0].grade === 81 && c.snapshot.recent[1].grade === null && c.snapshot.rank.current === 'Gold 2', 'a real snapshot is kept, its rank tier too', c);
+  ok(JSON.stringify(Object.keys(c.snapshot.grade)) === '["avg","n","trend"]' && c.snapshot.recent.every((r) => !('letter' in r)) && !/"letter"/.test(JSON.stringify(c.snapshot)),
+    'ONE SCORE, NO LETTERS (9.1): the snapshot carries each grade as its score, and no letter anywhere', JSON.stringify(c.snapshot.grade));
+  ok(!/"letter"/.test(JSON.stringify(S.statsOut(c.snapshot))), 'nor does a snapshot read back as stored');
+  const found = S.resultView({ username: 'Kestrel', grade: 73.6, agent: 'jett', pc_rank: 'Gold 2' }, { proof: false });
+  ok(found && JSON.stringify(found.grade) === '{"avg":74}', 'and a search result shows its average as the score alone', found && JSON.stringify(found.grade));
   const impossible = {
     'wins over matches': { ...good, wins: 13 }, 'the record over matches': { ...good, wins: 6, losses: 6, draws: 1 },
     'agents played more than matches': { ...good, agents: [{ name: 'Jett', n: 9 }, { name: 'Sova', n: 9 }] },

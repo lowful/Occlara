@@ -125,7 +125,7 @@ function reviewOf(id, matchId, agent) {
     'no sentence of the review reaches the sheet: no summary, why, read, look\'s words, and no name', text.slice(0, 200));
   const r2 = clean.sheet.rounds.find((x) => x.n === 2);
   ok(r2 && r2.sec === 34 && r2.place === 'A Main' && r2.killer === 'Raze' && r2.weapon === 'Vandal' && r2.kills.join() === '12' && r2.cause === 'isolated' && r2.traded === false
-    && r2.alive.mates === 2 && clean.sheet.rounds[0].plant.site === 'A' && clean.sheet.rounds[0].kills.join() === '18,23' && clean.sheet.grade.letter === 'B',
+    && r2.alive.mates === 2 && clean.sheet.rounds[0].plant.site === 'A' && clean.sheet.rounds[0].kills.join() === '18,23' && JSON.stringify(clean.sheet.grade) === '{"score":74}',
   'Riot\'s facts kept: the second, the place, the killer and gun, the kills, the cause\'s key, the trade, the odds, the plant', r2);
   const bad = {
     'a round twice': { ...clean.sheet, rounds: [clean.sheet.rounds[0], clean.sheet.rounds[0]] },

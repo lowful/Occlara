@@ -160,7 +160,7 @@ the switch says no word of Duos (`DISCOVER_EXPLAIN_OFF`).
 ## What a shared match holds
 
 **The sheet** (`src/shared/duos.js sheetOf`, the server's `cleanSheet`): agent,
-map, mode, result, score, grade (score and letter), the scoreline (K, D, A),
+map, mode, result, score, grade (its score alone, no letter since 9.1), the scoreline (K, D, A),
 and per round: number, side, result, died and its second, the place of the
 death (Riot's callout, else the screen's, kept only if the map's places hold
 it), killer agent and gun (a gun the game data knows, Melee, or an ability by

@@ -16,7 +16,8 @@ signed in players find it on the Players page by the start of a username (3
 characters at least), and, once the Riot ID proof is on, by a whole Riot ID.
 They see the username, the Riot ID once its owner PROVED it (and unless they
 turned "Show my Riot ID" off), the rank, and Occlara's numbers from the
-player's own PC (matches reviewed, record, average grade and its letter, K/D,
+player's own PC (matches reviewed, record, average grade as its score out of
+100, never a letter since 9.1 (`cleanSnapshot`, `resultView`), K/D,
 headshot share, main agents and maps, the last 10 matches, multi kills and
 clutches won, Wrapped's title). Never a mistake, a weakness, a review, a
 clip, an email or a free text: the only thing a user types that others see

@@ -214,7 +214,8 @@ function cleanSheet(input) {
   if (input.grade !== undefined && input.grade !== null) {
     const g = isObj(input.grade) ? int(input.grade.score, 0, 100) : NaN;
     if (g === undefined || bad(g)) return no;
-    grade = { score: g, letter: social.letter(g) };
+    // Its score alone (9.1, one score, no letters).
+    grade = { score: g };
   }
   let line = null;
   if (input.line !== undefined && input.line !== null) {
