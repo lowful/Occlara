@@ -18,6 +18,13 @@ a one week ban with the app flagged as third party. The anti-cheat axis (screen
 capture like OBS) was always clean; the written policy was not. League's policy
 is stricter still (see below). The second half of that sentence is the product.
 
+**Mid match nothing navigates and nothing moves** (9.1): the history's back
+and forward (the mouse's side buttons, a page's arrow) do nothing while sealed
+(`index.js navHistory`), deleting a match or a clip and opening a clip's file
+in Explorer are refused, the storage is not read, and every animation in every
+surface is still while a match is recorded (`html.rec-still`, ui.md "Still
+while recording").
+
 ## The live status, the one exception (Progress v3)
 
 The owner chose, knowing the rule above and the ban behind it, to show the

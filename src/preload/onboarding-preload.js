@@ -48,3 +48,6 @@ contextBridge.exposeInMainWorld('occlara', {
   getBackfill: () => ipcRenderer.invoke(C.BACKFILL_STATUS),
   onBackfill:  (cb) => subscribe(C.PUSH_BACKFILL, cb),
 });
+
+// Still while a match is recorded (9.1, the owner's item 9): html.rec-still on this document (still.js).
+require('./still').stillSync(ipcRenderer);

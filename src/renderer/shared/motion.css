@@ -59,7 +59,7 @@
    paused whenever the window is hidden or a match is being recorded
    (motion.js puts html.ambient-off on). */
 .m-drift { animation: m-drift 7s ease-in-out infinite alternate; }
-html.ambient-off .m-drift { animation-play-state: paused; }
+html.ambient-off .m-drift, html.rec-still .m-drift { animation-play-state: paused; }
 
 /* A number counting up (Motion.countUp) keeps its width still. */
 .m-count { font-variant-numeric: tabular-nums; }

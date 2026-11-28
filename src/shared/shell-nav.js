@@ -327,4 +327,114 @@ function createNav({ home = 'home' } = {}) {
   };
 }
 
-module.exports = { PAGES, TOP, SUB, pageOf, topOf, createNav, direction, createMotion, READY_MS, LOAD_MS };
+/*
+ * THE HISTORY (9.1, the owner's item 7): the pages the player visited, in
+ * order, so the mouse's side buttons (Windows' app-command browser-backward
+ * and browser-forward on the window, and a page's own mouse buttons 3 and 4)
+ * go back and forward through them as a browser's do, and the review can draw
+ * its own back arrow. An entry is { page, key }: the key tells one visit of a
+ * page from another (a review's id), null for every other page. Visiting the
+ * entry already current adds nothing; visiting from the middle of the list
+ * drops what was ahead of it, as a browser does. Pure: main-window.js holds
+ * one, index.js decides which entries can still be gone back to (a review
+ * deleted since cannot).
+ */
+const HISTORY_MAX = 50;
+
+function createHistory({ max = HISTORY_MAX } = {}) {
+  let list = [];
+  let at = -1;
+  const same = (a, b) => !!a && !!b && a.page === b.page && (a.key || null) === (b.key || null);
+  const entry = (e) => ({ page: e.page, key: e.key === undefined || e.key === null ? null : String(e.key) });
+  const find = (dir, ok) => {
+    const d = dir < 0 ? -1 : 1;
+    for (let i = at + d; i >= 0 && i < list.length; i += d) {
+      if (!ok || ok({ ...list[i] })) return i;
+    }
+    return -1;
+  };
+  return {
+    /** A page shown that was not a step through the history: true when it was added. */
+    visit(e) {
+      if (!e || !pageOf(e.page)) return false;
+      const next = entry(e);
+      if (same(list[at], next)) return false;
+      list = list.slice(0, at + 1);
+      list.push(next);
+      if (list.length > max) list = list.slice(list.length - max);
+      at = list.length - 1;
+      return true;
+    },
+    /**
+     * One step back (dir < 0) or forward, passing over every entry ok()
+     * refuses: the entry landed on, or null with nothing moved.
+     */
+    step(dir, ok) {
+      const i = find(dir, ok);
+      if (i < 0) return null;
+      at = i;
+      return { ...list[at] };
+    },
+    /** The entry a step would land on, nothing moved, or null. */
+    peek(dir, ok) {
+      const i = find(dir, ok);
+      return i < 0 ? null : { ...list[i] };
+    },
+    /** The entry the player is on, or null before any. */
+    current() {
+      return at >= 0 && list[at] ? { ...list[at] } : null;
+    },
+    /**
+     * Every entry pred() names taken out (a review deleted): the current
+     * entry stays current when it survives, else the one before it does, and
+     * two entries left side by side that are the same become one.
+     */
+    drop(pred) {
+      if (typeof pred !== 'function') return false;
+      const was = list.length;
+      const keep = [];
+      let nextAt = -1;
+      list.forEach((e, i) => {
+        if (pred({ ...e })) return;
+        if (keep.length && same(keep[keep.length - 1], e)) { if (i <= at) nextAt = keep.length - 1; return; }
+        keep.push(e);
+        if (i <= at) nextAt = keep.length - 1;
+      });
+      list = keep;
+      at = list.length ? Math.max(0, nextAt) : -1;
+      return list.length !== was;
+    },
+    /** { back, forward, backTo, forwardTo, at, length }, ok() as step() takes it. */
+    state(ok) {
+      const b = this.peek(-1, ok);
+      const f = this.peek(1, ok);
+      return { back: !!b, forward: !!f, backTo: b ? b.page : null, forwardTo: f ? f.page : null, at, length: list.length };
+    },
+    reset() { list = []; at = -1; },
+  };
+}
+
+/*
+ * ONE PRESS, ONE STEP. A mouse's side button reaches the app twice on
+ * Windows: as WM_APPCOMMAND, which Electron gives the window as 'app-command'
+ * (browser-backward, browser-forward), and as the page's own mouse button 3
+ * or 4. Either can be missing (a mouse driver that sends no app-command, a
+ * press over the bar), so both are heard and the second of a pair is dropped:
+ * a step the same way from the other source within `ms` of the last one
+ * taken. Presses from one source are never dropped, so a fast double press
+ * goes back twice.
+ */
+function createHistoryGate({ ms = 400, now = () => Date.now() } = {}) {
+  let last = null;
+  return {
+    /** @param dir 'back' | 'forward'  @param from 'app' | 'mouse' | 'page' */
+    allow(dir, from) {
+      const t = now();
+      if (last && last.dir === dir && last.from !== from && t - last.at < ms) return false;
+      last = { dir, from, at: t };
+      return true;
+    },
+  };
+}
+
+module.exports = { PAGES, TOP, SUB, pageOf, topOf, createNav, direction, createMotion, createHistory, createHistoryGate, HISTORY_MAX, READY_MS, LOAD_MS };

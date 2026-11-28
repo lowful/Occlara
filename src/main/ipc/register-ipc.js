@@ -194,6 +194,11 @@ function registerIpc(deps) {
 
   safeHandle(C.STATE_GET, async () => controller.getState());
   safeHandle(C.SHELL_GET, async () => controller.getShell());
+  // The history (9.1, the owner's item 7): a page's back arrow or its mouse's side buttons, and what it allows now.
+  safeHandle(C.HISTORY_GO, async (_e, m) => (controller.navHistory ? controller.navHistory(m && typeof m === 'object' ? { dir: m.dir, from: m.from, fallback: m.fallback } : null) : null));
+  safeHandle(C.HISTORY_GET, async () => (controller.historyState ? controller.historyState() : null));
+  // Still while recording (9.1, the owner's item 9): what a surface loading now should be.
+  safeHandle(C.STILL_GET, async () => (controller.stillState ? controller.stillState() : { still: false }));
   safeHandle(C.LIVE_GET, async () => (controller.getLive ? controller.getLive() : null));
   // The stream widget's address to the clipboard, main's to copy (the live rating).
   safeHandle(C.STREAM_WIDGET_COPY, async (_e, size) => (controller.copyRatingWidget ? controller.copyRatingWidget(size === 'compact' ? 'compact' : 'standard') : { ok: false }));
@@ -228,6 +233,11 @@ function registerIpc(deps) {
   safeHandle(C.IMPORT_ACTION, async (_e, what, id) => controller.importAction(String(what || ''), typeof id === 'string' ? id : null));
   safeHandle(C.CLIPS_USAGE, async () => controller.clipsUsage());
   safeHandle(C.CLIPS_CLEAR, async () => controller.clearClips());
+  // Deleting and storage (9.1, the owner's item 18): a whole match, one clip, a clip's file in Explorer, what is kept.
+  safeHandle(C.MATCH_DELETE, async (_e, id) => controller.deleteMatch(typeof id === 'string' ? id : null));
+  safeHandle(C.CLIP_DELETE, async (_e, id, name) => controller.deleteClip(typeof id === 'string' ? id : null, typeof name === 'string' ? name : null));
+  safeHandle(C.CLIP_REVEAL, async (_e, id, name) => controller.revealClip(typeof id === 'string' ? id : null, typeof name === 'string' ? name : null));
+  safeHandle(C.STORAGE_GET, async () => controller.storage());
   // Onboarding's PC check (8.3.1): what Node can tell of this PC, and the
   // recorder's encoder asks for the page to put to WebCodecs. Called through
   // the module, so check:onboardingriot can stand facts in for this PC's.

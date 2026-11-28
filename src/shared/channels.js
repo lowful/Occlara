@@ -200,6 +200,15 @@ const CHANNELS = {
   // for Settings: what they take against the cap, and Clear clips.
   CLIPS_USAGE:     'clips:usage',        // () -> { bytes, clips, reviews, capGB }
   CLIPS_CLEAR:     'clips:clear',        // () -> the same, once every clip is gone
+  // DELETING AND STORAGE (9.1, the owner's item 18; index.js deleteMatch,
+  // deleteClip, revealClip, storage; services/storage-usage.js). Each refuses
+  // mid match or sealed with { ok: false, error: 'match' } (storage: null).
+  // Errors: 'bad' (no such id or clip name), 'gone' (not on disk),
+  // 'working' (its review is still being built), 'match'.
+  MATCH_DELETE:    'reviews:delete',     // (reviewId) -> { ok, id } | { ok: false, error }: the review, its clips, posters and kept frames, its library row and year record; an import's log too. PUSH_REVIEWS { id, game, removed: true } follows
+  CLIP_DELETE:     'clips:delete',       // (reviewId, clipName) -> { ok, id, clip, bytes } | { ok: false, error }: one clip and its poster. PUSH_REVIEWS { id, game, clip, removed: true } follows
+  CLIP_REVEAL:     'clips:reveal',       // (reviewId, clipName) -> { ok } | { ok: false, error }: Explorer opened with that clip's file selected; only a clip in a review's own folder
+  STORAGE_GET:     'storage:get',        // () -> { clips: { bytes, count, matches }, recordings: { bytes, count }, frames: { bytes, review, log }, other: { bytes }, total, free: { bytes, drive }, capGB, clearable: { clips } } | null
   // The PC check behind onboarding's Record gameplay or Frames only (8.3.1,
   // src/main/services/pc-check.js): what Node can tell of this PC, and the
   // recorder's two encoder asks for the page to put to WebCodecs itself.
@@ -239,6 +248,17 @@ const CHANNELS = {
   // widget's switch with it.
   LIVE_RATING_SET: 'home:liveRatingSet',
   SHELL_GET:       'shell:get',          // () -> { page, shown, sealed, maximized }
+  // THE HISTORY (9.1, the owner's item 7; shell-nav.js createHistory,
+  // main-window.js, index.js navHistory): back and forward through the pages
+  // visited, from the mouse's side buttons (a page's buttons 3 and 4, and
+  // Windows' app-command on the window, taken once) and from a page's own
+  // back arrow. Never mid match: sealed, a step does nothing.
+  HISTORY_GO:      'shell:historyGo',    // ({ dir: 'back' | 'forward', from?: 'mouse' | 'page', fallback?: pageId }) -> the state below, after the step
+  HISTORY_GET:     'shell:historyGet',   // () -> { back, forward, backTo, forwardTo, backLabel, forwardLabel, at, length }
+  // STILL WHILE RECORDING (9.1, the owner's item 9; preload/still.js): every
+  // surface puts html.rec-still on while a match is recorded and takes it off
+  // after, and shared/motion.js folds it into its ambient switch.
+  STILL_GET:       'app:stillGet',       // () -> { still }
   // A page has painted itself armed (8.2): main-window.js may now hide the
   // page on screen and let this one in (PUSH_PAGE).
   PAGE_READY:      'page:ready',         // (pageId) from that page's own view only
@@ -289,6 +309,8 @@ const CHANNELS = {
   PUSH_REVIEW_WORK:  'push:reviewWork',
   // The main window's page and seal, to the shell: { page, shown, sealed, maximized }.
   PUSH_SHELL:        'push:shell',
+  PUSH_HISTORY:      'push:history',      // main -> shell and pages: HISTORY_GET's shape, on every change
+  PUSH_STILL:        'push:still',        // main -> every surface: { still } when recording starts or stops
   // Moving between pages (8.2, src/shared/shell-nav.js createMotion), to one
   // page: { phase: 'arm', dir } paint yourself invisible and say PAGE_READY,
   // { phase: 'enter', dir } come in, { phase: 'leave' } another page is coming.
@@ -371,6 +393,8 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_VALORANT_REVIEW,
   CHANNELS.PUSH_REVIEW_WORK,
   CHANNELS.PUSH_SHELL,
+  CHANNELS.PUSH_HISTORY,
+  CHANNELS.PUSH_STILL,
   CHANNELS.PUSH_PAGE,
   CHANNELS.ACCOUNT_CHANGED,
   CHANNELS.PUSH_CHANGELOG,

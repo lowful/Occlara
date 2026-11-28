@@ -218,6 +218,8 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
   animation: skeleton 1.2s ease-in-out infinite;
   pointer-events: none;
 }
+/* Still while a match is recorded (9.1, the owner's item 9: preload/still.js puts html.rec-still on). */
+html.rec-still .card.skeleton { animation-play-state: paused; }
 .card.skeleton:first-child { grid-column: 1 / -1; }
 @keyframes skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 /* Less motion: every entrance is its end state at once, with no stagger to

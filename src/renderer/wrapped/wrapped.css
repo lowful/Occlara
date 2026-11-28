@@ -341,3 +341,6 @@ button { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .wr *, .wr *::before, .wr *::after { animation-delay: 0ms !important; }
 }
+/* Still while a match is recorded (9.1, the owner's item 9): the whole story
+   pauses (wrapped.js setPaused, as when hidden), every motion of it here. */
+html.rec-still *, html.rec-still *::before, html.rec-still *::after { animation-play-state: paused !important; }

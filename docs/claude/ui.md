@@ -1174,3 +1174,54 @@ it with (GET /api/gifts, the running gift's `from_name`), never a Riot ID
   (the Profile line already says it); `free_total` going 4 to 6 cannot tell
   the raise from an invite redeemed as the friend, so both say "Free is now
   6 games".
+
+### The history: back and forward (9.1, the owner's item 7)
+
+The mouse's side buttons go back and forward through the pages the player
+visited, everywhere in the app, as a browser's do.
+
+- **One list**, `shell-nav.js createHistory`, held by `main-window.js`:
+  every `show()` is a visit (a review's by its id, `key`, so two reviews are
+  two entries), a step (`show(page, { history: true })`) moves along it and
+  adds nothing, a visit from the middle drops what was ahead, 50 at most, and
+  a window made again starts over on its first page.
+- **Both ways a press arrives** are heard: Windows' `app-command`
+  (browser-backward, browser-forward) on the window, and a page's own mouse
+  buttons 3 and 4 (`preload/page-motion.js mouseHistory`, in every page view
+  and the bar; never while the Trainer holds the pointer). The one press heard
+  twice is one step (`createHistoryGate`: the other source the same way within
+  400 ms is dropped; one source is never dropped, so a fast double press is two).
+- **index.js decides** (`navHistory`): sealed, nothing moves (no navigation
+  mid match); on the Recording view, back is the page under it; a review's
+  entry paints that review first (`showEntry`), and a review deleted since is
+  passed over (`reviewStore.has`) and taken out (`historyDrop`).
+- **A page's own API** (every page bridge, and the shell's): `history.back({
+  fallback })`, `history.forward()`, `history.state()` and
+  `history.onChange(cb)`, each answering `{ back, forward, backTo, forwardTo,
+  backLabel, forwardLabel }` (HISTORY_GO, HISTORY_GET, PUSH_HISTORY). The
+  review's back arrow calls `back({ fallback: 'matches' })` and can name where
+  it goes from `backLabel` ("Back to Matches").
+- `test:history` holds all of it.
+
+### Still while recording (9.1, the owner's item 9)
+
+Every animation in the app pauses while a match is recorded and plays again
+after: the moon, the stars, the agent's drift, any loop. One switch:
+
+- main says it on every Start and Stop (`index.js syncStill`, from
+  `setStatus`): PUSH_STILL `{ still }` to every surface, and STILL_GET for
+  one loading meanwhile;
+- each surface's preload puts **`html.rec-still`** on its own document
+  (`preload/still.js stillSync`; page views through `pageMotion`; never the
+  recorder's or the frames' hidden pages, which must run);
+- **`shared/motion.js`** folds it into ambient: `html.ambient-off` comes on
+  with it, `Motion.ambientOn()` is false and `Motion.onAmbient(cb)` tells a
+  loop `cb(false)` then `cb(true)` after; `Motion.still()` says whether a
+  match is recorded. A canvas or the moon asks `ambientOn()` before each
+  frame and restarts on `cb(true)`;
+- every infinite CSS animation has a rule under `html.rec-still` (or
+  `html.ambient-off` where motion.js is loaded) that pauses it; Wrapped pauses
+  its whole story. An entrance, a change of state and the live rating's count
+  are not ambient and still play.
+- `test:still` holds the wiring and finds every infinite animation in the
+  renderer, so a new one without its pause fails there.

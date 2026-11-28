@@ -278,6 +278,12 @@ class ReviewStore {
     return this.list(game).slice(0, n).map((r) => this.get(r.id)).filter(Boolean);
   }
 
+  /** Whether a review is on disk by that id: its own file, read nowhere (the history's test of a review entry). */
+  has(id) {
+    if (!ID_RE.test(String(id || ''))) return false;
+    try { return fs.statSync(path.join(this.root, `${id}.json`)).isFile(); } catch { return false; }
+  }
+
   /** A kept frame as base64, or null. */
   frame(id, name) {
     if (!ID_RE.test(String(id || '')) || !FRAME_RE.test(String(name || ''))) return null;
@@ -437,6 +443,22 @@ class ReviewStore {
     try { fs.rmSync(path.join(this.root, id, clip), { force: true }); } catch {}
     const poster = this.posterFile(id, clip);
     if (poster) { try { fs.rmSync(poster, { force: true }); } catch {} }
+  }
+
+  /**
+   * ONE CLIP DELETED BY THE PLAYER (9.1, the owner's item 18, CLIP_DELETE):
+   * the file and its poster, nothing else. The review keeps its frames, facts
+   * and grade, and its page shows the frames where the clip was (present()
+   * asks the disk each time). Returns the bytes freed, 0 when there was no
+   * such clip (a name that is not a clip's, or one already gone).
+   */
+  removeClip(id, name) {
+    const file = this.clipFile(id, name);
+    if (!file) return 0;
+    let bytes = 0;
+    try { const st = fs.statSync(file); if (!st.isFile()) return 0; bytes = st.size; } catch { return 0; }
+    this.removeClipFile(id, name);
+    return this.hasClip(id, name) ? 0 : bytes;
   }
 
   /** Whether that clip is on disk. */

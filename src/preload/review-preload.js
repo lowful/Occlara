@@ -98,5 +98,7 @@ contextBridge.exposeInMainWorld('occlara', {
   // the id main put on its row (shared/trainer-replay.js). Main checks it.
   openReplay:   (id) => ipcRenderer.send(C.TRAINER_OPEN, `replay:${String(id || '')}`),
   getConfig:    () => ipcRenderer.invoke(C.CONFIG_GET),
+  // DELETE A WHOLE MATCH (9.1, the owner's item 18): after the page's own confirm. { ok, id } | { ok: false, error: 'match' | 'bad' | 'gone' | 'working' }.
+  deleteMatch:  (id) => ipcRenderer.invoke(C.MATCH_DELETE, typeof id === 'string' ? id : null),
   close:     () => window.close(),
 });

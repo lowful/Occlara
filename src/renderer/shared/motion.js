@@ -17,10 +17,17 @@
  * less, the entrances add nothing (motion.css would take them off anyway),
  * countUp writes the final text at once and a transition is a plain change.
  *
- * AMBIENT (the agent's float, the stars, the moon's parallax): slow, and off
- * whenever the window is hidden. Motion.ambient(false) turns it off while a
- * match is being recorded; html.ambient-off is what the CSS pauses on, and
- * Motion.ambientOn() what a script asks before it draws a frame of it.
+ * AMBIENT (the agent's float, the stars, the moon's turn): slow, and off
+ * whenever the window is hidden. Motion.ambient(false) turns it off for the
+ * page; html.ambient-off is what the CSS pauses on, and Motion.ambientOn()
+ * what a script asks before it draws a frame of it.
+ *
+ * STILL WHILE RECORDING (9.1, the owner's item 9): main puts html.rec-still on
+ * every surface while a match is recorded (preload/still.js), and ambient is
+ * off for as long as it is there, whatever the page asked. A loop (a canvas,
+ * the moon) asks Motion.ambientOn() before each frame, stops when it is
+ * false, and is told when to start again by Motion.onAmbient(cb), cb(on) on
+ * every change. Motion.still() says whether a match is being recorded.
  *
  * NEVER MID MATCH. Nothing here knows about a match, and nothing needs to:
  * mid match no page is on screen. A page calls these only while it shows
@@ -134,19 +141,36 @@
     }
   }
 
-  // AMBIENT: off whenever the window is hidden, and while the page says so.
+  // AMBIENT: off whenever the window is hidden, while the page says so, and
+  // while a match is recorded (html.rec-still, main's, on every surface).
   let ambientWanted = true;
+  const still = () => root.classList.contains('rec-still');
+  const ambientWatchers = new Set();
+  let ambientWas = null;
   const paintAmbient = () => {
-    const on = ambientWanted && document.visibilityState !== 'hidden' && !reduced();
-    root.classList.toggle('ambient-off', !on);
+    const on = ambientWanted && !still() && document.visibilityState !== 'hidden' && !reduced();
+    if (root.classList.contains('ambient-off') === on) root.classList.toggle('ambient-off', !on);
+    if (ambientWas === on) return;
+    ambientWas = on;
+    for (const cb of [...ambientWatchers]) { try { cb(on); } catch (e) { /* the watcher's own */ } }
   };
   document.addEventListener('visibilitychange', paintAmbient);
   if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', paintAmbient);
+  // rec-still comes and goes on <html> from the preload: heard as it changes.
+  if (typeof MutationObserver === 'function') {
+    try { new MutationObserver(paintAmbient).observe(root, { attributes: true, attributeFilter: ['class'] }); } catch (e) { /* no observer */ }
+  }
   paintAmbient();
-  /** Ambient motion on or off for this page (off while a match is recorded). */
+  /** Ambient motion on or off for this page (it is off while a match is recorded whatever is asked). */
   function ambient(on) { ambientWanted = on !== false; paintAmbient(); }
   /** Whether a frame of ambient motion should be drawn now. */
   const ambientOn = () => !root.classList.contains('ambient-off');
+  /** cb(on) whenever ambient motion turns on or off; returns the unsubscribe. A loop restarts on cb(true). */
+  function onAmbient(cb) {
+    if (typeof cb !== 'function') return () => {};
+    ambientWatchers.add(cb);
+    return () => ambientWatchers.delete(cb);
+  }
 
   const counting = new WeakMap();
   const live = new Set();
@@ -218,5 +242,5 @@
     });
   }
 
-  window.Motion = Object.freeze({ reduced, once, rise, enter, pop, stagger, squish, transition, ambient, ambientOn, countUp, visit: () => visit, whenShown });
+  window.Motion = Object.freeze({ reduced, once, rise, enter, pop, stagger, squish, transition, ambient, ambientOn, onAmbient, still, countUp, visit: () => visit, whenShown });
 })();

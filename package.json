@@ -195,7 +195,10 @@
     "test:importvideo": "node scripts/test-import-video.js",
     "test:importserver": "node scripts/test-import-server.js",
     "check:importclip": "node scripts/check-import-clip.js",
-    "test:display": "node scripts/test-display.js"
+    "test:display": "node scripts/test-display.js",
+    "test:history": "node scripts/test-history.js",
+    "test:still": "node scripts/test-still.js",
+    "test:storage": "node scripts/test-storage.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

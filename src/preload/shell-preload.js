@@ -7,6 +7,12 @@ const GAMES = require('../shared/games');
 const { PAGES, TOP } = require('../shared/shell-nav');
 const { DISCORD_URL } = require('../shared/config');
 const { iconOf, mapArtOf } = require('../shared/agent-icons');
+const { historyApi, mouseHistory } = require('./page-motion');
+const { stillSync } = require('./still');
+
+// The bar's own document hears the mouse's side buttons too, and is still while a match is recorded (9.1).
+mouseHistory(ipcRenderer);
+stillSync(ipcRenderer);
 
 /**
  * Bridge for the shell, the main window's own document (8.1): the sidebar,
@@ -47,6 +53,8 @@ contextBridge.exposeInMainWorld('occlara', {
   go:            (page) => ipcRenderer.send(C.SHELL_NAV, page),
   windowAction:  (action) => ipcRenderer.send(C.SHELL_WINDOW, action),
   getShell:      () => ipcRenderer.invoke(C.SHELL_GET),
+  // THE HISTORY (9.1): back and forward through the pages visited (page-motion.js historyApi).
+  history:       historyApi(ipcRenderer),
   openLearn:     () => ipcRenderer.send(C.OPEN_LEARN),
   // THE ACCOUNT MENU (8.9.1): drawn by a view of its own over the page
   // (main-window.js openMenu); this document lays it out and owns it.

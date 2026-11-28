@@ -23,3 +23,6 @@ contextBridge.exposeInMainWorld('occlara', {
   openChat:  () => ipcRenderer.send(C.OPEN_CHAT),
   close:     () => window.close(),
 });
+
+// Still while a match is recorded (9.1, the owner's item 9): html.rec-still on this document (still.js).
+require('./still').stillSync(ipcRenderer);

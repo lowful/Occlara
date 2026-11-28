@@ -70,6 +70,8 @@ contextBridge.exposeInMainWorld('occlara', {
   // just applied), after which the line is read again.
   getClipsUsage: () => ipcRenderer.invoke(C.CLIPS_USAGE),
   clearClips:    () => ipcRenderer.invoke(C.CLIPS_CLEAR),
+  // What Occlara keeps on this PC and the room left (9.1, STORAGE_GET).
+  getStorage:    () => ipcRenderer.invoke(C.STORAGE_GET),
   onReviews:     (cb) => subscribe(C.PUSH_REVIEWS, cb),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),
   onStatus: (cb) => subscribe(C.PUSH_STATUS, cb),

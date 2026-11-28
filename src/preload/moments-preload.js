@@ -38,5 +38,13 @@ contextBridge.exposeInMainWorld('occlara', {
   go:          (page) => ipcRenderer.send(C.SHELL_NAV, page),
   // The map's bundled splash (agent-icons.js), for a moment with no clip kept (Orbit's Clips page).
   mapArt:      (name) => { const r = mapArtOf(name); return r ? `../../../assets/${r}` : null; },
+  // THE CLIPS' OWN ACTIONS AND STORAGE (9.1, the owner's items 12 and 18). Main
+  // checks every id and name; a page never names a path.
+  deleteClip:  (id, name) => ipcRenderer.invoke(C.CLIP_DELETE, typeof id === 'string' ? id : null, typeof name === 'string' ? name : null),
+  revealClip:  (id, name) => ipcRenderer.invoke(C.CLIP_REVEAL, typeof id === 'string' ? id : null, typeof name === 'string' ? name : null),
+  deleteMatch: (id) => ipcRenderer.invoke(C.MATCH_DELETE, typeof id === 'string' ? id : null),
+  getStorage:  () => ipcRenderer.invoke(C.STORAGE_GET),
+  getClipsUsage: () => ipcRenderer.invoke(C.CLIPS_USAGE),
+  clearClips:  () => ipcRenderer.invoke(C.CLIPS_CLEAR),
   close:       () => window.close(),
 });

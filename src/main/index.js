@@ -84,7 +84,9 @@ const gameRegistry = require('../shared/games');
 const { assembleReport, weekKey, rankIndex, trendDirection } = require('./services/weekly-report');
 const updater  = require('./updater');
 const C = require('../shared/channels');
-const { ReviewStore, newId, MAX_REVIEWS } = require('./services/review-store');
+const { ReviewStore, newId, MAX_REVIEWS, ID_RE: REVIEW_ID_RE } = require('./services/review-store');
+const storageUsage = require('./services/storage-usage');
+const { createHistoryGate, pageOf: shellPageOf } = require('../shared/shell-nav');
 const grader      = require('../shared/grade');
 const insightsOf  = require('../shared/insights');
 const patternsOf  = require('../shared/patterns');
@@ -855,6 +857,7 @@ account.onChange(() => {
 
 function setStatus(status) {
   state.status = status;
+  syncStill();
   registry.broadcast(C.PUSH_STATUS, { status });
   registry.broadcast(C.PUSH_STATE, buildState());
   tray.update(state.isCoaching, trayActions);
@@ -892,6 +895,10 @@ function saveReview(review, game, frames) {
 
 /** A review out of the library and every window, and off the panel if it was the last grade. */
 function dropReview(id) {
+  // Its game read before it goes: the push named every removal Valorant's, so
+  // a League review deleted refreshed the wrong game's pages (9.1).
+  const was = reviewStore.get(id);
+  const game = (was && was.game) || String(id || '').split('-')[0] || 'valorant';
   reviewStore.remove(id);
   breakdownCache.clear();
   // Open from Matches, it stayed painted, and Ctrl+Shift+E opened it again.
@@ -903,7 +910,9 @@ function dropReview(id) {
     const top = reviewStore.list().find((r) => r.grade);
     state.lastGrade = top ? { ...top.grade, game: top.game, id: top.id } : null;
   }
-  registry.broadcast(C.PUSH_REVIEWS, { id, game: 'valorant', removed: true });
+  // The history never steps back onto a review that is gone (9.1).
+  mainWindow.historyDrop((e) => e.page === 'review' && e.key === id);
+  registry.broadcast(C.PUSH_REVIEWS, { id, game, removed: true });
   registry.broadcast(C.PUSH_STATE, buildState());
 }
 
@@ -1063,6 +1072,67 @@ function openPage(id, opts) {
   syncSeal();
   return mainWindow.show(id, opts);
 }
+
+/*
+ * STILL WHILE RECORDING (9.1, the owner's item 9): every animation in the app
+ * pauses while a match is recorded and plays again after. Main says so to
+ * every surface (PUSH_STILL, and STILL_GET for a document loading), each puts
+ * html.rec-still on its own document (preload/still.js), and shared/motion.js
+ * folds it into its ambient switch. Only on a change.
+ */
+let stillNow = false;
+function syncStill() {
+  const still = !!state.isCoaching;
+  if (still === stillNow) return;
+  stillNow = still;
+  registry.broadcast(C.PUSH_STILL, { still });
+}
+
+/*
+ * THE HISTORY (9.1, the owner's item 7): the pages visited, back and forward
+ * (shell-nav.js createHistory, held by main-window.js). A review's entry is
+ * named by its id, and a review deleted since is passed over. Never mid match:
+ * sealed, a step does nothing. On the Recording view, back is the page under
+ * it. The one press of a side button that reaches the app twice (Windows'
+ * app-command, the page's mouse button) is taken once (createHistoryGate).
+ */
+const historyGate = createHistoryGate();
+const historyOk = (e) => !!e && !!shellPageOf(e.page) && (e.page !== 'review' || !e.key || reviewStore.has(e.key));
+function navHistory(dir, from, fallback) {
+  const d = dir === 'forward' ? 'forward' : 'back';
+  syncSeal();
+  const now = mainWindow.current();
+  if (now.sealed) return mainWindow.historyState();
+  if ((from === 'app' || from === 'mouse') && !historyGate.allow(d, from)) return mainWindow.historyState();
+  if (now.rec) {
+    if (d === 'back') {
+      const here = mainWindow.historyCurrent();
+      openPage(here && historyOk(here) ? here.page : 'home', { history: true });
+    }
+    return mainWindow.historyState();
+  }
+  const e = mainWindow.historyStep(d === 'back' ? -1 : 1);
+  if (!e) {
+    if (d === 'back' && typeof fallback === 'string' && shellPageOf(fallback) && fallback !== 'review') openPage(fallback);
+    return mainWindow.historyState();
+  }
+  showEntry(e);
+  return mainWindow.historyState();
+}
+/** A history entry shown: a review's own review painted first, the page then shown as a step (no new visit). */
+function showEntry(e) {
+  if (e.page === 'review' && e.key && !(lastReviewShown && lastReviewShown.id === e.key)) {
+    const r = reviewStore.get(e.key);
+    if (r) showReview(withFrames(r.review));
+  }
+  if (e.page === 'whatsnew') changelogIpc.opened();
+  openPage(e.page, { history: true });
+}
+mainWindow.setHistoryHooks({
+  key: (page) => (page === 'review' && lastReviewShown && lastReviewShown.id ? lastReviewShown.id : null),
+  ok: historyOk,
+  ask: (dir, from) => navHistory(dir, from),
+});
 
 /**
  * THE RECORDING VIEW (9.1, the owner's item 14): Start takes the window to
@@ -3420,19 +3490,114 @@ const controller = {
     if (importBusy()) return { ok: false, error: 'match' };
     const e = id ? reviewStore.get(id) : null;
     if (!e || !e.review || e.review.imported !== true) return { ok: false, error: 'not-imported' };
-    const log = e.review.importedLog || null;
+    const out = this.deleteMatch(id);
+    return out.ok ? { ok: true } : out;
+  },
+
+  /**
+   * DELETE A WHOLE MATCH (9.1, the owner's item 18), from a Matches row's menu
+   * or the review, after the page's own confirm. Everything Occlara kept of it
+   * goes: the review, its clips and their posters, its kept frames (its
+   * folder), its library row and its year record (review-store.js remove), and
+   * for an import the AI log folder made for it; the panel's last grade, an
+   * open review page and the history's entries of it follow (dropReview). A
+   * recorded match's frames in the AI log stay with their session, which the
+   * log prunes itself, as they did before 9.1. Refused mid match or sealed,
+   * and while the review is still being built (its link, its clips).
+   */
+  deleteMatch(id) {
+    if (importBusy()) return { ok: false, error: 'match' };
+    if (typeof id !== 'string' || !REVIEW_ID_RE.test(id)) return { ok: false, error: 'bad' };
+    const e = reviewStore.get(id);
+    if (!e || !e.review) return { ok: false, error: 'gone' };
+    const log = e.review.imported === true ? e.review.importedLog || null : null;
     if (workForId(id) || (log && importLogsHeld.has(log))) return { ok: false, error: 'working' };
+    // The review page on it goes back where the player came from (or to
+    // Matches) before it goes, rather than to Home as a withdrawn one does.
+    const open = mainWindow.current().page === 'review' && lastReviewShown && lastReviewShown.id === id;
+    if (open) {
+      lastReviewShown = null;
+      mainWindow.historyDrop((x) => x.page === 'review' && x.key === id);
+      const here = mainWindow.historyCurrent();
+      if (here && historyOk(here)) showEntry(here); else openPage('matches');
+    }
     dropReview(id);
     if (log) {
       aiLogStore.removeImported(aiLogRoot(), log);
       aiLogDirsCache = null;
       aiLogSpansCache.delete(log);
     }
-    // The panel must not go on offering to open what is gone.
+    // The import panel must not go on offering to open what is gone.
     const s = importer().status();
     if (s.state === 'done' && s.reviewId === id) importer().forget();
+    console.log(`[reviews] deleted by the player: ${id}`);
+    return { ok: true, id };
+  },
+
+  /**
+   * DELETE ONE CLIP (9.1, the owner's item 18, the Clips page): the file and
+   * its poster (review-store.js removeClip). The review keeps its frames,
+   * facts and grade; an open review page on it repaints without the clip.
+   */
+  deleteClip(id, name) {
+    if (importBusy()) return { ok: false, error: 'match' };
+    if (typeof id !== 'string' || typeof name !== 'string' || !reviewStore.clipFile(id, name)) return { ok: false, error: 'bad' };
+    const e = reviewStore.get(id);
+    if (!e) return { ok: false, error: 'gone' };
+    if (workForId(id)) return { ok: false, error: 'working' };
+    const bytes = reviewStore.removeClip(id, name);
+    if (!bytes) return { ok: false, error: 'gone' };
+    if (lastReviewShown && lastReviewShown.id === id) showReview(withFrames(e.review));
+    registry.broadcast(C.PUSH_REVIEWS, { id, game: e.game, clip: name, removed: true });
+    console.log(`[clips] deleted by the player: ${id} ${name}`);
+    return { ok: true, id, clip: name, bytes };
+  },
+
+  /**
+   * A CLIP'S FILE IN EXPLORER (9.1, the owner's item 18): Explorer opened on
+   * its folder with the file selected (shell.showItemInFolder). Only a clip
+   * of a review, by its id and its name, inside the review store's own
+   * folder, and on disk; never a path a page names. Not mid match or sealed,
+   * as it would open over the game.
+   */
+  revealClip(id, name) {
+    if (importBusy()) return { ok: false, error: 'match' };
+    const file = typeof id === 'string' && typeof name === 'string' ? reviewStore.clipFile(id, name) : null;
+    if (!file || !storageUsage.inside(reviewStore.root, file)) return { ok: false, error: 'bad' };
+    if (!reviewStore.hasClip(id, name)) return { ok: false, error: 'gone' };
+    shell.showItemInFolder(file);
     return { ok: true };
   },
+
+  /**
+   * WHAT OCCLARA KEEPS ON THIS PC (9.1, the owner's item 18, Clips' storage
+   * bar): the clips, the recordings, the frames and the rest, the total and
+   * the room left on the drive (services/storage-usage.js), the cap, and what
+   * can be cleared by the player (the clips, by CLIPS_CLEAR or one at a time:
+   * the recordings are held only until a match's clips are cut and go at
+   * every quit, and the frames are thinned by the log itself). Null mid match.
+   */
+  async storage() {
+    if (importBusy()) return null;
+    const out = await storageUsage.measure({
+      reviews: reviewStore.root,
+      recording: path.join(app.getPath('userData'), 'recording'),
+      aiLog: aiLogRoot(),
+      freeBytes: (dir) => require('./services/recorder').realFreeBytes(dir),
+      driveOf: (dir) => require('./services/pc-check').driveOf(dir),
+    });
+    return { ...out, capGB: clips.capGB(store.get('clipCapGB')), clearable: { clips: out.clips.count > 0 } };
+  },
+
+  /** THE HISTORY (9.1): one step, from a page's arrow or a mouse button ({ dir, from, fallback }), and the state after it. */
+  navHistory(m) {
+    const o = m && typeof m === 'object' ? m : {};
+    const from = o.from === 'mouse' ? 'mouse' : 'page';
+    return navHistory(o.dir === 'forward' ? 'forward' : 'back', from, typeof o.fallback === 'string' ? o.fallback : null);
+  },
+  historyState() { return mainWindow.historyState(); },
+  /** Still while recording (9.1): what a surface loading now should be. */
+  stillState() { return { still: !!state.isCoaching }; },
   async importAction(what, id) {
     if (importBusy()) return { ok: false, error: 'match' };
     if (what === 'upgrade') return profileIpc.plans();

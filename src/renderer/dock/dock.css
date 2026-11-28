@@ -16,6 +16,8 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
    a presence between matches, and stillness read as crashed. It is gone mid
    match (placeMark), and asked for less motion it holds still. */
 .mark { color: var(--text); animation: drift 7s ease-in-out infinite alternate; }
+/* Still while a match is recorded (9.1, the owner's item 9: preload/still.js puts html.rec-still on). */
+html.rec-still .mark { animation-play-state: paused; }
 @keyframes drift { from { transform: translateY(0); } to { transform: translateY(-2px); } }
 @keyframes dockIn { from { opacity: 0; transform: translateY(6px) scale(0.985); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .mark, .dock { animation: none; } }

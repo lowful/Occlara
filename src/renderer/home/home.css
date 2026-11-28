@@ -26,7 +26,7 @@ html:not(.embedded) .h-sky { --bar: 0px; }
   animation: hTwinkle var(--d, 7s) ease-in-out var(--dl, 0s) infinite alternate;
 }
 @keyframes hTwinkle { to { opacity: 0.72; } }
-html.ambient-off .sky-twinkle { animation-play-state: paused; }
+html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-state: paused; }
 /* The moon: 130% of the window wide, its centre high and to the right, so
    its lit limb is the crescent at planet scale behind the hero. */
 .h-moon {

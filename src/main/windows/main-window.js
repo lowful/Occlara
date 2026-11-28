@@ -5,7 +5,7 @@ const path = require('path');
 const registry = require('./registry');
 const store = require('../services/store');
 const C = require('../../shared/channels');
-const { pageOf, createNav, createMotion } = require('../../shared/shell-nav');
+const { pageOf, createNav, createMotion, createHistory } = require('../../shared/shell-nav');
 
 /**
  * THE ONE WINDOW (8.1).
@@ -130,6 +130,12 @@ const CLEAR = '#00000000';
 let win = null;
 const views = new Map();   // page id -> WebContentsView
 let nav = createNav();
+// THE HISTORY (9.1, the owner's item 7, shell-nav.js createHistory): every
+// page show() takes the player to, so the mouse's side buttons go back and
+// forward through them. index.js names a review's entry by its id (key),
+// says which entries can still be gone back to (ok) and makes the step (ask).
+let hist = createHistory();
+let historyHooks = { key: null, ok: null, ask: null };
 let held = false;          // the seal is the one a stop mid match left
 let quitting = false;      // the app is quitting: closing the window closes it
 let maximizeOnShow = false;
@@ -223,6 +229,9 @@ function create(opts) {
   // page asked for, it showed that page until the next check sealed it.
   const was = { sealed: nav.state().sealed, held, rec: nav.state().rec };
   nav = createNav();
+  // A window made again starts its history on the page it opens on.
+  hist = createHistory();
+  hist.visit({ page: nav.state().page, key: null });
   if (was.sealed) nav.seal(true);
   // And the Recording view (9.1): a window made again while recording
   // between matches opens on it, as the one it replaced showed it.
@@ -301,6 +310,15 @@ function create(opts) {
   self.on('session-end', () => {
     quitting = true;
     if (onEnd) { try { onEnd(); } catch (e) { console.warn('[main-window] session end hook:', e.message); } }
+  });
+  // THE MOUSE'S SIDE BUTTONS, as Windows sends them to the window (9.1):
+  // WM_APPCOMMAND browser-backward and browser-forward. index.js decides,
+  // the seal first; a page's own mouse buttons 3 and 4 come by HISTORY_GO,
+  // and the one press heard both ways is taken once (createHistoryGate).
+  self.on('app-command', (_e, cmd) => {
+    if (cmd !== 'browser-backward' && cmd !== 'browser-forward') return;
+    if (typeof historyHooks.ask !== 'function') return;
+    try { historyHooks.ask(cmd === 'browser-backward' ? 'back' : 'forward', 'app'); } catch (err) { console.warn('[main-window] history:', err.message); }
   });
   self.on('show', () => changed('show'));
   self.on('hide', () => changed('hide'));
@@ -905,6 +923,8 @@ function pageReady(id, sender) {
  * @param opts.focus   false to bring the window up without taking focus
  * @param opts.reveal  false to change the page without touching the window
  * @param opts.reload  true to load the page again (Ask Coach on another match)
+ * @param opts.history true for a step through the history (index.js navHistory),
+ *   which moves along it rather than adding a visit
  */
 function show(id, opts) {
   const o = opts || {};
@@ -914,6 +934,7 @@ function show(id, opts) {
   // not to come forward, it is made out of sight.
   if (!win || win.isDestroyed()) create({ deferShow: o.reveal === false });
   nav.go(id);
+  if (!o.history) hist.visit({ page: id, key: keyOf(id) });
   let reload = false;
   if (o.reload) {
     const v = views.get(id);
@@ -926,6 +947,7 @@ function show(id, opts) {
     }
   }
   apply({ reload });
+  pushHistory();
   if (!win || win.isDestroyed()) return false;
   if (o.reveal !== false) bringUp(o.focus !== false);
   const v = views.get(id);
@@ -999,6 +1021,52 @@ function protect(on) {
 }
 
 function current() { return nav.state(); }
+
+// ── The history (9.1, the owner's item 7) ───────────────────────────────────
+function keyOf(id) {
+  if (typeof historyHooks.key !== 'function') return null;
+  try { const k = historyHooks.key(id); return k === undefined ? null : k; } catch { return null; }
+}
+function okOf() {
+  const ok = historyHooks.ok;
+  return typeof ok === 'function' ? (e) => { try { return !!ok(e); } catch { return false; } } : null;
+}
+/**
+ * { back, forward, backTo, forwardTo, backLabel, forwardLabel, at, length }:
+ * whether a step either way has an entry left to land on (one index.js says
+ * is still there), and the page it would land on and its name ("Matches").
+ */
+function historyState() {
+  const s = hist.state(okOf());
+  const label = (id) => { const p = id ? pageOf(id) : null; return p ? p.label : null; };
+  return { ...s, backLabel: label(s.backTo), forwardLabel: label(s.forwardTo) };
+}
+/** One step (dir < 0 back): the entry landed on, or null. The caller shows it with show(page, { history: true }). */
+function historyStep(dir) {
+  return hist.step(dir, okOf());
+}
+/** The entry the player is on. */
+function historyCurrent() { return hist.current(); }
+/** Entries taken out (a review deleted): pred({ page, key }) names them. */
+function historyDrop(pred) {
+  const moved = hist.drop(pred);
+  if (moved) pushHistory();
+  return moved;
+}
+/** index.js: { key(pageId) -> key | null, ok(entry) -> bool, ask(dir, from) }. */
+function setHistoryHooks(h) {
+  historyHooks = { key: h && typeof h.key === 'function' ? h.key : null, ok: h && typeof h.ok === 'function' ? h.ok : null,
+    ask: h && typeof h.ask === 'function' ? h.ask : null };
+}
+let lastHistory = '';
+/** The shell and every page told what the history allows now, only when it changed (PUSH_HISTORY). */
+function pushHistory() {
+  const s = historyState();
+  const key = JSON.stringify(s);
+  if (key === lastHistory) return;
+  lastHistory = key;
+  registry.broadcast(C.PUSH_HISTORY, s);
+}
 
 /**
  * What the shell is told, the same shape PUSH_SHELL carries. The shell asks
@@ -1080,6 +1148,7 @@ function motionState() { return { ...motion.state(), staged, reloading: [...relo
 
 module.exports = {
   create, get, reveal, show, setSealed, setRecordingView, current, shellState, minimize, hide, close, toggleMaximize, isHidden, toggleHidden,
+  historyState, historyStep, historyCurrent, historyDrop, setHistoryHooks, pushHistory,
   onWindowChange, onSessionEnd, onCloseAsk, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, setDrawer, menuState, STAGE_PX,
   toast, toastState, onToastClick,
   openWrapped, closeWrapped, wrappedState,

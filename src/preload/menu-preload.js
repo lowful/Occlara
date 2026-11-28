@@ -19,3 +19,6 @@ contextBridge.exposeInMainWorld('occlaraMenu', {
   choose: (id) => ipcRenderer.send(C.MENU_ACT, { choose: String(id || '') }),
   close: (refocus) => ipcRenderer.send(C.MENU_ACT, { close: true, refocus: !!refocus }),
 });
+
+// Still while a match is recorded (9.1, the owner's item 9): html.rec-still on this document (still.js).
+require('./still').stillSync(ipcRenderer);

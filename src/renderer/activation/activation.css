@@ -60,6 +60,8 @@ form { width: 100%; }
 .error.notice { color: var(--text-dim); animation: none; }
 
 .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); border-top-color: var(--text); animation: spin 0.8s linear infinite; }
+/* Still while a match is recorded (9.1, the owner's item 9: preload/still.js puts html.rec-still on). */
+html.rec-still .spinner { animation-play-state: paused; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .check { display: inline-flex; animation: pop var(--t-med) var(--ease-spring); }
 @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }

@@ -79,6 +79,8 @@ header h2 { font-size: 15px; font-weight: 600; }
 /* The coach is writing: three dots on the left, no box. */
 .typing { align-self: flex-start; display: flex; gap: 5px; padding: var(--space-2) 0; }
 .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); opacity: 0.4; animation: tp 1.1s ease-in-out infinite; }
+/* Still while a match is recorded (9.1, the owner's item 9: preload/still.js puts html.rec-still on). */
+html.rec-still .typing i { animation-play-state: paused; }
 .typing i:nth-child(2) { animation-delay: 0.18s; }
 .typing i:nth-child(3) { animation-delay: 0.36s; }
 @keyframes tp { 0%,100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }

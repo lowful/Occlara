@@ -275,7 +275,10 @@ improved. `PUSH_REVIEW_WORK` carries `{ id, work }` for a review still being
 built, the step it is on or null once it is whole, to the review page, Home
 and Matches (8.4.1). Grading from Riot's record is `BACKFILL_START` and
 `BACKFILL_STATUS`, and `PUSH_BACKFILL` carries its status on every change to
-onboarding, Settings and Matches. The main window is `SHELL_NAV` (go to a
+onboarding, Settings and Matches. Since 9.1: `MATCH_DELETE`, `CLIP_DELETE`,
+`CLIP_REVEAL` and `STORAGE_GET` (clips.md, "Deleting and storage"),
+`HISTORY_GO`, `HISTORY_GET` and `PUSH_HISTORY` (ui.md, "The history"), and
+`PUSH_STILL` and `STILL_GET` (ui.md, "Still while recording"). The main window is `SHELL_NAV` (go to a
 page), `SHELL_WINDOW` (minimise, maximise, close, which quits) and `SHELL_GET`, and
 `PUSH_SHELL` carries its navigation state, sealed or not, on every change.
 Moving between pages is `PUSH_PAGE` to one page (arm, enter, leave) and

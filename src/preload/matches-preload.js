@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('occlara', {
   cancelImport: () => ipcRenderer.invoke(C.IMPORT_CANCEL),
   closeImport:  () => ipcRenderer.invoke(C.IMPORT_CLOSE),
   deleteImport: (id) => ipcRenderer.invoke(C.IMPORT_DELETE, typeof id === 'string' ? id : null),
+  // DELETE A WHOLE MATCH (9.1, the owner's item 18): after the page's own confirm. { ok, id } | { ok: false, error: 'match' | 'bad' | 'gone' | 'working' }.
+  deleteMatch:  (id) => ipcRenderer.invoke(C.MATCH_DELETE, typeof id === 'string' ? id : null),
   importAction: (what, id) => ipcRenderer.invoke(C.IMPORT_ACTION, what, typeof id === 'string' ? id : null),
   onImport:     (cb) => subscribe(C.PUSH_IMPORT, cb),
   openReview:   (id) => ipcRenderer.send(C.REVIEW_OPEN, id),

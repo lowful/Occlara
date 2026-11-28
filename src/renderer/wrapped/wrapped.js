@@ -808,6 +808,13 @@
   let autoPaused = false;
   const autoPause = () => { if (closing || paused) return; autoPaused = true; setPaused(true); };
   const autoResume = () => { if (closing || !autoPaused) return; autoPaused = false; setPaused(false); };
+  // STILL WHILE A MATCH IS RECORDED (9.1, preload/still.js puts html.rec-still
+  // on): the story pauses as it does hidden, and plays again after.
+  const recStill = () => document.documentElement.classList.contains('rec-still');
+  if (typeof MutationObserver === 'function') {
+    let stillWas = false;
+    try { new MutationObserver(() => { const s = recStill(); if (s === stillWas) return; stillWas = s; if (s) autoPause(); else autoResume(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); } catch (e) { /* no observer */ }
+  }
   if (api && typeof api.onPause === 'function') api.onPause(autoPause);
   if (api && typeof api.onResume === 'function') api.onResume(autoResume);
   document.addEventListener('visibilitychange', () => { if (document.hidden) autoPause(); });

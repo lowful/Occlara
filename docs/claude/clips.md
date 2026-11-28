@@ -553,3 +553,33 @@ same second failed, a still and a seek a frame apart (the recorded frames up
 to 50 ms apart) differing by 4.6 of 255 where the check allows 4, and one seek
 a second early presenting no new frame. The stills are WebCodecs' own frames;
 it is the seek that lands a frame either side.
+
+## Deleting and storage (9.1, the owner's item 18)
+
+- **A whole match** (`MATCH_DELETE`, `index.js deleteMatch`, from a Matches
+  row's menu or the review, after the page's own confirm): the review, its
+  folder (clips, posters, kept frames), its library row and its year record
+  (`review-store.js remove`), an import's AI log folder too; the panel's last
+  grade, the review page on it (which goes back where the player came from, or
+  to Matches) and the history's entries of it follow (`dropReview`). A
+  recorded match's frames in the AI log stay with their session, which the log
+  prunes itself. Refused mid match or sealed ('match') and while its review is
+  still being built ('working'). IMPORT_DELETE is the same path for an import.
+- **One clip** (`CLIP_DELETE`, `deleteClip`, `review-store.js removeClip`):
+  the file and its poster; the review keeps its frames, facts and grade, and
+  shows its frames where the clip was. PUSH_REVIEWS `{ id, game, clip,
+  removed: true }` follows.
+- **A clip's file in Explorer** (`CLIP_REVEAL`, `revealClip`): by the
+  review's id and the clip's name, never a path a page names; only a clip in
+  the store's own folder (`clipFile`, `storage-usage.js inside`) and on disk,
+  through `shell.showItemInFolder`. Not mid match or sealed.
+- **What Occlara keeps** (`STORAGE_GET`, `storage`,
+  `services/storage-usage.js measure`): the clips with their posters, the
+  recordings, the frames (a review's and the AI log's), the rest, the total,
+  the room left on the recording's drive, the cap, and `clearable.clips`.
+  Counted off the disk each time, async, never walking into a link; null mid
+  match. Only clips are the player's to clear (CLIPS_CLEAR or one at a time):
+  the recordings are held only until a match's clips are cut and go at every
+  quit, and the frames are thinned by the log itself.
+- The cap and Clear clips are unchanged: a deleted clip is simply not on disk
+  for them to count. `test:storage` holds all of it.

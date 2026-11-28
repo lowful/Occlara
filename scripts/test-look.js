@@ -237,7 +237,7 @@ const mcss = read('shared/motion.css');
 const mjs = read('shared/motion.js');
 ok(/@keyframes m-enter \{ from \{ opacity: 0; transform: translateY\(8px\) scale\(0\.985\); filter: blur\(6px\); \}/.test(mcss)
   && prop(rule(mcss, '.m-enter'), 'animation') === 'm-enter var(--dur-enter) var(--spring-smooth) both'
-  && /html\.ambient-off \.m-drift \{ animation-play-state: paused; \}/.test(mcss)
+  && /html\.ambient-off \.m-drift, html\.rec-still \.m-drift \{ animation-play-state: paused; \}/.test(mcss)
   && /::view-transition-old\(root\)/.test(mcss) && /::view-transition-new\(root\)/.test(mcss),
 'motion.css: the entrance from 8px low, .985 and a 6px blur on the smooth spring, the ambient float paused when off, and the view transition\'s two halves');
 ok(/function transition\(fn\)/.test(mjs) && /startViewTransition/.test(mjs) && /function squish\(el\)/.test(mjs)
