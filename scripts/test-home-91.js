@@ -367,8 +367,37 @@ async function openHome(o) {
     'the bake never starts while a match is recorded, between matches included', wakeFn.slice(0, 200));
   ok(/if \(still\(\)\) \{ cancelAnimationFrame\(st\.bakeRaf\); st\.bakeRaf = 0; standIn\(\); \}/.test(sky) && /if \(now\) m\.stop\(\); else m\.wake\(\);/.test(sky),
     'a bake under way stops as a recording starts and is taken up where it stopped as it ends');
-  ok(/const standIn = \(\) => \{ if \(!st\.baked\) imageMoon\(host, !sealedHere\(\)\); \};/.test(sky),
-    'while it waits unbaked the image moon stands in, a still picture, mid match only one already kept');
+  ok(/const standIn = \(\) => \{ if \(!st\.baked && !st\.shown\) imageMoon\(host, !sealedHere\(\)\); \};/.test(sky),
+    'while it waits with nothing drawn the image moon stands in, a still picture, mid match only one already kept');
+  // The surface is the real Moon (9.1, "higher quality", real over drawn):
+  // NASA's maps in assets/moon, no crater made up here.
+  const webpSize = (file) => {
+    const b = fs.readFileSync(file);
+    if (b.toString('ascii', 0, 4) !== 'RIFF' || b.toString('ascii', 8, 12) !== 'WEBP') return null;
+    const kind = b.toString('ascii', 12, 16);
+    if (kind === 'VP8 ' && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) return { w: b.readUInt16LE(26) & 0x3fff, h: b.readUInt16LE(28) & 0x3fff, bytes: b.length };
+    if (kind === 'VP8X') return { w: 1 + b.readUIntLE(24, 3), h: 1 + b.readUIntLE(27, 3), bytes: b.length };
+    return null;
+  };
+  const alb = webpSize(path.join(ROOT, 'assets', 'moon', 'albedo.webp'));
+  const rel = webpSize(path.join(ROOT, 'assets', 'moon', 'relief.webp'));
+  ok(alb && alb.w === 4096 && alb.h === 1024 && rel && rel.w === 2048 && rel.h === 1024,
+    'the moon\'s two maps are bundled: the albedo 4096 by 1024, the relief 2048 by 1024 (east above north)', JSON.stringify({ alb, rel }));
+  ok(alb && rel && alb.bytes + rel.bytes <= 1.5 * 1024 * 1024, 'the two together under 1.5 MB', alb && rel && `${alb.bytes + rel.bytes} bytes`);
+  ok(/albedo: 'moon\/albedo\.webp', relief: 'moon\/relief\.webp'/.test(sky) && /\.\.\/\.\.\/\.\.\/assets\/\$\{rel\}/.test(sky) && /document\.currentScript/.test(sky),
+    'sky.js samples them, loaded from its own folder, so every page finds the same files');
+  ok(!/craters\.push|void field\(|fbm4|const BAKE = /.test(sky), 'and no surface is made up here any more: no crater fields, no noise seas, no bake shader');
+  const readme = read('assets', 'README.txt');
+  ok(/svs\.gsfc\.nasa\.gov\/4720/.test(readme) && /LOLA/.test(readme) && /public domain/i.test(readme) && /NASA/.test(readme) && /make-moon-maps\.js/.test(readme),
+    'assets/README.txt records where the maps come from, their terms and the script that writes them');
+  // Less on the GPU: a byte a texel (R8) where WebGL 2 has it, and a page out
+  // of sight lets its textures go; the shell's moon, behind the Recording
+  // screen, never does (nothing may be taken up mid match).
+  ok(/getContext\('webgl2'/.test(sky) && /gl\.R8, gl\.RED/.test(sky) && /gl\.LUMINANCE, gl\.LUMINANCE/.test(sky), 'two one channel textures: R8 on WebGL 2, luminance on WebGL 1');
+  const releaseFn = sky.slice(sky.indexOf('function release()'), sky.indexOf('function freeSoon()'));
+  ok(/embeddedPage\(\)/.test(releaseFn) && /document\.visibilityState !== 'hidden'/.test(releaseFn) && /deleteTexture\(st\.alb\)/.test(releaseFn)
+    && /const embeddedPage = \(\) => document\.documentElement\.classList\.contains\('embedded'\);/.test(sky) && /const FREE_MS = \d+/.test(sky),
+    'a page hidden for FREE_MS lets its textures go; the shell (not embedded) keeps its own', releaseFn.slice(0, 200));
   ok(/page-armed/.test(sky) && /page-leaving/.test(sky) && /visibilityState === 'hidden'/.test(sky) && /hiddenAbove\(host\)/.test(sky),
     'and while its page or window is out of sight, or an ancestor holds it at no opacity');
   ok(/software\(gl\)/.test(sky) && /imageMoon\(host, true\)/.test(sky), 'where WebGL is missing or is the software renderer, the image moon stands in');

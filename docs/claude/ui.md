@@ -61,10 +61,11 @@ wins. What phase 1 changed, and what to keep true:
 - **The sky** (`shared/sky.js`): stars and the moon's lit limb, drawn in the
   window's own coordinates, so Home (a view 56px down) and the bar's strip of
   it meet with no seam. Since 9.1 the moon is a sphere on the GPU that turns
-  slowly (below, "Home (9.1)"); where WebGL is missing it is the image moon,
-  drawn once (a few hundred ms) and kept in localStorage, which every page
-  shares. It is never drawn or baked mid match, nor baked while recording
-  between matches.
+  slowly, its surface the real Moon from NASA's maps in `assets/moon`
+  (below, "Home (9.1)"); where WebGL is missing it is the image moon, the
+  same maps lit the same way, drawn once (a few hundred ms) and kept in
+  localStorage, which every page shares. Its maps are never taken up or
+  drawn mid match, nor while recording between matches.
 - **The Recording screen** is one centred column over the sky (screen-silence.md).
 - **Home** is the fix as the hero (split at its colon into a headline and a grey
   sub line), Start and Open last review, the last match's agent STANDING in
@@ -1828,22 +1829,40 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   The last match card's RR reads as the rank card's, "+11 RR".
 - **The moon turns** (`shared/sky.js`, "THE TURNING MOON"). The image moon was
   1000px over a box 130% of the window wide, so it was pixelated at 1x and
-  worse at 2x. Now a WebGL sphere: its surface (maria, grain and four fields
-  of craters scattered in three dimensions, each a bowl and a raised rim kept
-  as albedo and slope) is baked once into a 4096 by 1024 texture, a strip a
-  frame while idle; each frame looks it up for the part of the moon this
-  document shows, at the device's own resolution (the shell's bar strip
-  alone on Home; a host turned by CSS, the Recording screen's moon, whole at
-  2048 at most), turned about an axis across the lit limb by the WALL CLOCK
-  (one turn in 24 minutes), so Home, the bar's strip and the review agree and
-  meet with no seam. 30 frames at most; no frame while ambient motion is off
-  (a recording's html.rec-still, the window or page out of sight, reduced
-  motion) or an ancestor holds it at no opacity; the bake waits while the
-  shell is sealed and while a match is recorded (html.rec-still, between
-  matches too, since it is a canvas loop like any other), an image already
-  kept standing in, and is taken up where it stopped once the recording
-  ends. The software renderer or no WebGL gets the image moon.
-  `window.__occlaraMoonTime` (seconds) holds the clock for a picture.
+  worse at 2x. Now a WebGL sphere; each frame looks its surface up for the
+  part of the moon this document shows, at the device's own resolution (the
+  shell's bar strip alone on Home; a host turned by CSS, the Recording
+  screen's moon, whole at 2048 at most), turned about an axis across the lit
+  limb by the WALL CLOCK (one turn in 24 minutes), so Home, the bar's strip
+  and the review agree and meet with no seam. 30 frames at most; no frame
+  while ambient motion is off (a recording's html.rec-still, the window or
+  page out of sight, reduced motion) or an ancestor holds it at no opacity.
+- **The moon is the real Moon** (9.1, the owner asked for it in higher
+  quality; real things over drawn portrayals). Until then its surface was
+  noise and evenly scattered craters baked on the GPU, and it read as a
+  drawing. Now two pictures in `assets/moon`, written once by
+  `node scripts/make-moon-maps.js` from NASA's public domain maps (sources,
+  terms and credit: `assets/README.txt`): `albedo.webp` (4096 by 1024, the
+  CGI Moon Kit's LRO colour map as luminance, so the maria, rays and craters
+  are where they are) and `relief.webp` (2048 by 1024, the slope east above
+  the slope north, from LOLA's elevation model, so the light falls across
+  the real craters and their shadows move as it turns), about 1.1 MB, the
+  band from 64 north to 64 south, north up. They sit in two one channel
+  textures (R8 on WebGL 2, luminance on WebGL 1), about 8 MB with their
+  mipmaps where 9.0's baked RGBA texture took 22, taken up a map a frame;
+  the upload waits while the shell is sealed and while a match is recorded
+  (html.rec-still, between matches too), an image already kept standing in,
+  and is taken up where it stopped once the recording ends. A page (an
+  embedded view: Home, the review) hidden for two minutes lets its
+  textures go and takes them up again as it comes back, its last frame
+  standing; the shell's moon, behind the Recording screen mid match, is
+  kept. The tone (`TONE`, `MID`) keeps the map's middle where 9.0's moon
+  was and draws the seas and rays a little nearer to it than NASA's
+  stretched map; a faint earthshine shows the seas on the night side. The
+  software renderer or no WebGL gets the image moon, drawn from the same
+  maps at the turn's start. `window.__occlaraMoonTime` (seconds) holds the
+  clock for a picture, `window.__occlaraMoonFreeMs` the wait before a
+  hidden page lets go.
 - **Pictures**: `scripts/shot-demo.js` scenes homerank, homeimmortal,
   homeradiant, homeiron, homeungraded, homefoot, homehover, hometip,
   hometrendtip, home960, home1100, homelol, homerecording, statsrank,

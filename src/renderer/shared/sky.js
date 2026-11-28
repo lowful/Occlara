@@ -5,16 +5,17 @@
  * <script src="../shared/sky.js"></script> and read as window.OcclaraSky.
  *
  * THE MOON TURNS (9.1, the owner's item 9). It is a sphere drawn on the GPU
- * (WebGL) at the device's own resolution, its surface baked once into a
- * texture and turned slowly by the wall clock, so every document that shows
- * it agrees; see "THE TURNING MOON" below. It stands still while a match is
- * recorded, out of sight and under reduced motion, and it is never baked
- * mid match: a caller asks for it outside one, and a bake under way waits
- * while the shell is sealed. Where WebGL is missing it is the image moon:
- * a few hundred milliseconds of pixel arithmetic (a lit sphere, its maria
- * and its craters) drawn once into an image and kept, in this document and
- * in localStorage, which every page of the app shares (they are all file:
- * pages).
+ * (WebGL) at the device's own resolution, its surface the real Moon's: two
+ * pictures made from NASA's own lunar maps (assets/moon, assets/README.txt),
+ * the ground's brightness and its relief, turned slowly by the wall clock,
+ * so every document that shows it agrees; see "THE TURNING MOON" below. It
+ * stands still while a match is recorded, out of sight and under reduced
+ * motion, and its pictures are never taken up mid match: a caller asks for
+ * it outside one, and an upload under way waits while the shell is sealed.
+ * Where WebGL is missing it is the image moon: the same maps lit the same
+ * way, a few hundred milliseconds of pixel arithmetic drawn once into an
+ * image and kept, in this document and in localStorage, which every page of
+ * the app shares (they are all file: pages).
  *
  * WINDOW COORDINATES. The bar is the shell's document and Home is a view of
  * its own under it, so each draws the sky as the whole window would and
@@ -85,40 +86,162 @@
     }
   }
 
-  // THE MOON, lit from the lower left so the visible limb is a crescent.
+  /*
+   * ── THE MOON'S SURFACE (9.1: the owner asked for the moon in higher
+   * quality, and the taste is real things over drawn portrayals) ───────────
+   *
+   * Until 9.1 the surface was made up here, noise for the seas and craters
+   * scattered evenly, and it read as a drawing. It is the real Moon now: two
+   * pictures written once by scripts/make-moon-maps.js from NASA's public
+   * domain lunar maps (the sources and their terms: assets/README.txt),
+   * bundled in assets/moon and loaded from this script's own folder, so
+   * every page that links it finds the same files (the CSP takes local
+   * images alone):
+   *
+   *   albedo.webp  4096 x 1024, how bright the ground is: the CGI Moon Kit's
+   *                colour map (LRO's Wide Angle Camera, normalised, so it
+   *                carries no shadows of its own), as its luminance.
+   *   relief.webp  2048 x 1024, the ground's slope east (the top half) and
+   *                north (the bottom half), 128 level, from LOLA's elevation
+   *                model (LRO's laser altimeter): the light falls across the
+   *                real craters, so their shadows move as the moon turns.
+   *
+   * Both are the band of latitude the turn ever shows (LAT), longitude -180
+   * at the left edge and east to the right, north at the top. They are
+   * loaded once a document, decoded off the main thread, and only when a
+   * moon asks for them, never mid match.
+   */
+  const HERE = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) || '';
+  const MAPS = { albedo: 'moon/albedo.webp', relief: 'moon/relief.webp' };
+  const ALB_W = 4096;                  // albedo.webp's width: a GPU that cannot hold it draws the image moon
+  const LAT = 64 * Math.PI / 180;      // the band's half height: the moon's turn never shows more
+  const SLOPE = 0.45;                  // the slope relief.webp's 0 and 255 stand for (make-moon-maps.js)
+  const RELIEF = 2.2;                  // the relief drawn up, so a crater reads at planet scale
+  // How the map's brightness becomes the light the ground gives back:
+  // MID is the map's middle (its median, in linear light), drawn at TONE[0];
+  // TONE[1] how far the seas and the rays stand from it (below 1, nearer
+  // than the map, which NASA stretched for the eye); TONE[2] the earthshine
+  // the night side keeps, so its seas show faintly; TONE[3] the grain finer
+  // than the map that rides on the surface (the GPU's alone).
+  const MID = 0.3;
+  const A_MID = Math.pow(MID, 1 / 2.2);
+  const TONE = [0.6, 0.7, 0.006, 0.035];
+
+  const mapUrl = (rel) => { try { return new URL(`../../../assets/${rel}`, HERE || document.baseURI).href; } catch (e) { return null; } };
+  let surface = null;                  // { albedo, relief } decoded, false where they cannot load
+  let loading = null;
+  /** The two pictures, decoded: a promise of them, or of null where they cannot be had. */
+  function loadSurface() {
+    if (loading) return loading;
+    const one = (rel) => new Promise((resolve) => {
+      const src = mapUrl(rel);
+      if (!src || typeof Image === 'undefined') { resolve(null); return; }
+      const img = new Image();
+      img.decoding = 'async';
+      const done = () => resolve(img.naturalWidth > 0 ? img : null);
+      img.onload = () => { if (typeof img.decode === 'function') img.decode().then(done, done); else done(); };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+    loading = Promise.all([one(MAPS.albedo), one(MAPS.relief)]).then(([albedo, relief]) => {
+      surface = albedo && relief ? { albedo, relief } : false;
+      if (!surface) console.warn('[sky] the moon\'s maps did not load');
+      return surface || null;
+    });
+    return loading;
+  }
+
+  // THE TURN AND THE LIGHT, the same for the GPU and the image moon.
+  const TURN_S = 1440;                 // one whole turn in 24 minutes
+  // The moon's axis, in the screen's own frame (x right, y down, z toward the
+  // viewer): across the lit limb, so the surface comes up over the limb as it
+  // turns, both poles out of sight.
+  const AXIS = norm([0.909, 0.418, 0.25]);
+  // The light, from the lower left and behind, so the lit limb is the logo's crescent.
+  const LIGHT = norm([-0.55, 0.55, -0.62]);
+  // The middle of the lit limb the windows show, for which way the turn runs.
+  const LIMB = norm([-0.42, 0.91, 0]);
+
+  function norm(v) { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+
+  // The moon's own frame: Y its axis (north), X the point that faces the
+  // viewer (so the maps' seam is round the back), Z to complete it, which
+  // puts east to the right of a moon seen with north up, as the sky has it.
+  const BY = AXIS;
+  const BX = norm([0 - dot([0, 0, 1], BY) * BY[0], 0 - dot([0, 0, 1], BY) * BY[1], 1 - dot([0, 0, 1], BY) * BY[2]]);
+  const BZ = cross(BX, BY);
+  // Column major, so M * v is (BX.v, BY.v, BZ.v).
+  const M = new Float32Array([BX[0], BY[0], BZ[0], BX[1], BY[1], BZ[1], BX[2], BY[2], BZ[2]]);
+  const LIGHT_B = [dot(BX, LIGHT), dot(BY, LIGHT), dot(BZ, LIGHT)];
+  // The limb sits at the frame's +Z or -Z: the turn runs so its surface rises.
+  const DIR = dot(BZ, LIMB) > 0 ? -1 : 1;
+  const SIDE = norm([LIGHT[0], LIGHT[1], 0]);
+
+  /**
+   * The light one point of the ground gives back, linear, before the
+   * encoding: a its brightness in the map (0 to 1, sRGB), lam the light on
+   * its slope, lam0 on the sphere there, nz how square it faces the viewer.
+   * The GPU's DRAW below is the same arithmetic.
+   */
+  function lit(a, lam, lam0, nz, out) {
+    const alb = TONE[0] * Math.pow(Math.max(1e-4, Math.pow(a, 2.2)) / MID, TONE[1]);
+    const light = Math.pow(smooth(-0.06, 0.78, lam), 1.25);
+    const rim = Math.pow(1 - nz, 2.4) * smooth(0.05, 0.7, lam0) * 0.34;
+    const L = alb * (light + TONE[2]);
+    out[0] = L * 0.84 + rim * 0.42 + 0.0038;
+    out[1] = L * 0.88 + rim * 0.52 + 0.0035;
+    out[2] = L * 0.98 + rim + 0.0095;
+    return out;
+  }
+
+  /*
+   * THE IMAGE MOON, the fallback: the same maps on the same sphere at the
+   * turn's start, lit the same way, drawn once on the CPU into MOON_PX
+   * pixels and kept (KEY). Used where WebGL is missing or is the software
+   * renderer, and while a match is recorded before the turning moon is up.
+   */
   const MOON_PX = 1000;
-  const KEY = 'occlara.sky.moon.v1';
-  function drawMoon(cv) {
-    const S = cv.width, C = S / 2, R = S * 0.46;
+  const KEY = 'occlara.sky.moon.v2';
+  // The drawn moon 9.0 kept goes: it is not this moon, and it took the room.
+  try { if (window.localStorage) window.localStorage.removeItem('occlara.sky.moon.v1'); } catch (e) { /* no storage here */ }
+
+  /** A picture's grey levels at w by h, through a 2D canvas, or null. */
+  function levels(img, w, h) {
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const ctx = typeof cv.getContext === 'function' ? cv.getContext('2d', { willReadFrequently: true }) : null;
+    if (!ctx) return null;
+    try {
+      ctx.drawImage(img, 0, 0, w, h);
+      const d = ctx.getImageData(0, 0, w, h).data;
+      const out = new Uint8Array(w * h);
+      for (let i = 0; i < out.length; i++) out[i] = d[i * 4];
+      return out;
+    } catch (e) { return null; }
+  }
+
+  /** The moon drawn into cv from the maps; false where it could not be. */
+  function drawMoon(cv, s) {
+    // Half the maps' size is more than a 1000 pixel moon shows.
+    const AW = 2048, AH = 512, RW = 1024, RH = 512;
+    const alb = levels(s.albedo, AW, AH), rel = levels(s.relief, RW, RH);
     const ctx = cv.getContext('2d');
+    if (!alb || !rel || !ctx) return false;
+    const S = cv.width, C = S / 2, R = S * 0.46;
     const img = ctx.createImageData(S, S), px = img.data;
-    const rnd = rng(11);
-    const GN = 128, grid = new Float32Array(GN * GN);
-    for (let i = 0; i < grid.length; i++) grid[i] = rnd();
-    const vn = (x, y) => {
-      const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
-      const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-      const x0 = xi & 127, x1 = (xi + 1) & 127, y0 = (yi & 127) * GN, y1 = ((yi + 1) & 127) * GN;
-      const a = grid[y0 + x0], b = grid[y0 + x1], c = grid[y1 + x0], d = grid[y1 + x1];
-      return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+    // Bilinear, wrapping round in longitude.
+    const at = (src, W, H, u, v, y0, rows) => {
+      const x = u * W - 0.5, y = Math.min(rows - 1, Math.max(0, v * rows - 0.5));
+      const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
+      const xa = ((xi % W) + W) % W, xb = (xa + 1) % W, ya = y0 + yi, yb = y0 + Math.min(rows - 1, yi + 1);
+      const a = src[ya * W + xa], b = src[ya * W + xb], c = src[yb * W + xa], d = src[yb * W + xb];
+      return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
     };
-    const fbm = (x, y, oct) => { let s = 0, amp = 0.5, f = 1, n = 0; for (let k = 0; k < oct; k++) { s += amp * vn(x * f, y * f); n += amp; f *= 2.03; amp *= 0.5; } return s / n; };
-    const craters = [];
-    for (let i = 0; i < 260; i++) {
-      const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd());
-      craters.push([Math.cos(a) * d, Math.sin(a) * d, 0.004 + Math.pow(rnd(), 3.4) * 0.05]);
-    }
-    const B = 28, buckets = Array.from({ length: B * B }, () => []);
-    for (const c of craters) {
-      const r = c[2] * 1.4;
-      const x0 = Math.max(0, Math.floor(((c[0] - r + 1) / 2) * B)), x1 = Math.min(B - 1, Math.floor(((c[0] + r + 1) / 2) * B));
-      const y0 = Math.max(0, Math.floor(((c[1] - r + 1) / 2) * B)), y1 = Math.min(B - 1, Math.floor(((c[1] + r + 1) / 2) * B));
-      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) buckets[y * B + x].push(c);
-    }
-    let Lx = -0.55, Ly = 0.55, Lz = -0.62;
-    const ln = Math.hypot(Lx, Ly, Lz); Lx /= ln; Ly /= ln; Lz /= ln;
-    const lxy = Math.hypot(Lx, Ly), Sx = Lx / lxy, Sy = Ly / lxy;
     const enc = (v) => Math.round(255 * Math.pow(Math.min(1, Math.max(0, v)), 1 / 2.2));
+    const rgb = [0, 0, 0];
+    const turn = 0;
     for (let y = 0; y < S; y++) {
       const ny = (y + 0.5 - C) / R;
       for (let x = 0; x < S; x++) {
@@ -128,83 +251,82 @@
           // The thin atmosphere of light round the lit side.
           const d = Math.sqrt(d2);
           if (d > 1.14) continue;
-          const side = Math.max(0, (nx * Sx + ny * Sy) / d);
+          const side = Math.max(0, (nx * SIDE[0] + ny * SIDE[1]) / d);
           const g = Math.exp(-(d - 1) * 30) * (0.03 + 0.62 * side * side * side);
           if (g < 0.004) continue;
           px[i] = 150; px[i + 1] = 168; px[i + 2] = 255; px[i + 3] = Math.round(Math.min(1, g) * 255);
           continue;
         }
         const nz = Math.sqrt(1 - d2);
-        const lam = nx * Lx + ny * Ly + nz * Lz;
+        const qx = BX[0] * nx + BX[1] * ny + BX[2] * nz, qy = BY[0] * nx + BY[1] * ny + BY[2] * nz, qz = BZ[0] * nx + BZ[1] * ny + BZ[2] * nz;
+        const lat = Math.asin(Math.min(1, Math.max(-1, qy))), lon0 = Math.atan2(qz, qx);
+        const u = (lon0 - turn) / (2 * Math.PI) + 0.5, v = Math.min(1, Math.max(0, 0.5 - lat / (2 * LAT)));
+        // Past the band (near a pole, on the night side) the ground fades to its middle, never a smear of the band's last row.
+        const band = 1 - smooth(LAT - 0.08, LAT, Math.abs(lat));
+        const a = A_MID + (at(alb, AW, AH, u, v, 0, AH) / 255 - A_MID) * band;
+        const se = band * (at(rel, RW, RH, u, v, 0, RH / 2) - 128) / 127, sn = band * (at(rel, RW, RH, u, v, RH / 2, RH / 2) - 128) / 127;
+        const sl = Math.sin(lat), cl = Math.cos(lat), so = Math.sin(lon0), co = Math.cos(lon0);
+        const k = SLOPE * RELIEF;
+        let bx = qx - k * (se * -so + sn * -sl * co), by = qy - k * (sn * cl), bz = qz - k * (se * co + sn * -sl * so);
+        const bl = Math.hypot(bx, by, bz) || 1; bx /= bl; by /= bl; bz /= bl;
+        lit(a, bx * LIGHT_B[0] + by * LIGHT_B[1] + bz * LIGHT_B[2], qx * LIGHT_B[0] + qy * LIGHT_B[1] + qz * LIGHT_B[2], nz, rgb);
         const edge = Math.min(1, (1 - Math.sqrt(d2)) * R + 0.5);
-        if (lam < -0.22) { px[i] = 10; px[i + 1] = 9; px[i + 2] = 24; px[i + 3] = Math.round(edge * 255); continue; }
-        let sh = 0, al = 0;
-        const bx = Math.min(B - 1, Math.floor(((nx + 1) / 2) * B)), by = Math.min(B - 1, Math.floor(((ny + 1) / 2) * B));
-        const list = buckets[by * B + bx];
-        for (let k = 0; k < list.length; k++) {
-          const c = list[k], dx = nx - c[0], dy = ny - c[1];
-          const dl = Math.sqrt(dx * dx + dy * dy), dd = dl / c[2];
-          if (dd > 1.4) continue;
-          const uL = (dx * Lx + dy * Ly) / (dl + 1e-6);
-          if (dd < 1) { sh -= 0.3 * dd * uL; al -= 0.012 * (1 - dd * 0.5); }
-          else { const f = 1 - (dd - 1) / 0.4; sh += 0.16 * f * uL; al += 0.025 * f; }
-        }
-        const light = Math.pow(smooth(-0.06, 0.78, lam + sh * 0.3 * Math.min(1, Math.max(0.25, lam * 3))), 1.25);
-        const mare = smooth(0.46, 0.66, fbm(nx * 2.1 + 7.3, ny * 2.1 + 1.1, 4));
-        const fine = fbm(nx * 22 + 3.1, ny * 22 + 9.7, 3);
-        const alb = Math.max(0.12, 0.6 - 0.2 * mare + (fine - 0.5) * 0.12 + al);
-        const rim = Math.pow(1 - nz, 2.4) * smooth(0.05, 0.7, lam) * 0.34;
-        const L = alb * light;
-        px[i] = enc(L * 0.84 + rim * 0.42 + 0.0038);
-        px[i + 1] = enc(L * 0.88 + rim * 0.52 + 0.0035);
-        px[i + 2] = enc(L * 0.98 + rim * 1.0 + 0.0095);
-        px[i + 3] = Math.round(edge * 255);
+        px[i] = enc(rgb[0]); px[i + 1] = enc(rgb[1]); px[i + 2] = enc(rgb[2]); px[i + 3] = Math.round(edge * 255);
       }
     }
     ctx.putImageData(img, 0, 0);
+    return true;
   }
 
-
   let moonUrl = null;
-  /** The moon as an image URL: this document's, the one the app keeps, or drawn now and kept. */
+  /** The image moon this document or the app keeps, as a URL, or null: never draws. */
   function moonImage() {
     if (moonUrl) return moonUrl;
     try {
       const kept = window.localStorage && window.localStorage.getItem(KEY);
       if (kept && kept.startsWith('data:image/')) { moonUrl = kept; return moonUrl; }
-    } catch (e) { /* no storage here: draw it */ }
+    } catch (e) { /* no storage here */ }
+    return null;
+  }
+
+  /** The image moon drawn now from the maps and kept: a promise of its URL, or of null (never mid match). */
+  let drawing = null;
+  function drawImageMoon() {
+    if (moonImage()) return Promise.resolve(moonUrl);
+    if (drawing) return drawing;
     const cv = document.createElement('canvas');
-    if (typeof cv.getContext !== 'function' || !cv.getContext('2d')) return null;
-    cv.width = cv.height = MOON_PX;
-    drawMoon(cv);
-    let url = null;
-    try { url = cv.toDataURL('image/webp', 0.9); } catch (e) { url = null; }
-    if (!url || !url.startsWith('data:image/webp')) { try { url = cv.toDataURL('image/png'); } catch (e) { url = null; } }
-    moonUrl = url;
-    try { if (url && window.localStorage) window.localStorage.setItem(KEY, url); } catch (e) { /* full: kept in this document alone */ }
-    return moonUrl;
+    if (typeof cv.getContext !== 'function' || !cv.getContext('2d')) return Promise.resolve(null);
+    drawing = loadSurface().then((s) => {
+      drawing = null;
+      // The maps may land as a match starts: nothing is drawn mid match.
+      if (!s || sealedHere()) return null;
+      cv.width = cv.height = MOON_PX;
+      if (!drawMoon(cv, s)) return null;
+      let url = null;
+      try { url = cv.toDataURL('image/webp', 0.9); } catch (e) { url = null; }
+      if (!url || !url.startsWith('data:image/webp')) { try { url = cv.toDataURL('image/png'); } catch (e) { url = null; } }
+      moonUrl = url;
+      try { if (url && window.localStorage) window.localStorage.setItem(KEY, url); } catch (e) { /* full: kept in this document alone */ }
+      return url;
+    });
+    return drawing;
   }
 
   /** Whether an image of the moon is kept, so putting it up draws nothing. */
   function keptImage() {
-    if (moonUrl) return true;
-    try { const kept = window.localStorage && window.localStorage.getItem(KEY); return !!(kept && kept.startsWith('data:image/')); } catch (e) { return false; }
+    return !!moonImage();
   }
 
   /**
-   * THE IMAGE MOON, the fallback: an <img class="sky-moon-img"> over the whole
-   * host, put in once while the page is idle, fading in (.ready) as it
-   * decodes. Used where WebGL is missing or is the software renderer, and
-   * while a match is recorded before the turning moon is ready. `draw` false
-   * puts up only an image already kept, drawing nothing.
+   * The image moon put up: an <img class="sky-moon-img"> over the whole
+   * host, once, fading in (.ready) as it decodes. `draw` false puts up only
+   * an image already kept, drawing nothing.
    */
   function imageMoon(host, draw) {
     if (!host || host.querySelector('img.sky-moon-img')) return;
-    const put = () => {
-      if (host.querySelector('img.sky-moon-img')) return;
-      if (draw === false && !keptImage()) return;
-      const url = moonImage();
-      if (!url) return;
+    const put = (url) => {
+      // The turning moon may have come up meanwhile: then it stands alone.
+      if (!url || host.querySelector('img.sky-moon-img') || host.querySelector('canvas.sky-moon-gl.ready')) return;
       const img = document.createElement('img');
       img.className = 'sky-moon-img';
       img.alt = '';
@@ -214,30 +336,32 @@
       img.src = url;
       host.append(img);
     };
-    if (moonUrl) put();
-    else if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(put, { timeout: 1500 });
-    else setTimeout(put, 120);
+    const kept = moonImage();
+    if (kept) { put(kept); return; }
+    if (draw === false) return;
+    const go = () => { drawImageMoon().then(put); };
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(go, { timeout: 1500 });
+    else setTimeout(go, 120);
   }
 
   /*
    * ── THE TURNING MOON (9.1, the owner's item 9) ────────────────────────────
    *
-   * The image above was 1000 pixels drawn over a box 130% of the window wide,
-   * so on a 1280 window at 1x every pixel of it was 1.7 on screen, and its
-   * craters' hard edges stair stepped; at 2x, 3.3. The owner asked for it
-   * sharp at 1x and 2x, and turning slowly, as a real moon would.
+   * The 9.0 image was 1000 pixels drawn over a box 130% of the window wide,
+   * so on a 1280 window at 1x every pixel of it was 1.7 on screen; at 2x,
+   * 3.3. The owner asked for it sharp at 1x and 2x, and turning slowly, as a
+   * real moon would.
    *
-   * SO IT IS A SPHERE ON THE GPU. Its surface is baked ONCE into a texture
-   * (WebGL, one pass in strips over a few frames, while the page is idle):
-   * the maria, the fine grain and four sizes of craters scattered over the
-   * sphere in three dimensions, each crater a bowl and a raised rim, stored as
-   * its albedo and its slope, so the light falls across every crater as the
-   * surface turns. Each frame then only looks the texture up: for each pixel
-   * of the part of the moon this document shows, the point of the sphere under
-   * it, turned about the moon's axis by the clock, lit from the lower left
-   * and behind as before, so the lit limb stays the logo's crescent. A pixel
-   * of grain finer than the texture rides on the surface too, so it stays
-   * crisp at 2x and 3x.
+   * SO IT IS A SPHERE ON THE GPU, its two maps (THE MOON'S SURFACE above) in
+   * two textures of one grey channel each (R8 where WebGL 2 has it, a byte a
+   * texel: about 8 MB with their smaller sizes, where 9.0's one baked RGBA
+   * texture took 22), taken up once, a map a frame, never mid match. Each
+   * frame only looks them up: for each pixel of the part of the moon this
+   * document shows, the point of the sphere under it, turned about the
+   * moon's axis by the clock, its ground lit from the lower left and behind
+   * on its real slope, so the lit limb stays the logo's crescent and a
+   * crater's shadow moves as it turns. A grain finer than the map rides on
+   * the surface, so it stays crisp at 2x and 3x.
    *
    * ONLY WHAT IS SEEN IS DRAWN. The canvas covers the part of the moon's box
    * inside this document's window, at the device's own resolution (the bar's
@@ -254,52 +378,29 @@
    * window or the page is out of sight, while a match is recorded
    * (html.rec-still, Motion.onAmbient), under reduced motion, or while an
    * ancestor holds it at no opacity (the shell's sky off Home): it draws one
-   * frame where it stands and waits. The bake (once, a strip a frame) waits
-   * while the shell is sealed and while a match is recorded (html.rec-still,
-   * between matches too), so no canvas loop runs then, as the image moon was
-   * never drawn then; until it is done an image already kept is shown, or
-   * nothing, and it is taken up where it stopped once the recording ends.
+   * frame where it stands and waits. The upload (once, a map a frame; the
+   * code still calls it the bake) waits while the shell is sealed and while
+   * a match is recorded (html.rec-still, between matches too), so nothing of
+   * it runs then, as the image moon was never drawn then; until it is done
+   * an image already kept is shown, or nothing, and it is taken up where it
+   * stopped once the recording ends.
+   *
+   * LET GO OUT OF SIGHT. A page (Home, the review: an embedded view, never
+   * on screen mid match) hidden for FREE_MS lets its textures go, and takes
+   * them up again from the decoded maps as it comes back, its last frame
+   * standing meanwhile. The shell's moon is kept: it stands behind the
+   * Recording screen mid match, when nothing may be taken up.
    *
    * WHERE WEBGL IS MISSING (a test's DOM) or is the software renderer, the
-   * image moon above stands in, as before.
+   * image moon above stands in.
    */
-  const TURN_S = 1440;                 // one whole turn in 24 minutes
   const FPS = 30;
-  const TEX_W = 4096, TEX_H = 1024;    // the surface, as a band of latitude
-  const LAT = 64 * Math.PI / 180;      // the band's half height: the moon's turn never shows more
-  const SMAX = 1.4;                    // the steepest slope the texture keeps
-  const STRIPS = 16;                   // the bake, a strip a frame
   const WHOLE_PX = 2048;               // a turned host, drawn whole, at most this many pixels
-
-  // The moon's axis, in the screen's own frame (x right, y down, z toward the
-  // viewer): across the lit limb, so the surface comes up over the limb as it
-  // turns, both poles out of sight.
-  const AXIS = norm([0.909, 0.418, 0.25]);
-  // The light, from the lower left and behind, as the image moon was lit.
-  const LIGHT = norm([-0.55, 0.55, -0.62]);
-  // The middle of the lit limb the windows show, for which way the turn runs.
-  const LIMB = norm([-0.42, 0.91, 0]);
-
-  function norm(v) { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
-  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-
-  // The moon's own frame: Y its axis, X the point that faces the viewer (so
-  // the texture's seam is round the back), Z to complete it.
-  const BY = AXIS;
-  const BX = norm([0 - dot([0, 0, 1], BY) * BY[0], 0 - dot([0, 0, 1], BY) * BY[1], 1 - dot([0, 0, 1], BY) * BY[2]]);
-  const BZ = cross(BX, BY);
-  // Column major, so M * v is (BX.v, BY.v, BZ.v).
-  const M = new Float32Array([BX[0], BY[0], BZ[0], BX[1], BY[1], BZ[1], BX[2], BY[2], BZ[2]]);
-  const LIGHT_B = [dot(BX, LIGHT), dot(BY, LIGHT), dot(BZ, LIGHT)];
-  // The limb sits at the frame's +Z or -Z: the turn runs so its surface rises.
-  const DIR = dot(BZ, LIMB) > 0 ? -1 : 1;
-  const SIDE = norm([LIGHT[0], LIGHT[1], 0]);
+  const FREE_MS = 120000;              // a page out of sight this long lets its textures go
 
   const HEAD = '#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n';
   const NOISE = `
 float h13(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
-vec3 h33(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.xxy + p.yxx) * p.zyx); }
 float vn(vec3 p) {
   vec3 i = floor(p); vec3 f = fract(p); vec3 u = f * f * (3.0 - 2.0 * f);
   float a = h13(i), b = h13(i + vec3(1.0, 0.0, 0.0)), c = h13(i + vec3(0.0, 1.0, 0.0)), d = h13(i + vec3(1.0, 1.0, 0.0));
@@ -309,67 +410,12 @@ float vn(vec3 p) {
 `;
   const VERT = 'attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }';
 
-  // THE BAKE: one texel of the band a fragment, its point on the sphere, the
-  // maria, the grain, and four fields of craters, each a bowl 0.36 of its
-  // radius deep and a rim 0.09 high (so every size has the same slopes), its
-  // slope added up in three dimensions and kept as its east and north parts.
-  const BAKE = HEAD + NOISE + `
-uniform vec2 uSize;
-uniform float uLat;
-uniform float uSMax;
-const float PI = 3.14159265;
-float fbm4(vec3 p) { float s = 0.0, a = 0.5, n = 0.0; for (int i = 0; i < 4; i++) { s += a * vn(p); n += a; p = p * 2.03 + 7.1; a *= 0.5; } return s / n; }
-float fbm3(vec3 p) { float s = 0.0, a = 0.5, n = 0.0; for (int i = 0; i < 3; i++) { s += a * vn(p); n += a; p = p * 2.03 + 3.7; a *= 0.5; } return s / n; }
-void field(vec3 q, float cell, float rMin, float rMax, float dens, float seed, inout vec3 grad, inout float alb) {
-  vec3 ip = floor(q / cell);
-  for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
-    vec3 c = ip + vec3(float(x), float(y), float(z));
-    vec3 h = h33(c + seed);
-    if (h.x > dens) continue;
-    vec3 ctr = normalize((c + 0.15 + 0.7 * h33(c * 1.37 + seed + 17.0)) * cell);
-    float r = mix(rMin, rMax, h.y * h.y * h.y);
-    vec3 dv = q - ctr;
-    float dl = length(dv);
-    float d = dl / r;
-    if (d > 1.7) continue;
-    vec3 dir = dv / max(dl, 1e-6);
-    float x1 = (d - 1.0) / 0.24;
-    float rimE = exp(-x1 * x1);
-    float dh = (d < 1.0 ? 0.72 * d : 0.0) + 0.09 * rimE * (-2.0 * x1 / 0.24);
-    dh *= 1.0 - smoothstep(1.45, 1.7, d);
-    grad += dir * dh;
-    alb += (d < 1.0 ? -0.03 * (1.0 - d * d) : 0.0) + 0.04 * rimE * (0.35 + 0.65 * h.z);
-  }
-}
-void main() {
-  vec2 uv = gl_FragCoord.xy / uSize;
-  float lon = (uv.x - 0.5) * 2.0 * PI;
-  float lat = (uv.y * 2.0 - 1.0) * uLat;
-  vec3 q = vec3(cos(lat) * cos(lon), sin(lat), cos(lat) * sin(lon));
-  float mare = smoothstep(0.46, 0.66, fbm4(q * 1.9 + vec3(7.3, 1.1, 4.2)));
-  float fine = fbm3(q * 19.0 + vec3(3.1, 9.7, 1.3));
-  vec3 grad = vec3(0.0);
-  float alb = 0.0;
-  field(q, 0.36, 0.035, 0.11, 0.34, 1.0, grad, alb);
-  field(q, 0.12, 0.012, 0.04, 0.16, 2.0, grad, alb);
-  field(q, 0.045, 0.0045, 0.015, 0.12, 3.0, grad, alb);
-  field(q, 0.018, 0.0028, 0.006, 0.1, 4.0, grad, alb);
-  vec3 g = grad - dot(grad, q) * q;
-  vec3 east = vec3(-sin(lon), 0.0, cos(lon));
-  vec3 north = vec3(-sin(lat) * cos(lon), cos(lat), -sin(lat) * sin(lon));
-  float se = clamp(dot(g, east) / uSMax, -1.0, 1.0);
-  float sn = clamp(dot(g, north) / uSMax, -1.0, 1.0);
-  float a = max(0.12, 0.62 - 0.24 * mare + (fine - 0.5) * 0.12 + alb);
-  gl_FragColor = vec4(clamp(a, 0.0, 1.0), se * 0.5 + 0.5, sn * 0.5 + 0.5, 1.0);
-}
-`;
-
   // A FRAME: each pixel's point on the sphere, turned by the clock, its
-  // surface looked up, lit as the image moon was (the light from the lower
-  // left and behind, the cold rim light at the limb), and the thin glow of
-  // atmosphere round the lit side outside it. Premultiplied alpha.
+  // ground looked up in the two maps and lit as lit() above has it, and the
+  // thin glow of atmosphere round the lit side outside it. Premultiplied alpha.
   const DRAW = HEAD + NOISE + `
-uniform sampler2D uTex;
+uniform sampler2D uAlb;
+uniform sampler2D uRel;
 uniform vec2 uOrigin;
 uniform float uScale;
 uniform float uBufH;
@@ -378,7 +424,10 @@ uniform float uR;
 uniform float uPx;
 uniform float uTurn;
 uniform float uLat;
-uniform float uSMax;
+uniform float uSlope;
+uniform float uMid;
+uniform vec4 uTone;
+uniform vec2 uRelEdge;
 uniform mat3 uM;
 uniform vec3 uL;
 uniform vec2 uSide;
@@ -401,20 +450,27 @@ void main() {
   float lat = asin(clamp(q0.y, -1.0, 1.0));
   float lon0 = atan(q0.z, q0.x);
   float lonB = lon0 - uTurn;
-  vec4 t = texture2D(uTex, vec2(lonB / (2.0 * PI) + 0.5, clamp(lat / uLat, -1.0, 1.0) * 0.5 + 0.5));
+  // Longitude runs on past the seam (the texture repeats), so the smaller
+  // sizes are chosen smoothly there; north is the maps' top row.
+  vec2 uv = vec2(lonB / (2.0 * PI) + 0.5, clamp(0.5 - lat / (2.0 * uLat), 0.0, 1.0));
+  // Past the band (near a pole, on the night side) the ground fades to its middle.
+  float band = 1.0 - smoothstep(uLat - 0.08, uLat, abs(lat));
+  float a = mix(pow(uMid, 1.0 / 2.2), texture2D(uAlb, uv).r, band);
+  float vr = clamp(uv.y, uRelEdge.x, uRelEdge.y) * 0.5;
+  float se = band * (texture2D(uRel, vec2(uv.x, vr)).r * 255.0 - 128.0) / 127.0;
+  float sn = band * (texture2D(uRel, vec2(uv.x, vr + 0.5)).r * 255.0 - 128.0) / 127.0;
   vec3 east = vec3(-sin(lon0), 0.0, cos(lon0));
   vec3 north = vec3(-sin(lat) * cos(lon0), cos(lat), -sin(lat) * sin(lon0));
-  vec3 gt = ((t.g * 2.0 - 1.0) * east + (t.b * 2.0 - 1.0) * north) * uSMax;
-  vec3 nb = normalize(q0 - gt * 0.42);
+  vec3 nb = normalize(q0 - (se * east + sn * north) * uSlope);
   float lam0 = dot(q0, uL);
   float lam = dot(nb, uL);
-  // A grain finer than the texture, riding on the surface, faded toward the limb.
+  // A grain finer than the map, riding on the surface, faded toward the limb.
   vec3 qb = vec3(cos(lat) * cos(lonB), sin(lat), cos(lat) * sin(lonB));
-  float grain = (vn(qb * 420.0) - 0.5) * 0.06 * smoothstep(0.04, 0.35, nz);
-  float alb = max(0.1, t.r + grain);
+  float grain = (vn(qb * 1400.0) - 0.5) * 2.0 * uTone.w * smoothstep(0.04, 0.35, nz);
+  float alb = uTone.x * pow(max(pow(a, 2.2), 1e-4) / uMid, uTone.y) * (1.0 + grain);
   float light = pow(smoothstep(-0.06, 0.78, lam), 1.25);
   float rim = pow(1.0 - nz, 2.4) * smoothstep(0.05, 0.7, lam0) * 0.34;
-  float L = alb * light;
+  float L = alb * (light + uTone.z);
   vec3 lin = vec3(L * 0.84 + rim * 0.42 + 0.0038, L * 0.88 + rim * 0.52 + 0.0035, L * 0.98 + rim + 0.0095);
   vec3 col = pow(clamp(lin, 0.0, 1.0), vec3(1.0 / 2.2));
   float edge = clamp((1.0 - d) * uR * uPx + 0.5, 0.0, 1.0);
@@ -424,10 +480,12 @@ void main() {
 
   const still = () => document.documentElement.classList.contains('rec-still');
   // Mid match the shell is sealed (and no page is on screen): nothing is
-  // baked then, as the image moon was never drawn then. Between matches
+  // taken up then, as the image moon was never drawn then. Between matches
   // while recording (the Recording view, a page) html.rec-still holds it
   // too (9.1, the owner's item 9: every loop pauses while recording).
   const sealedHere = () => !!document.querySelector('.app.is-sealed');
+  // A page of the main window (embed.js): never on screen mid match.
+  const embeddedPage = () => document.documentElement.classList.contains('embedded');
   const ambientOn = () => (window.Motion && typeof window.Motion.ambientOn === 'function' ? window.Motion.ambientOn() : document.visibilityState !== 'hidden');
   const pageOut = () => {
     const c = document.documentElement.classList;
@@ -525,92 +583,88 @@ void main() {
     const canvas = document.createElement('canvas');
     if (typeof canvas.getContext !== 'function') return null;
     const opts = { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false, powerPreference: 'low-power' };
-    let gl = null;
-    try { gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts); } catch (e) { gl = null; }
+    // WebGL 2 keeps a grey map in a byte a texel (R8); WebGL 1 as luminance.
+    let gl = null, gl2 = false;
+    try {
+      gl = canvas.getContext('webgl2', opts);
+      gl2 = !!gl;
+      if (!gl) gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+    } catch (e) { gl = null; }
     if (!gl) return null;
     // A context refused for this moon is let go at once, not left to the collector.
     const refuse = () => { try { const x = gl.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); } catch (e) { /* gone */ } return null; };
     if (software(gl)) return refuse();
     const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 0;
-    if (maxTex < TEX_W) return refuse();
-    const bake = program(gl, BAKE), draw = program(gl, DRAW);
-    if (!bake || !draw) return refuse();
+    if (maxTex < ALB_W) return refuse();
+    const draw = program(gl, DRAW);
+    if (!draw) return refuse();
+    const aniso = gl.getExtension('EXT_texture_filter_anisotropic') || gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
 
     canvas.className = 'sky-moon-img sky-moon-gl';
     canvas.setAttribute('aria-hidden', 'true');
     canvas.style.position = 'absolute';
     canvas.style.pointerEvents = 'none';
-    const st = { gl, bake, draw, tex: null, fb: null, buf: null, strip: 0, baked: false, reg: null, scale: 1,
-      raf: 0, bakeRaf: 0, last: 0, n: 0, park: 0, shown: false, lost: false, u: {} };
+    const st = { gl, draw, alb: null, rel: null, relH: 1024, buf: null, baked: false, reg: null,
+      raf: 0, bakeRaf: 0, last: 0, n: 0, park: 0, free: 0, shown: false, lost: false, u: {} };
     // Each uniform's place, asked once.
-    const uni = (which, n) => {
-      const k = which + n;
-      if (!(k in st.u)) st.u[k] = gl.getUniformLocation(which === 'd' ? st.draw : st.bake, n);
-      return st.u[k];
+    const uni = (n) => {
+      if (!(n in st.u)) st.u[n] = gl.getUniformLocation(st.draw, n);
+      return st.u[n];
     };
 
     function setup() {
       st.buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, st.buf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-      st.tex = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, st.tex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, TEX_W, TEX_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      st.fb = gl.createFramebuffer();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, st.fb);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, st.tex, 0);
-      const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      st.strip = 0;
+      st.alb = st.rel = null;
       st.baked = false;
-      return ok;
+      return true;
     }
     if (!setup()) return refuse();
 
-    /** The bake waits: the shell sealed, or a match recorded (html.rec-still). */
+    /** One map into a texture of its own, one grey channel, its smaller sizes made for the limb. */
+    function upload(img) {
+      const t = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+      if (gl2) gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, gl.RED, gl.UNSIGNED_BYTE, img);
+      else gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, gl.LUMINANCE, gl.UNSIGNED_BYTE, img);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      // The limb is seen edge on: a few samples along it keep it sharp there.
+      if (aniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(4, gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT) || 1));
+      gl.generateMipmap(gl.TEXTURE_2D);
+      return t;
+    }
+
+    /** The upload waits: the shell sealed, or a match recorded (html.rec-still). */
     const held = () => sealedHere() || still();
-    /** While it waits unbaked, the image moon stands in (mid match only one already kept). */
-    const standIn = () => { if (!st.baked) imageMoon(host, !sealedHere()); };
+    /** While it waits with nothing drawn, the image moon stands in (mid match only one already kept). */
+    const standIn = () => { if (!st.baked && !st.shown) imageMoon(host, !sealedHere()); };
 
     /**
-     * One strip of the surface a frame, never while the shell is sealed and
+     * The maps taken up, one a frame, never while the shell is sealed and
      * never while a match is recorded (html.rec-still), between matches
-     * included: it is a canvas loop like any other (the owner's item 9).
-     * Held, the image moon stands in (between matches drawn once if none is
-     * kept, a still picture as in 9.0; sealed, only one already kept), and
-     * the bake is taken up where it stopped once the recording ends (the
-     * observer below: wake) or the shell is unsealed (the shell lays it out
-     * again: wake).
+     * included (the owner's item 9). Held, the image moon stands in
+     * (between matches drawn once if none is kept, a still picture as in
+     * 9.0; sealed, only one already kept), and the upload is taken up where
+     * it stopped once the recording ends (the observer below: wake) or the
+     * shell is unsealed (the shell lays it out again: wake). The maps are
+     * loaded first, once a document, off the main thread.
      */
     function bakeStep() {
       st.bakeRaf = 0;
       if (st.lost || st.baked) return;
       if (held()) { standIn(); return; }
-      const rows = TEX_H / STRIPS;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, st.fb);
-      gl.viewport(0, st.strip * rows, TEX_W, rows);
-      gl.useProgram(st.bake);
-      gl.uniform2f(uni('b', 'uSize'), TEX_W, TEX_H);
-      gl.uniform1f(uni('b', 'uLat'), LAT);
-      gl.uniform1f(uni('b', 'uSMax'), SMAX);
-      gl.bindBuffer(gl.ARRAY_BUFFER, st.buf);
-      gl.enableVertexAttribArray(0);
-      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-      gl.disable(gl.BLEND);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      st.strip++;
-      if (st.strip < STRIPS) { st.bakeRaf = requestAnimationFrame(bakeStep); return; }
-      // Done: its smaller sizes for the limb, where the surface is seen edge on.
-      gl.bindTexture(gl.TEXTURE_2D, st.tex);
-      gl.generateMipmap(gl.TEXTURE_2D);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-      gl.deleteFramebuffer(st.fb);
-      st.fb = null;
+      if (surface === false) return;
+      if (!surface) { loadSurface().then(() => wake()); return; }
+      if (!st.alb) { st.alb = upload(surface.albedo); st.bakeRaf = requestAnimationFrame(bakeStep); return; }
+      st.rel = upload(surface.relief);
+      st.relH = surface.relief.naturalHeight || 1024;
       st.baked = true;
       baked = true;
       layout();
@@ -623,22 +677,29 @@ void main() {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.useProgram(st.draw);
-      const u = (n) => uni('d', n);
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, st.tex);
-      gl.uniform1i(u('uTex'), 0);
-      gl.uniform2f(u('uOrigin'), r.x, r.y);
-      gl.uniform1f(u('uScale'), r.w / canvas.width);
-      gl.uniform1f(u('uBufH'), canvas.height);
-      gl.uniform1f(u('uHalf'), r.S / 2);
-      gl.uniform1f(u('uR'), r.S * 0.46);
-      gl.uniform1f(u('uPx'), canvas.width / r.w);
-      gl.uniform1f(u('uTurn'), turnAt(clock()));
-      gl.uniform1f(u('uLat'), LAT);
-      gl.uniform1f(u('uSMax'), SMAX);
-      gl.uniformMatrix3fv(u('uM'), false, M);
-      gl.uniform3f(u('uL'), LIGHT_B[0], LIGHT_B[1], LIGHT_B[2]);
-      gl.uniform2f(u('uSide'), SIDE[0], SIDE[1]);
+      gl.bindTexture(gl.TEXTURE_2D, st.alb);
+      gl.uniform1i(uni('uAlb'), 0);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, st.rel);
+      gl.uniform1i(uni('uRel'), 1);
+      gl.uniform2f(uni('uOrigin'), r.x, r.y);
+      gl.uniform1f(uni('uScale'), r.w / canvas.width);
+      gl.uniform1f(uni('uBufH'), canvas.height);
+      gl.uniform1f(uni('uHalf'), r.S / 2);
+      gl.uniform1f(uni('uR'), r.S * 0.46);
+      gl.uniform1f(uni('uPx'), canvas.width / r.w);
+      gl.uniform1f(uni('uTurn'), turnAt(clock()));
+      gl.uniform1f(uni('uLat'), LAT);
+      gl.uniform1f(uni('uSlope'), SLOPE * RELIEF);
+      gl.uniform1f(uni('uMid'), MID);
+      gl.uniform4f(uni('uTone'), TONE[0], TONE[1], TONE[2], TONE[3]);
+      // Each half of relief.webp is sampled inside its own rows, never the other's.
+      const half = st.relH / 2;
+      gl.uniform2f(uni('uRelEdge'), 0.5 / half, 1 - 0.5 / half);
+      gl.uniformMatrix3fv(uni('uM'), false, M);
+      gl.uniform3f(uni('uL'), LIGHT_B[0], LIGHT_B[1], LIGHT_B[2]);
+      gl.uniform2f(uni('uSide'), SIDE[0], SIDE[1]);
       gl.bindBuffer(gl.ARRAY_BUFFER, st.buf);
       gl.enableVertexAttribArray(0);
       gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
@@ -650,6 +711,21 @@ void main() {
         for (const img of host.querySelectorAll('img.sky-moon-img')) img.remove();
         requestAnimationFrame(() => canvas.classList.add('ready'));
       }
+    }
+
+    /** The textures let go: a page out of sight for FREE_MS. Its last frame stands. */
+    function release() {
+      st.free = 0;
+      if (st.lost || !st.baked || !embeddedPage() || document.visibilityState !== 'hidden') return;
+      cancelAnimationFrame(st.raf); st.raf = 0;
+      gl.deleteTexture(st.alb); gl.deleteTexture(st.rel);
+      st.alb = st.rel = null;
+      st.baked = false;
+    }
+    function freeSoon() {
+      // A check can shorten the wait (window.__occlaraMoonFreeMs), as a picture holds the clock.
+      const ms = typeof window.__occlaraMoonFreeMs === 'number' ? window.__occlaraMoonFreeMs : FREE_MS;
+      if (!st.free && st.baked && embeddedPage()) st.free = setTimeout(release, ms);
     }
 
     const moving = () => st.baked && !!st.reg && !st.lost && ambientOn() && !pageOut();
@@ -665,9 +741,11 @@ void main() {
       clearTimeout(st.park);
       st.park = setTimeout(() => { st.park = 0; if (!hiddenAbove(host)) wake(); else park(); }, 1000);
     }
-    /** Back to work: the bake where it stopped, then the frames. */
+    /** Back to work: the maps where they stopped, then the frames. Out of sight, the textures go in time. */
     function wake() {
       if (st.lost) return;
+      if (document.visibilityState === 'hidden') freeSoon();
+      else if (st.free) { clearTimeout(st.free); st.free = 0; }
       if (!st.baked) {
         if (held()) standIn();
         else if (!st.bakeRaf) st.bakeRaf = requestAnimationFrame(bakeStep);
@@ -687,6 +765,8 @@ void main() {
       const bw = Math.max(1, Math.round(reg.w * scale)), bh = Math.max(1, Math.round(reg.h * scale));
       canvas.style.left = `${reg.x}px`; canvas.style.top = `${reg.y}px`;
       canvas.style.width = `${reg.w}px`; canvas.style.height = `${reg.h}px`;
+      // A canvas sized again is cleared: with its textures let go, nothing stands until they are back.
+      if ((canvas.width !== bw || canvas.height !== bh) && !st.baked) st.shown = false;
       if (canvas.width !== bw) canvas.width = bw;
       if (canvas.height !== bh) canvas.height = bh;
       paint();
@@ -696,17 +776,16 @@ void main() {
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
       st.lost = true;
-      cancelAnimationFrame(st.raf); cancelAnimationFrame(st.bakeRaf); clearTimeout(st.park);
-      st.raf = st.bakeRaf = st.park = 0;
+      cancelAnimationFrame(st.raf); cancelAnimationFrame(st.bakeRaf); clearTimeout(st.park); clearTimeout(st.free);
+      st.raf = st.bakeRaf = st.park = st.free = 0;
     });
     canvas.addEventListener('webglcontextrestored', () => {
-      // Everything of the old context is gone, the programs with it.
+      // Everything of the old context is gone, the program and the textures with it.
       st.lost = false;
       st.shown = false;
       st.u = {};
-      st.bake = program(gl, BAKE);
       st.draw = program(gl, DRAW);
-      if (st.bake && st.draw && setup()) wake();
+      if (st.draw && setup()) wake();
     });
 
     host.append(canvas);
@@ -714,11 +793,11 @@ void main() {
     // in: mid match (sealed) only one already kept, between matches drawn
     // once if none is, a still picture and no loop.
     if (held()) standIn();
-    // The bake starts once the page is idle, after its own first paint.
+    // The upload starts once the page is idle, after its own first paint.
     const begin = () => { if (!st.bakeRaf && !st.baked) wake(); };
     if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(begin, { timeout: 1500 }); else setTimeout(begin, 120);
-    // stop() holds the frames, and the bake with them while a match is
-    // recorded (a bake a hidden window held is taken up by wake, as before).
+    // stop() holds the frames, and the upload with them while a match is
+    // recorded (an upload a hidden window held is taken up by wake, as before).
     const stop = () => {
       cancelAnimationFrame(st.raf); st.raf = 0;
       if (still()) { cancelAnimationFrame(st.bakeRaf); st.bakeRaf = 0; standIn(); }
@@ -755,8 +834,8 @@ void main() {
   if (window.Motion && typeof window.Motion.onAmbient === 'function') {
     window.Motion.onAmbient((on) => { for (const m of all()) { if (on) m.wake(); else m.stop(); } });
   }
-  // html.rec-still heard here as well: a bake a recording held is taken up
-  // again as it ends even where ambient motion stays off (reduced motion).
+  // html.rec-still heard here as well: an upload a recording held is taken
+  // up again as it ends even where ambient motion stays off (reduced motion).
   if (typeof MutationObserver === 'function') {
     let was = still();
     try {
@@ -774,5 +853,5 @@ void main() {
     return baked || keptImage();
   }
 
-  window.OcclaraSky = Object.freeze({ stars, twinkles, moon, moonImage, hasMoon, MOON_PX, TURN_S });
+  window.OcclaraSky = Object.freeze({ stars, twinkles, moon, moonImage, hasMoon, MOON_PX, TURN_S, MAPS });
 })();

@@ -44,6 +44,40 @@ What is in this folder, and where each file comes from.
   games/          Valorant's and League's own logos, the source of the game
                   picker's (shared/game-logos.js inlines their paths).
   lol/champions/  League's champion icons, written by npm run sync:lol.
+  moon/           The sky's moon on Home, the review and the Recording
+                  screen (src/renderer/shared/sky.js samples them on a
+                  turning sphere), the real Moon from NASA's own lunar maps,
+                  written by node scripts/make-moon-maps.js (9.1, Nov 2026):
+                    albedo.webp  4096 x 1024 grey WebP, about 590 KB: how
+                                 bright the ground is, the luminance of the
+                                 CGI Moon Kit's colour map (lroc_color_poles,
+                                 from the Lunar Reconnaissance Orbiter
+                                 Camera's Wide Angle Camera), NASA's
+                                 Scientific Visualization Studio,
+                                 https://svs.gsfc.nasa.gov/4720. Its 27360
+                                 pixel TIFF was read from the copy on
+                                 Wikimedia Commons ("CGI Moon Kit - Lroc
+                                 color poles.tif", the same file; the SVS
+                                 links answered 403 when this was made).
+                    relief.webp  2048 x 1024 grey WebP, about 520 KB: the
+                                 ground's slope east (top half) and north
+                                 (bottom half), 128 level, 0 and 255 a slope
+                                 of 0.45, worked out from LOLA's gridded
+                                 elevation model ldem_16 (the Lunar Orbiter
+                                 Laser Altimeter, NASA Goddard), NASA's
+                                 Planetary Data System, Geosciences Node,
+                                 https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/img/
+                  Both are the band from 64 north to 64 south (all the
+                  moon's turn shows), longitude -180 to 180, north up.
+                  TERMS: NASA imagery and data are not subject to copyright
+                  in the United States; SVS: "All of our content is in the
+                  public domain (unless otherwise noted)", and the kit asks
+                  for credit to "NASA's Scientific Visualization Studio".
+                  NASA's media guidelines ask that NASA be acknowledged as
+                  the source and that nothing implies NASA endorses a
+                  product: credit as "Moon surface: NASA's Scientific
+                  Visualization Studio (CGI Moon Kit) and NASA's LOLA team",
+                  never with NASA's logo or as NASA's.
   valorant/       Valorant's agent icons (agents/, npm run sync:agenticons),
                   the guns' kill feed icons (weapons/) and the agents' four
                   ability icons (abilities/<Agent>-<Slot>.png), both by npm run
