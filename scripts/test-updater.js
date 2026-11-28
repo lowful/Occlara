@@ -95,6 +95,23 @@ function fresh() {
     autoUpdater.emit('download-progress', null);
     ok(u.view().percent === 42, 'a progress event with no number changes nothing');
 
+    // A check mid download (the six hour timer, Settings' Check for updates):
+    // the ring stays, its percent with it, and the bar is not told anything.
+    const midCheck = pushed.length;
+    hush();
+    autoUpdater.emit('checking-for-update');
+    loud();
+    ok(same(u.view(), { state: 'downloading', version: '9.1.1', percent: 42 }) && u.getStatus().state === 'downloading',
+      'a check mid download leaves it downloading, the ring and its percent on the bar', JSON.stringify(u.view()));
+    hush();
+    autoUpdater.emit('update-available', { version: '9.1.1' });
+    loud();
+    ok(same(u.view(), { state: 'downloading', version: '9.1.1', percent: 42 }) && pushed.length === midCheck,
+      'and finding the version already on its way keeps its percent, not the unsure quarter again', JSON.stringify(pushed.slice(midCheck)));
+    const checked = await u.checkNow();
+    ok(checked.state === 'downloading' && checked.percent === 42 && same(u.view(), { state: 'downloading', version: '9.1.1', percent: 42 }),
+      "Settings' Check for updates mid download: still downloading, at its percent", JSON.stringify(checked));
+
     // A match starts: the bar is told null at once, and again once it ends.
     const before = pushed.length;
     busy = true;

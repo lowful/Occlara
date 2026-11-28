@@ -3532,6 +3532,34 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     const bar = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.js'), 'utf8');
     ok(line === '9.1.1 ready, restart to update from the bar' && se.$('update-state').classList.contains('new') && /'Restart to update'/.test(bar),
       'a downloaded update: ready, restart to update from the bar, the words of the bar\'s own control', line);
+    // Recording, the bar hides its control: the line says when it comes.
+    se.bridge.emit(C.PUSH_STATE, { isCoaching: true });
+    await settle();
+    ok(se.$('update-state').textContent === '9.1.1 ready, restart to update from the bar once you stop recording',
+      'recording: ready, from the bar once you stop recording, since the bar hides it until then', se.$('update-state').textContent);
+    se.bridge.emit(C.PUSH_STATE, { isCoaching: false });
+    await settle();
+    ok(se.$('update-state').textContent === '9.1.1 ready, restart to update from the bar', 'stopped: from the bar again', se.$('update-state').textContent);
+
+    // Open while it downloads: the line follows the download, not frozen at
+    // what it said as the page loaded.
+    let ver = { current: '9.1.0', state: 'downloading', version: '9.1.1', percent: 37 };
+    const dl = loadSurface('settings', {
+      handlers: {
+        [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', devGames: false }),
+        [C.LICENSE_GET]: () => ({}), [C.STATE_GET]: () => ({}),
+        [C.APP_VERSION]: () => ver,
+      },
+    });
+    await settle();
+    ok(dl.$('update-state').textContent === 'downloading 9.1.1, 37%', 'downloading: the version and its percent', dl.$('update-state').textContent);
+    ver = { current: '9.1.0', state: 'ready', version: '9.1.1' };
+    for (const fn of dl.document._listeners.visibilitychange || []) fn();
+    await settle();
+    ok(dl.$('update-state').textContent === '9.1.1 ready, restart to update from the bar', 'landed while the page was open: it says ready', dl.$('update-state').textContent);
+    const st = fs.readFileSync(path.join(RENDERER, 'settings', 'settings.js'), 'utf8');
+    ok(/setInterval\(\(\) => \{\s*if \(document\.visibilityState === 'hidden' \|\| !versionNow\) return;\s*if \(versionNow\.state === 'downloading' \|\| versionNow\.state === 'checking'\) askVersion\(\);/.test(st),
+      'and asked again every few seconds while a download or a check is under way');
   });
 
   // RECORD MATCH VIDEO (8.3): On or Off, as the player asked for a setting

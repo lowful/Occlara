@@ -529,25 +529,48 @@ function buildGamePicker(current, includeUnavailable) {
 const UPDATE_TEXT = {
   checking:    'checking for updates...',
   current:     'up to date',
-  downloading: (v) => `downloading ${v}...`,
+  downloading: (v, info) => (Number.isFinite(info.percent) ? `downloading ${v}, ${info.percent}%` : `downloading ${v}...`),
   // 9.1: the bar's updater installs it (its "Restart to update"), so the
-  // line says where, in the bar's own words.
-  ready:       (v) => `${v} ready, restart to update from the bar`,
+  // line says where, in the bar's own words. The bar hides it while
+  // recording, so then the line says it waits for the recording to stop.
+  ready:       (v) => (recordingNow ? `${v} ready, restart to update from the bar once you stop recording` : `${v} ready, restart to update from the bar`),
   offline:     'could not reach the update server',
   dev:         'dev build',
   idle:        '',
 };
+let versionNow = null;     // what main last said (APP_VERSION), drawn again as recording starts and stops
+let recordingNow = false;
 function paintVersion(info) {
   if (!info) return;
+  versionNow = info;
   const vEl = document.getElementById('version');
   const sEl = document.getElementById('update-state');
   vEl.textContent = 'Version ' + (info.current || '?');
   const t = UPDATE_TEXT[info.state];
-  sEl.textContent = typeof t === 'function' ? t(info.version || '') : (t || '');
+  sEl.textContent = typeof t === 'function' ? t(info.version || '', info) : (t || '');
   sEl.classList.toggle('ok', info.state === 'current');
   sEl.classList.toggle('new', info.state === 'ready' || info.state === 'downloading');
 }
 window.occlara.getVersion().then(paintVersion).catch(() => {});
+// THE LINE FOLLOWS THE DOWNLOAD (9.1). It was read once as the page loaded,
+// so with Settings open it said "downloading..." long after the download
+// had landed. While a download or a check is under way it is asked again
+// every few seconds (only while the page is on screen), and again as the
+// page comes back; recording starting or stopping draws it again.
+const askVersion = () => { window.occlara.getVersion().then(paintVersion).catch(() => {}); };
+setInterval(() => {
+  if (document.visibilityState === 'hidden' || !versionNow) return;
+  if (versionNow.state === 'downloading' || versionNow.state === 'checking') askVersion();
+}, 3000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'hidden') askVersion(); });
+const takeRecording = (s) => {
+  const now = !!(s && s.isCoaching);
+  if (now === recordingNow) return;
+  recordingNow = now;
+  if (versionNow) paintVersion(versionNow);
+};
+window.occlara.onState(takeRecording);
+window.occlara.getState().then(takeRecording).catch(() => {});
 // The version opens What's new (the changelog page); Check for updates beside
 // it forces a fresh check, so the player can confirm on demand.
 document.getElementById('version').addEventListener('click', () => window.occlara.openWhatsNew());

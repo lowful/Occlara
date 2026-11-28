@@ -55,6 +55,11 @@ function getStatus() {
   return { ...status, percent: status.state === 'downloading' ? percent : null, current: app.getVersion(), packaged: app.isPackaged };
 }
 
+/** A version ready or on its way: what the bar shows, which a new check never takes away. */
+function holdsBar() {
+  return status.state === 'ready' || status.state === 'downloading';
+}
+
 /** Whether the player is playing now, by index.js's busy(); a throw is not busy. */
 function playing() {
   try { return typeof options.busy === 'function' && !!options.busy(); } catch { return false; }
@@ -129,8 +134,10 @@ function init(opts) {
   autoUpdater.logger = console;
 
   autoUpdater.on('checking-for-update', () => {
-    // A check while one is ready leaves the bar as it is.
-    if (status.state !== 'ready') status = { ...status, state: 'checking' };
+    // A check while one is ready, or downloading, leaves the bar as it is:
+    // 'checking' is no state the bar draws, so a check mid download (the six
+    // hour timer, Settings' Check for updates) took the ring away.
+    if (!holdsBar()) status = { ...status, state: 'checking' };
   });
 
   autoUpdater.on('update-not-available', () => {
@@ -145,6 +152,14 @@ function init(opts) {
     // still, and the bar does not go back to downloading for it.
     if (downloaded && version === downloaded.version) {
       status = { state: 'ready', version, checkedAt: Date.now() };
+      emit();
+      return;
+    }
+    // A check mid download finding the version already on its way: the
+    // download carries on, and so does its percent (not the unsure quarter
+    // again until the next progress event).
+    if (status.state === 'downloading' && version && version === status.version) {
+      status = { ...status, checkedAt: Date.now() };
       emit();
       return;
     }
@@ -191,7 +206,7 @@ function init(opts) {
 /** Settings "check now": forces a fresh look at the feed. */
 function checkNow() {
   if (!app.isPackaged) return Promise.resolve(getStatus());
-  if (status.state !== 'ready') status = { ...status, state: 'checking' };
+  if (!holdsBar()) status = { ...status, state: 'checking' };
   return autoUpdater.checkForUpdates().catch(() => {}).then(() => getStatus());
 }
 

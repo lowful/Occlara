@@ -321,3 +321,16 @@ html.embedded #gamepick { display: none !important; }
 .body { gap: var(--space-4); }
 .group, .group.first { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }
 .wip { padding: var(--space-5) var(--space-6); background: var(--s1); box-shadow: var(--rim); border-radius: var(--r-panel); border-top: 0; }
+
+/* NOTHING SLICED UNDER THE TITLE (9.1). As a page of the window the title
+   stays put and the cards scroll under it, and its edge cut each card's
+   corners flat as it passed: the look the owner turned down on Clips and the
+   review. The cards now dissolve over the body's first 18px instead, a fade
+   that at rest covers only the body's own padding (the 10px it gains, the
+   title's foot gives back, so nothing moves). */
+html.embedded .sheet > header { padding-bottom: 22px; }
+html.embedded .sheet > .body {
+  padding-top: 18px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 18px);
+  mask-image: linear-gradient(to bottom, transparent, black 18px);
+}
