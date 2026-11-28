@@ -167,7 +167,9 @@ const GOOD_DEMO = { src: 'https://occlara.app/drills/lost-duel-counter-strafe.we
     { ...base, id: 'g2', cause: 'general', trainer: 'site-preaim-hard' },
     { ...base, id: 'g3', cause: 'general' },
   ]);
-  const g = (id) => view.general.find((d) => d.id === id) || {};
+  // 9.1: shown in their groups; the general list keeps the first two.
+  const shown = [...view.general, ...view.groups.flatMap((gr) => gr.drills)];
+  const g = (id) => shown.find((d) => d.id === id) || {};
   ok(g('g1').trainer === 'micro-flicks' && g('g1').trainerTitle === 'Micro flicks', 'the page is handed the scenario and its name', JSON.stringify([g('g1').trainer, g('g1').trainerTitle]));
   const easy = viewOf([{ ...base, id: 'g4', cause: 'general', trainer: 'lane-hold-easy' }]).general[0] || {};
   ok(g('g2').trainerTitle === 'Site retake, Hard' && easy.trainerTitle === 'Hold the main, Easy', 'a scenario with a level is named with it, as the Trainer names it', `${g('g2').trainerTitle} | ${easy.trainerTitle}`);
@@ -178,13 +180,91 @@ const GOOD_DEMO = { src: 'https://occlara.app/drills/lost-duel-counter-strafe.we
 // ── The plan ──────────────────────────────────────────────────────────────
 const M = (key, title, matches) => ({ key, title, matches, total: matches, fix: `Fix for ${title}.`, weight: 1 });
 const pats = (list, recorded) => ({ enough: true, recorded: recorded || 6, mistakes: list });
+
+// ── THE THREE GROUPS (9.1, the owner's ask) ───────────────────────────────
+{
+  const base = { title: 'A drill', steps: ['one'] };
+  const groupOfDrill = (d) => { const l = P.normaliseLibrary([{ ...base, id: 'x', ...d }]); return l ? l.drills[0].group : 'no drill'; };
+  ok(P.GROUPS.map((g) => `${g.id}:${g.name}`).join() === 'mechanics:Mechanics,sense:Game sense,awareness:Awareness',
+    'GROUPS: Mechanics, Game sense and Awareness, in that order');
+  ok(P.GROUPS.every((g) => g.title && /^[A-Z][a-z ]+$/.test(g.title)), 'each with a title in sentence case', P.GROUPS.map((g) => g.title).join(' | '));
+  ok(groupOfDrill({ cause: 'untraded', group: 'mechanics' }) === 'mechanics' && groupOfDrill({ cause: 'lost-duel', group: ' Awareness ' }) === 'awareness',
+    'a group the library names is kept, whatever its case and spaces');
+  ok(groupOfDrill({ cause: 'untraded' }) === 'awareness' && groupOfDrill({ cause: 'lost-duel' }) === 'mechanics' && groupOfDrill({ cause: 'repeek' }) === 'sense'
+    && groupOfDrill({ cause: 'general' }) === 'sense' && groupOfDrill({ cause: 'general', trainer: 'micro-flicks' }) === 'mechanics',
+  'none named: a drill the Trainer trains is Mechanics, else its cause\'s group, else Game sense');
+  ok(['game sense', 'aim', 7, null, ['sense']].every((g) => groupOfDrill({ cause: 'repeek', group: g }) === 'sense'), 'a group it does not know reads as none, never a throw');
+
+  // A plan of untraded (Awareness) and early (Game sense), and two more
+  // repeated mistakes: lost-duel (Mechanics) and isolated (Awareness).
+  const lib9 = P.normaliseLibrary({ drills: [
+    { id: 'u1', title: 'Trade one', cause: 'untraded', steps: ['x'], minutes: 10 },
+    { id: 'u2', title: 'Trade two', cause: 'untraded', steps: ['x'] },
+    { id: 'u3', title: 'Trade three', cause: 'untraded', steps: ['x'] },
+    { id: 'e1', title: 'Early one', cause: 'early', steps: ['x'] },
+    { id: 'e2', title: 'Early two', cause: 'early', group: 'mechanics', steps: ['x'], trainer: 'micro-flicks' },
+    { id: 'd1', title: 'Duel one', cause: 'lost-duel', steps: ['x'], trainer: 'counter-strafe' },
+    { id: 'i1', title: 'Alone one', cause: 'isolated', steps: ['x'] },
+    { id: 'gm', title: 'Every player, aim', cause: 'general', group: 'mechanics', steps: ['x'] },
+    { id: 'gs', title: 'Every player, sense', cause: 'general', steps: ['x'] },
+    { id: 'gs2', title: 'Every player, sense two', cause: 'general', steps: ['x'] },
+    { id: 'ga', title: 'Every player, awareness', cause: 'general', group: 'awareness', steps: ['x'] },
+  ] });
+  const p9 = pats([M('untraded', 'Deaths nobody traded', 5), M('early', 'Dying early', 4), M('lost-duel', 'Lost the duel', 3), M('isolated', 'Caught alone', 2)], 8);
+  const st9 = P.choosePlan({ patterns: p9, library: lib9, band: null, state: P.emptyState(), now: day(0) }).state;
+  const v9 = P.planView({ patterns: p9, library: lib9, band: null, state: st9, now: day(0), saved: [] });
+  const ids = (g) => v9.groups.find((x) => x.id === g).drills.map((d) => d.id).join();
+  ok(v9.groups.map((g) => g.id).join() === 'mechanics,sense,awareness', 'THE PAGE\'S GROUPS: the three, every time');
+  ok(ids('awareness') === 'u1,u2' && ids('sense') === 'e1' && ids('mechanics') === 'e2',
+    'the plan\'s own drills, two a mistake, each in its group (a drill names its own: e2 is Mechanics)', ['mechanics', 'sense', 'awareness'].map(ids).join(' | '));
+  const u1 = v9.groups.find((g) => g.id === 'awareness').drills[0];
+  ok(u1.reason.kind === 'mistake' && u1.reason.key === 'untraded' && u1.reason.title === 'Deaths nobody traded' && u1.reason.line === 'In 5 of your last 8 matches',
+    'WHY IT IS HERE: each drill carries its repeated mistake and how often it repeated', JSON.stringify(u1.reason));
+  ok(v9.groups.every((g) => g.drills.every((d) => d.group === g.id)), 'and its group');
+  // The plan leaves Mechanics empty: the next repeated mistake of its kind.
+  const lib9b = P.normaliseLibrary({ drills: lib9.drills.map((d) => (d.id === 'e2' ? { ...d, group: 'sense', trainer: null } : d)) });
+  const st9b = P.choosePlan({ patterns: p9, library: lib9b, band: null, state: P.emptyState(), now: day(0) }).state;
+  const v9b = P.planView({ patterns: p9, library: lib9b, band: null, state: st9b, now: day(0), saved: [] });
+  const mech = v9b.groups.find((g) => g.id === 'mechanics');
+  ok(mech.drills.map((d) => d.id).join() === 'd1' && mech.drills[0].reason.title === 'Lost the duel' && mech.drills[0].reason.line === 'In 3 of your last 8 matches',
+    'A GROUP THE PLAN LEAVES EMPTY takes one drill for the next repeated mistake of its kind, with that mistake as its reason', JSON.stringify(mech.drills.map((d) => [d.id, d.reason])));
+  // No repeated mistake of a kind beyond the plan: one drill for every player, saying so.
+  const p9c = pats([M('untraded', 'Deaths nobody traded', 5), M('early', 'Dying early', 4)], 8);
+  const st9c = P.choosePlan({ patterns: p9c, library: lib9b, band: null, state: P.emptyState(), now: day(0) }).state;
+  const v9c = P.planView({ patterns: p9c, library: lib9b, band: null, state: st9c, now: day(0), saved: [] });
+  const mc = v9c.groups.find((g) => g.id === 'mechanics').drills;
+  ok(mc.map((d) => d.id).join() === 'gm' && mc[0].reason.kind === 'general' && mc[0].reason.title === null && mc[0].reason.line === 'For every player, as nothing of this kind repeats in your matches',
+    'and with none, one drill for every player of that kind, its reason saying so', JSON.stringify(mc.map((d) => [d.id, d.reason])));
+  // No plan at all: two for every player in each group, where the library has them.
+  const v9d = P.planView({ patterns: { enough: false, recorded: 0, mistakes: [] }, library: lib9, band: null, state: P.emptyState(), now: day(0), saved: [] });
+  ok(v9d.status === 'nomatches' && v9d.groups.find((g) => g.id === 'sense').drills.map((d) => d.id).join() === 'gs,gs2'
+    && v9d.groups.find((g) => g.id === 'awareness').drills.map((d) => d.id).join() === 'ga'
+    && v9d.groups.every((g) => g.drills.every((d) => d.reason.kind === 'general' && d.reason.line === 'For every player')),
+  'NO PLAN: drills for every player in each group, two at most, saying why');
+  // The Trainer: always under Mechanics, alone there, its scenarios the group's drills' first.
+  const tr = v9.groups.find((g) => g.id === 'mechanics').trainer;
+  ok(tr && v9.groups.filter((g) => g.trainer).length === 1 && tr.title === 'Aim trainer' && tr.line && !DASHES.test(JSON.stringify(tr)),
+    'THE TRAINER sits under Mechanics and nowhere else');
+  ok(tr.scenarios.map((s) => s.id).join() === 'micro-flicks,flick-grid,counter-strafe' && tr.scenarios[0].title === 'Micro flicks' && tr.reason.title === 'Dying early',
+    'its scenarios the Mechanics drills\' own first, then the Trainer\'s, three at most, its reason theirs', JSON.stringify(tr));
+  ok(v9c.groups.find((g) => g.id === 'mechanics').trainer.reason.kind === 'general', 'with no repeated mistake under Mechanics, its reason is for every player');
+  // The review's link: its drills shown above, never twice.
+  const v9e = P.planView({ patterns: p9, library: lib9, band: null, state: st9, now: day(0), saved: [], focus: { key: 'isolated', title: 'Caught alone' } });
+  ok(v9e.asked && v9e.asked.drills.map((d) => d.id).join() === 'i1' && !v9e.groups.some((g) => g.drills.some((d) => d.id === 'i1')),
+    'a drill the review\'s link shows above is not shown again in its group');
+  const all = v9.groups.flatMap((g) => g.drills.map((d) => d.id));
+  ok(new Set(all).size === all.length && v9.groups.every((g) => g.drills.length <= P.GROUP_MAX), 'a drill shows once on the page, and a group holds four at most');
+  ok(P.planView({ patterns: p9, library: null, band: null, state: st9, now: day(0), saved: [] }).groups.every((g) => !g.drills.length),
+    'no library: no drill in any group');
+  ok(!DASHES.test(JSON.stringify(v9.groups)) && !DASHES.test(JSON.stringify(v9d.groups)), 'no dash in a group');
+}
 {
   // same-killer has no drill in the sample: skipped, the next takes its place.
   const p = pats([M('same-killer', 'Skye kept winning', 5), M('untraded', 'Deaths nobody traded', 4), M('early', 'Dying early', 4), M('lost-advantage', 'Gave back the advantage', 3)]);
   const a = P.choosePlan({ patterns: p, library: lib, band: null, state: P.emptyState(), now: day(0) });
   const plan = a.state.plans.valorant;
   ok(a.changed && plan.focus.map((f) => f.key).join() === 'untraded,early', 'the plan is the two most serious repeated mistakes that have drills', plan && plan.focus.map((f) => f.key).join());
-  ok(plan.focus.every((f) => f.drills.length >= 2 && f.drills.length <= 3 && f.since === day(0)), 'each with two or three drills, dated', JSON.stringify(plan.focus));
+  ok(plan.focus.every((f) => f.drills.length >= 1 && f.drills.length <= P.DRILLS_N && P.DRILLS_N === 2 && f.since === day(0)), 'each with one or two drills, dated', JSON.stringify(plan.focus));
   // Reordered, the same two stay, in their order.
   const p2 = pats([M('early', 'Dying early', 6), M('lost-advantage', 'Gave back the advantage', 5), M('untraded', 'Deaths nobody traded', 4)]);
   const b = P.choosePlan({ patterns: p2, library: lib, band: null, state: a.state, now: day(1) });
@@ -219,7 +299,7 @@ const pats = (list, recorded) => ({ enough: true, recorded: recorded || 6, mista
   const l = P.normaliseLibrary({ drills: [1, 2, 3, 4].map((i) => ({ id: `u${i}`, title: `Drill ${i}`, cause: 'untraded', steps: ['x'], minutes: 10 })) });
   const p = pats([M('untraded', 'Deaths nobody traded', 4)]);
   let st = P.choosePlan({ patterns: p, library: l, band: null, state: P.emptyState(), now: day(0) }).state;
-  ok(st.plans.valorant.focus[0].drills.join() === 'u1,u2,u3', 'three drills to start');
+  ok(st.plans.valorant.focus[0].drills.join() === 'u1,u2', 'two drills to start (9.1: only the important ones)');
   const d1 = l.drills[0];
   const m1 = P.mark(st, d1, day(0), 'e1');
   ok(m1 && m1.state.log.length === 1 && m1.entry.minutes === 10, 'a mark is one dated entry with its minutes');
@@ -227,10 +307,10 @@ const pats = (list, recorded) => ({ enough: true, recorded: recorded || 6, mista
   st = m1.state;
   st = P.mark(st, d1, day(1), 'e2').state;
   let r = P.choosePlan({ patterns: p, library: l, band: null, state: st, now: day(1) });
-  ok(!r.changed && r.state.plans.valorant.focus[0].drills.join() === 'u1,u2,u3', 'two marks: the drill stays');
+  ok(!r.changed && r.state.plans.valorant.focus[0].drills.join() === 'u1,u2', 'two marks: the drill stays');
   st = P.mark(r.state, d1, day(2), 'e3').state;
   r = P.choosePlan({ patterns: p, library: l, band: null, state: st, now: day(2) });
-  ok(r.changed && r.state.plans.valorant.focus[0].drills.join() === 'u2,u3,u4' && r.state.plans.valorant.focus[0].since === day(0),
+  ok(r.changed && r.state.plans.valorant.focus[0].drills.join() === 'u2,u3' && r.state.plans.valorant.focus[0].since === day(0),
     'the third mark finishes it: the next drill takes its place, the focus keeps its date', r.state.plans.valorant.focus[0].drills.join());
   const v = P.planView({ patterns: p, library: l, band: null, state: r.state, now: day(2), saved: [], riotId: false });
   ok(v.status === 'plan' && v.focus[0].drills.every((d) => d.id !== 'u1'), 'and the page shows the new set');
@@ -512,25 +592,58 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     const q = loadSurface('practice', { handlers });
     await settle(10);
     const $ = q.$;
-    ok(!$('pc-page').hidden && $('pc-wait').hidden && !$('pc-plan').hidden && $('pc-empty').hidden && $('pc-general').hidden,
+    ok(!$('pc-page').hidden && $('pc-wait').hidden && !$('pc-plan').hidden && $('pc-empty').hidden && $('pc-asked').hidden,
       'the page paints the plan');
     const blocks = q.document.querySelectorAll('.pc-focus');
     ok(blocks.length === 2 && blocks[0].querySelector('.pc-focus-title').textContent === 'Deaths nobody traded'
-      && blocks[0].querySelector('.pc-count').textContent === 'In 6 of your last 6 recorded matches', 'two mistakes, each with its count', blocks.length);
+      && blocks[0].querySelector('.pc-count').textContent === 'In 6 of your last 6 recorded matches', 'YOUR FOCUS: two mistakes at the top, each with its count', blocks.length);
+    ok(blocks.every((b) => b.querySelector('.pc-trend') && /Not enough matches yet/.test(b.querySelector('.pc-trend').textContent) && b.querySelector('.pc-trend').classList.contains('wait')),
+      'IS IT WORKING beside each, honest with no match since the plan');
+    ok(blocks.every((b) => /^Fix /.test(b.querySelector('.pc-fix').textContent)), 'and its fix under it');
+    // THE THREE GROUPS (9.1): Mechanics with the Trainer, Game sense, Awareness.
+    const groups = q.document.querySelectorAll('#pc-groups .pc-group');
+    ok(groups.map((g) => g.dataset.group).join() === 'mechanics,sense,awareness'
+      && groups.map((g) => g.querySelector('.pc-label').textContent).join() === 'Mechanics,Game sense,Awareness',
+    'THE GROUPS: Mechanics, Game sense and Awareness, in that order', groups.map((g) => g.dataset.group).join());
+    const inGroup = (id) => groups.find((g) => g.dataset.group === id);
+    ok(inGroup('mechanics').querySelector('.pc-g-list').firstChild.classList.contains('pc-trainer') && groups.filter((g) => g.querySelector('.pc-trainer')).length === 1,
+      'the Trainer first under Mechanics, and nowhere else');
+    ok(inGroup('awareness').querySelectorAll('.pc-drill').every((c) => c.dataset.reason === 'untraded')
+      && inGroup('sense').querySelectorAll('.pc-drill').every((c) => c.dataset.reason === 'early'),
+    'each drill in its group: the trade drills under Awareness, the early deaths under Game sense');
     const cards = q.document.querySelectorAll('.pc-drill');
     ok(cards.length >= 4 && cards.every((c) => c.querySelector('.pc-d-title') && c.querySelectorAll('.pc-steps li').length >= 1 && c.querySelector('.pc-mark')),
-      'each drill a card: title, steps and Mark as practiced', cards.length);
+      'each drill a row: title, steps and Mark as practiced', cards.length);
+    const planned = cards.filter((c) => c.dataset.reason !== 'general');
+    ok(planned.length === 4 && planned.every((c) => {
+      const r = c.querySelector('.pc-d-head .pc-reason');
+      return r && r.classList.contains('is-mistake') && r.querySelector('.pc-r-dot') && ['Deaths nobody traded', 'Dying early'].includes(r.querySelector('.pc-r-title').textContent)
+        && r.querySelector('.pc-r-line').textContent === 'In 6 of your last 6 matches';
+    }), 'WHY IT IS HERE: every drill of the plan names its repeated mistake and how often, on its row', planned.length);
+    const fill = cards.find((c) => c.dataset.reason === 'general');
+    ok(fill && fill.dataset.group === 'mechanics' && /^For every player, as nothing of this kind repeats/.test(fill.querySelector('.pc-reason').textContent) && fill.querySelector('.pc-reason').classList.contains('is-general'),
+      'a group the plan leaves empty takes one drill for every player, and says so', fill && fill.dataset.drill);
     ok(cards[0].querySelectorAll('.pc-fact dt').map((d) => d.textContent).join() === 'Goal,How you will know', 'with its goal and how you will know');
-    ok(!$('pc-working').hidden && q.document.querySelectorAll('#pc-trend .pc-trow').length === 2 && /Not enough matches yet/.test($('pc-trend').textContent),
-      'Is it working, honest with no match since the plan');
+    // WHAT TO DO, ONE STEP AWAY: closed, a press opens it in place, a second closes it.
+    const first = cards.find((c) => c.dataset.reason === 'untraded');
+    const head = first.querySelector('.pc-d-head');
+    const body = first.querySelector('.pc-d-body');
+    ok(!first.classList.contains('open') && head.getAttribute('aria-expanded') === 'false' && head.getAttribute('aria-controls') === body.id && head.parentNode.tagName === 'H4',
+      'ONE STEP AWAY: each drill closed, its row a button in a heading that controls its steps');
+    q.fire(head, 'click');
+    ok(first.classList.contains('open') && head.getAttribute('aria-expanded') === 'true', 'a press opens it in place');
     ok(!$('pc-log-none').hidden && !q.document.querySelectorAll('#pc-log .pc-lrow').length, 'an empty log says so');
-    const first = cards[0];
     const id = first.dataset.drill;
     q.fire(first.querySelector('.pc-mark'), 'click');
     await settle(10);
     ok(q.bridge.invoked.some(([ch, x]) => ch === C.PRACTICE_MARK && x === id), 'Mark as practiced asks main to mark that drill');
     const again = q.document.querySelector(`.pc-drill[data-drill="${id}"] .pc-mark`);
-    ok(again && again.disabled && again.textContent === 'Practiced today', 'and the card says it was practiced today');
+    ok(again && again.disabled && again.textContent === 'Practiced today', 'and the drill says it was practiced today');
+    const opened = q.document.querySelector(`.pc-drill[data-drill="${id}"]`);
+    ok(opened.classList.contains('open') && opened.querySelector('.pc-d-head').getAttribute('aria-expanded') === 'true' && /Practiced today/.test(opened.querySelector('.pc-d-state').textContent),
+      'painted again, it stays open, its row saying practiced today');
+    q.fire(opened.querySelector('.pc-d-head'), 'click');
+    ok(!opened.classList.contains('open') && opened.querySelector('.pc-d-head').getAttribute('aria-expanded') === 'false', 'and a second press closes it');
     const rows = q.document.querySelectorAll('#pc-log .pc-lrow');
     ok(rows.length === 1 && $('pc-log-none').hidden && /min/.test(rows[0].textContent), 'the log lists it, dated');
     q.fire(rows[0].querySelector('.pc-del'), 'click');
@@ -548,6 +661,45 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     await settle(10);
     ok(!$('pc-empty').hidden && $('pc-empty-title').textContent === 'League of Legends practice' && $('pc-plan').hidden && $('pc-log-sec').hidden,
       'League: its panel and nothing else');
+  }
+
+  // ── The Trainer under Mechanics, the log, the review's link (9.1) ──────
+  {
+    const log = Array.from({ length: 7 }, (_v, i) => ({ id: `e${i}`, drill: 'trade-pairs-dm', title: 'Fight where a teammate can trade', minutes: 10, at: day(-1 - i) }));
+    const s = service({ stored: { v: 1, plans: {}, log }, saved: libraryOf(6, ['untraded', 'early']), now: day(0), busy: () => false, game: () => 'valorant' });
+    const q = loadSurface('practice', { handlers: {
+      [C.STATE_GET]: () => ({ gameId: 'valorant' }),
+      [C.PRACTICE_GET]: (g, a) => s.svc.get(g, a),
+    } });
+    await settle(10);
+    const $ = q.$;
+    const tr = q.document.querySelector('.pc-group[data-group="mechanics"] .pc-trainer');
+    const chips = tr ? tr.querySelectorAll('.pc-t-chip') : [];
+    ok(tr && tr.querySelector('.pc-d-title').textContent === 'Aim trainer' && chips.length === 3 && chips.every((c) => c.className === 'btn btn-ghost sm pc-t-chip' && /^Opens the Trainer on /.test(c.title)),
+      'THE TRAINER UNDER MECHANICS: its name, and three of its scenarios to start on', tr && chips.map((c) => c.textContent).join());
+    q.fire(chips[0], 'click');
+    ok(q.bridge.sent.some(([ch, id]) => ch === C.TRAINER_OPEN && id === chips[0].dataset.scenario), 'a scenario opens the Trainer on it, by TRAINER_OPEN');
+    q.fire(tr.querySelector('.pc-t-open'), 'click');
+    ok(q.bridge.sent.some(([ch, p]) => ch === C.SHELL_NAV && p === 'trainer') && /Open the Trainer/.test(tr.querySelector('.pc-t-open').textContent), 'and Open the Trainer opens its page');
+    ok(!q.bridge.invoked.some(([ch]) => ch === C.PRACTICE_MARK), 'neither writes anything');
+    // The log: its newest five, then all of it on a press, and back.
+    ok(q.document.querySelectorAll('#pc-log .pc-lrow').length === 5 && !$('pc-log-more').hidden && $('pc-log-more').textContent === 'Show all 7'
+      && $('pc-log-more').getAttribute('aria-expanded') === 'false', 'THE LOG: its newest five, and Show all 7');
+    q.fire($('pc-log-more'), 'click');
+    ok(q.document.querySelectorAll('#pc-log .pc-lrow').length === 7 && $('pc-log-more').textContent === 'Show fewer' && $('pc-log-more').getAttribute('aria-expanded') === 'true', 'a press shows all of it');
+    q.fire($('pc-log-more'), 'click');
+    ok(q.document.querySelectorAll('#pc-log .pc-lrow').length === 5, 'and a second the newest five again');
+    ok(!$('pc-streak').hidden && /minutes/.test($('pc-streak').textContent) && $('pc-log-streak').hidden, 'the minutes practiced said once, at Your focus');
+    // The review's Practice this on a mistake in the plan: its row marked, its first drill opened.
+    s.svc.open('untraded', 'Deaths nobody traded');
+    q.bridge.emit(C.PUSH_PRACTICE, null);
+    await settle(10);
+    const opened = q.document.querySelector('.pc-focus.opened');
+    const drill = q.document.querySelector('#pc-groups .pc-drill.open');
+    ok(opened && opened.dataset.key === 'untraded' && opened.querySelector('.pc-from').textContent === 'From your review',
+      'OPENED FROM A REVIEW: the mistake marked at the top, in words');
+    ok(drill && drill.dataset.reason === 'untraded' && q.document.querySelectorAll('#pc-groups .pc-drill.open').length === 1,
+      'and the first drill for it opened in place, alone', drill && drill.dataset.drill);
   }
 
   // ── Train this on the page ──────────────────────────────────────────────
@@ -631,20 +783,22 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     const withClip = blocks.find((b) => b.dataset.key === 'untraded');
     const without = blocks.find((b) => b.dataset.key === 'early');
     const tile = withClip && withClip.querySelector('.pc-clip');
-    ok(tile && tile.querySelector('.pc-clip-tile') && tile.querySelector('.pc-clip-poster') && tile.querySelector('.pc-clip-watch').textContent === 'Watch the round',
-      'THE PAGE: the focus with a clip has its tile, the look\'s frame and Watch the round');
+    ok(tile && tile.querySelector('.pc-clip-tile') && tile.querySelector('.pc-clip-poster') && tile.querySelector('.pc-clip-mark')
+      && tile.querySelector('.pc-clip-tile').getAttribute('aria-label') === 'Watch the clip of round 2',
+    'THE PAGE: the focus with a clip has its tile, the look\'s frame with the play mark, named for the reader');
     ok(/^Round 2 on Bind, /.test(tile.querySelector('.pc-clip-line').textContent), 'with the round, the map and the day', tile.querySelector('.pc-clip-line').textContent);
     ok(without && !without.querySelector('.pc-clip') && !without.querySelector('video'), 'NO CLIP: no tile and no empty box');
     const order = withClip.children.map((n) => n.className);
-    ok(order.indexOf('pc-clip') === order.indexOf('pc-focus-head') + 1 && order.indexOf('pc-drills') === order.indexOf('pc-clip') + 1, 'beside its drills: after the mistake, before the cards', order.join());
+    ok(order.join() === 'pc-focus-head,pc-aside' && withClip.querySelector('.pc-aside').firstChild === tile, 'beside the mistake: its words, then the clip', order.join());
     ok(!q.document.querySelectorAll('video').length, 'nothing loads before it is asked for: no video on the page');
-    q.fire(tile.querySelector('.pc-clip-watch'), 'click');
+    q.fire(tile.querySelector('.pc-clip-tile'), 'click');
     await settle(5);
     const open = withClip.querySelector('.pc-clip.open');
     const vid = open && open.querySelector('.v-clip video');
     ok(open && vid && vid.getAttribute('src') === clipScheme.urlFor(ids[1], 'r2-clip.mkv') && vid.getAttribute('preload') === 'none' && vid.muted === true,
-      'Watch the round opens it in the review\'s own clip player, muted, by main\'s URL', vid && vid.getAttribute('src'));
+      'a press on the tile opens it in the review\'s own clip player, muted, by main\'s URL', vid && vid.getAttribute('src'));
     ok(open.querySelector('.cp-row') && /^Round 2 on Bind/.test(open.querySelector('.pc-clip-line').textContent), 'with its controls, and still saying what it is');
+    ok(withClip.classList.contains('clip-open'), 'given the row\'s whole width under the mistake');
     q.bridge.emit(C.PUSH_PRACTICE, null);
     await settle(10);
     ok(q.document.querySelector('.pc-clip.open') === open && open.querySelector('video').getAttribute('src'), 'A REPAINT keeps the clip being watched as it is');
@@ -679,13 +833,13 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     ok(cards.length >= 4 && boxes.length === cards.length && boxes.every((b) => b.hidden) && !q.document.querySelectorAll('video').length,
       'DEMOS ON THE PAGE: each card holds its demo hidden until the poster is in, and nothing of the video loads', `${boxes.length} of ${cards.length}`);
     const [b0, b1, b2] = boxes;
-    ok(b0.querySelector('.pc-demo-poster').src === `https://occlara.app/drills/${cards[0].dataset.drill}.webp` && cards[0].firstChild === b0, 'its poster from the website, at the top of the card');
+    ok(b0.querySelector('.pc-demo-poster').src === `https://occlara.app/drills/${cards[0].dataset.drill}.webp` && cards[0].querySelector('.pc-d-content').firstChild === b0, 'its poster from the website, at the top of what the drill opens on');
     q.fire(b0.querySelector('.pc-demo-poster'), 'load');
     ok(!b0.hidden && b0.querySelector('.pc-demo-tag').textContent === 'Demo, 8 s', 'the poster in, the demo shows, its length on it');
     // Offline: the poster fails, and the card is as it was.
-    const before = cards[1].children.length;
+    const before = cards[1].querySelector('.pc-d-content').children.length;
     q.fire(b1.querySelector('.pc-demo-poster'), 'error');
-    ok(!cards[1].querySelector('.pc-demo') && cards[1].children.length === before - 1 && cards[1].querySelector('.pc-d-title') && cards[1].querySelector('.pc-mark'),
+    ok(!cards[1].querySelector('.pc-demo') && cards[1].querySelector('.pc-d-content').children.length === before - 1 && cards[1].querySelector('.pc-d-title') && cards[1].querySelector('.pc-mark'),
       'OFFLINE: a poster that fails takes the demo away, the card exactly as before');
     // A hover previews it, a click keeps it playing, a second click stops it.
     const btn = b0.querySelector('.pc-demo-btn');

@@ -949,8 +949,8 @@ A drill in `drill-library.json` may carry `trainer: "<scenario id>"` when a
 scenario truly trains what the drill asks; only the aim, peeking and pre-aim
 drills do (`test:drilllibrary` holds the list of causes allowed). `practice.js
 normDrill` keeps it only when it is a string matching `/^[a-z0-9-]{1,48}$/`
-that `trainer-scenarios.json` names; the Practice card then shows Train this,
-which sends `TRAINER_OPEN` with the id (`practice-preload.js openTrainer`).
+that `trainer-scenarios.json` names; the Practice drill, opened, then shows Train
+this, which sends `TRAINER_OPEN` with the id (`practice-preload.js openTrainer`).
 Main checks the id, keeps it as `pending`, opens the Trainer page and pushes
 `PUSH_TRAINER`; the page's next `TRAINER_GET` gets it once as `opened`. The
 page then goes back to the menu if a run was on screen, shows the Scenarios
@@ -958,7 +958,11 @@ tab, selects that scenario (its level chosen in the panel for a pair), marks
 its row and scrolls it into view, and the panel says "Practice sent you here
 for this one." Nothing starts until the player presses Play or Enter or
 double clicks the row. A review's Fight it again takes the same path with a
-`replay:` id (above). Detail of the card: ui.md, "The Practice page".
+`replay:` id (above). Since 9.1 the Trainer also sits first under Practice's
+Mechanics card (`.pc-trainer`): a still of the Site retake arena
+(`src/renderer/practice/trainer-still.jpg`, cut from `shot-demo.js trainerstill`,
+so cut it again when the arenas change their look), Open the Trainer, and three
+scenarios by the same `TRAINER_OPEN`. Detail: ui.md, "The Practice page".
 
 ## The seal and silence
 

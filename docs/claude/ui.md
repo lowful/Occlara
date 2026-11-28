@@ -1142,12 +1142,35 @@ sent anywhere; the page says so at its foot.
   `practiceIpc`). Main reads exactly what `getPatterns` reads
   (`reviewStore.recent` over `patterns.LOOK_BACK`, `patterns.summarise`) and
   takes its two most serious mistakes that the drill library has drills for,
-  each with "In 4 of your last 6 recorded matches", the patterns' fix, and up
-  to three drills for that cause at the player's rank band (`rankBandNow`,
-  rank-band.js): the band's own drills first, then every band's, never another
-  band's while one fits.
+  each with "In 4 of your last 6 recorded matches", the patterns' fix, and two
+  drills for that cause (`DRILLS_N`, three before 9.1) at the player's rank
+  band (`rankBandNow`, rank-band.js): the band's own drills first, then every
+  band's, never another band's while one fits.
+- **The page, calm (9.1, the owner's item 17: "cluttered").** One column, one
+  hero. YOUR FOCUS (`#pc-plan`, a card): the plan's two mistakes, one row each
+  (`.pc-focus`), the mistake at the card title's size, "In 4 of your last 6
+  recorded matches" with whether it is working beside it (`.pc-trend`, an
+  arrow down in green, up in coral or flat, what it compares in its title),
+  the fix under it and the player's own clip of it at the right; the minutes
+  practiced at the card's head (`#pc-streak`). Then the band line once
+  (`#pc-band-line`), then THE DRILLS IN THREE GROUPS (`#pc-groups`, one card
+  each, `planView groups`, `practice.js GROUPS`): Mechanics ("Win the fights
+  you take"), Game sense ("Pick the right fight") and Awareness ("Know where
+  everyone is"), ONLY THE IMPORTANT ONES: the plan's own drills, each in its
+  group (the library's `group`, playbook.md), with the mistake it is there for
+  (`reason`); a group the plan leaves empty takes one drill for the next
+  repeated mistake of its kind, unfinished, else one drill for every player
+  ("For every player, as nothing of this kind repeats in your matches"); with
+  no plan at all, two for every player in each ("For every player"). A drill
+  shows once on the page, four at most in a group. THE TRAINER sits first
+  under Mechanics (`.pc-trainer`, `trainerView`): "Aim trainer", what it is, a
+  real still of its own arena (`trainer-still.jpg`, cut from the Trainer page
+  by `shot-demo.js trainerstill`; a press opens it), Open the Trainer
+  (`SHELL_NAV` trainer) and three of its scenarios, the ones the group's drills
+  name first (`TRAINER_OPEN`); its reason shows only when a Mechanics drill
+  has a mistake. Then the log, then the privacy line.
 - **The drill library** is `src/shared/drill-library.json` (its own agent's
-  file, `test:drilllibrary`): `{ version, drills: [{ id, title, cause, where,
+  file, `test:drilllibrary`): `{ version, drills: [{ id, title, cause, group, where,
   minutes, bands, steps, goal, why, check }] }`, the cause a death-causes.js or
   insights.js key without its `cause:` prefix, or `general`. `practice.js
   normaliseLibrary` reads it in that shape or as a bare array, with `causes`,
@@ -1166,10 +1189,20 @@ sent anywhere; the page says so at its foot.
   mistake has left it, and a drill only once it is finished (`FINISH`, three
   marks), by the next one for that cause. No repeated mistake with drills, no
   plan.
-- **A drill card**: where, minutes, title, the why, 3 to 6 steps, the goal and
-  "How you will know" (the drill's check line, what the next review will show),
-  and Mark as practiced: one dated entry, once a day a drill ("Practiced
-  today"), "Done 2 of 3 times" under it.
+- **A drill row, opening in place** (9.1): closed, a row (`.pc-drill`, its
+  head an `h4` holding a button with `aria-expanded` and `aria-controls`):
+  the place's glyph, the title, WHY IT IS HERE (`.pc-reason`: the mistake's
+  coral dot, its title and "In 4 of your last 6 matches", or the line for
+  every player), the place and minutes in mono, how far along ("1 of 3",
+  "Practiced today" in green, "Finished") and a chevron. WHAT TO DO IS ONE
+  STEP AWAY: a press opens it in place (`.pc-d-body`, a one row grid from 0fr
+  to 1fr on the smooth spring, the words fading in a moment behind it, all
+  transitions so a second press mid way reverses; closed it is
+  `visibility: hidden`, out of the tab order): the why, 3 to 6 steps, the
+  goal and "How you will know" (the drill's check line, what the next review
+  will show), and Mark as practiced: one dated entry, once a day a drill
+  ("Practiced today"), "Done 2 of 3 times" beside it. A drill open stays open
+  across a repaint (a mark), drawn open at once.
 - **The player's own clip of it** (8.11, the owner's ask: show the mistake,
   do not only tell it). Each focus, and the review's link to a mistake not in
   the plan, carries the newest kept clip of that mistake (`practice.js
@@ -1184,12 +1217,13 @@ sent anywhere; the page says so at its foot.
   the frames `review-clips.js frameTimes`, the poster the look's own frame
   nearest the death from before it as a data URL, and the words main's ("Your
   newest clip of this mistake", "Round 7 on Ascent", "The clip of round 7").
-  Nothing the page hands in names a file. The page draws a tile under the
-  mistake's fix and above its drills (`.pc-clip`: the poster with the play
-  mark, the line and the day, Watch the round); a click on either opens the
-  review's own clip player in its place (`clip-player.js`, `clip-time.js`,
-  `clip-player.css`, loaded as Moments and Ask Coach load them) and plays it,
-  muted. No clip kept, no tile and no empty box. A repaint (a mark, a review
+  Nothing the page hands in names a file. The page draws a tile beside the
+  mistake (9.1: `.pc-aside` > `.pc-clip`, the poster with the play mark and
+  under it the line and the day); a press on it opens the review's own clip
+  player in its place, across the row's whole width under the mistake
+  (`.pc-frow.clip-open`; `clip-player.js`, `clip-time.js`, `clip-player.css`,
+  loaded as Moments and Ask Coach load them) and plays it, muted. No clip
+  kept, no tile and no empty box. A repaint (a mark, a review
   saved) carries an open clip across as it is, playing or not; one whose clip
   is gone is let go. Leaving the page pauses everything on it.
 - **A drill's demo** (8.11): an optional `demo: { src, poster, secs }` on a
@@ -1198,9 +1232,10 @@ sent anywhere; the page says so at its foot.
   `docs/drill-demo-guide.md`). `practice.js demoOf` keeps it only when both
   URLs are https on that host under `/drills/`, with no query, fragment, login
   or port, a video (webm, mp4) and a picture (webp, jpg, png); otherwise the
-  drill reads as having none. The card puts it at its top (`.pc-demo`), HIDDEN
-  UNTIL ITS POSTER HAS LOADED, and takes it away at the first failure of
-  either file, so offline the card is exactly as before. A muted loop
+  drill reads as having none. The drill, opened, puts it at its top
+  (`.pc-demo`), HIDDEN UNTIL ITS POSTER HAS LOADED, and takes it away at the
+  first failure of either file, so offline the drill is exactly as before. A
+  muted loop
   (`preload="none"`, nothing of it fetched before) plays while the pointer is
   over it; a click plays it and keeps it playing, a second stops it; out of
   view or on leaving the page it stops. Under reduced motion a hover does
@@ -1217,9 +1252,11 @@ sent anywhere; the page says so at its foot.
   against 1 of 2", "In 2 of your 3 matches since the plan" with nothing before
   it, and "Not enough matches yet" under three since the plan. A match that
   could not count a Riot only key (`progress.js couldCount`, now exported) is in
-  neither window. Under it, quiet, the days practiced in a row and the minutes
-  in all, once there are any.
-- **The log**: every mark, dated, each deletable (`PRACTICE_REMOVE`).
+  neither window. Since 9.1 it sits beside each mistake at the top, no section
+  of its own; the days practiced in a row and the minutes in all sit quietly
+  at that card's head, once there are any (at the log's head with no plan).
+- **The log**: every mark, dated, each deletable (`PRACTICE_REMOVE`), the
+  newest five and Show all (9.1).
 - **Empty states**: League shows the panel naming the game; no drill library a
   calm line and the log; no matches yet and no repeated mistakes yet each say
   why and show the `general` drills at the band. Without a Riot ID the band line
@@ -1229,9 +1266,11 @@ sent anywhere; the page says so at its foot.
   focus, only with a plan and before the day's first mark; it opens the page.
 - **The review's Practice this** (`.v-practice` under the fix, `review.js`
   one block): `PRACTICE_OPEN` with the review's top mistake opens the page on
-  it, the focus marked "from your review" where it is in the plan, else its
-  drills shown on their own above the plan and not stored. Main answers it
-  once (`opened`), and the page hands it back on every ask of that visit.
+  it, the focus marked "From your review" where it is in the plan (and its
+  first drill opened and brought into view, 9.1), else its drills shown on
+  their own in a card above the plan (`#pc-asked`, the first opened), not
+  stored and not shown again in a group. Main answers it once (`opened`), and
+  the page hands it back on every ask of that visit.
 - **Never mid match** (screen-silence.md): the page is a tab like the others,
   locked by `syncSeal`; `PRACTICE_GET` and `PRACTICE_TODAY` answer null and
   `PRACTICE_MARK` and `PRACTICE_REMOVE` `{ ok: false, error: 'match' }` mid
@@ -1243,8 +1282,8 @@ sent anywhere; the page says so at its foot.
   when it is a string matching `/^[a-z0-9-]{1,48}$/` that
   `src/shared/trainer-scenarios.json` names, else null; `drillView` hands the
   page `trainer` and `trainerTitle`, the scenario's name as the Trainer writes
-  it ("Micro flicks", "Site retake, Hard"). The card's foot then ends with
-  Train this (`btn btn-ghost sm pc-train`, the same capsule and size as Mark
+  it ("Micro flicks", "Site retake, Hard"). The opened drill's foot then ends
+  with Train this (`btn btn-ghost sm pc-train`, the same capsule and size as Mark
   as practiced, appended last so nothing before it moves), titled "Opens the
   Trainer on <trainerTitle>"; a click is `practice-preload.js openTrainer(id)`,
   `TRAINER_OPEN`, and main opens the Trainer page on that scenario
@@ -1264,18 +1303,25 @@ sent anywhere; the page says so at its foot.
   three marks, the wording at each threshold, the store's tolerance, Home's line
   once a day and never mid match, the page's dom hooks and its bridge; since
   8.11 the own clip's join over a real review store in a temp folder, newest
-  wins, a clip deleted from disk, no clip no tile, Watch the round in the clip
-  player, a repaint keeping it open, the demo URLs kept and refused, the card
-  unchanged offline, the hover and reduced motion, and the CSP),
+  wins, a clip deleted from disk, no clip no tile, the tile opening the clip
+  player, a repaint keeping it open, the demo URLs kept and refused, the drill
+  unchanged offline, the hover and reduced motion, and the CSP; since 9.1 the
+  groups: a group kept or found from the cause, the plan's drills in theirs
+  with their reason, a group left empty filled by the next mistake of its
+  kind or one for every player, the Trainer under Mechanics alone with its
+  scenarios, a drill shown once, and on the page the three cards, every row's
+  reason, a row opening and closing and staying open across a mark, the
+  Trainer's buttons, Show all and the review opening the first drill),
   `test:shellnav` and `test:surfaces` (the tab), `check:seal`,
-  `check:mainwindow` (the plan on the sample library, a mark and its removal
+  `check:mainwindow` (the plan on the sample library with the three groups and
+  the Trainer under Mechanics, a drill opened and marked and its removal
   moving the log and Home's line, the review's Practice this, the bar at 960;
   `OCCLARA_SHOTS=1` writes `main-practice.png`, `main-practice-working.png`,
   `main-practice-marked.png`, `main-bar-960.png`,
   `main-bar-1280.png`, `main-practice-opened.png`,
   `main-home-practice.png` and `main-review-practice.png`). Train this:
   `test:practice` (the tag kept only when valid, the view's name for it, the
-  button on a tagged card alone and its `TRAINER_OPEN`) and
+  button on a tagged drill alone and its `TRAINER_OPEN`) and
   `test:drilllibrary` (every tag a known scenario, only on aim drills).
 
 ### The Trainer page

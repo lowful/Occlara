@@ -36,6 +36,14 @@
  * kept clip of it (clipFor, the Moments page's join), and a drill may carry a
  * demo hosted on the website (demoOf, only under DEMO_BASE). The page fetches
  * the demo from there; nothing of the player's goes anywhere.
+ *
+ * THREE GROUPS (9.1, the owner's ask): the page shows its drills under
+ * Mechanics, Game sense and Awareness (GROUPS), only the important ones: the
+ * plan's own drills, each in its group with the repeated mistake it is there
+ * for (`reason`); a group the plan leaves empty takes one drill for the next
+ * repeated mistake of its kind, else one drill for every player, and the
+ * Trainer always sits under Mechanics (`trainer`). A drill names its group
+ * in the library (`group`), else its cause decides (GROUP_OF_CAUSE).
  */
 
 const { countable } = require('./insights');
@@ -50,7 +58,8 @@ const { mistakesAt, clipOf } = require('./moments');
 
 const SCHEMA = 1;
 const FOCUS_N = 2;      // mistakes in the plan
-const DRILLS_N = 3;     // drills under each
+const DRILLS_N = 2;     // drills under each (9.1: two, only the important ones)
+const GROUP_MAX = 4;    // drills shown in one group
 const FINISH = 3;       // marks that finish a drill
 const WINDOW = 5;       // matches in each half of "Is it working?"
 const ENOUGH = 3;       // matches since the plan before it says anything
@@ -58,6 +67,27 @@ const LOG_MAX = 400;    // entries kept in the log
 const GENERAL = 'general';
 
 const WHERE = { range: 'Practice Range', deathmatch: 'Deathmatch', tdm: 'Team Deathmatch', custom: 'Custom game', unrated: 'Unrated match' };
+
+/*
+ * THE THREE GROUPS (9.1). Mechanics is the fight itself (aim, the stop, the
+ * spray, the peek's technique), Game sense the choice of fight and what comes
+ * after it, Awareness where the team and the enemy are. The words are the
+ * page's: its eyebrow (`name`) and its title.
+ */
+const GROUPS = [
+  { id: 'mechanics', name: 'Mechanics', title: 'Win the fights you take' },
+  { id: 'sense', name: 'Game sense', title: 'Pick the right fight' },
+  { id: 'awareness', name: 'Awareness', title: 'Know where everyone is' },
+];
+const GROUP_IDS = new Set(GROUPS.map((g) => g.id));
+// A drill that names no group (a library of another shape, the tests'
+// sample) takes its cause's: the one most of that cause's drills are in.
+const GROUP_OF_CAUSE = {
+  'lost-duel': 'mechanics', 'low-headshots': 'mechanics',
+  isolated: 'awareness', untraded: 'awareness', crossfire: 'awareness', rotating: 'awareness',
+};
+// The Trainer under Mechanics: its scenarios offered when no drill there names one.
+const TRAINER_PICKS = ['flick-grid', 'micro-flicks', 'counter-strafe'];
 const BAND_LABEL = {
   iron_bronze: 'Iron and Bronze', silver_gold: 'Silver and Gold',
   plat_diamond: 'Platinum and Diamond', asc_plus: 'Ascendant and up',
@@ -148,6 +178,18 @@ function trainerOf(raw) {
   return typeof raw === 'string' && TRAINER_ID.test(raw) && TRAINER_SCENARIOS.has(raw) ? raw : null;
 }
 
+/**
+ * A drill's group (9.1): the one the library names, else a drill the Trainer
+ * trains is Mechanics, else its cause's group, else Game sense.
+ */
+function groupOf(raw, causes, trainer) {
+  const g = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  if (GROUP_IDS.has(g)) return g;
+  if (trainer) return 'mechanics';
+  for (const c of causes || []) if (GROUP_OF_CAUSE[c]) return GROUP_OF_CAUSE[c];
+  return 'sense';
+}
+
 /** One drill as the page shows it, or null when it lacks what a drill needs. */
 function normDrill(d) {
   if (!isObj(d)) return null;
@@ -163,13 +205,15 @@ function normDrill(d) {
   const why = clean(d.why, 240) || null;
   if (ECONOMY.test([title, goal, check, why, ...steps].join(' '))) return null;
   const m = Number(d.minutes != null ? d.minutes : d.duration != null ? d.duration : d.mins);
+  const trainer = trainerOf(d.trainer);
   return {
     id, title, causes, steps, goal, check, why,
     bands: [...new Set(listOf(d.bands || d.band || d.ranks).map(validBand).filter(Boolean))],
     where: whereOf(d.where || d.mode || d.place),
     minutes: Number.isFinite(m) && m >= 1 && m <= 90 ? Math.round(m) : null,
     demo: demoOf(d.demo),
-    trainer: trainerOf(d.trainer),
+    trainer,
+    group: groupOf(d.group, causes, trainer),
   };
 }
 
@@ -469,6 +513,7 @@ function drillView(d, log, now) {
     // Train this (docs/claude/trainer.md): the scenario and its name, or none.
     trainer: d.trainer || null,
     trainerTitle: d.trainer ? TRAINER_SCENARIOS.get(d.trainer) || null : null,
+    group: d.group || groupOf(null, d.causes, d.trainer),
     done, finish: FINISH, finished: done >= FINISH, today: doneToday(log, d.id, now),
     doneLine: done >= FINISH ? `Done ${done} times, finished` : done ? `Done ${done} of ${FINISH} times` : null,
   };
@@ -499,6 +544,82 @@ function todayOf(state, library, now, game) {
     }
   }
   return null;
+}
+
+/** How often a mistake repeated, the short way a drill's reason says it. */
+const repeatLine = (m, recorded) => (m && Number.isFinite(m.matches) && m.matches > 0 && recorded > 0
+  ? `In ${m.matches} of your last ${recorded} matches` : null);
+
+/**
+ * THE THREE GROUPS (9.1): Mechanics, Game sense and Awareness, each with only
+ * the important drills, every one with the reason it is there.
+ *
+ * 1. The plan's drills, the first of each focus before the second, each in
+ *    its own group with its mistake as the reason.
+ * 2. A group the plan leaves empty: one drill for the next repeated mistake
+ *    of that kind beyond the plan, unfinished, with that mistake as the reason.
+ * 3. Still empty: drills for every player of that kind at the band (one with
+ *    a plan, two without one), the reason saying so.
+ * A drill is shown once on the page: the review's own drills above (asked)
+ * are left out here. Mechanics carries the Trainer, with the scenarios its
+ * drills name first.
+ */
+function groupsView(o) {
+  const { status, focus, asked, mistakes, recorded, library, band, log, now } = o;
+  if (!library) return GROUPS.map((g) => ({ ...g, drills: [], trainer: g.id === 'mechanics' ? trainerView([]) : null }));
+  const seen = new Set(asked ? asked.drills.map((d) => d.id) : []);
+  const items = [];
+  for (let i = 0; i < DRILLS_N; i++) {
+    for (const f of focus) {
+      const d = f.drills[i];
+      if (!d || seen.has(d.id)) continue;
+      seen.add(d.id);
+      const m = mistakes.find((x) => x && x.key === f.key) || null;
+      items.push({ ...d, reason: { kind: 'mistake', key: f.key, title: f.title, line: repeatLine(m, recorded) } });
+    }
+  }
+  const plan = status === 'plan';
+  return GROUPS.map((g) => {
+    const list = items.filter((d) => d.group === g.id).slice(0, GROUP_MAX);
+    if (!list.length && plan) {
+      for (const m of mistakes) {
+        if (!m || typeof m.key !== 'string' || focus.some((f) => f.key === m.key)) continue;
+        const d = drillsFor(library, m.key, band, log).find((x) => x.group === g.id && !seen.has(x.id) && timesDone(log, x.id) < FINISH);
+        if (!d) continue;
+        seen.add(d.id);
+        list.push({ ...drillView(d, log, now), reason: { kind: 'mistake', key: m.key, title: clean(m.title, 120) || null, line: repeatLine(m, recorded) } });
+        break;
+      }
+    }
+    if (!list.length) {
+      // Short: the page's head already says why there is no plan yet.
+      const line = plan ? 'For every player, as nothing of this kind repeats in your matches' : 'For every player';
+      for (const d of drillsFor(library, GENERAL, band, log)) {
+        if (list.length >= (plan ? 1 : 2)) break;
+        if (d.group !== g.id || seen.has(d.id)) continue;
+        seen.add(d.id);
+        list.push({ ...drillView(d, log, now), reason: { kind: 'general', key: GENERAL, title: null, line } });
+      }
+    }
+    return { ...g, drills: list, trainer: g.id === 'mechanics' ? trainerView(list) : null };
+  });
+}
+
+/**
+ * The Trainer under Mechanics (9.1): what it is, up to three of its
+ * scenarios (the ones the group's drills name first), and why it is there.
+ */
+function trainerView(list) {
+  const ids = [];
+  for (const d of list) if (d.trainer && !ids.includes(d.trainer)) ids.push(d.trainer);
+  for (const id of TRAINER_PICKS) if (!ids.includes(id) && TRAINER_SCENARIOS.has(id)) ids.push(id);
+  const own = list.find((d) => d.reason && d.reason.kind === 'mistake' && d.reason.title);
+  return {
+    title: 'Aim trainer',
+    line: 'Flicks, counter strafing, spray control and site retakes, played right here in the app.',
+    scenarios: ids.slice(0, 3).map((id) => ({ id, title: TRAINER_SCENARIOS.get(id) })),
+    reason: own ? { ...own.reason } : { kind: 'general', key: GENERAL, title: null, line: 'A few minutes before you queue warms up every player.' },
+  };
 }
 
 /**
@@ -554,6 +675,8 @@ function planView(o) {
   const general = library && status !== 'plan'
     ? drillsFor(library, GENERAL, band, log).slice(0, DRILLS_N).map((d) => drillView(d, log, now)) : [];
 
+  const groups = groupsView({ status, focus, asked, mistakes, recorded, library, band, log, now });
+
   const bandLine = band ? `Drills sized for ${BAND_LABEL[band]}.`
     : o.riotId ? 'No rank on record yet, so these drills fit every level.'
       : 'These drills fit every level until your rank is known.';
@@ -569,7 +692,7 @@ function planView(o) {
         : null;
 
   return {
-    status, empty, focus, asked, general, band, bandLine, needsRiotId: !band && !o.riotId,
+    status, empty, focus, asked, general, groups, band, bandLine, needsRiotId: !band && !o.riotId,
     streak: streakOf(log, now),
     today: todayOf(state, library, now, 'valorant'),
     log: log.map((e) => ({ id: e.id, title: e.title, minutes: e.minutes, at: e.at, day: dayKey(e.at) })),
@@ -598,7 +721,7 @@ function unmark(state, id) {
 }
 
 module.exports = {
-  SCHEMA, FOCUS_N, DRILLS_N, FINISH, WINDOW, ENOUGH, GENERAL, WHERE, BAND_LABEL, DEMO_BASE,
+  SCHEMA, FOCUS_N, DRILLS_N, GROUP_MAX, FINISH, WINDOW, ENOUGH, GENERAL, WHERE, BAND_LABEL, DEMO_BASE, GROUPS,
   normaliseLibrary, normaliseState, emptyState, choosePlan, planView, progressOf, streakOf,
-  todayOf, drillsFor, carries, mark, unmark, dayKey, causeKey, clipFor, demoOf, trainerOf,
+  todayOf, drillsFor, carries, mark, unmark, dayKey, causeKey, clipFor, demoOf, trainerOf, groupOf,
 };

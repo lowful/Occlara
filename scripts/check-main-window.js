@@ -1191,8 +1191,9 @@ setTimeout(async () => {
     await shot('moments-review', mainWindow, win);
 
     // THE PRACTICE PAGE (ui.md, "The Practice page"): the plan from the
-    // seeded library's repeated mistakes, two of them with their drills as
-    // cards, whether it is working, the log; Home's line under the Fix card;
+    // seeded library's repeated mistakes, two of them at the top with whether
+    // it is working, their drills in Mechanics (with the Trainer), Game sense
+    // and Awareness (9.1), the log; Home's line under the Fix card;
     // and the bar still fitting its seven tabs at the window's least width.
     mainWindow.show('practice');
     if (!await until(settled('practice'), 4000)) return report(false, 'the Practice page never came in');
@@ -1204,17 +1205,18 @@ setTimeout(async () => {
       return { plan: !document.getElementById('pc-plan').hidden, focus: q('.pc-focus'), cards: q('.pc-drill'), marks: q('.pc-drill .pc-mark'),
         titles: [...document.querySelectorAll('.pc-focus-title')].map((n) => n.textContent),
         counts: [...document.querySelectorAll('.pc-count')].map((n) => n.textContent),
-        trend: q('#pc-trend .pc-trow'), log: !document.getElementById('pc-log-none').hidden,
+        trend: q('#pc-focus .pc-focus .pc-trend'), groups: [...document.querySelectorAll('#pc-groups .pc-group')].map((g) => g.dataset.group).join(),
+        trainer: q('#pc-groups .pc-group[data-group="mechanics"] .pc-trainer'), log: !document.getElementById('pc-log-none').hidden,
         overflow: page.scrollWidth > page.clientWidth + 1 };
     })()`), 6000);
     lines.push(`practice page: ${JSON.stringify(practicePage)}`);
     if (!practicePage || !practicePage.plan || practicePage.focus !== 2 || practicePage.cards < 4 || practicePage.marks !== practicePage.cards
-      || practicePage.trend !== 2 || !practicePage.log || practicePage.overflow || practicePage.counts.some((c) => !/^In \d+ of your last \d+ recorded matches$/.test(c))) {
+      || practicePage.trend !== 2 || practicePage.groups !== 'mechanics,sense,awareness' || practicePage.trainer !== 1 || !practicePage.log || practicePage.overflow || practicePage.counts.some((c) => !/^In \d+ of your last \d+ recorded matches$/.test(c))) {
       return report(false, `the Practice page does not show the plan from the seeded library: ${JSON.stringify(practicePage)}`);
     }
     await shot('practice', mainWindow, win);
     if (process.env.OCCLARA_SHOTS === '1') {
-      await pcjs("document.getElementById('pc-working').scrollIntoView({ block: 'start' }); true");
+      await pcjs("document.getElementById('pc-groups').scrollIntoView({ block: 'start' }); true");
       await shot('practice-working', mainWindow, win);
       await pcjs("document.querySelector('.body').scrollTop = 0; true");
     }
@@ -1229,7 +1231,8 @@ setTimeout(async () => {
     // line goes for the day; deleted, it is out of the log and the line is back.
     mainWindow.show('practice');
     if (!await until(settled('practice'), 4000)) return report(false, 'the Practice page did not come back');
-    await pcjs("document.querySelector('.pc-drill .pc-mark').click(); true");
+    // 9.1: a drill opens in place first, as a player would open it.
+    await pcjs("(() => { const d = document.querySelector('.pc-drill'); d.querySelector('.pc-d-head').click(); d.querySelector('.pc-mark').click(); return true; })()");
     const marked = await until(() => pcjs(`(() => {
       const rows = document.querySelectorAll('#pc-log .pc-lrow');
       const b = document.querySelector('.pc-drill .pc-mark');
@@ -1238,7 +1241,7 @@ setTimeout(async () => {
     lines.push(`a drill marked practiced: ${JSON.stringify(marked)}`);
     if (!marked || marked.button !== 'Practiced today') return report(false, `marking a drill did not reach the log: ${JSON.stringify(marked)}`);
     if (process.env.OCCLARA_SHOTS === '1') {
-      await pcjs("document.getElementById('pc-working').scrollIntoView({ block: 'start' }); true");
+      await pcjs("document.getElementById('pc-groups').scrollIntoView({ block: 'start' }); true");
       await shot('practice-marked', mainWindow, win);
     }
     const lineGone = await until(() => hjs("document.getElementById('h-practice').hidden"), 4000);

@@ -48,6 +48,11 @@
  * (a map chosen), clipsscroll (scrolled under the bar), clipssmall (960 by
  * 640), and clipsplay (the hero's clip playing: every clip URL answers the
  * generated canvas recording through the app's own clip scheme).
+ * Practice (9.1, item 17): practicetall the page whole, practiceopen a drill
+ * opened, practicetrainer the Trainer under Mechanics, practicesmall at 960 by
+ * 640, practiceblank with no matches yet, practiceasked and practiceinplan
+ * opened from a review, practicetrend a plan made before every sample match
+ * with a log of seven marks, and trainerstill the arena its still is cut from.
  */
 const { app, BrowserWindow, ipcMain, protocol, nativeImage } = require('electron');
 const path = require('path');
@@ -92,6 +97,20 @@ const SCENES = {
   patterns: { page: 'patterns' },
   stats: { page: 'stats' },
   practice: { page: 'practice' },
+  // 9.1, item 17: the Practice page whole (a tall window), a drill opened in
+  // place, the log, the page at the window's least, with no matches yet
+  // (blank: the practice store reads no reviews), and opened from a review.
+  practicetall: { page: 'practice', h: 2200 },
+  practiceopen: { page: 'practice', act: "(() => { const r = document.querySelector('.pc-group[data-group=\"awareness\"] .pc-d-head') || document.querySelector('.pc-d-head'); r.click(); setTimeout(() => r.closest('.pc-drill').scrollIntoView({ block: 'center' }), 600); return true; })()" },
+  practicetrainer: { page: 'practice', act: "document.querySelector('.pc-group[data-group=\"mechanics\"]').scrollIntoView({ block: 'start' }); true" },
+  practicesmall: { page: 'practice', w: 960, h: 640, act: "document.getElementById('pc-groups').scrollIntoView({ block: 'start' }); true" },
+  practiceblank: { page: 'practice', blank: true, h: 1400 },
+  practiceasked: { page: 'practice', asked: { key: 'cause:repeek', title: 'Repeeked the same angle' }, h: 1200 },
+  practiceinplan: { page: 'practice', asked: { key: 'untraded', title: 'Deaths nobody traded' } },
+  // A plan made before every sample match, so Is it working has something to say, and a log of seven marks.
+  practicetrend: { page: 'practice', practiceState: 'old', h: 2400 },
+  // The Trainer's arena alone, its panel hidden: the still Practice shows under Mechanics (src/renderer/practice/trainer-still.jpg).
+  trainerstill: { page: 'trainer', settle: 3000, act: "(() => { const r = document.querySelector('.tr-item[data-id=\"site-preaim-easy\"]'); if (r) r.click(); setTimeout(() => { document.getElementById('detail').style.visibility = 'hidden'; }, 200); return true; })()" },
   clips: { page: 'moments' },
   trainer: { page: 'trainer' },
   coach: { page: 'coach' },
@@ -406,7 +425,7 @@ app.whenReady().then(async () => {
   const memo = new Map();
   const practice = require('../src/main/services/practice-store').createPractice({
     store: { get: (k) => memo.get(k), set: (k, v) => memo.set(k, v) },
-    recent: (g) => store.recent(g, patterns.LOOK_BACK), summarise: (s) => patterns.summarise(s),
+    recent: (g) => (scene.blank ? [] : store.recent(g, patterns.LOOK_BACK)), summarise: (s) => patterns.summarise(s),
     band: () => null, riotId: () => '', busy: () => false, game: () => 'valorant', gameLabel: () => 'Valorant',
     open: () => {}, changed: () => {}, reviews: store,
   });
@@ -419,6 +438,16 @@ app.whenReady().then(async () => {
   for (const name of (wanted.length ? wanted : ['home'])) {
     scene = SCENES[name];
     if (!scene) { console.log(`skip ${name}: no such scene`); continue; }
+    // The review's Practice this, answered by the page's first ask.
+    if (scene.asked) practice.open(scene.asked.key, scene.asked.title);
+    if (scene.practiceState === 'old') {
+      const day = 24 * 3600 * 1000;
+      memo.set('practice', { v: 1, plans: { valorant: { madeAt: 1, focus: [
+        { key: 'lost-advantage', title: 'Gave back the advantage', since: 1, drills: [] },
+        { key: 'untraded', title: 'Deaths nobody traded', since: 1, drills: [] },
+      ] } }, log: Array.from({ length: 7 }, (_v, i) => ({ id: 'demo' + i, drill: i % 2 ? 'untraded-swing-after' : 'lost-advantage-move-together',
+        title: i % 2 ? 'Swing right after your teammate' : 'Up in numbers, move together', minutes: 20, at: Date.now() - (i + 1) * day })) });
+    }
     const sw = scene.w || W, sh = scene.h || H;
     const shellWin = makeWindow(sw, sh, path.join(ROOT, 'src', 'preload', 'shell-preload.js'));
     let pageWin = null;
@@ -454,7 +483,7 @@ app.whenReady().then(async () => {
       // scene timed from a review made whole is taken at its own moment).
       if (!scene.whole) await wait(Number(process.env.SHOT_WAIT) || 3600);
       // A scene's own act in its page (a click, a scroll), then a moment to settle.
-      if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(scene.after || 900); }
+      if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(scene.after || scene.settle || 900); }
       // And in the bar's own document (sact).
       if (scene.sact) { await shellWin.webContents.executeJavaScript(scene.sact).catch(() => null); await wait(600); }
       // A scene's pointer over an element of its page (9.1): its hover state, pictured.

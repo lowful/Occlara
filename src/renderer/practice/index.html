@@ -16,11 +16,14 @@
 <body>
   <!-- THE PRACTICE PAGE (docs/claude/ui.md, "The Practice page"). A plan from
        the player's own repeated mistakes, the ones Patterns lists: the two
-       most serious, each with how often it repeated and the drills for it at
-       the player's rank band, whether it is shrinking since the plan was made,
-       the days practiced and the log. Every line is main's
-       (src/shared/practice.js planView); this page paints. Everything is kept
-       on this PC. Locked by the seal like every page.
+       most serious at the top (Your focus), each with how often it repeated,
+       whether it is shrinking since the plan was made and the player's own
+       newest clip of it; then the drills, grouped under Mechanics, Game sense
+       and Awareness (9.1), only the important ones, each saying why it is
+       there and opening in place on what to do; the Trainer under Mechanics;
+       the log. Every line is main's (src/shared/practice.js planView); this
+       page paints. Everything is kept on this PC. Locked by the seal like
+       every page.
        SHOWN, NOT ONLY TOLD (8.11): each mistake carries the player's own
        newest kept clip of it, played in the review's own clip player
        (occlara-clip:, main's URL), and a drill may carry a demo from the
@@ -36,7 +39,7 @@
       <nav class="subnav no-drag" data-group="practice" data-current="practice" aria-label="Practice"></nav>
       <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
       <!-- ORBIT: the page's grey sub line under its title. -->
-      <p class="page-sub">Drills built from what keeps repeating, and the Trainer for aim and movement.</p>
+      <p class="page-sub">Drills picked from what keeps repeating in your matches.</p>
     </header>
 
     <main class="body">
@@ -44,61 +47,53 @@
       <p id="pc-wait" class="pc-wait" aria-live="polite">Reading your matches</p>
 
       <div id="pc-page" class="pc-page" hidden>
-        <p id="pc-lede" class="pc-lede">A plan from your own repeated mistakes, with drills to work on between matches.</p>
-
         <!-- League, no drill library, no matches yet, no repeated mistakes yet. -->
-        <section id="pc-empty" class="pc-sec pc-empty" hidden>
+        <section id="pc-empty" class="pc-card pc-empty" hidden>
           <h3 id="pc-empty-title" class="pc-empty-title"></h3>
-          <p id="pc-empty-hint" class="pc-hint"></p>
+          <p id="pc-empty-hint" class="pc-empty-hint"></p>
         </section>
 
         <!-- THE REVIEW'S LINK, when its mistake is not in the plan: its drills,
              shown here and not stored. -->
-        <section id="pc-asked" class="pc-sec" hidden aria-labelledby="pc-asked-title">
-          <div class="pc-focus-head">
-            <span class="pc-label">From your review</span>
-            <h3 id="pc-asked-title" class="pc-focus-title"></h3>
-            <p id="pc-asked-line" class="pc-hint" hidden></p>
+        <section id="pc-asked" class="pc-card pc-asked" hidden aria-labelledby="pc-asked-title">
+          <div class="pc-frow pc-asked-head">
+            <div class="pc-focus-head">
+              <span class="pc-label">From your review</span>
+              <h3 id="pc-asked-title" class="pc-focus-title"></h3>
+              <p id="pc-asked-line" class="pc-fix" hidden></p>
+            </div>
+            <!-- The player's own clip of it, when one is kept. -->
+            <div id="pc-asked-clip" class="pc-aside" hidden></div>
           </div>
-          <!-- The player's own clip of it, when one is kept. -->
-          <div id="pc-asked-clip" hidden></div>
-          <div id="pc-asked-drills" class="pc-drills"></div>
+          <div id="pc-asked-drills" class="pc-g-list"></div>
         </section>
 
-        <!-- YOUR PLAN: the two most serious repeated mistakes and their drills. -->
-        <section id="pc-plan" class="pc-sec" hidden aria-labelledby="pc-plan-title">
-          <div class="pc-head">
-            <h3 id="pc-plan-title" class="pc-title">Your plan</h3>
-            <p class="pc-hint"><span id="pc-band"></span> <button id="pc-riot" class="btn btn-link sm" type="button" hidden>Connect your Riot ID</button></p>
+        <!-- YOUR FOCUS: the two most serious repeated mistakes, how often, whether
+             it is working, the fix and the player's own clip. -->
+        <section id="pc-plan" class="pc-card pc-hero" hidden aria-labelledby="pc-plan-title">
+          <div class="pc-hero-head">
+            <h3 id="pc-plan-title" class="pc-label">Your focus</h3>
+            <p id="pc-streak" class="pc-streak" hidden></p>
           </div>
           <div id="pc-focus" class="pc-focus-list"></div>
         </section>
 
-        <!-- With no plan yet: drills that help every player, at their band. -->
-        <section id="pc-general" class="pc-sec" hidden aria-labelledby="pc-general-title">
-          <div class="pc-head">
-            <h3 id="pc-general-title" class="pc-title">Drills for every player</h3>
-            <p class="pc-hint"><span id="pc-general-band"></span> <button id="pc-general-riot" class="btn btn-link sm" type="button" hidden>Connect your Riot ID</button></p>
-          </div>
-          <div id="pc-general-drills" class="pc-drills"></div>
-        </section>
+        <!-- The band the drills are sized for, once, above them. -->
+        <p id="pc-band-line" class="pc-band" hidden><span id="pc-band"></span> <button id="pc-riot" class="btn btn-link sm" type="button" hidden>Connect your Riot ID</button></p>
 
-        <!-- IS IT WORKING: each focus, the matches since the plan against the
-             ones before, as counts; the days practiced, quietly. -->
-        <section id="pc-working" class="pc-sec" hidden aria-labelledby="pc-working-title">
-          <h3 id="pc-working-title" class="pc-title">Is it working?</h3>
-          <div id="pc-trend" class="pc-rows" role="list"></div>
-          <p id="pc-streak" class="pc-quiet"></p>
-        </section>
+        <!-- THE DRILLS, in three groups (9.1): Mechanics with the Trainer, Game
+             sense and Awareness, only the important ones. -->
+        <div id="pc-groups" class="pc-groups"></div>
 
         <!-- THE PRACTICE LOG: every drill marked, dated, each one deletable. -->
-        <section id="pc-log-sec" class="pc-sec" aria-labelledby="pc-log-title">
-          <div class="pc-head">
-            <h3 id="pc-log-title" class="pc-title">Practice log</h3>
-            <p id="pc-log-streak" class="pc-hint" hidden></p>
+        <section id="pc-log-sec" class="pc-log-sec" aria-labelledby="pc-log-title">
+          <div class="pc-log-head">
+            <h3 id="pc-log-title" class="pc-log-title">Practice log</h3>
+            <p id="pc-log-streak" class="pc-streak" hidden></p>
           </div>
           <div id="pc-log" class="pc-rows" role="list"></div>
           <p id="pc-log-none" class="pc-quiet" hidden>Nothing marked yet. When you have done a drill, mark it as practiced and it is listed here with its date.</p>
+          <button id="pc-log-more" class="btn btn-link sm pc-log-more" type="button" aria-controls="pc-log" aria-expanded="false" hidden></button>
         </section>
 
         <p id="pc-privacy" class="pc-privacy"></p>
