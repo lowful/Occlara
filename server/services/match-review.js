@@ -3138,7 +3138,35 @@ function claimOf(text, input, r) {
   if (gameClaims.checkMoveFire(t) || gameClaims.checkBullets(t)) return 'kit';
   const looks = r ? String(r.seen || '') : (input.rounds || []).map((x) => String((x && x.seen) || '')).join(' ');
   if (gameClaims.checkUnobserved(t, looks)) return 'unseen';
+  // 9.1, the AI audit (game-claims.js checkUnsupportedMove): the player's
+  // body or route claimed in a round line with nothing behind it.
+  if (r && moveUnsupported(t, input, r)) return 'body';
   return null;
+}
+
+/*
+ * THE PLAYER'S BODY OR ROUTE, CLAIMED WITH NOTHING BEHIND IT (9.1, the AI
+ * audit of the owner's library, game-claims.js checkUnsupportedMove): the
+ * Sunset swiftplay's round 6 "Hugging a wall slows your acceleration ..."
+ * and round 7 "Rotating into a site without information ...", of rounds
+ * whose look, reads and record say nothing of a wall or a rotation. Each
+ * sentence of a round line, against that round's own support: its look's
+ * what (`seen`) and label, its reads, Riot's place of the death and of its
+ * kills. Round lines only, never the summary or the focus, which speak of
+ * the match and are never judged by one round. English only, every client.
+ */
+function moveSupport(r) {
+  return {
+    text: [r.seen, ...(Array.isArray(r.reads) ? r.reads : [])].filter(Boolean).join(' '),
+    places: [r.deathSpot, r.place, ...(Array.isArray(r.killPlaces) ? r.killPlaces : [])].filter(Boolean),
+    rotating: r.cause === 'rotating',
+  };
+}
+function moveUnsupported(text, input, r) {
+  if (typeof gameClaims.checkUnsupportedMove !== 'function') return false;
+  if (promptName(input.context && input.context.language) !== 'English') return false;
+  const support = moveSupport(r);
+  return splitSentences(text).map((s) => s.trim()).filter(Boolean).some((s) => !!gameClaims.checkUnsupportedMove(s, support));
 }
 
 /*

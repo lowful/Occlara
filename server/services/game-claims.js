@@ -25,6 +25,10 @@
  *                  what the player saw, said as fact of the match, which only
  *                  a look could see. Passes a hypothetical and a look that
  *                  says it.
+ *   checkUnsupportedMove "Hugging a wall slows your acceleration", "Rotating
+ *                  into a site without information" (9.1): what the player's
+ *                  body or route did, claimed of a round whose look, reads
+ *                  and record say nothing of it.
  *   checkBullets   "Contingency is just a smoke, bullets go through it": an
  *                  ability's bullet blocking held to kit-rules.json.
  *
@@ -329,6 +333,72 @@ function checkUnobserved(sentence, lookText) {
   const lw = String(lookText || '');
   if (LOOK_CROSSHAIR.test(m[0]) ? LOOK_CROSSHAIR.test(lw) : LOOK_SIGHT.test(lw)) return null;
   return "your reply said where the player's crosshair was or what the player saw, which no look of that death states; teach the placement as what to do next time";
+}
+
+// ── What the player's body or route did, with nothing behind it (9.1) ────
+
+/*
+ * THE PLAYER'S BODY OR ROUTE, CLAIMED WITH NOTHING BEHIND IT (9.1, the AI
+ * audit of the owner's library). The Sunset swiftplay of 12 Oct, round 6:
+ * "Hugging a wall slows your acceleration and makes you an easy target for
+ * sharpshooters. You should step out from cover to peek angles dynamically
+ * instead of staying static." and round 7: "Rotating into a site without
+ * information gives up your positional advantage to the enemy. Stick to the
+ * site that has already proven successful for the opponent to gather
+ * intel." No look, read or record of either round says the player hugged a
+ * wall or rotated (the reads held A Elbow, the death was at A Site; spawn, A
+ * Main and a death at A Lobby), and the first contradicts the cover advice
+ * beside it. Today's gates passed both (`unseen` covers only the crosshair
+ * and what the player saw).
+ *
+ * Conservative by design, one sentence of one round line at a time:
+ *   - a claim only: a sentence opening on the gerund ("Hugging a wall ...",
+ *     "Rotating into a site ...", "Rotating early ...") or saying the player
+ *     did it ("you hugged the wall", "you were rotating", "Your late
+ *     rotation ..."). Never an instruction ("don't hug the wall", "rotate to
+ *     B when you hear the plant"), a condition ("when you hug cover", "if you
+ *     rotated"), a contrast ("instead of hugging") or a rule of the game in
+ *     the present ("the closer you hug it"), all of which the playbook
+ *     itself writes.
+ *   - only where nothing supports it (support: { text, places, rotating }):
+ *     for a wall, the round's look or reads naming the thing held tight or
+ *     hugging; for a route, the look or reads speaking of a rotation or of
+ *     moving between areas, the look's own 'rotating' label, or the round's
+ *     places (the reads, Riot's place of the death and of its kills) naming
+ *     two different sites.
+ * English only (the route's caller asks). Returns the reason, or null.
+ */
+const MOVE_WALL_NOUN = '(?:wall|walls|corner|corners|box|boxes|cover)';
+const MOVE_WALL = new RegExp(`^(?:by\\s+)?hugging\\s+(?:a|the|that|this|your)\\s+(${MOVE_WALL_NOUN})\\b|\\byou\\s+(?:were\\s+|kept\\s+|stayed\\s+)?hugg(?:ed|ing)\\s+(?:a|the|that|this|your)\\s+(${MOVE_WALL_NOUN})\\b`, 'i');
+const MOVE_ROUTE = /^(?:by\s+)?rotating\s+(?:(?:in)?to\s+(?:a|the|[ABC])\b|early\b|late\b|off\b|away\b|out\b|without\b|blind\b)|\byou\s+(?:were\s+|kept\s+)?rotat(?:ed|ing)\b|^your\s+(?:\w+\s+)?rotation\b/i;
+const MOVE_WALL_SEEN = /\b(?:hug\w*|pressed|tight)\b/i;
+const MOVE_ROUTE_SEEN = /\b(?:rotat\w*|moving\s+between|on\s+the\s+way\s+to|heading\s+(?:to|toward|towards)|crossing\s+to)\b/i;
+// A site's letter in a place: "A Elbow", "B Main", "C Long", "A site". Case kept: "a site" is an article.
+const MOVE_SITE = /(?:^|[^A-Za-z0-9])([ABC])\s+(?:[Ss]ite\b|[A-Z][a-z]+)/g;
+function sitesIn(texts) {
+  const out = new Set();
+  for (const t of texts) for (const m of String(t || '').matchAll(MOVE_SITE)) out.add(m[1]);
+  return out;
+}
+function checkUnsupportedMove(sentence, support) {
+  const t = String(sentence || '').trim();
+  const sp = support || {};
+  const text = String(sp.text || '');
+  const wall = MOVE_WALL.exec(t);
+  if (wall && !HYPO.test(t.slice(0, wall.index))) {
+    const noun = String(wall[1] || wall[2]).toLowerCase().replace(/(?:es|s)$/, '');
+    if (!MOVE_WALL_SEEN.test(text) && !new RegExp(`\\b${noun}`, 'i').test(text)) {
+      return "your reply said the player hugged a wall or a corner, which no look, read or record of that round shows; say what the record shows, and teach the spacing as what to do next time";
+    }
+  }
+  const route = MOVE_ROUTE.exec(t);
+  if (route && !HYPO.test(t.slice(0, route.index))) {
+    const places = Array.isArray(sp.places) ? sp.places : [];
+    if (!sp.rotating && !MOVE_ROUTE_SEEN.test(text) && sitesIn([text, ...places]).size < 2) {
+      return "your reply said the player rotated, which no look, read or record of that round shows; say what the record shows of where they were and where they died";
+    }
+  }
+  return null;
 }
 
 // ── Bullets through a kit ─────────────────────────────────────────────────
@@ -915,6 +985,8 @@ module.exports = {
   economyClaim, ECON_CLAIM, ECON_OUT_SAID, BUY_FOR, BUY_SUBJECT, BUY_TIME_BEFORE, AFFORD_TO, ROUND_KIND_LABEL, checkPistolPremise, pistolSaid, WON_PISTOL, LOST_PISTOL, PISTOL_HYPO, SAID_WON, SAID_LOST,
   checkMapHabit, MAP_HABIT, GUN_BEFORE_CLAIM, notePistolConflict, NOTE_WON_PISTOL, NOTE_LOST_PISTOL,
   checkOneShot, checkMoveFire, soloDrillFrame, teamDrill, pronounDrill, PRONOUN_DRILL, TEAM_HABIT, stripDisclaimer, checkUnobserved, checkBullets, hitsToKill,
+  // 9.1, the AI audit: the player's body or route claimed with nothing behind it.
+  checkUnsupportedMove, MOVE_WALL, MOVE_ROUTE, MOVE_WALL_SEEN, MOVE_ROUTE_SEEN, MOVE_SITE, sitesIn,
   ONE_SHOT, ARMOUR_QUALIFIED, ANY_RANGE, LONG_RANGE, NEGATED, MOVE_FIRE, MOVE_FIRE_OK, MOVE_FIRE_PAST, MOVE_FIRE_COST, NAMED_ERROR, BULLET_NEGATED,
   SOLO_MODE, MODE_AWAY, TEAM_WORDS, MATCH_FRAME, DISCLAIMER, NO_TEAM_SAID, UNOBSERVED, HYPO, BULLET_CLAIM, BLOCKS,
 };

@@ -498,7 +498,8 @@ closed label list (death-forensics.js CAUSES), which check:playbook and check:ca
 ### Every note agrees with the game data (round 8)
 
 `test:gameclaims` runs every note `knowledge.all()` returns (989) through `checkMoveFire`,
-`checkOneShot`, `checkBullets`, `checkUnobserved` and `teamDrill` and fails on any hit, so no note
+`checkOneShot`, `checkBullets`, `checkUnobserved`, `teamDrill` and (9.1) `checkUnsupportedMove`
+with no support, and fails on any hit, so no note
 contradicts the primer again. Round 7's "bursting and moving" came from a core note, "Burst, move,
 burst, move", now "Burst, then strafe to a new spot between bursts and stop dead before the next
 one, because a moving shot goes wide and the move is what makes you hard to hit". The Outlaw note

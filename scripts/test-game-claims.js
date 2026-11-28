@@ -126,6 +126,41 @@ ok(!hit(G.checkUnobserved, 'Your crosshair was low when Jett peeked.', 'Your cro
 ok(!hit(G.checkUnobserved, 'You saw him on the minimap and still peeked.', ''), 'the minimap kept');
 ok(!hit(G.checkUnobserved, 'Note whether you see the enemy before they see you.', ''), 'a present tense question kept');
 
+// ── 4b. The player's body or route, claimed with nothing behind it (9.1) ──
+// The AI audit's own examples, the Sunset swiftplay of 12 Oct, rounds 6 and 7,
+// against each round's own support as match-review.js moveSupport gives it.
+{
+  const r6 = { text: 'holding A Elbow alone holding A Elbow with Ghost', places: ['A Site'], rotating: false };
+  const r7 = { text: 'standing in A Main', places: ['A Lobby'], rotating: false };
+  const HUG = 'Hugging a wall slows your acceleration and makes you an easy target for sharpshooters.';
+  const ROT = 'Rotating into a site without information gives up your positional advantage to the enemy.';
+  ok(hit(G.checkUnsupportedMove, HUG, r6), 'CAUGHT: round 6 "Hugging a wall slows your acceleration", no look or read of a wall');
+  ok(hit(G.checkUnsupportedMove, ROT, r7), 'CAUGHT: round 7 "Rotating into a site without information", every place of the round on A');
+  ok(hit(G.checkUnsupportedMove, 'You hugged the wall at A Elbow, so KAY/O saw you first.', r6) && hit(G.checkUnsupportedMove, 'You were rotating to B when Neon caught you.', r7)
+    && hit(G.checkUnsupportedMove, 'Your late rotation left A open.', r7) && hit(G.checkUnsupportedMove, 'Rotating early off A gave them the site.', r7),
+  'CAUGHT: "you hugged the wall", "you were rotating", "your late rotation", "rotating early"');
+  // Supported: the look or the reads say it, the look's label, two sites.
+  ok(!hit(G.checkUnsupportedMove, HUG, { ...r6, text: 'You held A Elbow pressed tight to the wall and KAY/O swung wide.' })
+    && !hit(G.checkUnsupportedMove, HUG, { ...r6, text: 'hugging the A Elbow wall' }) && !hit(G.checkUnsupportedMove, 'You hugged the box at A Site.', { ...r6, text: 'holding behind the box on A Site' }),
+  'KEPT: a wall the look or a read speaks of, and the thing held tight named');
+  ok(!hit(G.checkUnsupportedMove, ROT, { ...r7, rotating: true }) && !hit(G.checkUnsupportedMove, ROT, { ...r7, text: 'rotating from B Main toward A' })
+    && !hit(G.checkUnsupportedMove, ROT, { ...r7, text: 'holding B Main alone' }) && !hit(G.checkUnsupportedMove, ROT, { ...r7, places: ['A Lobby', 'B Site'] }),
+  "KEPT: the look's rotating label, a read of the rotation, and the round's places on two sites");
+  // Never an instruction, a condition, a contrast or a rule in the present.
+  for (const s of ['Stand a step back from the wall before you peek, because the closer you hug it the sooner they see your shoulder.',
+    "Don't hug the wall you are about to peek.", 'Avoid hugging the wall when you swing.', 'Peek wide instead of hugging the wall.',
+    'When you hug cover, stand slightly back from the edge.', 'If you rotated early, you would have reached A before the plant.',
+    'Rotate to B when you hear the plant, not before.', 'You need to rotate with teammates to ensure trades are available.',
+    'Give ground so your team has time to rotate.', 'Time your rotation with the spike sound.', 'Rotating through Mid is the quickest way to B on this map.']) {
+    ok(!hit(G.checkUnsupportedMove, s, r7), `KEPT: "${s.slice(0, 60)}"`);
+  }
+  ok(G.MOVE_WALL.test(HUG) && !G.MOVE_WALL.test('Avoid hugging the wall.') && G.MOVE_ROUTE.test(ROT) && !G.MOVE_ROUTE.test('Rotate to B early.')
+    && G.MOVE_WALL_SEEN.test('pressed tight') && !G.MOVE_WALL_SEEN.test('holding A Elbow') && G.MOVE_ROUTE_SEEN.test('on the way to B') && !G.MOVE_ROUTE_SEEN.test('standing in A Main'),
+  'MOVE_WALL, MOVE_ROUTE, MOVE_WALL_SEEN and MOVE_ROUTE_SEEN both ways');
+  ok(G.sitesIn(['holding A Elbow', 'B Site', 'Defender Side Spawn', 'a site']).size === 2 && G.sitesIn(['standing in A Main', 'A Lobby']).size === 1,
+    'sitesIn reads a site by its letter and a capital, never "a site" the article');
+}
+
 // ── 5. Bullets ────────────────────────────────────────────────────────────
 ok(hit(G.checkBullets, 'Contingency is just a smoke that moves, bullets go through it.'), 'Contingency called a smoke caught');
 ok(hit(G.checkBullets, 'High Tide blocks bullets, so push behind it.'), 'High Tide blocking bullets caught');
@@ -139,7 +174,9 @@ const notes = require('../server/services/knowledge').all();
 const bad = [];
 for (const n of notes) {
   if (!n || typeof n.text !== 'string') continue;
-  for (const [k, fn] of [['move-fire', G.checkMoveFire], ['oneshot', G.checkOneShot], ['bullets', G.checkBullets], ['unseen', (t) => G.checkUnobserved(t, '')]]) {
+  for (const [k, fn] of [['move-fire', G.checkMoveFire], ['oneshot', G.checkOneShot], ['bullets', G.checkBullets], ['unseen', (t) => G.checkUnobserved(t, '')],
+    // 9.1: no note claims a wall or a rotation of the match, with no support at all.
+    ['body', (t) => G.checkUnsupportedMove(t, {})]]) {
     if (fn(n.text)) bad.push(`${k}: ${n.text}`);
   }
   if (G.teamDrill(n.text)) bad.push(`drill: ${n.text}`);

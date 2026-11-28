@@ -3447,6 +3447,40 @@ console.log('\nthe plant\'s time from Riot\'s record (the blind audit of round 7
   ok(g.OWN_UTIL_SAID.test('use a flash or drone') && !new RegExp(g.OWN_UTIL_SAID.source, 'i').test('used a flash'), 'the instruction pattern reads "use a flash or drone" and not "used a flash"');
 }
 
+// ── The player's body or route, claimed with nothing behind it (9.1) ──────
+{
+  console.log('\nthe player\'s body or route, claimed with nothing behind it (9.1, the AI audit):');
+  // The Sunset swiftplay of 12 Oct, rounds 6 and 7, as the owner's library
+  // saved them: the reads of each round (agents and places only) and Riot's
+  // place of each death, with the October model's lines word for word.
+  const R = (n, o) => ({ n, side: 'defending', result: 'lost', died: true, verified: true, traded: false, kills: 0, sec: 20, killer: 'KAY/O', weapon: 'Sheriff', ...o });
+  const body = (r6, r7) => ({
+    rounds: [R(2, { side: 'attacking', sec: 27, killer: 'Jett', weapon: 'Outlaw', kills: 2, deathSpot: 'B Site' }),
+      R(6, { kills: 2, deathSpot: 'A Site', reads: ['holding A Elbow alone', 'holding A Elbow with Ghost'], ...(r6 || {}) }),
+      R(7, { sec: 12, killer: 'Neon', weapon: 'Vandal', deathSpot: 'A Lobby', reads: ['standing in A Main'], ...(r7 || {}) })],
+    swing: [], mistakes: [], strengths: [], patterns: [],
+    context: { agent: 'Jett', map: 'Sunset' },
+    final: { team: 2, enemy: 5, result: 'Defeat', verified: true, scoreline: { kills: 9, deaths: 5, assists: 1, acs: 300 } } });
+  const R6 = 'Hugging a wall slows your acceleration and makes you an easy target for sharpshooters. You should step out from cover to peek angles dynamically instead of staying static.';
+  const R7 = 'Rotating into a site without information gives up your positional advantage to the enemy. Stick to the site that has already proven successful for the opponent to gather intel.';
+  const R2 = 'Being dead while your team loses means you missed the chance to apply pressure earlier. You must stay alive through the initial engagement to trade kills effectively.';
+  const reply = `SUMMARY: You lost 2 to 5.\nR2: ${R2}\nR6: ${R6}\nR7: ${R7}`;
+  const p = matchReview.parse(reply, matchReview.normalise(body()));
+  ok(!(6 in p.rounds) && !(7 in p.rounds) && p.dropped.some((d) => d.n === 6 && d.said === 'body') && p.dropped.some((d) => d.n === 7 && d.said === 'body'),
+    `CAUGHT: the Sunset round 6 "Hugging a wall" and round 7 "Rotating into a site" lines, of rounds whose reads held A Elbow and A Main and died on A, go (${JSON.stringify(p.dropped)})`);
+  ok(p.rounds[2] === R2, 'and round 2\'s vacuous line, which claims no body or route, is not this gate\'s and stays (open in the audit)');
+  ok(matchReview.dropKind({ n: 6, said: 'body' }) === 'body', 'counted as its own kind for the client');
+  const seen = matchReview.parse(reply, matchReview.normalise(body({ seen: 'You held A Elbow pressed tight to the wall and KAY/O swung wide on you.', cause: 'exposed' },
+    { reads: ['holding B Main alone', 'standing in A Main'] })));
+  ok(seen.rounds[6] && seen.rounds[7], 'KEPT: the same lines where the round\'s look saw the wall and the reads put round 7 on two sites', JSON.stringify(seen.dropped));
+  const rot = matchReview.parse(reply, matchReview.normalise(body(null, { cause: 'rotating', seen: 'You moved from A Main toward A Lobby with your Vandal holstered.' })));
+  ok(rot.rounds[7] && !rot.rounds[6], "KEPT: round 7 where the look's own label is rotating, round 6 still going");
+  const focus = matchReview.parse(`SUMMARY: You lost 2 to 5.\nR2: ${R2}\nFOCUS: Stand a step back from the wall before you peek, because the closer you hug it the sooner they see your shoulder.`, matchReview.normalise(body()));
+  ok(/closer you hug it/.test(focus.focus || ''), 'KEPT: a focus teaching the spacing, a rule in the present, never judged by one round');
+  const es = matchReview.parse(reply, matchReview.normalise({ ...body(), context: { agent: 'Jett', map: 'Sunset', language: 'es' } }));
+  ok(!es.dropped.some((d) => d.said === 'body'), 'KEPT: a review in another language, which the gate cannot read');
+}
+
 // ── The two open gaps of stream C, in the review ──────────────────────────
 {
   console.log('\nthe open gaps of stream C, in the review:');

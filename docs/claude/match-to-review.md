@@ -469,6 +469,26 @@ every round's `seen` for the summary and focus; never the look's better play). `
 Deathmatch drill's frame across the summary's and the focus's sentences (`soloDrillFrame`), and is
 exported for `test:valorantreview`. Over round 7's 24 reviews none of these drops a line.
 
+**`body`, the player's body or route claimed with nothing behind it** (9.1, the AI audit of the
+owner's library, `game-claims.js checkUnsupportedMove`, `match-review.js moveUnsupported`, last in
+`claimOf`): the Sunset swiftplay of 12 Oct passed today's gates with round 6 "Hugging a wall
+slows your acceleration and makes you an easy target ..." and round 7 "Rotating into a site
+without information gives up your positional advantage ...", of rounds whose reads held A Elbow
+and A Main and whose deaths Riot places on A. Conservative: round lines only (never the summary
+or the focus, which speak of the match), English only, and only a claim, a sentence opening on
+the gerund ("Hugging a wall", "Rotating into a site", "Rotating early") or saying the player did
+it ("you hugged the wall", "you were rotating", "Your late rotation"), never an instruction, a
+condition, a contrast ("instead of hugging") or a rule in the present ("the closer you hug it"),
+each of which the playbook itself writes. It drops only where the round's own support says
+nothing (`moveSupport`): for a wall, the look's what or the reads naming the thing held or
+hugging; for a route, the look or reads speaking of a rotation, the look's `rotating` label, or
+the round's places (the reads, Riot's place of the death and of its kills) on two different sites.
+Not this gate's, and still open: vacuous lines ("Being dead while your team loses means you
+missed the chance to apply pressure earlier") and an unsupported cause of the result ("You lost
+the match by failing to establish early map control"). `test:gameclaims` (the audit's lines, the
+playbook's own wording kept, every note through it) and `test:valorantreview` ("the player's body
+or route").
+
 ### Round 8: the review floor, won rounds and the SWING line (Nov 2026)
 
 The Fracture 5 to 1 reviews of round 7 (`match-review.js`, `routes/coach.js /match-review`):
