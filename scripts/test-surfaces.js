@@ -2593,6 +2593,22 @@ async function openShell(cfg, state, opts) {
       'each grade is its letter\'s colour: an 82 A green, a 58 D red, a 69 C a warning', shown().join(' '));
     ok(!st.document.querySelector('#session-list .grade-letter'), 'ONE SCORE: and no letter is drawn beside it');
     ok(st.scripts.some((x) => /grade-view\.js$/.test(x)), 'Stats loads the shared rule rather than keeping its own');
+    // 9.1: a graded row reads as a Matches row: the agent on the map, the day,
+    // the result and the score in its tone, the grade.
+    const top0 = st.document.querySelector('#session-list .row.session .top');
+    const piece = (cls) => { const n = top0.querySelector('.' + cls); return n ? n.textContent : null; };
+    ok(piece('place') === 'Jett on Abyss' && /^(?:Today|Yesterday|[A-Z][a-z]{2} \d{1,2}), \d{1,2}:\d\d/.test(piece('sub')),
+      'a graded row names the agent on the map, then the day and the time, as Matches does', `${piece('place')} | ${piece('sub')}`);
+    ok(top0.querySelector('.session-res').hidden && top0.querySelector('.session-res').textContent === '', 'and no result where none was kept');
+    const won = loadSurface('stats', {
+      handlers: { [C.STATS_DASHBOARD]: () => ({ game: 'valorant', statsSupported: true, categories: {}, rank: { value: null, direction: 'flat' },
+        winRate: { value: null, direction: 'flat' }, topAgents: [], sessions: [{ ...s('w', 84, 0), result: 'Victory', score: '13-11' }], sessionCount: 1,
+        matches: { matches: [], fetchedAt: 0, mode: 'competitive' }, grading: null, riotId: '' }),
+        [C.STATS_MATCHES]: () => ({ matches: [] }), [C.STATS_RANK_HISTORY]: () => ({ points: [] }) },
+    });
+    await settle();
+    const wres = won.document.querySelector('#session-list .row.session .session-res');
+    ok(wres && !wres.hidden && wres.textContent === 'Victory 13 : 11' && wres.classList.contains('win'), 'its result and score in the outcome\'s tone, the score as the game draws it', wres && wres.textContent);
 
     // A review saved while the window is open, then improved, in a burst.
     ok(st.bridge.listening(C.PUSH_REVIEWS) === 1, 'Stats listens for saved reviews through its preload');

@@ -772,6 +772,17 @@ function fmtDate(ts) {
          d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+/** "Today, 9:25 PM", "Yesterday, 9:25 PM" or "Nov 22, 9:25 PM", as a Matches row dates a match (9.1). */
+function dayWhen(ts) {
+  const d = new Date(ts);
+  if (!Number.isFinite(d.getTime())) return '';
+  const day = (t) => new Date(t).toDateString();
+  const now = Date.now();
+  const word = day(ts) === day(now) ? 'Today' : day(ts) === day(now - 86400000) ? 'Yesterday'
+    : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `${word}, ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
+
 /** The grade counts up from 0 as the review's does, in CSS alone (stats.css
  *  .grade-chip.counting, @property --n): the real number is the text from the
  *  start, and the count is drawn over it, so nothing here does arithmetic. */
@@ -801,17 +812,27 @@ function sessionRow(s, i, settled) {
   const chev = document.createElement('span');
   chev.className = 'chev';
   chev.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+  // THE SAME ROW AS MATCHES' (9.1, the owner's item 11): the agent on the
+  // map, the day, the result and the score in its tone, the grade. It read
+  // "Nov 28 7:00 AM · Abyss · Jett · Victory 13-11", the date first and the
+  // result grey among the rest, where the Matches tab beside it says
+  // "Jett on Abyss", "Today, 7:00 AM" and "Victory 13 : 11" in its tone.
   const place = document.createElement('span');
   place.className = 'place';
-  place.textContent = fmtDate(s.at);
+  place.textContent = s.title && s.map ? `${s.title} on ${s.map}` : (s.title || s.map || fmtDate(s.at));
   const sub = document.createElement('span');
   sub.className = 'sub';
-  // Result in the collapsed row: whether the match was a win is the first
-  // thing anyone wants next to its grade, and it should not need a click.
-  sub.textContent = [s.map, s.title, s.result && s.score ? `${s.result} ${s.score}` : s.score]
-    .filter(Boolean).join(' · ');
+  sub.textContent = s.title || s.map ? dayWhen(s.at) : '';
   const spacer = document.createElement('span');
   spacer.className = 'spacer';
+  // Result in the collapsed row: whether the match was a win is the first
+  // thing anyone wants next to its grade, and it should not need a click.
+  const outcome = /^(?:vict|win)/i.test(s.result || '') ? 'win' : /^(?:defeat|loss)/i.test(s.result || '') ? 'loss' : '';
+  const resText = [s.result, s.score ? String(s.score).replace(/\s*[-:]\s*/, ' : ') : null].filter(Boolean).join(' ');
+  const res = document.createElement('span');
+  res.className = 'res session-res' + (outcome ? ' ' + outcome : '');
+  res.textContent = resText;
+  res.hidden = !resText;
   const mvpSlot = document.createElement('span');
   mvpSlot.hidden = true;   // fills in when a known match links to this one
   sessionMvpSlots.push({ s, slot: mvpSlot });
@@ -826,7 +847,7 @@ function sessionRow(s, i, settled) {
   score.textContent = String(target);
   if (tone) score.classList.add(tone);
   if (!settled) revealScore(score, target, Math.min(i, 8) * 40);
-  top.append(chev, place, sub, spacer, mvpSlot, score);
+  top.append(chev, place, sub, spacer, res, mvpSlot, score);
 
   const detail = document.createElement('div');
   detail.className = 'detail';

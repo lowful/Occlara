@@ -144,6 +144,12 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
 .res { font-size: 13px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .res.win  { color: var(--good); }
 .res.loss { color: var(--bad); }
+/* A graded match reads as a Matches row (9.1): the agent on the map a little
+   heavier, its result before the grade. */
+.row.session .place { font-weight: 600; }
+.session-res { font-size: 14px; font-weight: 600; color: var(--text-2); }
+.session-res.win { color: var(--good); }
+.session-res.loss { color: var(--bad); }
 
 /* Top score (the winning team's) in the ink, Team top score dim: the word says which. */
 .mvp { font-size: 12px; font-weight: 500; white-space: nowrap; }
