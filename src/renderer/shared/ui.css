@@ -520,6 +520,42 @@ html.embedded .sheet > footer {
    entrance as a window would be a second one on top. */
 html.embedded .sheet { animation: none; }
 
+/* ── Nothing sliced at a page's top edge (9.1) ────────────────────────────
+   A page whose title stays put over a body that scrolls (What's new,
+   Profile, Players, Invite, Report a problem, Duos, Ask Coach) cut each card
+   flat where it passed under the title. The scroller's top edge is a mask
+   now: at rest nothing is faded, and over the first 28px of a scroll a 28px
+   soft edge comes in, so what passes under the title dissolves into the
+   ground. The mask is the keyframes' alone and follows the body's OWN
+   scroll (scroll(self)), so a body that does not scroll has no timeline and
+   no mask at all, and nothing it holds is clipped by one: Clips, Practice,
+   Matches and Stats scroll the sheet, title and all, under their own sticky
+   fade. A page with its own edge (the review, Settings) sets its body's
+   animation to none. Home's page does the same as this, over a longer
+   edge for its display sized hero (--edge-fade, home.css). A gradient in a
+   mask paints no colour (check:palette). */
+@keyframes edge-soft {
+  from {
+    -webkit-mask-image: linear-gradient(transparent, rgba(0, 0, 0, 1) var(--edge-fade, 28px));
+    mask-image: linear-gradient(transparent, rgba(0, 0, 0, 1) var(--edge-fade, 28px));
+    -webkit-mask-size: 100% calc(100% + var(--edge-fade, 28px)); mask-size: 100% calc(100% + var(--edge-fade, 28px));
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: 0 calc(-1 * var(--edge-fade, 28px)); mask-position: 0 calc(-1 * var(--edge-fade, 28px));
+  }
+  to {
+    -webkit-mask-image: linear-gradient(transparent, rgba(0, 0, 0, 1) var(--edge-fade, 28px));
+    mask-image: linear-gradient(transparent, rgba(0, 0, 0, 1) var(--edge-fade, 28px));
+    -webkit-mask-size: 100% calc(100% + var(--edge-fade, 28px)); mask-size: 100% calc(100% + var(--edge-fade, 28px));
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: 0 0; mask-position: 0 0;
+  }
+}
+html.embedded .sheet > .body {
+  animation: edge-soft linear both;
+  animation-timeline: scroll(self);
+  animation-range: 0 28px;
+}
+
 /* ── Moving between pages ─────────────────────────────────────────────────
    embed.js and main-window.js: a page is ARMED before it is shown (invisible,
    8px low), painted that way out of sight, and only then let in: it rises

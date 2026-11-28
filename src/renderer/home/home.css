@@ -43,6 +43,19 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
   padding: var(--space-5) max(var(--space-8), calc((100% - 1176px) / 2)) var(--space-10);
   display: flex; flex-direction: column; gap: 20px;
 }
+/* NOTHING SLICED AT THE BAR (9.1). The page scrolls under the bar, and its
+   edge cut the hero, the cards and the trend's labels flat. Its top edge is
+   a mask now, ui.css's edge-soft: nothing faded at rest, and over the first
+   48px of a scroll a 48px soft edge comes in (longer than a sheet's 28px,
+   for the hero's display size line), so what passes under the bar
+   dissolves into the sky behind it (a mask, not a painted fade, so the stars
+   and the moon show through). */
+.home {
+  --edge-fade: 48px;
+  animation: edge-soft linear both;
+  animation-timeline: scroll(self);
+  animation-range: 0 48px;
+}
 /* NO SECTION SHRINKS (9.1). .home is a column of a fixed height that scrolls,
    and a flex item shrinks by default down to its own min-height: the hero
    (min-height 360px) was squeezed to that while its copy ran on below it,

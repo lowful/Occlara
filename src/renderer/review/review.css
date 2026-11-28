@@ -1113,6 +1113,8 @@ html:not(.embedded) .v-back { display: none; }
   transition: --v-fade 260ms var(--ease-out);
 }
 .sheet > .body.scrolled { --v-fade: 28px; }
+/* This edge is the review's own, so ui.css's shared one (edge-soft) is off here. */
+html.embedded .sheet > .body { animation: none; }
 /* The page scrolls one way only: art at the hero's right is framed by the
    window, never a sideways scrollbar (9.1). */
 .sheet > .body { overflow-x: hidden; }

@@ -333,10 +333,12 @@ html.embedded #gamepick { display: none !important; }
    corners flat as it passed: the look the owner turned down on Clips and the
    review. The cards now dissolve over the body's first 18px instead, a fade
    that at rest covers only the body's own padding (the 10px it gains, the
-   title's foot gives back, so nothing moves). */
+   title's foot gives back, so nothing moves). This edge is Settings' own,
+   so ui.css's shared one (edge-soft) is off here. */
 html.embedded .sheet > header { padding-bottom: 22px; }
 html.embedded .sheet > .body {
   padding-top: 18px;
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 18px);
   mask-image: linear-gradient(to bottom, transparent, black 18px);
+  animation: none;
 }
