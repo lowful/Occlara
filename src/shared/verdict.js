@@ -177,14 +177,16 @@ function valorantStandout(r) {
   const killsIn = (k, word) => {
     const ns = rows.filter((x) => killsOf(x) === k).map((x) => x.n);
     return ns.length === 1 ? `${word} kills in round ${ns[0]}`
-      : ns.length === 2 ? `${word} kills in one round, twice: rounds ${ns[0]} and ${ns[1]}`
+      : ns.length === 2 ? `${word} kills in each of rounds ${ns[0]} and ${ns[1]}`
         : `${word} kills in each of ${ns.length} rounds`;
   };
   // A Sage revive can make six: the count is said as it was, never rounded down to five.
   // It can also make five kills that are not all five enemies, so a round is an
   // ace only when its kill feed shows the player killing five different enemy
   // agents (va, valorant-verify.js killFeedOf). A round without that proof is
-  // its count, 5K, never an ace by its number alone.
+  // its count, 5K, never an ace by its number alone. The replay, Clips and
+  // the highlights hold the same rule and the same names (9.1, rating.js
+  // aceInFeed and killsName; this file stays pure of them, test:verdict).
   const isAce = (x) => {
     const feed = Array.isArray(x.riot.feed) ? x.riot.feed : (Array.isArray(x.feed) ? x.feed : []);
     const victims = new Set(feed.filter((k) => k && k.by === 'me' && k.on === 'enemy' && typeof k.va === 'string' && k.va)

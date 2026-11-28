@@ -97,8 +97,8 @@ ok(!!av && same(av.stats, [['K/D/A', '31/21/4'], ['ACS', 382], ['ADR', 243]]),
 ok(!!av && typeof av.at === 'number', 'it keeps when the review was made, for the date on its image');
 ok(!!av && Object.keys(av).sort().join() === 'at,game,icon,letter,provisional,reason,right,score,stat,stats,sub,title',
   'and nothing else: game, title, right, letter, score, provisional, reason, stat, stats, sub, icon, at', av && Object.keys(av).join());
-ok(!!av && same(av.stat, { value: '4K', label: 'Four kills in one round, twice: rounds 11 and 17' }),
-  "its standout is counted off Riot's rounds: four kills in one round, twice, rounds 11 and 17 both named, never read as four across both", av && JSON.stringify(av.stat));
+ok(!!av && same(av.stat, { value: '4K', label: 'Four kills in each of rounds 11 and 17' }),
+  "its standout is counted off Riot's rounds: four kills in each of rounds 11 and 17, both named, never read as four across both", av && JSON.stringify(av.stat));
 ok(!!av && av.icon === 'valorant/agents/Jett.png', "its icon is Jett's, the bundled file", av && av.icon);
 
 // ── Change 3: the trade denominator is Riot's, under riot ───────────────────
@@ -338,7 +338,7 @@ function leagueReview() {
     ['six kills that never reach the fifth enemy are 6K', val([round(7, { kills: 6, feed: [...revived, { by: 'me', on: 'enemy', va: 'Jett' }] })]), { value: '6K', label: '6 kills in round 7' }],
     ['a feed kill by a teammate is not the player\'s', val([round(7, { kills: 5, feed: [...five.slice(0, 4), { by: 'mate', on: 'enemy', va: 'Reyna' }] })]), { value: '5K', label: 'Five kills in round 7' }],
     ['a four kill round beats a clutch', val([round(2, { kills: 4 }), round(9, { clutch: { vs: 3, won: true } })]), { value: '4K', label: 'Four kills in round 2' }],
-    ['two four kill rounds are both named', val([round(2, { kills: 4 }), round(15, { kills: 4 })]), { value: '4K', label: 'Four kills in one round, twice: rounds 2 and 15' }],
+    ['two four kill rounds are both named', val([round(2, { kills: 4 }), round(15, { kills: 4 })]), { value: '4K', label: 'Four kills in each of rounds 2 and 15' }],
     ['three are counted', val([round(2, { kills: 4 }), round(5, { kills: 4 }), round(15, { kills: 4 })]), { value: '4K', label: 'Four kills in each of 3 rounds' }],
     ['a clutch won, the most enemies, the earliest of a tie', val([round(4, { kills: 3, clutch: { vs: 2, won: true } }), round(8, { clutch: { vs: 3, won: true } }), round(12, { clutch: { vs: 3, won: true } })]), { value: '1v3', label: 'Clutch won in round 8' }],
     ['a clutch lost or unknown is no standout', val([round(4, { clutch: { vs: 3, won: false } }), round(5, { clutch: { vs: 2, won: null } }), round(6, { kills: 3 })]), { value: '3K', label: 'Three kills in round 6' }],
