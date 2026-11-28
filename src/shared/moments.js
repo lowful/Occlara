@@ -216,6 +216,8 @@ function valorantHighlights(saved, have, io) {
       kind: 'highlight', id, round: c.n, key: `${id}:h${c.n}`,
       title, line: parts.length ? parts.join(', ') : null,
       what: kills >= ACE_KILLS ? 'ace' : kills >= MULTI_KILLS ? 'multi' : 'clutch',
+      // 9.1: how many a clutch was won against, for the best clip's weight (bestOf).
+      vs: clutch ? clutch.vs : null,
       kills, sec: secs.length ? secs[0] : null, time: secs.length ? secText(secs[0]) : null,
       won: c.result === 'won',
       clip, clipGone, clipGoneText: clipGone ? GONE[clipGone] : null, repeats: [],
@@ -369,10 +371,58 @@ function build(game, saved, opts) {
 
   return {
     game, matches, compilation, reel,
+    best: bestOf(matches, compilation, game),
     counts: { matches: matches.length, deaths, highlights, clips },
     clipsNote, clipsNoteText: clipsNote ? NOTES[clipsNote] : null,
     enough: !!patterns.enough,
   };
+}
+
+/**
+ * How much a kept highlight is worth as the page's hero: an ace 50, a 4K 40,
+ * a 3K 30, a 2K 20, a clutch won 15 more and 5 a head it was won against (a
+ * one against two with a 2K is 45, a 1v1 with one kill 20), the first kill
+ * of the round 2 more. 0 for a death.
+ */
+function weightOf(x) {
+  if (!x || x.kind !== 'highlight') return 0;
+  const kills = typeof x.kills === 'number' ? x.kills : 0;
+  const vs = typeof x.vs === 'number' && x.vs > 0 ? x.vs : 0;
+  return kills * 10 + (vs ? 15 + vs * 5 : 0) + (/first kill of the round/.test(x.line || '') ? 2 : 0);
+}
+
+/**
+ * THE BEST RECENT CLIP (9.1, the owner's item 13: "one hero: the player's
+ * best recent clip, large, not three cards of different sizes"). Only a clip
+ * kept and on disk, from the newest RECENT matches (the patterns' WINDOW):
+ *   - the kept highlight worth the most (weightOf), the newer of two alike;
+ *   - else the newest kept death of the most repeated mistake across matches
+ *     (the compilation's first that has one), "worth another look";
+ *   - else the newest kept death (in League, which has no highlights to
+ *     miss, with no line under it).
+ * { key, kind, label, line }: the moment's key, and the words over it, main's
+ * like every sentence on the page. Null with no clip kept in those matches.
+ */
+const RECENT = WINDOW;
+function bestOf(matches, compilation, game) {
+  const recent = (Array.isArray(matches) ? matches : []).slice(0, RECENT);
+  const kept = [];
+  recent.forEach((m, mi) => (m.moments || []).forEach((x) => { if (x && x.clip) kept.push({ x, mi }); }));
+  if (!kept.length) return null;
+  const n = recent.length;
+  const lastN = n === 1 ? 'your last match' : `your last ${n} matches`;
+  const lit = kept.filter((k) => k.x.kind === 'highlight').sort((a, b) => weightOf(b.x) - weightOf(a.x) || a.mi - b.mi || a.x.round - b.x.round);
+  if (lit.length) {
+    const x = lit[0].x;
+    return { key: x.key, kind: 'highlight', label: 'Your best recent clip', line: `The best highlight kept from ${lastN}.` };
+  }
+  const deaths = kept.filter((k) => k.x.kind === 'death');
+  for (const c of Array.isArray(compilation) ? compilation : []) {
+    const hit = deaths.find((k) => (k.x.repeats || []).some((r) => r.key === c.key && r.across));
+    if (hit) return { key: hit.x.key, kind: 'death', label: 'Worth another look', line: `${c.title}, one of your repeated mistakes.` };
+  }
+  const x = deaths[0].x;
+  return { key: x.key, kind: 'death', label: 'Your latest clip', line: game === 'lol' ? null : `No highlight clip was kept from ${lastN}.` };
 }
 
 /** The sentence the page says for a clips note, and for a clip that is gone: written here, so the page counts and words nothing. */
@@ -390,4 +440,4 @@ const GONE = Object.freeze({
 
 // mistakesAt and clipOf are the Practice page's join too (8.11, practice.js
 // clipFor): its own clip of a mistake is found exactly as the compilation finds it.
-module.exports = { build, valorantDeaths, valorantHighlights, highlightClipOf, lolDeaths, mistakesAt, clipOf, secText, roundsText, NOTES, GONE, MULTI_KILLS, ACE_KILLS, STREAK, LOOK_BACK };
+module.exports = { build, valorantDeaths, valorantHighlights, highlightClipOf, lolDeaths, mistakesAt, clipOf, secText, roundsText, bestOf, weightOf, NOTES, GONE, MULTI_KILLS, ACE_KILLS, STREAK, LOOK_BACK, RECENT };

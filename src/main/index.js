@@ -3631,7 +3631,11 @@ const controller = {
       freeBytes: (dir) => require('./services/recorder').realFreeBytes(dir),
       driveOf: (dir) => require('./services/pc-check').driveOf(dir),
     });
-    return { ...out, capGB: clips.capGB(store.get('clipCapGB')), clearable: { clips: out.clips.count > 0 } };
+    // recordNeeds (9.1, Clips' storage): the free space the recorder's disk
+    // guard asks before it starts (recorder.js DISK_START_BYTES), so the page
+    // says plainly when the drive is too full to record a match.
+    return { ...out, capGB: clips.capGB(store.get('clipCapGB')), clearable: { clips: out.clips.count > 0 },
+      recordNeeds: require('./services/recorder').DISK_START_BYTES };
   },
 
   /** THE HISTORY (9.1): one step, from a page's arrow or a mouse button ({ dir, from, fallback }), and the state after it. */

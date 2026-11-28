@@ -207,7 +207,8 @@
     "test:storage": "node scripts/test-storage.js",
     "test:playtimes": "node scripts/test-play-times.js",
     "test:trendchart": "node scripts/test-trend-chart.js",
-    "test:matchespage": "node scripts/test-matches-page.js"
+    "test:matchespage": "node scripts/test-matches-page.js",
+    "test:clipspage": "node scripts/test-clips-page.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

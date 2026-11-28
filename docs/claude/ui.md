@@ -461,6 +461,59 @@ older matches and one stub clip (`main-moments.png`, `main-moments-rows.png`,
 (`main-moments-review.png`), and `check:matches` the breakdown folded at the
 foot of Patterns.
 
+**Clips, 9.1 (the owner's items 12, 13 and 18).** THE PAGE SCROLLS AS ONE:
+`.sheet` is the scroller, title and all. The title used to stay put over a
+`.body` that scrolled under it, so the hero and the chips were cut by a hard
+edge part way down (the owner's "the bar cuts off the top here too"); an 18px
+fade at the sheet's top (`.sheet::before`, sticky, a mask over `--bg`) lets
+what passes under the bar dissolve into the ground. THE HERO IS ONE, main's
+pick (`moments.js bestOf`, the model's `best`: `{ key, kind, label, line }`):
+the kept highlight worth the most from the newest `RECENT` matches (10, the
+patterns' `WINDOW`; `weightOf`: an ace 50, a 4K 40, a 3K 30, a 2K 20, a
+clutch won 15 and 5 a head, the first kill 2; the newer of two alike), else
+the newest kept death of the compilation's first pattern that has one ("Worth
+another look"), else the newest kept death ("Your latest clip"); null with no
+clip kept, and then no hero. Full width at 21:9 and at most 52vh, so the reel
+and the chips stay on the first screen (`test:siteproof` reads the chips'
+places off that picture): its poster, then its own clip over it, muted and
+looping (`.mo-hvideo`, from the poster's moment, faded in on `playing` or
+`seeked`, sharp where the 480 wide poster is not). It plays only while the
+page is shown, the hero in view (an IntersectionObserver), no dialog open,
+ambient motion on (`Motion.ambientOn`, so it holds while a match is
+recorded) and less motion not asked, and holds otherwise (`heroWake`); it
+lets go of its clip before that clip is deleted. The whole picture is its
+play button (`.mo-hplay`), Open its review and its more button sit at its
+foot; the export still reads `#mo-hero .mo-hcard`, now one. THE FILTERS: the
+kind's capsule (`#mo-filter`) and four `shared/dropdown.js` dropdowns, map,
+agent (champion in League), result and repeated mistake, offering only what
+the saved matches hold, a choice no longer held letting go; the mistake
+dropdown and the compilation's chips are one state (`setPattern`); Clear
+filters while any is set. A KEPT CLIP'S MENU (`.mo-more` on its frame, one
+`#mo-menu` for the page, the arrows inside it, Esc and Tab back to its
+button): Open file location (`CLIP_REVEAL`) and Delete clip (`CLIP_DELETE`),
+by the review's id and the clip's name, never a path. Delete asks first
+(`#mo-confirm`, an alertdialog, the page behind inert, Keep it holding the
+keyboard, Esc keeping the clip), and `#mo-toast` says what was freed or
+main's refusal in words. THE PLAY MARK (`moments.js PLAY_PATH`): rounded
+corners and its area's centroid on the 24 grid's centre, centred as the eye
+measures it; every clip play mark in a circle draws it (Clips, the clip
+player, Home's fix card, Practice's clip tile), with no nudge by hand. STORAGE
+is a press from the title: the pill (`#mo-store-btn`, the total and a small
+bar of the four parts) opens a card (`#mo-store`) with the total and the room
+left on the drive, the parts as one bar in the ink at four strengths (the
+accent is no chart colour), each part with what it is and whether and how it
+is cleared, the clips against the limit, Clear clips or change the limit
+(Settings: a Clear clips from Clips would make every review say it was
+cleared in Settings, `review.js` GONE), and under the recorder's floor
+(`STORAGE_GET recordNeeds`, `recorder.js DISK_START_BYTES`) the line that
+matches are not recorded until there is more room. Main answering null (mid
+match) shows no Storage at all. Pictures: `scripts/shot-demo.js` clipsrich,
+clipsstore, clipslow, clipsmenu, clipsconfirm, clipsfilter, clipsdd,
+clipsdeleted, clipsscroll, clipssmall and clipsplay (the hero's clip playing
+the generated canvas recording through the app's own clip scheme), on
+`scripts/fixtures/clips-demo.js`, the real Abyss match laid out as six
+matches. `npm run test:clipspage` holds all of it.
+
 **The seal.** While a match is in progress no page is visible, whatever asks
 for one. `syncSeal()` in `src/main/index.js` sets it from `isCoaching &&
 matchInProgress()` on a one second tick and before every `openPage()`; the

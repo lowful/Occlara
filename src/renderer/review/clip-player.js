@@ -73,7 +73,8 @@
 
   // The marks, on the 24 unit grid the app's icons use, filled.
   const PATHS = {
-    play: 'M8 5.5v13l10.5-6.5z',
+    // 9.1: centred as the eye measures it, its centroid on the 24 grid's centre (moments.js PLAY_PATH).
+    play: 'M10.43 6.98L17.18 10.78A1.4 1.4 0 0 1 17.18 13.22L10.43 17.02A1.4 1.4 0 0 1 8.34 15.8L8.34 8.2A1.4 1.4 0 0 1 10.43 6.98Z',
     pause: 'M7.5 5.5h3v13h-3zM13.5 5.5h3v13h-3z',
     start: 'M5 6h2v12H5zM13 6v12l-5.5-6zM18.5 6v12L13 12z',
     backSecond: 'M11.5 6v12L5 12zM18.5 6v12L12 12z',
