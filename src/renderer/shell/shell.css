@@ -252,16 +252,20 @@ html.rec-still .upd.unsure .upd-arc, html.ambient-off .upd.unsure .upd-arc { ani
 .app.sealed-live .toggle { display: none; }
 .app.rec-view .toggle { display: none; }
 /* BACK TO THE RECORDING VIEW (9.1): recording between matches with a page
-   open, the still recording dot and the word, quiet as a link. */
+   open, the still recording dot and the word, on the bar's dense glass as
+   What's new is (.bar-pill): as a grey word on the clear bar it all but
+   vanished over the moon's lit limb on Home. */
 .rec-back {
   display: inline-flex; align-items: center; gap: 8px;
-  height: 36px; padding: 0 12px;
-  border: 0; border-radius: var(--r-control); background: transparent;
-  font: 500 14px var(--font); letter-spacing: var(--track-body); color: var(--text-2); white-space: nowrap; cursor: pointer;
-  transition: color var(--dur-hover-out) var(--ease-out), background-color var(--dur-hover-out) var(--ease-out);
+  height: 36px; padding: 0 14px 0 12px;
+  border: 1px solid var(--line); border-radius: var(--r-control);
+  background: var(--glass-fill-2);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+  font: 500 13px var(--font); letter-spacing: var(--track-body); color: var(--text); white-space: nowrap; cursor: pointer;
+  transition: border-color var(--dur-hover-out) var(--ease-out), background-color var(--dur-hover-out) var(--ease-out);
 }
 .rec-back[hidden] { display: none; }
-.rec-back:hover { color: var(--text); background: var(--glass-q); transition-duration: var(--dur-hover-in); }
+.rec-back:hover { background: color-mix(in srgb, var(--glass-fill-2), var(--text) 7%); border-color: var(--line-2); transition-duration: var(--dur-hover-in); }
 .rec-back:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
 .rec-back-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--signal); }
 
