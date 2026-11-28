@@ -52,6 +52,10 @@ const H = Number(process.env.SHOT_H) || 800;
 
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 app.on('window-all-closed', () => {});
+// Clips are played from occlara-clip://, registered before the app is ready as main does (9.1).
+const clipScheme = require('../src/main/services/clip-scheme');
+const reviewClips = require('../src/main/services/review-clips');
+require('electron').protocol.registerSchemesAsPrivileged([clipScheme.PRIVILEGED]);
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -97,7 +101,50 @@ const SCENES = {
   settingslr: { page: 'settings', lr: true, act: "document.getElementById('lr-row').scrollIntoView({ block: 'start' }); true" },
   leaguewait: { page: 'home', rec: true, coaching: true, live: null, game: 'lol' },
   held: { page: null, sealed: true, held: true },
+  // 9.1, the review page (items 6, 7, 16, 18): `media` seeds the newest match
+  // with a real highlight clip (round 17, the 4K) and a death clip and look
+  // (round 2), made by the bundled ffmpeg from the map's art, served the way
+  // main serves clips (occlara-clip://, clip-scheme.js).
+  reviewhl: { page: 'review', media: true },
+  reviewscrolled: { page: 'review', media: true, act: "document.querySelector('main.body').scrollTo(0, 260); true" },
+  reviewrounds: { page: 'review', media: true, act: "document.getElementById('v-rounds-wrap').scrollIntoView({ block: 'start' }); true" },
+  reviewmenu: { page: 'review', media: true, act: "document.getElementById('more').click(); true" },
+  reviewdelete: { page: 'review', media: true, act: "document.getElementById('more').click(); document.getElementById('delete-match').click(); true" },
+  // The replay paused on a kill with its highlight's clip, and on a death with its own.
+  replayclip: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.pause(); for (let k = 0; k < 300; k++) { const s = window.RatingView.state(); if (s && /h17-clip/.test(s.media || '')) break; window.RatingView.nextEvent(); } true" },
+  replaydeath: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.pause(); for (let k = 0; k < 300; k++) { const s = window.RatingView.state(); if (s && /r2-clip/.test(s.media || '')) break; window.RatingView.nextEvent(); } true" },
+  replaynone: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.pause(); window.RatingView.nextEvent(); window.RatingView.nextEvent(); window.RatingView.nextEvent(); true" },
+  reviewnarrow: { page: 'review', media: true, w: 960, h: 640 },
+  replaynarrow: { page: 'review', media: true, w: 960, h: 640, act: "window.RatingView.play(true); window.RatingView.pause(); for (let k = 0; k < 300; k++) { const s = window.RatingView.state(); if (s && /h17-clip/.test(s.media || '')) break; window.RatingView.nextEvent(); } true" },
 };
+
+/*
+ * THE REVIEW'S CLIPS FOR A PICTURE (9.1): two real clips beside the newest
+ * sample match, a slow push into a map's art, H.264 in Matroska as a clip is
+ * kept, and its review naming them: round 17's highlight with its four kills
+ * marked, round 2's death with the coach's look. Made once per run.
+ */
+async function demoMedia(store, id, review) {
+  const ffmpeg = require('ffmpeg-static');
+  const { execFileSync } = require('child_process');
+  const make = (name, map, secs) => {
+    if (store.hasClip(id, name)) return;
+    const out = path.join(os.tmpdir(), `occlara-demo-${process.pid}-${name}`);
+    const frames = secs * 30;
+    execFileSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', '-loop', '1', '-i', path.join(ROOT, 'assets', 'valorant', 'maps', `${map}.jpg`),
+      '-vf', `scale=2560:-2,zoompan=z='min(zoom+0.0007,1.22)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=1280x720:fps=30,format=yuv420p`,
+      '-t', String(secs), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-an', out]);
+    store.saveClip(id, name, fs.readFileSync(out));
+    try { fs.unlinkSync(out); } catch { /* temp */ }
+  };
+  make('h17-clip.mkv', 'Abyss', 9);
+  make('r2-clip.mkv', 'Split', 15);
+  const r = JSON.parse(JSON.stringify(review));
+  const at = (n) => r.rounds.find((c) => c.n === n);
+  if (at(17)) at(17).highlight = { clip: 'h17-clip.mkv', length: 9000, kills: [2400, 3600, 4700, 7400], cuts: [] };
+  if (at(2) && at(2).died) at(2).forensics = { cause: 'isolated', what: 'You swung the angle alone.', better: 'Wait for a teammate before you swing.', source: 'riot', at: Date.now(), clip: 'r2-clip.mkv', clipDeath: 11000 };
+  return r;
+}
 
 function liveOf(kind) {
   if (!kind) return null;
@@ -141,7 +188,12 @@ app.whenReady().then(async () => {
   const seeded = proof.seed(path.join(ud, 'profile'), { now: Date.now() - 30 * 60 * 1000 });
   const store = seeded.store;
   const recent = () => store.recent('valorant', patterns.LOOK_BACK);
-  const present = (review) => scrubText({ ...served(review) });
+  // As main presents a review (index.js present): served, and its clips on disk given their URLs.
+  const present = (review) => {
+    const out = scrubText({ ...served(review) });
+    return review && review.id ? reviewClips.presentClips(out, { has: (n) => store.hasClip(review.id, n), url: (n) => clipScheme.urlFor(review.id, n) }) : out;
+  };
+  require('electron').protocol.handle(clipScheme.SCHEME, clipScheme.createHandler({ fileOf: (id, name) => store.clipFile(id, name) }));
 
   let scene = SCENES.home;
   const shellState = () => ({ page: scene.page || 'home', shown: scene.sealed || scene.rec ? null : scene.page, sealed: !!scene.sealed, held: !!scene.held, rec: !!scene.rec, maximized: false });
@@ -220,7 +272,8 @@ app.whenReady().then(async () => {
           await wait(400);
           const id = seeded.ids[0];
           const e = store.get(id);
-          const whole = present({ ...e.review, id });
+          const review = scene.media ? await demoMedia(store, id, e.review) : e.review;
+          const whole = present({ ...review, id });
           if (scene.work) {
             const endedAt = Date.now() - 95 * 1000;
             const work = { path: 'riot', steps: ['saved', 'riot', 'deaths', 'look', 'writing'], step: 'riot', endedAt, until: endedAt + 6 * 60 * 1000, scoreboard: false };
