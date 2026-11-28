@@ -208,8 +208,8 @@ async function openHome(o) {
   ok(/Date\.now\(\) \/ 1000/.test(sky) && /const TURN_S = \d+/.test(sky) && Number(sky.match(/const TURN_S = (\d+)/)[1]) >= 600,
     'it turns by the wall clock, so every document agrees, and slowly (one turn in ten minutes or more)');
   ok(/const FPS = 30;/.test(sky) && /1000 \/ FPS/.test(sky), 'at 30 frames a second at most');
-  ok(/Motion\.onAmbient/.test(sky) && /ambientOn\(\)/.test(sky) && /rec-still/.test(sky) && /if \(still\(\)\) return;/.test(sky),
-    'still while a match is recorded (ambient off and html.rec-still), and never baked then');
+  ok(/Motion\.onAmbient/.test(sky) && /ambientOn\(\)/.test(sky) && /rec-still/.test(sky) && /if \(sealedHere\(\)\) return;/.test(sky)
+    && /\.app\.is-sealed/.test(sky), 'still while a match is recorded (ambient off and html.rec-still), and never baked mid match (the shell sealed)');
   ok(/page-armed/.test(sky) && /page-leaving/.test(sky) && /visibilityState === 'hidden'/.test(sky) && /hiddenAbove\(host\)/.test(sky),
     'and while its page or window is out of sight, or an ancestor holds it at no opacity');
   ok(/software\(gl\)/.test(sky) && /imageMoon\(host, true\)/.test(sky), 'where WebGL is missing or is the software renderer, the image moon stands in');

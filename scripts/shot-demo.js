@@ -115,6 +115,10 @@ const SCENES = {
   homefoot: { page: 'home', rank: { tier: 'Diamond 1', rr: 57, change: 11 }, act: "document.querySelector('.home').scrollTop = 99999; true" },
   homehover: { page: 'home', rank: { tier: 'Diamond 1', rr: 57, change: 11 }, hover: '#last' },
   hometip: { page: 'home', hover: '#top-list .way' },
+  hometrendtip: { page: 'home', hover: '#trend .way' },
+  home960: { page: 'home', w: 960, h: 640 },
+  home1100: { page: 'home', w: 1100, h: 760, rank: { tier: 'Gold 3', rr: 88, change: 21 } },
+  homelol: { page: 'home', game: 'lol' },
   homerecording: { page: 'home', coaching: true },
   statsrank: { page: 'stats', rank: { tier: 'Diamond 1', rr: 57, change: 11 } },
   rankicons: { page: 'home', act: `(() => {

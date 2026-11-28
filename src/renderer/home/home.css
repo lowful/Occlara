@@ -235,7 +235,7 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
    result and the score large beside the grade; one quiet line at the foot.
    Under the pointer the picture eases in 3% and an arrow comes in at its
    bottom right, both on transforms alone. */
-#last { gap: 0; }
+#last { gap: 0; container-type: inline-size; }
 .last-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 24px; }
 .last-head .last-rr { margin-left: auto; }
 .last-when { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.02em; color: var(--text-2); white-space: nowrap; }
@@ -336,6 +336,13 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 .lm-note.mark::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-2); }
 .lm-note.mark.good::before { background: var(--good); }
 .lm-note.why { white-space: normal; }
+/* A narrower card (the window under about 1200 wide): the result and the
+   grade a step smaller, so "Victory 13 : 11" is never cut. */
+@container (max-width: 330px) {
+  .lm-result { font-size: 20px; }
+  .gv-score.big { font-size: 48px; }
+  .lm-row { gap: 10px; }
+}
 /* Still being checked (8.4.1): the checking card under the picture, which
    gives it the room. */
 #last.checking .lm-media { flex: 0 0 64px; min-height: 64px; }
@@ -371,8 +378,12 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
   transition: opacity 120ms var(--ease-out), transform 120ms var(--ease-out);
 }
 .has-tip:hover::after { opacity: 1; transform: none; transition-duration: var(--dur-hover-in); transition-delay: 220ms; }
-/* The trend card's own arrow sits at its top: its words open below it. */
-.trend-head .has-tip::after { bottom: auto; top: calc(100% + 8px); transform: translateY(-3px); }
+/* The trend card's own arrow sits at its top, in the middle of a narrow card:
+   its words open below the whole title line, from the card's left, so they
+   are never cut by the card's edge. */
+.trend-head { position: relative; }
+.trend-head .way { position: static; }
+.trend-head .has-tip::after { left: 0; right: auto; bottom: auto; top: calc(100% + 8px); max-width: 100%; transform: translateY(-3px); }
 .trend-head .has-tip:hover::after { transform: none; }
 
 /* ── The trend ──────────────────────────────────────────────────────────── */
