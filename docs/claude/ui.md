@@ -48,10 +48,16 @@ wins. What phase 1 changed, and what to keep true:
   the medals (`paintMedals`: real facts only, main's own, never another
   player's name), the fix in two tones, and Ask about this match (`#ask`, moved
   out of the header) beside Every round. The result reads in sentence case.
+- **Phase 2, every other page** (DESIGN.md, "What is built"): the page head is
+  the title at the display size and a grey sub line (`.page-sub`, the header's
+  last child; Matches and Patterns set theirs from `matches.js SECTION_SUBS`), one
+  hero per page, groups as cards with a mono eyebrow, no card inside a card. The
+  Moments page is titled Clips everywhere the player sees it (`shell-nav.js`
+  label, its title, its window title); its id, files and channels keep moments.
 - **Looking at it**: `env -u ELECTRON_RUN_AS_NODE npx electron
   scripts/shot-demo.js home review recording` boots the shell and a page each
   with its real preload, answers their IPC from the sample library and writes
-  `dist-surface-shots/demo-<scene>.png` (scenes: home, matches, patterns,
+  `dist-surface-shots/demo-<scene>.png` (scenes: home, matches, patterns, trainer, coach, settings, profile, invite, whatsnew, feedback, players, duos,
   stats, practice, clips, review, stop, recording, waiting, held). Dev only.
 
 **Top navigation (Progress v3).** The sidebar is gone. The shell is a 64px bar

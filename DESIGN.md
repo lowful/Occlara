@@ -17,15 +17,29 @@ the few things that are the app's own actions. Motion is buttery: it transitions
 reverses where it is interrupted, and settles on a spring. Nothing shows, moves or
 plays during a match but the Recording screen's arrival and its facts changing.
 
-## What is built, and what still wears the last system
+## What is built
 
 Phase 1 (feat/orbit) rebuilt the foundation, the top bar and the Recording screen,
-Home, and the review's hero. Every other page reads in Orbit through the tokens
-(the ground, the greys, the hairlines, the glass buttons, Onest, the radii) but keeps
-its Progress v3 or 8.7 layout until its own phase: Matches, Patterns, Stats, Practice,
-the Trainer, Clips (Moments), Settings, Profile, Invite, Players, Duos, What's new,
-Report a problem, Ask Coach, and the windows of their own (onboarding, Sign in,
-the AI log, weekly, learn, splash, the dock). Wrapped keeps its own look.
+Home, and the review's hero. Phase 2 gave every other page Orbit's layout language:
+
+- **THE PAGE HEAD** (ui.css, every page of the main window): the title at the display
+  size, the page's controls beside it (the sub switch on Matches, Patterns, Stats and
+  Practice), and a grey sub line under the whole row (`.page-sub`, the last child of
+  the header, wrapped to a line of its own). It is the page's one hero: a page that had
+  a second (Report a problem's question, Players' search heading) folds it into that line.
+- **Cards and eyebrows**: each page's groups are cards on the ground with a mono
+  eyebrow (Stats, Profile, Invite, What's new, Report a problem, Clips, the Matches
+  trend); a card never holds a card, so Practice's sections stay on the ground and its
+  drills are the cards, their steps numbered in raised circles as the reference draws them.
+- **Clips** is the Moments page's name everywhere the player sees it (the link, the
+  title, the window title); its id, files and channels keep moments.
+- **The windows of their own** (onboarding, Sign in, weekly, learn, the AI log, the
+  toast) read on the tokens in sentence case; Wrapped keeps its own look.
+- Still the last layout under the new look: the Clips page is ruled rows, not the
+  reference's frame grid (that wants a poster for every moment, and one exists only
+  where a clip was kept); Settings is a page of cards, not the reference's sheet with
+  its live preview; the profile menu's head (an avatar, the player, the game) is the
+  shell's to draw.
 
 ## Ground, ink and the accent
 
