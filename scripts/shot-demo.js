@@ -29,6 +29,11 @@
  * ratedsmall the rated screen at the window's least (960 by 640), homelr and
  * homeconfirm Home's switch on and its confirm open, settingslr Settings at
  * the live rating's rows, and leaguewait League's quiet Recording view.
+ * Matches (9.1) on a fuller library (fixtures/many-matches.js): matchesmany,
+ * matchestip (a point of the trend read), matchespeek and matchesfoot (a
+ * row's peek, under and over its row), matcheslist, matchesmenu,
+ * matchesconfirm (Delete match, asked), matchesdraw (the trend mid draw),
+ * matchesnarrow and matchesnarrowrows (960 by 700), matcheslol (League).
  */
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
@@ -109,6 +114,11 @@ const SCENES = {
   matchesmenu: { page: 'matches', many: true, act: "(() => { const b = document.querySelectorAll('#list .m-more')[4]; b.scrollIntoView({ block: 'center' }); setTimeout(() => b.click(), 300); return true; })()" },
   matchesconfirm: { page: 'matches', many: true, act: "(() => { const b = document.querySelectorAll('#list .m-more')[2]; b.click(); setTimeout(() => { const d = document.querySelector('#m-menu [data-action=delete]'); if (d) d.click(); }, 200); return true; })()" },
   matchesnarrow: { page: 'matches', many: true, w: 960, h: 700 },
+  matchesnarrowrows: { page: 'matches', many: true, w: 960, h: 700, act: "document.getElementById('list').scrollIntoView({ block: 'start' }); true" },
+  matchesfoot: { page: 'matches', many: true, act: "(() => { const all = document.querySelectorAll('#list .m-row'); const r = all[all.length - 1]; r.scrollIntoView({ block: 'end' }); setTimeout(() => { r.closest('.m-item').dispatchEvent(new Event('pointerenter')); r.closest('.m-item').classList.add('peek-show'); }, 300); return true; })()" },
+  // The trend mid draw: played again, pictured 420ms in.
+  matchesdraw: { page: 'matches', many: true, act: 'chart.play(); true', after: 420 },
+  matcheslol: { page: 'matches', game: 'lol' },
 };
 
 function liveOf(kind) {
@@ -252,7 +262,7 @@ app.whenReady().then(async () => {
       // scene timed from a review made whole is taken at its own moment).
       if (!scene.whole) await wait(Number(process.env.SHOT_WAIT) || 3600);
       // A scene's own act in its page (a click, a scroll), then a moment to settle.
-      if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(900); }
+      if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(scene.after || 900); }
       // SHOT_EVAL=<module>: a module that reads the laid out pages (the site
       // proof's readers, say) gets the scene's two webContents, and what it
       // returns is written beside the picture as demo-<scene>.json.

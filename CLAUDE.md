@@ -130,6 +130,7 @@ in `docs/claude/` to find it.
 | Changing the main window, shell, pages, Home, the record card, closing or the tray | `docs/claude/ui.md` |
 | Back and forward (the history, the mouse's side buttons), or any animation and what pauses it while recording (`html.rec-still`, `Motion.onAmbient`) | `docs/claude/ui.md`, "The history" and "Still while recording" |
 | Changing the Moments page (deaths and highlights, the compilation, its player) or `moments.js` | `docs/claude/ui.md`, "The Moments page" |
+| Changing the Matches page (its rows, peek, menu and Delete match), the grade trend chart (`trend-chart.js`) or when you play best (`play-times.js`) | `docs/claude/ui.md`, "The Matches page (9.1)" |
 | Changing CSS, tokens, fonts, the signal's places or the shared components, or adding an IPC channel (`channels.js`) | `docs/claude/ui-rules-ipc.md` |
 | Changing the live read prompt or STATE line, `mapState`, model env vars, call costs, or running `verify:ai` | `docs/claude/live-read.md` |
 | Touching a guard in `coaching-engine.js`: map lock, labels, scoreboard, HP beats death, spectating | `docs/claude/guards.md` |
