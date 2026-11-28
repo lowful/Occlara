@@ -901,6 +901,93 @@ function logLines(out) {
   return lines;
 }
 
+/*
+ * ONE GENERIC BETTER PLAY A MATCH (9.1, the AI audit of the owner's library).
+ * Two lost duel looks of the Split swiftplay of 23 Nov, rounds 2 and 6, ended
+ * on one aim recipe, "Keep your crosshair at head height and stop moving
+ * before your first shot, then step back behind cover if you miss." and
+ * "Keep your crosshair at head height where Deadlock appeared, stop before
+ * firing, and step back behind the corner if your first shots miss.": true,
+ * and skimmed the second time. The looks of one request are one match's
+ * (index.js askForensics sends a match's in one body), so the route hands
+ * them here once all are back. In round order, a better play that says what
+ * an earlier one already said is left out, and its look ends on its own
+ * what, the line only it has. Said already: of their words, agents, guns,
+ * callouts, abilities and small words aside, at least LIKE_WORDS shared and
+ * LIKE_MIN of the two together (the Split pair: 11 and 0.69; no other two
+ * looks of one match in the owner's library pass 0.46, the closest of any two
+ * matches, two "step back behind cover instead of staying on the angle"
+ * repeeks, share 6 of 11, 0.545, and no two of the 23 lost duels on record,
+ * many of them runs of one death, reach it). Conservative by design, so a
+ * better play is left out only where:
+ *   - it names no callout, ability or gun the earlier one does not, so a
+ *     line naming its own place or gun is its own, and stays;
+ *   - its look has a what to end on (a look is never left with no sentence);
+ *   - leaving it out costs no miss: it is a lost duel, which no list counts,
+ *     or the earlier one's own cause, which with two is a repeated mistake
+ *     whose fix is the code's (insights.js causeFix), never a look's. A
+ *     single avoidable death's better play is its miss's fix (insights.js),
+ *     so another cause's stays.
+ * English only. Returns { looks, left }: the looks, a look left out of its
+ * better play a copy, the rest as they came, and left as [{ n, as }], the
+ * round and the earlier round that said it, for the log.
+ */
+const LIKE_MIN = 0.55;
+const LIKE_WORDS = 6;
+const LIKE_SMALL = new Set(('a an the and or but so if to of in on at for with your you it its is be are was were that this as from by then than '
+  + 'instead before after when where while can could would should will do does not no more less them they their there here into onto up out off '
+  + 'over just only also any each other one he she him her his').split(' '));
+const GUNS = Object.keys(DATA.weapons || {}).map(lower);
+const AGENT_WORDS = new Set(AGENTS.map(lower));
+const escWord = (w) => w.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+// The curly apostrophes, built from their codes (never typed as the characters).
+const CURLY_QUOTE = new RegExp(`[${String.fromCharCode(0x2018, 0x2019)}]`, 'g');
+/** The callouts, abilities and guns a sentence names, lower case. */
+const wordRe = (w, flags) => new RegExp(`(?<![a-z0-9])${escWord(w)}(?![a-z0-9])`, flags);
+function namedIn(text, map) {
+  const t = lower(text);
+  return new Set([...calloutsOf(map).map(lower), ...ALL_ABILITIES.keys(), ...GUNS].filter((w) => wordRe(w).test(t)));
+}
+/** A sentence's words as stems, what it names and its small words aside. */
+function likeWords(text, map) {
+  let t = lower(text).replace(CURLY_QUOTE, "'").replace(/'s\b/g, '');
+  // As whole words: Harbor's Cove is no part of "cover".
+  for (const w of namedIn(text, map)) t = t.replace(wordRe(w, 'g'), ' ');
+  const stem = (w) => (/ss$/.test(w) || w.length <= 4 ? w : w.replace(/(?:ing|ed|es|s|e)$/, ''));
+  return new Set((t.match(/[a-z]+/g) || []).filter((w) => !LIKE_SMALL.has(w) && !AGENT_WORDS.has(w)).map(stem));
+}
+/** Whether two better plays say one thing: { shared, like }. */
+function likeness(a, b, map) {
+  const A = likeWords(a, map);
+  const B = likeWords(b, map);
+  let shared = 0;
+  for (const w of A) if (B.has(w)) shared += 1;
+  const all = A.size + B.size - shared;
+  return { shared, like: all ? shared / all : 0 };
+}
+function oneGenericBetter(looks, input) {
+  const list = Array.isArray(looks) ? looks : [];
+  if (!input || gateLanguage(input) !== 'en') return { looks: list, left: [] };
+  const kept = [];
+  const out = new Map();
+  const left = [];
+  const order = list.filter((l) => l && !l.failed && typeof l.better === 'string' && l.better).sort((x, y) => x.n - y.n);
+  for (const l of order) {
+    const names = namedIn(l.better, input.map);
+    const said = kept.find((k) => {
+      const like = likeness(k.better, l.better, input.map);
+      if (like.shared < LIKE_WORDS || like.like < LIKE_MIN) return false;
+      const theirs = namedIn(k.better, input.map);
+      return [...names].every((w) => theirs.has(w));
+    });
+    if (said && l.what && (l.cause === 'lost-duel' || l.cause === said.cause)) {
+      out.set(l, { ...l, better: null });
+      left.push({ n: l.n, as: said.n });
+    } else kept.push(l);
+  }
+  return { looks: list.map((l) => out.get(l) || l), left };
+}
+
 /** One look as the reply carries it: without what is only logged. */
 function replyOf(out) {
   const { dropped, ...reply } = out || {};
@@ -1025,4 +1112,6 @@ module.exports = {
   phraseHits, movesPlayer, replyJson, rawLabels, logLines, replyOf, tokensFor, judgement, judgementB2, judgesFight,
   rankRule, BAND_WORDS, kitBlockFor, kitWrong, recordOf, recordLines, wrongSide, BUY_SAID,
   CODE_ONLY, modelCauses, ENTRY_WORDS, RETAKE_WORDS, entryOnDefence,
+  // 9.1, the AI audit's follow ups: the own kit gate and one generic better play a match.
+  ownUtility, oneGenericBetter, likeness, likeWords, namedIn, LIKE_MIN, LIKE_WORDS,
 };

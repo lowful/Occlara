@@ -3779,8 +3779,20 @@ router.post('/death-forensics', async (req, res) => {
     }
   };
   try {
-    const deaths = await Promise.all(input.deaths.map(one));
+    const looked = await Promise.all(input.deaths.map(one));
     trackCall(licenseKey, input.deaths.length);
+    // ONE GENERIC BETTER PLAY A MATCH (9.1, death-forensics.js
+    // oneGenericBetter): the request's looks are one match's, and a better
+    // play an earlier round's already said is left out, its look ending on
+    // its own what. Logged by rounds only.
+    let deaths = looked;
+    if (typeof deathForensics.oneGenericBetter === 'function') {
+      try {
+        const once = deathForensics.oneGenericBetter(looked, input);
+        deaths = once.looks;
+        for (const x of once.left) console.log(`[forensics] R${x.n} better play left out, round ${x.as}'s said it`);
+      } catch (e) { deaths = looked; }
+    }
     res.json({ deaths, model, ...told });
   } catch (e) {
     console.error('[forensics] error:', e.message);

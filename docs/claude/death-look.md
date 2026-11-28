@@ -528,7 +528,7 @@ requestBody, each condition held, the lever and the gates), `test:forensics`
 must not catch, the look's gate on defence, attack and a retake).
 
 
-### The look's own kit and its spelling (9.1)
+### The look's own kit, its spelling, one generic line a match (9.1)
 
 The AI audit of the owner's library (item 20) left follow ups for the look,
 all in `death-forensics.js`, every variant and every client:
@@ -543,8 +543,27 @@ all in `death-forensics.js`, every variant and every client:
   Jett ("throw a flash before you peek A Vent") are the 8.4.4 check's case.
 - **Practice, never practise** (`plain-text.js practiceSpelling`) on each
   sentence kept, as the client shows it.
+- **One generic better play a match** (`oneGenericBetter`, run by the route
+  on the request's looks once all are back: `index.js askForensics` sends a
+  match's looks in one body). The Split swiftplay of 23 Nov ended rounds 2
+  and 6 on one aim recipe ("keep your crosshair at head height, stop before
+  firing, step back behind cover"). In round order, a better play that says
+  what an earlier one said is left out (`better: null`) and its look ends on
+  its own what. Said already: of their words, agents, guns, callouts,
+  abilities and small words aside, at least `LIKE_WORDS` (6) shared and
+  `LIKE_MIN` (0.55) of the two together; the Split pair is 11 and 0.69, no
+  other two looks of one match in the library pass 0.46, and no two of the 23
+  lost duels on record reach it. Only where the later line names no callout,
+  ability or gun the earlier one does not, its look has a what to end on, and
+  leaving it out costs no miss: a lost duel (no list counts one) or the
+  earlier one's own cause (two of a cause are a repeated mistake, whose fix is
+  `insights.js causeFix`); a single avoidable death's better play is its
+  miss's fix, so another cause's stays. English only. Logged by rounds only
+  (`[forensics] R6 better play left out, round 2's said it`). Looks saved
+  before it keep both lines; the review page shows what was saved.
 
-Tests: `test:forensics` ("in the look (9.1)").
+Tests: `test:forensics` ("in the look (9.1)", "one generic better play a
+match (9.1)").
 
 
 ### Chains of mistakes (Nov 2026)

@@ -200,6 +200,63 @@ ok(!/\u2014/.test(df.parse('{"cause": "isolated", "what": "You held alone \u2014
   ok(df.parse(reply, screen, screen.deaths[0]).better === THROW, 'KEPT: no agent known (from the screen, one never locked off the HUD), nothing judged');
 }
 
+// ── One generic better play a match (9.1, oneGenericBetter) ────────────────
+// The AI audit's open follow up: the Split swiftplay of 23 Nov, its four
+// looks as the owner's library saved them (agents only).
+{
+  console.log('\none generic better play a match (9.1):');
+  const split = { agent: 'Jett', map: 'Split', language: 'en' };
+  const L = (n, cause, what, better, o) => ({ n, cause, what, better, ...(o || {}) });
+  const R1 = L(1, 'dry-peek', 'At 15 health, you dropped into Mid Vent and met Hush at close range, dealing 30 damage before their Sheriff killed you.',
+    'Stay above the drop and wait for your nearby teammate before entering Mid Vent.');
+  const R2 = L(2, 'lost-duel', 'At A Ramps, you fired two Sheriff shots at Hush from beside cover, dealt no damage, and died to their Spectre in the same exchange.',
+    'Keep your crosshair at head height and stop moving before your first shot, then step back behind cover if you miss.');
+  const R4 = L(4, 'isolated', 'With 6 health and no teammate nearby, you moved toward B Stairs and fired once at Clove before Clove killed you.',
+    'Stay near cover and a teammate instead of taking the B Stairs fight alone, so you can step back if Clove fires.');
+  const R6 = L(6, 'lost-duel', 'You held the corner in B Garage with 70 health, fired at Deadlock when she appeared, and died to her Spectre without dealing damage.',
+    'Keep your crosshair at head height where Deadlock appeared, stop before firing, and step back behind the corner if your first shots miss.');
+  const like = df.likeness(R2.better, R6.better, 'Split');
+  ok(like.shared >= df.LIKE_WORDS && like.like >= df.LIKE_MIN, `the Split pair says one thing (${like.shared} words shared, ${like.like.toFixed(2)})`);
+  const once = df.oneGenericBetter([R1, R2, R4, R6], split);
+  ok(once.looks[3].better === null && once.looks[3].what === R6.what && once.looks[3].cause === 'lost-duel'
+    && once.left.length === 1 && once.left[0].n === 6 && once.left[0].as === 2,
+  'CAUGHT: round 6\'s better play, the aim recipe round 2 already gave, is left out, and the look ends on its own what', JSON.stringify(once.left));
+  ok(once.looks[1] === R2 && once.looks[0] === R1 && once.looks[2] === R4 && R6.better, 'and round 2 keeps it, rounds 1 and 4 are as they came, and nothing sent is changed');
+  const flagged = df.oneGenericBetter([R6, R4, R2, R1], split);
+  ok(flagged.looks[0].better === null && flagged.looks[2] === R2, 'the earliest round keeps it whatever order the looks came in (a flagged death leads)');
+  // Where leaving it out would cost something, it stays.
+  ok(df.oneGenericBetter([R2, { ...R6, what: null }], split).looks[1].better === R6.better, 'KEPT: a look with no what of its own keeps its better play');
+  ok(df.oneGenericBetter([R2, { ...R6, cause: 'dry-peek' }], split).left.length === 0,
+    "KEPT: another avoidable cause's, which is its miss's fix (insights.js)");
+  ok(df.oneGenericBetter([{ ...R2, cause: 'repeek' }, { ...R6, cause: 'repeek' }], split).left.length === 1,
+    "and the earlier look's own cause is left out: two of a cause are a repeated mistake, whose fix is the code's");
+  ok(df.oneGenericBetter([R2, { ...R6, better: R6.better.replace('where Deadlock appeared', 'at B Garage') }], split).left.length === 0,
+    'KEPT: a better play naming its own place');
+  ok(df.oneGenericBetter([R2, { ...R6, better: R6.better.replace('Keep your crosshair', 'Keep your Sheriff crosshair') }], split).left.length === 0
+    && df.oneGenericBetter([{ ...R2, better: R2.better.replace('Keep your crosshair', 'Keep your Sheriff crosshair') }, { ...R6, better: R6.better.replace('Keep your crosshair', 'Keep your Sheriff crosshair') }], split).left.length === 1,
+  'KEPT: one naming a gun the earlier one does not, and left out where both name it');
+  ok(df.oneGenericBetter([R2, R6], { ...split, language: 'es' }).left.length === 0, 'KEPT: another language, whose words this cannot read');
+  ok(df.oneGenericBetter([R2, { n: 6, cause: 'unclear', what: null, better: null, failed: true }, R6], split).left.length === 1
+    && df.oneGenericBetter([], split).left.length === 0 && df.oneGenericBetter(null, split).looks.length === 0,
+  'a failed look is passed over, and no looks is nothing');
+  // Conservative: the library's other pairs, and the lost duels on record, all stay.
+  const pairs = [
+    ['After the first exchange, fall back behind cover instead of staying on the angle with 57 health.', 'Keep using the wall for cover, but fall back after your first shots instead of staying on the angle.'],
+    ['Step back behind the wall after your first shots instead of staying on the same angle.', 'After the kill, step behind the nearby wall instead of holding the same angle for another fight.'],
+    ['Stay beside cover and aim before firing so you can retreat if your first shots miss.', 'Keep your Ghost ready when approaching the doorway so you can take the fight without switching weapons under fire.'],
+  ];
+  ok(pairs.every(([a, b]) => df.oneGenericBetter([L(2, 'lost-duel', 'x.', a), L(5, 'lost-duel', 'y.', b)], split).left.length === 0),
+    'KEPT: the library\'s near pairs of two deaths in one match (0.46 and 0.36), and two lines that share a word or two');
+  const runs = require('./fixtures/lost-duel-answers.json').answers.map((x) => x.better).filter(Boolean);
+  let over = 0;
+  for (let i = 0; i < runs.length; i++) for (let j = i + 1; j < runs.length; j++) if (df.likeness(runs[i], runs[j], 'Abyss').like >= df.LIKE_MIN) over += 1;
+  ok(runs.length >= 20 && over === 0, `and no two of the ${runs.length} lost duels on record, many of them runs of one death, are said alike (${over})`);
+  ok(df.likeWords("Use Harbor's Cove for cover.", 'Split').has('cover') && !df.likeWords("Use Harbor's Cove for cover.", 'Split').has('cove'),
+    'a name is taken out as a whole word: Cove is no part of cover');
+  ok(/deathForensics\.oneGenericBetter\(looked, input\)/.test(fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'coach.js'), 'utf8')),
+    'the route runs it on the request\'s looks before it answers');
+}
+
 // ── The map gate ────────────────────────────────────────────────────────────
 ok(df.wrongMap('You died holding Hookah alone.', 'Abyss') === 'hookah', 'Hookah on Abyss is caught');
 ok(df.wrongMap('You died holding Hookah alone.', 'Bind') === null, 'Hookah on Bind is allowed');
