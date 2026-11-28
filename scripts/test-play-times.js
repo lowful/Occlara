@@ -16,7 +16,7 @@ const ok = (cond, what, detail) => {
   if (!cond) { fails++; console.log(`FAIL  ${what}${detail ? `\n        ${detail}` : ''}`); }
   else console.log(`ok    ${what}`);
 };
-const DASHES = /[–—]/;
+const DASHES = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']');
 const utc = (ms) => new Date(ms).getUTCHours();
 const DAY = 24 * 3600 * 1000;
 const BASE = Date.UTC(2026, 10, 1);
