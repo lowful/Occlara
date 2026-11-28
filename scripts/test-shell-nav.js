@@ -942,13 +942,23 @@ function rig() {
   trayMod.create(actions);
   const t = made[0];
   ok(!!t && !!t.image && t.image.file === 'tray-dark.ico' && !resized,
-    'on a dark taskbar the tray draws the crescent in the ink, tray-dark.ico, shrunk from nothing', t && t.image && t.image.file);
+    'on a dark taskbar the tray draws the moon in the ink, tray-dark.ico, shrunk from nothing', t && t.image && t.image.file);
   theme.shouldUseDarkColorsForSystemIntegratedUI = false;
   theme.emit('updated');
   ok(!!t && !!t.image && t.image.file === 'tray-light.ico' && !resized,
     'and Windows going light repaints it in the ground, tray-light.ico', t && t.image && t.image.file);
-  ok(['tray-dark.ico', 'tray-light.ico'].every((f) => fs.existsSync(path.join(__dirname, '..', 'assets', f))),
-    'both pictures are in assets, drawn by scripts/generate-icon.js');
+  // Recording, the record ring with the moon as its dot; stopped, the moon again.
+  trayMod.update(true, actions);
+  ok(!!t && !!t.image && t.image.file === 'tray-rec-light.ico', 'recording, the tray is the record ring with the moon as its dot, tray-rec-light.ico', t && t.image && t.image.file);
+  theme.shouldUseDarkColorsForSystemIntegratedUI = true;
+  theme.emit('updated');
+  ok(!!t && !!t.image && t.image.file === 'tray-rec-dark.ico', 'and a theme change while recording keeps the ring, tray-rec-dark.ico', t && t.image && t.image.file);
+  trayMod.update(false, actions);
+  ok(!!t && !!t.image && t.image.file === 'tray-dark.ico', 'stopped, the moon alone again', t && t.image && t.image.file);
+  theme.shouldUseDarkColorsForSystemIntegratedUI = false;
+  theme.emit('updated');
+  ok(['tray-dark.ico', 'tray-light.ico', 'tray-rec-dark.ico', 'tray-rec-light.ico'].every((f) => fs.existsSync(path.join(__dirname, '..', 'assets', f))),
+    'all four pictures are in assets, drawn by scripts/generate-icon.js');
   filesThere = false;
   theme.emit('updated');
   ok(!!t && !!t.image && t.image.file === null, 'a picture missing from assets is an empty one, never a throw');

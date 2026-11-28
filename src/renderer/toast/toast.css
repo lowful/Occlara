@@ -2,11 +2,11 @@
 /* The reveal (8.10.4, once the games toast): a see-through view over the whole
    window. A flat scrim (--bg at 90%, no blur, no gradient) and, centred on it,
    either a gift that drops, shakes and opens, with the number rising out of it
-   and counting up, or the crescent inside a ring that draws itself, for a
+   and counting up, or the moon inside a ring that draws itself, for a
    plan. One timeline per look, every step a delay on its own animation:
      scrim 0, gift drops 120, shakes 620, lid opens 860 (ring and flat pieces
      burst with it), number rises 900 and counts, unit 1500, line 1640,
-     buttons 1740 ms. A plan: ring draws 160, crescent 640, ring pulse 860,
+     buttons 1740 ms. A plan: ring draws 160, moon 640, ring pulse 860,
      the rest as the gift.
    Motion is transform, opacity and one stroke draw. Reduced motion: it fades,
    nothing moves, draws, bursts or counts. Tokens only. */
@@ -66,7 +66,7 @@ body { font-family: var(--font); color: var(--text); -webkit-font-smoothing: ant
 .pc.c2 { background: var(--warn); }
 .pc.c3 { background: var(--text-dim); }
 
-/* The plan: the ring draws, the crescent comes in. */
+/* The plan: the ring draws, the moon comes in. */
 .rv-plan { color: var(--good); }
 .rv-root[data-tier="max"] .rv-plan { color: var(--warn); }
 .rv-root[data-tier="max"] .rv-ring { border-color: var(--warn); }

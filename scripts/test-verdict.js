@@ -481,7 +481,7 @@ function harness(opts) {
       clip() { calls.push(['clip']); },
       drawImage(img, x, y, w, h) { calls.push(['drawImage', img, x, y, w, h]); },
       stroke() { calls.push(['stroke', state.strokeStyle]); },
-      fill(p) { calls.push(['fill', state.fillStyle, p && p.d]); },
+      fill(p, rule) { calls.push(['fill', state.fillStyle, p && p.d, rule]); },
       fillText(text, x, y) { texts.push({ text: String(text), font: state.font, fill: state.fillStyle, x, y, spacing: state.letterSpacing, align: state.textAlign }); },
       measureText(text) {
         const px = Number((/(\d+(?:\.\d+)?)px/.exec(state.font) || [])[1]) || 10;
@@ -555,7 +555,7 @@ const ABYSS_V = { ...av, at: AT };
     'verdict-card.js sets window.VerdictCard with draw, save and copy');
   ok(same(VC.SIZES, { card: { w: 1586, h: 1000 }, post: { w: 1080, h: 1350 }, discord: { w: 1200, h: 628 } }) && VC.SCALE === 2.5,
     'three sizes: the card 1586 by 1000, the post 1080 by 1350, Discord 1200 by 628, each at 2.5 times its box');
-  ok(VC.MARK === 'M76.294,4.281 A50,50 0 1,0 116.705,74.274 A42,42 0 1,1 76.294,4.281 Z', 'the mark is the crescent\'s own path');
+  ok(VC.MARK === require('./moon/moon-art').FLAT_D, 'the mark is the full moon\'s own path, the flat mark the generator draws');
   const P = TOKENS;
   for (const size of ['card', 'post', 'discord']) {
     for (const paper of [true, false]) {
@@ -592,7 +592,7 @@ const ABYSS_V = { ...av, at: AT };
         `${where}: the B in Geist 600, ${paper ? 'ink on paper' : 'ink on the dark ground, a B is neutral'}`, letter && `${letter.fill} ${letter.font}`);
       const scales = h.calls.filter((c) => c[0] === 'scale');
       ok(scales.length >= 2 && scales.every((c) => c[1] === c[2]), `${where}: every scale is the same on both axes, so the mark is never stretched`);
-      ok(h.calls.some((c) => c[0] === 'fill' && c[2] === VC.MARK), `${where}: the mark is drawn from its path`);
+      ok(h.calls.some((c) => c[0] === 'fill' && c[2] === VC.MARK && c[3] === 'evenodd'), `${where}: the mark is drawn from its path, even odd, so its seas are cut`);
       ok(h.calls.filter((c) => c[0] === 'stroke').length === 1, `${where}: the four corner brackets, as lines`);
     }
   }
@@ -659,8 +659,8 @@ const ABYSS_V = { ...av, at: AT };
   VC.draw(ABYSS_V);
   const markAt = h.calls.find((c) => c[0] === 'translate');
   const H_CARD = 1000 / 2.5;
-  ok(markAt && Math.abs(markAt[1] + 11 * (21 / 120) - 32) < 1e-9 && Math.abs(markAt[2] - (H_CARD - 32 - 9.5)) < 1e-9,
-    "the crescent signs the bottom row, its ink on the left margin beside occlara.app", markAt && `${markAt[1]},${markAt[2]}`);
+  ok(markAt && Math.abs(markAt[1] + 11 * (10 / 120) - 32) < 1e-9 && Math.abs(markAt[2] - (H_CARD - 32 - 9.5)) < 1e-9,
+    "the moon signs the bottom row, its disc on the left margin beside occlara.app", markAt && `${markAt[1]},${markAt[2]}`);
   const addr = h.texts.find((x) => x.text === 'occlara.app');
   ok(addr && addr.x === 48 && addr.y === H_CARD - 32, 'and the address follows it', addr && `${addr.x},${addr.y}`);
 

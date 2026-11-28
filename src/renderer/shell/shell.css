@@ -1,5 +1,5 @@
 /* The shell: the main window's top bar, account menu and Recording screen.
-   ORBIT'S TOP BAR (27 Nov 2026): 56px on the sky, the crescent and Occlara
+   ORBIT'S TOP BAR (27 Nov 2026): 56px on the sky, the moon and Occlara
    at the left, the four links as plain words with one dot that glides to the
    current one, then Start (the bar's size, the loudest word), the profile
    button and the window's buttons. No pill and no container. The page under
@@ -37,8 +37,8 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   padding: 0 0 0 22px;
   background: transparent;
 }
-.brand { flex: none; display: flex; align-items: center; gap: 9px; height: 40px; padding: 0 6px 0 2px; }
-.brand .mark { width: 19px; height: 19px; margin-top: 1px; color: var(--text); }
+.brand { flex: none; display: flex; align-items: center; gap: 7px; height: 40px; padding: 0 6px 0 2px; }
+.brand .mark { width: 22px; height: 22px; flex: none; }
 .brand .name { font-size: var(--t-title); font-weight: 700; letter-spacing: -0.05em; line-height: 1; padding-bottom: 2px; }
 
 /* The four links: plain words in the grey, the current one in the ink with
@@ -235,7 +235,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .account.on::before { background: var(--good); }
 
 /* Narrower windows: the links draw in, and under 1100 the brand keeps its
-   crescent alone. */
+   moon alone. */
 @media (max-width: 1100px) {
   .brand .name { display: none; }
   .bar { gap: var(--space-3); }

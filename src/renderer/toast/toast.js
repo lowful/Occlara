@@ -3,7 +3,7 @@
 /*
  * THE REVEAL (8.10.4, once the games toast): the view main lays over the whole
  * window while one is up (main-window.js toast). It draws the one event main
- * sends, centred: a gift that opens ("+4 games") or the crescent in a ring
+ * sends, centred: a gift that opens ("+4 games") or the moon in a ring
  * (a plan), the number counted up, one line and two buttons. The timeline is
  * all CSS (toast.css); this file counts the number, makes the flat pieces,
  * and says how it ended, once, by id: 'done' (Continue, Esc, a click on the

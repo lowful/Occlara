@@ -147,7 +147,7 @@ function words(ev) {
   const games = (k) => (k === 1 ? 'game' : 'games');
   const tier = TIER_LABEL[e.tier] || 'a plan';
   // The reveal (8.10.4) draws the same event centred: `look` is the picture
-  // (a gift box opening, or the crescent in a ring for a plan), `big` the
+  // (a gift box opening, or the moon in a ring for a plan), `big` the
   // number counted up, `unit` what it counts, `rline` its one line and `tier`
   // the colour of a plan's ring. pre, n, post and line stay as they were.
   const rev = (look, big, unit, rline, t) => ({ look, big, unit, rline, tier: t || '' });

@@ -73,7 +73,7 @@ html.ambient-off .sky-twinkle { animation-play-state: paused; }
 .label:not(.o-eyebrow) { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
 
 /* OCCLARA WRAPPED'S INVITATION (docs/claude/wrapped.md), 15 December to 31
-   January: one quiet row, the crescent, main's line and its button. In the
+   January: one quiet row, the moon, main's line and its button. In the
    app's own look: Wrapped's colours stay inside Wrapped. */
 .h-wrapped {
   display: flex; align-items: center; gap: var(--space-4);
