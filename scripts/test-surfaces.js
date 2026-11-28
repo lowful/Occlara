@@ -867,36 +867,28 @@ async function openShell(cfg, state, opts) {
       },
     });
     await settle();
-    const bars = m.document.querySelectorAll('#p-trend .p-bar');
-    ok(bars.length === 5 && !m.$('p-trend').hidden, 'one bar per graded match');
-    const read = bars.map((b) => ({
-      score: Number(b.querySelector('span').textContent),
-      // Wherever the score's height is set, on the bar or on its fill.
-      h: parseFloat(b.style.getPropertyValue('--h') || b.querySelector('i').style.getPropertyValue('--h')),
-      fill: b.querySelector('i'),
-    }));
-    ok(same(read.map((r) => r.score), [58, 69, 82, 77, 95]), 'oldest on the left');
-    ok(read.every((r) => r.h === r.score), 'each bar is its grade as a share of the full height', read.map((r) => r.h).join(','));
-    // 8.9.1: one encoding, height. No bar takes its letter's colour (they read
-    // as random); the newest alone is marked, and says so under it.
-    ok(read.every((r) => toneOf(r.fill) === '') && bars.every((b) => toneOf(b) === ''),
-      'no bar is coloured by its letter', read.map((r) => `${r.score}:${r.fill.className}`).join(' '));
-    ok(same(bars.map((b) => b.classList.contains('latest')), [false, false, false, false, true])
-      && bars[4].querySelector('small').textContent === 'Latest' && /Your latest match/.test(bars[4].title),
-      'the newest bar is marked and named Latest');
-    const days = bars.slice(0, 4).map((b) => b.querySelector('small').textContent);
-    const want = grades.slice(1).reverse().map((g) => new Date(g.at).toLocaleDateString([], { month: 'short', day: 'numeric' }))
-      .map((d, i, all) => (i && all[i - 1] === d ? '' : d));
-    ok(same(days, want) && /^[A-Z][a-z]{2} \d{1,2}$/.test(days[0]),
-      'the first bar of each day carries its short date, as an axis is labelled', days.join(','));
-    const guides = m.document.querySelectorAll('#p-trend .p-guide');
-    ok(same(guides.map((g) => g.textContent), ['90', '80', '70', '60'])
-      && same(guides.map((g) => g.style.getPropertyValue('--h')), ['90%', '80%', '70%', '60%']),
-      'each band is a guide line labelled by its number, no letter, at grade.js\'s floor');
+    // 9.1 (the owner's item 21): Patterns draws the same chart the list page
+    // and Home draw (shared/trend-chart.js), where it drew the 8.9 bar strip.
+    const chartHost = m.document.querySelector('#p-trend .p-chart');
+    const dots = m.document.querySelectorAll('#p-trend .tc-dot');
+    ok(!m.$('p-trend').hidden && chartHost && chartHost.classList.contains('tc') && chartHost.querySelector('svg.tc-svg') && dots.length === 5,
+      'the shared trend chart, one dot per graded match');
+    ok(!m.document.querySelector('#p-trend .p-bar'), 'and no bar strip of its own');
+    const read = dots.map((d) => ({ score: Number(d.getAttribute('data-grade')), cy: Number(d.getAttribute('cy')), cx: Number(d.getAttribute('cx')) }));
+    ok(same(read.map((r) => r.score), [58, 69, 82, 77, 95]) && read.every((r, i) => !i || r.cx > read[i - 1].cx), 'oldest on the left');
+    ok(read.every((a) => read.every((b) => a.score <= b.score || a.cy < b.cy)), 'each dot stands at its grade, a higher grade higher', read.map((r) => `${r.score}@${r.cy}`).join(' '));
+    // 8.9.1: one encoding, height. No dot takes its band's colour; the newest
+    // alone is marked.
+    ok(dots.every((d) => toneOf(d) === ''), 'no dot is coloured by its grade', dots.map((d) => d.getAttribute('class')).join(' '));
+    ok(same(dots.map((d) => d.classList.contains('now')), [false, false, false, false, true]), 'the newest dot is marked');
+    const foot = m.document.querySelectorAll('#p-trend .tc-foot-label').map((t) => t.textContent);
+    ok(foot.length >= 1 && foot.every((t) => /^(?:Today|Yesterday|[A-Z][a-z]{2} \d{1,2})$/.test(t)), 'its foot is days, never a time of day', foot.join(','));
+    const guides = m.document.querySelectorAll('#p-trend .tc-guide-label').map((g) => g.textContent);
+    ok(same(guides.slice().sort(), ['60', '70', '80', '90']), 'each band is a guide line labelled by its number, no letter, at grade.js\'s floor', guides.join(','));
     ok(grade.letter(90) === 'S' && grade.letter(89) === 'A' && grade.letter(80) === 'A' && grade.letter(70) === 'B' && grade.letter(60) === 'C' && grade.letter(59) === 'D',
       'and those floors are grade.js\'s');
-    const avgLine = m.document.querySelector('#p-trend .p-avgline');
-    ok(avgLine && avgLine.style.getPropertyValue('--h') === '76%' && /76/.test(avgLine.textContent), 'the average is a line at its height');
+    const avgLabel = m.document.querySelector('#p-trend .tc-avg-label');
+    ok(avgLabel && avgLabel.textContent === 'avg 76', 'the average is a dashed line, labelled', avgLabel && avgLabel.textContent);
     const keyText = m.document.querySelectorAll('#p-trend .p-key-item').map((k) => k.textContent);
     ok(same(keyText, ['Latest match', 'Average, 76']), 'and the key names each mark on the chart', JSON.stringify(keyText));
     ok(/each of your last 5 graded matches/.test(m.document.querySelector('#p-trend .p-trend-cap').textContent), 'one plain line says what the chart is');
@@ -916,12 +908,10 @@ async function openShell(cfg, state, opts) {
       const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       return (css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
     };
-    ok(/border-radius/.test(rule('.p-bar i')), 'the rule reader finds a known rule');
-    ok(/position:\s*absolute/.test(rule('.p-bar span')) && /position:\s*absolute/.test(rule('.p-bar i'))
-      && /position:\s*relative/.test(rule('.p-bar')) && !/flex-direction/.test(rule('.p-bar')),
-      'the number is positioned off the fill, outside the layout that sizes it');
-    ok(/height:\s*var\(--h/.test(rule('.p-bar i')) && /bottom:\s*calc\(var\(--h/.test(rule('.p-bar span')),
-      'and both read the same --h');
+    ok(/border-radius/.test(rule('.p-key-sw.run')), 'the rule reader finds a known rule');
+    ok(!/\.p-bar\b|\.p-guide\b|\.p-avgline\b/.test(css), 'the 8.9 bar strip\'s rules are gone with it');
+    const html = fs.readFileSync(path.join(RENDERER, 'matches', 'index.html'), 'utf8');
+    ok(/shared\/trend-chart\.css/.test(html) && /shared\/trend-chart\.js/.test(html), 'and the page loads the shared chart\'s style and script');
 
     const scores = m.document.querySelectorAll('#list .m-row .m-score');
     ok(scores.length === 5 && scores.every((el) => toneOf(el) === toneFor(Number(el.textContent)))
@@ -940,7 +930,7 @@ async function openShell(cfg, state, opts) {
       marks: { g0: [{ kind: 'best', text: 'Best in 4' }, { kind: 'run', text: '2 in a row' }],
         g2: [{ kind: 'cleared', text: '2 without Died where nobody could trade' }],
         w: [{ kind: 'best', text: 'Best in 5' }] },
-      run: { count: 2, floor: 'B' },
+      run: { count: 2, from: 70 },
       latest: { kind: 'best', tone: 'good', text: 'Best grade in your last 4 graded matches.' },
     };
     const pat = (key, title, trend) => ({ key, title, matches: 2, total: 7, judged: false, fix: 'Do the other thing.', trend,
@@ -962,11 +952,26 @@ async function openShell(cfg, state, opts) {
       'a cleared habit on its own row, and a row with none carries none');
     const checkingRow = items.find((it) => !it.querySelector('.m-score'));
     ok(checkingRow && marksOf(checkingRow).length === 0, 'a match still being checked shows no mark');
-    const bars = m.document.querySelectorAll('#p-trend .p-bar');
-    // Oldest on the left: 70, 64, 81, 88.
-    ok(same(bars.map((b) => b.classList.contains('best')), [false, false, false, true]), 'the record\'s bar is outlined, and only it');
-    ok(same(bars.map((b) => b.classList.contains('run')), [false, false, true, true]), 'the run\'s bars, the newest run.count, are marked');
-    ok(/Best in 4/.test(bars[3].title) && /One of 2 in a row at 70 or better/.test(bars[2].title), 'and each says so on hover', bars[3].title);
+    // Oldest on the left: 70, 64, 81, 88. The record's dot is ringed, the
+    // run underlined along the baseline, both on the shared chart (9.1).
+    const dots = m.document.querySelectorAll('#p-trend .tc-dot');
+    const cx = dots.map((d) => Number(d.getAttribute('cx')));
+    const rings = m.document.querySelectorAll('#p-trend .tc-record');
+    ok(rings.length === 1 && Number(rings[0].getAttribute('cx')) === cx[3], 'the record\'s dot is ringed, and only it');
+    const runs = m.document.querySelectorAll('#p-trend .tc-run');
+    ok(runs.length === 1 && Number(runs[0].getAttribute('x1')) < cx[2] && Number(runs[0].getAttribute('x1')) > cx[1] && Number(runs[0].getAttribute('x2')) >= cx[3],
+      'the run, the newest run.count, is underlined under its matches alone', runs.length ? `${runs[0].getAttribute('x1')}..${runs[0].getAttribute('x2')} over ${cx.join(',')}` : 'none');
+    const tcHost = m.document.querySelector('#p-trend .p-chart');
+    const { makeEvent } = require('./fixtures/fake-dom');
+    tcHost.dispatchEvent(makeEvent('keydown', { key: 'End' }));
+    const saidNewest = tcHost.querySelector('.tc-live').textContent;
+    tcHost.dispatchEvent(makeEvent('keydown', { key: 'ArrowLeft' }));
+    const saidRun = tcHost.querySelector('.tc-live').textContent;
+    ok(/Best in 4/.test(saidNewest) && /One of 2 in a row at 70 or better/.test(saidNewest) && /One of 2 in a row at 70 or better/.test(saidRun) && !/Best in 4/.test(saidRun),
+      'and each match says so in words, read out from the keyboard', `${saidNewest} | ${saidRun}`);
+    const keyText = m.document.querySelectorAll('#p-trend .p-key-item').map((k) => k.textContent);
+    ok(keyText.includes('88Best in 4') && keyText.includes('2 in a row at 70 or better') && !keyText.some((t) => /\bat [A-FS] or better/.test(t)),
+      'the key names the record and the run by their numbers, never a letter', JSON.stringify(keyText));
     const hero = m.document.querySelector('#p-lists .gv-hero');
     const closed = m.document.querySelectorAll('#p-lists .gv-rowed details.gv-row');
     ok(hero && hero.querySelector('.gv-item-title').textContent === 'Peeked alone' && closed.length === 1,

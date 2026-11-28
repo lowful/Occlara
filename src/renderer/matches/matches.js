@@ -87,31 +87,20 @@ function paintTabs(games) {
 }
 
 /**
- * One bar per graded match, oldest on the left.
+ * THE GRADE IN EACH MATCH, oldest on the left, as the same chart the list
+ * page and Home draw (9.1, the owner's item 21: shared/trend-chart.js, the
+ * moonlit area). Patterns drew the 8.9 bar strip until 9.1, so one link drew
+ * the trend two ways; its bars bunched at the left with most of the plot
+ * empty, and its key printed a letter ("at B or better").
  *
- * The score sets --h on the bar, and both the fill's height and the number's
- * place read it, so a 95 stands taller than a 77. The number used to sit in
- * the same flex column as the fill, where it could not shrink and the fill
- * could: every grade from about 77 up drew the same bar, and a player climbing
- * through A and S saw a flat line. matches.css takes the number out of that
- * column.
- *
- * ONE ENCODING (8.9.1): height is the grade, and nothing else changes with it.
- * The bars used to take their letter's colour, green, amber and white with no
- * key, and read as random. Every bar is one neutral tone now, the newest in
- * the ink and named under it, the bands are thin guide lines labelled at the
- * left by the number each starts at (60, 70, 80, 90: one score, no letters,
- * 9.1), the average is a dashed line, the first bar of each day carries its
- * date, and a key under the chart names each mark that is on it.
+ * ONE ENCODING (8.9.1, kept): height is the grade, every match the same
+ * neutral dot, the newest the brightest; the bands are hairlines labelled by
+ * the number each starts at, the average is dashed, the foot is days. What
+ * Patterns adds are the milestones main counted (progress.js): a record's dot
+ * ringed, the run underlined, each named in the key and in its tooltip. A
+ * click or Enter on a match opens its review.
  */
-const BANDS = [90, 80, 70, 60];
-const clampH = (n) => Math.max(0, Math.min(100, n));
-
-function shortDate(at) {
-  const d = at ? new Date(at) : null;
-  // No time, no date: never "Invalid Date" under a bar.
-  return d && Number.isFinite(d.getTime()) ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
-}
+let pChart = null;
 
 function keyItem(swatchCls, text, swatchText) {
   const item = el('span', 'p-key-item');
@@ -128,92 +117,69 @@ function keyItem(swatchCls, text, swatchText) {
  */
 const RECORD_KINDS = new Set(['best', 'first']);
 
-function paintTrend(grades, progress, average) {
+/** The run's words, by its number: "3 in a row at 70 or better" (one score, no letters). */
+const runWords = (run) => `${run.count} in a row at ${run.from || 70} or better`;
+
+function paintTrend(grades, progress, average, byId) {
   const host = $('p-trend');
-  host.replaceChildren();
-  host.hidden = grades.length < 2;
-  if (grades.length < 2) return;
+  const enough = grades.length >= 2 && !!window.TrendChart;
+  host.hidden = !enough;
+  if (!enough) {
+    if (pChart) { pChart.destroy(); pChart = null; }
+    host.replaceChildren();
+    return;
+  }
   const marks = (progress && progress.marks) || {};
   const run = progress && progress.run && typeof progress.run.count === 'number' ? progress.run : null;
   const inRun = new Set(run ? grades.slice(0, run.count).map((g) => g.id) : []);
-  const newest = grades[0].id;
+  const showRun = !!run && inRun.size > 1;
+  const rows = byId || {};
 
-  host.append(el('p', 'p-trend-cap',
-    `Your grade in each of your last ${grades.length} graded matches, oldest on the left. `
-    + 'The lines mark 60, 70, 80 and 90.'));
-
-  const plot = el('div', 'p-plot');
-  plot.setAttribute('role', 'img');
-  plot.setAttribute('aria-label', 'Grades, oldest first: ' + grades.slice().reverse().map((g) => g.score).join(', ')
-    + (typeof average === 'number' ? `. Average ${average}.` : '.'));
-  for (const at of BANDS) {
-    const guide = el('div', 'p-guide');
-    guide.style.setProperty('--h', at + '%');
-    guide.append(el('span', null, String(at)));
-    plot.append(guide);
-  }
-  if (typeof average === 'number') {
-    const line = el('div', 'p-avgline');
-    line.style.setProperty('--h', clampH(average) + '%');
-    line.append(el('span', null, `avg ${average}`));
-    plot.append(line);
-  }
-
-  const bars = el('div', 'p-bars');
+  // The chart's points, oldest first, each with what its tooltip says.
   const records = [];
   let anyProv = false;
-  let lastDay = null;
-  for (const g of grades.slice().reverse()) {
+  const points = grades.slice().reverse().map((g) => {
     const record = (marks[g.id] || []).find((k) => RECORD_KINDS.has(k.kind));
     if (record) records.push({ score: g.score, text: record.text });
     if (g.provisional) anyProv = true;
-    const latest = g.id === newest;
-    const bar = el('div', 'p-bar' + (latest ? ' latest' : '') + (record ? ' best' : '') + (inRun.has(g.id) ? ' run' : ''));
-    bar.title = `${fmtWhen(g.at)}: grade ${g.score}${g.provisional ? ', provisional' : ''}`
-      + (latest ? '. Your latest match' : '')
-      + (record ? `. ${record.text}` : '')
-      + (inRun.has(g.id) ? `. One of ${run.count} in a row at ${run.from || 70} or better` : '');
-    bar.style.setProperty('--h', clampH(g.score) + '%');
-    const fill = el('i', g.provisional ? 'prov' : null);
-    // A date under the first bar of each day, as an axis is labelled; the
-    // newest is named Latest. The whole time is on hover.
-    const day = shortDate(g.at);
-    bar.append(el('span', null, g.score), fill, el('small', null, latest ? 'Latest' : day !== lastDay ? day : ''));
-    lastDay = day;
-    bars.append(bar);
+    const m = rows[g.id] || {};
+    return { id: g.id, grade: Number(g.score), at: g.at, provisional: !!g.provisional,
+      agent: m.title || null, map: m.map || null, result: m.result || null, scoreline: m.score ? scoreText(m.score) : null,
+      record: record ? record.text : null, run: showRun && inRun.has(g.id),
+      notes: showRun && inRun.has(g.id) ? [`One of ${runWords(run)}`] : [] };
+  });
+
+  // The frame once, its parts kept: a repaint sets the same chart on new data.
+  let cap = host.querySelector('.p-trend-cap');
+  let plot = host.querySelector('.p-chart');
+  let key = host.querySelector('.p-key');
+  if (!cap || !plot || !key) {
+    if (pChart) { pChart.destroy(); pChart = null; }
+    host.replaceChildren();
+    cap = el('p', 'p-trend-cap');
+    plot = el('div', 'p-chart');
+    key = el('div', 'p-key');
+    host.append(cap, plot, key);
   }
-  plot.append(bars);
-  host.append(plot);
+  cap.textContent = `Your grade in each of your last ${grades.length} graded matches, oldest on the left.`;
+  const opts = { height: 188, average: typeof average === 'number' ? average : null,
+    label: `Your grade in each of your last ${grades.length} graded matches`,
+    onOpen: (p) => window.occlara.openReview(p.id) };
+  if (pChart) pChart.set(points, opts);
+  else pChart = window.TrendChart.draw(plot, points, opts);
 
   // The key names every mark that is on the chart, and only those, so no
   // mark is ever a colour or a shape left for the player to guess at.
-  const key = el('div', 'p-key');
+  key.replaceChildren();
   key.append(keyItem('latest', 'Latest match'));
   if (typeof average === 'number') key.append(keyItem('avg', `Average, ${average}`));
   if (anyProv) key.append(keyItem('prov', 'Provisional grade'));
   for (const r of records) key.append(keyItem('best', r.text, String(r.score)));
-  if (run && inRun.size > 1) key.append(keyItem('run', `${run.count} in a row at ${run.floor || 'B'} or better`));
-  host.append(key);
+  if (showRun) key.append(keyItem('run', runWords(run)));
 
-  // THE BARS GROW FROM THE BASELINE, 40ms apart and six at most staggered,
-  // their numbers fading in as they land, then the average draws in from the
-  // left (matches.css .p-in, .p-draw). Once per visit: a refresh paints the
-  // chart as it is.
-  entrance(host, 'trend', () => {
-    const bs = [...host.querySelectorAll('.p-bar')];
-    bs.forEach((b, i) => {
-      b.style.setProperty('--i', String(Math.min(i, 5)));
-      b.classList.add('p-in');
-      const f = b.querySelector('i');
-      if (f) { f.style.setProperty('--i', String(Math.min(i, 5))); f.classList.add('m-grow'); }
-    });
-    const avg = host.querySelector('.p-avgline');
-    if (avg) avg.classList.add('p-draw');
-    return () => {
-      for (const b of bs) { b.classList.remove('p-in'); const f = b.querySelector('i'); if (f) f.classList.remove('m-grow'); }
-      if (avg) avg.classList.remove('p-draw');
-    };
-  });
+  // THE LINE DRAWS ITSELF once per visit, as the page comes on screen
+  // (TrendChart.play): a refresh sets the chart as it is.
+  entrance(host, 'trend', () => { if (pChart) pChart.play(); });
 }
 
 /*
@@ -290,11 +256,12 @@ function patternChips(p, total, bad) {
   return box;
 }
 
-function paintPatterns(p) {
+/** @param byId  the listed rows by id, for each match's tooltip on the trend */
+function paintPatterns(p, byId) {
   $('p-avg').hidden = p.average === null;
   $('p-avg-num').textContent = p.average === null ? '' : p.average;
   if (p.average !== null) countOnce($('p-avg'), 'count', $('p-avg-num'), p.average);
-  paintTrend(p.grades || [], p.progress, p.average);
+  paintTrend(p.grades || [], p.progress, p.average, byId);
   paintCats(p.categories || [], p.matches);
   const host = $('p-lists');
   host.replaceChildren();
@@ -644,8 +611,10 @@ function emptyLine(b, dim) {
     return `${what} played on other rules${b.game === 'valorant' ? ' (Spike Rush and the like)' : ''}, `
       + `so ${b.left === 1 ? 'it is not' : 'none is'} broken down here.`;
   }
+  // Connect in Settings is what grades recent matches from Riot's record
+  // since 9.1 (the owner's item 5): no control on this page starts a run.
   return b.game === 'valorant'
-    ? 'Nothing to break down yet. Record a match, or grade your recent matches from Riot below.'
+    ? 'Nothing to break down yet. Record a match, or connect your Riot ID in Settings to grade your recent ones.'
     : 'Nothing to break down yet.';
 }
 
@@ -1455,11 +1424,20 @@ function paintChart(rows, deltas) {
  * BEST AND WORST TIME TO PLAY (9.1, the owner's item 15), from every graded
  * row of this game by when it started (src/shared/play-times.js, which says
  * every word). Beside the words, the eight times of day as columns, each
- * standing at its average grade, its count under it; a time with fewer than
- * play-times' MIN_SLOT matches is drawn faint and never compared. The list
- * page alone, and only once a match is graded.
+ * standing at its average grade, its count under it. A time with fewer than
+ * play-times' MIN_SLOT matches is never compared, so it is drawn as a short
+ * faint stub with no number over it (its average is in its tooltip): drawn
+ * at its average, one match at 81 stood nearly as tall as the best time's
+ * solid 82 and read as a near best. The list page alone, and only once a
+ * match is graded.
+ *
+ * BELOW THE THRESHOLD the card is quiet (.counting): "When you play", what
+ * is still missing and a progress line, and no columns. It used to be a
+ * second hero titled "Best time to play" over a mostly empty chart, which
+ * asserted a best time nobody knew yet and pushed the list below the fold.
  */
 const SLOT_SHORT = ['12 AM', '3 AM', '6 AM', '9 AM', '12 PM', '3 PM', '6 PM', '9 PM'];
+const THIN_STUB = 9;   // a thin column's height, in % of the plot: a stub, not a reading
 
 function paintWhen(rows) {
   const box = $('when');
@@ -1468,22 +1446,26 @@ function paintWhen(rows) {
   const r = P ? P.playTimes(rows) : null;
   box.hidden = !listPage || !r || !r.counted;
   if (box.hidden) return;
+  box.classList.toggle('counting', !r.enough);
   $('when-title').textContent = r.text.title;
   $('when-note').textContent = r.text.note;
   const prog = $('when-progress');
   prog.hidden = r.enough;
   if (!r.enough) {
-    const pct = Math.round((r.counted / (r.counted + r.need)) * 100);
+    const t = r.toward || { have: r.counted, of: r.counted + r.need, label: 'Graded matches so far, toward when you play best' };
+    const pct = t.of ? Math.round(Math.min(1, t.have / t.of) * 100) : 0;
     $('when-fill').style.setProperty('--p', `${pct}%`);
     prog.setAttribute('role', 'progressbar');
-    prog.setAttribute('aria-label', 'Graded matches toward best and worst times');
+    prog.setAttribute('aria-label', t.label);
     prog.setAttribute('aria-valuemin', '0');
-    prog.setAttribute('aria-valuemax', String(r.counted + r.need));
-    prog.setAttribute('aria-valuenow', String(r.counted));
+    prog.setAttribute('aria-valuemax', String(t.of));
+    prog.setAttribute('aria-valuenow', String(Math.min(t.have, t.of)));
   }
   const calls = $('when-calls');
   calls.hidden = !r.enough;
   box.classList.toggle('unclear', r.enough && !r.clear);
+  $('when-fig').hidden = !r.enough;
+  if (!r.enough) { $('when-hours').replaceChildren(); return; }
   if (r.enough) {
     $('when-best-k').textContent = r.text.best.kicker;
     $('when-best').textContent = r.text.best.label;
@@ -1498,16 +1480,16 @@ function paintWhen(rows) {
   for (const s of r.slots) {
     const col = el('div', 'when-col' + (s.compared ? ' compared' : s.n ? ' thin' : ' empty')
       + (r.enough && r.best && s.slot === r.best.slot ? ' best' : '') + (r.enough && r.worst && s.slot === r.worst.slot ? ' worst' : ''));
-    const h = s.avg === null ? 0 : Math.max(4, Math.round(((s.avg - LO) / (100 - LO)) * 100));
+    const h = s.avg === null ? 0 : !s.compared ? THIN_STUB : Math.max(4, Math.round(((s.avg - LO) / (100 - LO)) * 100));
     col.style.setProperty('--h', `${h}%`);
     const bar = el('div', 'when-bar');
     const fillEl = el('i');
     bar.append(fillEl);
-    if (s.avg !== null) bar.append(el('span', 'when-avg', String(s.avg)));
+    if (s.avg !== null && s.compared) bar.append(el('span', 'when-avg', String(s.avg)));
     col.append(bar, el('span', 'when-hour', SLOT_SHORT[s.slot]), el('span', 'when-n', s.n ? String(s.n) : ''));
     col.title = s.n
       ? `${s.label}: average grade ${s.avg} over ${s.n} ${s.n === 1 ? 'match' : 'matches'}${s.decided ? `, won ${s.won} of ${s.decided}` : ''}`
-        + (s.compared ? '' : `. Compared once ${P.MIN_SLOT} are graded here.`)
+        + (s.compared ? '' : `. Too few to compare: compared once ${P.MIN_SLOT} are graded here.`)
       : `${s.label}: no graded matches`;
     hours.append(col);
   }
@@ -1562,7 +1544,8 @@ async function load() {
   // The list's own heading, once a card stands over it.
   $('list-title').hidden = !rows.length || ($('m-chart').hidden && $('when').hidden);
   paintRR(game);
-  paintPatterns(patterns || { matches: 0, enough: false, grades: [], categories: [], average: null });
+  paintPatterns(patterns || { matches: 0, enough: false, grades: [], categories: [], average: null },
+    Object.fromEntries(rows.map((m) => [m.id, m])));
   paintBf();
   await loadBreakdown();
 }

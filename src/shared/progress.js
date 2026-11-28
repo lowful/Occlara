@@ -17,7 +17,8 @@
  *       best: { grade: { over, matches } | null,
  *               firstLetter: { letter, floor, over, matches } | null,
  *               categories: [{ key, label, score, previous, over, matches }] },
- *       run: { count, floor: 'B', from: 70 } | null,
+ *       run: { count, from: 70 } | null,   (one score, no letters: the run is
+ *            "at 70 or better", never "at B or better", 9.1 item 16)
  *       cleared: [{ key, title, streak, before }],
  *       focus: { text, key, title, before, now, outcome, last } | null,
  *       lines: [{ kind, tone, text }] }
@@ -179,7 +180,9 @@ function runOf(graded, at) {
     if (g.provisional || !RUN_LETTERS.has(g.letter)) break;
     count++;
   }
-  return count >= STREAK_MIN ? { count, floor: RUN_FLOOR, from: FLOOR[RUN_FLOOR] } : null;
+  // The run's floor as a number only: a letter here reached the Patterns key
+  // as "3 in a row at B or better" (9.1, one score, no letters).
+  return count >= STREAK_MIN ? { count, from: FLOOR[RUN_FLOOR] } : null;
 }
 
 /**

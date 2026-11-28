@@ -234,10 +234,27 @@ const row = (over) => ({ id: `valorant-${NOW}-r`, game: 'valorant', at: NOW - HO
 
   console.log('\nitem 15, when you play best:');
   {
-    const few = await open({ rows: [row({ id: 'a' }), row({ id: 'b', at: NOW - DAY })] });
+    const eveningOf = (days) => { const s = new Date(NOW - days * DAY); s.setHours(20, 10, 0, 0); return s.getTime(); };
+    const few = await open({ rows: [row({ id: 'a', at: eveningOf(1) + 2400000, matchStartedAt: eveningOf(1) }), row({ id: 'b', at: eveningOf(2) + 2400000, matchStartedAt: eveningOf(2) })] });
     ok(!few.$('when').hidden && few.$('when-calls').hidden && !few.$('when-progress').hidden, 'below the threshold: no best or worst, a progress line');
-    ok(/^Shows after 8 more graded matches, with at least 4 in each of two times of day\. 2 graded matches so far\.$/.test(few.$('when-note').textContent),
-      'saying how many more it needs and why', few.$('when-note').textContent);
+    ok(/^Shows after at least 8 more graded matches, with 4 or more at each of two times of day\. Both so far started between .+\.$/.test(few.$('when-note').textContent),
+      'saying how many more it needs at the least, and why', few.$('when-note').textContent);
+    ok(few.$('when-title').textContent === 'When you play' && few.$('when').classList.contains('counting'),
+      'named for what it counts, never "Best time to play" before a best time is known, and quiet', few.$('when-title').textContent);
+    ok(few.$('when-fig').hidden && !few.$('when-hours').querySelector('.when-col'), 'and no columns over nothing to compare');
+    // The evening player: a second time of day is what is missing, said so.
+    const evenings = [];
+    for (let i = 0; i < 14; i++) {
+      const s = new Date(NOW - (i + 1) * DAY);
+      s.setHours(20, 10, 0, 0);
+      evenings.push(row({ id: `e${i}`, at: s.getTime() + 2400000, matchStartedAt: s.getTime() }));
+    }
+    const eve = await open({ rows: evenings });
+    ok(eve.$('when-note').textContent === 'Shows once a second time of day has 4 graded matches. All 14 so far started between 6 PM and 9 PM.',
+      'fourteen evenings: what is missing is a second time of day, never "4 more" that more evenings would not bring down', eve.$('when-note').textContent);
+    const bar = eve.$('when-progress');
+    ok(bar.getAttribute('aria-valuenow') === '0' && bar.getAttribute('aria-valuemax') === '4' && /second time of day/.test(bar.getAttribute('aria-label')),
+      'its progress counts the second time of day', `${bar.getAttribute('aria-valuenow')} of ${bar.getAttribute('aria-valuemax')}`);
     const many = await open({ rows: manyRows(NOW) });
     const P = require('../src/shared/play-times');
     const r = P.playTimes(manyRows(NOW));
@@ -249,7 +266,13 @@ const row = (over) => ({ id: `valorant-${NOW}-r`, game: 'valorant', at: NOW - HO
     ok(cols.length === 8 && cols.filter((c) => c.classList.contains('best')).length === 1 && cols.filter((c) => c.classList.contains('worst')).length === 1,
       'eight times of day, one best, one worst');
     ok(cols.every((c, i) => c.querySelector('.when-n').textContent === (r.slots[i].n ? String(r.slots[i].n) : '')), 'each with how many matches started in it');
-    ok(cols.filter((c) => c.classList.contains('thin')).every((c) => /Compared once 4 are graded here/.test(c.title)), 'a thin one says it is not compared');
+    const thin = cols.filter((c) => c.classList.contains('thin'));
+    ok(thin.length && thin.every((c) => /Too few to compare: compared once 4 are graded here/.test(c.title)), 'a thin one says it is not compared');
+    ok(thin.every((c) => !c.querySelector('.when-avg') && c.style.getPropertyValue('--h') === '9%'),
+      'and stands as a short stub with no number over it, never at its average like a time compared', thin.map((c) => c.style.getPropertyValue('--h')).join(','));
+    ok(cols.filter((c) => c.classList.contains('compared')).every((c) => c.querySelector('.when-avg')), 'a time compared carries its average');
+    ok(many.$('when-title').textContent === r.text.title && !many.$('when').classList.contains('counting') && !many.$('when-fig').hidden,
+      'with enough, the card is titled by what it found, its columns drawn', many.$('when-title').textContent);
     ok(/^Average grade by the time of day each match started: /.test(many.$('when-hours').getAttribute('aria-label')), 'read out as a whole');
     const none = await open({ rows: [row({ grade: null })] });
     ok(none.$('when').hidden, 'and nothing with no graded match');

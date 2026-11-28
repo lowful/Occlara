@@ -42,6 +42,11 @@
   transform-box: fill-box; transform-origin: center; }
 .tc-dot.prov { stroke-dasharray: 2 2; }
 .tc-dot.now { fill: var(--text); stroke: rgba(255, 255, 255, 0.18); stroke-width: 7; paint-order: stroke; }
+/* Patterns' marks (9.1): a record ringed in the good tone, a run underlined
+   along the baseline; both named in the key and in the tooltip. */
+.tc-record { fill: none; stroke: var(--good); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; }
+.tc-run { stroke: var(--text-2); stroke-width: 2; stroke-linecap: round; }
+.tc-tip-note { margin-top: 4px; font-size: 12px; line-height: 1.4; color: var(--text-2); }
 
 /* The pointer's or the keyboard's match: a hairline down to the baseline and
    a ring on its dot, both in over 120ms and out over 220ms. */
@@ -82,6 +87,7 @@
 .tc.tc-play .tc-line { stroke-dasharray: 1 1; animation: tc-draw 900ms var(--ease-enter) both; }
 .tc.tc-play .tc-fill { animation: tc-wipe 900ms var(--ease-enter) both; }
 .tc.tc-play .tc-dot { animation: tc-dot 420ms var(--spring-gentle) both; animation-delay: var(--d, 0ms); }
+.tc.tc-play .tc-record, .tc.tc-play .tc-runs { animation: tc-fade 420ms var(--ease-out) both; animation-delay: 760ms; }
 .tc.tc-play .tc-guides, .tc.tc-play .tc-foot { animation: tc-fade 320ms var(--ease-out) both; }
 .tc.tc-play .tc-avg { animation: tc-fade 420ms var(--ease-out) both; animation-delay: 620ms; }
 .tc.tc-play .tc-now-label { animation: tc-fade 320ms var(--ease-out) both; animation-delay: 820ms; }
@@ -91,7 +97,7 @@
 @keyframes tc-fade { from { opacity: 0; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .tc.tc-play .tc-line, .tc.tc-play .tc-fill, .tc.tc-play .tc-dot,
+  .tc.tc-play .tc-line, .tc.tc-play .tc-fill, .tc.tc-play .tc-dot, .tc.tc-play .tc-record, .tc.tc-play .tc-runs,
   .tc.tc-play .tc-guides, .tc.tc-play .tc-foot, .tc.tc-play .tc-avg, .tc.tc-play .tc-now-label { animation: none; }
   .tc-tip { transition: none; animation: none; }
 }

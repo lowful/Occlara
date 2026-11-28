@@ -158,7 +158,10 @@ const check = (p, what) => {
   ok(['S', 'A', 'B'].every((l) => RUN_LETTERS.has(l)) && !RUN_LETTERS.has('C'), 'the run letters are S, A and B');
   const saved = [rv(0, 81), rv(1, 74), rv(2, 90), rv(3, 65), rv(4, 88)];
   const p = matchProgress(saved, saved[0].id);
-  ok(p.run && p.run.count === 3 && p.run.floor === 'B', `3 in a row, broken by the C before them (${JSON.stringify(p.run)})`);
+  ok(p.run && p.run.count === 3 && p.run.from === 70, `3 in a row, broken by the C before them (${JSON.stringify(p.run)})`);
+  // One score, no letters (9.1): the run hands out its floor as a number only,
+  // since a letter here reached the Patterns key as "at B or better".
+  ok(!Object.values(p.run).some((v) => typeof v === 'string' && /^[A-FS]$/.test(v)), 'and no letter in what it hands out', JSON.stringify(p.run));
   ok(p.lines.some((l) => l.kind === 'run' && l.text === '3 matches in a row at 70 or better.'), 'the run line, by its number, no letter');
   ok(matchProgress(saved, saved[3].id).run === null, 'the C itself has no run');
   ok(matchProgress(saved, saved[4].id).run === null, 'one match is no run');

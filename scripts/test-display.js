@@ -152,16 +152,23 @@ ok(JSON.stringify([...D.MAPS].sort()) === JSON.stringify([...data.maps].sort()),
   walk(path.join(ROOT, 'src/renderer'));
   const LETTER_CLASS = /\b(?:gv|m|b|vd|pv|dm-l|grade)-letter\b|id="pv-letter"|id="dm-l-/;
   const LETTER_TEXT = /\$\{[^}]*\.letter\}|textContent\s*=[^;]*\.letter\b|\.letters\[/;
+  // 9.1: a letter can also reach the screen as a floor ("3 in a row at
+  // ${run.floor || 'B'} or better" drew "at B or better" on Patterns' key)
+  // or as a quoted letter a template falls back to.
+  const LETTER_FLOOR = /\$\{[^}]*(?<!Math)\.floor\b[^}]*\}|\$\{[^}]*(?:\|\||\?\?)\s*['"][A-FS]['"]\s*\}/;
   const bad = [];
   for (const f of files) {
     const text = fs.readFileSync(f, 'utf8');
     text.split('\n').forEach((line, i) => {
-      if (LETTER_CLASS.test(line) || LETTER_TEXT.test(line)) bad.push(`${path.relative(ROOT, f)}:${i + 1}: ${line.trim().slice(0, 120)}`);
+      if (LETTER_CLASS.test(line) || LETTER_TEXT.test(line) || LETTER_FLOOR.test(line)) bad.push(`${path.relative(ROOT, f)}:${i + 1}: ${line.trim().slice(0, 120)}`);
     });
   }
   ok(bad.length === 0, 'ONE SCORE: no page script or document draws a letter grade', bad.join('\n        '));
   ok(LETTER_TEXT.test('el.textContent = g.letter;') && LETTER_CLASS.test("el('span', 'm-letter good')") && !LETTER_TEXT.test('letterSpacing = 2'),
     'and the scan finds a known letter when there is one');
+  ok(LETTER_FLOOR.test("`${run.count} in a row at ${run.floor || 'B'} or better`") && LETTER_FLOOR.test("`at ${grade || 'A'}`")
+    && !LETTER_FLOOR.test('`${Math.floor(n / 2)} rounds`') && !LETTER_FLOOR.test("`${run.from || 70} or better`"),
+  'and a letter reached through a floor or a quoted fallback, never Math.floor or a number');
 }
 
 console.log(`\n${fails ? `FAIL: ${fails} of ${checks}` : `all ${checks} display checks passed`}`);

@@ -14,7 +14,12 @@
  *   chart.destroy();
  *
  * points, oldest first: [{ id, grade, at, provisional, agent, map, result,
- *   scoreline, delta }]. Only grade is needed; the rest is the tooltip's.
+ *   scoreline, delta, record, run, notes }]. Only grade is needed; the rest
+ *   is the tooltip's, except two marks Patterns draws (9.1, the same chart
+ *   under the Matches link's two tabs): `record`, a milestone's words ("Best
+ *   in 12"), rings the match's dot in the good tone, and `run: true` on each
+ *   match of a run underlines them along the baseline. `notes` are extra
+ *   lines for the tooltip, which says every mark in words.
  * opts:
  *   height    the plot's height in px (180)
  *   average   a dashed line at this grade, labelled "avg 76", or null
@@ -180,7 +185,16 @@
       g.append(span('tc-tip-delta' + (d > 0 ? ' up' : d < 0 ? ' down' : ''), d > 0 ? `+${d}` : d < 0 ? `-${-d}` : '0'));
     }
     box.append(g);
+    for (const n of notesOf(p)) box.append(span('tc-tip-note', n));
     return box;
+  }
+
+  /** A point's marks in words: its record, then any notes. */
+  function notesOf(p) {
+    const out = [];
+    if (typeof p.record === 'string' && p.record) out.push(p.record);
+    if (Array.isArray(p.notes)) for (const n of p.notes) if (typeof n === 'string' && n) out.push(n);
+    return out;
   }
 
   /** The tooltip in words, for the live line. */
@@ -188,7 +202,8 @@
     const name = p.agent && p.map ? `${p.agent} on ${p.map}` : (p.agent || p.map || '');
     const d = fin(p.delta) ? Math.round(p.delta) : null;
     return [whenWord(p.at, now), name, [p.result, p.scoreline].filter(Boolean).join(' '),
-      `Grade ${Math.round(p.grade)}${p.provisional ? ', provisional' : ''}${d === null ? '' : d > 0 ? `, up ${d}` : d < 0 ? `, down ${-d}` : ', level'}`]
+      `Grade ${Math.round(p.grade)}${p.provisional ? ', provisional' : ''}${d === null ? '' : d > 0 ? `, up ${d}` : d < 0 ? `, down ${-d}` : ', level'}`,
+      ...notesOf(p).map((n) => n.replace(/[.\s]+$/, ''))]
       .filter(Boolean).join('. ') + '.';
   }
 
@@ -272,6 +287,24 @@
         svg.append(g);
       }
 
+      // A RUN IS UNDERLINED (Patterns, 9.1): each stretch of matches marked
+      // run, a short rule along the baseline under them, named in the key
+      // and in each one's tooltip, so the line is never the only sign.
+      const runs = mk('g', { class: 'tc-runs' });
+      let runCount = 0;
+      for (let i = 0; i < n; i++) {
+        if (!pts[i].run) continue;
+        let j = i;
+        while (j + 1 < n && pts[j + 1].run) j++;
+        // Under its matches alone, never past the plot's own ends.
+        const half = Math.min(7, ((w - PAD.L - PAD.R) / Math.max(1, n - 1)) / 3);
+        const x1 = Math.max(PAD.L, x(i) - half), x2 = Math.min(w - PAD.R, x(j) + half);
+        runs.append(mk('line', { x1: x1.toFixed(1), x2: x2.toFixed(1), y1: base + 6, y2: base + 6, class: 'tc-run' }));
+        runCount++;
+        i = j;
+      }
+      if (runCount) svg.append(runs);
+
       const path = mk('path', { d: line, class: 'tc-line', pathLength: 1 });
       svg.append(path);
 
@@ -279,9 +312,12 @@
       const dense = n > 40;
       xy.forEach(([cx, cy], i) => {
         const last = i === n - 1;
-        if (dense && !last) return;
+        const record = typeof pts[i].record === 'string' && pts[i].record;
+        if (dense && !last && !record) return;
+        // A record is ringed in the good tone, outside its dot (Patterns).
+        if (record) dots.append(mk('circle', { cx: cx.toFixed(1), cy: cy.toFixed(1), r: last ? 8 : 6.5, class: 'tc-record' }));
         const c = mk('circle', { cx: cx.toFixed(1), cy: cy.toFixed(1), r: last ? 4.5 : 2.75,
-          class: 'tc-dot' + (last ? ' now' : '') + (pts[i].provisional ? ' prov' : '') });
+          class: 'tc-dot' + (last ? ' now' : '') + (pts[i].provisional ? ' prov' : ''), 'data-grade': Math.round(pts[i].grade) });
         c.style.setProperty('--d', `${Math.round(((cx - PAD.L) / Math.max(1, w - PAD.L - PAD.R)) * DRAW_MS * 0.85)}ms`);
         dots.append(c);
       });
@@ -433,7 +469,7 @@
     };
   }
 
-  const api = { draw, smoothPath, footLabels, dayWord, whenWord, domain, sayOf, DRAW_MS };
+  const api = { draw, smoothPath, footLabels, dayWord, whenWord, domain, sayOf, notesOf, DRAW_MS };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   if (root) root.TrendChart = api;
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));

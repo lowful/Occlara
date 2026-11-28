@@ -366,8 +366,11 @@ const READ_MATCHES = `(() => { ${READ_HELPERS}
  * number ("70", one score and no letters since 9.1), its average line and its key; the four category averages, each
  * against the latest match; then the ranked lists, the top mistake a card
  * whose fix is its action line, every entry with its chips (how many of the
- * recorded matches, how many times, the trend word). The dates under the
- * bars are left out: only "Latest" is read.
+ * recorded matches, how many times, the trend word). Since 9.1 the chart is
+ * the shared trend chart the list page draws: the grades are its dots' own
+ * numbers (data-grade), the bands its guide labels, highest first, as the
+ * bar strip gave them. The days on its foot are left out: only "Latest" is
+ * read, from the newest dot.
  */
 const READ_PATTERNS = `(() => { ${READ_HELPERS}
   const item = (li) => ({ title: txt('.gv-item-title', li), hero: li.classList.contains('gv-hero'), count: txt('.gv-count', li),
@@ -375,9 +378,10 @@ const READ_PATTERNS = `(() => { ${READ_HELPERS}
     fix: (txt('.gv-item-fix', li) || txt('.gv-action', li)).replace(/^(?:\\u2192\\s*)?Fix\\s*/, ''), rounds: list('.gv-rchip', li) });
   return { heading: txt('#patterns .p-head h3'), sub: txt('#p-sub'), average: shown(Q('#p-avg')) ? txt('#p-avg-num') : '',
     averageLabel: shown(Q('#p-avg')) ? txt('#p-avg .p-avg-label') : '',
-    grades: QA('#p-trend .p-bar').map((b) => txt(':scope > span', b)),
-    chart: shown(Q('#p-trend')) ? { caption: txt('#p-trend .p-trend-cap'), bands: list('#p-trend .p-guide span'), average: txt('#p-trend .p-avgline span'),
-      latest: list('#p-trend .p-bar small').filter((s) => s === 'Latest'), key: list('#p-trend .p-key-item > span') } : null,
+    grades: QA('#p-trend .tc-dot').map((d) => d.getAttribute('data-grade') || ''),
+    chart: shown(Q('#p-trend')) ? { caption: txt('#p-trend .p-trend-cap'),
+      bands: list('#p-trend .tc-guide-label').sort((a, b) => Number(b) - Number(a)), average: txt('#p-trend .tc-avg-label'),
+      latest: Q('#p-trend .tc-dot.now') ? ['Latest'] : [], key: list('#p-trend .p-key-item > span') } : null,
     categoriesCaption: txt('#p-cats .p-cats-cap'),
     categories: QA('#p-cats .p-cat').map((c) => ({ average: txt('b', c), label: txt('span', c), last: txt('small', c), versus: txt('em', c) })),
     lists: QA('#p-lists .gv-block').map((b) => ({ heading: txt('h3', b), items: QA('.gv-item', b).map(item) })) };
@@ -646,8 +650,8 @@ setTimeout(async () => {
     await wait(400);
     const pajs = pjs('patterns');
     await until(() => pajs("document.querySelectorAll('#p-lists .gv-item').length > 0"), 6000);
-    await until(() => pajs("document.querySelectorAll('#p-trend .p-bar').length > 0"), 4000);
-    await wait(800);   // the bars grown, the averages counted up
+    await until(() => pajs("document.querySelectorAll('#p-trend .tc-dot').length > 0"), 4000);
+    await wait(1200);   // the line drawn (the shared trend chart, 9.1), the averages counted up
     out.patterns = await pajs(READ_PATTERNS);
     lines.push(`patterns: ${out.patterns.lists.map((l) => `${l.heading} ${l.items.length}`).join(', ')}`);
     if (!out.patterns.lists.length) return finish(false, 'Patterns lists nothing');

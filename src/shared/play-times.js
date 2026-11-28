@@ -13,10 +13,12 @@
  * compare.
  *
  * WHEN A MATCH STARTED. Riot's own start where its review kept one
- * (matchStartedAt, a linked match), else its end less 100 seconds a round of
- * its score (the length riot-review.js gives a match Riot did not time, the
- * rule home-model.js startOf keeps), else its end less half an hour, a
- * typical match, for a row with no score at all.
+ * (matchStartedAt, a linked match), else when the recording saw it start
+ * (watchedFrom, the reader's own match start, kept on the review since 9.1),
+ * else its end less 100 seconds a round of its score (the length
+ * riot-review.js gives a match Riot did not time, the rule home-model.js
+ * startOf keeps), else its end less half an hour, a typical match, for a row
+ * with no score at all.
  *
  * WHAT COUNTS: a row with a grade, not still being checked. A provisional
  * grade counts, as it does in the average Matches shows. The win rate is over
@@ -26,8 +28,12 @@
  * HONEST, IN THREE RULES:
  *   1. A time of day is compared only with MIN_SLOT graded matches in it.
  *   2. Nothing is said under MIN_TOTAL graded matches in all, or with fewer
- *      than two times of day to compare. Below that the result says how many
- *      more matches it needs (need) and why.
+ *      than two times of day to compare. Below that the result says what is
+ *      missing in words that stay true whenever the player plays next: how
+ *      many more at the least, or, for a player whose matches all start in
+ *      one time of day (the common case), that a second time of day needs
+ *      MIN_SLOT of its own. "4 more graded matches" said to an evening player
+ *      stayed "4 more" however many evenings they added.
  *   3. Best and worst are the highest and lowest average grade of the times
  *      compared, and the gap between them is CLEAR only when it is at least
  *      twice the noise of the two averages (the standard error of their
@@ -63,6 +69,7 @@
   function startOf(row) {
     if (!row) return null;
     if (fin(row.matchStartedAt) && row.matchStartedAt > 0) return row.matchStartedAt;
+    if (fin(row.watchedFrom) && row.watchedFrom > 0 && !(fin(row.at) && row.watchedFrom > row.at)) return row.watchedFrom;
     if (!fin(row.at) || row.at <= 0) return null;
     const m = /(\d+)\s*[-:]\s*(\d+)/.exec(String(row.score || ''));
     if (m) return row.at - (Number(m[1]) + Number(m[2])) * ROUND_MS;
@@ -103,6 +110,12 @@
   function slotPhrase(slot) {
     const from = slot * SLOT_HOURS;
     return `${hourWord(from, false)} to ${hourWord(from + SLOT_HOURS, false)}`;
+  }
+
+  /** "between 6 PM and 9 PM", "between midnight and 3 AM" inside a sentence. */
+  function slotBetween(slot) {
+    const from = slot * SLOT_HOURS;
+    return `between ${hourWord(from, false)} and ${hourWord(from + SLOT_HOURS, false)}`;
   }
 
   const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -163,12 +176,28 @@
 
     // HOW MANY MORE: enough in all, and two times of day at MIN_SLOT, the two
     // fullest being the nearest to it. A match can do both at once, so the
-    // larger of the two is what is needed.
-    let need = 0;
+    // larger of the two is the least that is needed (need). Which of the two
+    // holds it back (short) decides what the card says: 'total', matches in
+    // all; 'second', a second time of day, the first one already full;
+    // 'two', two times of day, neither full yet.
+    let need = 0, short = null, top = null, next = null, toward = null;
     if (!enough) {
-      const fullest = slots.map((s) => s.n).sort((a, b) => b - a);
-      const forSlots = Math.max(0, MIN_SLOT - fullest[0]) + Math.max(0, MIN_SLOT - fullest[1]);
-      need = Math.max(MIN_TOTAL - counted, forSlots, 1);
+      const fullest = slots.slice().sort((a, b) => (b.n - a.n) || (a.slot - b.slot));
+      top = fullest[0];
+      next = fullest[1];
+      const forTotal = Math.max(0, MIN_TOTAL - counted);
+      const forSlots = Math.max(0, MIN_SLOT - top.n) + Math.max(0, MIN_SLOT - next.n);
+      need = Math.max(forTotal, forSlots, 1);
+      if (!counted || forSlots <= forTotal) {
+        short = 'total';
+        toward = { have: counted, of: Math.max(MIN_TOTAL, counted + need), label: 'Graded matches so far, toward when you play best' };
+      } else if (top.n >= MIN_SLOT) {
+        short = 'second';
+        toward = { have: next.n, of: MIN_SLOT, label: 'Graded matches at a second time of day' };
+      } else {
+        short = 'two';
+        toward = { have: Math.min(MIN_SLOT, top.n) + Math.min(MIN_SLOT, next.n), of: 2 * MIN_SLOT, label: 'Graded matches at the two fullest times of day' };
+      }
     }
 
     let best = null, worst = null, gap = null, clear = false;
@@ -181,28 +210,48 @@
       clear = gap >= MIN_GAP && gap >= 2 * se;
     }
 
-    const text = words({ counted, need, enough, best, worst, gap, clear, compared: compared.length });
+    const used = slots.filter((s) => s.grades.length).length;
+    const text = words({ counted, need, short, top, next, used, enough, best, worst, gap, clear, compared: compared.length });
     // The grades themselves stay in here: a page shows the counts.
     for (const s of slots) delete s.grades;
-    return { counted, undated, slots, enough, need, best, worst, gap, clear, text,
+    return { counted, undated, slots, enough, need, short, toward, best, worst, gap, clear, text,
       rules: { MIN_SLOT, MIN_TOTAL, MIN_GAP, SLOT_HOURS } };
+  }
+
+  /**
+   * Below the threshold: what is missing, in words that stay true whatever
+   * time the player plays next. Never a count that a match at the same time
+   * of day as the rest would not bring down.
+   */
+  function needWords(r) {
+    const n = r.counted;
+    if (!n) return `Shows once you have ${MIN_TOTAL} graded matches, with at least ${MIN_SLOT} at each of two times of day.`;
+    const where = r.top.n === n
+      ? `${n === 1 ? 'Your one graded match so far' : n === 2 ? 'Both so far' : `All ${n} so far`} started ${slotBetween(r.top.slot)}.`
+      : null;
+    if (r.short === 'second') {
+      return `Shows once a second time of day has ${MIN_SLOT} graded matches. `
+        + (where || `${r.top.n} of your ${n} so far started ${slotBetween(r.top.slot)}, and no other time of day has more than ${r.next.n}.`);
+    }
+    if (r.short === 'two') {
+      return `Shows once two times of day have ${MIN_SLOT} graded matches each. `
+        + `Your ${n} so far are spread over ${r.used} times of day, at most ${r.top.n} at one.`;
+    }
+    return `Shows after at least ${plural(r.need, 'more graded match', 'more graded matches')}, with ${MIN_SLOT} or more at each of two times of day. `
+      + (where || `${plural(n, 'graded match', 'graded matches')} so far.`);
   }
 
   /** What the card says, every line a sentence. */
   function words(r) {
     if (!r.enough) {
-      const so = r.counted
-        ? `${plural(r.counted, 'graded match', 'graded matches')} so far.`
-        : 'No graded matches yet.';
-      return {
-        title: 'Best time to play',
-        note: `Shows after ${plural(r.need, 'more graded match', 'more graded matches')}, with at least ${MIN_SLOT} in each of two times of day. ${so}`,
-        best: null, worst: null,
-      };
+      // Nothing is known yet about the best time, so the card is named for
+      // what it counts, never "Best time to play" over an empty chart.
+      return { title: 'When you play', note: needWords(r), best: null, worst: null };
     }
     const over = `From ${plural(r.counted, 'graded match', 'graded matches')}, by when each started.`;
     if (r.clear) {
-      return { title: 'Best time to play', note: over,
+      // The title is the finding; the two calls under it keep their kickers.
+      return { title: `You play best ${slotBetween(r.best.slot)}`, note: over,
         best: { kicker: 'Best time to play', label: r.best.label, line: slotLine(r.best) },
         worst: { kicker: 'Worst time to play', label: r.worst.label, line: slotLine(r.worst) } };
     }
@@ -218,5 +267,5 @@
     };
   }
 
-  return { playTimes, startOf, slotLabel, slotPhrase, hourWord, MIN_SLOT, MIN_TOTAL, MIN_GAP, SLOT_HOURS, SPREAD_FLOOR };
+  return { playTimes, startOf, slotLabel, slotPhrase, slotBetween, hourWord, MIN_SLOT, MIN_TOTAL, MIN_GAP, SLOT_HOURS, SPREAD_FLOOR };
 });

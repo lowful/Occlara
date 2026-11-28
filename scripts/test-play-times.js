@@ -30,6 +30,9 @@ const at = (d, h, g, result, extra) => ({
 console.log('\nthe start of a match:');
 {
   ok(P.startOf({ matchStartedAt: 5000, at: 9000 }) === 5000, "Riot's own start, where the review kept one");
+  ok(P.startOf({ watchedFrom: 6000, at: 9000, score: '13-11' }) === 6000, 'else when the recording saw it start, a match not linked to Riot');
+  ok(P.startOf({ matchStartedAt: 5000, watchedFrom: 6000, at: 9000 }) === 5000, "Riot's start still first where both are kept");
+  ok(P.startOf({ watchedFrom: 9500, at: 9000, score: '13-11' }) === 9000 - 24 * 100000, 'and a start after the end is not believed');
   ok(P.startOf({ at: 10 * 3600000, score: '13-11' }) === 10 * 3600000 - 24 * 100000, 'else its end less 100 seconds a round of its score');
   ok(P.startOf({ at: 10 * 3600000, score: '7 : 13' }) === 10 * 3600000 - 20 * 100000, 'a score written with a colon reads the same');
   ok(P.startOf({ at: 10 * 3600000 }) === 10 * 3600000 - 30 * 60000, 'else its end less half an hour, with no score');
@@ -51,27 +54,61 @@ console.log('\nbelow the threshold it says how many more it needs:');
 {
   const none = P.playTimes([], { hourOf: utc });
   ok(!none.enough && none.need === P.MIN_TOTAL && none.best === null, 'an empty library needs the whole threshold', JSON.stringify(none.need));
-  ok(/^Shows after 10 more graded matches, with at least 4 in each of two times of day\. No graded matches yet\.$/.test(none.text.note), none.text.note);
+  ok(none.text.note === 'Shows once you have 10 graded matches, with at least 4 at each of two times of day.', none.text.note);
+  ok(none.text.title === 'When you play', 'below the threshold the card is named for what it counts, never a best time', none.text.title);
 
   // Seven matches, all in the evening: the total needs 3 more, a second time
-  // of day needs 4, so 4 more.
+  // of day needs 4, so 4 more, and they must be at another time of day.
   const evening = [0, 1, 2, 3, 4, 5, 6].map((d) => at(d, 19, 70 + d));
   const r = P.playTimes(evening, { hourOf: utc });
-  ok(!r.enough && r.need === 4, 'one time of day full: it needs the second one\'s four', `need ${r.need}`);
-  ok(r.text.note === 'Shows after 4 more graded matches, with at least 4 in each of two times of day. 7 graded matches so far.', r.text.note);
+  ok(!r.enough && r.need === 4 && r.short === 'second', 'one time of day full: it needs the second one\'s four', `need ${r.need}, short ${r.short}`);
+  ok(r.text.note === 'Shows once a second time of day has 4 graded matches. All 7 so far started between 6 PM and 9 PM.', r.text.note);
   ok(r.counted === 7 && r.slots[6].n === 7 && r.slots[6].compared, 'the seven counted, in 6 PM to 9 PM');
+  ok(r.toward && r.toward.have === 0 && r.toward.of === 4, 'its progress is the second time of day\'s, at none of four', JSON.stringify(r.toward));
 
   // Twelve matches in one time of day: enough in all, one time to compare.
   const one = Array.from({ length: 12 }, (_, d) => at(d, 20, 75));
   const r1 = P.playTimes(one, { hourOf: utc });
   ok(!r1.enough && r1.need === 4 && r1.best === null, 'enough matches but one time of day: never a best of one', `need ${r1.need}`);
 
+  // THE EVENING PLAYER (the reviewer's probe): 14, then 24 graded matches,
+  // every one started around 8 PM. "Shows after 4 more graded matches" was
+  // said at 14 and still at 24. What is said now stays true: no count that
+  // another evening would not bring down.
+  for (const count of [14, 24]) {
+    const rows = Array.from({ length: count }, (_, d) => at(d, 20, 60 + (d % 25)));
+    const e = P.playTimes(rows, { hourOf: utc });
+    ok(!e.enough && e.short === 'second' && !/more graded match/.test(e.text.note)
+      && e.text.note === `Shows once a second time of day has 4 graded matches. All ${count} so far started between 6 PM and 9 PM.`,
+    `the evening player at ${count}: a second time of day is what is missing, said so, with no false count`, e.text.note);
+  }
+  // Eleven in the evening and two in the afternoon: two more there do it.
+  const most = Array.from({ length: 11 }, (_, d) => at(d, 20, 75)).concat([at(0, 14, 70), at(1, 14, 72)]);
+  const rm = P.playTimes(most, { hourOf: utc });
+  ok(rm.short === 'second' && rm.text.note === 'Shows once a second time of day has 4 graded matches. 11 of your 13 so far started between 6 PM and 9 PM, and no other time of day has more than 2.',
+    'most in one time of day: it says how many the next fullest has', rm.text.note);
+  ok(rm.toward.have === 2 && rm.toward.of === 4, 'and its progress is that time of day\'s, two of four', JSON.stringify(rm.toward));
+
   // Two times of day at three each: the total and the times both short.
   const thin = [at(0, 19, 80), at(1, 19, 82), at(2, 19, 78), at(0, 1, 60), at(1, 1, 62), at(2, 1, 58)];
   const r2 = P.playTimes(thin, { hourOf: utc });
-  ok(!r2.enough && r2.need === 4, 'six matches, three a time: four more for the total, two for the times, so four', `need ${r2.need}`);
+  ok(!r2.enough && r2.need === 4 && r2.short === 'total', 'six matches, three a time: four more for the total, two for the times, so four', `need ${r2.need}`);
+  ok(r2.text.note === 'Shows after at least 4 more graded matches, with 4 or more at each of two times of day. 6 graded matches so far.', r2.text.note);
   ok(r2.slots.every((s) => !s.compared), 'and neither time of day is compared at three');
   ok(!Object.prototype.hasOwnProperty.call(r2.slots[0], 'grades'), 'the grades themselves are not handed out');
+
+  // Twelve spread thin, three a time over four times of day: two times of
+  // day need one more each, and the total is met.
+  const spread = [];
+  for (const h of [1, 10, 14, 20]) for (let d = 0; d < 3; d++) spread.push(at(d, h, 70));
+  const rs = P.playTimes(spread, { hourOf: utc });
+  ok(rs.short === 'two' && rs.need === 2 && rs.text.note === 'Shows once two times of day have 4 graded matches each. Your 12 so far are spread over 4 times of day, at most 3 at one.',
+    'spread thin: two times of day are what is missing', rs.text.note);
+
+  // One match: the total holds it back, and where it started is said.
+  const first = P.playTimes([at(0, 1, 74)], { hourOf: utc });
+  ok(first.short === 'total' && first.text.note === 'Shows after at least 9 more graded matches, with 4 or more at each of two times of day. Your one graded match so far started between midnight and 3 AM.',
+    'one match: at least nine more, and where the one started', first.text.note);
 }
 
 console.log('\nwhat counts:');
@@ -104,8 +141,9 @@ console.log('\nwith enough, the best and worst times, said with their counts:');
   ok(r.text.best.line === 'Average grade 85 over 6 matches, won 4 of 6.', r.text.best.line);
   ok(r.text.worst.line === 'Average grade 60 over 5 matches, won 1 of 5.', r.text.worst.line);
   ok(r.text.note === 'From 14 graded matches, by when each started.', r.text.note);
-  ok(r.text.title === 'Best time to play' && r.text.best.kicker === 'Best time to play' && r.text.worst.kicker === 'Worst time to play',
-    'clear, they are called the best and the worst time to play', JSON.stringify(r.text));
+  ok(r.text.title === 'You play best between 6 PM and 9 PM' && r.text.best.kicker === 'Best time to play' && r.text.worst.kicker === 'Worst time to play',
+    'clear, the title is the finding and the two are called the best and the worst time to play', JSON.stringify(r.text));
+  ok(r.text.title !== r.text.best.kicker, 'and the title never repeats the first call\'s kicker under it');
   const all = JSON.stringify(r.text);
   ok(!DASHES.test(all), 'no dash in anything it says');
 }
