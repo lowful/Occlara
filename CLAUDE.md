@@ -142,7 +142,7 @@ in `docs/claude/` to find it.
 | Changing Ask Coach: `chat-context`, `ask-coach.js`, `chat-prompt`, the fact gates, `bench:chat` | `docs/claude/ask-coach.md` |
 | Changing licences, the Stripe webhook, refunds, renewals, grace or `sync-expiry` | `docs/claude/licence-billing.md` |
 | Touching accounts, sign in, tiers, game caps, `game_usage`, the read gate, referral, `ENFORCE_CAPS` or a rate limit | `docs/claude/accounts.md` |
-| The changelog, What's new, Home's update line, `/api/changelog`, the Discord button or post | `docs/claude/changelog.md` |
+| The changelog, What's new, the bar's What's new pill (Home's update line until 9.1), `/api/changelog`, the Discord button or post | `docs/claude/changelog.md` |
 | Changing the Practice page, the drill library (`drill-library.json`) or `practice.js` | `docs/claude/ui.md`, "The Practice page", and `docs/claude/playbook.md`, "The drill library" |
 | Changing the Trainer page, its numbers (`trainer-data.json`, `trainer-math.js`), arenas, models, scenarios, Fight it again (`trainer-replay.js`) or `trainer-store.js` | `docs/claude/trainer.md` |
 | Changing how a death is read as a chain of mistakes, or the match's own memory (`death-chain.js`, `match-memory.js`) | `docs/claude/death-look.md`, "Chains of mistakes", and `docs/claude/match-to-review.md`, "The match's own memory" |
