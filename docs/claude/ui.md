@@ -76,6 +76,52 @@ wins. What phase 1 changed, and what to keep true:
   paintSky`, shared/sky.js, put up only once the page is on screen, its top
   fading out of the bar, sliding up at 0.6 of the page's scroll), and the
   agent stands at the hero's right. League keeps the plain ground.
+- **The review's head and what stands whole (9.1, the owner's items 6, 7,
+  16, 18; review.css "9.1, THE HEAD").** The page's head is a slim row of
+  glass controls, never the display title: at the left the way back (`#back`,
+  `review.js goBack`, the history's `back({ fallback: 'matches' })`, its words
+  the history's `backLabel`, "Matches" with nothing behind), at the right the
+  eye, Share image (with its mark) and the match's menu (`#more`, three dots)
+  holding Delete match. "All matches" is gone. Every control wears the head's
+  dark glass (blur 16, `--line-2`, the ink) so it reads over the moon. The
+  page's name "Match review" stays its h2, out of sight in the window, for a
+  screen reader and the site's proof (`export-site-proof.js` reads it). The
+  moon is a WHOLE DISC below the head, its lit limb the logo's crescent at its
+  lower left: 44vw (440 to 640), its top 66px down the page, centred behind
+  the agent but never left of where the hero's text can reach (`--text-r`,
+  the fix's measure, or the highlight card's edge), and on the loading screen
+  to the right of its column (`.v-sky.building`); it fades as the page
+  scrolls (`SKY_FADE`), so it is all but gone before it meets the bar. The
+  agent stands inside the hero's box (`top: 0`). Once the page has moved,
+  what scrolls under the head leaves through a 28px soft edge (`.body.scrolled`,
+  a mask, `--v-fade`), never a cut; the replay and the delete confirm sit
+  outside the scroller so the edge never fades them. NOTHING BUT THE PAGE'S
+  SCROLLER EVER SCROLLS: the medals' SVG defs, empty, took a 21px line before
+  the sheet, and the document's 21px of room let scrollIntoView (Every
+  round, a round jumped to, a swing of the rating) slide the whole page,
+  head included, under the bar; the defs are out of flow now and the sheet
+  clips (`overflow: clip`, which no script can scroll). DELETE MATCH: the
+  menu's one row, then a confirm ("Delete this match?", what goes, "This
+  cannot be undone.", Keep it focused, Delete match in coral) and
+  `deleteMatch(id)` (MATCH_DELETE); main takes the page back where the
+  player came from, or to Matches, and a refusal is said in the confirm
+  ("You can delete it once your match is over."). No menu while the review
+  is still being made. THE BEST HIGHLIGHT: where a highlight's clip was kept
+  (main gives it its URL, `review-clips.js presentClips`), the best of the
+  match by `clips.js highlightRank`'s order plays at the hero's right in the
+  agent's place, a 16:9 card, muted and looping, its line above it ("BEST
+  HIGHLIGHT", "Round 17, 4K", a clutch named only where the player was alive
+  at the end) opening its round; it plays only while seen and while ambient
+  motion is on (`Motion.ambientOn`: never mid match, hidden, or under less
+  motion), its own button pauses it, and a clip that will not play gives the
+  place back to the agent. Nothing shows where none was kept. EVERY ROUND'S
+  LINE carries what moved the match rating: the engine's label, grey, and the
+  move on the 100 scale (`placeMove`, from `ratingView.rounds`, which add up
+  to the match). `test:reviewpage` holds all of it; `shot-demo.js` scenes
+  `reviewhl`, `reviewscrolled`, `reviewrounds`, `reviewmenu`, `reviewdelete`,
+  `reviewnarrow`, `replayclip`, `replaydeath`, `replaynone`, `replaynarrow`
+  picture it with real clips (made by the bundled ffmpeg from a map's art,
+  served by occlara-clip as main serves them).
 - **Phase 2, every other page** (DESIGN.md, "What is built"): the page head is
   the title at the display size and a grey sub line (`.page-sub`, the header's
   last child; Matches and Patterns set theirs from `matches.js SECTION_SUBS`), one

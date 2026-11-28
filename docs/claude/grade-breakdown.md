@@ -34,6 +34,17 @@ Decisions.
   Sentinel's or a Controller's is a site tool a coach says to hold, and
   Resurrection cannot save Sage), while the "Died holding your ultimate" miss
   stays for everyone. `test:grade`'s thrown fixture is untraded on purpose.
+  **A clutch is won alive** (9.1, the AI audit): riot-rounds.js marks a clutch
+  from the moment the player is the last one up and fills `won` from the
+  round's winner, so a player left last who planted, was killed, and saw the
+  spike go off had "Won as the last one standing" and 4 Decisions points (the
+  owner's Split, 4 Oct, round 12). Both now need Riot's record to say the
+  player did not die in the round (`insights.js clutchWonAlive`, the same
+  test inline in grade.js Decisions); every guard before it stays (a clutch,
+  won, against one or more), and a round whose death is unknown claims none.
+  A saved review keeps the grade and lists it was saved with. The round's
+  fact tag "Last one standing against 2, and won it" is left as it is: it is
+  true of the round. `test:reviewpage` holds it.
   **Every line says the count it counts** (8.7.2, the review audit's F1):
   the three entries counted that way carry `untradedOnly: true`, and the
   untraded one its own denominator, `of` (the deaths a teammate was alive to

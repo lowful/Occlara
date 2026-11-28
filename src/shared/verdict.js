@@ -192,7 +192,11 @@ function valorantStandout(r) {
     return { value: ace ? 'Ace' : `${top}K`, label: `${top === 5 ? 'Five' : top} kills in ${where(top)}` };
   }
   if (top === 4) return { value: '4K', label: `Four kills in ${where(4)}` };
-  const clutch = rows.filter((x) => x.riot.clutch && x.riot.clutch.won === true && num(x.riot.clutch.vs) !== null && x.riot.clutch.vs >= 1)
+  // A clutch won ALIVE (9.1, the AI audit; insights.js clutchWonAlive): the
+  // player left last who died before the spike won the round won it for the
+  // team, not as the last one standing, and is no standout.
+  const clutch = rows.filter((x) => x.riot.clutch && x.riot.clutch.won === true && num(x.riot.clutch.vs) !== null && x.riot.clutch.vs >= 1
+    && x.died === false)
     .reduce((best, x) => (!best || x.riot.clutch.vs > best.riot.clutch.vs ? x : best), null);
   if (clutch) return { value: `1v${clutch.riot.clutch.vs}`, label: `Clutch won in round ${clutch.n}` };
   if (top === 3) return { value: '3K', label: `Three kills in ${where(3)}` };

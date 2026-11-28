@@ -187,6 +187,8 @@ function paintValorant(r, verdict) {
   // at its right instead (the same bundled portrait as the icon).
   paintVerdictArt($('v-art'), null);
   paintVerdictAgent($('v-agent'), verdict);
+  // 9.1: the match's best highlight, where its clip was kept, in the agent's place.
+  paintHighlight(r);
   $('v-grade').replaceChildren(verdict ? verdictGrade(verdict) : notGraded(
     r.grade && typeof r.grade.score !== 'number' ? 'Not enough measured to grade this match' : 'Not graded'));
   $('v-grade').hidden = false;
@@ -277,7 +279,16 @@ function paintValorant(r, verdict) {
   paintStudy(r);
   // The match rating (rating-view.js), as main served it: its swings open
   // their round's row, the clip in it where one was kept.
-  if (window.RatingView) window.RatingView.paint(r.ratingView || null, { goRound });
+  // Since 9.1 its replay shows each event's moment where one was kept
+  // (mediaOf), over the match's map where none was.
+  if (window.RatingView) {
+    const art = g.map && typeof window.occlara.mapArt === 'function' ? window.occlara.mapArt(g.map) : null;
+    const best = () => {
+      const c = current && current.id === r.id ? bestHighlight(current) : null;
+      return c ? { clip: c.highlight.clipUrl, at: null, cap: `${highlightTitle(c)}, your best highlight` } : null;
+    };
+    window.RatingView.paint(r.ratingView || null, { goRound, mediaOf, art, best });
+  }
 
   const refused = Array.isArray(r.refused) ? r.refused : [];
   $('v-refused-wrap').hidden = !refused.length;
@@ -447,6 +458,184 @@ function paintVerdictAgent(host, v) {
   img.addEventListener('error', ring, { once: true });
   img.src = full;
   host.append(img);
+}
+
+/*
+ * THE BEST HIGHLIGHT (9.1, the owner's item 16): where a highlight's clip
+ * was kept (8.17, main names it on the round's card and presents its URL
+ * while it is on disk, review-clips.js presentClips), the best of the match
+ * plays at the hero's right, muted, in a loop, in the agent's place; with
+ * none kept the agent stands there as before, and nothing says a clip is
+ * missing. THE BEST is clips.js highlightRank's order, the order the clips
+ * were cut in: an ace, a 4K, a clutch won, a 3K, a 2K, then the earlier
+ * round. Its line is Riot's facts of the round ("Round 17, 4K"), a clutch
+ * named only where the player was alive at the end (insights.js
+ * clutchWonAlive). It plays only while it can be seen and ambient motion is
+ * on (Motion.ambientOn: never mid match, with the window hidden or less
+ * motion asked), and its own button pauses it, which a repaint keeps.
+ */
+function highlightRankOf(c) {
+  const r = c && c.riot;
+  const h = c && c.highlight;
+  const kills = r && typeof r.kills === 'number' ? r.kills : h && Array.isArray(h.kills) ? h.kills.length : 0;
+  if (kills < 1) return null;
+  const won = !!(r && r.clutch && typeof r.clutch.vs === 'number' && r.clutch.won === true);
+  if (kills >= 5) return 0;
+  if (kills === 4) return 1;
+  if (won) return 2;
+  if (kills === 3) return 3;
+  if (kills === 2) return 4;
+  return null;
+}
+function bestHighlight(r) {
+  let best = null;
+  for (const c of Array.isArray(r && r.rounds) ? r.rounds : []) {
+    const h = c && c.highlight;
+    if (!h || typeof h.clipUrl !== 'string' || !h.clipUrl || !Number.isInteger(c.n)) continue;
+    const rank = highlightRankOf(c);
+    const k = rank === null ? 9 : rank;
+    if (!best || k < best.k || (k === best.k && c.n < best.c.n)) best = { c, k };
+  }
+  return best ? best.c : null;
+}
+function highlightTitle(c) {
+  const r = c.riot || {};
+  const h = c.highlight || {};
+  const kills = typeof r.kills === 'number' ? r.kills : Array.isArray(h.kills) ? h.kills.length : 0;
+  const alive = !!(r.clutch && r.clutch.won === true && r.clutch.vs >= 1 && c.died === false);
+  const parts = [`Round ${c.n}`];
+  if (kills >= 5) parts.push('an ace');
+  else if (kills >= 2) parts.push(`${kills}K`);
+  if (alive) parts.push(`won alone against ${r.clutch.vs === 1 ? 'one' : r.clutch.vs}`);
+  else if (kills === 1) parts.push('a kill');
+  return parts.join(', ');
+}
+const hl = { url: null, user: null, inView: true, watch: null, stall: null };
+const HL_STALL_MS = 8000;
+function paintHighlight(r) {
+  const host = $('v-hl');
+  if (!host) return;
+  const c = r && r.kind === 'valorant' && r.locked !== true && !r.work ? bestHighlight(r) : null;
+  const url = c ? c.highlight.clipUrl : null;
+  $('v-verdict').classList.toggle('has-hl', !!url);
+  const sky = $('v-sky');
+  if (sky) sky.classList.toggle('with-hl', !!url);
+  if (!url) { stopHighlight(); host.hidden = true; return; }
+  host.hidden = false;
+  const title = highlightTitle(c);
+  const go = $('v-hl-round');
+  go.textContent = title;
+  go.dataset.round = String(c.n);
+  go.setAttribute('aria-label', `${title}. Open round ${c.n}`);
+  go.title = `Open round ${c.n}`;
+  const v = $('v-hl-video');
+  if (hl.url !== url) {
+    stopHighlight();
+    hl.url = url;
+    hl.user = null;
+    host.classList.remove('ready');
+    // Where it cannot play by itself, its picture is the first kill, not the walk to it.
+    const first = Array.isArray(c.highlight.kills) && c.highlight.kills.length ? c.highlight.kills[0] / 1000 : null;
+    // A clip that never shows a frame gives the place back to the agent, as one that fails does.
+    clearTimeout(hl.stall);
+    hl.stall = setTimeout(() => { if (hl.url === url && !host.classList.contains('ready') && v.onerror) v.onerror(); }, HL_STALL_MS);
+    v.onloadeddata = () => {
+      clearTimeout(hl.stall);
+      host.classList.add('ready');
+      if (v.paused && first !== null && v.currentTime < 0.05) { try { v.currentTime = Math.max(0, first - 0.3); } catch (e) { /* not seekable yet */ } }
+    };
+    // A clip that will not play takes its card away, and the agent stands there again.
+    v.onerror = () => {
+      stopHighlight();
+      host.hidden = true;
+      $('v-verdict').classList.remove('has-hl');
+      if (sky) sky.classList.remove('with-hl');
+    };
+    v.preload = 'auto';
+    v.setAttribute('src', url);
+  }
+  if (!hl.watch && typeof IntersectionObserver === 'function') {
+    hl.watch = new IntersectionObserver((entries) => {
+      for (const e of entries) hl.inView = e.isIntersecting;
+      syncHighlight();
+    }, { threshold: 0.2 });
+    hl.watch.observe(v);
+  }
+  syncHighlight();
+}
+/** Plays or pauses the highlight by what is allowed now and what the player asked. */
+function syncHighlight() {
+  const host = $('v-hl');
+  const v = $('v-hl-video');
+  if (!host || !v || host.hidden || !hl.url) return;
+  const M = window.Motion;
+  const seen = hl.inView && document.visibilityState !== 'hidden' && !(M && typeof M.still === 'function' && M.still());
+  const auto = !M || typeof M.ambientOn !== 'function' || M.ambientOn();
+  const may = seen && (hl.user === 'play' || (hl.user !== 'pause' && auto));
+  if (may && v.paused && typeof v.play === 'function') { const p = v.play(); if (p && typeof p.catch === 'function') p.catch(() => {}); }
+  else if (!may && !v.paused && typeof v.pause === 'function') v.pause();
+  const playing = may;
+  host.classList.toggle('paused', !playing);
+  const t = $('v-hl-toggle');
+  t.setAttribute('aria-label', playing ? 'Pause the highlight' : 'Play the highlight');
+  t.title = playing ? 'Pause' : 'Play';
+}
+function stopHighlight() {
+  const v = $('v-hl-video');
+  hl.url = null;
+  clearTimeout(hl.stall);
+  if (!v) return;
+  v.onloadeddata = null;
+  v.onerror = null;
+  if (typeof v.pause === 'function') v.pause();
+  if (v.getAttribute('src')) { v.removeAttribute('src'); if (typeof v.load === 'function') v.load(); }
+}
+$('v-hl-toggle').addEventListener('click', () => {
+  const host = $('v-hl');
+  hl.user = host.classList.contains('paused') ? 'play' : 'pause';
+  syncHighlight();
+});
+$('v-hl-round').addEventListener('click', () => { const n = Number($('v-hl-round').dataset.round); if (n) goRound(n); });
+document.addEventListener('visibilitychange', () => {
+  syncHighlight();
+  // A page put away takes its open menu with it (the confirm stays: it is a question asked).
+  if (document.visibilityState === 'hidden' && typeof closeMore === 'function') closeMore(false);
+});
+if (window.Motion && typeof window.Motion.onAmbient === 'function') window.Motion.onAmbient(syncHighlight);
+
+/*
+ * THE MOMENT OF ONE RATING EVENT, FOR THE REPLAY (9.1, the owner's item 16):
+ * what was kept of it on this PC, or null. The player's death: the round's
+ * death clip from just before the death (the coach's look, else a flagged
+ * death's), else the look's frame nearest before it. The player's kill: the
+ * round's highlight clip at that kill (its nth in the round, on the clip's
+ * own timeline). Anything else, or nothing kept: null, and the replay says
+ * so. `role` and `nth` are the replay's (rating-view.js roleOf).
+ */
+function mediaOf(e, role, nth) {
+  const r = current;
+  if (!r || !e || !Number.isInteger(e.round)) return null;
+  const c = (Array.isArray(r.rounds) ? r.rounds : []).find((x) => x && x.n === e.round);
+  if (!c) return null;
+  const sec = (ms) => (typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 ? ms / 1000 : null);
+  if (role === 'death' && c.died) {
+    const f = c.forensics || null;
+    if (f && f.clipUrl) return { clip: f.clipUrl, at: sec(f.clipDeath), cap: `Round ${c.n}, the clip of your death` };
+    const flag = c.flag || null;
+    if (flag && flag.clipUrl) return { clip: flag.clipUrl, at: sec(flag.clipDeath), cap: `Round ${c.n}, the clip of your death` };
+    const shot = f ? posterOf(shotsOf(f, r.frameData || {})) : null;
+    if (shot) return { frame: shot, cap: `Round ${c.n}, the frame the coach looked at` };
+    return null;
+  }
+  if (role === 'kill') {
+    const h = c.highlight || null;
+    if (h && typeof h.clipUrl === 'string' && h.clipUrl) {
+      const kills = Array.isArray(h.kills) ? h.kills : [];
+      const at = kills.length ? sec(kills[Math.min(Math.max(0, nth || 0), kills.length - 1)]) : null;
+      return { clip: h.clipUrl, at, cap: `Round ${c.n}, from your highlight` };
+    }
+  }
+  return null;
 }
 
 function paintVerdictIcon(host, v) {
@@ -1003,15 +1192,53 @@ function paintRounds(r) {
   // The two halves headed by their side (8.7): one heading where the half
   // changes, the strip of cells that used to say it gone.
   const half = r.halftimeAfter;
+  const moves = roundMoves(r);
   let lastHalf = 0;
   for (const c of rounds) {
     const h = half && c.n > half ? 2 : 1;
     if (h !== lastHalf && c.side) host.append(el('div', 'v-half-side', c.side));
     lastHalf = h;
     const row = roundRow(r, c, frames);
+    placeMove(row, moves.get(c.n));
     host.append(row);
     if (kept.rounds.has(c.n)) openRow(row);
   }
+}
+
+/*
+ * WHAT MOVED THE RATING IN EACH ROUND (9.1, the owner's item 16): on every
+ * round's line, the round's move of the match rating on the 100 scale, as
+ * the rating's own view counted it (rating.js viewOf: each round's delta is
+ * the difference of the two shown numbers, so the rounds add up to the
+ * match), and the engine's label of what happened ("Quadra kill with the
+ * opening kill, then died"). The page works out nothing: a review with no
+ * rating, or a round the view has no label for, shows none. Its colour is
+ * the move's sign (rating-badge.js wayOf), the sign itself always the text.
+ */
+function roundMoves(r) {
+  const v = r && r.ratingView;
+  const out = new Map();
+  if (!v || typeof v.value !== 'number' || !Array.isArray(v.rounds)) return out;
+  for (const x of v.rounds) {
+    if (!x || !Number.isInteger(x.n) || typeof x.delta !== 'string' || !x.delta) continue;
+    const label = typeof x.label === 'string' && x.label ? x.label : null;
+    if (!label) continue;
+    out.set(x.n, { delta: x.delta, label });
+  }
+  return out;
+}
+function placeMove(row, m) {
+  if (!row || !m) return;
+  const head = row.querySelector('.v-round-head');
+  if (!head) return;
+  const way = window.RatingBadge && typeof window.RatingBadge.wayOf === 'function' ? window.RatingBadge.wayOf(m.delta) : null;
+  const box = el('span', 'v-rt-move' + (way ? ` ${way}` : ' even'));
+  box.title = `Match rating ${m.delta} this round: ${m.label}`;
+  box.append(el('span', 'sr-only', 'Match rating '), el('span', 'v-rt-label', m.label), el('span', 'v-rt-d', m.delta));
+  // Before the round's own controls (its eye, its fold), after its words.
+  const before = [...head.children].find((n) => n.classList && (n.classList.contains('log-eye') || n.classList.contains('v-fold')));
+  if (before) head.insertBefore(box, before); else head.append(box);
+  row.classList.add('has-move');
 }
 
 function roundRow(r, c, frames) {
@@ -2240,12 +2467,17 @@ function settleReveal(r) {
  * ground.
  */
 const SKY_DRIFT = 0.6;
+// The sky's drift at which it has faded out (9.1): past the moon's middle.
+const SKY_FADE = 300;
 let skyAt = '';
-function paintSky(on) {
+function paintSky(on, building) {
   const host = $('v-sky');
   if (!host) return;
   host.hidden = !on;
   if (!on) return;
+  // 9.1: the moon stands clear of what the page shows, the loading screen's
+  // centred column or the hero's text (review.css .v-moon).
+  host.classList.toggle('building', !!building);
   const shown = typeof window.occlaraOnShown === 'function' ? window.occlaraOnShown : (fn) => fn();
   shown(() => {
     const sky = window.OcclaraSky;
@@ -2267,20 +2499,31 @@ window.addEventListener('resize', () => { skyAt = ''; const host = $('v-sky'); i
       const y = scroller.scrollTop * SKY_DRIFT;
       const host = $('v-sky');
       if (host) host.style.transform = y ? `translate3d(0, ${(-y).toFixed(1)}px, 0)` : '';
+      // 9.1: and it fades as it goes, so the moon is all but gone before it
+      // reaches the head, never cut by the bar.
+      if (host) host.style.opacity = y ? String(Math.max(0, 1 - y / SKY_FADE).toFixed(3)) : '';
+      // 9.1: once the page has moved, what scrolls under the head fades out
+      // through a soft edge (review.css .body.scrolled), never a cut.
+      scroller.classList.toggle('scrolled', scroller.scrollTop > 2);
     });
   }, { passive: true });
 })();
 
 function paint(r) {
   settleReveal(r);
-  paintSky(!!r && (!!r.work || r.kind === 'valorant'));
+  paintSky(!!r && (!!r.work || r.kind === 'valorant'), !!(r && r.work));
   paintEye(r);
   // The share sheet stays open over a new version of the review it was
   // opened on, drawn again; over any other, or none, it closes.
   const sameReview = !!(r && current && r.id && r.id === current.id);
+  // The match's menu, with a saved review that is whole; the menu and the
+  // confirm close over any other review, or none.
+  $('more').hidden = !r || !r.id || !!r.work || typeof window.occlara.deleteMatch !== 'function';
+  if (!sameReview || $('more').hidden) { closeMore(false); closeDelete(false); }
   $('share').hidden = true;
   if (!r || r.work) { closeShare(false); shareVerdict = null; }
   if (window.RatingView && (!r || r.work || r.kind !== 'valorant' || r.locked === true)) window.RatingView.paint(null);
+  if (!r || r.work || r.kind !== 'valorant' || r.locked === true) paintHighlight(null);
   if (!r) {
     progressFor = null;
     paintBuilding(null);
@@ -2589,11 +2832,133 @@ $('sh-copy').addEventListener('click', () => {
 });
 
 let current = null;
-// A page of the main window has no window of its own to close: the sidebar
-// and All matches are how a player leaves it.
+// A page of the main window has no window of its own to close: the bar's
+// links, the back arrow and the mouse's back button are how a player leaves it.
 const closeWindow = () => { if (!(window.occlaraEmbedded && window.occlaraEmbedded())) window.occlara.close(); };
 $('close').addEventListener('click', closeWindow);
-$('matches').addEventListener('click', () => window.occlara.openMatches());
+
+/*
+ * THE WAY BACK (9.1, the owner's item 7): the arrow at the head's left goes
+ * back to where the player came from, the app's own history (shell-nav.js
+ * createHistory through the bridge's `history`), with Matches when there is
+ * nothing behind this page (opened from a toast, or the window made again).
+ * It says where it goes: "Matches", "Home", "Clips", by the history's
+ * backLabel, kept current by its pushes. "All matches" is gone: this is it.
+ */
+const BACK_FALLBACK = 'matches';
+const BACK_DEFAULT = 'Matches';
+const historyApi = () => (window.occlara && window.occlara.history && typeof window.occlara.history.back === 'function' ? window.occlara.history : null);
+function backTo(s) {
+  const label = s && s.back === true && typeof s.backLabel === 'string' && s.backLabel.trim() ? s.backLabel.trim() : BACK_DEFAULT;
+  $('back-label').textContent = label;
+  $('back').setAttribute('aria-label', `Back to ${label}`);
+  $('back').title = `Back to ${label}`;
+}
+function goBack() {
+  const h = historyApi();
+  if (h) { Promise.resolve(h.back({ fallback: BACK_FALLBACK })).catch(() => {}); return; }
+  if (typeof window.occlara.openMatches === 'function') window.occlara.openMatches();
+}
+$('back').addEventListener('click', goBack);
+{
+  const h = historyApi();
+  if (h && typeof h.state === 'function') Promise.resolve(h.state()).then(backTo).catch(() => {});
+  if (h && typeof h.onChange === 'function') h.onChange(backTo);
+}
+
+/*
+ * THE MATCH'S MENU AND DELETE MATCH (9.1, the owner's item 18). The menu
+ * under the head's three dots holds Delete match; it opens on a press, or
+ * the down arrow with the focus on its first row, and closes on Escape, Tab,
+ * a press outside it or a row chosen. Delete match asks first, plainly, Keep
+ * it focused; Delete match then asks main (MATCH_DELETE), which removes the
+ * review, its clips and its frames and takes this page back where the player
+ * came from, or to Matches. Main refuses mid match and while the review is
+ * still being built, and the confirm says why.
+ */
+const DELETE_SAID = {
+  match: 'You can delete it once your match is over.',
+  working: 'This review is still being made. You can delete it once it is whole.',
+  gone: 'This match was already deleted.',
+  bad: 'This match could not be deleted.',
+  failed: 'This match could not be deleted. Try again.',
+};
+const menuOpen = () => !$('more-menu').hidden;
+const deleteOpen = () => !$('del-scrim').hidden;
+let menuOutside = null;
+function openMore(focusFirst) {
+  if ($('more').hidden) return;
+  $('more-menu').hidden = false;
+  $('more').setAttribute('aria-expanded', 'true');
+  if (focusFirst) $('delete-match').focus();
+  if (!menuOutside) {
+    menuOutside = (e) => { if (!e.target || !e.target.closest || !e.target.closest('.v-more-wrap')) closeMore(false); };
+    document.addEventListener('pointerdown', menuOutside, true);
+  }
+}
+function closeMore(refocus) {
+  if (menuOutside) { document.removeEventListener('pointerdown', menuOutside, true); menuOutside = null; }
+  if (!menuOpen()) return;
+  $('more-menu').hidden = true;
+  $('more').setAttribute('aria-expanded', 'false');
+  if (refocus) $('more').focus();
+}
+$('more').addEventListener('click', () => (menuOpen() ? closeMore(false) : openMore(false)));
+$('more').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); openMore(true); }
+});
+$('more-menu').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMore(true); return; }
+  if (e.key === 'Tab') { closeMore(false); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') { e.preventDefault(); $('delete-match').focus(); }
+});
+$('delete-match').addEventListener('click', () => askDelete());
+
+function askDelete() {
+  closeMore(false);
+  if (!current || !current.id || typeof window.occlara.deleteMatch !== 'function') return;
+  $('del-said').hidden = true;
+  $('del-said').textContent = '';
+  $('del-go').disabled = false;
+  $('del-go').textContent = 'Delete match';
+  $('del-scrim').hidden = false;
+  $('del-keep').focus();
+}
+function closeDelete(refocus) {
+  if (!deleteOpen()) return;
+  $('del-scrim').hidden = true;
+  if (refocus && !$('more').hidden) $('more').focus();
+}
+async function doDelete() {
+  const id = current && current.id;
+  if (!id || $('del-go').disabled) return;
+  $('del-go').disabled = true;
+  $('del-go').textContent = 'Deleting';
+  let got = null;
+  try { got = await window.occlara.deleteMatch(id); } catch { got = null; }
+  $('del-go').textContent = 'Delete match';
+  // Main has taken the page back already; the dialog goes with it.
+  if (got && got.ok) { closeDelete(false); return; }
+  const why = (got && got.error) || 'failed';
+  if (why === 'gone') { closeDelete(false); goBack(); return; }
+  $('del-said').textContent = DELETE_SAID[why] || DELETE_SAID.failed;
+  $('del-said').hidden = false;
+  $('del-go').disabled = false;
+}
+$('del-keep').addEventListener('click', () => closeDelete(true));
+$('del-go').addEventListener('click', () => { doDelete(); });
+$('del-scrim').addEventListener('pointerdown', (e) => { if (e.target === $('del-scrim')) closeDelete(true); });
+// The confirm keeps the keyboard: Tab between its two buttons, Escape keeps the match.
+$('del-scrim').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDelete(true); return; }
+  if (e.key !== 'Tab') return;
+  const btns = [$('del-keep'), $('del-go')].filter((b) => !b.disabled);
+  if (!btns.length) return;
+  e.preventDefault();
+  const i = btns.indexOf(document.activeElement);
+  btns[(i + (e.shiftKey ? -1 : 1) + btns.length) % btns.length].focus();
+});
+
 $('ask').addEventListener('click', () => { if (current && current.id) window.occlara.askAbout(current.id); });
 // Every round (Orbit): down to the rounds, smoothly unless asked for less motion.
 $('v-every').addEventListener('click', () => {
@@ -2602,9 +2967,12 @@ $('v-every').addEventListener('click', () => {
   const calm = !!(window.Motion && window.Motion.reduced());
   to.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
 });
-// Esc closes the share sheet first, and only with none open the page.
+// Esc closes what is open over the page first, the confirm, then the menu,
+// then the share sheet, and only with none open the page.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  if (deleteOpen()) { closeDelete(true); return; }
+  if (menuOpen()) { closeMore(true); return; }
   if (shareOpen()) { closeShare(true); return; }
   closeWindow();
 });
@@ -2620,9 +2988,14 @@ if (window.occlara.onReviewWork) {
     if (!m || !current || !current.id || m.id !== current.id) return;
     if (m.work) {
       current = { ...current, work: m.work };
+      paintHighlight(null);
+      paintSky(true, true);
       $('ask').hidden = true;
       closeShare(false);
       $('share').hidden = true;
+      $('more').hidden = true;
+      closeMore(false);
+      closeDelete(false);
       paintBuilding(m.work);
       return;
     }

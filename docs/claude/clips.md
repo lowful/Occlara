@@ -191,7 +191,11 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   about 8%, one paused nothing), a click on the picture plays or pauses it,
   and out of view or with the page hidden it pauses.
   Whether a clip is there is asked of the disk each time a review is shown
-  (`present()`, `presentClips`).
+  (`present()`, `presentClips`). Since 9.1 a highlight's clip is presented
+  the same way, on its card's `highlight` (`clipUrl`, its frames, no place
+  for a death): the review page plays the best one at its top and the rating
+  replay plays it at each kill (ui.md, "The review's head and what stands
+  whole"; rating.md, "Since 9.1 the replay is a player").
 - **The clip's player** (8.4.4, `renderer/review/clip-player.js`, its
   arithmetic `clip-time.js`, one pure file the page loads and `test:clips`
   runs), the player's ask: "control for the clips ... like pausing, rewinding,

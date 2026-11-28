@@ -347,7 +347,10 @@ function valorant(input) {
     const avoid = looked.filter((r) => isAvoidable(r.forensics.cause));
     for (const r of avoid) flagged.add(r.n);
     let s = curve(decisionsShare(flagged.size, total), DECISIONS_CURVE);
-    const clutches = verified.filter((r) => r.clutch && r.clutch.won === true).length;
+    // A clutch won ALIVE (9.1, the AI audit; insights.js clutchWonAlive): a
+    // player who died after being left last, the round then won by the spike,
+    // won it for the team and was credited a clutch here and in the lists.
+    const clutches = verified.filter((r) => r.clutch && r.clutch.won === true && r.died === false).length;
     s += Math.min(8, clutches * 4);
     decisions.score = s;
     if (thrown.length) decisions.evidence.push(`died with the team ahead in numbers and lost the round ${times(thrown.length)}`);

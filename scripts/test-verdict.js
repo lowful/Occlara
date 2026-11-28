@@ -322,7 +322,8 @@ function leagueReview() {
 
 // ── 8.7.x: the standout, in its fixed order, and the calm fallback ──────────
 {
-  const round = (n, riot) => ({ n, riot: { kills: 0, firstKill: false, clutch: null, ...riot } });
+  // A card says whether the player died in the round (9.1: a clutch is won alive), alive unless a case says so.
+  const round = (n, riot, card) => ({ n, died: false, riot: { kills: 0, firstKill: false, clutch: null, ...riot }, ...card });
   const val = (rounds, sl) => ({ kind: 'valorant', rounds, scoreline: sl || { kills: 20, deaths: 16, assists: 4 } });
   const S = verdict.standout;
   const kill = (va) => ({ ms: 1000, by: 'me', on: 'enemy', va });
@@ -341,6 +342,9 @@ function leagueReview() {
     ['three are counted', val([round(2, { kills: 4 }), round(5, { kills: 4 }), round(15, { kills: 4 })]), { value: '4K', label: 'Four kills in each of 3 rounds' }],
     ['a clutch won, the most enemies, the earliest of a tie', val([round(4, { kills: 3, clutch: { vs: 2, won: true } }), round(8, { clutch: { vs: 3, won: true } }), round(12, { clutch: { vs: 3, won: true } })]), { value: '1v3', label: 'Clutch won in round 8' }],
     ['a clutch lost or unknown is no standout', val([round(4, { clutch: { vs: 3, won: false } }), round(5, { clutch: { vs: 2, won: null } }), round(6, { kills: 3 })]), { value: '3K', label: 'Three kills in round 6' }],
+    // 9.1, the AI audit: the real Split's round 12, left last against three, killed, the spike went off.
+    ['a clutch the player died in is no standout', val([round(12, { clutch: { vs: 3, won: true } }, { died: true }), round(6, { kills: 3 })]), { value: '3K', label: 'Three kills in round 6' }],
+    ['nor one whose death is not known', val([round(12, { clutch: { vs: 3, won: true } }, { died: undefined }), round(1, { firstKill: true, kills: 1 }), round(2, { firstKill: true, kills: 1 })]), { value: '2', label: 'First kills of the round' }],
     ['first kills, two or more', val([round(1, { firstKill: true, kills: 1 }), round(4, { firstKill: true, kills: 2 })]), { value: '2', label: 'First kills of the round' }],
     ['one first kill falls to the fallback, kills per death', val([round(1, { firstKill: true, kills: 1 })], { kills: 31, deaths: 21, assists: 4 }), { value: '1.48', label: 'Kills per death' }],
     ['a round off Riot\'s record (no riot) is never counted', val([{ n: 3, kills: 5 }], { kills: 10, deaths: 5, assists: 0 }), { value: '2.00', label: 'Kills per death' }],
