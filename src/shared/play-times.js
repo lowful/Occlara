@@ -200,14 +200,18 @@
         best: null, worst: null,
       };
     }
-    const best = { label: r.best.label, line: slotLine(r.best) };
-    const worst = { label: r.worst.label, line: slotLine(r.worst) };
     const over = `From ${plural(r.counted, 'graded match', 'graded matches')}, by when each started.`;
     if (r.clear) {
-      return { title: 'Best time to play', note: over, best, worst };
+      return { title: 'Best time to play', note: over,
+        best: { kicker: 'Best time to play', label: r.best.label, line: slotLine(r.best) },
+        worst: { kicker: 'Worst time to play', label: r.worst.label, line: slotLine(r.worst) } };
     }
+    // Not clear: the two are named for what they are, the highest and the
+    // lowest so far, and never called the best and the worst.
+    const best = { kicker: 'Highest so far', label: r.best.label, line: slotLine(r.best) };
+    const worst = { kicker: 'Lowest so far', label: r.worst.label, line: slotLine(r.worst) };
     return {
-      title: 'Best time to play',
+      title: 'No clear best time yet',
       note: `Too close to call yet: your best time is ${plural(r.gap, 'point', 'points')} over your worst across `
         + `${r.best.n} and ${plural(r.worst.n, 'match', 'matches')}, which chance alone can give. More matches will tell.`,
       best, worst,

@@ -104,6 +104,8 @@ console.log('\nwith enough, the best and worst times, said with their counts:');
   ok(r.text.best.line === 'Average grade 85 over 6 matches, won 4 of 6.', r.text.best.line);
   ok(r.text.worst.line === 'Average grade 60 over 5 matches, won 1 of 5.', r.text.worst.line);
   ok(r.text.note === 'From 14 graded matches, by when each started.', r.text.note);
+  ok(r.text.title === 'Best time to play' && r.text.best.kicker === 'Best time to play' && r.text.worst.kicker === 'Worst time to play',
+    'clear, they are called the best and the worst time to play', JSON.stringify(r.text));
   const all = JSON.stringify(r.text);
   ok(!DASHES.test(all), 'no dash in anything it says');
 }
@@ -116,7 +118,9 @@ console.log('\ntoo close to call is said, never a best by chance:');
   const r = P.playTimes(rows, { hourOf: utc });
   ok(r.enough && !r.clear && r.gap === 2, 'two points apart with this spread is not clear', JSON.stringify({ gap: r.gap, clear: r.clear }));
   ok(/^Too close to call yet: your best time is 2 points over your worst across 5 and 5 matches, which chance alone can give\. More matches will tell\.$/.test(r.text.note), r.text.note);
-  ok(r.text.best && r.text.worst, 'the two are still named, with their counts');
+  ok(r.text.best && r.text.worst && /over 5 matches/.test(r.text.best.line), 'the two are still named, with their counts');
+  ok(r.text.title === 'No clear best time yet' && r.text.best.kicker === 'Highest so far' && r.text.worst.kicker === 'Lowest so far',
+    'and called the highest and lowest so far, never the best and the worst', JSON.stringify(r.text));
 
   // A steady player: every grade the same. The floor on the spread keeps a
   // 4 point gap from being called clear on four matches.
