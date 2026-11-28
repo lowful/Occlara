@@ -72,8 +72,10 @@ ok(D.startsWith('M10 60a50 50 0 1 0 100 0a50 50 0 1 0 -100 0Z') && (D.match(/M/g
   'the flat mark is the disc of radius 50 at (60, 60) and its seas and craters cut from it', `${(D.match(/M/g) || []).length} subpaths`);
 ok(A.FLAT_CRATERS.map((c) => c.name).join(',') === 'Tycho,Clavius,Highland,Highland E', 'its four craters: Tycho, Clavius and two highland craters',
   A.FLAT_CRATERS.map((c) => c.name).join(','));
+// The two dashes CLAUDE.md bans, built from their codes so this file carries neither.
+const DASH = new RegExp('[' + String.fromCharCode(0x2013) + String.fromCharCode(0x2014) + ']');
 const drawings = read('scripts/moon/moon-drawings.js');
-ok(/Copied byte for byte from the design/.test(drawings) && !/[–—]/.test(drawings + read('scripts/moon/moon-art.js') + read('scripts/moon/moon-geometry.js')),
+ok(/Copied byte for byte from the design/.test(drawings) && !DASH.test(drawings + read('scripts/moon/moon-art.js') + read('scripts/moon/moon-geometry.js')),
   'the drawings say they are the design\'s, copied, and the source carries no dash');
 
 // 2. The one colour mark.
