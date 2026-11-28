@@ -121,7 +121,7 @@ fixed order, the first that holds wins:
 
 | Game | Order | Example |
 |---|---|---|
-| Valorant, from the rounds with `riot` (Riot's verified rounds only) | 1. an ace or a four kill round, every round at the most named, 2. a clutch won, the most enemies, the earliest of a tie, 3. a three kill round, 4. first kills of the round, two or more | "4K, Four kills in rounds 11 and 17", "1v3, Clutch won in round 8", "2, First kills of the round" |
+| Valorant, from the rounds with `riot` (Riot's verified rounds only) | 1. an ace or a four kill round, every round at the most named, 2. a clutch won, the most enemies, the earliest of a tie, 3. a three kill round, 4. first kills of the round, two or more | "4K, Four kills in one round, twice: rounds 11 and 17", "1v3, Clutch won in round 8", "2, First kills of the round" |
 | League, from the scoreline | 1. CS per minute, 6 or more, over a game of 5 minutes or more, never for a support (Support or UTILITY), 2. a KDA of 3 or more | "6.8, CS per minute", "8.00, KDA ratio" |
 | Either, the calm fallback | Valorant kills per death, League the KDA, and no deaths says so | "1.48, Kills per death", "12, Kills without dying" |
 
@@ -131,7 +131,11 @@ standout, nor since 9.1 one the player died in (a clutch is won alive, the
 AI audit's Split round 12: left last, killed, the spike went off; the card's
 `died` must be false), and a round off the screen alone (no `riot`) is
 never counted.
-The Abyss fixture's is "4K, Four kills in rounds 11 and 17".
+The Abyss fixture's is "4K, Four kills in one round, twice: rounds 11 and
+17". Two rounds at the most are said that way since 9.1 (the final critic):
+"Four kills in rounds 11 and 17" could be read as four kills across both.
+One round is "Four kills in round 11", three or more "Four kills in each of
+3 rounds".
 
 The icon is `src/shared/agent-icons.js` `iconOf(game, name)`: only a name
 the generated data knows gets a path (KAY/O is `KAYO.png`), a string with a

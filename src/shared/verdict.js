@@ -171,10 +171,14 @@ function valorantStandout(r) {
   const rows = (Array.isArray(r.rounds) ? r.rounds : []).filter((x) => x && x.riot && typeof x.n === 'number');
   const killsOf = (x) => (typeof x.riot.kills === 'number' ? x.riot.kills : 0);
   const top = rows.reduce((m, x) => Math.max(m, killsOf(x)), 0);
-  // Every round at the most, so a second one is never hidden behind the first.
-  const where = (k) => {
+  // Every round at the most, so a second one is never hidden behind the first,
+  // said so it cannot be read as the kills spread over the rounds (9.1, the
+  // final critic: "Four kills in rounds 11 and 17" read as four across both).
+  const killsIn = (k, word) => {
     const ns = rows.filter((x) => killsOf(x) === k).map((x) => x.n);
-    return ns.length === 1 ? `round ${ns[0]}` : ns.length === 2 ? `rounds ${ns[0]} and ${ns[1]}` : `each of ${ns.length} rounds`;
+    return ns.length === 1 ? `${word} kills in round ${ns[0]}`
+      : ns.length === 2 ? `${word} kills in one round, twice: rounds ${ns[0]} and ${ns[1]}`
+        : `${word} kills in each of ${ns.length} rounds`;
   };
   // A Sage revive can make six: the count is said as it was, never rounded down to five.
   // It can also make five kills that are not all five enemies, so a round is an
@@ -189,9 +193,9 @@ function valorantStandout(r) {
   };
   if (top >= 5) {
     const ace = rows.some((x) => killsOf(x) === top && isAce(x));
-    return { value: ace ? 'Ace' : `${top}K`, label: `${top === 5 ? 'Five' : top} kills in ${where(top)}` };
+    return { value: ace ? 'Ace' : `${top}K`, label: killsIn(top, top === 5 ? 'Five' : String(top)) };
   }
-  if (top === 4) return { value: '4K', label: `Four kills in ${where(4)}` };
+  if (top === 4) return { value: '4K', label: killsIn(4, 'Four') };
   // A clutch won ALIVE (9.1, the AI audit; insights.js clutchWonAlive): the
   // player left last who died before the spike won the round won it for the
   // team, not as the last one standing, and is no standout.
@@ -199,7 +203,7 @@ function valorantStandout(r) {
     && x.died === false)
     .reduce((best, x) => (!best || x.riot.clutch.vs > best.riot.clutch.vs ? x : best), null);
   if (clutch) return { value: `1v${clutch.riot.clutch.vs}`, label: `Clutch won in round ${clutch.n}` };
-  if (top === 3) return { value: '3K', label: `Three kills in ${where(3)}` };
+  if (top === 3) return { value: '3K', label: killsIn(3, 'Three') };
   const first = rows.filter((x) => x.riot.firstKill === true).length;
   if (first >= 2) return { value: String(first), label: 'First kills of the round' };
   return null;
