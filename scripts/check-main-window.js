@@ -364,7 +364,10 @@ setTimeout(async () => {
     // in the bar, Home's line until then), main's words whole in its title.
     const homeNews = await until(() => sjs(`(() => {
       const n = document.getElementById('news');
-      return n && !n.hidden && getComputedStyle(n).display !== 'none' ? { label: n.textContent.replace(/\\s+/g, ' ').trim(), title: n.title } : null;
+      // The label the bar draws at this width (.news-text); .news-short ("New")
+      // is the narrow bar's word, hidden here and aria-hidden always.
+      const t = n && n.querySelector('.news-text');
+      return n && t && !n.hidden && getComputedStyle(n).display !== 'none' ? { label: t.textContent.replace(/\\s+/g, ' ').trim(), short: getComputedStyle(n.querySelector('.news-short')).display, title: n.title } : null;
     })()`), 4000);
     lines.push(`the bar's What's new: ${JSON.stringify(homeNews)}`);
     if (!homeNews || homeNews.title !== `Occlara updated to ${APP_VERSION}. See what's new` || homeNews.label !== `What's new in ${APP_VERSION}`) {
