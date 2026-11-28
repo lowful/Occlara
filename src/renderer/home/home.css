@@ -294,7 +294,8 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 }
 .play-mark:hover { background: var(--glass-h); }
 .play-mark:active { transform: scale(0.86); transition-duration: var(--dur-press); }
-.play-mark svg { margin-left: 3px; }
+/* 9.1: the mark's own centroid is on its circle's centre, so no nudge. */
+.play-mark svg { display: block; }
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   .fix-poster { transition: transform var(--dur-slow) var(--ease-out); }
   .fix-media:hover .fix-poster { transform: scale(1.02); }

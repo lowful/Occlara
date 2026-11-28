@@ -320,6 +320,12 @@ const GB = 1024 * 1024 * 1024;
     && D.querySelectorAll('.mo-play svg path, .mo-frame-play svg path').every((p) => p.getAttribute('d') === PATH),
     'every play mark on the page is that one');
   ok(!page.includes('M8 5.5v13l10.5-6.5z') && !/border-left:\s*\d+px solid var\(--text\)/.test(css), 'and the old marks, boxed left of centre, are gone');
+  // Everywhere a clip's play mark sits in its circle: the clip player (the
+  // review's, Clips' own player and Ask Coach's), Home's fix card and
+  // Practice's clip tile draw the same mark, with no nudge of their own.
+  const elsewhere = ['src/renderer/review/clip-player.js', 'src/renderer/home/home.js', 'src/renderer/practice/practice.js'];
+  ok(elsewhere.every((rel) => read(rel).includes(PATH)), 'every clip play mark in its circle is the same centred one', elsewhere.filter((rel) => !read(rel).includes(PATH)).join());
+  ok(!/\.play-mark svg\s*\{[^}]*margin-left/.test(read('src/renderer/home/home.css')), 'and Home\'s fix card no longer nudges it by hand');
 
   // ── The page scrolls as one ───────────────────────────────────────────────
   const rule = (sel) => { const m = css.match(new RegExp(`(?:^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`)); return m ? m[1] : ''; };

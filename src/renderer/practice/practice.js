@@ -62,7 +62,7 @@ function playMark(cls) {
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('class', cls);
   const p = document.createElementNS(SVG_NS, 'path');
-  p.setAttribute('d', 'M8 5.5v13l10.5-6.5z');
+  p.setAttribute('d', 'M10.43 6.98L17.18 10.78A1.4 1.4 0 0 1 17.18 13.22L10.43 17.02A1.4 1.4 0 0 1 8.34 15.8L8.34 8.2A1.4 1.4 0 0 1 10.43 6.98Z');
   p.setAttribute('fill', 'currentColor');
   svg.append(p);
   return svg;
