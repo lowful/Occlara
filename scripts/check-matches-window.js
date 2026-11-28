@@ -351,8 +351,9 @@ setTimeout(async () => {
       if (left !== false) return report(false, `the ${section} page still carries a wins and losses record`);
     }
     lines.push('record: none beside the title');
-    // THE GRADE CARD'S FOOT (8.9.1): measured in the real window, with the real
-    // font, every label under the line clears the next and stays in the card.
+    // THE GRADE TREND'S FOOT (8.9.1; across the top since 9.1, by day):
+    // measured in the real window, with the real font, every label under the
+    // line clears the next and stays in the card, and none is a time of day.
     {
       const lw = surfaces.find('section=list');
       const foot = lw && await lw.webContents.executeJavaScript(`(() => {
@@ -360,12 +361,13 @@ setTimeout(async () => {
         const svg = card && !card.hidden && card.querySelector('svg');
         if (!svg) return null;
         const box = card.getBoundingClientRect();
-        const r = [...svg.querySelectorAll('.gl-time')].map((t) => { const b = t.getBoundingClientRect(); return { l: b.left, r: b.right, text: t.textContent }; });
+        const r = [...svg.querySelectorAll('.tc-foot-label')].map((t) => { const b = t.getBoundingClientRect(); return { l: b.left, r: b.right, text: t.textContent }; });
         r.sort((a, b) => a.l - b.l);
         return { labels: r.map((x) => x.text), apart: r.every((x, i) => !r[i + 1] || x.r + 4 <= r[i + 1].l), inside: r.every((x) => x.l >= box.left && x.r <= box.right) };
       })()`);
       lines.push(`grade card foot: ${foot ? foot.labels.join(' | ') : 'no card'}`);
       if (foot && (!foot.apart || !foot.inside)) return report(false, `the grade card labels run together or leave the card: ${JSON.stringify(foot)}`);
+      if (foot && foot.labels.some((t) => /\d:\d\d/.test(t))) return report(false, `the grade trend's foot says a time of day: ${foot.labels.join(' | ')}`);
     }
 
     // The breakdown, folded at the foot of Patterns (8.7): shown with four
@@ -418,7 +420,7 @@ setTimeout(async () => {
     const dts = await js("[...document.querySelectorAll('#b-table .b-detail .b-dt')].map((n) => n.textContent).join('|')");
     lines.push(`opened row: ${dts}`);
     if (!/Openings/.test(dts) || !/Maps/.test(dts)) return report(false, 'opening an agent row showed no openings or maps');
-    const riotRow = await js("[...document.querySelectorAll('#list .m-meta')].some((n) => n.textContent.includes(\"from Riot's record\"))");
+    const riotRow = await js("[...document.querySelectorAll('#list .m-meta')].some((n) => /from Riot's record/i.test(n.textContent))");
     if (!riotRow) return report(false, "the Riot only match does not say it is from Riot's record");
 
     // THE GRADING LINE FOLLOWS THE RIOT ID IN SETTINGS, New#EUW. A run for the
@@ -428,17 +430,17 @@ setTimeout(async () => {
     const push = async (s) => {
       win.webContents.send(C.PUSH_BACKFILL, s);
       await wait(500);
-      return js("({ text: document.getElementById('bf-status').textContent, btn: document.getElementById('bf-go').textContent, off: document.getElementById('bf-go').disabled })");
+      return js("({ text: document.getElementById('bf-status').textContent, shown: !document.getElementById('bf').hidden, btn: !!document.getElementById('bf-go') || !!document.querySelector('#bf button') })");
     };
     const oldDone = await push({ state: 'done', account: 'Old#EUW', message: "Graded 4 recent matches from Riot's record. They are in Matches." });
     const oldRun = await push({ state: 'grading', account: 'Old#EUW', message: "Grading your recent matches from Riot's record: 2 of 10." });
     const mine = "Graded 2 recent matches from Riot's record. They are in Matches.";
     const newDone = await push({ state: 'done', account: 'new#euw', message: mine });
-    lines.push(`grading line: old done="${oldDone.text}" old running="${oldRun.text}" (${oldRun.btn}, disabled ${oldRun.off}) new="${newDone.text}"`);
+    lines.push(`grading line: old done="${oldDone.text}" old running="${oldRun.text}" (shown ${oldRun.shown}) new="${newDone.text}"`);
     if (oldDone.text) return report(false, `the grading line shows the previous Riot ID's outcome: "${oldDone.text}"`);
-    if (oldRun.text || oldRun.off || oldRun.btn !== 'Grade my recent matches') {
-      return report(false, 'a run for the previous Riot ID holds the grading line or the button');
-    }
+    if (oldRun.text || oldRun.shown) return report(false, 'a run for the previous Riot ID holds the grading line');
+    // 9.1, the owner's item 5: no "Grade my recent matches" on the page.
+    if (oldDone.btn || oldRun.btn || newDone.btn) return report(false, 'the grading line carries a button again');
     if (newDone.text !== mine) return report(false, `a run for the Riot ID in Settings is not shown: "${newDone.text}"`);
     // An ID changed in Settings with no run behind it pushes nothing, so the
     // window reads it again when it comes back to the front.
@@ -515,7 +517,8 @@ setTimeout(async () => {
     const eyes = await js(`[...document.querySelectorAll('#list .m-item')].map((it) => {
       const row = it.querySelector('.m-row');
       const eye = [...it.children].find((c) => c.classList.contains('log-eye'));
-      return { riot: row.querySelector('.m-meta').textContent.includes("from Riot's record"), inner: row.querySelectorAll('button').length,
+      const meta = it.querySelector('.m-meta');
+      return { riot: !!meta && /from Riot's record/i.test(meta.textContent), inner: row.querySelectorAll('button').length,
         eye: eye ? { disabled: eye.disabled, name: eye.getAttribute('aria-label'), title: eye.title } : null };
     })`);
     lines.push(`eyes: ${eyes.map((e) => `${e.riot ? 'riot' : 'recorded'}:${e.eye ? (e.eye.disabled ? 'disabled' : 'open') : 'none'}`).join(',')}`);
@@ -679,7 +682,8 @@ setTimeout(async () => {
     // fix line (present() in index.js).
     mainWindow.show('matches');
     await wait(800);
-    const tops = await js("[...document.querySelectorAll('#list .m-row')].map((b) => ({ riot: b.querySelector('.m-meta').textContent.includes(\"from Riot's record\"), top: !!b.querySelector('.m-top-mistake') }))");
+    // The queue line and the top mistake are in each row's peek (9.1).
+    const tops = await js("[...document.querySelectorAll('#list .m-item')].map((it) => ({ riot: /from Riot's record/i.test((it.querySelector('.m-meta') || {}).textContent || ''), top: !!it.querySelector('.m-top-mistake') }))");
     lines.push(`top mistake lines: ${tops.map((t) => `${t.riot ? 'riot' : 'recorded'}:${t.top}`).join(',')}`);
     if (!tops.some((t) => !t.riot && t.top)) return report(false, 'no recorded row names its top mistake, so the Riot row proves nothing');
     if (!tops.some((t) => t.riot) || tops.some((t) => t.riot && t.top)) {
@@ -687,7 +691,7 @@ setTimeout(async () => {
     }
     pushed.length = 0;
     registry.broadcast = (ch, data) => { if (ch === C.PUSH_VALORANT_REVIEW) pushed.push(data); return broadcast(ch, data); };
-    await js("[...document.querySelectorAll('#list .m-row')].find((b) => b.querySelector('.m-meta').textContent.includes(\"from Riot's record\")).click(); true");
+    await js("[...document.querySelectorAll('#list .m-item')].find((it) => /from Riot's record/i.test((it.querySelector('.m-meta') || {}).textContent || '')).querySelector('.m-row').click(); true");
     await wait(3000);
     registry.broadcast = broadcast;
     const lists = (ins) => (ins ? { lists: ins.mistakes.length + ins.strengths.length + ins.missed.length, facts: (ins.facts || []).length } : null);

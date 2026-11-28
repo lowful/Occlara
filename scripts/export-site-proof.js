@@ -351,7 +351,13 @@ const READ_MATCHES = `(() => { ${READ_HELPERS}
     rows: QA('#list .m-item').map((m) => ({ title: txt('.m-title', m), result: txt('.m-res', m), marks: list('.m-mark', m),
       meta: noDate(txt('.m-meta', m)), topMistake: txt('.m-top-mistake', m).replace(/^Top mistake:\\s*/, ''),
       grade: txt('.m-score', m), change: txt('.m-delta', m) })),
-    chart: shown(Q('#m-chart')) ? { label: txt('.m-chart-label'), now: txt('#m-chart-big'), since: txt('#m-chart-since'), average: txt('#m-chart-avg') } : null };
+    // 9.1: the trend across the top (its eyebrow, its title, the latest with
+    // its change, the average and the best) and when the player plays best.
+    chart: shown(Q('#m-chart')) ? { label: txt('#m-chart .m-chart-label'), title: txt('#m-chart-title'), now: txt('#m-chart-big'),
+      since: txt('#m-chart-since'), average: txt('#m-chart-avg') ? `Average ${txt('#m-chart-avg')}` : '', best: txt('#m-chart-best') } : null,
+    when: shown(Q('#when')) ? { title: txt('#when-title'), note: txt('#when-note'),
+      best: shown(Q('#when-calls')) ? { label: txt('#when-best'), line: txt('#when-best-line') } : null,
+      worst: shown(Q('#when-calls')) ? { label: txt('#when-worst'), line: txt('#when-worst-line') } : null } : null };
 })()`;
 /*
  * PATTERNS, PROGRESS V3 (8.9): the chart of the grades with its bands by

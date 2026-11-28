@@ -115,7 +115,11 @@ ok(p.home.mistakes.length >= 3 && p.home.mistakes.every((m) => m.title && /^\d+$
 ok(p.home.mistakesHeading === 'What repeats' && p.home.mistakesTitle, "Home's card of what repeats, its eyebrow and its title", JSON.stringify([p.home.mistakesHeading, p.home.mistakesTitle]));
 ok(p.home.trend.label === 'Trend' && /^Up \d+ over four matches$/.test(p.home.trend.title) && p.home.trend.average === 'Average 64' && p.home.last.average === 'Average 64',
   "Home's trend card: its eyebrow, the fact it shows and the average", JSON.stringify(p.home.trend));
-ok(/^Grade over your last \d$/.test(p.matches.chart.label), "the Matches chart's label", p.matches.chart.label);
+// 9.1: the trend across the top, its eyebrow and its title, and when you
+// play best below its threshold (the owner's items 15 and 21).
+ok(p.matches.chart.label === 'Grade trend' && /^Your last \d graded matches$/.test(p.matches.chart.title), "the Matches chart's eyebrow and title", JSON.stringify(p.matches.chart));
+ok(p.matches.when && /^Shows after \d+ more graded matches/.test(p.matches.when.note) && !p.matches.when.best,
+  'Matches: when you play, below the threshold, says how many more', JSON.stringify(p.matches.when));
 ok(p.matches.title === 'Matches' && p.matches.sub && p.matches.subnav.map((s) => s.page).join() === 'Matches,Patterns,Stats' && p.matches.subnav[0].current,
   'Matches: its title, its sub line and the sub switch to Patterns and Stats, Matches pressed', JSON.stringify([p.matches.title, p.matches.subnav]));
 ok(p.matches.rows.length === 4 && p.matches.rows.every((r) => r.topMistake === TOP), 'Matches: four rows, each with its top mistake');
