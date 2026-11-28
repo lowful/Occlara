@@ -141,12 +141,8 @@ contextBridge.exposeInMainWorld('occlara', {
   socialLive: () => ipcRenderer.invoke(C.SOCIAL_STATE, { only: 'live' }),
   onSocial:   (cb) => subscribe(C.PUSH_SOCIAL, cb),
   openUpgrade: () => ipcRenderer.send(C.OPEN_UPGRADE),
-  // The update line (the changelog): main's { version, text, link } or null,
-  // never mid match or sealed; seen once it is on screen; What's new opens it.
-  getNews:      () => ipcRenderer.invoke(C.CHANGELOG_NOTICE),
-  onNews:       (cb) => subscribe(C.PUSH_CHANGELOG, cb),
-  newsSeen:     (version) => ipcRenderer.send(C.CHANGELOG_SEEN, String(version || '')),
-  openWhatsNew: () => ipcRenderer.send(C.SHELL_NAV, 'whatsnew'),
+  // The update line moved to the bar in 9.1 (the shell's What's new pill):
+  // Home carries no copy of it.
   // Today's practice (the Practice page): main's line { text, ... } or null,
   // null with no plan, once practiced today, for League and mid match.
   getPracticeToday: () => ipcRenderer.invoke(C.PRACTICE_TODAY),

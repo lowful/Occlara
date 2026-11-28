@@ -790,29 +790,9 @@ $('rank-more').addEventListener('click', () => window.occlara.openRankJourney())
  * for, and a paint overtaken by a newer one paints nothing (paint()).
  */
 /*
- * THE UPDATE LINE: "Occlara updated to 8.7.3." and See what's new, main's
- * words, said once after an update (index.js changelogIpc). Main answers null
- * mid match or while sealed and pushes the line once the seal lifts; the line
- * counts as seen only once this page is on screen with it.
+ * THE UPDATE LINE moved to the bar in 9.1 (the shell's What's new pill, the
+ * owner's item 2: it sat faint on the moon here).
  */
-function paintNews(n) {
-  const line = n && typeof n.text === 'string' && n.text ? n : null;
-  const host = document.getElementById('h-news');
-  if (!host) return;
-  const appearing = host.hidden && !!line;
-  host.hidden = !line;
-  if (!line) return;
-  // It slides in from the right once, as it appears, and only on screen;
-  // the same line pushed again stays where it is.
-  if (appearing) {
-    const slide = () => play(host, 'h-slide', 140 + 380 + 120);   // --dur-fast, --dur-slow
-    if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(slide); else slide();
-  }
-  document.getElementById('h-news-text').textContent = line.text;
-  document.getElementById('h-news-open').textContent = line.link || "See what's new";
-  const seen = () => { if (typeof window.occlara.newsSeen === 'function') window.occlara.newsSeen(line.version); };
-  if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(seen); else seen();
-}
 /*
  * OCCLARA WRAPPED (docs/claude/wrapped.md): from 15 December to 31 January,
  * main's line and its button ("Play your 2026 Wrapped"), or, without enough
@@ -843,13 +823,6 @@ document.getElementById('h-wrapped-open').addEventListener('click', () => {
 paintWrapped();
 if (typeof window.occlara.onPage === 'function') window.occlara.onPage((m) => { if (m && m.phase === 'arm') paintWrapped(); });
 
-document.getElementById('h-news-open').addEventListener('click', () => {
-  if (typeof window.occlara.openWhatsNew === 'function') window.occlara.openWhatsNew();
-});
-if (typeof window.occlara.onNews === 'function') window.occlara.onNews(paintNews);
-if (typeof window.occlara.getNews === 'function') {
-  Promise.resolve(window.occlara.getNews()).then((n) => { if (n) paintNews(n); }).catch(() => {});
-}
 
 /*
  * THE START STRIP FOLLOWS THE RECORDING (Progress v3): ready, it is Start;

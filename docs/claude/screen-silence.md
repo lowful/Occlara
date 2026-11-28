@@ -223,18 +223,20 @@ What still counts as "reaching the screen", and is sealed mid match:
 - The window's notice line, in the top strip and shown only when there is
   one, carries notices only (a licence ending, capture blocked, the server
   down) and the paused line, never anything about the match.
-- The update's restart question waits while the player is playing
-  (`updater.js`, `busy` from index.js: a session running, a stop mid match
-  holding the seal, or a review still being built, `reviewBeingBuilt`, for
-  the hour its match is held at most). It came up whenever the download
-  landed, over the game mid round and in agent select, and "Restart now" quit
-  the recording and the review being checked with it. It is asked again
-  every 30 seconds until then, and names the newest version downloaded
-  meanwhile, the one a restart installs (`test:updater`). A question asked
-  while idle and left open as a match starts closes itself (its `signal`),
-  and an answer is checked against `busy` again, so a "Restart now" pressed
-  mid match installs nothing: either way it is asked again once the match is
-  over (8.7.2).
+- The update is the bar's green control since 9.1 (ui.md, "The updater in
+  the bar"), and it is never on the screen while the player is playing:
+  main's view is null while `busy` holds (`updater.js`, `busy` from
+  index.js: a session running, a stop mid match holding the seal, a review
+  still being built, `reviewBeingBuilt`, for the hour its match is held at
+  most, or an import running), watched every second so its end shows it
+  again, and the bar hides it while recording, sealed or on the Recording
+  view whatever main says. "Restart to update" installs only on the player's
+  press, only from the bar, and only while not playing (`install()`, the one
+  `quitAndInstall`); nothing restarts the app by itself. The native
+  question it replaced came up whenever the download landed, over the game
+  mid round and in agent select, and its "Restart now" quit the recording and
+  the review being checked with it (8.7.2 made it wait; 9.1 took it away).
+  `test:updater`, `test:shellbar`.
 - Accounts (8.7, accounts.md): a 402 cap mid match is silent (the engine
   stops reading, recording goes on, the review is saved locked), every cap or
   games left notice and the `ACCOUNT_CHANGED` push wait for the seal to lift
@@ -254,9 +256,10 @@ What still counts as "reaching the screen", and is sealed mid match:
 - What's new and the Discord (changelog.md): the What's new page is a page
   like the others, locked by `syncSeal`; the sidebar's Discord icon is locked
   with the pages and drawn as the lock, and main refuses the invite mid match
-  or sealed (`community.js`); Home's update line is answered null while
-  recording, mid match or sealed and pushed only once the seal lifts, the
-  cap's notice's wait (`check:seal`).
+  or sealed (`community.js`); the update line (the bar's What's new pill
+  since 9.1, Home's line before) is answered null while recording, mid match
+  or sealed and pushed only once the seal lifts, the cap's notice's wait
+  (`check:seal`), and the bar hides it while recording besides.
 - Report a problem (feedback.md): the page is a page like the others,
   locked by `syncSeal`, its flag above the Discord drawn as the lock, and
   main answers its four channels with nothing mid match or sealed: no info,

@@ -84,6 +84,20 @@ contextBridge.exposeInMainWorld('occlara', {
   // then; null mid match.
   duosLive:   () => ipcRenderer.invoke(C.DUOS_STATE, { only: 'live' }),
 
+  // THE UPDATER IN THE BAR (9.1, updater.js): what its green control may
+  // show, null while the player is playing, and its "Restart to update",
+  // which main takes from this document alone and refuses mid match.
+  getUpdate:     () => ipcRenderer.invoke(C.UPDATE_GET),
+  onUpdate:      (cb) => subscribe(C.PUSH_UPDATE, cb),
+  installUpdate: () => ipcRenderer.invoke(C.UPDATE_INSTALL),
+  // WHAT'S NEW, IN THE BAR (9.1; Home's update line until then): main's
+  // { version, text, link } once after an update, or null (nothing to say,
+  // recording, mid match, sealed); seen once it is on screen; What's new opens it.
+  getNews:      () => ipcRenderer.invoke(C.CHANGELOG_NOTICE),
+  onNews:       (cb) => subscribe(C.PUSH_CHANGELOG, cb),
+  newsSeen:     (version) => ipcRenderer.send(C.CHANGELOG_SEEN, String(version || '')),
+  openWhatsNew: () => ipcRenderer.send(C.SHELL_NAV, 'whatsnew'),
+
   // THE LIVE STATUS (Progress v3): main's four facts while a match is
   // recorded (PUSH_LIVE), each only while its switch is on, and the
   // switches themselves, the four keys alone (config-keys.js).

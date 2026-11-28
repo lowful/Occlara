@@ -52,6 +52,13 @@ const CHANNELS = {
   AILOG_ASK:        'ailog:ask',         // ({ session, scope?, index, question, history }) → { reply } ask the coach about one logged frame
   APP_VERSION:      'app:version',       // () → { current, state, version } running version + update status
   APP_UPDATE_CHECK: 'app:updateCheck',   // () → same shape, after forcing a fresh feed check
+  // THE UPDATER IN THE BAR (9.1, updater.js view): what the bar's green control
+  // may show, { state: 'downloading', version, percent } | { state: 'ready' |
+  // 'installing', version } | null, null while the player is playing.
+  UPDATE_GET:       'update:get',
+  // () → { ok: true } | { ok: false, error: 'dev' | 'match' | 'not-ready' | 'installing' }:
+  // the bar's "Restart to update", from the bar's own document alone.
+  UPDATE_INSTALL:   'update:install',
   // The account (8.7, src/main/services/account-service.js). A page is handed
   // the account's view, finished strings from src/shared/usage.js and flags,
   // never the session token: { signedIn, via: 'session' | 'key' | null,
@@ -321,6 +328,9 @@ const CHANNELS = {
   // Home's update line (CHANGELOG_NOTICE's shape, or null once What's new
   // opened). Held like the account's pushes: never mid match or sealed.
   PUSH_CHANGELOG:    'push:changelog',
+  // The bar's update control (UPDATE_GET's shape), main to the shell alone, on
+  // every change: a download starting, its percent, ready, a match hiding it.
+  PUSH_UPDATE:       'push:update',
   // THE LIVE STATUS (Progress v3, a deliberate reversal of 8.0's rule, the
   // owner's choice): what the Recording screen shows while a match is
   // recorded, and nothing else. Read only, main to the shell alone:
@@ -398,6 +408,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_PAGE,
   CHANNELS.ACCOUNT_CHANGED,
   CHANNELS.PUSH_CHANGELOG,
+  CHANNELS.PUSH_UPDATE,
   CHANNELS.PUSH_LIVE,
   CHANNELS.PUSH_FLAG_TICK,
   CHANNELS.PUSH_DEATH_EXPLAIN,

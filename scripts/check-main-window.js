@@ -220,7 +220,7 @@ setTimeout(async () => {
     })()`);
     const bar = await barNow();
     lines.push(`top bar on Home: ${JSON.stringify(bar)} errs=${errs.join(" | ")}`);
-    // ORBIT: on Home the bar's Start fades away (visibility hidden), the hero carrying the big one.
+    // ORBIT: on Home the bar's Start is not drawn (9.1: display none, giving its room back), the hero carrying the big one.
     const barRec = await sjs("getComputedStyle(document.getElementById('rec')).visibility !== 'hidden'");
     if (bar.h !== mainWindow.TOP_H || bar.tabs !== 4 || (bar.rec && barRec) || bar.pause || bar.drawer || !bar.inDrawer) {
       return report(false, `the top bar on Home is not the links without a Start of its own: ${JSON.stringify(bar)}`);
@@ -359,14 +359,15 @@ setTimeout(async () => {
     mainWindow.setSealed(false);
     await until(settled('home'), 4000);
     if (!openBeforeSeal || !sealShut) return report(false, 'the seal coming on did not shut the account menu');
-    // WHAT'S NEW: launched as an update, Home says it once, main's words.
-    const homeNews = await until(() => hjs(`(() => {
-      const n = document.getElementById('h-news');
-      return n && !n.hidden ? { text: document.getElementById('h-news-text').textContent, link: document.getElementById('h-news-open').textContent } : null;
+    // WHAT'S NEW: launched as an update, the bar says it once (9.1: the pill
+    // in the bar, Home's line until then), main's words whole in its title.
+    const homeNews = await until(() => sjs(`(() => {
+      const n = document.getElementById('news');
+      return n && !n.hidden && getComputedStyle(n).display !== 'none' ? { label: n.textContent.replace(/\\s+/g, ' ').trim(), title: n.title } : null;
     })()`), 4000);
-    lines.push(`home's update line: ${JSON.stringify(homeNews)}`);
-    if (!homeNews || homeNews.text !== `Occlara updated to ${APP_VERSION}.` || homeNews.link !== "See what's new") {
-      return report(false, `Home does not say the app was updated: ${JSON.stringify(homeNews)}`);
+    lines.push(`the bar's What's new: ${JSON.stringify(homeNews)}`);
+    if (!homeNews || homeNews.title !== `Occlara updated to ${APP_VERSION}. See what's new` || homeNews.label !== `What's new in ${APP_VERSION}`) {
+      return report(false, `the bar does not say the app was updated: ${JSON.stringify(homeNews)}`);
     }
     await shot('home', mainWindow, win);
     if (process.env.OCCLARA_SHOTS === '1') {
@@ -1141,9 +1142,9 @@ setTimeout(async () => {
       await shot('whatsnew-older', mainWindow, win);
       await wjs("document.querySelector('.body').scrollTop = 0; true");
     }
-    const newsGone = await until(() => hjs("document.getElementById('h-news').hidden"), 3000);
-    lines.push(`home's update line once What's new opened: hidden=${!!newsGone}`);
-    if (!newsGone) return report(false, "Home's update line stayed after What's new opened");
+    const newsGone = await until(() => sjs("document.getElementById('news').hidden"), 3000);
+    lines.push(`the bar's What's new once What's new opened: hidden=${!!newsGone}`);
+    if (!newsGone) return report(false, "the bar's What's new stayed after What's new opened");
 
     // THE MOMENTS PAGE (8.7), in the Breakdown tab's place: every seeded
     // match under its own line, its deaths and highlights, the compilation by

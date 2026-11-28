@@ -6932,41 +6932,8 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
       'a page of its own, out of the nav list, one step deeper than Settings', JSON.stringify(wn));
   });
 
-  await section('Home\'s update line: main\'s words once after an update, seen only on screen, gone once What\'s new opens:', async () => {
-    const NEWS = { version: '8.7.3', text: 'Occlara updated to 8.7.3.', link: 'See what\'s new' };
-    const homeRows = [{ id: 'n0', at: Date.now(), title: 'Jett', map: 'Abyss', result: 'Victory', score: '13-11', grade: { score: 70, letter: 'B' } }];
-    const handlers = (news) => ({
-      [C.STATE_GET]: () => ({ ...BASE }), [C.CONFIG_GET]: () => ({ language: 'en' }),
-      [C.REVIEWS_LIST]: () => homeRows,
-      [C.PATTERNS_GET]: () => ({ matches: 1, enough: false, mistakes: [], strengths: [], missed: [], grades: [], average: 70, categories: [] }),
-      [C.REVIEW_GET]: (id) => ({ id, kind: 'valorant', grade: { score: 70, letter: 'B', categories: [] } }),
-      [C.CHANGELOG_NOTICE]: () => news,
-    });
-    const quiet = loadSurface('home', { handlers: handlers(null) });
-    await settle();
-    ok(quiet.$('h-news').hidden && !quiet.bridge.sent.some(([ch]) => ch === C.CHANGELOG_SEEN), 'with nothing from main, no line and nothing seen');
-
-    const h = loadSurface('home', { handlers: handlers(NEWS), window: { location: { hash: '', search: '?embed=1&page=home' } } });
-    await settle();
-    ok(!h.$('h-news').hidden && h.$('h-news-text').textContent === NEWS.text && h.$('h-news-open').textContent === NEWS.link, 'main\'s line and its link');
-    ok(!h.bridge.sent.some(([ch]) => ch === C.CHANGELOG_SEEN), 'painted on a page not yet on screen, it is not yet seen');
-    h.clock.flushFrames();
-    h.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'none' });
-    await settle();
-    ok(h.bridge.sent.some(([ch, v]) => ch === C.CHANGELOG_SEEN && v === '8.7.3'), 'on screen, that version is seen');
-    h.$('h-news-open').click();
-    ok(h.bridge.sent.some(([ch, p]) => ch === C.SHELL_NAV && p === 'whatsnew'), 'its link opens What\'s new');
-    h.bridge.emit(C.PUSH_CHANGELOG, null);
-    await settle();
-    ok(h.$('h-news').hidden, 'and main taking it back hides it');
-    const late = loadSurface('home', { handlers: handlers(null) });
-    await settle();
-    late.bridge.emit(C.PUSH_CHANGELOG, NEWS);
-    await settle();
-    ok(!late.$('h-news').hidden && late.$('h-news-text').textContent === NEWS.text, 'held until the seal lifted, the push paints it then');
-    const src = uncommented(fs.readFileSync(path.join(RENDERER, 'home', 'home.js'), 'utf8'));
-    ok(!/updated to/i.test(src) && !DASHES.test(fs.readFileSync(path.join(RENDERER, 'home', 'index.html'), 'utf8')), 'the words are main\'s alone, and no dash');
-  });
+  // Home's update line moved to the bar in 9.1 (the What's new pill): its
+  // cases are scripts/test-shell-bar.js, with the updater beside it.
 
   console.log(fails ? `\nFAIL: ${fails} problem(s)` : '\nPASS: every surface does the right thing with what arrives');
   process.exit(fails ? 1 : 0);

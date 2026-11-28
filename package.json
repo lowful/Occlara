@@ -137,6 +137,7 @@
     "test:satout": "node scripts/test-sat-out.js",
     "test:profile": "node scripts/test-profile.js",
     "test:shellnav": "node scripts/test-shell-nav.js",
+    "test:shellbar": "node scripts/test-shell-bar.js",
     "test:siteproof": "node scripts/test-site-proof.js",
     "test:surfaces": "node scripts/test-surfaces.js",
     "test:statsrefresh": "node scripts/test-stats-refresh.js",

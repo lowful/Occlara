@@ -47,14 +47,8 @@
           <button id="h-players" class="btn btn-link sm h-player-connect" type="button" hidden>Find players</button>
         </div>
       </div>
-      <!-- THE UPDATE LINE: once, on the first launch after an update, main's
-           words ("Occlara updated to 8.7.3.") and the way to What's new.
-           Never a modal and never mid match: main holds it until the seal
-           lifts (index.js changelogIpc). -->
-      <p id="h-news" class="h-news" aria-live="polite" hidden>
-        <span id="h-news-text"></span>
-        <button id="h-news-open" class="btn btn-link sm" type="button"></button>
-      </p>
+      <!-- The update line ("Occlara updated to 9.1.0. See what's new") is the
+           bar's What's new pill since 9.1 (shell.js paintNews), never on the art. -->
     </header>
 
     <!-- OCCLARA WRAPPED (docs/claude/wrapped.md): from 15 December to 31

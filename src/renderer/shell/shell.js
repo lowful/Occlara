@@ -309,13 +309,20 @@ function paintNav() {
   $('quiet-stop').hidden = !!shell.held || !isCoaching;
   paintLive();
   // The bar's modes (Progress v3): on Home, not recording, Start is the
-  // page's own strip; mid match Stop is the large capsule.
+  // page's own strip; mid match Stop is the large capsule. Start leaving or
+  // coming back gives its room in the bar up or takes it, the controls beside
+  // it gliding (9.1, flipBar).
   const app = document.querySelector('.app');
-  app.classList.toggle('home-page', shell.page === 'home' && !screen);
+  const homeNow = shell.page === 'home' && !screen;
+  if (app.classList.contains('home-page') !== homeNow) flipBar(() => app.classList.toggle('home-page', homeNow));
   app.classList.toggle('sealed-live', !!shell.sealed && !shell.held);
   app.classList.toggle('is-sealed', !!shell.sealed);
   app.classList.toggle('rec-view', !!shell.rec && !shell.sealed);
   paintRecView();
+  // What's new and the updater go from the bar on the Recording screen and
+  // come back after it (9.1).
+  paintNews();
+  paintUpdate();
   paintSky();
   $('w-max').title = shell.maximized ? 'Restore' : 'Maximize';
   $('w-max').setAttribute('aria-label', $('w-max').title);
@@ -735,6 +742,182 @@ let skyResize = 0;
 window.addEventListener('resize', () => { clearTimeout(skyResize); skyResize = setTimeout(paintSky, 150); });
 
 /*
+ * THE BAR'S RIGHT GROUP MOVES AS ONE (9.1). Start leaving for Home's own, a
+ * pill arriving or going: the controls beside it glide to their new places
+ * on the smooth spring (measured, changed, then played from where they were,
+ * by a transform alone) instead of jumping. Asked for less motion, or on the
+ * Recording screen, where nothing moves but its arrival, they are simply there.
+ */
+const barEnd = document.querySelector('.bar-end');
+// Not before the bar's first paint: the window opening is no move.
+let barSettled = false;
+const laidOut = (el) => !el.hidden && (typeof el.getClientRects !== 'function' || el.getClientRects().length > 0);
+function flipBar(change) {
+  const kids = barEnd ? [...barEnd.children] : [];
+  const canPlay = barSettled && kids.length > 0 && typeof kids[0].animate === 'function' && !reducedMotion() && !onRecordingScreen();
+  const before = new Map();
+  if (canPlay) for (const el of kids) if (laidOut(el)) before.set(el, el.getBoundingClientRect().left);
+  change();
+  if (!canPlay || !before.size) return;
+  const dur = parseFloat(cssVar('--dur-nav')) || 420;
+  const easing = cssVar('--spring-smooth') || 'cubic-bezier(0.16, 1, 0.3, 1)';
+  for (const [el, was] of before) {
+    if (!laidOut(el)) continue;
+    const dx = was - el.getBoundingClientRect().left;
+    if (!Number.isFinite(dx) || Math.abs(dx) < 0.5) continue;
+    const frames = [{ transform: `translateX(${dx}px)` }, { transform: 'translateX(0)' }];
+    try { el.animate(frames, { duration: dur, easing }); } catch (e) {
+      // An engine without linear() easing takes the enter curve instead.
+      el.animate(frames, { duration: dur, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+    }
+  }
+}
+/*
+ * An item of the right group shown or taken away: it rises in once out of a
+ * small blur (shell.css barIn) and goes in 160ms, the others gliding into the
+ * room it leaves. `quiet` (the Recording screen coming up) takes it away at
+ * once. Shown again while it is still going, it simply stays.
+ */
+const goingOut = new Map();
+function showBarItem(el, show, quiet) {
+  const going = goingOut.get(el);
+  if (show) {
+    if (going) { goingOut.delete(el); going.cancel(); }
+    if (!el.hidden) return;
+    flipBar(() => { el.hidden = false; });
+    if (!quiet && !reducedMotion()) {
+      el.classList.remove('bar-in');
+      void el.offsetWidth;
+      el.classList.add('bar-in');
+      el.addEventListener('animationend', () => el.classList.remove('bar-in'), { once: true });
+    }
+    return;
+  }
+  if (el.hidden) return;
+  if (quiet || reducedMotion() || typeof el.animate !== 'function') {
+    if (going) { goingOut.delete(el); going.cancel(); }
+    flipBar(() => { el.hidden = true; });
+    return;
+  }
+  if (going) return;
+  const a = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.94)' }],
+    { duration: 160, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' });
+  goingOut.set(el, a);
+  a.onfinish = () => {
+    if (goingOut.get(el) !== a) return;
+    goingOut.delete(el);
+    flipBar(() => { el.hidden = true; });
+    a.cancel();
+  };
+}
+/** Nothing of the app's own news on the bar while recording or on the Recording screen. */
+const barQuiet = () => isCoaching || onRecordingScreen();
+
+/*
+ * WHAT'S NEW, IN THE BAR (9.1, the owner's item 2; Home's update line until
+ * then, faint and floating on the moon). On the first launch after an update,
+ * main's { version, text, link } (index.js changelogIpc, changelog.js
+ * noticeFor): a small pill on the bar's own glass, "What's new in 9.1.0",
+ * main's sentence whole in its title, opening What's new, which takes it away
+ * (main pushes null). Main answers null while recording, mid match or sealed
+ * and pushes it once the seal lifts; the bar hides it while recording too. It
+ * counts as seen (CHANGELOG_SEEN, so the next launch is quiet) only once it is
+ * on screen: shown with the window visible and in front. A window made hidden
+ * still reads visible on its first load (Electron's paintWhenInitiallyHidden),
+ * so being in front is what says the player can see it.
+ */
+let news = null;
+let newsSeenFor = '';
+function paintNews() {
+  const el = $('news');
+  if (!el) return;
+  const line = news && typeof news === 'object' && typeof news.text === 'string' && news.text ? news : null;
+  const quiet = barQuiet();
+  if (!line || quiet) { showBarItem(el, false, quiet); return; }
+  const ver = typeof line.version === 'string' && /^\d+\.\d+\.\d+$/.test(line.version) ? line.version : '';
+  $('news-ver').textContent = ver ? ` in ${ver}` : '';
+  el.title = `${line.text} ${line.link || "See what's new"}`.trim();
+  showBarItem(el, true);
+  newsOnScreen();
+}
+function newsOnScreen() {
+  if (!news || typeof news.version !== 'string' || newsSeenFor === news.version) return;
+  if ($('news').hidden || document.visibilityState === 'hidden') return;
+  if (typeof document.hasFocus === 'function' && !document.hasFocus()) return;
+  newsSeenFor = news.version;
+  if (typeof window.occlara.newsSeen === 'function') window.occlara.newsSeen(news.version);
+}
+document.addEventListener('visibilitychange', newsOnScreen);
+window.addEventListener('focus', newsOnScreen);
+$('news').addEventListener('click', () => { if (typeof window.occlara.openWhatsNew === 'function') window.occlara.openWhatsNew(); });
+// A push is newer than an answer asked for before it.
+let newsPushes = 0;
+if (typeof window.occlara.onNews === 'function') window.occlara.onNews((n) => { newsPushes++; news = n || null; paintNews(); });
+function askNews() {
+  if (typeof window.occlara.getNews !== 'function') return;
+  const at = newsPushes;
+  Promise.resolve(window.occlara.getNews()).then((n) => { if (at === newsPushes) { news = n || null; paintNews(); } }).catch(() => {});
+}
+
+/*
+ * THE UPDATER IN THE BAR (9.1, the owner's item 22; a native question until
+ * then). Main's view (updater.js view, PUSH_UPDATE): null, or
+ *   downloading  the round green control, its arrow and the download's
+ *                progress drawn round it (a quarter turning while main has
+ *                no percent yet); nothing to press, its title says it
+ *   ready        "Restart to update", which asks main to install and restart
+ *                (UPDATE_INSTALL); main installs only while the player is not
+ *                playing, and never by itself
+ *   installing   pressed, on its way out: "Restarting"
+ * Never on the bar while recording or on the Recording screen (main sends
+ * null while the player is playing, and the bar hides it besides).
+ */
+let update = null;
+let updSaid = '';
+const UPD_STATES = ['downloading', 'ready', 'installing'];
+function updWords(u, pct) {
+  const name = u.version ? `Occlara ${u.version}` : 'The update';
+  if (u.state === 'downloading') return pct === null ? `Downloading ${name}` : `Downloading ${name}, ${pct}%`;
+  if (u.state === 'installing') return `Restarting to install ${name}`;
+  return `${name} is ready. Restart to update.`;
+}
+function paintUpdate() {
+  const el = $('upd');
+  if (!el) return;
+  const u = update && typeof update === 'object' && UPD_STATES.includes(update.state) ? update : null;
+  const quiet = barQuiet();
+  if (!u || quiet) { showBarItem(el, false, quiet); return; }
+  const pct = u.state === 'downloading' && typeof u.percent === 'number' && Number.isFinite(u.percent)
+    ? Math.max(0, Math.min(100, Math.round(u.percent))) : null;
+  for (const s of UPD_STATES) el.classList.toggle(s, u.state === s);
+  el.classList.toggle('unsure', u.state === 'downloading' && pct === null);
+  el.style.setProperty('--p', String(pct === null ? 0 : pct));
+  const label = u.state === 'installing' ? 'Restarting' : 'Restart to update';
+  if ($('upd-label').textContent !== label) $('upd-label').textContent = label;
+  const words = updWords(u, pct);
+  el.title = words;
+  el.setAttribute('aria-label', words);
+  el.setAttribute('aria-disabled', String(u.state !== 'ready'));
+  // Said once a version as it becomes ready; the percent is never read out.
+  const key = `${u.state}:${u.version || ''}`;
+  if (u.state === 'ready' && updSaid !== key) { updSaid = key; $('upd-say').textContent = `${u.version ? `Occlara ${u.version}` : 'An update'} is ready to install.`; }
+  showBarItem(el, true);
+}
+$('upd').addEventListener('click', async () => {
+  if (!update || update.state !== 'ready' || barQuiet() || typeof window.occlara.installUpdate !== 'function') return;
+  const r = await Promise.resolve(window.occlara.installUpdate()).catch(() => null);
+  // Pressed and taken: it says so at once, as main restarts the app.
+  if (r && r.ok === true && update && update.state === 'ready') { update = { ...update, state: 'installing' }; paintUpdate(); }
+});
+let updatePushes = 0;
+if (typeof window.occlara.onUpdate === 'function') window.occlara.onUpdate((u) => { updatePushes++; update = u || null; paintUpdate(); });
+function askUpdate() {
+  if (typeof window.occlara.getUpdate !== 'function') return;
+  const at = updatePushes;
+  Promise.resolve(window.occlara.getUpdate()).then((u) => { if (at === updatePushes) { update = u || null; paintUpdate(); } }).catch(() => {});
+}
+
+/*
  * THE NOTICE LINE (8.3), in the top strip. The player asked for the text under
  * the record card's buttons gone, so the card says what it is doing by its
  * button, its pause icon and its live colour, and this line says only what
@@ -919,6 +1102,11 @@ document.querySelector('.bar').addEventListener('dblclick', (e) => {
   paintNav();
   paintPlayers();
   paintDuos();
+  // What's new and the updater as main has them now (9.1).
+  askNews();
+  askUpdate();
+  // From the next frame on, what moves in the bar's right group glides.
+  requestAnimationFrame(() => { barSettled = true; });
   // The avatar pops in once, as the window first opens (8.9.2), and never
   // when it opens on the Recording screen: nothing there moves but its arrival.
   if (!shell.sealed && !reducedMotion()) {

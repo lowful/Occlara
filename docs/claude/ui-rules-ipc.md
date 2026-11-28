@@ -376,10 +376,25 @@ webview. A link out of the app goes through main with a URL main holds
   'match' }`.
 - `CHANGELOG_REFRESH` (invoke): the entries of `GET /api/changelog`, checked
   by `changelog.js clean`, or null on any failure, 4 s at most.
-- `CHANGELOG_NOTICE` (invoke): Home's update line `{ version, text, link }`
-  or null (nothing to say, recording, mid match, sealed); `PUSH_CHANGELOG`
-  carries it once the seal lifts, and null once What's new opened.
-  `CHANGELOG_SEEN` (send, the version): Home had it on screen.
+- `CHANGELOG_NOTICE` (invoke): the update line `{ version, text, link }`,
+  the bar's What's new pill since 9.1 (Home's line before), or null (nothing
+  to say, recording, mid match, sealed); `PUSH_CHANGELOG` carries it once
+  the seal lifts, and null once What's new opened. `CHANGELOG_SEEN` (send,
+  the version): the bar had it on screen.
+
+### The updater's channels (9.1, ui.md "The updater in the bar")
+
+- `UPDATE_GET` (invoke): `updater.js view()`, what the bar's green control
+  may show: `{ state: 'downloading', version, percent }` (percent 0 to 100,
+  or null before electron-updater gives one), `{ state: 'ready' |
+  'installing', version }`, or null (nothing, a run from the repo, or the
+  player playing).
+- `PUSH_UPDATE` (main to the bar alone, `registry.sendTo('main')`): the
+  same, on every change.
+- `UPDATE_INSTALL` (invoke): "Restart to update", taken from the bar's own
+  document alone (`fromPage(e, 'main')`): `{ ok: true }`, then
+  `quitAndInstall`, or `{ ok: false, error: 'dev' | 'match' | 'not-ready' |
+  'installing' }`.
 
 ### The games toast's channels (8.9.1, ui.md "The games toast")
 

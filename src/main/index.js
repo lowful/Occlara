@@ -298,7 +298,7 @@ recorder.on('view', () => registry.broadcast(C.PUSH_STATE, buildState()));
 // The main window hears it ('session-end') and the recording ends at once,
 // deleted before the handler returns, since Windows can end the process next.
 mainWindow.onSessionEnd(() => recorder.shutdown({ exiting: true }));
-// AND EVERY QUIT, not the tray's alone: an update's "Restart now" (updater.js
+// AND EVERY QUIT, not the tray's alone: an update's "Restart to update" (updater.js
 // quitAndInstall) quits without cleanupAndQuit, so its session ended with no
 // counts, Settings kept the session before's reason, and the recording waited
 // for the next launch's sweep. before-quit comes first in every quit; after
@@ -2225,10 +2225,10 @@ function clipsCleared(ids, reason) {
 const reviewJobs = new Map();
 
 /**
- * A review still being built, for the update's question (updater.js busy):
+ * A review still being built, for the bar's update control (updater.js busy):
  * a job is in reviewJobs until its link is done, and is counted for the hour
  * its match's frames and recording are held at most (aiLogStore.HOLD_MAX_MS),
- * so a job a throw never let go cannot keep the question back for good.
+ * so a job a throw never let go cannot keep the control back for good.
  */
 function reviewBeingBuilt(now) {
   const t = Number.isFinite(now) ? now : Date.now();
@@ -6134,10 +6134,11 @@ function createAppSurfaces(opts) {
   mainWindow.create({ deferShow: !!(opts && opts.deferShow) });
   tray.create(trayActions);
   hotkeys.register(hotkeyActions);
-  // Background update checks, and the restart question, never asked while the
-  // player is playing: a session running, a stop mid match holding the seal,
-  // or a review still being built (updater.js).
-  updater.init({ busy: () => !!state.isCoaching || sealHeld || reviewBeingBuilt() || (!!importerOne && importerOne.running()) });
+  // Background update checks, and the bar's update control (9.1), never shown
+  // and never installing while the player is playing: a session running, a
+  // stop mid match holding the seal, or a review still being built
+  // (updater.js). It is told to the bar's own document alone.
+  updater.init({ busy: () => !!state.isCoaching || sealHeld || reviewBeingBuilt() || (!!importerOne && importerOne.running()), push: (v) => registry.sendTo('main', C.PUSH_UPDATE, v) });
 
   // Send an initial state snapshot once the shell has loaded.
   const main = mainWindow.get();
@@ -6255,7 +6256,7 @@ function maybeShowWeeklyReport() {
  *     opens (clipLolDeaths, lolClipping)
  *
  * Kept open, nothing changes. The tray's Quit and Settings' quit as they
- * always did, with no question, and so do an update's Restart now and Windows
+ * always did, with no question, and so do an update's Restart to update and Windows
  * ending its session, which close the window as the app goes (before-quit,
  * 'session-end') and never come here. A second close while a question is up
  * asks nothing more. Ctrl+Shift+M still hides the window to the corner mark.
