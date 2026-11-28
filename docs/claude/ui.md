@@ -538,8 +538,11 @@ its loop taken off so `ended` advances; on the clip's own `occlara-clip://`
 URL (the page's CSP allows `media-src occlara-clip:`), muted, in a dialog
 over the page: Esc closes it and gives the focus back, the arrows on the
 dialog's buttons move between clips (inside the clip they move a second, the
-player's word, `defaultPrevented`), Space plays and pauses, the toggle's label
-alone says Play or Pause, the page behind is `inert` while it is open so Tab
+player's word, `defaultPrevented`), Space plays and pauses the clip, whose
+own player holds the one play button (9.1: the dialog's word button beside
+Previous and Next said it twice, `togglePlayback`); with one clip there is
+nothing to step to, so Previous, Next and the count are not drawn ("1 of 1"
+was). The page behind is `inert` while it is open so Tab
 and Shift+Tab cycle inside, "Open its review"
 opens the clip's review at its round. It opens only after a match: main is
 asked `SHELL_GET` and a sealed answer opens nothing, and the page's leave or
@@ -565,7 +568,9 @@ the kept highlight worth the most from the newest `RECENT` matches (10, the
 patterns' `WINDOW`; `weightOf`: an ace 50, a 4K 40, a 3K 30, a 2K 20, a
 clutch won 15 and 5 a head, the first kill 2; the newer of two alike), else
 the newest kept death of the compilation's first pattern that has one ("Worth
-another look"), else the newest kept death ("Your latest clip"); null with no
+another look"), else the newest kept death ("Your latest clip"; the newest
+match's latest kept death, 9.1, never its first, which put League's Death 1
+over a kept Death 3, and the same for the one worth another look); null with no
 clip kept, and then no hero. Full width at 21:9 and at most 52vh, so the reel
 and the chips stay on the first screen (`test:siteproof` reads the chips'
 places off that picture): its poster, then its own clip over it, muted and

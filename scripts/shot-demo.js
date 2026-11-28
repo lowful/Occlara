@@ -268,6 +268,10 @@ const SCENES = {
   // record said under the title at the same size.
   clipsplayer960: { page: 'moments', clips: 'rich', storage: 'some', video: true, w: 960, h: 640, act: "document.querySelector('#mo-hero .mo-hplay').click(); true", after: 2500 },
   clipslow960: { page: 'moments', clips: 'rich', storage: 'low', w: 960, h: 640 },
+  // 9.1 after the review: the player on one clip (no steps, no count, one
+  // play control, the clip's own) and on a pattern's Play all.
+  clipsplayone: { page: 'moments', clips: 'rich', storage: 'some', video: true, act: "document.querySelector('#mo-hero .mo-hplay').click(); true", after: 2500 },
+  clipsplayall: { page: 'moments', clips: 'rich', storage: 'some', video: true, act: "(() => { const b = document.querySelector('#mo-comp-rows .mo-crow button.btn'); if (b) b.click(); return true; })()", after: 2500 },
   // 9.1: a row's clip deleted, the row read back as main would ("Clip deleted").
   clipsdeletedrow: { page: 'moments', clips: 'rich', storage: 'some', after: 2600, act: "(() => { const b = document.querySelectorAll('#mo-list .mo-row .mo-more')[1]; const key = b.closest('.mo-row').dataset.key; b.closest('.mo-row').scrollIntoView({ block: 'center' }); setTimeout(() => { b.click(); setTimeout(() => { document.querySelector('#mo-menu [data-act=\"delete\"]').click(); setTimeout(() => { document.getElementById('mo-cf-yes').click(); setTimeout(() => { const r = document.querySelector('.mo-row[data-key=\"' + key + '\"]'); if (r) r.scrollIntoView({ block: 'center' }); }, 1200); }, 200); }, 200); }, 300); return true; })()" },
 };

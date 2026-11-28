@@ -286,8 +286,9 @@ function lolDeaths(saved, have, io) {
 function matchOf(saved) {
   const r = saved.review || {};
   const g = r.game || {};
+  // The score alone (9.1, item 16: one score, no letters): no letter leaves for the page.
   const grade = r.grade && typeof r.grade.score === 'number'
-    ? { score: r.grade.score, letter: r.grade.letter, provisional: !!r.grade.provisional } : null;
+    ? { score: r.grade.score, provisional: !!r.grade.provisional } : null;
   return {
     id: saved.id, at: saved.at, game: saved.game || r.kind || null,
     title: g.agent || g.champion || null, map: g.map || null, mode: g.mode || null,
@@ -403,9 +404,12 @@ function build(game, saved, opts) {
 
 /**
  * How much a kept highlight is worth as the page's hero: an ace 50, a 4K 40,
- * a 3K 30, a 2K 20, a clutch won 15 more and 5 a head it was won against (a
- * one against two with a 2K is 45, a 1v1 with one kill 20), the first kill
- * of the round 2 more. 0 for a death.
+ * a 3K 30, a 2K 20, a kill 10, a clutch won 15 more and 5 a head it was won
+ * against (a one against two with a 2K is 45, over a 4K; a 1v1 with one
+ * kill 30, a 3K's worth), the first kill of the round 2 more. 0 for a
+ * death. On purpose a won clutch lifts a few kills over more of them: the
+ * page's hero is the moment worth watching, where the review's best
+ * highlight follows the order its clips were cut in (clips.js highlightRank).
  */
 function weightOf(x) {
   if (!x || x.kind !== 'highlight') return 0;
@@ -439,12 +443,16 @@ function bestOf(matches, compilation, game) {
     const x = lit[0].x;
     return { key: x.key, kind: 'highlight', label: 'Your best recent clip', line: `The best highlight kept from ${lastN}.` };
   }
+  // THE NEWEST, truly (9.1): the newest match that kept one, and in it the
+  // latest moment, never its first (League's hero was Death 1 of a game
+  // whose Death 3 was kept, under "Your latest clip").
+  const newest = (list) => list.reduce((best, k) => (!best || k.mi < best.mi || (k.mi === best.mi && k.x.round > best.x.round) ? k : best), null);
   const deaths = kept.filter((k) => k.x.kind === 'death');
   for (const c of Array.isArray(compilation) ? compilation : []) {
-    const hit = deaths.find((k) => (k.x.repeats || []).some((r) => r.key === c.key && r.across));
+    const hit = newest(deaths.filter((k) => (k.x.repeats || []).some((r) => r.key === c.key && r.across)));
     if (hit) return { key: hit.x.key, kind: 'death', label: 'Worth another look', line: `${c.title}, one of your repeated mistakes.` };
   }
-  const x = deaths[0].x;
+  const x = newest(deaths).x;
   return { key: x.key, kind: 'death', label: 'Your latest clip', line: game === 'lol' ? null : `No highlight clip was kept from ${lastN}.` };
 }
 

@@ -81,6 +81,15 @@ const GB = 1024 * 1024 * 1024;
     'and with none of a pattern, the newest kept death, saying why', JSON.stringify(b));
   b = moments.bestOf([match(0, [death(id(0), 2)])], [], 'lol');
   ok(b && b.label === 'Your latest clip' && b.line === null, 'in League, which has no highlights to miss, no line under the latest clip', JSON.stringify(b));
+  // 9.1 after the review: the latest clip is the newest match's LATEST kept
+  // death, never its first (League's hero was Death 1 of a game whose Death 3
+  // was kept), and the same for the death worth another look.
+  b = moments.bestOf([match(0, [death(id(0), 1), death(id(0), 3), death(id(0), 2, [], false)]), match(1, [death(id(1), 7)])], [], 'lol');
+  ok(b && b.key === `${id(0)}:r3` && b.label === 'Your latest clip', 'the latest clip is the newest game\'s latest kept death', JSON.stringify(b));
+  b = moments.bestOf([match(0, [death(id(0), 4, across), death(id(0), 9, across)]), match(1, [death(id(1), 12, across)])], comp);
+  ok(b && b.key === `${id(0)}:r9` && b.label === 'Worth another look', 'and the one worth another look the newest match\'s latest of that mistake', JSON.stringify(b));
+  ok(moments.weightOf(hl('a', 1, 1, { vs: 1 })) === 30 && moments.weightOf(hl('a', 1, 4)) === 40 && /a 1v1 with one\s+\* kill 30/.test(read('src/shared/moments.js')),
+    'the weights its comment states: a 1v1 won with one kill is 30, a 3K\'s worth');
   ok(moments.bestOf([match(0, [death(id(0), 2, [], false)])], []) === null && moments.bestOf([], []) === null, 'no clip kept: no hero at all');
   const eleven = Array.from({ length: 11 }, (_v, i) => match(i, i === 10 ? [hl(id(10), 4, 5)] : [death(id(i), 3, [], i === 0)]));
   b = moments.bestOf(eleven, []);
@@ -89,6 +98,8 @@ const GB = 1024 * 1024 * 1024;
   // ── The page, on the fuller library ──────────────────────────────────────
   const model = demo.model({ now: T0 });
   ok(model.best && model.best.kind === 'highlight' && model.matches.length === 6, 'main\'s model of the fuller library carries its best clip', JSON.stringify(model.best));
+  ok(model.matches.some((m) => m.grade) && model.matches.every((m) => !m.grade || (typeof m.grade.score === 'number' && !('letter' in m.grade))),
+    'a match\'s grade reaches the page as its score alone, no letter (item 16)');
   let storageAnswer = demo.storage('some');
   let deleteAnswer = { ok: true, id: null, clip: null, bytes: 24 * 1024 * 1024 };
   let revealAnswer = { ok: true };
@@ -135,8 +146,20 @@ const GB = 1024 * 1024 * 1024;
     'the whole picture is its play button, named for the screen reader');
   hc.querySelector('.mo-hplay').click();
   await settle();
-  ok(!$('mo-player').hidden && $('mo-pl-count').textContent === '1 of 1' && $('mo-video').getAttribute('src') === best.clip.url,
+  ok(!$('mo-player').hidden && $('mo-video').getAttribute('src') === best.clip.url,
     'pressed, the clip plays in the player', $('mo-pl-count').textContent);
+  // ONE CLIP, ONE SET OF CONTROLS (9.1, Reviewer 2 bug 14): no Previous or
+  // Next and no "1 of 1" with nothing to step to, and play and pause are the
+  // clip player's own (the dialog's word button said it twice); Space on the
+  // dialog plays and pauses the clip.
+  ok($('mo-pl-prev').hidden && $('mo-pl-next').hidden && $('mo-pl-count').textContent === '' && !$('mo-pl-toggle')
+    && $('mo-pl-stage').querySelector('.v-clip'), 'one clip: no steps, no count, no second play button beside the clip player\'s own');
+  const vid = $('mo-video');
+  vid.paused = false;
+  let paused = 0;
+  vid.pause = () => { paused += 1; vid.paused = true; };
+  q.fire($('mo-player'), 'keydown', { key: ' ' });
+  ok(paused === 1, 'Space on the dialog pauses the clip');
   q.fire($('mo-pl-close'), 'keydown', { key: 'Escape' });
   ok($('mo-player').hidden, 'and Esc closes it');
   hc.querySelector('.mo-hopen').click();

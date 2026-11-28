@@ -48,7 +48,6 @@ header {
 
 /* ── League: what was played, the scoreline, the lists ───────────────────── */
 .ident { display: flex; flex-direction: column; gap: 4px; }
-.ident[hidden] { display: none; }
 .r-champ { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); line-height: 1.1; }
 .r-meta { font-size: 13px; color: var(--text-dim); }
 

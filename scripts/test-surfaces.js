@@ -6496,7 +6496,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(stage.querySelector('.v-clip') && stage.querySelector('.v-clip video.v-clip-video') === q.$('mo-video') && stage.querySelector('.cp-mark.death')
       && stage.querySelector('.cp-time') && !q.$('mo-video').hasAttribute('loop'),
     'in the review\'s clip player, the death marked on its timeline, the time from the death, and no loop', stage.innerHTML && stage.innerHTML.slice(0, 120));
-    ok(q.$('mo-pl-toggle').getAttribute('aria-pressed') === null, 'the toggle\'s label alone says Play or Pause, no pressed state beside it');
+    ok(!q.$('mo-pl-toggle') && stage.querySelector('.v-clip .cp-play, .v-clip button'), 'play and pause are the clip player\'s own, no second word button beside them (9.1)');
     ok(q.$('mo-pl-line').textContent === `Jett on Abyss, round 2: ${ISOLATED}. You swung the angle alone.`, 'the moment\'s line under it', q.$('mo-pl-line').textContent);
     ok(q.$('mo-pl-prev').disabled && !q.$('mo-pl-next').disabled, 'Previous is off on the first');
     ok(q.document.activeElement === q.$('mo-pl-close'), 'the keyboard is on its Close');
@@ -6519,7 +6519,8 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(same(inertBehind(), [false, false]), 'and the page behind it is live again', inertBehind().join());
     rowOf(saved[0].id, 2).querySelector('.mo-play').click();
     await settle();
-    ok(!pl.hidden && q.$('mo-pl-count').textContent === '1 of 1' && q.$('mo-pl-title').textContent === `${ISOLATED}, round 2`, 'a row\'s play button plays that one clip');
+    ok(!pl.hidden && q.$('mo-pl-count').textContent === '' && q.$('mo-pl-prev').hidden && q.$('mo-pl-next').hidden && q.$('mo-pl-title').textContent === `${ISOLATED}, round 2`,
+      'a row\'s play button plays that one clip, with no steps and no count to say');
     q.bridge.emit(C.PUSH_PAGE, { phase: 'leave' });
     ok(pl.hidden, 'leaving the page closes it');
     // Sealed, nothing plays: the seal hides the page, and the player asks anyway.

@@ -1161,7 +1161,9 @@ function playerSay(x) {
     : `${who ? `${who}, ` : ''}round ${x.round}: ${x.title}`;
   $('mo-pl-line').textContent = x ? (x.line ? `${what}. ${sentence(x.line)}` : what) : '';
   $('mo-pl-line').classList.remove('bad');
-  $('mo-pl-count').textContent = player.items.length ? `${player.at + 1} of ${player.items.length}` : '';
+  // One clip has no place in a list to say, and nothing to step to (9.1).
+  const many = player.items.length > 1;
+  $('mo-pl-count').textContent = many ? `${player.at + 1} of ${player.items.length}` : '';
   // What changed: the moment's line and its count fade in as a clip takes the
   // stage (moments.css .mo-swap), not under reduced motion.
   const Mo = window.Motion;
@@ -1170,6 +1172,8 @@ function playerSay(x) {
   }
   $('mo-pl-prev').disabled = player.at <= 0;
   $('mo-pl-next').disabled = player.at >= player.items.length - 1;
+  $('mo-pl-prev').hidden = !many;
+  $('mo-pl-next').hidden = !many;
 }
 
 /** The clip now on the stage let go: paused, its source dropped, its decoder freed. */
@@ -1211,9 +1215,7 @@ function stageClip(x) {
     stage.append(v);
   }
   v.id = 'mo-video';
-  v.addEventListener('ended', () => { if (player.open && player.at < player.items.length - 1) playAt(player.at + 1); else setToggle(); });
-  v.addEventListener('play', setToggle);
-  v.addEventListener('pause', setToggle);
+  v.addEventListener('ended', () => { if (player.open && player.at < player.items.length - 1) playAt(player.at + 1); });
   video = v;
   return v;
 }
@@ -1226,13 +1228,18 @@ function playAt(i) {
   const v = stageClip(x);
   const p = typeof v.play === 'function' ? v.play() : null;
   if (p && typeof p.catch === 'function') p.catch(() => { $('mo-pl-line').classList.add('bad'); $('mo-pl-line').textContent = 'This clip could not be played.'; });
-  setToggle();
 }
 
-/** The toggle says what it does next, Play or Pause; its label is the whole of it. */
-function setToggle() {
-  const paused = !video || !!video.paused;
-  $('mo-pl-toggle').textContent = paused ? 'Play' : 'Pause';
+/*
+ * PLAY AND PAUSE ARE THE CLIP'S OWN (9.1): the clip player under the picture
+ * has its button, and the dialog's second, a word button beside Previous and
+ * Next, said the same thing twice. Space on the dialog (not on a button)
+ * plays and pauses the clip here.
+ */
+function togglePlayback() {
+  if (!player.open || !video) return;
+  if (video.paused) { const p = typeof video.play === 'function' ? video.play() : null; if (p && p.catch) p.catch(() => {}); }
+  else if (typeof video.pause === 'function') video.pause();
 }
 
 async function openPlayer(c) {
@@ -1279,12 +1286,6 @@ function closePlayer() {
 $('mo-pl-close').addEventListener('click', closePlayer);
 $('mo-pl-prev').addEventListener('click', () => playAt(player.at - 1));
 $('mo-pl-next').addEventListener('click', () => playAt(player.at + 1));
-$('mo-pl-toggle').addEventListener('click', () => {
-  if (!player.open || !video) return;
-  if (video.paused) { const p = typeof video.play === 'function' ? video.play() : null; if (p && p.catch) p.catch(() => {}); }
-  else if (typeof video.pause === 'function') video.pause();
-  setToggle();
-});
 $('mo-pl-open').addEventListener('click', () => {
   const x = player.items[player.at];
   if (!x) return;
@@ -1312,7 +1313,7 @@ document.addEventListener('keydown', (e) => {
   if (k === 'ArrowRight') { e.preventDefault(); playAt(player.at + 1); return; }
   if (k === 'ArrowLeft') { e.preventDefault(); playAt(player.at - 1); return; }
   const onButton = e.target && e.target.tagName === 'BUTTON';
-  if ((k === ' ' || k === 'Spacebar') && !onButton) { e.preventDefault(); $('mo-pl-toggle').click(); }
+  if ((k === ' ' || k === 'Spacebar') && !onButton) { e.preventDefault(); togglePlayback(); }
 });
 // Keep the keyboard inside the player (or the confirm) while it is open: a
 // focus that lands behind it goes to the dialog's far end in the direction it
