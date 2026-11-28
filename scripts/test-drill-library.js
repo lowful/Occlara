@@ -60,7 +60,9 @@ ok(Object.keys(lib).every((k) => ['version', 'note', 'drills'].includes(k)), 'no
 const drills = Array.isArray(lib.drills) ? lib.drills : [];
 ok(drills.length >= 40, `at least 40 drills (${drills.length})`);
 const ids = new Set();
-const KEYS = ['id', 'title', 'cause', 'where', 'minutes', 'bands', 'steps', 'goal', 'why', 'check'];
+// 9.1: every drill names its group, one of the three the Practice page shows its drills in.
+const KEYS = ['id', 'title', 'cause', 'group', 'where', 'minutes', 'bands', 'steps', 'goal', 'why', 'check'];
+const GROUPS = ['mechanics', 'sense', 'awareness'];
 // Optional: `also`, the further causes a drill serves (Nov 2026, low-headshots on the aim drills),
 // `demo` (8.11), the owner's short video of the drill on the website, and
 // `trainer`, the Trainer scenario that trains it (docs/claude/trainer.md).
@@ -95,7 +97,7 @@ ok(FULL_MATCH.test('Play a full unrated match, since the last one alive is too r
 for (const d of drills) {
   const at = `drill ${d && d.id}`;
   const extra = Object.keys(d || {}).filter((k) => !KEYS.includes(k));
-  ok(d && KEYS.every((k) => k in d) && extra.every((k) => OPTIONAL.includes(k)), `${at}: the ten fields, and also and demo at most`, Object.keys(d || {}).join());
+  ok(d && KEYS.every((k) => k in d) && extra.every((k) => OPTIONAL.includes(k)), `${at}: the eleven fields, and also, demo and trainer at most`, Object.keys(d || {}).join());
   ok(!('also' in d) || (Array.isArray(d.also) && d.also.length >= 1 && d.also.every((c) => typeof c === 'string' && c !== d.cause) && new Set(d.also).size === d.also.length),
     `${at}: also is a list of further causes, none its own cause, none twice`, JSON.stringify(d.also));
   ok(!('demo' in d) || !demoProblem(d), `${at}: its demo is the site's <id>.webm and <id>.webp, 6 to 12 seconds`, 'demo' in d ? demoProblem(d) : '');
@@ -182,6 +184,35 @@ console.log('train this:');
   // The planted negatives: the rule catches a drill about calls or spacing, and a general one in a match.
   ok(!aimDrill({ cause: 'untraded', where: 'unrated' }) && !aimDrill({ cause: 'general', where: 'unrated' }) && !aimDrill({ cause: 'ult-held', where: 'custom' })
     && aimDrill({ cause: 'lost-duel', where: 'custom' }) && aimDrill({ cause: 'general', also: ['low-headshots'], where: 'unrated' }), 'the aim rule both ways');
+}
+
+// ── THE GROUPS (9.1): Mechanics, Game sense and Awareness ───────────────────
+// Every drill names one, practice.js keeps it as written, a drill the Trainer
+// trains is Mechanics (the Trainer sits there), and every group has a drill
+// for every player at every band, so a group the plan leaves empty is never
+// empty on the page.
+console.log('the groups:');
+{
+  const practice = require(path.join(ROOT, 'src', 'shared', 'practice.js'));
+  const norm = practice.normaliseLibrary(lib);
+  ok(practice.GROUPS.map((g) => g.id).join() === GROUPS.join(), 'the page\'s groups are the three the library names', practice.GROUPS.map((g) => g.id).join());
+  ok(practice.GROUPS.map((g) => g.name).join() === 'Mechanics,Game sense,Awareness', 'named Mechanics, Game sense and Awareness, in that order');
+  for (const d of drills) {
+    ok(GROUPS.includes(d.group), `drill ${d.id}: its group is mechanics, sense or awareness`, d.group);
+    const kept = norm && norm.drills.find((x) => x.id === d.id);
+    ok(kept && kept.group === d.group, `drill ${d.id}: practice.js keeps its group as written`);
+    if ('trainer' in d) ok(d.group === 'mechanics', `drill ${d.id}: a drill the Trainer trains is a mechanics drill`, d.group);
+  }
+  for (const g of GROUPS) {
+    ok(drills.filter((d) => d.group === g).length >= 8, `the group "${g}" holds at least 8 drills (${drills.filter((d) => d.group === g).length})`);
+    for (const band of [null, ...BANDS]) {
+      const general = practice.drillsFor(norm, 'general', band, []).filter((d) => d.group === g);
+      ok(general.length >= 1, `the group "${g}" has a drill for every player at ${band || 'no band'}`);
+    }
+  }
+  // The aim drills of a duel lost are mechanics, the trade drills awareness.
+  ok(drills.filter((d) => d.cause === 'lost-duel').every((d) => d.group === 'mechanics') && drills.filter((d) => d.cause === 'untraded').every((d) => d.group === 'awareness'),
+    'a lost duel\'s drills are mechanics and an untraded death\'s awareness');
 }
 
 // ── 3. The words ────────────────────────────────────────────────────────────

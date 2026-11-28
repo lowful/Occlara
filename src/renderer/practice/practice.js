@@ -2,32 +2,40 @@
 
 /*
  * THE PRACTICE PAGE. Paints what main wrote (src/shared/practice.js
- * planView): the plan from the player's own repeated mistakes, the drills
- * under each as cards, whether each mistake is shrinking, the days practiced
- * and the log. Nothing here counts or words a fact: every title, line and
- * number is main's. textContent only, since a mistake's title and fix come
- * from reviews a model helped write.
+ * planView): at the top the two repeated mistakes of the plan (Your focus),
+ * each with how often it repeated, whether it is shrinking since the plan
+ * was made, its fix and the player's own newest clip of it; then the drills
+ * in three groups, Mechanics with the Trainer, Game sense and Awareness
+ * (9.1), each drill a row that says why it is there (the repeated mistake it
+ * is for) and opens in place on what to do; then the log. Nothing here
+ * counts or words a fact: every title, line and number is main's.
+ * textContent only, since a mistake's title and fix come from reviews a
+ * model helped write; the icons are this file's own markup.
  *
  * Its two writes are a drill marked practiced and a log entry taken out,
  * both kept on this PC, and both refused by main mid match (the page is
  * locked by the seal then anyway). A drill tagged with a Trainer scenario
- * (main's `trainer`, `trainerTitle`) has Train this, which asks main to open
- * the Trainer page on it (TRAINER_OPEN); it writes nothing.
+ * (main's `trainer`, `trainerTitle`) has Train this, and the Trainer's row
+ * under Mechanics its scenarios, which ask main to open the Trainer page on
+ * one (TRAINER_OPEN); Open the Trainer opens its page. None of them writes.
  *
  * MOTION: the page's sections rise once per visit (shared/motion.js), only
  * on screen and never under reduced motion; a repaint draws them as they are.
+ * A drill opens and closes by a transition on the smooth spring, so a second
+ * press mid way reverses from where it is; one open stays open across a
+ * repaint (a mark), drawn open at once.
  *
  * SHOWN, NOT ONLY TOLD (8.11). Each mistake carries the player's own newest
  * kept clip of it (main's, practice.js clipFor): a tile with the look's own
- * frame, its round and map, and Watch the round, which opens it in place in
- * the review's own clip player (review/clip-player.js) and plays it. No clip
- * kept, no tile. A clip open when the page is painted again stays where it
- * is, playing or not. And a drill may carry a demo from the website
- * (main keeps only https://occlara.app/drills/): its poster, shown once it
- * has loaded, and a muted loop that plays while the pointer is over it, or
- * on a click, which keeps it playing; nothing of it loads before (preload
- * none). Under reduced motion the poster waits with its play button for a
- * click. Offline, or with the media failing, the card is exactly as before.
+ * frame, its round and map, which opens it in place in the review's own clip
+ * player (review/clip-player.js) and plays it. No clip kept, no tile. A clip
+ * open when the page is painted again stays where it is, playing or not. And
+ * a drill may carry a demo from the website (main keeps only
+ * https://occlara.app/drills/): its poster, shown once it has loaded, and a
+ * muted loop that plays while the pointer is over it, or on a click, which
+ * keeps it playing; nothing of it loads before (preload none). Under reduced
+ * motion the poster waits with its play button for a click. Offline, or with
+ * the media failing, the drill is exactly as before.
  */
 
 const $ = (id) => document.getElementById(id);
@@ -49,6 +57,11 @@ let asked = null;
 // Scrolled to once, as it is first painted.
 let scrollTo = false;
 let busy = false;
+// The drills open, by id, carried across a repaint.
+const openIds = new Set();
+// The log shown whole, or its newest LOG_SHOWN.
+let logAll = false;
+const LOG_SHOWN = 5;
 
 function fmtDay(at) {
   return new Date(at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
@@ -66,6 +79,44 @@ function playMark(cls) {
   p.setAttribute('fill', 'currentColor');
   svg.append(p);
   return svg;
+}
+
+// The page's own glyphs, stroked, 24 wide. App authored markup.
+const GLYPH = {
+  range: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.2"/><circle cx="12" cy="12" r="0.9" fill="currentColor"/>',
+  deathmatch: '<circle cx="12" cy="12" r="6.5"/><path d="M12 2.8v5M12 16.2v5M2.8 12h5M16.2 12h5"/>',
+  custom: '<path d="M4.5 7.5h9M18.5 7.5h1M4.5 16.5h3M11.5 16.5h8"/><circle cx="16" cy="7.5" r="2.2"/><circle cx="9.5" cy="16.5" r="2.2"/>',
+  unrated: '<circle cx="9" cy="9" r="3"/><circle cx="16.6" cy="10" r="2.4"/><path d="M3.6 19c.6-3.2 2.7-5 5.4-5s4.8 1.8 5.4 5"/><path d="M15.4 14.5c2.4-.2 4.4 1.3 5 4.5"/>',
+  // The Trainer's own glyph for its flick drills (trainer/app.js GLYPH.flick).
+  trainer: '<circle cx="5.5" cy="8" r="1.7"/><circle cx="18.5" cy="6" r="1.7"/><circle cx="14" cy="18" r="1.7"/><path d="M7 9.4l5.9 7.2M14.8 16.2l3-8.4"/>',
+  chevron: '<path d="M6.5 9.5l5.5 5.5 5.5-5.5"/>',
+  check: '<path d="M5 12.5l4.2 4.2L19 7"/>',
+  down: '<path d="M12 5v14M6.5 13.5L12 19l5.5-5.5"/>',
+  up: '<path d="M12 19V5M6.5 10.5L12 5l5.5 5.5"/>',
+  same: '<path d="M5 12h14"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  close: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
+};
+function glyph(name, cls, width) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', String(width || 1.7));
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  if (cls) svg.setAttribute('class', cls);
+  svg.innerHTML = GLYPH[name] || '';
+  return svg;
+}
+/** The glyph for where a drill is played, by main's words for the place. */
+function placeGlyph(where) {
+  const w = String(where || '').toLowerCase();
+  if (/range/.test(w)) return 'range';
+  if (/deathmatch/.test(w)) return 'deathmatch';
+  if (/custom/.test(w)) return 'custom';
+  return 'unrated';
 }
 
 const reducedMotion = () => {
@@ -94,6 +145,9 @@ let openClips = new Map();
 /** The clip in its player, in place of the tile, and played (a click asked for it). */
 function openClip(box, c, play) {
   box.classList.add('open');
+  // The row it belongs to gives it the whole width under the mistake.
+  const row = box.closest('.pc-frow');
+  if (row) row.classList.add('clip-open');
   box.replaceChildren();
   const cap = el('div', 'pc-clip-cap');
   cap.append(el('span', 'pc-label', c.title), el('span', 'pc-clip-line', c.at ? `${c.line}, ${fmtDay(c.at)}` : c.line));
@@ -115,7 +169,7 @@ function openClip(box, c, play) {
   }
 }
 
-/** The tile: the look's own frame, the round and map, and Watch the round. Null with no clip. */
+/** The tile: the look's own frame with the play mark, the round, map and day under it. Null with no clip. */
 function clipBlock(c) {
   if (!c || !c.url) return null;
   const kept = openClips.get(c.url);
@@ -124,6 +178,7 @@ function clipBlock(c) {
   box.dataset.url = c.url;
   const tile = el('button', 'pc-clip-tile');
   tile.type = 'button';
+  tile.title = c.title || 'Your newest clip of this mistake';
   tile.setAttribute('aria-label', `Watch ${c.label ? c.label.charAt(0).toLowerCase() + c.label.slice(1) : 'the clip'}`);
   if (c.poster) {
     const img = el('img', 'pc-clip-poster');
@@ -136,15 +191,8 @@ function clipBlock(c) {
   const mark = el('span', 'pc-clip-mark');
   mark.append(playMark('pc-clip-icon'));
   tile.append(mark);
-  const text = el('div', 'pc-clip-text');
-  text.append(el('span', 'pc-label', c.title), el('span', 'pc-clip-line', c.at ? `${c.line}, ${fmtDay(c.at)}` : c.line));
-  const watch = el('button', 'btn btn-ghost sm pc-clip-watch', 'Watch the round');
-  watch.type = 'button';
-  text.append(watch);
-  box.append(tile, text);
-  const go = () => openClip(box, c, true);
-  tile.addEventListener('click', go);
-  watch.addEventListener('click', go);
+  box.append(tile, el('span', 'pc-clip-line', c.at ? `${c.line}, ${fmtDay(c.at)}` : c.line));
+  tile.addEventListener('click', () => openClip(box, c, true));
   return box;
 }
 
@@ -163,7 +211,7 @@ function watchDemo(v, stop) {
 }
 
 /**
- * The demo's box, hidden until its poster has loaded, so an offline card is
+ * The demo's box, hidden until its poster has loaded, so an offline drill is
  * exactly as before; gone at the first failure of either file.
  */
 function demoBox(d) {
@@ -234,20 +282,90 @@ function demoBox(d) {
   return box;
 }
 
-// ── A drill, as a card ────────────────────────────────────────────────────
+// ── Why a drill is here ───────────────────────────────────────────────────
+/** The repeated mistake a drill is for and how often it repeated, or why it fits every player. */
+function reasonLine(r, tag) {
+  if (!r || (!r.title && !r.line)) return null;
+  const p = el(tag || 'p', `pc-reason ${r.kind === 'mistake' && r.title ? 'is-mistake' : 'is-general'}`);
+  if (r.kind === 'mistake' && r.title) {
+    p.append(el('span', 'sr-only', 'For your repeated mistake: '), el('span', 'pc-r-dot'), el('span', 'pc-r-title', r.title));
+    if (r.line) p.append(el('span', 'pc-r-line', r.line));
+  } else {
+    p.append(el('span', 'pc-r-line', r.line));
+  }
+  return p;
+}
+
+// ── A drill, as a row that opens in place ─────────────────────────────────
+let rowSeq = 0;
+
+/** Open or close a drill row; a transition, so a press mid way reverses from where it is. */
+function setOpen(card, open) {
+  const was = card.classList.contains('open');
+  if (was === !!open) return;
+  card.classList.toggle('open', !!open);
+  const head = card.querySelector('.pc-d-head');
+  if (head) head.setAttribute('aria-expanded', String(!!open));
+  if (open) openIds.add(card.dataset.drill); else openIds.delete(card.dataset.drill);
+  // Nothing plays in a closed drill.
+  if (!open) for (const v of card.querySelectorAll('video')) { if (typeof v._stop === 'function') v._stop(); }
+}
+
 function drillCard(d) {
   const card = el('article', 'pc-drill');
   card.dataset.drill = d.id;
-  const demo = demoBox(d);
-  if (demo) card.append(demo);
-  const meta = el('div', 'pc-d-meta');
+  card.dataset.group = d.group || '';
+  if (d.reason && d.reason.key) card.dataset.reason = d.reason.key;
+  if (d.today) card.classList.add('today');
+  const bodyId = `pc-d-${++rowSeq}`;
+
+  // The row: where, the title, why it is here, its length and how far along.
+  const h = el('h4', 'pc-d-h');
+  const head = el('button', 'pc-d-head');
+  head.type = 'button';
+  head.setAttribute('aria-expanded', 'false');
+  head.setAttribute('aria-controls', bodyId);
+  const ico = el('span', 'pc-d-ico');
+  ico.append(glyph(placeGlyph(d.where)));
+  const main = el('span', 'pc-d-main');
+  main.append(el('span', 'pc-d-title', d.title));
+  // Inside the row's button: phrasing alone.
+  const why = reasonLine(d.reason, 'span');
+  if (why) main.append(why);
+  const meta = el('span', 'pc-d-meta');
   if (d.where) meta.append(el('span', 'pc-where', d.where));
   if (d.minutes) meta.append(el('span', 'pc-min', `${d.minutes} min`));
-  card.append(meta, el('h4', 'pc-d-title', d.title));
-  if (d.why) card.append(el('p', 'pc-why', d.why));
+  const state = el('span', 'pc-d-state');
+  if (d.today) {
+    state.classList.add('good');
+    state.append(glyph('check', 'pc-d-check', 2.2), el('span', null, 'Practiced today'));
+  } else if (d.finished) {
+    state.classList.add('good');
+    state.textContent = 'Finished';
+  } else if (d.done) {
+    state.textContent = `${d.done} of ${d.finish}`;
+    state.title = d.doneLine || '';
+  }
+  const chev = el('span', 'pc-d-chev');
+  chev.append(glyph('chevron', null, 2));
+  head.append(ico, main, meta, state, chev);
+  h.append(head);
+  card.append(h);
+
+  // What to do, one step away: the why, the steps, the goal and how you will
+  // know, Mark as practiced and Train this.
+  const body = el('div', 'pc-d-body');
+  body.id = bodyId;
+  body.setAttribute('role', 'region');
+  body.setAttribute('aria-label', d.title);
+  const inner = el('div', 'pc-d-inner');
+  const content = el('div', 'pc-d-content');
+  const demo = demoBox(d);
+  if (demo) content.append(demo);
+  if (d.why) content.append(el('p', 'pc-why', d.why));
   const steps = el('ol', 'pc-steps');
   for (const s of d.steps || []) steps.append(el('li', null, s));
-  card.append(steps);
+  content.append(steps);
   const facts = el('dl', 'pc-facts');
   const fact = (term, text) => {
     if (!text) return;
@@ -257,9 +375,9 @@ function drillCard(d) {
   };
   fact('Goal', d.goal);
   fact('How you will know', d.check);
-  if (facts.children.length) card.append(facts);
+  if (facts.children.length) content.append(facts);
   const foot = el('div', 'pc-d-foot');
-  const btn = el('button', 'btn btn-ghost sm pc-mark', d.today ? 'Practiced today' : 'Mark as practiced');
+  const btn = el('button', 'btn btn-primary sm pc-mark', d.today ? 'Practiced today' : 'Mark as practiced');
   btn.type = 'button';
   btn.disabled = !!d.today;
   btn.setAttribute('aria-label', d.today ? `${d.title}, practiced today` : `Mark ${d.title} as practiced today`);
@@ -276,7 +394,14 @@ function drillCard(d) {
     train.addEventListener('click', () => api.openTrainer(d.trainer));
     foot.append(train);
   }
-  card.append(foot);
+  content.append(foot);
+  inner.append(content);
+  body.append(inner);
+  card.append(body);
+
+  head.addEventListener('click', () => setOpen(card, !card.classList.contains('open')));
+  // Drawn open at once when it was open before this paint.
+  if (openIds.has(d.id)) { card.classList.add('open'); head.setAttribute('aria-expanded', 'true'); }
   return card;
 }
 
@@ -305,47 +430,101 @@ async function removeEntry(id, btn) {
   await load();
 }
 
-// ── The plan ──────────────────────────────────────────────────────────────
-function focusBlock(f, i) {
-  const sec = el('div', 'pc-focus' + (f.focused ? ' opened' : ''));
-  sec.dataset.key = f.key;
-  const head = el('div', 'pc-focus-head');
-  head.append(el('span', 'pc-label', f.focused ? `Focus ${i + 1}, from your review` : `Focus ${i + 1}`));
-  head.append(el('h3', 'pc-focus-title', f.title));
-  if (f.line) head.append(el('p', 'pc-count', f.line));
-  if (f.fix) head.append(el('p', 'pc-fix', f.fix));
-  sec.append(head);
-  // The player's own clip of it, beside its drills; none kept, nothing drawn.
-  const clip = clipBlock(f.clip);
-  if (clip) sec.append(clip);
-  const grid = el('div', 'pc-drills');
-  drills(grid, f.drills);
-  sec.append(grid);
+// ── The Trainer, under Mechanics ──────────────────────────────────────────
+function trainerRow(t) {
+  const row = el('div', 'pc-trainer');
+  const ico = el('span', 'pc-d-ico pc-t-ico');
+  ico.append(glyph('trainer'));
+  const main = el('div', 'pc-d-main');
+  main.append(el('span', 'pc-d-title', t.title || 'Aim trainer'));
+  if (t.reason && t.reason.kind === 'mistake') {
+    const why = reasonLine(t.reason);
+    if (why) main.append(why);
+  }
+  if (t.line) main.append(el('p', 'pc-t-line', t.line));
+  const canOpen = typeof api.openTrainer === 'function';
+  if (canOpen && (t.scenarios || []).length) {
+    const chips = el('div', 'pc-t-chips');
+    chips.setAttribute('role', 'group');
+    chips.setAttribute('aria-label', 'Start the Trainer on');
+    for (const s of t.scenarios) {
+      const c = el('button', 'btn btn-ghost sm pc-t-chip', s.title);
+      c.type = 'button';
+      c.dataset.scenario = s.id;
+      c.title = `Opens the Trainer on ${s.title}`;
+      c.addEventListener('click', () => api.openTrainer(s.id));
+      chips.append(c);
+    }
+    main.append(chips);
+  }
+  const go = el('button', 'btn btn-primary sm pc-t-open');
+  go.type = 'button';
+  const label = el('span', 'btn-label', 'Open the Trainer');
+  const arrow = el('span', 'btn-arrow');
+  arrow.append(glyph('arrow', null, 2));
+  go.append(label, arrow);
+  go.addEventListener('click', () => { if (typeof api.go === 'function') api.go('trainer'); });
+  row.append(ico, main, go);
+  return row;
+}
+
+// ── The three groups ──────────────────────────────────────────────────────
+function groupBlock(g) {
+  const sec = el('section', 'pc-card pc-group');
+  sec.dataset.group = g.id;
+  const titleId = `pc-g-${g.id}`;
+  sec.setAttribute('aria-labelledby', titleId);
+  const head = el('header', 'pc-g-head');
+  head.append(el('span', 'pc-label', g.name));
+  const h = el('h3', 'pc-g-title', g.title);
+  h.id = titleId;
+  head.append(h);
+  const list = el('div', 'pc-g-list');
+  if (g.trainer) list.append(trainerRow(g.trainer));
+  for (const d of g.drills || []) list.append(drillCard(d));
+  sec.append(head, list);
   return sec;
 }
 
-function bandLine(textId, btnId) {
-  $(textId).textContent = view.bandLine || '';
-  $(btnId).hidden = !view.needsRiotId;
+// ── Your focus ────────────────────────────────────────────────────────────
+function trendOf(p) {
+  if (!p || !p.text) return null;
+  const tone = p.enough ? (p.tone || 'even') : 'wait';
+  const n = el('span', `pc-trend ${tone}`);
+  if (p.over) n.title = p.over;
+  const way = p.enough ? (p.trend === 'down' ? 'down' : p.trend === 'up' ? 'up' : p.trend === 'same' ? 'same' : null) : null;
+  if (way) n.append(glyph(way, 'pc-trend-ico', 2.2));
+  n.append(el('span', null, p.text));
+  return n;
 }
 
-function paintTrend() {
-  const host = $('pc-trend');
-  host.replaceChildren();
-  for (const f of view.focus || []) {
-    const p = f.progress || {};
-    const row = el('div', 'pc-trow');
-    row.setAttribute('role', 'listitem');
-    const left = el('div', 'pc-tmain');
-    left.append(el('span', 'pc-ttitle', f.title));
-    if (p.over) left.append(el('span', 'pc-tover', p.over));
-    row.append(left, el('span', 'pc-tval ' + (p.tone || 'even') + (p.enough ? '' : ' wait'), p.text || ''));
-    host.append(row);
+function focusBlock(f) {
+  const row = el('div', 'pc-focus pc-frow' + (f.focused ? ' opened' : ''));
+  row.dataset.key = f.key;
+  const head = el('div', 'pc-focus-head');
+  if (f.focused) head.append(el('span', 'pc-from', 'From your review'));
+  head.append(el('h3', 'pc-focus-title', f.title));
+  const facts = el('p', 'pc-fmeta');
+  if (f.line) facts.append(el('span', 'pc-count', f.line));
+  const t = trendOf(f.progress);
+  if (t) facts.append(t);
+  if (facts.children.length) head.append(facts);
+  if (f.fix) head.append(el('p', 'pc-fix', f.fix));
+  row.append(head);
+  // The player's own clip of it, beside the mistake; none kept, nothing drawn.
+  const clip = clipBlock(f.clip);
+  if (clip) {
+    const aside = el('div', 'pc-aside');
+    aside.append(clip);
+    row.append(aside);
+    if (clip.classList.contains('open')) row.classList.add('clip-open');
   }
-  // The days practiced, quiet, once there are any.
-  const st = view.streak && view.streak.entries ? view.streak.line : '';
-  $('pc-streak').hidden = !st;
-  $('pc-streak').textContent = st;
+  return row;
+}
+
+function bandLine() {
+  $('pc-band').textContent = view.bandLine || '';
+  $('pc-riot').hidden = !view.needsRiotId;
 }
 
 function paintLog() {
@@ -353,10 +532,11 @@ function paintLog() {
   host.replaceChildren();
   const log = view.log || [];
   $('pc-log-none').hidden = log.length > 0;
-  // Said once: under Is it working? with a plan, at the log's head without one.
+  // Said once: at Your focus with a plan, at the log's head without one.
   $('pc-log-streak').hidden = !(view.streak && view.streak.entries) || view.status === 'plan';
   $('pc-log-streak').textContent = view.streak ? view.streak.line : '';
-  for (const e of log) {
+  const shown = logAll ? log : log.slice(0, LOG_SHOWN);
+  for (const e of shown) {
     const row = el('div', 'pc-lrow');
     row.setAttribute('role', 'listitem');
     row.dataset.entry = e.id;
@@ -365,11 +545,15 @@ function paintLog() {
     del.type = 'button';
     del.title = 'Take this out of the log';
     del.setAttribute('aria-label', `Take ${e.title}, ${fmtDay(e.at)}, out of the log`);
-    del.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>';
+    del.append(glyph('close', null, 2.2));
     del.addEventListener('click', () => removeEntry(e.id, del));
     row.append(del);
     host.append(row);
   }
+  const more = $('pc-log-more');
+  more.hidden = log.length <= LOG_SHOWN;
+  more.textContent = logAll ? 'Show fewer' : `Show all ${log.length}`;
+  more.setAttribute('aria-expanded', String(logAll));
 }
 
 function paint() {
@@ -377,7 +561,6 @@ function paint() {
   $('pc-page').hidden = false;
   const v = view;
   const league = v.status === 'game';
-  $('pc-lede').hidden = league;
   // A clip being watched is carried into the new paint (clipBlock).
   openClips = new Map();
   for (const n of document.querySelectorAll('.pc-clip.open')) if (n.dataset.url) openClips.set(n.dataset.url, n);
@@ -398,27 +581,29 @@ function paint() {
   const askedClip = extra ? clipBlock(extra.clip) : null;
   $('pc-asked-clip').hidden = !askedClip;
   $('pc-asked-clip').replaceChildren(...(askedClip ? [askedClip] : []));
+  $('pc-asked').querySelector('.pc-frow').classList.toggle('clip-open', !!(askedClip && askedClip.classList.contains('open')));
 
   const plan = v.status === 'plan';
   $('pc-plan').hidden = !plan;
-  if (plan) {
-    bandLine('pc-band', 'pc-riot');
-    for (const g of $('pc-focus').querySelectorAll('.pc-drills')) releaseVideos(g);
-    $('pc-focus').replaceChildren(...v.focus.map(focusBlock));
-  }
+  // Only a clip plays here: one open is carried into the new rows, and one
+  // with no place left in them is let go below.
+  if (plan) $('pc-focus').replaceChildren(...v.focus.map(focusBlock));
+  // The days practiced, quiet, at Your focus once there are any.
+  const st = plan && v.streak && v.streak.entries ? v.streak.line : '';
+  $('pc-streak').hidden = !st;
+  $('pc-streak').textContent = st;
+
+  // The three groups, each with what it holds; the Trainer always under Mechanics.
+  const groups = league ? [] : (v.groups || []).filter((g) => (g.drills || []).length || g.trainer);
+  releaseVideos($('pc-groups'));
+  $('pc-groups').replaceChildren(...groups.map(groupBlock));
+  const anyDrill = groups.some((g) => (g.drills || []).length);
+  $('pc-band-line').hidden = league || !anyDrill;
+  if (!league) bandLine();
+
   // An open clip with no place in this paint is let go.
   for (const n of openClips.values()) releaseVideos(n);
   openClips = new Map();
-
-  const general = !league && !plan && (v.general || []).length > 0;
-  $('pc-general').hidden = !general;
-  if (general) {
-    bandLine('pc-general-band', 'pc-general-riot');
-    drills($('pc-general-drills'), v.general);
-  } else releaseVideos($('pc-general-drills'));
-
-  $('pc-working').hidden = !plan;
-  if (plan) paintTrend();
 
   $('pc-log-sec').hidden = league;
   if (!league) paintLog();
@@ -429,12 +614,22 @@ function paint() {
   const M = window.Motion;
   if (M && typeof M.stagger === 'function') M.stagger($('pc-page'), `page:${game}`);
 
-  // Opened from a review: that mistake's drills in view, once.
+  // Opened from a review: that mistake's first drill opened and in view, once.
   if (scrollTo) {
     scrollTo = false;
-    const target = document.querySelector('.pc-focus.opened') || (extra ? $('pc-asked') : null);
+    const opened = document.querySelector('.pc-focus.opened');
+    let target = null;
+    if (opened) {
+      const key = opened.dataset.key;
+      const first = [...document.querySelectorAll('#pc-groups .pc-drill')].find((c) => c.dataset.reason === key);
+      if (first) { setOpen(first, true); target = first; } else target = opened;
+    } else if (extra) {
+      const first = $('pc-asked-drills').querySelector('.pc-drill');
+      if (first) setOpen(first, true);
+      target = $('pc-asked');
+    }
     if (target && typeof target.scrollIntoView === 'function') {
-      const go = () => target.scrollIntoView({ block: 'start' });
+      const go = () => target.scrollIntoView({ block: opened ? 'center' : 'start' });
       if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(go); else go();
     }
   }
@@ -459,7 +654,10 @@ async function load() {
 }
 
 $('pc-riot').addEventListener('click', () => api.go('settings'));
-$('pc-general-riot').addEventListener('click', () => api.go('settings'));
+$('pc-log-more').addEventListener('click', () => {
+  logAll = !logAll;
+  if (view) paintLog();
+});
 
 // A page of the main window has no window of its own to close.
 const closeWindow = () => { if (!(window.occlaraEmbedded && window.occlaraEmbedded())) api.close(); };

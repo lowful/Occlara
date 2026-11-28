@@ -1,10 +1,13 @@
 /* palette: tokens only */
-/* The Practice page: the plan from the player's own repeated mistakes, its
-   drills, whether it is working and the log, in one column. A section is a
-   hairline, its heading and its rows; a drill is a card on the ground
-   (Progress v3: --s1 with the ring, --r-tile), with nothing boxed inside it.
-   Every button is ui.css's capsule. Calm: no colour but the outcomes, and
-   those always beside their words. */
+/* The Practice page (9.1, calm): Your focus at the top, the one hero, then
+   the drills in three cards, Mechanics with the Trainer, Game sense and
+   Awareness, each drill a row that says why it is there and opens in place on
+   what to do; the log quiet at the foot. Orbit's tokens: cards on --card with
+   a hairline, the mono eyebrow in the accent's lighter step (a card's
+   eyebrow is one of its places), every button ui.css's glass. Colour only for
+   an outcome (a mistake's dot, a trend, practiced today), always beside its
+   words. Motion: transitions alone, on the smooth spring, so a row pressed
+   mid way reverses from where it is. */
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
@@ -15,186 +18,263 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 #close { margin-left: auto; }
 
 .body {
-  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
   padding: var(--space-2) var(--space-4) var(--space-10);
 }
-.body::-webkit-scrollbar { width: 8px; }
-.body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 4px; }
 
 .pc-wait { font-size: 14px; color: var(--text-mute); }
-.pc-page { display: flex; flex-direction: column; gap: var(--space-10); }
-.pc-page[hidden], .pc-sec[hidden] { display: none; }
-.pc-lede { margin: calc(var(--space-2) * -1) 0 calc(var(--space-6) * -1); font-size: 14px; line-height: 1.5; color: var(--text-dim); max-width: 72ch; }
+.pc-page { display: flex; flex-direction: column; gap: var(--space-4); }
 
-.pc-sec { display: flex; flex-direction: column; gap: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--line); }
-.pc-head { display: flex; flex-direction: column; gap: var(--space-1); }
-.pc-title { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
-.pc-hint { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); max-width: 72ch; }
-.pc-hint .btn-link { vertical-align: baseline; height: auto; padding: 0; }
+/* A card's eyebrow: Geist Mono, upper case, the accent's lighter step. */
+.pc-label { margin: 0; font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
+
+.pc-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  contain: paint;
+  transition: border-color var(--dur-hover-out) var(--ease-out);
+}
+.pc-card:hover { border-color: var(--line-2); transition-duration: var(--dur-hover-in); }
+
 .pc-quiet { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-mute); }
-.pc-label { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
+.pc-streak { margin: 0; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 
-/* An empty state: the page's one line in the hero's place. */
-.pc-empty { gap: var(--space-2); }
-.pc-empty-title { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); color: var(--text); }
+/* ── An empty state: the page's one line in the hero's place ───────────── */
+.pc-empty { display: flex; flex-direction: column; gap: var(--space-2); padding: 28px; }
+.pc-empty-title { margin: 0; font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); color: var(--text); }
+.pc-empty-hint { margin: 0; max-width: 64ch; font-size: 14px; line-height: 1.55; color: var(--text-2); }
 
-/* ── The plan ─────────────────────────────────────────────────────────────
-   Each mistake its own block: its label, its title as the page's large
-   line, how often it repeated, its fix, then its drills. */
-.pc-focus-list { display: flex; flex-direction: column; gap: var(--space-10); }
-.pc-focus { display: flex; flex-direction: column; gap: var(--space-4); scroll-margin-top: var(--space-6); }
-.pc-focus + .pc-focus { padding-top: var(--space-8); border-top: 1px solid var(--line); }
-.pc-focus-head { display: flex; flex-direction: column; gap: var(--space-1); }
-.pc-focus-title { margin: 0; font-size: 28px; font-weight: 600; line-height: 1.15; letter-spacing: var(--track-display); color: var(--text); text-wrap: pretty; }
-.pc-count { margin: 0; font-size: 14px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
-.pc-fix { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-dim); max-width: 72ch; }
-/* Opened from a review: its label says so, and a still dot marks it. */
-.pc-focus.opened .pc-label { color: var(--text); display: inline-flex; align-items: center; gap: var(--space-2); }
-.pc-focus.opened .pc-label::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--text); flex: none; }
+/* ── Your focus: the hero ─────────────────────────────────────────────────
+   The two repeated mistakes, one row each: the mistake as the card title,
+   how often and whether it is shrinking on one line, its fix under it, and
+   the player's own clip of it beside. */
+.pc-hero { padding: 24px 28px 6px; }
+.pc-hero-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.pc-focus-list { display: flex; flex-direction: column; }
+.pc-frow {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; column-gap: var(--space-6); row-gap: var(--space-4);
+  padding: 18px 0 22px;
+  scroll-margin-top: var(--space-6);
+}
+.pc-focus + .pc-focus { border-top: 1px solid var(--line); }
+.pc-focus-head { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pc-focus-title { margin: 0; font-size: var(--t-title); font-weight: 700; line-height: 1.2; letter-spacing: var(--track-title); color: var(--text); text-wrap: pretty; }
+.pc-fmeta { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px var(--space-4); font-size: 13px; }
+.pc-count { color: var(--text-2); font-variant-numeric: tabular-nums; }
+/* Is it working: the trend in words, an arrow beside it, in its outcome's
+   tone; the words carry it without the hue. What it compares is its title. */
+.pc-trend { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.pc-trend.good { color: var(--good); }
+.pc-trend.bad { color: var(--bad); }
+.pc-trend.wait { font-weight: 400; color: var(--text-mute); }
+.pc-trend-ico { width: 14px; height: 14px; flex: none; }
+.pc-fix { margin: 2px 0 0; max-width: 64ch; font-size: 14px; line-height: 1.55; color: var(--text-2); }
+/* Opened from a review: said in words, with a still dot. */
+.pc-from { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 12px; font-weight: 600; color: var(--text); }
+.pc-from::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--text); flex: none; }
 
 /* ── The player's own clip of it (8.11) ───────────────────────────────────
-   A tile on the ground like a drill: the look's own frame with the play
-   mark, its round and map, and Watch the round. Opened, the review's own clip
-   player takes its place at a width a clip can be studied at. */
-.pc-clip {
-  display: flex; align-items: center; gap: var(--space-4); max-width: 640px;
-  padding: var(--space-3); border-radius: var(--r-tile);
-  background: var(--s1); box-shadow: var(--rim);
-}
+   Beside the mistake: the look's own frame with the play mark, and under it
+   the round, map and day. Opened, the review's own clip player takes the
+   row's whole width under the mistake. */
+.pc-aside { width: 184px; }
+.pc-clip { display: flex; flex-direction: column; gap: var(--space-2); }
 .pc-clip-tile {
-  position: relative; flex: none; width: 192px; aspect-ratio: 16 / 9; padding: 0; overflow: hidden;
-  border: 0; border-radius: var(--r-sm); background: var(--s3); box-shadow: var(--rim);
+  position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; padding: 0; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--raised);
   color: var(--text); cursor: pointer;
+  transition: border-color var(--dur-hover-out) var(--ease-out);
 }
-.pc-clip-tile:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
-.pc-clip-poster { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pc-clip-tile:hover { border-color: var(--line-2); transition-duration: var(--dur-hover-in); }
+.pc-clip-poster { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform var(--dur-slow) var(--spring-smooth); }
+.pc-clip-tile:hover .pc-clip-poster { transform: scale(1.03); }
 .pc-clip-mark {
-  position: absolute; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 50%; border: 1px solid var(--line-2); background: rgba(0, 0, 0, 0.6);
-  box-shadow: var(--hi), var(--drop);
-  transition: transform var(--t-fast) var(--ease);
+  position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px;
+  display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid var(--line-2); background: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  transition: transform var(--dur-spring) var(--spring-gentle), background-color var(--dur-hover-out) var(--ease-out);
 }
-.pc-clip-tile:hover .pc-clip-mark { transform: scale(1.06); }
-.pc-clip-icon { width: 16px; height: 16px; }
-.pc-clip-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.pc-clip-line { font-size: 14px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
-.pc-clip-watch { align-self: flex-start; margin-top: var(--space-2); }
-.pc-clip.open { flex-direction: column; align-items: stretch; gap: var(--space-3); max-width: 760px; padding: var(--space-4); }
-.pc-clip-cap { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.pc-clip-tile:hover .pc-clip-mark { transform: scale(1.08); background: rgba(0, 0, 0, 0.6); }
+/* The triangle's own weight sits left of its box: nudged a pixel right so it reads centred. */
+.pc-clip-icon { width: 16px; height: 16px; transform: translateX(1px); }
+.pc-clip-line { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.pc-frow.clip-open { grid-template-columns: minmax(0, 1fr); }
+.pc-frow.clip-open .pc-aside { width: auto; }
+.pc-clip.open { gap: var(--space-3); max-width: 760px; }
+.pc-clip-cap { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
 .pc-clip-fail { font-size: 13px; color: var(--bad); }
 
-/* ── A drill ──────────────────────────────────────────────────────────── */
-.pc-drills { display: grid; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); gap: var(--space-3); }
-.pc-drill {
-  display: flex; flex-direction: column; gap: var(--space-3); min-width: 0;
-  padding: var(--space-5);
-  border-radius: var(--r-tile);
-  background: var(--s1);
-  box-shadow: var(--rim);
+/* ── The review's link to a mistake not in the plan ───────────────────── */
+.pc-asked { padding: 24px 0 4px; }
+.pc-asked .pc-frow { padding: 0 28px 14px; }
+
+/* The band the drills are sized for, once, above them. */
+.pc-band { margin: var(--space-2) 0 0; padding: 0 4px; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.pc-band .btn-link { vertical-align: baseline; height: auto; padding: 0; color: var(--text); font-weight: 600; }
+
+/* ── The three groups ─────────────────────────────────────────────────────
+   A card each: the group's eyebrow and title, then its rows on hairlines. */
+.pc-groups { display: flex; flex-direction: column; gap: var(--space-4); }
+.pc-groups:empty { display: none; }
+.pc-group { padding-bottom: 6px; }
+.pc-g-head { display: flex; flex-direction: column; gap: 6px; padding: 24px 28px 10px; }
+.pc-g-title { margin: 0; font-size: var(--t-title); font-weight: 700; line-height: 1.2; letter-spacing: var(--track-title); color: var(--text); }
+.pc-g-list > * + * { border-top: 1px solid var(--line); }
+
+/* ── A drill: a row that opens in place ───────────────────────────────── */
+.pc-drill { transition: background-color var(--dur-hover-out) var(--ease-out); }
+.pc-drill.open { background: rgba(255, 255, 255, 0.018); }
+.pc-d-h { margin: 0; font: inherit; }
+.pc-d-head {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr) auto auto 18px; align-items: center; column-gap: var(--space-4);
+  width: 100%; padding: 16px 28px; margin: 0;
+  background: transparent; border: 0; border-radius: 0;
+  font-family: var(--font); color: var(--text); text-align: left; letter-spacing: var(--track-body);
+  cursor: pointer;
+  transition: background-color var(--dur-hover-out) var(--ease-out);
 }
-.pc-d-meta { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.pc-where, .pc-min {
-  display: inline-flex; align-items: center; height: 22px; padding: 0 var(--space-2);
-  border-radius: var(--r-pill); background: var(--s3); box-shadow: var(--rim);
-  font-size: 12px; font-weight: 500; color: var(--text-dim); white-space: nowrap;
+.pc-d-head:hover { background: rgba(255, 255, 255, 0.028); transition-duration: var(--dur-hover-in); }
+/* The keyboard's ring, inside the row, as on every control. */
+.pc-d-head:focus-visible, .pc-clip-tile:focus-visible, .pc-demo-btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
+.pc-d-ico {
+  width: 36px; height: 36px; display: grid; place-items: center; flex: none;
+  border-radius: 50%; border: 1px solid var(--line); background: var(--raised); color: var(--text-2);
 }
-.pc-min { font-variant-numeric: tabular-nums; }
-.pc-d-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; color: var(--text); }
-.pc-why { margin: calc(var(--space-1) * -1) 0 0; font-size: 13px; line-height: 1.45; color: var(--text-dim); }
-.pc-steps { margin: 0; padding-left: 1.25em; display: flex; flex-direction: column; gap: var(--space-1); font-size: 13px; line-height: 1.5; color: var(--text-dim); }
-.pc-steps li::marker { color: var(--text-mute); font-variant-numeric: tabular-nums; }
-.pc-facts { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--line); }
-.pc-fact { display: flex; flex-direction: column; gap: 2px; }
-.pc-fact dt { font-size: 12px; font-weight: 500; color: var(--text-mute); }
-.pc-fact dd { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text); }
-.pc-d-foot { margin-top: auto; padding-top: var(--space-1); display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-.pc-done { font-size: 12px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
+.pc-d-ico svg { width: 18px; height: 18px; }
+.pc-d-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pc-d-title { font-size: 15px; font-weight: 600; line-height: 1.3; letter-spacing: -0.011em; color: var(--text); text-wrap: pretty; }
+/* Why it is here: the repeated mistake, with its dot, and how often. */
+.pc-reason { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px var(--space-2); font-size: 13px; line-height: 1.4; font-weight: 400; }
+.pc-r-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bad); flex: none; }
+.pc-r-title { color: var(--text); font-weight: 500; }
+.pc-r-line { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.pc-where, .pc-min { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-2); white-space: nowrap; }
+.pc-d-meta { display: inline-flex; align-items: center; gap: var(--space-2); }
+.pc-where + .pc-min::before { content: ''; display: inline-block; width: 3px; height: 3px; margin: 0 var(--space-2) 0 0; border-radius: 50%; background: var(--text-3); vertical-align: middle; }
+.pc-d-state { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font-size: 12.5px; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pc-d-state:empty { display: none; }
+.pc-d-state.good { color: var(--good); }
+.pc-d-check { width: 14px; height: 14px; flex: none; }
+.pc-d-chev { display: grid; place-items: center; color: var(--text-2); transition: transform var(--dur-slow) var(--spring-smooth), color var(--dur-hover-out) var(--ease-out); }
+.pc-d-chev svg { width: 18px; height: 18px; }
+.pc-d-head:hover .pc-d-chev { color: var(--text); }
+.pc-drill.open .pc-d-chev { transform: rotate(180deg); }
+
+/* What to do, one step away: a one row grid that grows from 0fr to 1fr on
+   the smooth spring, its words fading in a moment behind it. Closed, it is
+   out of the tab order and the reader's way (visibility, after the close). */
+.pc-d-body {
+  display: grid; grid-template-rows: 0fr; visibility: hidden;
+  transition: grid-template-rows 380ms var(--spring-smooth), visibility 0s linear 380ms;
+}
+.pc-drill.open > .pc-d-body {
+  grid-template-rows: 1fr; visibility: visible;
+  transition: grid-template-rows 520ms var(--spring-smooth), visibility 0s linear 0s;
+}
+.pc-d-inner { min-height: 0; overflow: hidden; }
+.pc-d-content {
+  display: flex; flex-direction: column; gap: var(--space-4);
+  padding: 4px 28px 26px calc(28px + 36px + var(--space-4));
+  opacity: 0; transform: translateY(-6px);
+  transition: opacity 160ms var(--ease-out), transform 380ms var(--spring-smooth);
+}
+.pc-drill.open .pc-d-content {
+  opacity: 1; transform: none;
+  transition: opacity 320ms var(--ease-out) 60ms, transform 520ms var(--spring-smooth);
+}
+.pc-why { margin: 0; max-width: 68ch; font-size: 14px; line-height: 1.55; color: var(--text-2); }
+.pc-steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 10px; max-width: 72ch; font-size: 14px; line-height: 1.55; color: var(--text); }
+.pc-steps li { counter-increment: s; position: relative; padding-left: 32px; }
+.pc-steps li::before {
+  content: counter(s); position: absolute; left: 0; top: 1px; width: 21px; height: 21px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--text-2);
+  background: var(--raised); border: 1px solid var(--line); font-variant-numeric: tabular-nums;
+}
+.pc-facts {
+  margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3) var(--space-6);
+  max-width: 760px; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: var(--r-in); background: var(--glass-q);
+}
+.pc-fact { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pc-fact dt { font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-2); }
+.pc-fact dd { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text); }
+.pc-d-foot { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding-top: 2px; }
+.pc-done { font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .pc-done.finished { color: var(--good); }
 
 /* A drill's demo (8.11), from the website: drawn only once its poster is in,
-   so an offline card is the card as it was. The loop shows over the poster
+   so an offline drill is the drill as it was. The loop shows over the poster
    while it plays; the play mark waits over the poster otherwise. */
-.pc-demo[hidden] { display: none; }
+.pc-demo { max-width: 420px; }
 .pc-demo-btn {
   position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; padding: 0; overflow: hidden;
-  border: 0; border-radius: var(--r-sm); background: var(--s3); box-shadow: var(--rim);
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--raised);
   color: var(--text); cursor: pointer;
 }
-.pc-demo-btn:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 .pc-demo-poster, .pc-demo-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .pc-demo-video { opacity: 0; transition: opacity var(--t-fast) var(--ease); }
 .pc-demo.playing .pc-demo-video { opacity: 1; }
 .pc-demo-mark {
-  position: absolute; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 50%; border: 1px solid var(--line-2); background: rgba(0, 0, 0, 0.6);
-  box-shadow: var(--hi), var(--drop);
+  position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px;
+  display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid var(--line-2); background: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   transition: opacity var(--t-fast) var(--ease);
 }
 .pc-demo.playing .pc-demo-mark { opacity: 0; }
-.pc-demo-icon { width: 16px; height: 16px; }
+.pc-demo-icon { width: 16px; height: 16px; transform: translateX(1px); }
 .pc-demo-tag {
   position: absolute; left: var(--space-2); bottom: var(--space-2);
   display: inline-flex; align-items: center; height: 20px; padding: 0 var(--space-2);
   border-radius: var(--r-pill); background: rgba(0, 0, 0, 0.6);
   font-size: 11px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums;
 }
-@media (prefers-reduced-motion: reduce) {
-  .pc-clip-mark, .pc-demo-mark, .pc-demo-video { transition: none; }
-  .pc-clip-tile:hover .pc-clip-mark { transform: none; }
-}
 
-/* ── Is it working, and the log: ruled rows ───────────────────────────── */
+/* ── The Trainer, under Mechanics ─────────────────────────────────────────
+   Not a drill but the place to train one: what it is, a few of its
+   scenarios to start on, and the way in. */
+.pc-trainer {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: start; column-gap: var(--space-4);
+  padding: 16px 28px 20px;
+}
+.pc-trainer .pc-d-main { gap: 4px; }
+.pc-t-line { margin: 0; max-width: 60ch; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.pc-t-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.pc-t-open { align-self: center; }
+
+/* ── The log: quiet ruled rows at the foot ────────────────────────────── */
+.pc-log-sec { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-6); }
+.pc-log-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; padding: 0 4px; }
+.pc-log-title { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.011em; color: var(--text); }
 .pc-rows { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .pc-rows:empty { display: none; }
-.pc-trow, .pc-lrow {
-  display: flex; align-items: center; gap: var(--space-4);
-  min-height: 52px; padding: var(--space-2) 0;
+.pc-lrow {
+  display: grid; grid-template-columns: 128px minmax(0, 1fr) auto 30px; align-items: center; column-gap: var(--space-4);
+  min-height: 46px; padding: 0 4px;
   border-bottom: 1px solid var(--line);
+  transition: background-color var(--dur-hover-out) var(--ease-out);
 }
-.pc-tmain { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.pc-ttitle { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pc-tover { font-size: 12px; color: var(--text-mute); }
-/* The trend in words, in its outcome's tone; the words carry it without the hue. */
-.pc-tval { flex: none; font-size: 14px; font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums; text-align: right; }
-.pc-tval.good { color: var(--good); }
-.pc-tval.bad { color: var(--bad); }
-.pc-tval.wait { font-weight: 400; color: var(--text-mute); max-width: 46ch; white-space: normal; }
+.pc-lrow:hover { background: rgba(255, 255, 255, 0.025); transition-duration: var(--dur-hover-in); }
+.pc-lday { font-size: 13px; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pc-ltitle { font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-lmin { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.pc-del { width: 30px; height: 30px; opacity: 0.55; transition: opacity var(--dur-hover-out) var(--ease-out); }
+.pc-del svg { width: 13px; height: 13px; }
+.pc-lrow:hover .pc-del, .pc-del:focus-visible { opacity: 1; transition-duration: var(--dur-hover-in); }
+.pc-log-more { align-self: flex-start; }
 
-.pc-lrow { min-height: 48px; transition: background var(--t-fast) var(--ease); }
-.pc-lrow:hover { background: rgba(255, 255, 255, 0.035); }
-.pc-lday { flex: none; width: 112px; font-size: 13px; color: var(--text-mute); white-space: nowrap; }
-.pc-ltitle { flex: 1 1 auto; min-width: 0; font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pc-lmin { flex: none; font: 500 12px var(--font-mono); color: var(--text-mute); font-variant-numeric: tabular-nums; }
-.pc-del { flex: none; width: 30px; height: 30px; }
+.pc-privacy { margin: var(--space-2) 0 0; padding: 0 4px; font-size: 12.5px; line-height: 1.5; color: var(--text-mute); }
 
-.pc-privacy { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-mute); }
-
-@media (max-width: 760px) {
-  .pc-focus-title { font-size: 24px; }
-  .pc-lday { width: auto; }
-  .pc-clip-tile { width: 152px; }
+@media (prefers-reduced-motion: reduce) {
+  .pc-d-content, .pc-drill.open .pc-d-content { transform: none; }
+  .pc-drill.open .pc-d-chev { transition: none; }
+  .pc-clip-tile:hover .pc-clip-poster, .pc-clip-tile:hover .pc-clip-mark { transform: none; }
 }
 
-/* ── ORBIT (27 Nov 2026) ─────────────────────────────────────────────────
-   The reference's drill cards: each focus a card title, each drill a card
-   with its where and minutes as the eyebrow, its title at the card title's
-   size, its steps numbered in small raised circles, its goal one quiet box.
-   The sections stay on the ground, so no card holds a card; one hero, the
-   page head. */
-.pc-sec { border-top: 0; padding-top: 0; }
-.pc-label { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
-.pc-title { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); }
-.pc-focus-title { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); }
-.pc-focus + .pc-focus { border-top-color: var(--line); }
-.pc-drills { gap: 20px; }
-.pc-drill { padding: 24px 24px 22px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); box-shadow: none; }
-.pc-where, .pc-min { height: auto; padding: 0; border: 0; background: none; box-shadow: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
-.pc-d-title { font-size: 18px; font-weight: 700; letter-spacing: var(--track-title); }
-.pc-steps { counter-reset: s; padding-left: 0; list-style: none; gap: 9px; }
-.pc-steps li { counter-increment: s; position: relative; padding-left: 30px; }
-.pc-steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--text-2); background: var(--raised); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-.pc-facts { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-in); background: var(--glass-q); }
-/* The page head's sub line says what the lede said: one sub line, not two. */
-.pc-lede { display: none; }
+@media (max-width: 860px) {
+  .pc-d-head { grid-template-columns: 36px minmax(0, 1fr) auto 18px; }
+  .pc-d-meta { display: none; }
+  .pc-aside { width: 152px; }
+}

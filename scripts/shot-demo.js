@@ -62,6 +62,16 @@ const SCENES = {
   patterns: { page: 'patterns' },
   stats: { page: 'stats' },
   practice: { page: 'practice' },
+  // 9.1, item 17: the Practice page whole (a tall window), a drill opened in
+  // place, the log, the page at the window's least, with no matches yet
+  // (blank: the practice store reads no reviews), and opened from a review.
+  practicetall: { page: 'practice', h: 2200 },
+  practiceopen: { page: 'practice', act: "(() => { const r = document.querySelector('.pc-group[data-group=\"awareness\"] .pc-d-head') || document.querySelector('.pc-d-head'); r.click(); setTimeout(() => r.closest('.pc-drill').scrollIntoView({ block: 'center' }), 600); return true; })()" },
+  practicetrainer: { page: 'practice', act: "document.querySelector('.pc-group[data-group=\"mechanics\"]').scrollIntoView({ block: 'start' }); true" },
+  practicesmall: { page: 'practice', w: 960, h: 640, act: "document.getElementById('pc-groups').scrollIntoView({ block: 'start' }); true" },
+  practiceblank: { page: 'practice', blank: true, h: 1400 },
+  practiceasked: { page: 'practice', asked: { key: 'cause:repeek', title: 'Repeeked the same angle' }, h: 1200 },
+  practiceinplan: { page: 'practice', asked: { key: 'untraded', title: 'Deaths nobody traded' } },
   clips: { page: 'moments' },
   trainer: { page: 'trainer' },
   coach: { page: 'coach' },
@@ -192,7 +202,7 @@ app.whenReady().then(async () => {
   const memo = new Map();
   const practice = require('../src/main/services/practice-store').createPractice({
     store: { get: (k) => memo.get(k), set: (k, v) => memo.set(k, v) },
-    recent: (g) => store.recent(g, patterns.LOOK_BACK), summarise: (s) => patterns.summarise(s),
+    recent: (g) => (scene.blank ? [] : store.recent(g, patterns.LOOK_BACK)), summarise: (s) => patterns.summarise(s),
     band: () => null, riotId: () => '', busy: () => false, game: () => 'valorant', gameLabel: () => 'Valorant',
     open: () => {}, changed: () => {}, reviews: store,
   });
@@ -205,6 +215,8 @@ app.whenReady().then(async () => {
   for (const name of (wanted.length ? wanted : ['home'])) {
     scene = SCENES[name];
     if (!scene) { console.log(`skip ${name}: no such scene`); continue; }
+    // The review's Practice this, answered by the page's first ask.
+    if (scene.asked) practice.open(scene.asked.key, scene.asked.title);
     const sw = scene.w || W, sh = scene.h || H;
     const shellWin = makeWindow(sw, sh, path.join(ROOT, 'src', 'preload', 'shell-preload.js'));
     let pageWin = null;

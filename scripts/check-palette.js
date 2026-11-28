@@ -191,7 +191,8 @@ const SIGNAL_ALLOWED = {
   'invite/invite.css':     ['.inv-label'],
   'feedback/feedback.css': ['.fb-label'],
   'whatsnew/whatsnew.css': ['.wn-ver'],
-  'practice/practice.css': ['.pc-label', '.pc-where, .pc-min'],
+  // 9.1: the keyboard's ring on a drill's row, a clip's tile and a demo.
+  'practice/practice.css': ['.pc-label', '.pc-where, .pc-min', '.pc-d-head:focus-visible, .pc-clip-tile:focus-visible, .pc-demo-btn:focus-visible'],
   'moments/moments.css':   ['.mo-title:not(#mo-empty-title):not(#mo-pl-title)', '.mo-hcard:focus-visible'],
   'matches/matches.css':   ['.m-chart-label'],
 };
