@@ -5105,6 +5105,13 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(!!rule && /color:\s*var\(--text-mute\)/.test(rule[1]) && px(rule) <= px(lineRule),
       'in the theme\'s muted small type, no bigger than the lines above it', rule ? rule[1].trim() : 'no .wip-line.legal rule');
     ok(!DASHES.test(RIOT), 'with no dash');
+    // 9.1: the scrolling body is the containing block of what it holds, so
+    // the account's hidden live line (#acct-said, .sr-only, absolute) never
+    // runs past the sheet's foot (it ran 975px), where a row scrolled into
+    // view took the whole sheet with it, the title gone and a band under the foot.
+    const html = fs.readFileSync(path.join(RENDERER, 'settings', 'index.html'), 'utf8');
+    ok(/\n\.body \{\s*position: relative;/.test(css) && /<p id="acct-said" class="sr-only"/.test(html),
+      'the scrolling body holds its hidden live line, so the sheet never scrolls under its title');
   });
 
   // MANAGE SUBSCRIPTION OPENS THE ACCOUNT PAGE (8.3.2). Settings and the

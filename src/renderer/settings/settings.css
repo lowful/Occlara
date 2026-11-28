@@ -51,7 +51,13 @@ header h2 { font-size: 15.5px; font-weight: 600; }
 /* The body is one column of groups. No gap of its own: each group carries
    its rule and its space, so the space BETWEEN groups (52px) always beats the
    space within one (8 to 12px). */
+/* position: relative (9.1): the scroller is the containing block of what it
+   holds, so the account's hidden live line (#acct-said, .sr-only, absolute)
+   stays inside it. Held by the sheet instead, it ran 975px past the sheet's
+   foot, and a scroll into view (a row brought to the top) scrolled the whole
+   sheet, title gone and an empty band under the foot. */
 .body {
+  position: relative;
   flex: 1; overflow-y: auto;
   padding: var(--space-2) var(--space-4) var(--space-10);
   display: flex; flex-direction: column;
