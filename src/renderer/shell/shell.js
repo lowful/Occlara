@@ -1000,15 +1000,21 @@ function paintNotice() {
  * longer word in another language, a control yet to come), the bar is marked
  * tight and every pill draws in at once, so the window's buttons are never
  * cut. Measured by layout alone (offsets, not the glide's transforms).
+ * One smaller step first (9.1): under 1040px What's new carries the word
+ * "New" beside its spark, and where that alone is what runs past (the bar's
+ * Start on a page at 960, the updater's words beside it) the bar is marked
+ * snug and the word goes, the spark staying, before anything else gives way.
  */
 function fitBar() {
   const wc = barEl.querySelector('.win-controls');
   if (!wc || typeof wc.offsetLeft !== 'number' || !barEl.clientWidth) return;
   const was = barEl.classList.contains('tight');
-  if (was) barEl.classList.remove('tight');
-  const over = wc.offsetLeft + wc.offsetWidth > barEl.clientWidth + 0.5;
-  if (over) barEl.classList.add('tight');
-  if (was !== over) newsOnScreen();
+  barEl.classList.remove('tight', 'snug');
+  const over = () => wc.offsetLeft + wc.offsetWidth > barEl.clientWidth + 0.5;
+  if (over()) barEl.classList.add('snug');
+  const tight = over();
+  if (tight) barEl.classList.add('tight');
+  if (was !== tight) newsOnScreen();
 }
 
 function render() {

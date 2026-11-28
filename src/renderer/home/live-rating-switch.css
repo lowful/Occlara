@@ -39,6 +39,16 @@
   animation: hLrIn 420ms var(--ease-enter) both;
 }
 .h-lr-confirm[hidden] { display: none; }
+/* Under the switch that asked (9.1): live-rating-switch.js place() puts the
+   card's left edge under the pill inside the copy column and its caret
+   (--caret-x) at the switch, so on Start's line it never reads as Start's. */
+.h-lr-confirm { position: relative; }
+.h-lr-confirm::before {
+  content: ''; position: absolute; top: -7px; left: calc(var(--caret-x, 28px) - 6px);
+  width: 12px; height: 12px; transform: rotate(45deg); border-top-left-radius: 2px;
+  border-top: 1px solid var(--line-2); border-left: 1px solid var(--line-2);
+  background: var(--glass-fill);
+}
 .h-lr-confirm-title { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
 .h-lr-confirm-body { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-2); }
 .h-lr-confirm-actions { display: flex; gap: 8px; margin-top: 4px; }

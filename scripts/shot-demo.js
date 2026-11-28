@@ -26,7 +26,8 @@
  * Start opens (no seal), waitingrated the same with the live rating on,
  * sealedwait the sealed screen before the reader has seen a game, rated the
  * match with the rating's row, ratingoff with the kill feed unread,
- * ratedsmall the rated screen at the window's least (960 by 640), homelr and
+ * ratedsmall the rated screen at the window's least (960 by 640), ratedmove
+ * the match's next push after it (68 to 72, its +4 drawn), homelr and
  * homeconfirm Home's switch on and its confirm open, settingslr Settings at
  * the live rating's rows, and leaguewait League's quiet Recording view.
  * The bar (9.1, items 2 and 22): news is What's new in the bar after an
@@ -141,8 +142,13 @@ const SCENES = {
   rated: { page: null, sealed: true, coaching: true, live: 'rated', lr: true },
   ratingoff: { page: null, sealed: true, coaching: true, live: 'blind', lr: true },
   ratedsmall: { page: null, sealed: true, coaching: true, live: 'rated', lr: true, w: 960, h: 640 },
+  // The rating moved after its first paint: its move drawn, as players see it.
+  ratedmove: { page: null, sealed: true, coaching: true, live: 'rated', livenext: 'ratedmove', lr: true },
   homelr: { page: 'home', lr: true },
   homeconfirm: { page: 'home', act: "document.getElementById('h-lr-switch').click(); true" },
+  // The same at 1600 and at the window's least: the confirm stands under the switch that asked.
+  homeconfirmwide: { page: 'home', w: 1600, h: 1000, act: "document.getElementById('h-lr-switch').click(); true" },
+  homeconfirmnarrow: { page: 'home', w: 960, h: 640, act: "document.getElementById('h-lr-switch').click(); true" },
   settingslr: { page: 'settings', lr: true, act: "document.getElementById('lr-row').scrollIntoView({ block: 'start' }); true" },
   leaguewait: { page: 'home', rec: true, coaching: true, live: null, game: 'lol' },
   held: { page: null, sealed: true, held: true },
@@ -311,6 +317,14 @@ function liveOf(kind) {
     tape: ['W', 'L', 'L', 'W', 'L', 'W', 'W', 'W', 'L', 'W', 'W', 'L', 'L'], round: 14 };
   // The live rating's own fields (live-rating-service.js pick), as main sends them.
   if (kind === 'rated') v.rating = { value: 6.8, shown: '68', tier: 'fair', last: { delta: '+4', up: true, down: false, label: 'Opening kill' }, line: [6, 6.1, 5.8, 6.2, 6.4, 6.3, 6.8] };
+  // The next push of the same match: the rating moved 68 to 72, so the
+  // screen draws the move (+4, the difference of the two shown numbers, as
+  // live-rating.js moveOf gives it) beside the engine's label. The first
+  // paint never draws a move, so `livenext` sends this one after it.
+  if (kind === 'ratedmove') {
+    Object.assign(v, { team: 8, tape: [...v.tape.slice(0, 13), 'W'], round: 15 });
+    v.rating = { value: 7.2, shown: '72', tier: 'good', last: { delta: '+4', up: true, down: false, label: 'Double kill' }, line: [6, 6.1, 5.8, 6.2, 6.4, 6.3, 6.8, 7.2] };
+  }
   if (kind === 'blind') v.rating = { reading: false };
   return v;
 }
@@ -491,6 +505,8 @@ app.whenReady().then(async () => {
       // Fonts, the moon and every entrance settle before the picture (a
       // scene timed from a review made whole is taken at its own moment).
       if (!scene.whole) await wait(Number(process.env.SHOT_WAIT) || 3600);
+      // The match's next push to the shell, as main sends it (9.1, ratedmove).
+      if (scene.livenext) { shellWin.webContents.send(C.PUSH_LIVE, liveOf(scene.livenext)); await wait(1400); }
       // A scene's own act in its page (a click, a scroll), then a moment to settle.
       if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(scene.after || scene.settle || 900); }
       // And in the bar's own document (sact).

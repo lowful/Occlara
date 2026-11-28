@@ -44,7 +44,11 @@ wins. What phase 1 changed, and what to keep true:
   once (`barIn`). WHAT'S NEW is Home's update line moved into the bar: a
   pill, "What's new in 9.1.0", main's sentence ("Occlara updated to 9.1.0.
   See what's new") whole in its title, the version dropped under 1180px and
-  the words under 1040 (the spark alone). Main's rules are unchanged
+  the words under 1040 for the spark and one word, "New" (`.news-short`; a
+  bare spark in a circle never said what it opens), the spark alone beside a
+  notice or with the bar tight, and the word alone given up first where it
+  is what runs past (the bar snug, `shell.js fitBar`, Start on a page at
+  960). Main's rules are unchanged
   (changelog.md, "The update line"); the bar marks it seen only with the
   window on screen and in front (`newsOnScreen`). Neither pill is ever on the bar while
   recording, sealed or on the Recording view (`barQuiet`, and shell.css hides
@@ -657,14 +661,22 @@ and none current, until the match is seen or the player opens a page
 bar's still dot and "Recording" (`#rec-back`) take a player with a page open
 back to it, and Home carries the live rating's switch beside Start
 (`#h-lr`, `home/live-rating-switch.js`), past Settings' warning and confirm;
-the whole pill presses the switch, as its hover says. **Start hands the
+the whole pill presses the switch, as its hover says. Its confirm stands
+under the switch that asked (`live-rating-switch.js place`): on a wide window,
+where the pill sits on Start's line, the card's left edge goes under the pill,
+kept inside the copy column, with a caret at the switch, so the question
+never reads as Start's; under 1100px the pill wraps under Start and the card
+opens under it (`homeconfirm`, `homeconfirmwide`, `homeconfirmnarrow`).
+**Start hands the
 keyboard to the screen**: in a window already in front, main focuses the
 shell as the view comes up and the page under it as it goes
 (`main-window.js handKeyboard`; never otherwise, since focusing web contents
 pulls a window over the game), and the screen itself takes the focus
 (`#sealed`, tabindex -1), so the next Tab is Stop and Enter stops nothing.
 `npx electron scripts/shot-demo.js waiting waitingrated rated ratingoff
-ratedsmall homelr homeconfirm settingslr leaguewait stop` pictures them. A
+ratedsmall ratedmove homelr homeconfirm settingslr leaguewait stop` pictures
+them; ratedmove sends the match's next push after the first paint (68 to
+72), since a first paint never draws a move. A
 page asked for meanwhile, the review of the match that just ended above all, is remembered
 and shows when the seal lifts. Open pages through `openPage()`, never
 `mainWindow.show()` directly, which would skip the seal for up to the tick. A

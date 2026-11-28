@@ -200,7 +200,7 @@ console.log('\nThe switches: off by default, the token main\'s alone');
   const ipc = read('src/main/ipc/register-ipc.js');
   ok(!/ratingWidgetToken|ratingWidgetPort/.test(ipc), 'CONFIG_GET hands no page the token or the port');
   const sp = read('src/preload/shell-preload.js');
-  ok(/'liveMap', 'liveAgent', 'liveScore', 'liveRound'\]\.includes\(key\)/.test(sp) && !/liveRating/.test(sp), 'the Recording screen\'s own Choose cannot turn the rating on: only Settings, past its warning');
+  ok(/'liveMap', 'liveAgent', 'liveScore', 'liveRound'\]\.includes\(key\)/.test(sp) && !/liveRating/.test(sp), 'the Recording screen\'s own Choose cannot turn the rating on: only Settings and Home\'s switch, past its warning');
 }
 
 console.log('\nThe pages draw it as text');

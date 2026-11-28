@@ -39,8 +39,32 @@
     host.title = 'Your match rating on the Recording screen while you play, marked provisional';
   }
 
+  /*
+   * The card stands under the switch that asked (9.1): its left edge under
+   * the pill, kept inside Home's copy column, and its caret pointing at the
+   * switch, so on a wide window, where the pill sits on Start's line, the
+   * question never reads as Start's. Under 1100px the pill wraps under Start
+   * and the card simply opens under it.
+   */
+  function place() {
+    if (confirmBox.hidden) return;
+    const pillBox = host.querySelector('.h-lr-pill') || host;
+    confirmBox.style.marginLeft = '0px';
+    const col = confirmBox.parentElement ? confirmBox.parentElement.getBoundingClientRect() : null;
+    const p = pillBox.getBoundingClientRect();
+    const s = sw.getBoundingClientRect();
+    const w = confirmBox.getBoundingClientRect().width;
+    if (!col || !w || !p.width) return;
+    const left = Math.max(0, Math.min(p.left - col.left, col.width - w));
+    confirmBox.style.marginLeft = `${Math.round(left)}px`;
+    const caret = Math.max(20, Math.min(w - 20, s.left + s.width / 2 - (col.left + left)));
+    confirmBox.style.setProperty('--caret-x', `${Math.round(caret)}px`);
+  }
+  window.addEventListener('resize', place);
+
   function ask() {
     confirmBox.hidden = false;
+    place();
     $('h-lr-keep-off').focus();
   }
   function shut(refocus) {

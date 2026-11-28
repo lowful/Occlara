@@ -566,14 +566,21 @@ html.rec-still .upd.unsure .upd-arc, html.ambient-off .upd.unsure .upd-arc { ani
 /* What's new and the updater are never on the bar mid match or on the
    Recording view: shell.js hides them, and so does this. */
 .app.is-sealed .news, .app.is-sealed .upd, .app.rec-view .news, .app.rec-view .upd { display: none; }
-/* Narrower windows: What's new keeps its words, then its spark alone. */
+/* Narrower windows: What's new keeps its words, then its spark and one word,
+   "New" (9.1: a bare spark in a circle never said what it opens). The
+   sentence stays whole in its title, which names the button too. Beside a
+   notice it keeps its spark alone, or waits (THE BAR GIVES WAY, below). */
 @media (max-width: 1180px) { .news-ver { display: none; } }
+.news-short { display: none; white-space: nowrap; }
 @media (max-width: 1040px) {
-  .btn.news { width: 36px; padding: 0; border-radius: 18px; }
+  .btn.news { padding: 0 14px 0 12px; }
   .news .news-text, .news .btn-arrow { display: none; }
+  .news .news-short { display: inline; }
   .btn.news:has(> .btn-arrow) > .btn-label { transform: none; }
-  .news-spark { width: 16px; height: 16px; }
 }
+.bar.has-notice .news .news-short, .bar.tight .news .news-short, .bar.snug .news .news-short { display: none; }
+/* Snug (shell.js fitBar): the word alone ran past, so the spark keeps its circle. */
+.bar.snug .btn.news { width: 36px; padding: 0; border-radius: 18px; }
 
 /* ── THE BAR GIVES WAY (9.1) ──────────────────────────────────────────────
    At the window's least width with everything shown (the licence ended,

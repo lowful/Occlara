@@ -115,7 +115,9 @@ const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\
 
     const p = await openShell({ news: NEWS });
     const pill = p.$('news');
-    ok(!pill.hidden && pill.textContent.replace(/\s+/g, ' ').trim() === "What's new in 9.1.0" && pill.title === "Occlara updated to 9.1.0. See what's new",
+    // Its words as a wide bar draws them (.news-short, "New", only under 1040px).
+    ok(!pill.hidden && pill.querySelector('.news-text').textContent.replace(/\s+/g, ' ').trim() === "What's new in 9.1.0"
+      && pill.textContent.replace(/\s+/g, ' ').trim() === "What's new in 9.1.0New" && pill.title === "Occlara updated to 9.1.0. See what's new",
       'main\'s line: "What\'s new in 9.1.0", main\'s sentence whole in its title', `"${pill.textContent}" / "${pill.title}"`);
     ok(same(p.sentOn(C.CHANGELOG_SEEN), [[C.CHANGELOG_SEEN, '9.1.0']]), 'on screen, that version is seen, once', JSON.stringify(p.sentOn(C.CHANGELOG_SEEN)));
     p.bridge.emit(C.PUSH_CHANGELOG, { ...NEWS });
@@ -317,6 +319,12 @@ const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\
     'with a notice, What\'s new keeps its spark, the updater its icon and back to recording its dot');
     const narrow = (css.match(/@media \(max-width: 1040px\) \{\s*\.bar\.has-notice \.news \{ display: none; \}\s*\.bar \.toggle\.ended \{ display: none; \}\s*\}/) || [])[0];
     ok(!!narrow, 'under 1040px with a notice, What\'s new waits and the ended button goes, the notice saying it in full');
+    // 9.1: narrow with no notice, a word beside the spark, never a bare spark in a circle.
+    const narrowWord = (css.match(/@media \(max-width: 1040px\) \{[^}]*\.btn\.news \{[^}]*\}[^]*?\.news \.news-short \{ display: inline; \}/) || [])[0];
+    ok(p.$('news').querySelector('.news-short') && p.$('news').querySelector('.news-short').textContent === 'New'
+      && !!narrowWord && !/width: 36px/.test(narrowWord) && /\.news-short \{ display: none;/.test(css)
+      && /\.bar\.has-notice \.news \.news-short, \.bar\.tight \.news \.news-short, \.bar\.snug \.news \.news-short \{ display: none; \}/.test(css),
+    'under 1040px What\'s new keeps the word New beside its spark, and beside a notice or tight its spark alone');
     ok(hides('.app.is-recording .game-seg'), 'recording, the picker gives its room back, as mid match');
     ok(/\.bar\.tight \.news, \.bar\.tight \.game-seg, \.bar\.tight \.toggle\.ended \{ display: none; \}/.test(css)
       && /\.bar\.tight \.upd \.upd-word, \.bar\.tight \.rec-back-word \{ display: none; \}/.test(css),
@@ -343,6 +351,18 @@ const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\
     left = 700;
     for (const fn of p.window._listeners.resize || []) fn();
     ok(!bar.classList.contains('tight'), 'room again: not tight');
+    // 9.1: the smaller step first. What's new's word ("New", under 1040px)
+    // alone running past marks the bar snug, the word going and nothing else.
+    Object.defineProperty(wc, 'offsetLeft', { configurable: true, get: () => (bar.classList.contains('snug') ? 800 : 843) });
+    for (const fn of p.window._listeners.resize || []) fn();
+    ok(bar.classList.contains('snug') && !bar.classList.contains('tight'), 'only What\'s new\'s word past the edge: snug, the word gone, nothing else');
+    Object.defineProperty(wc, 'offsetLeft', { configurable: true, get: () => (bar.classList.contains('tight') ? 700 : 843) });
+    for (const fn of p.window._listeners.resize || []) fn();
+    ok(bar.classList.contains('snug') && bar.classList.contains('tight'), 'still past it without the word: tight as well');
+    Object.defineProperty(wc, 'offsetLeft', { configurable: true, get: () => 700 });
+    for (const fn of p.window._listeners.resize || []) fn();
+    ok(!bar.classList.contains('snug') && !bar.classList.contains('tight'), 'room again: neither');
+    ok(/\.bar\.snug \.btn\.news \{ width: 36px; padding: 0; border-radius: 18px; \}/.test(css), 'snug, the spark keeps its circle');
 
     // What's new given way to a notice (not drawn) is not yet seen.
     const away = loadSurface('shell', {
