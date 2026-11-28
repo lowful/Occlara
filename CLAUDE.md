@@ -220,7 +220,8 @@ is the source; `splash/index.html` draws it as its two circles with the shade
 in a mask, so the shade can move; `dock/index.html` and the Recording screen in
 `shell/index.html` inline the path, so they take `currentColor`;
 `scripts/generate-icon.js` draws it by arithmetic for the `.ico`, the `.png`
-and the two tray icons. Change one and change all of them, then run
+(Orbit's glass crescent on its squircle), the two tray icons and the splash's
+three pictures (`assets/splash`). Change one and change all of them, then run
 `node scripts/generate-icon.js`: `npm run test:mark` holds the five to one
 geometry and the icons to what the script draws. The SVG carries an explicit
 `color="#F5F5F7"` because an external SVG loaded through an `<img>` tag is its
