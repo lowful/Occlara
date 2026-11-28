@@ -13,7 +13,7 @@
  *
  * Pure node, no window. Run: npm run test:liverating
  */
-const { createLiveRating, clockLeft } = require('../src/shared/live-rating');
+const { createLiveRating, clockLeft, moveOf } = require('../src/shared/live-rating');
 const kf = require('../src/shared/killfeed');
 const { drawFrame, cut } = require('./fixtures/killfeed-frames');
 
@@ -321,6 +321,42 @@ ok(clockLeft('1:39') === 99 && clockLeft('0:05') === 5 && clockLeft('buy') === n
   ok(v.shown === String(Math.round(v.value * 10)) && v.line[0] === 6 && v.line[v.line.length - 1] === v.value && /^\+\d+$/.test(v.last.delta) && v.last.up === true, `"${v.shown}", ${v.last.delta}, on the 100 scale, the line from 6.0 inside (${v.line.join(' ')})`);
   const s = JSON.stringify(v);
   ok(!/hp|credit|spot|enemy|alive|spike|map|agent/i.test(s.replace(/"label":"[^"]*"/, '')), 'nothing of the reader\'s context is in it');
+  // THE MOVE SHOWN IS THE NUMBER'S OWN CHANGE (9.1): the badge shows the
+  // value on the 100 scale, so its move is the difference of the two shown
+  // numbers (Display.ratingMove, as the review takes it), never the event's
+  // own change rounded: 6.04 to 6.36 reads 60 to 64, "+4", not "+3". Played
+  // over rounds of kills, trades and deaths, every move shown adds up.
+  const D = require('../src/shared/display');
+  const pts = (x) => Math.round(x * 10);
+  const walk = play();
+  let at = 10;
+  let shownBefore = pts(walk.live.view().value);
+  let lastKey = null;
+  const moves = [];
+  const step = (o) => {
+    walk.f(at, o);
+    at += 1;
+    const w = walk.live.view();
+    const key = w.last ? JSON.stringify(w.last) + w.value : null;
+    if (key && key !== lastKey) moves.push({ before: shownBefore, after: pts(w.value), delta: w.last.delta, up: w.last.up, down: w.last.down });
+    lastKey = key;
+    shownBefore = pts(w.value);
+  };
+  const scripts = [[ROW.myKill()], [ROW.mateDeath()], [ROW.myKill(0.03), ROW.mateKill(0.04)], [ROW.myDeath()]];
+  for (let round = 1; round <= 6; round++) {
+    walk.f(at, { round, team: Math.floor(round / 2), enemy: Math.floor((round - 1) / 2), alive: true, phase: 'active' }); at += 1;
+    const rows = scripts[round % scripts.length];
+    for (let k = 0; k < rows.length; k++) { step({ rows: rows.slice(0, k + 1) }); step({ rows: rows.slice(0, k + 1) }); }
+    step({ rows: [] });
+  }
+  const added = moves.every((m) => Number(m.delta) === m.after - m.before && m.up === (m.after > m.before) && m.down === (m.after < m.before));
+  ok(moves.length >= 4 && added, `each move shown is the change in the number shown, up and down with it (${moves.map((m) => `${m.before}>${m.after} ${m.delta}`).join(', ')})`);
+  const m1 = moveOf({ value: 6.36, delta: 0.32, label: 'Kill' });
+  const m2 = moveOf({ value: 6.06, delta: 0.04, label: 'Kill' });
+  const m3 = moveOf({ value: 5.94, delta: -0.02, label: 'Died' });
+  ok(m1.delta === '+4' && m1.up && !m1.down && D.ratingDelta(0.32) === '+3', `60 to 64 reads "+4" (${m1.delta}), never the event's own +0.32 rounded to "+3"`);
+  ok(m2.delta === '+1' && m2.up && m3.delta === '-1' && m3.down, `60 to 61 reads "+1" (${m2.delta}) and 60 to 59 "-1" (${m3.delta}), where the events' own moves round to nothing`);
+  ok(moveOf({ value: 6.04, delta: 0.03, label: 'Kill' }).delta === '0' && !moveOf({ value: 6.04, delta: 0.03, label: 'Kill' }).up, 'a move the number does not show is "0", neither up nor down');
   // Swiftplay: the shorter match's length rule.
   const sp = play();
   sp.f(5, { mode: 'swiftplay' });

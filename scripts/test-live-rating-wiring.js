@@ -162,8 +162,8 @@ console.log('\nWhen the recorder reads the corner (by what it is asked, not by i
 
 console.log('\npick: only the view\'s own fields, whatever is handed in');
 {
-  const p = pick({ value: 6.4, shown: '6.4', tier: 'fair', last: { delta: '+0.4', up: true, down: false, label: 'Kill, 4v5', hp: 87 }, line: [6, 6.4], map: 'Abyss', hp: 87 });
-  ok(JSON.stringify(p) === '{"value":6.4,"shown":"6.4","tier":"fair","last":{"delta":"+0.4","up":true,"down":false,"label":"Kill"},"line":[6,6.4]}', 'a stray field never rides along, and the label says what happened alone');
+  const p = pick({ value: 6.4, shown: '64', tier: 'fair', last: { delta: '+4', up: true, down: false, label: 'Kill, 4v5', hp: 87 }, line: [6, 6.4], map: 'Abyss', hp: 87 });
+  ok(JSON.stringify(p) === '{"value":6.4,"shown":"64","tier":"fair","last":{"delta":"+4","up":true,"down":false,"label":"Kill"},"line":[6,6.4]}', 'a stray field never rides along, and the label says what happened alone');
   ok(pick(null) === null && pick({}) === null, 'nothing rated is nothing');
   const L = require('../src/main/services/live-rating-service').liveLabel;
   ok(L('First kill, 5v5') === 'Opening kill' && L('Died first, 4v5') === 'Died first' && L('Kill as the last one up, 1v3') === 'Kill' && L('Spike planted, 5v5') === 'Spike planted'

@@ -310,7 +310,7 @@ function liveOf(kind) {
   const v = { state: 'live', startedAt, mode: 'standard', map: 'Abyss', agent: 'Jett', team: 7, enemy: 6,
     tape: ['W', 'L', 'L', 'W', 'L', 'W', 'W', 'W', 'L', 'W', 'W', 'L', 'L'], round: 14 };
   // The live rating's own fields (live-rating-service.js pick), as main sends them.
-  if (kind === 'rated') v.rating = { value: 6.8, shown: '6.8', tier: 'fair', last: { delta: '+0.4', up: true, down: false, label: 'Opening kill' }, line: [6, 6.1, 5.8, 6.2, 6.4, 6.3, 6.8] };
+  if (kind === 'rated') v.rating = { value: 6.8, shown: '68', tier: 'fair', last: { delta: '+4', up: true, down: false, label: 'Opening kill' }, line: [6, 6.1, 5.8, 6.2, 6.4, 6.3, 6.8] };
   if (kind === 'blind') v.rating = { reading: false };
   return v;
 }

@@ -121,20 +121,20 @@ function messages(res, n, ms) {
   ok(lh.status === 200, 'localhost with the port is the same machine: answered');
 
   // The events.
-  s.send({ state: 'live', rating: { shown: '6.3', value: 6.3, tier: 'fair', last: { delta: '+0.3', up: true, down: false, label: 'First kill, 5v5' }, line: [6, 6.3] } });
+  s.send({ state: 'live', rating: { shown: '63', value: 6.3, tier: 'fair', last: { delta: '+3', up: true, down: false, label: 'First kill, 5v5' }, line: [6, 6.3] } });
   const ev = await get(port, `/${token}/events`, { stream: true });
   ok(ev.status === 200 && /^text\/event-stream/.test(ev.headers['content-type']) && ev.headers['cache-control'] === 'no-store'
     && !Object.keys(ev.headers).some((h) => /^access-control-/i.test(h)), 'the events: text/event-stream, no cache, no CORS header');
   const first = await messages(ev.res, 1, 1500);
-  ok(/^retry: 2000/m.test(first.raw) && first.got[0] && first.got[0].data.state === 'live' && first.got[0].data.rating.shown === '6.3',
+  ok(/^retry: 2000/m.test(first.raw) && first.got[0] && first.got[0].data.state === 'live' && first.got[0].data.rating.shown === '63',
     'a viewer that joins is told to come back in two seconds and given the last payload at once');
   ok(s.clients() === 1, 'one viewer');
   const more = messages(ev.res, 2, 1500);
-  ok(s.send({ state: 'live', rating: { shown: '6.3', value: 6.3, tier: 'fair', last: { delta: '+0.3', up: true, down: false, label: 'First kill, 5v5' }, line: [6, 6.3] } }) === false, 'the same payload again is not sent');
-  s.send({ state: 'live', rating: { shown: '6.1', value: 6.1, tier: 'fair', last: { delta: '-0.2', up: false, down: true, label: 'Died, 4v4' }, line: [6, 6.3, 6.1] } });
+  ok(s.send({ state: 'live', rating: { shown: '63', value: 6.3, tier: 'fair', last: { delta: '+3', up: true, down: false, label: 'First kill, 5v5' }, line: [6, 6.3] } }) === false, 'the same payload again is not sent');
+  s.send({ state: 'live', rating: { shown: '61', value: 6.1, tier: 'fair', last: { delta: '-2', up: false, down: true, label: 'Died, 4v4' }, line: [6, 6.3, 6.1] } });
   s.send({ state: 'idle' });
   const next = await more;
-  ok(next.got.length === 2 && next.got[0].data.rating.shown === '6.1' && next.got[1].data.state === 'idle', 'each new payload once, in order');
+  ok(next.got.length === 2 && next.got[0].data.rating.shown === '61' && next.got[1].data.state === 'idle', 'each new payload once, in order');
   ok(next.got.every((g) => Object.keys(g.data).every((k) => k === 'state' || k === 'rating')), 'nothing but what main sent');
 
   // Stopped: every viewer cut, nothing answers.

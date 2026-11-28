@@ -63,6 +63,22 @@ const STALE_MS = 5000;           // unseen a whole row's life (a long stall, fra
 const UNSEEN_FRAMES = 3;         // (rows live by when last seen, not first, and a stall with no frame read ages nothing)
 const LINE_MAX = 60;             // points kept on the small line
 
+/**
+ * The last move as shown (100 scale): the difference of the two numbers the
+ * badge shows, before and after it (Display.ratingMove, as the review's
+ * rounds and replay take it), so 6.04 to 6.36 reads 60 to 64 with "+4",
+ * never the event's own +0.32 rounded to "+3". Up and down follow the move
+ * shown, so "0" is neither. (The engine rounds its values and moves to the
+ * tenth today, so the two agree; this holds if that ever changes.)
+ * @param {{ value: number, delta: number, label: string|null }} e  the player's last labelled event
+ */
+function moveOf(e) {
+  const shownMove = Number.isFinite(e.value) && Number.isFinite(e.delta) ? rating.Display.ratingMove(e.value, e.value - e.delta) : '';
+  const delta = shownMove || rating.signed(e.delta);
+  const way = rating.Display.moveWay(delta);
+  return { delta, up: way === 'up', down: way === 'down', label: e.label };
+}
+
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const int = (v) => (Number.isInteger(v) && v >= 0 ? v : null);
 
@@ -420,13 +436,6 @@ function createLiveRating(opts) {
     }
   }
 
-  /** The last move as shown (100 scale): up and down follow the number shown, so "0" is neither. */
-  function moveOf(e) {
-    const delta = rating.signed(e.delta);
-    const way = rating.Display.moveWay(delta);
-    return { delta, up: way === 'up', down: way === 'down', label: e.label };
-  }
-
   /** What a window may show: the number (shown on the 100 scale), its tier, the last move and its label, the line. */
   function view() {
     const value = r.value();
@@ -456,4 +465,4 @@ function createLiveRating(opts) {
   };
 }
 
-module.exports = { createLiveRating, clockLeft, sameRow, MATCH_ROW_MS, HOLD_ROW_MS, END_HOLD_MS, OPEN_WAIT_MS };
+module.exports = { createLiveRating, clockLeft, moveOf, sameRow, MATCH_ROW_MS, HOLD_ROW_MS, END_HOLD_MS, OPEN_WAIT_MS };
