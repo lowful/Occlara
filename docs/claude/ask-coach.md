@@ -55,7 +55,10 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   numbers an explanation needs computed (seconds from the player's last kill
   to the death, seconds after the plant), the screen's spot and ult, a saved
   look's cause, sentences and digits, the counted lists and patterns, the
-  grade with its evidence, the numbers against the player's own average, the
+  grade with its evidence (its score alone: since 9.1 a letter an older
+  client still sends is never kept or printed, `chat-prompt.js normalise` and
+  `rowOf`, `test:chatgates` "one score, no letters"), the numbers against
+  the player's own average, the
   coach's summary and focus, the breakdown's rows for the map and the agent,
   the patterns across matches, the tracker's numbers by name and the eight
   newest other matches a line each. A card saved before 8.0.3 is read back

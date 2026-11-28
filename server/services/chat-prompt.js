@@ -421,9 +421,13 @@ function valorantMatchOf(raw, language) {
   } : null;
   m.against = list(raw.against, 6).map((a) => (a && AGAINST.has(a.label) && num(a.value, 0, 1000) !== null && num(a.baseline, 0, 1000) !== null
     ? { label: a.label, value: a.value, baseline: a.baseline, games: int(a.games, 1, 100) } : null)).filter(Boolean);
+  // ONE SCORE, NO LETTERS (9.1, the owner's item 16): a client before 9.1
+  // still sends its grade's letter, and it is never kept, so the prompt
+  // carries the score alone and the model never sees, or says, a letter.
+  // The same for League's grade and the library's rows (rowOf).
   const gr = raw.grade && typeof raw.grade === 'object' ? raw.grade : null;
   m.grade = gr && int(gr.score, 0, 100) !== null ? {
-    score: gr.score, letter: /^[SABCD]$/.test(String(gr.letter || '')) ? gr.letter : null, provisional: bool(gr.provisional),
+    score: gr.score, provisional: bool(gr.provisional),
     categories: list(gr.categories, 6).map((c) => (c && clip(c.label, 24) ? {
       key: clip(c.key, 20), label: clip(c.label, 24), score: int(c.score, 0, 100),
       evidence: list(c.evidence, 6).map((e) => clip(e, 160)).filter((e) => e && !gates.shapeOf(e)),
@@ -484,7 +488,7 @@ function lolMatchOf(raw, language) {
       cs: int(sl.cs, 0, 2000), csAt10: int(sl.csAt10, 0, 300), ward: int(sl.ward, 0, 400), level: int(sl.level, 1, 18),
     },
     grade: gr && int(gr.score, 0, 100) !== null ? {
-      score: gr.score, letter: /^[SABCD]$/.test(String(gr.letter || '')) ? gr.letter : null, provisional: bool(gr.provisional),
+      score: gr.score, provisional: bool(gr.provisional),
       categories: list(gr.categories, 6).map((c) => (c && clip(c.label, 24) ? { key: clip(c.key, 20), label: clip(c.label, 24),
         score: int(c.score, 0, 100), evidence: list(c.evidence, 6).map((e) => clip(e, 160)).filter(Boolean) } : null)).filter(Boolean),
     } : null,
@@ -500,7 +504,7 @@ function rowOf(r) {
   return {
     label: clip(r.label, 24), matches: int(r.matches, 0, 400),
     won: int(r.won, 0, 400), lost: int(r.lost, 0, 400), known: int(r.known, 0, 400),
-    winRate: num(r.winRate, 0, 100), grade: int(r.grade, 0, 100), letter: /^[SABCD]$/.test(String(r.letter || '')) ? r.letter : null,
+    winRate: num(r.winRate, 0, 100), grade: int(r.grade, 0, 100),
     kd: num(r.kd, 0, 20), acs: int(r.acs, 0, 1000), adr: int(r.adr, 0, 1000), hs: num(r.hs, 0, 100),
   };
 }
@@ -1614,7 +1618,7 @@ function renderPlayer(input, trim) {
     if (!r) return;
     const bits = [`${r.matches} matches in the library`];
     if (fin(r.known) && r.known) bits.push(`won ${r.won} of the ${r.known} with a result`);
-    if (fin(r.grade)) bits.push(`average grade ${r.grade}${r.letter ? ` ${r.letter}` : ''}`);
+    if (fin(r.grade)) bits.push(`average grade ${r.grade}`);
     if (fin(r.kd)) bits.push(`K/D ${r.kd}`);
     if (fin(r.acs)) bits.push(`ACS ${r.acs}`);
     if (fin(r.adr)) bits.push(`ADR ${r.adr}`);
@@ -1870,7 +1874,7 @@ function renderMatch(input, facts, trim) {
     lines.push(`- Scoreline: ${[fin(sl.kills) ? `${sl.kills} kills` : null, fin(sl.deaths) ? `${sl.deaths} deaths` : null, fin(sl.assists) ? `${sl.assists} assists` : null,
       fin(sl.cs) ? `${sl.cs} CS` : null, fin(sl.csAt10) ? `${sl.csAt10} CS at 10 minutes` : null, fin(sl.ward) ? `vision score ${sl.ward}` : null, fin(sl.level) ? `level ${sl.level}` : null]
       .filter(Boolean).join(', ')}.`);
-    if (m.grade) lines.push(`- Grade (counted): ${m.grade.score}${m.grade.letter ? ` ${m.grade.letter}` : ''}. ${m.grade.categories.map((c) => `${c.label} ${fin(c.score) ? c.score : 'not measured'}${c.evidence.length ? `: ${c.evidence.join('; ')}` : ''}`).join('. ')}.`);
+    if (m.grade) lines.push(`- Grade (counted): ${m.grade.score}. ${m.grade.categories.map((c) => `${c.label} ${fin(c.score) ? c.score : 'not measured'}${c.evidence.length ? `: ${c.evidence.join('; ')}` : ''}`).join('. ')}.`);
     for (const [k, head] of [['mistakes', 'Mistakes'], ['strengths', 'Went well'], ['missed', 'Missed']]) {
       for (const e of m.lists[k]) lines.push(`- ${head} (counted): ${e.title}${e.detail ? `: ${e.detail}` : ''}${e.fix ? ` Fix: ${e.fix}` : ''}`);
     }
@@ -1900,7 +1904,7 @@ function renderMatch(input, facts, trim) {
   const hsAgainst = m.against.find((a) => a.label === 'Headshot %');
   if (hsAgainst) counted.push(`- Said to the player: your headshot rate this match was ${hsAgainst.value}%, against your own average of ${hsAgainst.baseline}%${hsAgainst.games ? ` over your last ${hsAgainst.games} matches` : ''}.`);
   if (m.grade) {
-    counted.push(`- Grade: ${m.grade.score}${m.grade.letter ? ` ${m.grade.letter}` : ''}${m.grade.provisional ? ' (provisional)' : ''}. ${m.grade.categories.map((c) => `${c.label} ${fin(c.score) ? c.score : 'not measured'}${c.evidence.length ? ` (${c.evidence.join('; ')})` : ''}`).join('. ')}.`);
+    counted.push(`- Grade: ${m.grade.score}${m.grade.provisional ? ' (provisional)' : ''}. ${m.grade.categories.map((c) => `${c.label} ${fin(c.score) ? c.score : 'not measured'}${c.evidence.length ? ` (${c.evidence.join('; ')})` : ''}`).join('. ')}.`);
   }
   const entry = (head, e) => `- ${head}: ${e.title}${e.rounds.length ? `, ${roundsText(e.rounds)}` : ''}${e.detail ? `. ${e.detail}` : ''}${e.fix ? ` Fix: ${e.fix}` : ''}`;
   for (const e of m.lists.mistakes) counted.push(e.key === 'untraded' ? untradedEntry(e, m) : entry('Repeated mistake', e));

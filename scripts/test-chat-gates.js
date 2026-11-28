@@ -4711,5 +4711,27 @@ console.log('\nround 8, the game facts gates:');
     'ownUtilityAsked: the player\'s own Valorant agent known and no other asked, both ways');
 }
 
+// ── One score, no letters (9.1, the owner's item 16) ───────────────────────
+// A client before 9.1 still sends its grade's letter: never kept, never
+// printed, so the model is given the score alone.
+{
+  console.log('\none score, no letters, in the prompt (9.1):');
+  const row = { label: 'Jett', matches: 12, won: 7, lost: 5, known: 12, winRate: 58, grade: 70, letter: 'B', kd: 1.1 };
+  const val = cp.normalise({ v: 2, game: 'valorant', language: 'en', advanced: false,
+    match: { result: 'Victory', verified: true, at: AT, id: 'valorant-1790000000000-split91g', map: 'Split', agent: 'Jett', mode: 'Swiftplay', score: '5-2', rounds: 7,
+      scoreline: { kills: 11, deaths: 5, assists: 2 }, grade: { score: 84, letter: 'B', categories: [{ key: 'aim', label: 'Aim', score: 80, evidence: [] }] } },
+    player: { agentRow: row, mapRow: { ...row, label: 'Split', letter: 'A' } }, ask: {} });
+  const lol = cp.normalise({ v: 2, game: 'lol', language: 'en', match: { champion: 'Ahri', role: 'Mid', mode: 'CLASSIC', at: AT,
+    scoreline: { kills: 7, deaths: 4, assists: 9, cs: 182 }, grade: { score: 71, letter: 'B', categories: [{ key: 'farming', label: 'Farming', score: 64, evidence: ['182 CS'] }] } }, player: {}, ask: {} });
+  const ask = [{ role: 'user', content: 'How did I do?' }];
+  const vp = cp.buildPrompt(val, ask);
+  const lp = cp.buildPrompt(lol, ask);
+  ok(!('letter' in val.match.grade) && !('letter' in val.player.agentRow) && !('letter' in val.player.mapRow) && !('letter' in lol.match.grade),
+    'a letter sent is never kept, on the grade, on the library rows and on League\'s grade');
+  ok(/- Grade: 84\. Aim 80/.test(vp) && /average grade 70,/.test(vp) && !/\b(?:84|70) [SABCD]\b/.test(vp),
+    'the Valorant prompt says "Grade: 84." and "average grade 70", never a letter beside them');
+  ok(/- Grade \(counted\): 71\. Farming 64/.test(lp) && !/\b71 [SABCD]\b/.test(lp), "and League's says \"Grade (counted): 71.\", never \"71 B\"");
+}
+
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');
 process.exit(fails ? 1 : 0);
