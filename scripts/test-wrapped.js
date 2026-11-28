@@ -277,7 +277,8 @@ const slide = (k) => st.slides.find((s) => s.kind === k);
   const mi = slide('mistakes');
   ok(mi.beaten && mi.beaten.key === 'untraded' && mi.beaten.early > mi.beaten.late, 'the mistake beaten: untraded deaths, falling over the sample year', JSON.stringify(mi.beaten));
   ok(mi.still && mi.still.key === 'early', 'still to beat: dying early, steady all year', JSON.stringify(mi.still));
-  ok(mi.beaten.title === 'Died where nobody could trade', 'under its year\'s title');
+  // The sample year saved it as "Died where nobody could trade"; the page says today's title (9.1, mistake-titles.js).
+  ok(mi.beaten.title === 'Deaths nobody traded', 'under today\'s title, from a year record saved under the old one');
   const f = slide('fights');
   const guns = {};
   for (const r of vRows) for (const [w, n] of Object.entries(r.weapons)) guns[w] = (guns[w] || 0) + n;

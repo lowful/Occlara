@@ -1191,7 +1191,7 @@ function factsOf(input, messages, opts) {
   const pl = inp.player || {};
   for (const p of pl.patterns || []) {
     addNum('matches', p.matches); addNum('matches', p.of); f.counted.titles.push(lower(gates.straighten(p.title)));
-    if (p.title === OLD_UNTRADED_TITLE) f.counted.titles.push(lower(UNTRADED_TITLE));
+    if (untradedPattern(p)) f.counted.titles.push(lower(UNTRADED_TITLE));
     // "In 5 of 6 matches", THE PLAYER's line, is a pair the reply may say back
     // ("5 of your last 6 matches", fact-gates.js pairWords): it was no pair the
     // count gate knew, and four honest lines of the round 3 audit opened on it.
@@ -1605,7 +1605,9 @@ function renderPlayer(input, trim) {
     // With the words to say it in, so a true cross match number reaches the
     // player as the library holds it (fact-gates.js gateLibrary, the re-audit of 8.7.7).
     // The untraded pattern under its honest title (round 8): "nobody could trade" read as nobody near.
-    const title = input.game !== 'lol' && x.title === OLD_UNTRADED_TITLE ? UNTRADED_TITLE : x.title;
+    // Since 9.1 the client names it "Deaths nobody traded" in every match, under the same one here
+    // as the match's own line (untradedEntry), never two names for one habit in one prompt.
+    const title = input.game !== 'lol' && untradedPattern(x) ? UNTRADED_TITLE : x.title;
     lines.push(`- Across their last recorded ${game} matches (counted): "${title}" in ${x.matches} of ${x.of} matches${x.trend ? `, ${x.trend}` : ''}. Said to the player: in ${x.matches} of your last ${x.of} matches.`);
   }
   const row = (r, what) => {
@@ -1822,6 +1824,11 @@ function untradedEntry(e, m) {
 // The counted title said as Riot records it: "Died where nobody could trade" claimed a distance (insights.js FACTS has the same).
 const UNTRADED_TITLE = 'Deaths not traded within five seconds';
 const OLD_UNTRADED_TITLE = 'Died where nobody could trade';
+// The title the client writes for every untraded entry since 9.1 (src/shared/mistake-titles.js
+// TITLES.untraded, which the server cannot require; test:mistaketitles holds the two equal).
+const CLIENT_UNTRADED_TITLE = 'Deaths nobody traded';
+/** A pattern of the untraded deaths, by its key or by either title a client wrote for it. */
+const untradedPattern = (p) => !!p && (p.key === 'untraded' || p.title === OLD_UNTRADED_TITLE || p.title === CLIENT_UNTRADED_TITLE);
 function recordUseLine(m) {
   const rs = ((m && m.cards) || []).map((c) => c && c.riot).filter(Boolean);
   const has = (k) => rs.some((r) => r[k]);
@@ -3867,6 +3874,7 @@ module.exports = {
   // The parts, for the tests and bench:chat.
   factsOf, cleanReply, gateReply, askedRounds, matchName, pickNotes, casesFor, enemiesOf, CASE_GROWTH, primerFacts, normEntry, echoOf, gateText, stated, standingsOf, deathStandingsOf, LEANS_REASON,
   renderPlayer, renderMatch, renderAsked, renderEarlier, renderSlices, staticPrefix, languageLine, gunsInCore,
+  UNTRADED_TITLE, OLD_UNTRADED_TITLE, CLIENT_UNTRADED_TITLE,
   VALORANT_RULES, LEAGUE_RULES, RIOT_ONLY, NO_MATCH, DYNAMIC_MAX_CHARS, MATCH_MAX_CHARS, MAX_CHARS, MAX_ASKED_ROUNDS, VERDICT, VERDICT_REASON,
   FALLBACK_KEPT, questionTopics, QUESTION_TOPICS, askedSituation, situationHits,
   // The re-audit of 8.7.7 (Nov 2026), each asserted in test:chatgates.

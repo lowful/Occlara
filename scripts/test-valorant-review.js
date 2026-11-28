@@ -1249,10 +1249,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     'a body built today carries the swing, the mark of the round 3 rules, and one without it is a client before them');
   const prompt = matchReview.buildPrompt(matchReview.normalise(bodyBefore3));
   const prompt3 = matchReview.buildPrompt(input);
-  ok(/COUNTED MISTAKES[^\n]*\n- Died where nobody could trade \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt)
+  ok(/COUNTED MISTAKES[^\n]*\n- Deaths nobody traded \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt)
     && /Second, the first counted mistake in your own words, with its count exactly as given/.test(prompt),
   'the summary is asked for the first counted mistake, with its count');
-  ok(/COUNTED MISTAKES[^\n]*\n- Died where nobody could trade \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt3)
+  ok(/COUNTED MISTAKES[^\n]*\n- Deaths nobody traded \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt3)
     && /Second, the lever the FOCUS fixes, in your own words: a counted mistake with its count exactly as given/.test(prompt3)
     && !/the first counted mistake/.test(prompt3) && /\nFOCUS LEVER: /.test(prompt3) && /\nAIM EVIDENCE: /.test(prompt3),
   'a round 3 client\'s summary is asked for the lever the focus fixes, never the first counted mistake by rule');

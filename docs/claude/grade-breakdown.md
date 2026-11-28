@@ -59,9 +59,13 @@ Decisions.
   count, rounds and `of`. Riot's nearest teammate at each death (`mateNear`)
   is told inside it: `close` (a count) and `closeRounds`, the detail adds
   "and in 6 of them a teammate was close, rounds ...", the title is "Deaths
-  nobody traded" where any death had a teammate close ("Died where nobody
-  could trade" only where none did, word for word as before), and the fix is
-  about the pair where half or more were close. For a while the close deaths
+  nobody traded" (until 9.1 "Died where nobody could trade" where no death had
+  a teammate close: one key under two names, which Home and the library showed
+  as two habits; since 9.1 one title, `src/shared/mistake-titles.js`, and a
+  review, a library row, a pattern, a Moments mark or Wrapped's year saved
+  under the old one is shown under today's, never rewritten on disk,
+  `test:mistaketitles`), and the fix is about the pair where half or more
+  were close. For a while the close deaths
   were their own key, `untraded-close`; every reader of the trade habit reads
   `untraded` only (the review's `focusLever`, `leverOf`, `leverRule4`, Ask
   Coach's two weakest, the Verdict, `patterns` and `input.recurring`), so

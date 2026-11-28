@@ -35,6 +35,7 @@ const path = require('path');
 const { CLIP_RE, posterNameOf } = require('../../shared/clips');
 const { isRetired } = require('../../shared/games');
 const { clipNames } = require('../../shared/death-flags');
+const { todaysTitle } = require('../../shared/mistake-titles');
 
 const MAX_REVIEWS = 300;          // about a season of daily play
 const ID_RE = /^[a-z]+-\d{10,}-[a-z0-9]{4,}$/;
@@ -132,10 +133,15 @@ function metaOf(id, game, review, at) {
  * no mistakes (insights.countable), but 8.0.3 and 8.1 wrote the first of the
  * list it then had into the index as its top one, and a row is only written
  * again when its own review is saved again. So it is cleaned on the way out,
- * for the library and Stats alike, and never rewritten on disk.
+ * for the library and Stats alike, and never rewritten on disk. Its top
+ * mistake is in today's words too (9.1, mistake-titles.js): a row saved as
+ * "Died where nobody could trade" lists as "Deaths nobody traded", as its
+ * review now reads.
  */
 function listed(row) {
-  return row && row.source === 'riot' && row.topMistake ? { ...row, topMistake: null } : row;
+  if (row && row.source === 'riot' && row.topMistake) return { ...row, topMistake: null };
+  const top = row && row.topMistake ? todaysTitle(null, row.topMistake) : null;
+  return top && top !== row.topMistake ? { ...row, topMistake: top } : row;
 }
 
 class ReviewStore {
