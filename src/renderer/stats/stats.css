@@ -90,6 +90,11 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
 .rank-progress .rank-foot { display: flex; justify-content: space-between; gap: var(--space-3); font-family: var(--font-mono); font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .rank-progress.uncapped .rank-foot { justify-content: flex-start; gap: var(--space-2); }
 .rank-progress.uncapped .rank-foot span:first-child::after { content: ''; display: inline-block; width: 3px; height: 3px; margin: 0 0 2px var(--space-2); border-radius: 50%; background: var(--text-3); }
+/* The RR left out where the line under the tile already says it (9.1): no
+   empty place and no dot before nothing; the way to the next tier keeps the
+   right. */
+.rank-progress .rank-foot span:empty { display: none; }
+.rank-progress:not(.uncapped) .rank-foot span:last-child { margin-left: auto; }
 @media (prefers-reduced-motion: reduce) { .card .rank-icon { transition: none; transform: none; } }
 /* Opened and closed by height in place (#rank-reveal, .reveal in ui.css). */
 .rank-notes { padding: var(--space-3) 0 var(--space-2); }

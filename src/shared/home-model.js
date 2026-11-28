@@ -323,8 +323,15 @@ const GAME_RR = 60;
 
 const pointsOf = (history) => (history && !history.error && Array.isArray(history.points)
   ? history.points.filter((p) => p && typeof p === 'object') : []);
-const isRated = (p) => typeof p.elo === 'number' && p.elo > 0 && typeof p.tier === 'string' && !!p.tier && !UNRATED.test(p.tier);
-const gameRR = (p) => typeof p.elo === 'number' && p.elo > 0 && Number.isFinite(p.change) && Math.abs(p.change) <= GAME_RR;
+/*
+ * IRON 1 AT 0 RR IS A RANK (9.1). Its elo is 0 (place 0 times 100 plus 0 RR),
+ * the same number an unrated point carries, and read as unrated the card
+ * showed the game before it: "+19 RR" after a game that cost 19. An elo of 0
+ * is rated only where its tier says Iron 1, the one tier it can be.
+ */
+const eloRated = (p) => typeof p.elo === 'number' && Number.isFinite(p.elo) && (p.elo > 0 || (p.elo === 0 && Tiers.placeOf(p.tier) === 0));
+const isRated = (p) => eloRated(p) && typeof p.tier === 'string' && !!p.tier && !UNRATED.test(p.tier);
+const gameRR = (p) => eloRated(p) && Number.isFinite(p.change) && Math.abs(p.change) <= GAME_RR;
 
 /**
  * The rank card, or null without a rated point (no Riot ID, no rated game, a

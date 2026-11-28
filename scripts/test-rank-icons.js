@@ -115,6 +115,15 @@ const ok = (cond, what, detail) => {
   const prog = stats.api.rankProgress('Gold 2', 1067);
   ok(prog && prog.rr === 67 && prog.next === 'Gold 3' && prog.capped === true, "and the way to the next tier from a history point's elo", JSON.stringify(prog));
   ok(stats.api.rankProgress('Bogus', 900) === null && stats.api.rankProgress('Gold 2', 0) === null, 'and none for a tier or an elo it cannot read');
+  // Iron 1 at 0 RR is an elo of 0, the one tier where 0 is a rank (9.1).
+  const iron = stats.api.rankProgress('Iron 1', 0);
+  ok(iron && iron.rr === 0 && iron.next === 'Iron 2' && iron.capped === true && stats.api.rankProgress('Unranked', 0) === null,
+    'Iron 1 at 0 RR is a rank with 100 to Iron 2; Unranked at 0 is none', JSON.stringify(iron));
+  const iron0 = rankModel(pts('Iron 1', [19, 0]));
+  ok(iron0 && iron0.tier === 'Iron 1' && iron0.rr === 0 && iron0.change === -19 && iron0.next === 'Iron 2',
+    "Home's model: Iron 1 at 0 RR is the rank, and the game that cost 19 its last change", JSON.stringify(iron0));
+  ok(rankModel({ points: [{ date: 1e12, elo: 0, change: 0, tier: 'Unrated' }, { date: 1e12 + 1, elo: 0, change: 0, tier: 'Gold 2' }] }) === null,
+    'an elo of 0 under any tier but Iron 1 is still no rank');
   await settle();
 
   // ── Never in the Trainer ───────────────────────────────────────────────────

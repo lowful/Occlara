@@ -202,7 +202,7 @@ async function renderRankGraph(host, opts) {
   // gains (+1535 from "Unrated" to Diamond). Keep only rated games, then cut
   // at the newest discontinuity so the graph covers one honest stretch, and
   // report net RR as the sum of per-game changes, what was actually gained.
-  points = points.filter((p) => p.elo > 0 && p.tier && !/unrated|unranked/i.test(p.tier));
+  points = points.filter(ratedPoint);
   let startIdx = 0;
   for (let i = points.length - 1; i > 0; i--) {
     if (Math.abs(points[i].elo - points[i - 1].elo) > 300) { startIdx = i; break; }
@@ -314,10 +314,22 @@ function rankDelta(points) {
   const list = Array.isArray(points) ? points : [];
   for (let i = list.length - 1; i >= 0; i--) {
     const p = list[i];
-    if (p && p.elo > 0 && Number.isFinite(p.change) && Math.abs(p.change) <= 60) return p.change;
+    if (eloRated(p) && Number.isFinite(p.change) && Math.abs(p.change) <= 60) return p.change;
   }
   return null;
 }
+
+/*
+ * A RATED ELO (9.1): above 0, or 0 where the tier is Iron 1, whose 0 RR is an
+ * elo of 0 just as an unrated point's is. Read as unrated, Iron 1 at 0 showed
+ * the game before it. Home reads it the same way (home-model.js eloRated).
+ */
+function eloRated(p) {
+  return !!p && typeof p.elo === 'number' && Number.isFinite(p.elo)
+    && (p.elo > 0 || (p.elo === 0 && /^iron ?1$/i.test(String(p.tier || '').trim())));
+}
+/** A point of a rated game: a rated elo and a tier that is not Unrated or Unranked. */
+function ratedPoint(p) { return eloRated(p) && !!p.tier && !/unrated|unranked/i.test(p.tier); }
 
 async function paintRankDelta(el) {
   const change = rankDelta(await rrPoints());
@@ -359,7 +371,7 @@ function paintRankIcon(card, tier) {
 async function paintRankProgress(card, tier) {
   if (!tier || typeof window.occlara.rankProgress !== 'function') return;
   const points = await rrPoints();
-  const newest = [...points].reverse().find((p) => p && p.elo > 0 && p.tier && !/unrated|unranked/i.test(p.tier));
+  const newest = [...points].reverse().find(ratedPoint);
   // The tile may have been built again meanwhile (the mode, Refresh): only the one on the page.
   if (!newest || String(newest.tier).trim().toLowerCase() !== String(tier).trim().toLowerCase() || !cardsEl.contains(card)) return;
   const prog = window.occlara.rankProgress(newest.tier, newest.elo);
@@ -378,12 +390,16 @@ async function paintRankProgress(card, tier) {
   foot.className = 'rank-foot';
   const a = document.createElement('span');
   const b = document.createElement('span');
-  // Below Immortal the quiet line under it already says the RR: the foot says only how far to go.
-  a.textContent = prog.capped ? '' : `${prog.rr} RR`;
+  // The RR is said once (9.1). The quiet line under the tile (main's
+  // rankLine, from Riot's MMR) opens with it whenever Riot gives one up to
+  // 100, Immortal included: then the foot says only how far to go, or why
+  // there is no bar. Without that line the foot says it.
+  const sub = card.querySelector('.rank-sub');
+  const said = !!sub && /^\d+ RR\b/.test(sub.textContent.trim());
+  a.textContent = said ? '' : `${prog.rr} RR`;
   b.textContent = prog.capped ? `${100 - prog.rr} RR to ${prog.next || 'the next rank'}` : prog.next ? `${prog.next} follows the leaderboard` : 'The highest rank';
   foot.append(a, b);
   box.append(foot);
-  const sub = card.querySelector('.rank-sub');
   if (sub) card.insertBefore(box, sub); else card.append(box);
 }
 

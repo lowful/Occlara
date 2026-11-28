@@ -34,7 +34,9 @@ contextBridge.exposeInMainWorld('occlara', {
   // from a rank history point (rank-tiers.js), the RR as the game shows it.
   rankIcon:        (tier) => { const f = RankTiers.iconFile(tier); return f ? `../../../assets/${f}` : null; },
   rankProgress:    (tier, elo) => {
-    if (RankTiers.placeOf(tier) === null || typeof elo !== 'number' || !Number.isFinite(elo) || elo <= 0) return null;
+    // An elo of 0 is a rank only at Iron 1, 0 RR (9.1); an unrated point carries 0 too.
+    const place = RankTiers.placeOf(tier);
+    if (place === null || typeof elo !== 'number' || !Number.isFinite(elo) || elo < 0 || (elo === 0 && place !== 0)) return null;
     // Below Immortal the RR is the elo's last two digits, as Home reads it (home-model.js inTier).
     const capped = RankTiers.capped(tier);
     const rr = capped ? Math.round(elo) % 100 : RankTiers.rrOf(tier, elo);
