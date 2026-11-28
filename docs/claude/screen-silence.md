@@ -135,7 +135,10 @@ exactly as narrow as that choice:
 - **Only where the supply was measured, and not proven for kills**: the kill
   feed is read off the recorder's own frames five times a second, only while
   recording at 720p or 1080p; recording off or at 480p it stays off and
-  Settings says why. Deaths were measured to the bar on full rate video; the
+  Settings, Home and the Recording screen say why (9.1: main's state carries
+  `live.liveRatingNeeds`, a fact of the player's settings, never of the
+  match; waiting and mid match the screen says it needs recording at 720p or
+  1080p instead of promising a number). Deaths were measured to the bar on full rate video; the
   player's kills only on 3 (rating.md, "Live"), so the number is marked
   provisional, says it usually reads lower than the confirmed rating and that
   assists are not counted live, and shows "Not reading the kill feed" in

@@ -287,6 +287,83 @@ const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\
       'the bar\'s bridge asks for it, hears it, and presses it');
   });
 
+  // THE BAR GIVES WAY (9.1). At 960 with the licence ended, What's new and an
+  // update ready, the group ran past the window and cut the close button
+  // off, and the notice saying why Start is locked got nothing; the pills
+  // squeezed a server notice to "T...". The notice now comes first, the
+  // controls draw in, and the window's buttons are never cut. The widths are
+  // looked at by picture (shot-demo barended960, barnotice960, barnotice1280).
+  await section('the bar gives way: a notice first, the window\'s buttons never cut:', async () => {
+    const p = await openShell({ page: 'matches', news: NEWS, update: READY });
+    const bar = p.document.querySelector('.bar');
+    ok(!bar.classList.contains('has-notice'), 'no notice: the pills keep their words');
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, notice: { kind: 'server', text: 'The coaching server could not be reached.' } });
+    await settle();
+    ok(bar.classList.contains('has-notice') && p.$('notice').textContent === 'The coaching server could not be reached.', 'a notice: the bar marked so');
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, notice: null });
+    await settle();
+    ok(!bar.classList.contains('has-notice'), 'gone: the pills have their words back');
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: false, notice: null });
+    await settle();
+    ok(bar.classList.contains('has-notice') && /subscription has ended/i.test(p.$('notice').textContent), 'the licence ended is a notice too, the sentence in full');
+    p.bridge.emit(C.PUSH_STATE, { ...BASE });
+    await settle();
+
+    const css = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+    const hides = (sel) => new RegExp(`${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{\\s*display: none;`).test(css)
+      || new RegExp(`${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')},`).test(css);
+    ok(/\.bar\.has-notice \.news \.news-text, \.bar\.has-notice \.news \.btn-arrow \{ display: none; \}/.test(css)
+      && /\.bar\.has-notice \.upd \.upd-word \{ display: none; \}/.test(css) && /\.bar\.has-notice \.rec-back-word \{ display: none; \}/.test(css),
+    'with a notice, What\'s new keeps its spark, the updater its icon and back to recording its dot');
+    const narrow = (css.match(/@media \(max-width: 1040px\) \{\s*\.bar\.has-notice \.news \{ display: none; \}\s*\.bar \.toggle\.ended \{ display: none; \}\s*\}/) || [])[0];
+    ok(!!narrow, 'under 1040px with a notice, What\'s new waits and the ended button goes, the notice saying it in full');
+    ok(hides('.app.is-recording .game-seg'), 'recording, the picker gives its room back, as mid match');
+    ok(/\.bar\.tight \.news, \.bar\.tight \.game-seg, \.bar\.tight \.toggle\.ended \{ display: none; \}/.test(css)
+      && /\.bar\.tight \.upd \.upd-word, \.bar\.tight \.rec-back-word \{ display: none; \}/.test(css),
+    'and marked tight, all of it at once');
+    ok(p.$('rec-back').querySelector('.rec-back-word') && p.$('rec-back').getAttribute('aria-label') === 'Back to the Recording screen',
+      'back to recording keeps its name with its word drawn in');
+
+    // Recording: the app says so, for the picker.
+    p.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
+    await settle();
+    ok(p.document.querySelector('.app').classList.contains('is-recording'), 'recording: the app marked so');
+    p.bridge.emit(C.PUSH_STATUS, { status: 'stopped' });
+    await settle();
+    ok(!p.document.querySelector('.app').classList.contains('is-recording'), 'stopped: not');
+
+    // Still running past the window: tight, measured by layout alone.
+    const wc = p.document.querySelector('.win-controls');
+    Object.defineProperty(bar, 'clientWidth', { configurable: true, get: () => 960 });
+    let left = 843;
+    Object.defineProperty(wc, 'offsetLeft', { configurable: true, get: () => left });
+    Object.defineProperty(wc, 'offsetWidth', { configurable: true, get: () => 138 });
+    for (const fn of p.window._listeners.resize || []) fn();
+    ok(bar.classList.contains('tight'), 'the window\'s buttons past the window\'s edge: the bar is marked tight');
+    left = 700;
+    for (const fn of p.window._listeners.resize || []) fn();
+    ok(!bar.classList.contains('tight'), 'room again: not tight');
+
+    // What's new given way to a notice (not drawn) is not yet seen.
+    const away = loadSurface('shell', {
+      handlers: {
+        [C.STATE_GET]: () => ({ ...BASE, notice: { kind: 'server', text: 'The coaching server could not be reached.' } }),
+        [C.CONFIG_GET]: () => ({ language: 'en' }),
+        [C.SHELL_GET]: () => ({ page: 'matches', shown: 'matches', sealed: false, maximized: false }),
+        [C.CHANGELOG_NOTICE]: () => NEWS,
+      },
+    });
+    let drawn = false;
+    away.$('news').getClientRects = () => (drawn ? [{}] : []);
+    away.sentOn = (ch) => away.bridge.sent.filter(([c]) => c === ch);
+    await settle();
+    ok(!away.$('news').hidden && !away.sentOn(C.CHANGELOG_SEEN).length, 'given way to a notice, not drawn: not seen');
+    drawn = true;
+    away.bridge.emit(C.PUSH_STATE, { ...BASE, notice: null });
+    await settle();
+    ok(same(away.sentOn(C.CHANGELOG_SEEN), [[C.CHANGELOG_SEEN, '9.1.0']]), 'the notice gone and the pill drawn again: seen then, once');
+  });
+
   console.log(fails ? `\nFAIL: ${fails} of ${passes + fails} bar checks failed` : `\nPASS: all ${passes} bar checks passed`);
   process.exit(fails ? 1 : 0);
 })().catch((e) => { console.log(`FAIL  the test itself threw: ${e.stack || e}`); process.exit(1); });

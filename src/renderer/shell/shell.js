@@ -64,6 +64,7 @@ const toggleLbl = toggleBtn.querySelector('.t-label');
 const pauseBtn = $('pause');
 const recEl = $('rec');
 const noticeEl = $('notice');
+const barEl = document.querySelector('.bar');
 
 let isCoaching = false;
 let isPaused = false;
@@ -73,6 +74,10 @@ let gameId = 'valorant';
 let shell = { page: 'home', shown: 'home', sealed: false, held: false, rec: false, maximized: false };
 let cfg = null;
 let liveRatingOn = false;   // the live rating's switch as main keeps it (state.live), for the waiting line alone
+// On, but recording off or at 480p: main keeps the rating off (index.js
+// liveSwitches, liveRatingNeeds), and the screen says why rather than
+// promising a number that cannot come.
+let liveRatingNeeds = false;
 
 // ── The pages ──────────────────────────────────────────────────────────────
 /*
@@ -320,7 +325,17 @@ function paintNav() {
   if (app.classList.contains('home-page') !== homeNow) flipBar(() => app.classList.toggle('home-page', homeNow));
   app.classList.toggle('sealed-live', !!shell.sealed && !shell.held);
   app.classList.toggle('is-sealed', !!shell.sealed);
+  const recWas = app.classList.contains('rec-view');
   app.classList.toggle('rec-view', !!shell.rec && !shell.sealed);
+  // START HANDS THE KEYBOARD TO THE SCREEN (9.1): main focuses this document
+  // as the Recording view comes up in a window already in front
+  // (main-window.js setRecordingView), and the screen itself takes the focus,
+  // so the next Tab is Stop, not a control of the page now hidden. The
+  // screen, not Stop: a press of Enter must never stop what it just started,
+  // and no ring is drawn that the mouse did not ask for.
+  if (!recWas && app.classList.contains('rec-view') && typeof $('sealed').focus === 'function') {
+    try { $('sealed').focus({ preventScroll: true }); } catch { /* not focusable here */ }
+  }
   paintRecView();
   // What's new and the updater go from the bar on the Recording screen and
   // come back after it (9.1).
@@ -611,15 +626,18 @@ function paintLive() {
   paintChips();
   const v = live && live.state === 'live' ? live : null;
   // Paused, the head says so: nothing is read or recorded until the resume.
+  // The time beside it is when recording began, so paused it goes: "Paused
+  // since 6:33 AM" would name the start as the pause.
   document.querySelector('#live .live-word').textContent = isPaused ? 'Paused' : 'Recording';
   $('live-wait').hidden = !!v;
   $('live-wait-lr').hidden = !!v || !liveRatingOn;
+  $('live-wait-lr-text').textContent = liveRatingNeeds ? 'Live rating on, needs recording at 720p or 1080p' : 'Live rating on. It shows here once the match starts.';
   $('live-main').hidden = !v;
   $('live-tape-block').hidden = !v || (!Array.isArray(v.tape) && typeof v.round !== 'number');
-  const since = live && live.startedAt ? new Date(live.startedAt) : null;
+  const since = live && live.startedAt && !isPaused ? new Date(live.startedAt) : null;
   $('live-since').textContent = since ? `since ${since.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '';
   $('live-mode').textContent = v && v.mode ? (v.mode === 'swiftplay' ? 'Swiftplay' : 'Standard') : '';
-  paintRating(v ? v.rating : null);
+  paintRating(v ? v.rating : null, !!v && liveRatingOn && liveRatingNeeds);
   if (!v) return;
   // The agent's portrait.
   const face = $('live-face');
@@ -677,17 +695,21 @@ function paintLive() {
  * and the engine's label, the line so far. The count and the move run once
  * when the value changes; a repaint of the same value moves nothing.
  */
-function paintRating(r) {
+function paintRating(r, needs) {
   const box = $('live-rating');
   if (!box) return;
   // Main says the kill feed is not being read: that line, and no number.
+  // On with recording off or at 480p, main sends no rating at all: the same
+  // row says why, in Home's words, rather than the screen saying nothing.
   const off = $('live-rating-off');
   const blind = !!(r && typeof r === 'object' && r.reading === false);
-  if (off) off.hidden = !blind;
+  const unsent = !!needs && !(r && typeof r === 'object');
+  if (off) off.hidden = !(blind || unsent);
+  if ($('lr-off-text')) $('lr-off-text').textContent = unsent ? 'Needs recording at 720p or 1080p' : 'Not reading the kill feed';
   const ok = !blind && r && typeof r === 'object' && typeof r.value === 'number' && Number.isFinite(r.value) && !!window.RatingBadge;
   box.hidden = !ok;
   // The column draws in to make room for the row (shell.css .live-status.rated).
-  $('live').classList.toggle('rated', ok || blind);
+  $('live').classList.toggle('rated', ok || blind || unsent);
   if (!ok) { ratingShown = null; return; }
   const changed = ratingShown !== null && r.value !== ratingShown;
   window.RatingBadge.setNumber($('lr-num'), $('lr-badge'), r.value);
@@ -761,6 +783,7 @@ function flipBar(change) {
   const before = new Map();
   if (canPlay) for (const el of kids) if (laidOut(el)) before.set(el, el.getBoundingClientRect().left);
   change();
+  fitBar();
   if (!canPlay || !before.size) return;
   const dur = parseFloat(cssVar('--dur-nav')) || 420;
   const easing = cssVar('--spring-smooth') || 'cubic-bezier(0.16, 1, 0.3, 1)';
@@ -845,7 +868,8 @@ function paintNews() {
 }
 function newsOnScreen() {
   if (!news || typeof news.version !== 'string' || newsSeenFor === news.version) return;
-  if ($('news').hidden || document.visibilityState === 'hidden') return;
+  // Not drawn is not seen: hidden, or given way to a notice (shell.css).
+  if ($('news').hidden || !laidOut($('news')) || document.visibilityState === 'hidden') return;
   if (typeof document.hasFocus === 'function' && !document.hasFocus()) return;
   newsSeenFor = news.version;
   if (typeof window.occlara.newsSeen === 'function') window.occlara.newsSeen(news.version);
@@ -961,6 +985,30 @@ function paintNotice() {
   if (noticeEl.textContent !== text) noticeEl.textContent = text;
   if (line) noticeEl.title = text;
   else noticeEl.removeAttribute('title');
+  // A notice comes first: the bar's pills draw in to give it room (shell.css
+  // "The bar gives way"), and What's new, waiting under 1040px, counts as
+  // seen only once it is drawn again.
+  const had = barEl.classList.contains('has-notice');
+  barEl.classList.toggle('has-notice', !!text);
+  if (had !== !!text) { fitBar(); newsOnScreen(); }
+}
+
+/*
+ * THE BAR NEVER RUNS PAST THE WINDOW (9.1). shell.css lets the right group
+ * give way as it fills (a notice first, the picker while recording, the
+ * ended button under 1040px); should it still run past the window's edge (a
+ * longer word in another language, a control yet to come), the bar is marked
+ * tight and every pill draws in at once, so the window's buttons are never
+ * cut. Measured by layout alone (offsets, not the glide's transforms).
+ */
+function fitBar() {
+  const wc = barEl.querySelector('.win-controls');
+  if (!wc || typeof wc.offsetLeft !== 'number' || !barEl.clientWidth) return;
+  const was = barEl.classList.contains('tight');
+  if (was) barEl.classList.remove('tight');
+  const over = wc.offsetLeft + wc.offsetWidth > barEl.clientWidth + 0.5;
+  if (over) barEl.classList.add('tight');
+  if (was !== over) newsOnScreen();
 }
 
 function render() {
@@ -987,10 +1035,16 @@ function render() {
     pauseBtn.disabled = !isCoaching;
     pauseBtn.innerHTML = isPaused ? ICO.play : ICO.pause;
   }
+  // Recording, the game cannot be switched: the picker gives its room back
+  // (shell.css "The bar gives way").
+  const app = document.querySelector('.app');
+  if (app) app.classList.toggle('is-recording', isCoaching);
   paintSealedFacts();
   paintNotice();
   paintRecView();
+  fitBar();
 }
+window.addEventListener('resize', () => fitBar());
 
 toggleBtn.addEventListener('click', () => {
   if (isCoaching) window.occlara.stopCoaching();
@@ -1026,8 +1080,9 @@ function applyState(s) {
     for (const k of ['liveMap', 'liveAgent', 'liveScore', 'liveRound']) if (typeof s.live[k] === 'boolean') live[k] = s.live[k];
     cfg = { ...cfg, ...live };
   }
-  const ratingWas = liveRatingOn;
+  const ratingWas = `${liveRatingOn}:${liveRatingNeeds}`;
   if (s.live && typeof s.live === 'object' && typeof s.live.liveRating === 'boolean') liveRatingOn = s.live.liveRating;
+  if (s.live && typeof s.live === 'object') liveRatingNeeds = s.live.liveRatingNeeds === true;
   const pausedWas = isPaused;
   isCoaching = !!s.isCoaching;
   isPaused = !!s.isPaused;
@@ -1041,7 +1096,7 @@ function applyState(s) {
   placeMarker();
   soundCue();
   if (gameChanged || wasCoaching !== isCoaching) { paintGames(); paintAccount(); paintGamesLeft(); paintNav(); }
-  else if (pausedWas !== isPaused || ratingWas !== liveRatingOn) paintLive();
+  else if (pausedWas !== isPaused || ratingWas !== `${liveRatingOn}:${liveRatingNeeds}`) paintLive();
 }
 
 // The flag key was heard (8.13): one tick, the same for every press, and

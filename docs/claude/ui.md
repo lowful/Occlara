@@ -574,8 +574,18 @@ move yet" before one), the small line of the rating so far with 6.0 dashed,
 confirmed rating and counts no assists. While the kill feed goes unread
 (rows stopped, two rounds with none, the page stopped for its cost) the row
 shows "Not reading the kill feed" in place of the number
-(`#live-rating-off`, PUSH_LIVE's `rating` is `{ reading: false }`). The count and the move
+(`#live-rating-off`, PUSH_LIVE's `rating` is `{ reading: false }`). With the
+switch on but recording off or at 480p, main sends no rating at all, and says
+so on the state (`index.js liveSwitches`, `live.liveRatingNeeds`): waiting,
+the line reads "Live rating on, needs recording at 720p or 1080p" (Home's
+words), and mid match the same row reads "Needs recording at 720p or 1080p"
+in place of a number, never a promise it cannot keep (9.1). The move beside
+the number is the difference of the two shown numbers
+(`live-rating.js moveOf`, `Display.ratingMove`, as the review's rounds take
+it), so the moves always add up to the number. The count and the move
 run once when the value changes; a repaint of the same value moves nothing.
+Paused, the head reads "Paused" with no time beside it: the time is when
+recording began, and "Paused since" named it the pause.
 Settings' "Match status while recording" group ends with the two switches:
 Live rating, its warning beside it (a `--warn` rule, never the signal) and a
 confirm panel in the recording toggle's shape ("Show your rating while you
@@ -593,7 +603,13 @@ and none current, until the match is seen or the player opens a page
 `index.js showRecordingView`; screen-silence.md, "The live status"). The
 bar's still dot and "Recording" (`#rec-back`) take a player with a page open
 back to it, and Home carries the live rating's switch beside Start
-(`#h-lr`, `home/live-rating-switch.js`), past Settings' warning and confirm.
+(`#h-lr`, `home/live-rating-switch.js`), past Settings' warning and confirm;
+the whole pill presses the switch, as its hover says. **Start hands the
+keyboard to the screen**: in a window already in front, main focuses the
+shell as the view comes up and the page under it as it goes
+(`main-window.js handKeyboard`; never otherwise, since focusing web contents
+pulls a window over the game), and the screen itself takes the focus
+(`#sealed`, tabindex -1), so the next Tab is Stop and Enter stops nothing.
 `npx electron scripts/shot-demo.js waiting waitingrated rated ratingoff
 ratedsmall homelr homeconfirm settingslr leaguewait stop` pictures them. A
 page asked for meanwhile, the review of the match that just ended above all, is remembered
@@ -1562,9 +1578,29 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   `latest.yml`, `autoDownload`, `autoInstallOnAppQuit` and `quitAndInstall()`.
   A check finding the version already downloaded leaves it ready, a newer one
   supersedes it (the control goes back to downloading for that one), and a
-  failed check never hides one that is ready. Settings' version line reads the
-  same status (`APP_VERSION`, now with `percent`) and says a ready one in the
-  bar's words, "9.1.1 ready, restart to update from the bar" (`test:surfaces`).
+  failed check never hides one that is ready. A check during a download (the
+  six hour timer, Settings' Check for updates) leaves it downloading at its
+  percent: 'checking' is no state the bar draws, and it used to take the ring
+  away (`updater.js holdsBar`). Settings' version line reads the
+  same status (`APP_VERSION`, now with `percent`, "downloading 9.1.1, 37%")
+  and says a ready one in the bar's words, "9.1.1 ready, restart to update
+  from the bar", and while recording "... once you stop recording", since the
+  bar hides it then. It asks again every few seconds while a download or a
+  check is under way and as the page comes back, so it never sits on
+  "downloading" after the download landed (`test:surfaces`).
+- **The bar gives way** (shell.css, "The bar gives way"). At 960 with the
+  licence ended, What's new and an update ready, the group once ran past the
+  window and cut the close button off, and pills squeezed a notice to "T...".
+  The notice comes first: with words in it (`.bar.has-notice`) What's new
+  keeps its spark, the updater its round icon and the way back to recording
+  its dot, their words in their titles; recording, the game picker gives its
+  room back (`.app.is-recording`); under 1040px with a notice What's new
+  waits (it counts as seen only once drawn) and the ended button goes, the
+  notice saying it; the notice wraps to a second line before it is cut. Should
+  the group still run past the window, `shell.js fitBar` marks the bar
+  `.tight` and all of it gives way at once. On Home every control in the
+  group, the pause button and the notice stand on the bar's dense glass, never
+  faint on the moon. Pictured at 960, 1280 and 1600 with every item shown.
 - Channels: `UPDATE_GET`, `UPDATE_INSTALL`, `PUSH_UPDATE` (to the bar alone,
   `registry.sendTo('main')`). Tests: `test:updater` (the module on stand ins)
   and `test:shellbar` (the control's states on the real shell). Pictures:

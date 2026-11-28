@@ -992,6 +992,27 @@ function setRecordingView(on) {
   if (!!nav.state().rec === !!on) return;
   nav.recording(!!on);
   apply();
+  handKeyboard(!!on);
+}
+
+/**
+ * THE KEYBOARD FOLLOWS THE RECORDING VIEW (9.1). Start pressed on Home left
+ * the focus in Home's view, now hidden: Tab walked controls nobody could see
+ * and Stop could not be reached without the mouse. Up, the shell takes it
+ * (its screen takes it from there, shell.js paintNav); down, the page under
+ * it. Only in a window already in front: focusing web contents focuses its
+ * window on Windows, and a Start from the hotkey or the tray mid game must
+ * never pull the app over the game.
+ */
+function handKeyboard(on) {
+  try {
+    if (!win || win.isDestroyed() || !win.isFocused()) return;
+    const s = nav.state();
+    if (s.sealed) return;
+    const page = on ? null : views.get(s.shown);
+    if (alive(page)) page.webContents.focus();
+    else if (win.webContents && typeof win.webContents.focus === 'function') win.webContents.focus();
+  } catch { /* gone */ }
 }
 
 /**

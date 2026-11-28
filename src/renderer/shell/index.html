@@ -70,8 +70,8 @@
              with a page open, the still dot and "Recording" take the
              player back to the Recording screen's waiting state. Gone on
              that screen and mid match (the seal shows it anyway). -->
-        <button id="rec-back" class="rec-back" type="button" title="Back to the Recording screen" hidden>
-          <span class="rec-back-dot" aria-hidden="true"></span><span>Recording</span>
+        <button id="rec-back" class="rec-back" type="button" title="Back to the Recording screen" aria-label="Back to the Recording screen" hidden>
+          <span class="rec-back-dot" aria-hidden="true"></span><span class="rec-back-word">Recording</span>
         </button>
         <!-- The record controls: Start on every page but Home (Home's hero
              carries the big one), Stop and pause while recording; mid match
@@ -190,7 +190,9 @@
       <div id="page-host" class="page-host">
         <!-- While a match is in progress no page shows: only this. Held (a stop
              in the middle of a match), it says so and the links stay open. -->
-        <section id="sealed" class="sealed" aria-label="Recording" hidden>
+        <!-- tabindex -1: Start hands the keyboard here (shell.js paintNav),
+             so a Tab from it reaches Stop rather than a hidden page. -->
+        <section id="sealed" class="sealed" aria-label="Recording" tabindex="-1" hidden>
           <!-- HELD, and LEAGUE: the moon, one line, nothing of the match.
                The moon is inline so it takes currentColor: the same path
                as assets/logo-mark.svg, so change both. -->
@@ -234,7 +236,10 @@
               <p class="live-wait-title">Waiting for your match to start</p>
               <p class="live-wait-sub">What you choose below shows here once you are in.</p>
               <!-- With the live rating on (main's state, never a control here). -->
-              <p id="live-wait-lr" class="live-wait-lr" hidden><span class="live-wait-lr-dot" aria-hidden="true"></span>Live rating on. It shows here once the match starts.</p>
+              <!-- Recording off or at 480p, main keeps the rating off
+                   (state.live.liveRatingNeeds) and the line says so in
+                   Home's words (shell.js paintLive). -->
+              <p id="live-wait-lr" class="live-wait-lr" hidden><span class="live-wait-lr-dot" aria-hidden="true"></span><span id="live-wait-lr-text">Live rating on. It shows here once the match starts.</span></p>
             </div>
             <div id="live-main" class="live-main">
               <p class="live-who-row"><span id="live-face" class="live-face" hidden></span><span id="live-who" class="live-who"></span></p>
@@ -258,7 +263,7 @@
                  place of the number, never a number it cannot back. -->
             <div id="live-rating-off" class="live-rating live-rating-off" hidden>
               <span class="live-label" title="How much you moved your team's chance to win each round, out of 100. 60 is an even match.">Match rating</span>
-              <span class="lr-off-text">Not reading the kill feed</span>
+              <span id="lr-off-text" class="lr-off-text">Not reading the kill feed</span>
               <span class="live-note">The rating is in your review once the match ends.</span>
             </div>
             <div id="live-rating" class="live-rating" hidden>

@@ -354,7 +354,11 @@ function liveSwitches() {
   const all = store.store || {};
   return { liveMap: all.liveMap !== false, liveAgent: all.liveAgent !== false, liveScore: all.liveScore !== false, liveRound: all.liveRound !== false,
     // The live rating and its stream widget: OFF unless the player turned them on.
-    liveRating: all.liveRating === true, liveRatingStream: all.liveRating === true && all.liveRatingStream === true };
+    liveRating: all.liveRating === true, liveRatingStream: all.liveRating === true && all.liveRatingStream === true,
+    // On, but recording off or at 480p: the kill feed is read only off the
+    // recorder's frames at 720p or 1080p (liveRatingSupported), so no rating
+    // can come, and the Recording screen says why (9.1) as Home and Settings do.
+    liveRatingNeeds: all.liveRating === true && (all.recordingMode === 'off' || String(all.recordingRes) === '480') };
 }
 function buildState() {
   return {

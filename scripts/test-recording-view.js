@@ -21,7 +21,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { loadSurface, settle } = require('./fixtures/fake-dom');
+const { loadSurface, settle, nextTab } = require('./fixtures/fake-dom');
 const C = require('../src/shared/channels');
 
 let checks = 0;
@@ -80,11 +80,22 @@ const shown = (p, id) => { let e = p.$(id); while (e) { if (e.hidden) return fal
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, live: { ...BASE.live, liveRating: true } });
     ok(shown(p, 'live-wait-lr') && !p.$('live').querySelector('[role="switch"]'), 'the live rating on: a line says it shows here once the match starts, and nothing to switch');
 
-    // Paused: the head says so.
+    // On, with recording off or at 480p (main's liveRatingNeeds): no number
+    // can come, and the line says why in Home's words, not that it will show.
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, live: { ...BASE.live, liveRating: true, liveRatingNeeds: true } });
+    ok(shown(p, 'live-wait-lr') && p.$('live-wait-lr').textContent === 'Live rating on, needs recording at 720p or 1080p',
+      'on with recording off or at 480p: the line says it needs recording at 720p or 1080p', p.$('live-wait-lr').textContent);
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, live: { ...BASE.live, liveRating: true } });
+    ok(p.$('live-wait-lr').textContent === 'Live rating on. It shows here once the match starts.', 'recording at 720p again: it shows once the match starts');
+
+    // Paused: the head says so, and no time beside it: the time is when
+    // recording began, and "Paused since" would name it the pause.
     p.bridge.emit(C.PUSH_STATUS, { status: 'paused' });
-    ok(p.document.querySelector('#live .live-word').textContent === 'Paused', 'paused, the head says Paused');
+    ok(p.document.querySelector('#live .live-word').textContent === 'Paused' && p.$('live-since').textContent === '',
+      'paused, the head says Paused, with no "since" that would be the start, not the pause', p.$('live-since').textContent);
     p.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
-    ok(p.document.querySelector('#live .live-word').textContent === 'Recording', 'and Recording again on the resume');
+    ok(p.document.querySelector('#live .live-word').textContent === 'Recording' && p.$('live-since').textContent.startsWith('since '),
+      'and Recording since its start again on the resume');
 
     // The match seen: the seal, the same screen, its facts.
     p.bridge.emit(C.PUSH_SHELL, { page: 'matches', shown: null, sealed: true, held: false, rec: true });
@@ -96,6 +107,22 @@ const shown = (p, id) => { let e = p.$(id); while (e) { if (e.hidden) return fal
     ok(shown(p, 'live-rating') && p.$('lr-num').textContent === '66' && p.$('lr-label').textContent === 'Kill' && p.$('live').classList.contains('rated'),
       "and the live rating row with its number on the 100 scale and the engine's label, the column drawn in for it");
     ok(p.$('live-rating').classList.contains('t-fair') && p.$('lr-badge').classList.contains('t-fair'), "its tier on the row, for the glass tile's rim and the dot");
+
+    // On with recording at 480p, mid match: main sends no rating, and the
+    // row says why in place of the number, never a number it cannot back.
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, live: { ...BASE.live, liveRating: true, liveRatingNeeds: true } });
+    p.bridge.emit(C.PUSH_LIVE, { state: 'live', startedAt: Date.now() - 60000, mode: 'standard', map: 'Abyss', team: 3, enemy: 2, round: 6 });
+    await settle();
+    ok(shown(p, 'live-rating-off') && !shown(p, 'live-rating') && p.$('lr-off-text').textContent === 'Needs recording at 720p or 1080p',
+      'mid match with recording at 480p: the row says it needs recording at 720p or 1080p, and no number', p.$('lr-off-text').textContent);
+    p.bridge.emit(C.PUSH_LIVE, { state: 'live', startedAt: Date.now() - 60000, mode: 'standard', map: 'Abyss', team: 3, enemy: 2, round: 6, rating: { reading: false } });
+    await settle();
+    ok(shown(p, 'live-rating-off') && p.$('lr-off-text').textContent === 'Not reading the kill feed', 'the feed unread says so, as before');
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, live: { ...BASE.live, liveRating: false } });
+    p.bridge.emit(C.PUSH_LIVE, { state: 'live', startedAt: Date.now() - 60000, mode: 'standard', map: 'Abyss', team: 3, enemy: 2, round: 6 });
+    await settle();
+    ok(!shown(p, 'live-rating-off') && !shown(p, 'live-rating') && !p.$('live').classList.contains('rated'), 'off: no row of it at all');
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, live: { ...BASE.live, liveRating: true } });
 
     // Over with no review asked for: the Recording view again.
     p.bridge.emit(C.PUSH_SHELL, { page: 'matches', shown: null, sealed: false, held: false, rec: true });
@@ -113,6 +140,22 @@ const shown = (p, id) => { let e = p.$(id); while (e) { if (e.hidden) return fal
     p.bridge.emit(C.PUSH_STATUS, { status: 'stopped' });
     p.bridge.emit(C.PUSH_STATE, { ...BASE });
     ok(!shown(p, 'rec-back') && !shown(p, 'sealed'), 'stopped: no way back to a recording that is over, and no screen');
+  }
+
+  console.log('Start hands the keyboard to the screen');
+  {
+    const p = await openShell({ isCoaching: false }, { page: 'home', shown: 'home', rec: false }, null);
+    p.$('menu-btn').focus();
+    p.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
+    p.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: null, sealed: false, held: false, rec: true });
+    await settle();
+    ok(p.document.activeElement === p.$('sealed'), 'the Recording view up: the screen holds the focus, not a hidden page', p.document.activeElement && p.document.activeElement.id);
+    ok(nextTab(p.document) === p.$('live-stop'), 'and the next Tab is Stop', nextTab(p.document) && nextTab(p.document).id);
+    p.$('menu-btn').focus();
+    p.bridge.emit(C.PUSH_LIVE, { state: 'waiting', startedAt: Date.now() - 60000 });
+    p.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: null, sealed: false, held: false, rec: true });
+    await settle();
+    ok(p.document.activeElement === p.$('menu-btn'), 'a push while it is up takes nothing: only its coming up moves the focus');
   }
 
   console.log('League: the quiet screen, with Stop, waiting or mid game');
@@ -140,8 +183,9 @@ const shown = (p, id) => { let e = p.$(id); while (e) { if (e.hidden) return fal
     ok(idx.includes("else if (action === 'recording') showRecordingView();") && idx.includes('function showRecordingView() { if (!state.isCoaching) return;'),
       "the bar's way back, and only while recording");
     const mw = flat(read('src/main/windows/main-window.js'));
-    ok(mw.includes('function setRecordingView(on) { if (!!nav.state().rec === !!on) return; nav.recording(!!on); apply(); }'),
-      "the window takes the pages away for it, the way the seal does, without the seal's lock or protection");
+    ok(mw.includes('function setRecordingView(on) { if (!!nav.state().rec === !!on) return; nav.recording(!!on); apply(); handKeyboard(!!on); }')
+      && mw.includes('if (!win || win.isDestroyed() || !win.isFocused()) return;'),
+      "the window takes the pages away for it, the way the seal does, without the seal's lock or protection, and hands the keyboard over only in a window already in front");
   }
 
   console.log("Home: the live rating's switch beside Start, past the same warning and confirm");
@@ -185,6 +229,13 @@ const shown = (p, id) => { let e = p.$(id); while (e) { if (e.hidden) return fal
     h.fire(h.$('h-lr-keep-off'), 'click');
     await settle();
     ok(h.$('h-lr-confirm').hidden && writes(h).length === 0 && sw.getAttribute('aria-checked') === 'false', 'Keep it off closes it, still off, nothing written');
+    // The whole pill brightens under the pointer, so a press on its name is
+    // the switch's: the same confirm, nothing written.
+    h.fire(h.$('h-lr-label'), 'click');
+    await settle();
+    ok(!h.$('h-lr-confirm').hidden && writes(h).length === 0, 'a press on "Live rating" beside the switch presses it: the same confirm, nothing written');
+    h.fire(h.$('h-lr-keep-off'), 'click');
+    await settle();
     h.fire(sw, 'click');
     await settle();
     h.fire(h.$('h-lr-turn-on'), 'click');

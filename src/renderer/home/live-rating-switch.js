@@ -63,6 +63,11 @@
     if (on) { shut(false); set(false); return; }
     if (confirmBox.hidden) ask(); else shut(true);
   });
+  // The whole pill is the switch's (9.1): it brightens under the pointer as
+  // one, so a press on its name or its word presses the switch, which keeps
+  // the keyboard and the switch role. The switch's own press is its own.
+  const pill = host.querySelector('.h-lr-pill');
+  if (pill) pill.addEventListener('click', (e) => { if (e.target !== sw && !sw.contains(e.target)) sw.click(); });
   $('h-lr-keep-off').addEventListener('click', () => shut(true));
   $('h-lr-turn-on').addEventListener('click', () => { shut(false); sw.focus(); set(true); });
   confirmBox.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); shut(true); } });

@@ -90,6 +90,15 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .top-notice.system { color: var(--text); }
 /* Empty, it gives back the bar's gap it would stand in. */
 .top-notice:empty { margin-left: auto; margin-right: calc(-1 * var(--space-5)); width: 0; }
+/* On Home the line crosses the moon's lit limb: there it stands on the bar's
+   own glass, a 36px pill like the controls beside it, never faint text on
+   the art (9.1, the owner's item 2). */
+.app.home-page .top-notice:not(:empty) {
+  min-height: 36px; padding: 6px 14px; -webkit-box-pack: center;
+  border: 1px solid var(--line); border-radius: 14px;
+  background: var(--glass-fill-2);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+}
 
 .bar-end { flex: none; display: flex; align-items: center; gap: 10px; height: 100%; }
 
@@ -231,7 +240,15 @@ html.rec-still .upd.unsure .upd-arc, html.ambient-off .upd.unsure .upd-arc { ani
 .toggle.ended .t-ico, .toggle.ended + #pause, .toggle.ended .btn-arrow { display: none; }
 .toggle:disabled { opacity: 0.5; cursor: default; }
 .toggle.ended:disabled { opacity: 1; filter: none; background: transparent; border: 1px solid var(--line-2); color: var(--text-dim); -webkit-backdrop-filter: none; backdrop-filter: none; }
-#pause { flex: none; width: 36px; height: 36px; }
+/* The pause button on the bar's dense glass in the ink, as the profile
+   button stands: over the moon on Home the clear glass and grey icon of
+   .icon-btn all but vanished (9.1). */
+#pause {
+  flex: none; width: 36px; height: 36px;
+  background: var(--glass-fill-2); color: var(--text);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+}
+#pause:where(:not(:disabled)):hover { background: color-mix(in srgb, var(--glass-fill-2), var(--text) 7%); }
 #pause svg { width: var(--icon-sm); height: var(--icon-sm); }
 /* 9.1: the resume mark is the app's centred play mark (moments.js PLAY_PATH),
    rounder and tighter in its box than the old triangle: at 19px it stands the
@@ -556,4 +573,53 @@ html.rec-still .upd.unsure .upd-arc, html.ambient-off .upd.unsure .upd-arc { ani
   .news .news-text, .news .btn-arrow { display: none; }
   .btn.news:has(> .btn-arrow) > .btn-label { transform: none; }
   .news-spark { width: 16px; height: 16px; }
+}
+
+/* ── THE BAR GIVES WAY (9.1) ──────────────────────────────────────────────
+   At the window's least width with everything shown (the licence ended,
+   What's new and an update ready) the right group ran past the window and
+   cut the close button off, and the notice line saying why Start is locked
+   got nothing. Now the notice comes first and the controls give way:
+   - a notice with words (shell.js paintNotice, .bar.has-notice): What's new
+     keeps its spark, the updater its round icon and back to recording its
+     dot, their words whole in their titles;
+   - recording, the game cannot be switched (its buttons are disabled), so
+     the picker gives its room back, as it does mid match;
+   - under 1040px with a notice, What's new waits for the notice to go (it
+     counts as seen only once drawn, shell.js newsOnScreen), and the ended
+     button goes, the notice saying it in full;
+   - and if the group still runs past the window (a longer word in another
+     language), shell.js fitBar marks the bar tight and all of those give way
+     at once. The window's buttons are never cut. */
+.bar.has-notice .btn.news { width: 36px; padding: 0; border-radius: 18px; }
+.bar.has-notice .news .news-text, .bar.has-notice .news .btn-arrow { display: none; }
+.bar.has-notice .btn.news:has(> .btn-arrow) > .btn-label { transform: none; }
+.bar.has-notice .upd .upd-word { display: none; }
+.bar.has-notice .upd.ready, .bar.has-notice .upd.installing { padding-right: 0; }
+.bar.has-notice .rec-back { width: 36px; padding: 0; justify-content: center; border-radius: 18px; }
+.bar.has-notice .rec-back-word { display: none; }
+.app.is-recording .game-seg { display: none; }
+@media (max-width: 1040px) {
+  .bar.has-notice .news { display: none; }
+  .bar .toggle.ended { display: none; }
+}
+.bar.tight .news, .bar.tight .game-seg, .bar.tight .toggle.ended { display: none; }
+.bar.tight .upd .upd-word, .bar.tight .rec-back-word { display: none; }
+.bar.tight .upd.ready, .bar.tight .upd.installing { padding-right: 0; }
+.bar.tight .rec-back { width: 36px; padding: 0; justify-content: center; border-radius: 18px; }
+/* The screen takes the keyboard as Start brings it up (shell.js paintNav):
+   no ring for that, the next Tab rings Stop. */
+.sealed:focus { outline: none; }
+/* The notice wraps to a second line before it is cut (9.1): at 960 it has
+   about 200px, and one line of that said "The coaching server could not..."
+   with the rest only in its title. Two lines fit the 56px bar. */
+.top-notice:not(:empty) {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  white-space: normal; line-height: 1.3; text-wrap: pretty;
+}
+/* The ended button stood clear on the bar, faint over the moon on Home:
+   the bar's dense glass under it, as every other control in the group. */
+.bar .toggle.ended:disabled {
+  background: var(--glass-fill-2);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
 }
