@@ -124,21 +124,23 @@ app.whenReady().then(async () => {
     if (idle.shown) return report(false, 'between matches the widget shows something');
     if (!/rgba\(0, 0, 0, 0\)|transparent/.test(idle.bg)) return report(false, `the page's ground is not transparent: ${idle.bg}`);
 
-    // Live: a move up, then a move down.
-    stream.send({ state: 'live', rating: { value: 6.4, shown: '6.4', tier: 'fair', last: { delta: '+0.4', up: true, down: false, label: 'First kill, 5v5' }, line: [6, 6.4] } });
-    stream.send({ state: 'live', rating: { value: 7.1, shown: '7.1', tier: 'good', last: { delta: '+0.7', up: true, down: false, label: 'Kill as the last one up, 1v2' }, line: [6, 6.4, 6.2, 7.1] } });
-    const live = await until(async () => { const s = await js(NOW); return s.shown && s.num === '7.1' ? s : null; }, 4000) || await js(NOW);
+    // Live: a move up, then a move down. On the 100 scale since 9.1 (the
+    // owner's item 16): main sends the value in the rating's own units and
+    // the move as shown, and the badge writes the number times ten.
+    stream.send({ state: 'live', rating: { value: 6.4, shown: '64', tier: 'fair', last: { delta: '+4', up: true, down: false, label: 'First kill, 5v5' }, line: [6, 6.4] } });
+    stream.send({ state: 'live', rating: { value: 7.1, shown: '71', tier: 'good', last: { delta: '+7', up: true, down: false, label: 'Kill as the last one up, 1v2' }, line: [6, 6.4, 6.2, 7.1] } });
+    const live = await until(async () => { const s = await js(NOW); return s.shown && s.num === '71' ? s : null; }, 4000) || await js(NOW);
     lines.push(`live: ${JSON.stringify(live)}`);
-    if (!live.shown || live.num !== '7.1' || !/\bt-good\b/.test(live.badge) || live.label !== 'Kill as the last one up, 1v2' || live.state !== 'Live, provisional'
-      || live.delta !== '+0.7' || !live.up || !live.path.startsWith('M') || !/Geist/.test(live.font)) {
+    if (!live.shown || live.num !== '71' || !/\bt-good\b/.test(live.badge) || live.label !== 'Kill as the last one up, 1v2' || live.state !== 'Live, provisional'
+      || live.delta !== '+7' || !live.up || !live.path.startsWith('M') || !/Onest/.test(live.font)) {
       return report(false, `the live widget does not show the number in its tier, the move up, the label and the line: ${JSON.stringify(live)}`);
     }
     await shoot(win, 'live');
     await shoot(win, 'live-on-dark', '#1b2129');
     await shoot(win, 'live-on-bright', '#c9cdd2');
-    stream.send({ state: 'live', rating: { value: 6.6, shown: '6.6', tier: 'fair', last: { delta: '-0.5', up: false, down: true, label: 'Died first, 5v5' }, line: [6, 6.4, 6.2, 7.1, 6.6] } });
-    const down = await until(async () => { const s = await js(NOW); return s.num === '6.6' ? s : null; }, 3000) || await js(NOW);
-    if (down.delta !== '-0.5' || !down.down || down.label !== 'Died first, 5v5' || !/\bt-fair\b/.test(down.badge)) {
+    stream.send({ state: 'live', rating: { value: 6.6, shown: '66', tier: 'fair', last: { delta: '-5', up: false, down: true, label: 'Died first, 5v5' }, line: [6, 6.4, 6.2, 7.1, 6.6] } });
+    const down = await until(async () => { const s = await js(NOW); return s.num === '66' ? s : null; }, 3000) || await js(NOW);
+    if (down.delta !== '-5' || !down.down || down.label !== 'Died first, 5v5' || !/\bt-fair\b/.test(down.badge)) {
       return report(false, `a move down does not fall in red with its label: ${JSON.stringify(down)}`);
     }
     await shoot(win, 'live-down', '#1b2129');
@@ -151,17 +153,17 @@ app.whenReady().then(async () => {
     await shoot(win, 'blind', '#1b2129');
 
     // Full time.
-    stream.send({ state: 'final', rating: { value: 7.4, shown: '7.4', tier: 'good' } });
+    stream.send({ state: 'final', rating: { value: 7.4, shown: '74', tier: 'good' } });
     const fin = await until(async () => { const s = await js(NOW); return s.state === 'Full time' ? s : null; }, 3000) || await js(NOW);
     lines.push(`full time: ${JSON.stringify({ num: fin.num, state: fin.state, label: fin.label, delta: fin.delta })}`);
-    if (!fin.shown || fin.num !== '7.4' || fin.state !== 'Full time' || fin.delta !== '') return report(false, `"Full time" is not shown with the confirmed number: ${JSON.stringify(fin)}`);
+    if (!fin.shown || fin.num !== '74' || fin.state !== 'Full time' || fin.delta !== '') return report(false, `"Full time" is not shown with the confirmed number: ${JSON.stringify(fin)}`);
     await shoot(win, 'final', '#1b2129');
 
     // The compact size.
     const small = await open(stream.url('compact'));
     const sjs = (s) => small.webContents.executeJavaScript(s);
-    stream.send({ state: 'live', rating: { value: 8.3, shown: '8.3', tier: 'great', last: { delta: '+0.3', up: true, down: false, label: 'Triple kill with the opening kill' }, line: [6, 7.2, 8.3] } });
-    const c = await until(async () => { const s = await sjs(NOW); return s.shown && s.num === '8.3' ? s : null; }, 4000) || await sjs(NOW);
+    stream.send({ state: 'live', rating: { value: 8.3, shown: '83', tier: 'great', last: { delta: '+3', up: true, down: false, label: 'Triple kill with the opening kill' }, line: [6, 7.2, 8.3] } });
+    const c = await until(async () => { const s = await sjs(NOW); return s.shown && s.num === '83' ? s : null; }, 4000) || await sjs(NOW);
     lines.push(`compact: ${JSON.stringify({ num: c.num, width: c.width, height: c.height, compact: c.compact })}`);
     if (!c.compact || !c.shown || c.width > 380 || c.width < 250 || !/\bt-great\b/.test(c.badge)) return report(false, `the compact widget is not the small corner: ${JSON.stringify(c)}`);
     if (live.width < 440 || live.width > 540) return report(false, `the standard widget is not its size: ${live.width}`);

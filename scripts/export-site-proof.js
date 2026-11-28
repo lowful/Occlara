@@ -243,7 +243,8 @@ const READ_HOME = `(() => { ${READ_HELPERS}
   const last = Q('#last');
   const g = Q('.last-grade', last);
   const gTitle = g ? String(g.title || '').trim() : '';
-  const cut = gTitle.indexOf(', ');
+  // 'Grade. How well you played...' since 9.1 (its name, then its tooltip); ', ' before it.
+  const cut = gTitle.indexOf('. ') > 0 ? gTitle.indexOf('. ') : gTitle.indexOf(', ');
   const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
   // The ruled row says "Jett on Abyss, Standard, Oct 24, 7:30 PM": who and
   // the queue are the parts before the first with a digit, which is its time.

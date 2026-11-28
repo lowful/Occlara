@@ -103,7 +103,7 @@ ok(p.home.recent.every((r) => r.result && r.grade && !('letter' in r) && !/\d{1,
 const last = p.home.last;
 ok(last.result === 'Victory' && last.score === '13 : 11' && last.meta === 'Jett · Abyss · Standard',
   "Home's last match: the result, the score and the agent, map and queue, one separator each", JSON.stringify([last.result, last.score, last.meta]));
-ok(last.grade.label === 'Match grade' && last.grade.sub === 'Out of 100, from what the record shows', "Home's grade: its label and its line", JSON.stringify(last.grade));
+ok(last.grade.label === 'Grade' && last.grade.sub === require('../src/shared/display').NAMES.grade.tip, "Home's grade: its name and what it measures (display.js NAMES.grade)", JSON.stringify(last.grade));
 ok(last.milestone.join() === 'Best in 4' && last.change === '+7 on your last match' && last.label === 'Last match' && last.title,
   "Home's last match: its eyebrow, its title, its mark and its change since the match before", JSON.stringify([last.label, last.title, last.milestone, last.change]));
 ok(last.kd && last.kd.label === 'K/D' && last.kd.ratio === (31 / 21).toFixed(2) &&last.kd.split === '31 / 21', "Home's K/D of the last match", JSON.stringify(last.kd));

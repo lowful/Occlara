@@ -143,7 +143,8 @@ setTimeout(async () => {
     if (block.gains.length !== view.gains.length || block.losses.length !== view.losses.length || !block.gains.length) {
       return report(false, `the swings drawn (${block.gains.length}, ${block.losses.length}) are not the ones served`);
     }
-    if (!block.gains.every((g) => /^R\d+.+\+\d\.\d$/.test(g)) || !block.losses.every((g) => /^R\d+.+-\d\.\d$/.test(g))) {
+    // On the 100 scale since 9.1 (the owner's item 16): a move is a whole number, "+7", "-3".
+    if (!block.gains.every((g) => /^R\d+.+\+\d+$/.test(g)) || !block.losses.every((g) => /^R\d+.+-\d+$/.test(g))) {
       return report(false, `a swing row is not its round, label and move: ${JSON.stringify(block.gains.concat(block.losses))}`);
     }
     if (block.lobby.length !== 10 || block.lobby.filter((l) => /, you/.test(l)).length !== 1) return report(false, `the lobby lists ${block.lobby.length} with ${block.lobby.filter((l) => /, you/.test(l)).length} the player`);
@@ -207,7 +208,7 @@ setTimeout(async () => {
       said: document.getElementById('rt-r-said').textContent, focus: !!document.activeElement && document.getElementById('rt-replay').contains(document.activeElement) }))()`;
     const mid = await rjs(midJs);
     lines.push(`replay playing: ${JSON.stringify(mid)}`);
-    if (!mid.open || !/^Round \d+ of \d+$/.test(mid.round) || !/^\d+\.\d$/.test(mid.num) || !mid.label || !/^\d+ : \d+$/.test(mid.score)
+    if (!mid.open || !/^Round \d+ of \d+$/.test(mid.round) || !/^\d{2,3}$/.test(mid.num) || !mid.label || !/^\d+ : \d+$/.test(mid.score)
       || mid.feed < 2 || !mid.tier || mid.said) return report(false, `the replay is not playing as a broadcast, or announced a step: ${JSON.stringify(mid)}`);
     await shot('rating-replay', mainWindow, win);
     // A modifier alone does not skip it, and Tab stays inside it.

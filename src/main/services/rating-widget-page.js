@@ -3,7 +3,7 @@
 /**
  * THE STREAM WIDGET'S PAGE, made whole (the live rating, docs/claude/rating.md
  * "Live"). The template src/renderer/rating-widget/widget.html with its slots
- * filled: Geist and Geist Mono as data (nothing is fetched from the net, the
+ * filled: Onest and Geist Mono as data (nothing is fetched from the net, the
  * page's own CSP refuses it), the app's tokens (shared/theme.css, its font
  * files' lines taken out), the shared badge (shared/rating-badge.css and .js)
  * and the widget's own widget.css and widget.js. Made once and kept; the
@@ -16,8 +16,11 @@ const path = require('path');
 const RENDERER = path.join(__dirname, '..', '..', 'renderer');
 const FONTS = path.join(__dirname, '..', '..', '..', 'assets', 'fonts');
 
-// The weights the widget draws with: the badge 700, the label 600 and 500, the move Mono 500.
-const FACES = [['Geist', 500, 'geist-500.woff2'], ['Geist', 600, 'geist-600.woff2'], ['Geist', 700, 'geist-700.woff2'], ['Geist Mono', 500, 'geistmono-500.woff2']];
+// The faces the widget draws with: the app's --font, Onest, one variable file for
+// every weight (the badge 700, the label 600 and 500), and the move's Geist Mono
+// 500. Geist Sans until 9.1, when Orbit's --font had become Onest and the widget
+// asked OBS for a face it was never given, drawing in Segoe UI.
+const FACES = [['Onest', '100 900', 'onest-var.woff2'], ['Geist Mono', 500, 'geistmono-500.woff2']];
 
 let made = null;
 

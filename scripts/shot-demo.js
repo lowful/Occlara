@@ -73,6 +73,11 @@ const SCENES = {
   players: { page: 'players' },
   duos: { page: 'duos' },
   review: { page: 'review' },
+  // The match rating block (9.1: out of 100), and its replay at full time.
+  reviewrating: { page: 'review', act: "document.getElementById('v-rating-wrap').scrollIntoView({ block: 'start' }); true" },
+  // The share image (9.1: the number, no letter), its sheet open on the dark card.
+  share: { page: 'review', act: "document.getElementById('share').click(); true" },
+  replay: { page: 'review', act: "document.getElementById('rt-play').click(); setTimeout(() => { const s = document.getElementById('rt-r-skip'); if (s) s.click(); }, 400); true" },
   // The review still being built, then made whole: Review ready (review.js
   // readyFirst). `whole` is how long after the whole review lands to take
   // the picture: the card dropped in, then the window opening out of it.
@@ -178,6 +183,11 @@ app.whenReady().then(async () => {
     [C.CHANGELOG_REFRESH]: () => null,
     [C.FEEDBACK_INFO]: () => null,
     [C.CHAT_MATCHES]: () => null,
+    // 9.1: still while recording, the history, the storage.
+    [C.STILL_GET]: () => ({ still: !!scene.coaching }),
+    [C.HISTORY_GET]: () => ({ back: true, forward: false, backTo: 'matches', forwardTo: null, backLabel: 'Matches', forwardLabel: null, at: 1, length: 2 }),
+    [C.HISTORY_GO]: () => null,
+    [C.STORAGE_GET]: () => null,
   };
   const memo = new Map();
   const practice = require('../src/main/services/practice-store').createPractice({
