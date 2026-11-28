@@ -1581,8 +1581,24 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   tooltip), and one quiet line, main's progress line. When it was is beside
   the eyebrow ("Today 9:25 PM"). Under the pointer the picture eases in and
   an arrow comes in; a narrower card (a container query under 330px) takes
-  the result and the grade a step smaller so the score is never cut. The AI
+  the result and the grade a step smaller, and under 290px the grade's name
+  and change go under the number. The score is never cut: `.lm-result`
+  breaks between the result and the score, each `nowrap`, never "Victory 13
+  : ...". **No map picture** (every League match, a Valorant map newer than
+  `sync:mapart`): `#last.no-map` gives the picture's room to one line of the
+  agent's head and the K/D, the card as tall as it holds when alone in the
+  bento, the line midway when a neighbour sets the row's height. The AI
   log's eye stays on the Matches rows.
+- **The bento at a narrower window** (`@media (max-width: 1160px)`): two
+  across, the last match and the trend, then what repeats the whole width
+  with its rows two by two and their "In N of your last M matches" lines; a
+  card alone on its line (the trend hidden) takes all of it. Three across
+  left the last match about 256px at 960 and cut three of the four titles.
+  Each title is whole in its tooltip. What repeats' **All patterns** is in
+  its head (`.card-head`), as Rank journey is: at the foot it fell under the
+  card's clipped edge (`.bento > .card` is 300px, `overflow: hidden`) while
+  still in the tab order. Recent matches write the score as the card does,
+  "Victory 13 : 11".
 - **An ungraded newest match says so** (`home-model.js noGradeOf`): "Not
   graded" where the grade would be, why on the line under ("Only 2 rounds
   were recorded, too few to grade."), and it still opens. The hero says what
@@ -1600,7 +1616,8 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   the bento.
 - **What repeats**: every row in the full ink (the fourth was faded), and each
   with its arrow (`wayMark`): up in `--bad` getting worse, down in `--good`
-  getting better, a grey line steady, from patterns.js `trendOf` (the newer
+  getting better, a flat line steady in its own round of the quiet glass
+  (bare before a count it read as a minus), from patterns.js `trendOf` (the newer
   half of the recorded matches against the older), its words in a tooltip of
   the app's glass (`.has-tip`, `data-tip`) and to a screen reader
   (`home-model.js mistakeTrendWords`: "Getting worse: in 4 of your 5 newest
@@ -1624,6 +1641,12 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   `src/shared/rank-tiers.js` holds the ladder (names in any case, the tier
   after each, `rrOf` from a history point's elo, which is a place times 100
   plus the RR, never printed); the Home and Stats preloads name the files.
+  **Iron 1 at 0 RR is an elo of 0**, the number an unrated point carries too:
+  an elo of 0 is rated only where the tier is Iron 1 (`home-model.js
+  eloRated`, stats.js `eloRated`, the Stats preload's `rankProgress`), or the
+  card showed the game before it ("+19 RR" after a game that cost 19). On
+  Stats the RR is said once: the foot leaves it to the line under the tile
+  (main's `rankLine`) whenever that line opens with it, Immortal included.
 - **The moon turns** (`shared/sky.js`, "THE TURNING MOON"). The image moon was
   1000px over a box 130% of the window wide, so it was pixelated at 1x and
   worse at 2x. Now a WebGL sphere: its surface (maria, grain and four fields
