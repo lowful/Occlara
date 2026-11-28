@@ -108,8 +108,15 @@ ok(num(disc, 'cx') === gen.OUTER.x && num(disc, 'cy') === gen.OUTER.y && num(dis
 const splashCss = read('src/renderer/splash/splash.css');
 ok(/to\s*\{\s*cx: 77\.738px; cy: 51px; r: 42px; \}/.test(splashCss) && !OLD_MARK.test(code(splashCss)) && !/shockwave|infinite/.test(code(splashCss)),
   'its shade comes to rest in its own place, and no ring, pupil, shockwave or loop is left');
-ok(/class="wordmark">Occlara</.test(splash) && /\.wordmark \{[^}]*font-weight: 600;/.test(splashCss),
-  'the name under it is "Occlara", Geist 600');
+ok(/class="wordmark">Occlara</.test(splash) && /\.wordmark \{[^}]*font-family: var\(--font\);[^}]*font-weight: 700;/.test(splashCss),
+  'the name under it is "Occlara", Onest 700 as the bar sets it (Orbit)');
+// ORBIT: the disc is filled with the glass, and the glass, its glow and the
+// ground are pictures the script draws (the splash draws no gradient).
+ok(/<circle\b(?=[^>]*mask="url\(#phase\)")(?=[^>]*fill="url\(#glass\)")[^>]*>/.test(splash)
+  && /<pattern id="glass"[\s\S]*?href="\.\.\/\.\.\/\.\.\/assets\/splash\/glass\.png"/.test(splash)
+  && /<image class="glow" href="\.\.\/\.\.\/\.\.\/assets\/splash\/glow\.png" x="-30" y="-30" width="180" height="180"/.test(splash)
+  && /url\('\.\.\/\.\.\/\.\.\/assets\/splash\/ground\.png'\)/.test(splashCss),
+'the splash\'s disc is filled with the glass, and its glow and its ground are the pictures in assets/splash');
 
 // 5. The icons are what the arithmetic draws, byte for byte.
 const buf = (rel) => fs.readFileSync(path.join(ROOT, rel));
@@ -123,6 +130,11 @@ for (const [name, ink] of [['tray-dark', gen.INK], ['tray-light', gen.GROUND]]) 
   ok(b.equals(gen.ico(gen.TRAY.map((s) => ({ size: s, data: gen.png(s, gen.draw(s, false, ink)) })))) && icoSizes(b).join(' ') === '16 20 24 32 40 48',
     `assets/${name}.ico is the crescent alone at 16 to 48`, icoSizes(b).join(' '));
 }
+ok(buf('assets/splash/ground.png').equals(gen.png(gen.SPLASH.ground, gen.drawSplashGround(gen.SPLASH.ground)))
+  && buf('assets/splash/glass.png').equals(gen.png(gen.SPLASH.glass, gen.drawGlassDisc(gen.SPLASH.glass)))
+  && buf('assets/splash/glow.png').equals(gen.png(gen.SPLASH.glow, gen.drawGlow(gen.SPLASH.glow))),
+'assets/splash/ground.png, glass.png and glow.png are what the script draws');
+ok(gen.GLOW_PAD === 30, 'and the glow\'s box is the 120 box with 30 units round it, as the splash lays it');
 // And what they draw, read back out of the 16px tray pictures: the crescent's
 // colour alone, nothing of a tile, a dark crescent for a light taskbar.
 function pixels16(icoBuf) {
