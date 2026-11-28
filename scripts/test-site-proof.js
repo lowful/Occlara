@@ -123,8 +123,11 @@ ok(p.home.trend.label === 'Trend' && p.home.trend.title === 'Averaging 64' && /^
 // 9.1: the trend across the top, its eyebrow and its title, and when you
 // play best below its threshold (the owner's items 15 and 21).
 ok(p.matches.chart.label === 'Grade trend' && /^Your last \d graded matches$/.test(p.matches.chart.title), "the Matches chart's eyebrow and title", JSON.stringify(p.matches.chart));
-ok(p.matches.when && /^Shows after \d+ more graded matches/.test(p.matches.when.note) && !p.matches.when.best,
-  'Matches: when you play, below the threshold, says how many more', JSON.stringify(p.matches.when));
+// Below the threshold it is named for what it counts, never a best time, and
+// says what is still missing (9.1, play-times.js needWords).
+ok(p.matches.when && p.matches.when.title === 'When you play' && /^Shows (?:after at least \d+ more graded match(?:es)?|once (?:a second time of day has|two times of day have) \d+ graded matches)/.test(p.matches.when.note)
+  && !p.matches.when.best,
+  'Matches: when you play, below the threshold, says what is still missing', JSON.stringify(p.matches.when));
 ok(p.matches.title === 'Matches' && p.matches.sub && p.matches.subnav.map((s) => s.page).join() === 'Matches,Patterns,Stats' && p.matches.subnav[0].current,
   'Matches: its title, its sub line and the sub switch to Patterns and Stats, Matches pressed', JSON.stringify([p.matches.title, p.matches.subnav]));
 ok(p.matches.rows.length === 4 && p.matches.rows.every((r) => r.topMistake === TOP), 'Matches: four rows, each with its top mistake');

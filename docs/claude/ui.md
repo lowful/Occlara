@@ -319,7 +319,15 @@ you play best, then every match as one grouped card of rows.
   The line never overshoots a match (monotone cubic). The foot is DAYS
   ("Today", "Yesterday", "Nov 22") centred under each day's matches, thinned
   so no two touch, the newest always labelled; never a time of day, which the
-  tooltip carries. It draws itself once per visit (`chart.play()`, the line
+  tooltip carries. Patterns draws it too (9.1 fix, `paintTrend`, its host
+  `#p-trend .p-chart`), where it drew the 8.9 bar strip, so the trend is one
+  drawing under the Matches link: its points carry `record` (a milestone's
+  words: the dot ringed in the good tone, `.tc-record`) and `run` (the run
+  underlined along the baseline, `.tc-run`, never past the plot's ends) and
+  `notes` for the tooltip, and its key says the run by number ("3 in a row
+  at 70 or better"; progress.js hands out `run.from` and no letter, and
+  test:display scans for a floor or a quoted letter reaching a template). Each
+  dot carries `data-grade` for the site proof's reader. It draws itself once per visit (`chart.play()`, the line
   stroking left to right on --ease-enter, the fill wiping in under it, each
   dot arriving as the line reaches it), nothing under less motion, nothing
   infinite. Hover or the keyboard (Left, Right, Home, End) reads each match
@@ -341,17 +349,31 @@ you play best, then every match as one grouped card of rows.
   the newest.
 - **When you play best (item 15)** is `src/shared/play-times.js` (pure,
   `test:playtimes`): every graded row by when its match STARTED (Riot's
-  `matchStartedAt`, else its end less 100 seconds a round, else less half an
-  hour), in eight three hour times of day in the player's clock, each with
-  its average grade, count and win rate (over the matches with a result).
+  `matchStartedAt`, else `watchedFrom`, when the screen saw it start, else
+  its end less 100 seconds a round, else less half an hour), in eight three
+  hour times of day in the player's clock, each with its average grade, count
+  and win rate (over the matches with a result). `watchedFrom` is kept on a
+  recorded review by index.js `onValorantMatchEnded` from the first round
+  its ledger read, put back 100 seconds a round (`screenStartOf`), and on
+  its library row (review-store.js); never the engine's `matchStartedAt`,
+  which is when it began waiting, lobby and queue included.
   Honest in three rules: a time of day is compared only with 4 matches
   (`MIN_SLOT`), nothing is said under 10 graded matches or two times to
-  compare (`MIN_TOTAL`; below that the card says how many more and shows a
-  progress line), and best and worst are called that only when the gap is at
-  least 4 points and twice the noise of the two averages (each spread held to
-  at least 8); else the title is "No clear best time yet" and the two are
-  "Highest so far" and "Lowest so far". Beside the words the eight times as
-  columns at their average grade, the count under each, a thin one dashed.
+  compare (`MIN_TOTAL`), and best and worst are called that only when the gap
+  is at least 4 points and twice the noise of the two averages (each spread
+  held to at least 8); else the title is "No clear best time yet" and the two
+  are "Highest so far" and "Lowest so far". Clear, the title is the finding
+  ("You play best between 6 PM and 9 PM"). BELOW THE THRESHOLD the card is
+  quiet (`.counting`): titled "When you play" with no eyebrow and no columns,
+  what is missing in words that stay true whatever time the next match is
+  played (`short`: 'total', "Shows after at least N more graded matches...";
+  'second', "Shows once a second time of day has 4 graded matches. All 14 so
+  far started between 6 PM and 9 PM."; 'two') and a progress line counting
+  that (`toward`). "4 more graded matches" said to an evening player stayed
+  "4 more" however many evenings they added. With enough, beside the words
+  the eight times as columns at their average grade, the count under each; a
+  time with too few to compare is a short faint stub with no number over it
+  (its average in its tooltip).
 - **Simpler rows (item 11).** A row is six things in columns: the agent's
   portrait, the agent on the map over the date ("Today, 9:25 PM"), the
   result and the score ("Victory 13 : 11"), the grade in its band's tone, its
@@ -373,8 +395,22 @@ you play best, then every match as one grouped card of rows.
   undone.", for an import also that its video is kept and its game not given
   back. Keep it has the keyboard and Escape keeps it. Delete calls
   `deleteMatch(id)` (MATCH_DELETE); a refusal is said in the dialog; done,
-  the row folds away and the list is read again (a push meanwhile waits for
-  the fold). The imported row's own two press Delete is gone.
+  the row folds away and the list is read again. Main pushes PUSH_REVIEWS
+  `{ removed }` inside MATCH_DELETE, before its answer, so a push that lands
+  while a delete is asked or a row folds is HELD (`held()`, `loadAfter`):
+  the list is painted once, after the fold, and the keyboard goes to the row
+  now standing where the deleted one stood (`focusRow`), never to the page.
+  The imported row's own two press Delete is gone. A League row, which keeps
+  no result, shows its queue quietly where the result would be.
+- **The page scrolls as one (9.1 fix).** Matches, Patterns and Stats scroll
+  the whole sheet, title, sub switch and head actions included, under an
+  18px fade at its top (`html.embedded .sheet::before`), as Clips does: the
+  head used to stay put over a body that scrolled under it, slicing the trend
+  and the rows with a hard edge. `matches.js scrollerEl()` finds what
+  scrolls for the peek and the menu. Stats' graded matches read as Matches
+  rows (the agent on the map, the day, the result in its tone, the grade),
+  and its Recent matches number is the TRACKER SCORE (the server's
+  computeMatchRating), never called the match rating.
 - **Looking at it:** `shot-demo.js` scenes `matchesmany` (a fuller library,
   `scripts/fixtures/many-matches.js`), `matchestip`, `matchespeek`,
   `matcheslist`, `matchesmenu`, `matchesconfirm`, `matchesfoot`,
