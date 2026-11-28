@@ -21,7 +21,7 @@ Occlara is a post-match AI coach. It reads the game while it is played and coach
 
 ## Operating Context
 - **Before a match:** Home and the Start button.
-- **During a match:** a sealed Recording screen only. Every page is locked, and no notice or sound mentions the match. In Valorant the screen shows the live status (map, agent, score, round and the round tape, each behind a Settings switch) and the review as a locked ring.
+- **During a match:** a sealed Recording screen only. Every page is locked, and no notice or sound mentions the match. In Valorant the screen shows the live status (map, agent, score, round and the round tape, each behind a Settings switch), Stop, and the line that the review opens when the match ends.
 - **After the match:** the review opens, with Home, Matches, Patterns, Moments, Stats, Ask Coach, Invite and Settings around it.
 - **Separate windows:** Sign in (activation), onboarding, splash, the dock, the clip player, the AI log viewer and the Verdict share image.
 - **Accounts (8.7):** Free, Pro and Max, with a monthly game cap and referral invites.
@@ -36,7 +36,8 @@ Occlara is a post-match AI coach. It reads the game while it is played and coach
 ## Brand Commitments
 - **Name:** Occlara. The crescent is the mark today, and the owner has said nothing is sacred.
 - **Owner's direction for the 8.7 redesign:** dark ground; simple and calm while keeping all the information; Linear-quality precision and high-quality motion; a unique look, not "vibe coded".
-- **The owner rejects:** boxes nested in boxes, walls of small grey text, and glows or gradients.
+- **The owner rejects:** boxes nested in boxes, walls of small grey text, and glows or gradients as decoration.
+- **Orbit (27 Nov 2026), the owner's pick:** an indigo black sky, the moon's lit limb as the crescent at planet scale, cards on it, Onest, one indigo accent for Start and Stop, sentence case, buttery spring motion. Its deliberate exceptions to the line above: Stop's inset glow and the medals' metal (`DESIGN.md`).
 
 ## Evidence on Hand
 - Real screens from the current build are in `dist-surface-shots/` (`OCCLARA_SHOTS=1 npm run check:mainwindow`, `npx electron scripts/shot-surface.js <surface>`).

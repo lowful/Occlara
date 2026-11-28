@@ -229,7 +229,10 @@ invisible on the dark ground.
 
 **Look at UI changes, do not only compile them.**
 `npx electron scripts/shot-surface.js shell settings` writes real screenshots to
-`dist-surface-shots/`, one surface on its own, and `OCCLARA_SHOTS=1 npm run
+`dist-surface-shots/`, one surface on its own, `npx electron
+scripts/shot-demo.js home review recording` the bar and a page on the sample
+library with their real preloads (`demo-<scene>.png`, unset
+ELECTRON_RUN_AS_NODE first), and `OCCLARA_SHOTS=1 npm run
 check:mainwindow` writes `main-<page>.png`, every page in the window beside the
 sidebar with saved reviews in it. A dropped colour declaration, an unshipped
 font weight and a stretched logo all pass every automated check in this repo

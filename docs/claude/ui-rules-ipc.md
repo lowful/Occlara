@@ -4,6 +4,41 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
 
 ### Rules for UI work
 
+**ORBIT (27 Nov 2026) CHANGED THESE RULES ON PURPOSE, and where the text below
+disagrees, this wins** (the system as built: `DESIGN.md`):
+
+- **The accent is indigo**, `--accent` `#516AF6` (`--accent-2`, `--accent-t`,
+  `--accent-tint`, `--accent-rgb`, and `--btn`, `--btn-h`, `--btn-bar` for
+  Start's glass). The signal's old names point at it (`--red`, `--signal`), and
+  `--on-accent` is white. ITS PLACES: Start and Stop, the recording dot, the
+  round under way (the selected round), the keyboard's focus ring and a card's
+  eyebrow. `check:palette SIGNAL_ALLOWED` names the rules, and its signal rule
+  reads the accent's own names too. A destructive action is coral (`--bad`).
+- **Cards are back** (`.o-card`: `--card`, radius 24, a hairline, 28px in), each
+  an eyebrow, a title and one real fragment, never all one size.
+- **The mono uppercase eyebrow is back** (`.o-eyebrow`, Geist Mono 500 12px,
+  .06em, `--accent-2`): a label, so it stays uppercase where everything else is
+  sentence case.
+- **Onest** (one variable file, 100 to 900) is the face; Geist Mono stays for
+  eyebrows and digits; Geist Sans is declared for Wrapped alone.
+- **Buttons are glass and a hairline**, radius 12, 44px: `.btn-rec` Start (the
+  indigo glass, 15px 700 white, 17px at `.xl`, the record icon beside its word),
+  `.btn-primary` the white glass, `.btn` and `.btn-ghost` the quiet glass,
+  `.btn-link` text alone. The arrow slides in only where the markup has
+  `.btn-label` and `.btn-arrow`. `--r-card` is the card's 24px now: a keycap or a
+  framed image takes `--r-frame` (6px).
+- **Motion transitions for state and settles on a spring** (`--spring-smooth`,
+  `--spring-gentle`, both `linear()`); keyframes are for one shot moments. A
+  hover comes in over 120ms and leaves over 220, a press goes down in 90.
+- **Ambient motion loops, slowly, outside a match only**: the stars' twinkle and
+  the agent's float (`.m-drift`), paused whenever the window is hidden and while a
+  match is recorded (`Motion.ambient`, `html.ambient-off`). Nothing moves mid
+  match but the Recording screen's arrival and its facts changing.
+- **A gradient may fade, never paint**: a mask-image's gradient passes
+  `check:palette`; the medals' metal (the review's SVG defs, from the
+  `--gold-*`, `--silver-*`, `--bronze-*` tokens) is the one painted exception
+  beside Stats' shimmer and Wrapped. Stop's inset glow is allowed.
+
 **There is no build step and no framework.** No React, no JSX, no bundler, no
 TypeScript. Plain DOM APIs and plain CSS. Do not introduce a framework or a
 build pipeline to add a component.

@@ -6,6 +6,54 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
 
 Every surface is a plain folder with `index.html`, a `.css` and usually a `.js`.
 
+**ORBIT (27 Nov 2026, the owner's pick; phase 1 on feat/orbit).** The visual
+system is Orbit now (`DESIGN.md`, built from the redesign folder's
+`ORBIT-SPEC.md`); where this file describes the Progress v3 look below, Orbit
+wins. What phase 1 changed, and what to keep true:
+
+- **The bar is 56px** (`main-window.js TOP_H`, `shell.css .bar`): the crescent
+  and "Occlara", then FOUR LINKS, Home, Matches, Practice and Clips, plain
+  words with one 4px dot gliding to the current one (`placeMarker`, the smooth
+  spring over 420ms), then Start at the bar's size (hidden on Home, whose hero
+  carries the big one), the pause button while recording, the profile button
+  and the window's buttons. Each link is a GROUP of pages (`shell-nav.js TOP`):
+  Matches holds the library, Patterns, Stats and the review it opens; Practice
+  holds the drills and the Trainer; Clips is the Moments page. A link is found
+  by the page it lands on (`#nav .nav-item[data-page="moments"]` reads Clips).
+  No page was lost: Patterns and Stats are reached inside Matches and the
+  Trainer inside Practice by THE SUB SWITCH (`shared/subnav.js`, `.subnav`, a
+  segmented control at the head of each of those pages, its pages from
+  `shell-nav.js SUB` through each preload's `subnav`), and Ask Coach is a row
+  of the profile menu (`#nav-coach`) and the review's "Ask about this match".
+  The `nav` flag on a page still says it is one of the primary pages. Mid match
+  the links dim to 35% beside a lock and "Locked until the match ends", every
+  link and row locked by `syncSeal` as before, and the bar's Stop goes: Stop is
+  the Recording screen's own (`#live-stop`), the pause button stays.
+- **A trap:** a classic script's own top level `const top` collides with
+  `window.top` and the whole script fails to run, silently. The shell's list
+  of links is `topLinks`.
+- **The sky** (`shared/sky.js`): stars and the moon's lit limb, drawn in the
+  window's own coordinates, so Home (a view 56px down) and the bar's strip of
+  it meet with no seam. The moon is drawn once (a few hundred ms) and kept in
+  localStorage, which every page shares; it is never drawn mid match.
+- **The Recording screen** is one centred column over the sky (screen-silence.md).
+- **Home** is the fix as the hero (split at its colon into a headline and a grey
+  sub line), Start and Open last review, the last match's agent floating in
+  front of the moon (the bundled 256px icon, round: the app ships no full
+  portrait), then the bento of the last match, the trend (the grade line, its
+  own card now) and what repeats, then the moment the coach looked at beside
+  the rank, then the recent matches.
+- **The review's hero**: the grade's number at 132px with its letter, "out of
+  100" and the change on the last match (`.vd-delta`, from main's progress),
+  the medals (`paintMedals`: real facts only, main's own, never another
+  player's name), the fix in two tones, and Ask about this match (`#ask`, moved
+  out of the header) beside Every round. The result reads in sentence case.
+- **Looking at it**: `env -u ELECTRON_RUN_AS_NODE npx electron
+  scripts/shot-demo.js home review recording` boots the shell and a page each
+  with its real preload, answers their IPC from the sample library and writes
+  `dist-surface-shots/demo-<scene>.png` (scenes: home, matches, patterns,
+  stats, practice, clips, review, stop, recording, waiting, held). Dev only.
+
 **Top navigation (Progress v3).** The sidebar is gone. The shell is a 64px bar
 across the window (`main-window.js` `SIDEBAR_W` 0, `TOP_H` 64): the crescent
 and Occlara, the pages as pill tabs with one sliding pill marker

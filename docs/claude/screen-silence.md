@@ -47,6 +47,18 @@ reversal, kept as narrow as that choice allows.
 - **The read cadence line is gone** from the sealed screen
   (`paintSealedFacts` used to write "Reading your game every 1s in a live
   round" onto it, a live number about the match).
+- **Orbit (27 Nov 2026) redrew it and widened nothing.** One centred column
+  over the sky: the still accent dot and "Recording since 10:58 PM" (and the
+  mode's word), the agent's face and "Jett on Abyss", the score at 136px, the
+  round and the round tape as bars (won, lost, of unknown order, the round
+  under way outlined, to come empty, the halves parted), Stop (`#live-stop`,
+  the same Stop as the bar's), "Your review opens when the match ends.", and
+  at the foot the player's own choice of what shows. The map's art behind the
+  card went (the sky is the ground) and so did the locked ring beside it.
+  ORBIT-SPEC.md asks for Stop to glow-pulse and the dot to breathe; this rule
+  holds them still (Stop's inset glow at its midpoint, the dot plain), and the
+  moon and stars behind are drawn once, still, never drawn mid match (an image
+  already kept is put up). Changing that is the owner's call.
 - `check:mainwindow` plays a match by and holds the screen to the four facts
   and the tape, and to none of the HP, credits, players alive, spot and spike
   the reader's context also held.
