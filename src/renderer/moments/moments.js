@@ -549,7 +549,8 @@ function momentRow(m, x) {
   open.setAttribute('aria-label', lol ? `Death ${x.round}${x.time ? ` ${x.time}` : ''}${x.line ? `: ${x.line}` : ''}. Open its review`
     : `${x.kind === 'death' ? 'Death' : 'Highlight'} in round ${x.round}: ${x.title}. Open the review at this round`);
   open.append(el('span', 'mo-round', `R${x.round}`));
-  open.append(el('span', `mo-kind ${x.kind}`, x.kind === 'death' ? 'Death' : 'Highlight'));
+  // The kind, where there are two: every League moment is a death, and its title says so.
+  if (!lol) open.append(el('span', `mo-kind ${x.kind}`, x.kind === 'death' ? 'Death' : 'Highlight'));
   const main = el('div', 'mo-main');
   const gun = x.kind === 'death' ? killIconImg(x.killIcon) : null;
   if (gun) {
@@ -724,7 +725,7 @@ async function load() {
     const r = refocus;
     if (Date.now() > r.until) { refocus = null; return; }
     const a = document.activeElement;
-    if (!a || a === document.body || a.isConnected === false) focusAfterDelete(r.key, r.fromHero).focus();
+    if (!a || a === document.body || !document.documentElement.contains(a)) focusAfterDelete(r.key, r.fromHero).focus();
   }
 }
 

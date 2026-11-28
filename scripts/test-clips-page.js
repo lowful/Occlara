@@ -270,6 +270,13 @@ const GB = 1024 * 1024 * 1024;
   const at = D.activeElement;
   ok(at && at !== D.body && at.classList.contains('mo-open') && at.closest('.mo-row') && at.closest('.mo-row').dataset.key === key && D.querySelector('#mo-list').contains(at),
     'the keyboard lands on the same moment\'s row, painted again, never on the page\'s body', at && (at.className || at.tagName));
+  // Main's own push after a delete paints the page once more, a moment later:
+  // the button with the keyboard is replaced, and the keyboard follows it.
+  q.bridge.emit(C.PUSH_REVIEWS, { id: x.id, game: 'valorant', clip: x.clip.name, removed: true });
+  await settle();
+  const at2 = D.activeElement;
+  ok(at2 && at2 !== at && D.documentElement.contains(at2) && at2.classList.contains('mo-open') && at2.closest('.mo-row').dataset.key === key,
+    'and main\'s push repainting a moment later keeps it there, on the new row', at2 && (at2.className || at2.tagName));
   ok(q.bridge.invoked.filter(([ch]) => ch === C.MOMENTS_GET).length > before && q.bridge.invoked.filter(([ch]) => ch === C.STORAGE_GET).length >= 2,
     'the page is read again, and the storage');
   deleteAnswer = { ok: false, error: 'working' };

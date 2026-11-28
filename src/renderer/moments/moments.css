@@ -378,7 +378,10 @@ body > .dd-list .dd-opt { height: 34px; border-radius: 8px; }
   position: fixed; inset: 0; z-index: 20;
   display: flex; align-items: center; justify-content: center;
   padding: var(--space-6);
-  background: rgba(0, 0, 0, 0.72);
+  /* The theme's deep scrim: the player has no card behind its line and its
+     buttons, so the page under it recedes far enough that none of its words
+     read through them (at 0.72 the chips and the title did). */
+  background: var(--scrim);
   opacity: 0;
   transition: opacity var(--dur-base) var(--ease-out);
   /* Never cut: should the panel still be taller than the page, it scrolls,
