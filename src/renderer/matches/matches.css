@@ -563,3 +563,8 @@ html[data-section="patterns"] .patterns { --p-ground: var(--s1); padding: var(--
 .m-counting::after { content: counter(m-n); position: absolute; top: 0; left: 0; color: var(--text); }
 @keyframes m-count { from { --m-n: 0; } to { --m-n: var(--to); } }
 @media (prefers-reduced-motion: reduce) { .m-counting { animation: none; color: inherit !important; } .m-counting::after { content: none; } }
+
+/* ── ORBIT (27 Nov 2026) ─────────────────────────────────────────────────
+   The trend card's label is its eyebrow (check:palette SIGNAL_ALLOWED); the
+   rows' letter is the plain letter beside the number, as on Home. */
+.m-chart-label { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }

@@ -494,8 +494,16 @@ html.embedded .sheet > header {
   border-bottom: 0;
 }
 html.embedded .sheet > header .h-brand img { display: none; }
-/* The page title: Onest 700 at 28px on the display tracking, sentence case. */
-html.embedded .sheet > header .h-brand h2 { font-size: 28px; font-weight: 700; letter-spacing: var(--track-display); }
+/* THE PAGE HEAD (Orbit): the title at the display size, its controls beside
+   it, and the grey sub line under the whole row (.page-sub, wrapped to a line
+   of its own). One hero per page: this is it, unless the page sets its own. */
+html.embedded .sheet > header { flex-wrap: wrap; row-gap: 12px; padding-top: 40px; padding-bottom: 32px; }
+html.embedded .sheet > header .h-brand h2 { font-size: var(--t-display); font-weight: 700; letter-spacing: var(--track-display); line-height: var(--lh-display); }
+html.embedded .sheet > header > .page-sub {
+  flex: 0 0 100%; order: 10; margin: 0; padding-right: max(0px, calc(100% - 680px));
+  font-size: var(--t-title); font-weight: 500; letter-spacing: var(--track-title); line-height: 1.27;
+  color: var(--text-2); text-wrap: balance;
+}
 html.embedded .sheet > header #close { display: none; }
 /* The page's title and content share one column, centred up to 1040px. */
 html.embedded .sheet > header,

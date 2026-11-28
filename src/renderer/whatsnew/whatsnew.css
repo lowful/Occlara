@@ -73,3 +73,13 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 @media (prefers-reduced-motion: reduce) {
   .wn-entry.rise { animation: none; }
 }
+
+/* ── ORBIT (27 Nov 2026) ─────────────────────────────────────────────────
+   Each update is a card; the newest the hero, its title at the display size.
+   The version is the card's eyebrow. */
+.wn-list { gap: 20px; }
+.wn-entry { padding: 26px 28px; border-top: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--card); }
+.wn-entry.first { padding-top: 28px; border-top: 1px solid var(--line); }
+.wn-ver { color: var(--accent-2); letter-spacing: var(--track-eyebrow); }
+.wn-title { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); margin-top: 6px; }
+.wn-entry.first .wn-title { font-size: var(--t-display); font-weight: 700; letter-spacing: var(--track-display); line-height: var(--lh-display); }

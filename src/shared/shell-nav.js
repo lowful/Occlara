@@ -32,7 +32,7 @@ const PAGES = [
   { id: 'trainer', label: 'Trainer', surface: 'trainer', query: {}, preload: 'trainer-preload.js', nav: true },
   // Moments (8.7) took the Breakdown tab's place: the player's deaths and
   // highlights, compiled. The breakdown's numbers fold into Patterns.
-  { id: 'moments', label: 'Moments', surface: 'moments', query: {}, preload: 'moments-preload.js', nav: true },
+  { id: 'moments', label: 'Clips', surface: 'moments', query: {}, preload: 'moments-preload.js', nav: true },
   { id: 'stats', label: 'Stats', surface: 'stats', query: {}, preload: 'stats-preload.js', nav: true },
   { id: 'coach', label: 'Ask Coach', surface: 'chat', query: {}, preload: 'chat-preload.js', nav: true },
   // Players (docs/claude/social.md): search Occlara players who opted in, by

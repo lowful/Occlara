@@ -215,3 +215,9 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .m-counting::after { content: counter(m-n); position: absolute; top: 0; left: 0; color: var(--text); }
 @keyframes m-count { from { --m-n: 0; } to { --m-n: var(--to); } }
 @media (prefers-reduced-motion: reduce) { .m-counting { animation: none; color: inherit !important; } .m-counting::after { content: none; } }
+
+/* ── ORBIT (27 Nov 2026) ─────────────────────────────────────────────────
+   A card's heading is its eyebrow (check:palette SIGNAL_ALLOWED); the games
+   left stay the page's one hero, at the display numeral. */
+.pr-title { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
+.pr-sec, .pr-hero { padding: 26px 28px; background: var(--card); box-shadow: none; border: 1px solid var(--line); border-radius: var(--r-panel); }

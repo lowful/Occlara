@@ -18,7 +18,8 @@
  *
  *   env -u ELECTRON_RUN_AS_NODE npx electron scripts/shot-demo.js home review recording
  *
- * Scenes: home, matches, patterns, stats, practice, clips, review, recording,
+ * Scenes: home, matches, patterns, stats, practice, trainer, clips, coach,
+ * settings, profile, invite, whatsnew, feedback, players, duos, review, recording,
  * waiting, held, stop (recording between matches, on Matches).
  */
 const { app, BrowserWindow, ipcMain } = require('electron');
@@ -54,6 +55,15 @@ const SCENES = {
   stats: { page: 'stats' },
   practice: { page: 'practice' },
   clips: { page: 'moments' },
+  trainer: { page: 'trainer' },
+  coach: { page: 'coach' },
+  settings: { page: 'settings' },
+  profile: { page: 'profile' },
+  invite: { page: 'invite' },
+  whatsnew: { page: 'whatsnew' },
+  feedback: { page: 'feedback' },
+  players: { page: 'players' },
+  duos: { page: 'duos' },
   review: { page: 'review' },
   stop: { page: 'matches', coaching: true },
   recording: { page: null, sealed: true, coaching: true, live: 'live' },
@@ -124,7 +134,31 @@ app.whenReady().then(async () => {
     [C.WRAPPED_ENTRY]: () => null,
     [C.REVIEW_RIOT]: () => null,
     [C.LOL_REVIEW_GET]: () => null,
+    // Practice: the real practice store over the sample library and the drill library.
+    [C.PRACTICE_GET]: (_e, game, asked) => practice.get(typeof game === 'string' ? game : null, asked || null),
+    [C.PRACTICE_MARK]: () => ({ ok: false, error: 'demo' }),
+    // The Trainer: no runs kept.
+    [C.TRAINER_GET]: () => ({ runs: [], opened: null, replay: null }),
+    [C.TRAINER_REPLAYS]: () => ({ list: [], fresh: [] }),
+    // Profile: the real builder on the sample library and the seeded account.
+    [C.PROFILE_GET]: () => profileModel.build(proof.SEEDED_VIEW, store.recent('valorant', 50), { riotId: '', peak: null, peakSeason: null, history: null }, undefined, null),
+    [C.REFERRAL_GET]: () => proof.SEEDED_REFERRAL,
+    [C.LICENSE_GET]: () => ({}),
+    [C.APP_VERSION]: () => ({ current: require('../package.json').version, state: 'current' }),
+    [C.CLIPS_USAGE]: () => ({ bytes: 0, count: 0, cap: 10 * 1024 * 1024 * 1024 }),
+    [C.BACKFILL_STATUS]: () => null,
+    [C.CHANGELOG_REFRESH]: () => null,
+    [C.FEEDBACK_INFO]: () => null,
+    [C.CHAT_MATCHES]: () => null,
   };
+  const memo = new Map();
+  const practice = require('../src/main/services/practice-store').createPractice({
+    store: { get: (k) => memo.get(k), set: (k, v) => memo.set(k, v) },
+    recent: (g) => store.recent(g, patterns.LOOK_BACK), summarise: (s) => patterns.summarise(s),
+    band: () => null, riotId: () => '', busy: () => false, game: () => 'valorant', gameLabel: () => 'Valorant',
+    open: () => {}, changed: () => {}, reviews: store,
+  });
+  const profileModel = require('../src/shared/profile');
   for (const [ch, fn] of Object.entries(handlers)) if (ch && ch !== 'undefined') ipcMain.handle(ch, async (e, ...a) => fn(e, ...a));
   // A page that painted itself armed is let in at once, as main-window.js would.
   ipcMain.on(C.PAGE_READY, (e) => { try { e.sender.send(C.PUSH_PAGE, { phase: 'enter', dir: 'none' }); } catch { /* gone */ } });

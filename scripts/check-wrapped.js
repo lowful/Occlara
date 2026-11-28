@@ -128,7 +128,7 @@ setTimeout(async () => {
 
     // 2. The keyboard. The window in front first: out of focus the story pauses
     // (3b), and the weekly report this seeded profile is due opens over it.
-    for (const other of require('electron').BrowserWindow.getAllWindows()) if (other !== win && other.getTitle() === 'Your Week') other.close();
+    for (const other of require('electron').BrowserWindow.getAllWindows()) if (other !== win && other.getTitle() === 'Your week') other.close();
     await wait(300);
     win.focus();
     const playing = await until(() => wjs('!window.__wrapped.state().paused'), 3000);

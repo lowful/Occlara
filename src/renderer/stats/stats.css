@@ -327,3 +327,10 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
 .m-counting::after { content: counter(m-n); position: absolute; top: 0; left: 0; color: var(--text); }
 @keyframes m-count { from { --m-n: 0; } to { --m-n: var(--to); } }
 @media (prefers-reduced-motion: reduce) { .m-counting { animation: none; color: inherit !important; } .m-counting::after { content: none; } }
+
+/* ── ORBIT (27 Nov 2026) ─────────────────────────────────────────────────
+   Each card's heading is its eyebrow: Geist Mono 500 12px, uppercase, in the
+   accent's lighter step (check:palette SIGNAL_ALLOWED). A heading that is a
+   message, not a label (#nostats-title), keeps the card title's size. */
+section h3:not(#nostats-title) { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
+#nostats-title { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); }

@@ -181,6 +181,15 @@ const SIGNAL_ALLOWED = {
                             '.drawer .nav-item:focus-visible', '.sealed h1::before', '.live-dot', '.pip.now'],
   // The keyboard's ring on a recent match's row.
   'home/home.css':         ['.r-row:focus-visible'],
+  // ORBIT phase 2: a card's eyebrow on each page.
+  'stats/stats.css':       ['section h3:not(#nostats-title)'],
+  'profile/profile.css':   ['.pr-title'],
+  'invite/invite.css':     ['.inv-label'],
+  'feedback/feedback.css': ['.fb-label'],
+  'whatsnew/whatsnew.css': ['.wn-ver'],
+  'practice/practice.css': ['.pc-label', '.pc-where, .pc-min'],
+  'moments/moments.css':   ['.mo-title:not(#mo-empty-title):not(#mo-pl-title)'],
+  'matches/matches.css':   ['.m-chart-label'],
 };
 /** The rules of a stylesheet that name the signal and are not its places. */
 function strayReds(rel, css) {

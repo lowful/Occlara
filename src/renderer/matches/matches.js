@@ -1236,10 +1236,15 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeWindo
 // 8.7). As a page of the main window the library shows one section, named
 // by its query, and is titled for it.
 const SECTION_TITLES = { list: 'Matches', patterns: 'Patterns' };
+// ORBIT: each section's grey sub line under its title.
+const SECTION_SUBS = { list: 'Every match you played, the newest first.', patterns: 'What keeps repeating across your matches, and how each match compares.' };
 {
-  const title = SECTION_TITLES[document.documentElement.dataset.section];
+  const section = document.documentElement.dataset.section;
+  const title = SECTION_TITLES[section];
   const h = document.querySelector('.sheet > header .h-brand h2');
   if (title && h) { h.textContent = title; document.title = `Occlara ${title}`; }
+  const sub = document.querySelector('.sheet > header .page-sub');
+  if (sub && SECTION_SUBS[section]) sub.textContent = SECTION_SUBS[section];
 }
 
 (async () => {
