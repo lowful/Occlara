@@ -34,6 +34,19 @@ console.log('\nthe start of a match:');
   ok(P.startOf({ matchStartedAt: 5000, watchedFrom: 6000, at: 9000 }) === 5000, "Riot's start still first where both are kept");
   ok(P.startOf({ watchedFrom: 9500, at: 9000, score: '13-11' }) === 9000 - 24 * 100000, 'and a start after the end is not believed');
   ok(P.startOf({ at: 10 * 3600000, score: '13-11' }) === 10 * 3600000 - 24 * 100000, 'else its end less 100 seconds a round of its score');
+  // The screen's own start, from the rounds the reader kept (watchedFrom).
+  ok(P.screenStartOf([{ n: 1, firstAt: 1000000 }, { n: 2, firstAt: 1110000 }]) === 1000000, 'the screen saw round 1 start: that is the match\'s start');
+  ok(P.screenStartOf([{ n: 6, firstAt: 2000000 }, { n: 7, firstAt: 2100000 }]) === 2000000 - 5 * 100000,
+    'a recording begun in round 6 is put back to round 1, 100 seconds a round');
+  ok(P.screenStartOf([{ n: 3, firstAt: null }, { n: 4, firstAt: 900000 }]) === 900000 - 3 * 100000, 'a round with no time is passed over');
+  ok(P.screenStartOf([]) === null && P.screenStartOf(null) === null && P.screenStartOf([{ n: 0, firstAt: 5 }]) === null, 'and nothing without a round read');
+  // Main keeps it on a recorded review from the ledger's rounds, never the
+  // engine's matchStartedAt (when it began waiting, lobby and queue included).
+  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8');
+  ok(/screenStartOf\(\[\.\.\.led\.rounds\.values\(\)\]/.test(main) && /built\.watchedFrom = snap\.watchedFrom/.test(main) && !/watchedFrom = snap\.startedAt/.test(main),
+    'main keeps the screen\'s start on the review, from the rounds the ledger read');
+  const store = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'main', 'services', 'review-store.js'), 'utf8');
+  ok(/watchedFrom: r\.watchedFrom/.test(store), 'and the library row carries it');
   ok(P.startOf({ at: 10 * 3600000, score: '7 : 13' }) === 10 * 3600000 - 20 * 100000, 'a score written with a colon reads the same');
   ok(P.startOf({ at: 10 * 3600000 }) === 10 * 3600000 - 30 * 60000, 'else its end less half an hour, with no score');
   ok(P.startOf({}) === null && P.startOf(null) === null, 'and nothing without a time');

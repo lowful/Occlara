@@ -118,6 +118,11 @@ function metaOf(id, game, review, at) {
     // history by its own start (home-model.js startOf) rather than one put
     // back from `at`, which is when the watch ended it or Stop was pressed.
     matchStartedAt: Number.isFinite(r.matchStartedAt) && r.matchStartedAt > 0 ? r.matchStartedAt : null,
+    // And when the screen saw it start (9.1, index.js onValorantMatchEnded):
+    // When you play on Matches times a match never linked to Riot's record by
+    // it (play-times.js startOf). Only on a review that kept one, so every row
+    // saved before is written as it was.
+    ...(Number.isFinite(r.watchedFrom) && r.watchedFrom > 0 ? { watchedFrom: r.watchedFrom } : {}),
     // A review recording was stopped in the middle of: it never owns its Riot
     // link against a later recording of the same match.
     stoppedLive: !!r.stoppedLive,

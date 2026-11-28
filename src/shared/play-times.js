@@ -14,7 +14,8 @@
  *
  * WHEN A MATCH STARTED. Riot's own start where its review kept one
  * (matchStartedAt, a linked match), else when the recording saw it start
- * (watchedFrom, the reader's own match start, kept on the review since 9.1),
+ * (watchedFrom, from the first round the reader kept, screenStartOf, kept on
+ * a recorded review since 9.1),
  * else its end less 100 seconds a round of its score (the length
  * riot-review.js gives a match Riot did not time, the rule home-model.js
  * startOf keeps), else its end less half an hour, a typical match, for a row
@@ -74,6 +75,27 @@
     const m = /(\d+)\s*[-:]\s*(\d+)/.exec(String(row.score || ''));
     if (m) return row.at - (Number(m[1]) + Number(m[2])) * ROUND_MS;
     return row.at - NO_SCORE_MS;
+  }
+
+  /**
+   * WHEN THE SCREEN SAW A MATCH START (9.1), from the rounds the reader kept:
+   * the first round it read, less 100 seconds for each round before it, so a
+   * recording started in round 6 is put back to round 1. Kept on a recorded
+   * review as watchedFrom (index.js buildValorantReview), so a match never
+   * linked to Riot's record has a start of its own, not one guessed from its
+   * end and its score. Not the engine's matchStartedAt, which is when it
+   * began waiting for a match (Start, or the last match's end), lobby and
+   * queue included. Null without a round read.
+   * @param rounds  the ledger's rounds: [{ n, firstAt }]
+   */
+  function screenStartOf(rounds) {
+    let best = null;
+    for (const r of Array.isArray(rounds) ? rounds : []) {
+      if (!r || !fin(r.firstAt) || r.firstAt <= 0 || !Number.isInteger(r.n) || r.n < 1) continue;
+      const at = r.firstAt - (r.n - 1) * ROUND_MS;
+      if (best === null || at < best) best = at;
+    }
+    return best;
   }
 
   /** The grade a row counts with, or null. */
@@ -267,5 +289,5 @@
     };
   }
 
-  return { playTimes, startOf, slotLabel, slotPhrase, slotBetween, hourWord, MIN_SLOT, MIN_TOTAL, MIN_GAP, SLOT_HOURS, SPREAD_FLOOR };
+  return { playTimes, startOf, screenStartOf, slotLabel, slotPhrase, slotBetween, hourWord, MIN_SLOT, MIN_TOTAL, MIN_GAP, SLOT_HOURS, SPREAD_FLOOR };
 });

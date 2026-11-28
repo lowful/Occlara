@@ -177,6 +177,21 @@ const CUT_SHORT = '[{"id":';
   ok(!fs.existsSync(posterPath), 'and Clear clips takes every poster with its clip');
 }
 
+// WHEN THE SCREEN SAW A MATCH START (9.1, When you play on Matches): a
+// recorded review's watchedFrom reaches its library row, and a row saved
+// without one is written as it was, with no key.
+{
+  const store = new ReviewStore(fresh());
+  const a = newId('valorant', T0 + 40 * 60000);
+  const b = newId('valorant', T0 + 90 * 60000);
+  store.save({ id: a, game: 'valorant', at: T0 + 40 * 60000, review: { ...review('Jett', 70), watchedFrom: T0 + 2 * 60000 } });
+  store.save({ id: b, game: 'valorant', at: T0 + 90 * 60000, review: review('Sova', 72) });
+  const rows = store.list('valorant');
+  const ra = rows.find((r) => r.id === a), rb = rows.find((r) => r.id === b);
+  ok(ra && ra.watchedFrom === T0 + 2 * 60000, 'a recorded match keeps when the screen saw it start on its row');
+  ok(rb && !Object.prototype.hasOwnProperty.call(rb, 'watchedFrom'), 'and a review without one has no such key');
+}
+
 try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
 console.log(failed ? `FAIL: ${failed} of ${passed + failed} review store checks failed` : `PASS: all ${passed} review store checks passed`);
 process.exit(failed ? 1 : 0);
