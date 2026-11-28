@@ -505,6 +505,11 @@ setTimeout(async () => {
       for (const v of views) {
         if (v.webContents.isDestroyed()) continue;
         await v.webContents.executeJavaScript("(() => { if (window.Motion && typeof window.Motion.ambient === 'function') window.Motion.ambient(false); return true; })()").catch(() => null);
+        // A count up runs on frames, and this hidden window gives too few to
+        // finish one: the picture held a K/D of 0.23 where the match had 1.48.
+        // Every counter carries its final text in data-value from the start
+        // (motion.js countUp), so the picture shows that.
+        await v.webContents.executeJavaScript("(() => { for (const e of document.querySelectorAll('.m-count[data-value]')) e.textContent = e.dataset.value; return true; })()").catch(() => null);
       }
       for (const v of views) {
         if (v.webContents.isDestroyed()) continue;

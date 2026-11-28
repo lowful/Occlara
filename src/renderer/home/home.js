@@ -662,7 +662,11 @@ function playLast(delayMs) {
   }
   const ratio = host.querySelector('.kd-ratio');
   if (ratio && window.Motion) {
-    const value = Number(ratio.textContent);
+    // The true value, never the text on screen: a visit that replays the
+    // entrance while an earlier count is still running would read its
+    // number mid count (0.25) and count to that. countUp keeps the final
+    // text in data-value from its first call.
+    const value = Number(ratio.dataset.value || ratio.textContent);
     if (Number.isFinite(value)) window.Motion.countUp(ratio, value, { format: (n) => n.toFixed(2), dur: 800 });
   }
   const svg = $('trend').querySelector('.grade-line');

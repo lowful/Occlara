@@ -185,9 +185,10 @@
     const dur = Math.min(900, Math.max(600, Number(o.dur) || 800));
     const delay = Math.max(0, Number(o.delay) || 0);
     return new Promise((resolve) => {
-      const job = { raf: 0, timer: 0, done: () => {
+      const job = { raf: 0, timer: 0, fallback: 0, done: () => {
         cancelAnimationFrame(job.raf);
         clearTimeout(job.timer);
+        clearTimeout(job.fallback);
         live.delete(job);
         if (counting.get(el) === job) counting.delete(el);
         el.textContent = finalText;
@@ -199,7 +200,9 @@
         const t0 = performance.now();
         const step = (now) => {
           if (counting.get(el) !== job) return;
-          const t = Math.min(1, (now - t0) / dur);
+          // A frame's time can sit a hair before t0, and a negative t would
+          // print a number below the start (a K/D of -0.27) for that frame.
+          const t = Math.max(0, Math.min(1, (now - t0) / dur));
           if (t >= 1) { job.done(); return; }
           el.textContent = format(from + (to - from) * easeOut(t));
           job.raf = requestAnimationFrame(step);
@@ -208,6 +211,10 @@
       };
       el.textContent = format(from);
       if (delay) job.timer = setTimeout(start, delay); else start();
+      // Frames stop in a window that is covered or hidden after the count
+      // began, and the number would stand mid count (0.23 for a K/D of 1.48
+      // in the site export). A timer still runs there, so it always lands.
+      job.fallback = setTimeout(() => { if (counting.get(el) === job) job.done(); }, delay + dur + 150);
     });
   }
 
