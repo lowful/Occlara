@@ -171,7 +171,9 @@ setTimeout(async () => {
     const last = await hjs("(document.querySelector('#last .score') || {}).textContent || ''");
     const gradeNum = await hjs("(document.querySelector('#last .gv-score') || {}).textContent || ''");
     const recent = await hjs("document.querySelectorAll('#recent-list .r-row').length");
-    const focus = await hjs("document.getElementById('focus-text').textContent");
+    // Orbit: the fix for next match is Home's hero (#h-fix, its head and its
+    // grey sub line), not the old moment card's #focus-text.
+    const focus = await hjs("(document.getElementById('h-fix') || {}).textContent || ''");
     lines.push(`home: score="${last}" grade=${gradeNum} recent=${recent} focus="${focus.slice(0, 40)}"`);
     if (last !== '13 : 11') return report(false, `Home's last match reads "${last}"`);
     if (String(gradeNum) !== String(built.grade.score)) return report(false, `Home's grade reads ${gradeNum}, the review ${built.grade.score}`);
@@ -239,10 +241,12 @@ setTimeout(async () => {
       const box = trend.getBoundingClientRect();
       const lb = svg ? svg.getBoundingClientRect() : null;
       const map = last.querySelector('.lm-thumb');
-      const face = document.querySelector('#h-agent .h-agent-face');
+      // Orbit: the agent stands as its full portrait (agents-full), or as the
+      // head icon in its ring when the portrait cannot load.
+      const face = document.querySelector('#h-agent .h-agent-full') || document.querySelector('#h-agent .h-agent-face');
       return { dots: svg ? svg.querySelectorAll('.gl-dot').length : 0, nums, inside: !!lb && lb.bottom <= box.bottom && lb.right <= box.right,
         map: !!(map && map.complete && map.naturalWidth > 0 && /maps\\/Abyss\\.jpg$/.test(map.src)),
-        face: !!(face && face.complete && face.naturalWidth > 0 && /agents\\/Jett\\.png$/.test(face.src)) };
+        face: !!(face && face.complete && face.naturalWidth > 0 && /agents(-full)?\\/Jett\\.(png|webp)$/.test(face.src)) };
     })()`);
     lines.push(`home grade line and art: ${JSON.stringify(fill)} for a grade of ${built.grade.score}`);
     if (fill.dots !== SEEDED || fill.nums[fill.nums.length - 1] !== String(built.grade.score) || !fill.inside || !fill.map || !fill.face) {
@@ -287,7 +291,7 @@ setTimeout(async () => {
     if (kids[kids.length - 1] !== ms.view || ms.bounds.y !== mainWindow.TOP_H || ms.bounds.x + ms.bounds.width !== cw || drawn.w !== 280) {
       return report(false, `the menu's view is not on top under the bar at the window's right: ${JSON.stringify(ms.bounds)} of ${cw}`);
     }
-    if (drawn.rows !== 'profile,players,duos,invite,settings,feedback,discord' || drawn.games !== SEEDED_VIEW.gamesLeft || drawn.focus !== 'account') {
+    if (drawn.rows !== 'profile,coach,players,duos,invite,settings,feedback,discord' || drawn.games !== SEEDED_VIEW.gamesLeft || drawn.focus !== 'account') {
       return report(false, `the menu's view does not draw the shell's rows with the first focused: ${JSON.stringify(drawn)}`);
     }
     await shot('drawer', mainWindow, win);
@@ -671,8 +675,8 @@ setTimeout(async () => {
       return report(false, `a notice is not one line in the strip, left of the window's buttons: ${JSON.stringify(busy)}`);
     }
     if (busy.region.strip !== 'drag' || busy.region.notice !== 'no-drag') return report(false, `the strip is ${busy.region.strip} and its notice ${busy.region.notice}, not drag around a no-drag text`);
-    if (!['400', '500', '600', '700', '800'].includes(String(busy.weight)) || !/Geist/.test(busy.font)) {
-      return report(false, `the notice line is drawn in ${busy.font} ${busy.weight}, not a Geist weight that ships`);
+    if (!['400', '500', '600', '700', '800'].includes(String(busy.weight)) || !/Onest|Geist/.test(busy.font)) {
+      return report(false, `the notice line is drawn in ${busy.font} ${busy.weight}, not a weight of a face that ships (Onest, or Geist Mono)`);
     }
     // TOP NAVIGATION (Progress v3): the line sits between the tabs and the
     // bar's end, so a long one is cut there, whole in its title.
@@ -1390,8 +1394,8 @@ setTimeout(async () => {
       || loading.steps !== 'saved:done writing:now look:next') {
       return report(false, `the review still being built is not its loading screen: ${JSON.stringify(loading)}`);
     }
-    if (!/Geist/.test(loading.font) || !['600', '700', '800'].includes(String(loading.weight))) {
-      return report(false, `the loading screen is drawn in ${loading.font} ${loading.weight}, not a Geist weight that ships`);
+    if (!/Onest|Geist/.test(loading.font) || !['600', '700', '800'].includes(String(loading.weight))) {
+      return report(false, `the loading screen is drawn in ${loading.font} ${loading.weight}, not a weight of a face that ships (Onest, or Geist Mono)`);
     }
     await shot('review-building', mainWindow, win);
     const CHECKING_HOME = `(() => {
