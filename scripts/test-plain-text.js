@@ -45,6 +45,32 @@ const frameUrl = 'data:image/jpeg;base64,ZnJhbWU=';
 ok(a.scrubText({ frame: frameUrl }).frame === frameUrl && b.scrubText({ frame: frameUrl }).frame === frameUrl, 'a data URL is left as it is');
 ok(JSON.stringify(b.scrubText({ x: ['p; q'] })) === JSON.stringify(a.scrubText({ x: ['p; q'] })), 'the two copies scrub alike');
 
+// PRACTICE, NEVER PRACTISE (9.1, the owner's rule): saved model text can say
+// "practised" (a review in the owner's library: "play the simple, practised
+// rounds that built the lead"); it reads "practiced" wherever it is shown.
+const spelt = [
+  ['play the simple, practised rounds that built the lead', 'play the simple, practiced rounds that built the lead'],
+  ['Practise the swing.', 'Practice the swing.'],
+  ['Keep practising it; then review.', 'Keep practicing it. Then review.'],
+  ['PRACTISE', 'PRACTICE'],
+  ['She practises lineups', 'She practices lineups'],
+  ['Practice stays practice.', 'Practice stays practice.'],
+];
+for (const [input, want] of spelt) {
+  const got = a.scrubText({ t: input }).t;
+  ok(got === want, `"${input}" is shown as "${want}"`, got);
+  ok(b.scrubText({ t: input }).t === got, 'and the server copy shows it the same');
+}
+ok(a.practiceSpelling(null) === null && a.practiceSpelling('practiced') === 'practiced', 'a value that is not a string, or spelt already, is left alone');
+ok(a.scrubText({ u: 'https://occlara.app/practise' }).u === 'https://occlara.app/practise', 'a link keeps its own spelling');
+{
+  // Through the home model's fix, the way Home shows it.
+  const HM = require('../src/shared/home-model');
+  const row = { id: 'valorant-1-a', game: 'valorant', at: Date.now(), map: 'Split', title: 'Jett', grade: { score: 70 } };
+  const m = HM.homeModel({ rows: [row], patterns: {}, review: { id: 'valorant-1-a', focus: 'Play the practised rounds; trade.' }, previous: null });
+  ok(m.focus === 'Play the practiced rounds. Trade.', "Home's fix is shown as Practice spells it", m.focus);
+}
+
 // The two files are one rule: the code, apart from its comments, is the same.
 const body = (f) => fs.readFileSync(path.join(root, f), 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '').trim();
 ok(body('src/shared/plain-text.js') === body('server/services/plain-text.js'), 'src and server hold the same code');
@@ -53,6 +79,10 @@ ok(body('src/shared/plain-text.js') === body('server/services/plain-text.js'), '
 const has = (f, re) => re.test(fs.readFileSync(path.join(root, f), 'utf8'));
 ok(has('src/main/index.js', /scrubText/), 'a review is cleaned as it is presented');
 ok(has('src/shared/home-model.js', /noSemicolons\(ownFocus/), 'the fix on Home is cleaned');
+ok(has('src/shared/home-model.js', /practiceSpelling\(noSemicolons\(ownFocus/), 'and spelt as Practice spells it');
+ok(has('src/main/services/ask-coach.js', /reply: practiceSpelling\(data\.reply\)/), "Ask Coach's answer is shown as Practice spells it");
+ok(has('src/shared/moments.js', /scrubText\(f\.what\)/), "the look's words on Clips are cleaned as the review's are");
+ok(has('src/main/index.js', /PUSH_DEATH_EXPLAIN[^\n]*scrubText/), 'and Further explain is');
 ok(has('server/services/match-review.js', /out\.focus = noSemicolons/), 'the model\'s focus is cleaned as it is read');
 ok(has('server/routes/coach.js', /\\s\*;\\s\*/), 'the shared server cleaner drops semicolons');
 ok(has('server/services/match-review.js', /never use semicolons/), 'the review prompt says never to write one');

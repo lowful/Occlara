@@ -23,7 +23,7 @@
  * again for a newest rated match Riot had not put in it yet (rrWaiting).
  */
 
-const { noSemicolons } = require('./plain-text');
+const { noSemicolons, practiceSpelling } = require('./plain-text');
 const Tiers = require('./rank-tiers');
 
 const TREND = 5;
@@ -167,7 +167,8 @@ function homeModel({ rows, patterns, review, previous }) {
 
   return {
     last,
-    focus: noSemicolons(ownFocus || prevFocus),
+    // The model's words: no semicolons, and Practice spelt so (9.1).
+    focus: practiceSpelling(noSemicolons(ownFocus || prevFocus)),
     focusPrevious: !!prevFocus,
     // Why the fix is an older one's: 'writing' (the newest is still being
     // built) or 'ungraded' (the newest has no grade), or null.

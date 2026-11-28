@@ -34,6 +34,8 @@
  */
 
 const chatContext = require('../../shared/chat-context');
+// The coach's words as the player reads them: Practice, never practise (9.1).
+const { practiceSpelling } = require('../../shared/plain-text');
 const patternsOf = require('../../shared/patterns');
 const breakdownOf = require('../../shared/breakdown');
 
@@ -403,7 +405,7 @@ class AskCoach {
     const match = label(pick.id);
     if (res && res.ok && typeof data.reply === 'string' && data.reply) {
       const clips = data.honest ? [] : clipsFor(data.clips, have, data.reply);
-      return { ok: true, reply: data.reply, honest: !!data.honest, match, moved: !!pick.moved, from: from ? chatContext.labelOf(from) : null,
+      return { ok: true, reply: practiceSpelling(data.reply), honest: !!data.honest, match, moved: !!pick.moved, from: from ? chatContext.labelOf(from) : null,
         ...(clips.length ? { clips } : {}) };
     }
     // NO GAMES LEFT (8.7.3, the server's chatLocked): the page says it as a

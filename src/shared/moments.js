@@ -46,6 +46,7 @@ const { deathClip, CLIP_RE } = require('./clips');
 // A clutch is the player's only where they were alive at the end (9.1): one rule
 // with the review's strengths, its Decisions and Wrapped (insights.js).
 const { clutchWonAlive } = require('./insights');
+const { scrubText } = require('./plain-text');
 // How many matches the page reads: THE PATTERNS' OWN WINDOW, one and the same
 // (re-exported below, and main reads it through here), so the compilation
 // and its `across` marks count over exactly the matches the Patterns page does.
@@ -153,7 +154,9 @@ function valorantDeaths(saved, have, io, patternKeys) {
     if (riot && riot.firstDeath) where.push('first to die');
     if (riot && riot.traded === false) where.push('nobody traded it');
     if (riot && riot.afterPlant) where.push('after the plant');
-    const line = spoke && f.what ? f.what : (where.length ? where.join(', ') : null);
+    // The look's own words are the model's: shown as the review shows them, no
+    // semicolons and Practice spelt so (plain-text.js scrubText, 9.1).
+    const line = spoke && f.what ? scrubText(f.what) : (where.length ? where.join(', ') : null);
     const repeats = mistakesAt(review, c.n).map((m) => ({ ...m, across: patternKeys.has(m.key) }));
     const name = f ? (f.clip || null) : null;
     const { clip, clipGone } = clipOf(name, f ? f.clipDeath : null, have, review, io, id);

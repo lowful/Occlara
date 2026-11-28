@@ -38,6 +38,13 @@ disagrees, this wins** (the system as built: `DESIGN.md`):
   `check:palette`; the medals' metal (the review's SVG defs, from the
   `--gold-*`, `--silver-*`, `--bronze-*` tokens) is the one painted exception
   beside Stats' shimmer and Wrapped. Stop's inset glow is allowed.
+- **The model's words are cleaned as they are shown** (9.1): no semicolons
+  and "Practice", never "Practise" (`plain-text.js scrubText`, its
+  `practiceSpelling` turning a word that starts "practis" into "practic", a
+  capital kept). Main's `present()` for the review, Further explain, Home's
+  fix (`home-model.js`), the look's line on Clips (`moments.js`) and Ask
+  Coach's answer (`ask-coach.js`) pass through it; a saved review keeps what
+  the model wrote. The server holds the same code (`test:plaintext`).
 
 **There is no build step and no framework.** No React, no JSX, no bundler, no
 TypeScript. Plain DOM APIs and plain CSS. Do not introduce a framework or a

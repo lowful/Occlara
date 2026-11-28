@@ -24,9 +24,15 @@ function noSemicolons(text) {
     .replace(/\.\s*\.+/g, '.');
 }
 
-/** Every string inside a value, deep, with its semicolons gone. Links and data URLs are left alone. */
+/** Practice, never practise (9.1): a word that starts "practis" reads "practic", a capital kept. */
+function practiceSpelling(text) {
+  if (typeof text !== 'string' || !/practis/i.test(text)) return text;
+  return text.replace(/\b(practi)(s)(e|ed|es|ing)\b/gi, (m, head, s, tail) => `${head}${s === 'S' ? 'C' : 'c'}${tail}`);
+}
+
+/** Every string inside a value, deep, with its semicolons gone and Practice spelt so. Links and data URLs are left alone. */
 function scrubText(value) {
-  if (typeof value === 'string') return /^(https?|occlara-clip|data):/i.test(value) ? value : noSemicolons(value);
+  if (typeof value === 'string') return /^(https?|occlara-clip|data):/i.test(value) ? value : practiceSpelling(noSemicolons(value));
   if (Array.isArray(value)) return value.map(scrubText);
   if (value && typeof value === 'object') {
     const out = {};
@@ -36,4 +42,4 @@ function scrubText(value) {
   return value;
 }
 
-module.exports = { noSemicolons, scrubText };
+module.exports = { noSemicolons, practiceSpelling, scrubText };
