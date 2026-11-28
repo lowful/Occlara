@@ -32,7 +32,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { CLIP_RE } = require('../../shared/clips');
+const { CLIP_RE, posterNameOf } = require('../../shared/clips');
 const { isRetired } = require('../../shared/games');
 const { clipNames } = require('../../shared/death-flags');
 
@@ -398,6 +398,47 @@ class ReviewStore {
     return bytes.length;
   }
 
+  /*
+   * A clip's POSTER (Orbit, 28 Nov 2026, services/clip-posters.js): one still
+   * of it, kept beside it as <clip>-poster.jpg, read only while its clip is
+   * still there, and deleted wherever its clip is (keepClips, dropClips).
+   */
+  /** Where a clip's poster is kept, or null for an id or a clip name that is not one. */
+  posterFile(id, clip) {
+    const name = posterNameOf(clip);
+    if (!name || !ID_RE.test(String(id || ''))) return null;
+    return path.join(this.root, id, name);
+  }
+
+  /** A clip's poster as base64, or null: none made yet, or its clip gone. */
+  poster(id, clip) {
+    const file = this.posterFile(id, clip);
+    if (!file || !this.hasClip(id, clip)) return null;
+    try { return fs.readFileSync(file).toString('base64'); } catch { return null; }
+  }
+
+  /** Keep a clip's poster beside it, through a temp file; only while the clip is there. Returns the bytes kept. */
+  savePoster(id, clip, bytes) {
+    const file = this.posterFile(id, clip);
+    if (!file || !bytes || !bytes.length || !this.hasClip(id, clip)) return 0;
+    const tmp = `${file}.tmp`;
+    try {
+      fs.writeFileSync(tmp, bytes);
+      fs.renameSync(tmp, file);
+    } catch (e) {
+      try { fs.rmSync(tmp, { force: true }); } catch {}
+      return 0;
+    }
+    return bytes.length;
+  }
+
+  /** A clip deleted, and its poster with it. */
+  removeClipFile(id, clip) {
+    try { fs.rmSync(path.join(this.root, id, clip), { force: true }); } catch {}
+    const poster = this.posterFile(id, clip);
+    if (poster) { try { fs.rmSync(poster, { force: true }); } catch {} }
+  }
+
   /** Whether that clip is on disk. */
   hasClip(id, name) {
     const file = this.clipFile(id, name);
@@ -430,7 +471,7 @@ class ReviewStore {
     let gone = 0;
     for (const c of this.clipsOf(id)) {
       if (keep.has(c.name)) continue;
-      try { fs.rmSync(path.join(this.root, id, c.name), { force: true }); gone += 1; } catch {}
+      this.removeClipFile(id, c.name); gone += 1;
     }
     return gone;
   }
@@ -524,7 +565,7 @@ class ReviewStore {
     }
     for (const c of this.clipsOf(r.id)) {
       if (spare && spare.has(c.name)) continue;
-      try { fs.rmSync(path.join(this.root, r.id, c.name), { force: true }); } catch {}
+      this.removeClipFile(r.id, c.name);
     }
     this.markClipsCleared(r.id, why);
   }

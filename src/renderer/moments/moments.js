@@ -163,9 +163,86 @@ function killIconImg(k) {
   return img;
 }
 
+/*
+ * A MOMENT'S FRAME (Orbit's Clips, 28 Nov 2026): the clip's own poster, one
+ * real still main made once with ffmpeg and keeps beside the clip
+ * (services/clip-posters.js); while it is being made, or where no clip was
+ * kept, the map's bundled splash, dimmed, and where none was kept a small
+ * "No clip kept" (or why it went). Never a frame that is not this moment's.
+ */
+const mapArt = (map) => (typeof api.mapArt === 'function' && map ? api.mapArt(map) : null);
+const posterOf = (x) => (x.clip && typeof x.clip.poster === 'string' && x.clip.poster.startsWith('data:image/jpeg;base64,') ? x.clip.poster : null);
+function frameEl(m, x, big) {
+  const poster = posterOf(x);
+  const f = el('div', 'mo-frame' + (poster ? '' : ' art') + (big ? ' big' : ''));
+  const src = poster || mapArt(m.map);
+  if (src) {
+    const img = document.createElement('img');
+    img.className = 'mo-frame-img';
+    img.src = src;
+    img.alt = '';
+    img.decoding = 'async';
+    img.loading = 'lazy';
+    img.addEventListener('error', () => img.remove());
+    f.append(img);
+  }
+  return f;
+}
+
+// ── The hero (Orbit) ──────────────────────────────────────────────────────
+// The newest match's best moments: a highlight with a clip kept first, then
+// a death with one, then a highlight, then a death; the first large, the
+// next two beside it. Pressed, a kept clip plays in the player; otherwise
+// its review opens at that round.
+function heroPicks() {
+  const m = ((data && data.matches) || []).find((mm) => mm.moments && mm.moments.length);
+  if (!m) return [];
+  const rank = (x) => (x.clip ? 0 : 2) + (x.kind === 'highlight' ? 0 : 1);
+  return m.moments.map((x, i) => ({ m, x, r: rank(x), i })).sort((a, b) => a.r - b.r || a.i - b.i).slice(0, 3);
+}
+function heroCard(p, big) {
+  const { m, x } = p;
+  const b = el('button', 'mo-hcard' + (big ? ' big' : ''));
+  b.type = 'button';
+  const what = x.kind === 'death' ? 'Death' : 'Highlight';
+  b.setAttribute('aria-label', `${what} in round ${x.round}: ${x.title}. ${x.clip ? 'Play its clip' : 'Open the review at this round'}`);
+  const f = frameEl(m, x, big);
+  if (x.clip) f.append(el('span', 'mo-frame-play', ''));
+  else f.append(el('span', 'mo-frame-tag', x.clipGoneText || 'No clip kept'));
+  const cap = el('span', 'mo-hcap');
+  cap.append(el('b', 'mo-hround', `Round ${x.round}`), el('span', 'mo-htitle', x.title));
+  if (x.time) cap.append(el('span', 'mo-htime', x.time));
+  f.append(cap);
+  b.append(f);
+  b.addEventListener('click', () => {
+    if (x.clip) openPlayer({ title: `${x.title}, round ${x.round}`, items: [x.key], clips: 1 });
+    else api.openReview(m.id, x.round);
+  });
+  return b;
+}
+function paintHero() {
+  const host = $('mo-hero');
+  host.replaceChildren();
+  const picks = heroPicks();
+  host.hidden = !picks.length;
+  if (!picks.length) return;
+  host.append(heroCard(picks[0], true));
+  if (picks.length > 1) {
+    const side = el('div', 'mo-hside');
+    for (const p of picks.slice(1)) side.append(heroCard(p, false));
+    host.append(side);
+  }
+  host.classList.toggle('solo', picks.length === 1);
+}
+
 function momentRow(m, x) {
   const row = el('div', 'mo-row');
   row.dataset.key = x.key;
+  // ORBIT: the card's frame first, its round in the corner; the play button
+  // or why no clip is kept sits on it (below, .mo-clip).
+  const frame = frameEl(m, x, false);
+  frame.append(el('span', 'mo-frame-cap', `Round ${x.round}`));
+  row.append(frame);
   const open = el('button', 'mo-open');
   open.type = 'button';
   open.setAttribute('aria-label', `${x.kind === 'death' ? 'Death' : 'Highlight'} in round ${x.round}: ${x.title}. Open the review at this round`);
@@ -204,9 +281,11 @@ function momentRow(m, x) {
     b.addEventListener('click', () => openPlayer({ title: `${x.title}, round ${x.round}`, items: [x.key], clips: 1 }));
     clip.append(b);
   } else if (x.clipGone) {
-    clip.append(el('span', 'mo-gone', x.clipGoneText || 'Clip gone'));
+    clip.append(el('span', 'mo-gone mo-frame-tag', x.clipGoneText || 'Clip gone'));
+  } else {
+    clip.append(el('span', 'mo-frame-tag', 'No clip kept'));
   }
-  row.append(clip);
+  frame.append(clip);
   return row;
 }
 
@@ -274,11 +353,13 @@ function paint(first) {
   if (!any) {
     $('mo-comp').hidden = true;
     $('mo-reel').hidden = true;
+    $('mo-hero').hidden = true;
     const [title, hint] = matches.length ? EMPTY.quiet : EMPTY.none;
     $('mo-empty-title').textContent = title;
     $('mo-empty-hint').textContent = hint;
     return;
   }
+  paintHero();
   paintReel();
   paintCompilation();
   paintCounts();
@@ -517,7 +598,8 @@ $('close').addEventListener('click', closeWindow);
   await load();
   // A review saved or improved (Riot's record landing, a look taken, a clip
   // cut) repaints the page; so does a change of game.
-  if (typeof api.onReviews === 'function') api.onReviews(() => load());
+  // A poster made (Orbit): the page shows it, unless the player is open, where a repaint would cut in.
+  if (typeof api.onReviews === 'function') api.onReviews((msg) => { if (msg && msg.posters && !$('mo-player').hidden) return; load(); });
   if (typeof api.onReviewWork === 'function') api.onReviewWork((m) => { if (m && !m.work) load(); });
   if (typeof api.onGame === 'function') api.onGame((g) => { if (g && g.id) { game = g.id; state.pattern = null; closePlayer(); load(); } });
   console.log('[moments] ready');

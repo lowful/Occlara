@@ -207,3 +207,82 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
    title keep the card title's size. */
 .mo-title:not(#mo-empty-title):not(#mo-pl-title) { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
 #mo-empty-title, #mo-pl-title { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); }
+
+/* ── ORBIT'S CLIPS (28 Nov 2026), the reference's layout ──────────────────
+   A hero of the newest match's best moments (the first large, the next two
+   beside it), the mistakes and the reel as chips that filter the grid, then
+   each match's moments as a calm grid of frames: the clip's own poster, or
+   the map's splash dimmed with "No clip kept" (or why its clip went). The
+   ids, the rows' classes and every channel stay the Moments page's. */
+
+/* The frame: 16:9, the picture under a flat dimming, the caption on it. */
+.mo-frame { position: relative; aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; background: var(--bg-2); border: 1px solid var(--line); contain: paint; }
+.mo-frame-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 700ms var(--spring-smooth), opacity var(--dur-hover-out) var(--ease-out); }
+.mo-frame.art .mo-frame-img { opacity: 0.28; filter: grayscale(0.4); }
+.mo-frame::after { content: ''; position: absolute; inset: 0; background: var(--scrim-soft); pointer-events: none; }
+.mo-frame-cap { position: absolute; left: 12px; bottom: 10px; z-index: 2; font-size: 13px; font-weight: 600; color: var(--text); }
+.mo-frame-tag, .mo-frame .mo-gone {
+  position: absolute; left: 12px; top: 12px; z-index: 2;
+  padding: 3px 7px; border-radius: var(--r-frame); background: var(--scrim-chip);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-2); white-space: nowrap;
+}
+/* The play mark, glass in the frame's middle: shown on a kept clip, brighter under the pointer. */
+.mo-frame .mo-clip { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; }
+.mo-frame .mo-clip > * { pointer-events: auto; }
+.mo-frame .mo-play { width: 44px; height: 44px; border-radius: 50%; background: var(--glass); border-color: var(--line-2); color: var(--text); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.mo-frame-play { position: absolute; left: 50%; top: 50%; z-index: 2; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: var(--glass); border: 1px solid var(--line-2); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.mo-frame-play::after { content: ''; position: absolute; left: 22px; top: 18px; border-left: 15px solid var(--text); border-top: 10px solid transparent; border-bottom: 10px solid transparent; }
+
+/* The hero. */
+.mo-hero { display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); gap: 20px; }
+.mo-hero.solo { grid-template-columns: minmax(0, 1fr); }
+.mo-hero[hidden] { display: none; }
+.mo-hside { display: grid; grid-template-rows: 1fr 1fr; gap: 20px; min-width: 0; }
+.mo-hcard { display: block; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 18px; }
+.mo-hcard .mo-frame { height: 100%; }
+.mo-hcard.big .mo-frame { aspect-ratio: auto; min-height: 300px; }
+.mo-hside .mo-frame { aspect-ratio: auto; min-height: 140px; }
+.mo-hcap { position: absolute; left: 18px; right: 18px; bottom: 14px; z-index: 2; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.mo-hround { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.mo-hcard.big .mo-hround { font-size: var(--t-title); letter-spacing: var(--track-title); }
+.mo-htitle { min-width: 0; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mo-htime { margin-left: auto; flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--text-2); }
+.mo-hcard:hover .mo-frame-img, .mo-row:hover .mo-frame-img { transform: scale(1.035); }
+.mo-hcard:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+
+/* The mistakes and the reel: chips on the ground, no card round them; a chip
+   chosen is the raised fill. Each chip's line stays its title on hover. */
+#mo-comp, #mo-reel { padding: 0; background: transparent; box-shadow: none; border: 0; }
+#mo-comp .mo-hint { display: none; }
+.mo-comp-rows { flex-direction: row; flex-wrap: wrap; gap: 8px; border-top: 0; }
+.mo-crow { gap: 0; padding: 0 4px 0 0; border: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: var(--r-btn); background: var(--card); }
+.mo-crow:hover { background: var(--raised); }
+.mo-crow:has(.mo-cpick[aria-pressed="true"]) { background: var(--raised); border-color: var(--line-2); }
+.mo-cpick { flex-direction: row; align-items: baseline; gap: 8px; padding: 8px 12px 8px 14px; }
+.mo-cpick .mo-ctitle { font-size: 13px; font-weight: 600; }
+.mo-cpick .mo-cline { font-size: 12px; color: var(--text-2); }
+.mo-cnone { display: none; }
+.mo-crow .btn.sm { height: 28px; }
+
+/* The grid of every moment, a match's head over its frames. */
+.mo-list { gap: 36px; }
+.mo-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 22px 18px; margin-top: 14px; }
+.mo-row { flex-direction: column; align-items: stretch; gap: 10px; border-bottom: 0; background: transparent; border-radius: 18px; }
+.mo-row:hover { background: transparent; }
+.mo-open { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 0 4px; }
+.mo-open .mo-round { display: none; }
+.mo-open .mo-main { width: 100%; }
+.mo-open .mo-time { font-size: 11px; }
+.mo-open .mo-marks { margin-top: 2px; }
+.mo-mhead { border-bottom: 0; padding-bottom: 0; }
+
+@media (max-width: 1000px) {
+  .mo-hero { grid-template-columns: minmax(0, 1fr); }
+  .mo-hside { grid-template-rows: none; grid-template-columns: 1fr 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mo-frame-img { transition: none; }
+}
+/* The grid sits on the ground: its frames are the cards, so no card holds them. */
+#mo-log { padding: 0; background: transparent; box-shadow: none; border: 0; border-radius: 0; }
+#mo-hero + #mo-reel, #mo-hero + #mo-comp { margin-top: 12px; }

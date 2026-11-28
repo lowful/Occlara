@@ -1015,6 +1015,35 @@ function present(review) {
 let reviewJump = null;
 let reviewJumpTimer = null;
 const JUMP_MS = 5000;
+/*
+ * THE CLIPS PAGE'S POSTERS (Orbit, 28 Nov 2026, services/clip-posters.js):
+ * each kept clip carries its poster, one real still of it made once by the
+ * bundled ffmpeg and kept beside it, or none yet, when it is asked for (a
+ * death's just before the death, a highlight's just before its first kill)
+ * and the page is told once it lands. Never mid match or sealed.
+ */
+const clipPosters = require('./services/clip-posters').createPosters({
+  store: reviewStore,
+  ffmpeg: importVideo.ffmpegPath({ packaged: app.isPackaged, resourcesPath: process.resourcesPath }),
+  busy: () => matchInProgress() || windowSealed(),
+  made: () => registry.sendTo('moments', C.PUSH_REVIEWS, { posters: true }),
+});
+function withPosters(model) {
+  if (!model || !Array.isArray(model.matches)) return model;
+  for (const m of model.matches) {
+    for (const x of m.moments || []) {
+      const c = x && x.clip;
+      if (!c || typeof c.name !== 'string') continue;
+      c.poster = clipPosters.dataUrl(m.id, c.name);
+      if (c.poster) continue;
+      const firstKill = Array.isArray(c.kills) && c.kills.length ? c.kills[0] : null;
+      const atMs = typeof c.death === 'number' ? c.death - 800 : typeof firstKill === 'number' ? firstKill - 300 : 1000;
+      clipPosters.want(m.id, c.name, Math.max(0, atMs) / 1000);
+    }
+  }
+  return model;
+}
+
 function setReviewJump(id, round) {
   clearTimeout(reviewJumpTimer);
   reviewJump = id && Number.isInteger(round) && round > 0 ? { id, round, at: Date.now() } : null;
@@ -3085,14 +3114,14 @@ const controller = {
     const g = game || gameRegistry.get(store.get('game')).id;
     // The patterns' own window, so the compilation counts what Patterns counts.
     const recent = reviewStore.recent(g, patternsOf.LOOK_BACK);
-    return momentsOf.build(g, recent, {
+    return withPosters(momentsOf.build(g, recent, {
       patterns: patternsOf.summarise(recent),
       clips: (id) => reviewStore.clipsOf(id).map((c) => c.name),
       url: (id, name) => clipScheme.urlFor(id, name),
       // Each kept clip's frames, for the player's frame step and marks (read once a file).
       frames: (id, name) => reviewClips.frameTimes(reviewStore.clipFile(id, name)),
       recordingMode: store.get('recordingMode') === 'off' ? 'off' : 'auto',
-    });
+    }));
   },
   /** By map and agent (champion), counted from every saved review of one game. */
   getBreakdown(game, opts) {

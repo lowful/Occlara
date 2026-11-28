@@ -87,6 +87,14 @@
 // A clip's file name, and nothing else: no path, no other type.
 const CLIP_RE = /^[rdh]\d{1,3}-clip\.mkv$/;
 
+// A clip's POSTER (Orbit's Clips page, 28 Nov 2026): one still of the clip,
+// made once by the bundled ffmpeg and kept beside it under its own name
+// (r2-clip.mkv, r2-poster.jpg), deleted with it. Not a clip, so the clip
+// scheme never serves it and the cap never counts it (a few KB beside MB).
+const POSTER_RE = /^[rdh]\d{1,3}-poster\.jpg$/;
+/** The poster's name for a clip's, or null for a name that is not a clip's. */
+const posterNameOf = (clip) => (CLIP_RE.test(String(clip || '')) ? String(clip).replace(/-clip\.mkv$/, '-poster.jpg') : null);
+
 const BEFORE_MS = 11000;
 const AFTER_MS = 4000;
 // A clip of an early death opens this long before its round's barriers drop.
@@ -411,7 +419,7 @@ function pickSpread(list, max) {
 }
 
 module.exports = {
-  CLIP_RE, BEFORE_MS, AFTER_MS, LEAD_MS, DROP_LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME, LOOK_AT,
+  CLIP_RE, POSTER_RE, posterNameOf, BEFORE_MS, AFTER_MS, LEAD_MS, DROP_LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME, LOOK_AT,
   FLAG_BEFORE_MS, FLAG_AFTER_MS, FLAG_SCREEN_LEAD_MS, FLAG_MAX_MS,
   KILL_BEFORE_MS, KILL_AFTER_MS, KILL_JOIN_MS, HIGHLIGHT_MAX_MS, KILL_MIN_BEFORE_MS, KILL_MIN_AFTER_MS, KEYFRAME_MS, PIECE_SLACK_MS, MAX_HIGHLIGHT_CLIPS,
   highlightClip, highlightRank, pickHighlights, killWindows, highlightMarks,

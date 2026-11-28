@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const GAMES = require('../shared/games');
 const { pageMotion } = require('./page-motion');
+const { mapArtOf } = require('../shared/agent-icons');
 
 /**
  * Bridge for the Moments page (8.7, src/renderer/moments/): every death and
@@ -35,5 +36,7 @@ contextBridge.exposeInMainWorld('occlara', {
   onGame:      (cb) => subscribe(C.PUSH_GAME, cb),
   games:       () => GAMES.list(true).map((g) => ({ id: g.id, label: g.label })),
   go:          (page) => ipcRenderer.send(C.SHELL_NAV, page),
+  // The map's bundled splash (agent-icons.js), for a moment with no clip kept (Orbit's Clips page).
+  mapArt:      (name) => { const r = mapArtOf(name); return r ? `../../../assets/${r}` : null; },
   close:       () => window.close(),
 });

@@ -127,7 +127,7 @@ app.whenReady().then(async () => {
     [C.REVIEW_GET]: (_e, id) => { const e = store.get(id); return e ? present({ ...e.review, id: e.review.id || id }) : null; },
     [C.PATTERNS_GET]: () => ({ game: 'valorant', ...patterns.summarise(recent()), progress: progress.libraryProgress(recent()) }),
     [C.PROGRESS_GET]: (_e, id) => progress.matchProgress(recent(), id),
-    [C.MOMENTS_GET]: () => moments.build('valorant', recent(), { patterns: patterns.summarise(recent()), clips: () => [], url: () => null, frames: () => null, recordingMode: 'off' }),
+    [C.MOMENTS_GET]: () => moments.build('valorant', recent(), { patterns: patterns.summarise(recent()), clips: (id) => store.clipsOf(id).map((c) => c.name), url: (id, name) => `occlara-clip://review/${id}/${name}`, frames: () => null, recordingMode: 'auto' }),
     [C.STATS_RANK_HISTORY]: () => [],
     [C.CHANGELOG_NOTICE]: () => null,
     [C.PRACTICE_TODAY]: () => null,

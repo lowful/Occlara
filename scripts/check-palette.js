@@ -188,7 +188,7 @@ const SIGNAL_ALLOWED = {
   'feedback/feedback.css': ['.fb-label'],
   'whatsnew/whatsnew.css': ['.wn-ver'],
   'practice/practice.css': ['.pc-label', '.pc-where, .pc-min'],
-  'moments/moments.css':   ['.mo-title:not(#mo-empty-title):not(#mo-pl-title)'],
+  'moments/moments.css':   ['.mo-title:not(#mo-empty-title):not(#mo-pl-title)', '.mo-hcard:focus-visible'],
   'matches/matches.css':   ['.m-chart-label'],
 };
 /** The rules of a stylesheet that name the signal and are not its places. */

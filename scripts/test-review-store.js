@@ -151,6 +151,32 @@ const CUT_SHORT = '[{"id":';
   ok(store.clipFile(id, 'h3-clip.mkv.tmp') === null && store.clipFile(id, '../h3-clip.mkv') === null, 'and no name near one is a clip');
 }
 
+// 8. A CLIP'S POSTER (Orbit's Clips, 28 Nov 2026): kept beside its clip only
+// while the clip is there, read only while it is, never counted against the
+// cap, and deleted wherever its clip is (a look keeping other clips, the cap,
+// Clear clips).
+{
+  const { store, ids } = library();
+  const id = ids[1];
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+  const posterPath = path.join(path.dirname(store.clipFile(id, 'r1-clip.mkv')), 'r1-poster.jpg');
+  ok(store.savePoster(id, 'r9-clip.mkv', jpeg) === 0 && store.poster(id, 'r9-clip.mkv') === null,
+    'no poster is kept or read for a clip that is not on disk');
+  ok(store.savePoster(id, 'r1-clip.mkv', jpeg) === jpeg.length && store.poster(id, 'r1-clip.mkv') === jpeg.toString('base64') && fs.existsSync(posterPath),
+    'a kept clip\'s poster is written beside it as r1-poster.jpg and read back');
+  const before = store.clipUsage().bytes;
+  ok(store.clipsOf(id).every((c) => c.name !== 'r1-poster.jpg') && before === store.clipUsage().bytes,
+    'the poster is no clip: not listed with the clips and not counted against the cap');
+  ok(store.posterFile(id, '../r1-clip.mkv') === null && store.posterFile('nope', 'r1-clip.mkv') === null, 'and no poster path is made from a name that is not a clip\'s');
+  store.keepClips(id, []);
+  ok(!store.hasClip(id, 'r1-clip.mkv') && !fs.existsSync(posterPath) && store.poster(id, 'r1-clip.mkv') === null,
+    'a clip deleted takes its poster with it');
+  store.saveClip(id, 'r1-clip.mkv', Buffer.alloc(1000, 1));
+  store.savePoster(id, 'r1-clip.mkv', jpeg);
+  store.clearClips('cleared');
+  ok(!fs.existsSync(posterPath), 'and Clear clips takes every poster with its clip');
+}
+
 try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
 console.log(failed ? `FAIL: ${failed} of ${passed + failed} review store checks failed` : `PASS: all ${passed} review store checks passed`);
 process.exit(failed ? 1 : 0);

@@ -304,6 +304,22 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   ever hears round numbers and answers round numbers: the URL is main's, of
   the review asked about, and a "Watch round N" capsule becomes the player
   only when clicked.
+- **A clip's poster** (Orbit's Clips page, 28 Nov 2026, `services/clip-posters.js`).
+  One real still of a kept clip, made ONCE by the bundled ffmpeg the first time the
+  Clips page lists the clip without one (`index.js withPosters`, a death's 0.8 s
+  before the death, a highlight's 0.3 s before its first kill), 480 wide, one JPEG,
+  one ffmpeg at a time, never mid match or sealed, and a clip that failed is not tried
+  again that session. Kept beside the clip as `<clip>-poster.jpg` (`clips.js
+  posterNameOf`, `POSTER_RE`; `review-store.js savePoster`, through a temp file, only
+  while its clip is there) and handed to the page as a data URL in the moments
+  model (`clip.poster`), never through the clip scheme. It is NOT a clip: not listed
+  by `clipsOf`, not counted against the cap, and deleted wherever its clip is
+  (`removeClipFile`, from `keepClips` and `dropClips`, so the cap and Clear clips
+  take it too). Until it lands, and where no clip was kept, the page shows the map's
+  bundled splash dimmed, never a frame from elsewhere; main tells the Clips page once a
+  batch is made (`PUSH_REVIEWS` with `posters`, to that page alone), and it repaints
+  unless its player is open. `test:reviewstore` holds the poster's life beside its clip.
+
 - **The cap** (`clipCapGB`, 5, 10, 20 or 50 GB, 10 by default). After every
   clip kept, at launch, and when the cap is lowered, the clips past it go a
   review at a time, the oldest first and a folder no review owns before any
