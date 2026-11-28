@@ -36,10 +36,15 @@
     <!-- THE SKY (Orbit): the stars and the moon's lit limb behind the hero,
          drawn once (shared/sky.js, kept in localStorage) and put up only
          once the page is on screen, so never mid match. It slides up with
-         the page as it scrolls, slower than the page. Valorant alone. -->
+         the page as it scrolls, slower than the page: only its inner layer
+         moves (9.1), under a frame that stays put and holds the soft top
+         edge, so the moon fades out under the head, never cut by it.
+         Valorant alone. -->
     <div id="v-sky" class="v-sky" aria-hidden="true" hidden>
-      <canvas id="v-stars" class="v-stars"></canvas>
-      <div id="v-moon" class="v-moon"></div>
+      <div id="v-sky-in" class="v-sky-in">
+        <canvas id="v-stars" class="v-stars"></canvas>
+        <div id="v-moon" class="v-moon"></div>
+      </div>
     </div>
     <!-- REVIEW READY (Orbit's signature, review.js readyFirst): said only as
          the loading screen gives way to the whole review, never mid match

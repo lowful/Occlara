@@ -363,7 +363,7 @@ function paintMedals(r, p) {
   const v = r && r.ratingView;
   const place = v && typeof v.value === 'number' && typeof v.place === 'string' ? /^(\d+)\w*\s+of\s+(\d+)$/.exec(v.place) : null;
   if (place && Number(place[1]) <= 3) {
-    out.push({ tier: ['gold', 'silver', 'bronze'][Number(place[1]) - 1], n: Number(place[1]), text: `${v.place} in the lobby by rating, ${v.shown}` });
+    out.push({ tier: ['gold', 'silver', 'bronze'][Number(place[1]) - 1], n: Number(place[1]), text: `${v.place} in the lobby by match rating, ${v.shown}` });
   }
   const run = said('run');
   if (run) out.push({ tier: 'silver', n: null, text: plain(run.text) });
@@ -479,7 +479,10 @@ function highlightRankOf(c) {
   const h = c && c.highlight;
   const kills = r && typeof r.kills === 'number' ? r.kills : h && Array.isArray(h.kills) ? h.kills.length : 0;
   if (kills < 1) return null;
-  const won = !!(r && r.clutch && typeof r.clutch.vs === 'number' && r.clutch.won === true);
+  // A clutch won ranks only where Riot says the player lived through it
+  // (9.1, insights.js clutchWonAlive): a round won after the player died is
+  // no clutch of theirs, and its lone kill is no highlight.
+  const won = !!(r && r.clutch && typeof r.clutch.vs === 'number' && r.clutch.won === true && c.died === false);
   if (kills >= 5) return 0;
   if (kills === 4) return 1;
   if (won) return 2;
@@ -1187,6 +1190,8 @@ function paintRounds(r) {
   host.replaceChildren();
   const rounds = Array.isArray(r.rounds) ? r.rounds : [];
   $('v-rounds-wrap').hidden = !rounds.length;
+  // Every round goes nowhere with no rounds to go to (9.1).
+  $('v-every').hidden = !rounds.length;
   const frames = r.frameData || {};
   const kept = openedFor(r);
   // The two halves headed by their side (8.7): one heading where the half
@@ -2498,9 +2503,12 @@ window.addEventListener('resize', () => { skyAt = ''; const host = $('v-sky'); i
       frame = 0;
       const y = scroller.scrollTop * SKY_DRIFT;
       const host = $('v-sky');
-      if (host) host.style.transform = y ? `translate3d(0, ${(-y).toFixed(1)}px, 0)` : '';
-      // 9.1: and it fades as it goes, so the moon is all but gone before it
-      // reaches the head, never cut by the bar.
+      // 9.1: only the inner layer slides; the frame and its soft top edge
+      // stay where they are, so what rises under the head fades through it.
+      const layer = $('v-sky-in');
+      if (layer) layer.style.transform = y ? `translate3d(0, ${(-y).toFixed(1)}px, 0)` : '';
+      // And it fades as it goes, so the moon is all but gone before it
+      // reaches the head.
       if (host) host.style.opacity = y ? String(Math.max(0, 1 - y / SKY_FADE).toFixed(3)) : '';
       // 9.1: once the page has moved, what scrolls under the head fades out
       // through a soft edge (review.css .body.scrolled), never a cut.
@@ -2729,6 +2737,8 @@ function paintLockedValorant(r) {
   // is Riot's numbers against Riot's numbers, no grade in it.
   for (const id of ['v-summary-wrap', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap', 'v-rating-wrap']) $(id).hidden = true;
   $('v-rounds').replaceChildren();
+  // With the rounds hidden, Every round has nowhere to go (9.1).
+  $('v-every').hidden = true;
 }
 
 $('lk-upgrade').addEventListener('click', () => { if (typeof window.occlara.openUpgrade === 'function') window.occlara.openUpgrade(); });
@@ -2883,6 +2893,8 @@ const DELETE_SAID = {
   bad: 'This match could not be deleted.',
   failed: 'This match could not be deleted. Try again.',
 };
+const DELETE_BODY = 'Its review, its clips and the frames kept of it are removed from this PC. This cannot be undone.';
+const DELETE_IMPORT = ' Your video file is kept, and the game it used is not given back.';
 const menuOpen = () => !$('more-menu').hidden;
 const deleteOpen = () => !$('del-scrim').hidden;
 let menuOutside = null;
@@ -2903,7 +2915,9 @@ function closeMore(refocus) {
   $('more').setAttribute('aria-expanded', 'false');
   if (refocus) $('more').focus();
 }
-$('more').addEventListener('click', () => (menuOpen() ? closeMore(false) : openMore(false)));
+// Opened from the keyboard (Enter or Space: a click with no pointer, detail
+// 0), the menu takes the focus onto its first row, as the arrows do.
+$('more').addEventListener('click', (e) => (menuOpen() ? closeMore(false) : openMore(!!e && e.detail === 0)));
 $('more').addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); openMore(true); }
 });
@@ -2919,6 +2933,8 @@ function askDelete() {
   if (!current || !current.id || typeof window.occlara.deleteMatch !== 'function') return;
   $('del-said').hidden = true;
   $('del-said').textContent = '';
+  // What goes, as Matches says it: an import's own video file stays (9.1).
+  $('del-body').textContent = DELETE_BODY + (current.imported ? DELETE_IMPORT : '');
   $('del-go').disabled = false;
   $('del-go').textContent = 'Delete match';
   $('del-scrim').hidden = false;

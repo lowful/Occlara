@@ -1364,7 +1364,8 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       && clips.MAX_CLIPS === SPEC.max && clips.KILL_MIN_BEFORE_MS === HL.minBefore && clips.KILL_MIN_AFTER_MS === HL.minAfter,
     'a kill is clipped from 4 s before it to 2.5 s after, windows under 3 s apart are one, 45 s at most, six highlights a review and still six deaths');
     // THE ORDER THE SIX ARE FILLED IN: ace, 4K, a clutch won, 3K, 2K, then the earlier round.
-    const R = (n, kills, clutch) => ({ n, kills, clutch: clutch || null });
+    // A reconciled round says whether the player died (valorant-verify.js); these lived.
+    const R = (n, kills, clutch, died) => ({ n, kills, clutch: clutch || null, died: died === undefined ? false : died });
     const pool = [R(9, 2), R(2, 2), R(4, 3), R(6, 1, { vs: 2, won: true }), R(8, 4), R(11, 5), R(1, 1), R(3, 0, { vs: 1, won: true }),
       R(12, 3, { vs: 3, won: true }), R(13, 2, { vs: 2, won: false }), R(14, 5, { vs: 1, won: true })];
     ok(same(clips.pickHighlights(pool, 6).map((r) => r.n), [11, 14, 8, 6, 12, 4]) && same(clips.pickHighlights(pool, 20).map((r) => r.n), [11, 14, 8, 6, 12, 4, 2, 9, 13]),
@@ -1373,6 +1374,13 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     ok(clips.highlightRank(R(3, 0, { vs: 1, won: true })) === null && clips.highlightRank(R(1, 1)) === null && clips.highlightRank(R(13, 2, { vs: 2, won: false })) === 4
       && clips.highlightRank(R(6, 1, { vs: 2, won: true })) === 2 && clips.highlightRank(null) === null,
     'a clutch won with no kill (a defuse, the clock) and a lone kill have no highlight clip; a clutch won with one kill has');
+    // 9.1 (insights.js clutchWonAlive): a round won after the player died is
+    // no clutch of theirs, as the audited Split round 12 (left last against 3,
+    // one kill, killed, the round won after): it ranks by its kills alone.
+    ok(clips.highlightRank(R(12, 1, { vs: 3, won: true }, true)) === null && clips.highlightRank(R(7, 3, { vs: 2, won: true }, true)) === 3
+      && clips.highlightRank({ n: 5, kills: 1, clutch: { vs: 1, won: true } }) === null
+      && same(clips.pickHighlights([R(12, 1, { vs: 3, won: true }, true), R(4, 3)], 6).map((r) => r.n), [4]),
+    'a clutch the player died in ranks by its kills alone, and one with no word of a death is no clutch either');
 
     // THE SPLIT SWIFTPLAY, by Riot's milliseconds from each round's drop.
     const D = { 3: T0 + 100000, 5: T0 + 300000, 7: T0 + 500000 };

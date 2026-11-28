@@ -300,12 +300,16 @@ function cutsClips(prefs) {
  * won, 3 a 3K, 4 a 2K, the order a review's MAX_HIGHLIGHT_CLIPS are filled
  * in. Null for a round that is no highlight with a kill in it: a highlight
  * clip is of kills, so a clutch won with none (a defuse, the clock) has
- * none, nor has a first kill streak, which is no one moment.
+ * none, nor has a first kill streak, which is no one moment. A clutch is
+ * the player's only where Riot's record says they lived through the round
+ * (`died: false`, 9.1, insights.js clutchWonAlive): a round won after they
+ * died ranks by its kills alone. A card's `riot` carries no `died`; pass
+ * the card's own with it ({ ...card.riot, died: card.died }).
  */
 function highlightRank(r) {
   const kills = r && typeof r.kills === 'number' && Number.isFinite(r.kills) ? r.kills : 0;
   if (kills < 1) return null;
-  const won = !!(r.clutch && typeof r.clutch.vs === 'number' && r.clutch.won === true);
+  const won = !!(r.clutch && typeof r.clutch.vs === 'number' && r.clutch.won === true && r.died === false);
   if (kills >= 5) return 0;
   if (kills === 4) return 1;
   if (won) return 2;

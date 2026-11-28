@@ -22,9 +22,11 @@
  *
  * A PLAYER SINCE 9.1 (the owner's item 16): pause and play, the previous and
  * the next event, a round on the line to go to it, Full time; and beside the
- * badge the moment itself, the clip kept of it from just before it, or its
- * kept frame, where the review has one (review.js mediaOf), the match's map
- * with a plain line where it has none. Space or K plays and pauses, the
+ * badge the moment itself, the clip kept of it (from just before it while it
+ * plays, on the moment while paused), or its kept frame, where the review
+ * has one (review.js mediaOf), the match's map with a plain line where a
+ * kill or a death has none; any other event keeps its round's last moment
+ * (momentAt). Space or K plays and pauses, the
  * arrows (or J and L) step an event, Home goes back to kick off and End to
  * full time; Esc or a click on the ground goes to full time, and a second
  * closes it. Tab stays inside it. Under reduced motion it opens at full time
@@ -245,6 +247,8 @@
   const CLIP_MS = 2800;
   const FRAME_MS = 1800;
   const LEAD_S = 1.8;
+  // Paused, the frame shown is this close before the moment: the kill or the death itself.
+  const HOLD_S = 0.1;
   const RESUME_MS = 600;
   const INTRO = 'From 60, every move is the change in your chance to win the round.';
   const NONE_KEPT = 'No clip or frame of this moment was kept';
@@ -364,7 +368,10 @@
     fig.classList.remove('has-clip', 'has-frame');
     v.loop = !!(m && m.clip && m.loop);
     if (m && m.clip) {
-      const start = typeof m.at === 'number' && Number.isFinite(m.at) ? Math.max(0, m.at - LEAD_S) : 0;
+      // Playing, the clip runs in from LEAD_S before the moment; paused, or a
+      // step taken by hand while paused, it holds on the moment itself.
+      const lead = run.playing ? LEAD_S : HOLD_S;
+      const start = typeof m.at === 'number' && Number.isFinite(m.at) ? Math.max(0, m.at - lead) : 0;
       const go = () => {
         if (!run || run.mediaKey !== key) return;
         try { v.currentTime = start; } catch (err) { /* not seekable yet */ }
@@ -478,10 +485,29 @@
       setTier(now, tierOf(p.value));
       if (anim) { now.classList.remove('ping'); void now.offsetWidth; now.classList.add('ping'); }
     }
-    // A round's end keeps the moment of its last event on screen.
-    if (s && s.e) showMedia(mediaFor(s), NONE_KEPT);
-    else if (!s) showMedia(null, '');
+    const [m, cap] = s ? momentAt(i) : [null, ''];
+    showMedia(m, cap);
     paintTransport();
+  }
+
+  /*
+   * WHAT STEP i SHOWS (9.1): a kill or a death its own moment, or the line
+   * saying none was kept of it. Anything else (the round's end, a plant, a
+   * defuse, an assist, a trade, a revive) is no moment of its own: it keeps
+   * the round's last moment on screen, its clip running on, or the map with
+   * no line while the round has none yet. Never another round's.
+   */
+  function momentAt(i) {
+    const s = run.out[i];
+    if (s.e && (s.role === 'kill' || s.role === 'death')) {
+      const m = mediaFor(s);
+      return m ? [m, ''] : [null, NONE_KEPT];
+    }
+    for (let j = i - 1; j >= 0 && run.out[j].round === s.round; j--) {
+      const m = run.out[j].e ? mediaFor(run.out[j]) : null;
+      if (m) return [m, ''];
+    }
+    return [null, ''];
   }
 
   /** The controls as the replay stands: pause or play, the steps either way, Full time or Watch again. */
@@ -640,7 +666,9 @@
     showMedia(best && typeof best.clip === 'string' ? { ...best, loop: true } : null, '');
     $('rt-replay').classList.add('done');
     paintTransport();
-    $('rt-r-close').focus({ preventScroll: true });
+    // Watch again has the keyboard, so Space plays it again as it plays and
+    // pauses everywhere else in it (on Close, Space closed it); Esc closes.
+    $('rt-r-again').focus({ preventScroll: true });
   }
 
   /** Closed, wherever it was, its clip let go. */

@@ -167,6 +167,28 @@ async function open(review, handlers) {
       'and clear of the loading screen\'s column while the review is made');
     ok(/\.sheet > \.body\.scrolled \{ --v-fade: 28px; \}/.test(css) && /classList\.toggle\('scrolled'/.test(read('src/renderer/review/review.js')),
       'what scrolls under the head fades through a soft edge once the page has moved');
+    // 9.1 fix: the sky's soft top edge stays put and only its inner layer
+    // slides, so the moon rising under the head fades out, never cut by a
+    // straight edge at the bar (it was, from about 180px of scroll).
+    ok(v.$('v-moon').parentNode === v.$('v-sky-in') && v.$('v-stars').parentNode === v.$('v-sky-in') && v.$('v-sky-in').parentNode === v.$('v-sky')
+      && /\.v-sky \{[^}]*mask-image: linear-gradient\(transparent 0, rgba\(0, 0, 0, 1\) 64px\)/.test(css) && /\.v-sky-in \{ position: absolute; inset: 0; \}/.test(css),
+    'the sky\'s frame holds the fade, the stars and the moon in a layer inside it');
+    const scroller = v.document.querySelector('main.body');
+    scroller.scrollTop = 300;
+    scroller.dispatchEvent(makeEvent('scroll'));
+    v.clock.flushFrames();
+    ok(/^translate3d\(0, -180\.0px, 0\)$/.test(v.$('v-sky-in').style.transform || '') && !v.$('v-sky').style.transform && Number(v.$('v-sky').style.opacity) < 1,
+      'scrolled, the inner layer slides and the frame with its fade stays, fading as a whole', `${v.$('v-sky-in').style.transform} | ${v.$('v-sky').style.transform} | ${v.$('v-sky').style.opacity}`);
+    scroller.scrollTop = 0;
+    scroller.dispatchEvent(makeEvent('scroll'));
+    v.clock.flushFrames();
+    ok(!v.$('v-sky-in').style.transform && !v.$('v-sky').style.opacity, 'back at the top, nothing moved or faded');
+    ok(/@media \(max-width: 1100px\) \{[^\n]*\.vd > \.vd-agent\.full \{ right: 0; \}/.test(css) && /\.sheet > \.body \{ overflow-x: hidden; \}/.test(css)
+      && !/right: -6%/.test(css),
+    'between 900 and 1100px the portrait stands inside the column, and the page never scrolls sideways');
+    ok(/\.vd\.has-hl > \.vd-top \{ max-width: calc\(100% - var\(--hl-w\) - 40px\); \}/.test(css),
+      'beside the best highlight, the match\'s line wraps in the hero\'s column, clear of the card\'s caption');
+    ok(/\.block \{ scroll-margin-top: 36px; \}/.test(css), 'a block scrolled to lands below the head\'s soft edge');
     ok(/\.sheet \{ overflow: clip; \}/.test(css) && /\.medal-defs \{ position: absolute; width: 0; height: 0;/.test(css),
       'the page never scrolls but its own scroller: the sheet clips, and the medals\' defs take no line (it slid the head 21px under the bar)');
     const replayAt = html.indexOf('id="rt-replay"');
@@ -203,6 +225,18 @@ async function open(review, handlers) {
     v.$('del-go').click();
     await settle();
     ok(asked.length === 2 && v.$('del-scrim').hidden, 'Delete match asks main with the review\'s id, and the confirm goes as main takes the page back');
+    // 9.1 fix: opened from the keyboard (Enter on the dots: a click with no
+    // pointer, detail 0), the menu's first row has the focus.
+    v.$('more').dispatchEvent(makeEvent('click', { detail: 0 }));
+    ok(!v.$('more-menu').hidden && v.document.activeElement === v.$('delete-match'), 'Enter on the menu button opens it with Delete match focused');
+    press(v, 'Escape');
+    // An import says, as Matches does, that its own video file is kept.
+    const imp = await open({ ...sample(), imported: true });
+    imp.$('more').click();
+    imp.$('delete-match').click();
+    ok(/cannot be undone\. Your video file is kept, and the game it used is not given back\.$/.test(imp.$('del-body').textContent)
+      && !/video file/.test(v.$('del-body').textContent), 'an import\'s confirm keeps its video file, word for word as Matches; a recorded match\'s does not say it',
+    imp.$('del-body').textContent);
     const building = await open({ ...sample(), work: { path: 'riot', steps: ['saved', 'riot'], step: 'riot', endedAt: Date.now() - 60000, until: Date.now() + 300000 } });
     ok(building.$('more').hidden, 'a review still being built has no menu');
     const nothing = await open(null);
@@ -232,6 +266,15 @@ async function open(review, handlers) {
       'before the round\'s own controls');
     const unrated = await open({ ...r, ratingView: { value: null, note: 'Rated only once Riot\'s record of the match is linked.' } });
     ok(!unrated.document.querySelector('#v-rounds .v-rt-move'), 'a review with no rating shows no move');
+    // 9.1 fixes: Every round only where there are rounds to go to.
+    const locked = await open({ ...r, locked: true });
+    const bare = await open({ ...r, rounds: [] });
+    ok(!v.$('v-every').hidden && locked.$('v-every').hidden && locked.$('v-rounds-wrap').hidden && bare.$('v-every').hidden,
+      'Every round shows with rounds, and not on a locked review or one with none');
+    ok(/\.v-round\.fold > \.v-round-body\[hidden\] \{[^}]*grid-auto-rows: minmax\(0, 0fr\);/.test(read('src/renderer/review/review.css')),
+      'a folded round of two parts closes whole, its second part\'s row too');
+    const medal = v.document.querySelectorAll('#v-medals .medal-text').map((n) => n.textContent).find((t) => /in the lobby/.test(t));
+    ok(medal && /^1st of 10 in the lobby by match rating, \d+$/.test(medal), 'the medal names the match rating by its name', medal);
   }
 
   // ── 5. The best highlight ───────────────────────────────────────────────
@@ -249,13 +292,21 @@ async function open(review, handlers) {
       'its line is Riot\'s facts of the round, and it is muted and looping', v.$('v-hl-round').textContent);
     ok(/\.vd\.has-hl > \.vd-agent \{ display: none; \}/.test(read('src/renderer/review/review.css')), 'in the agent\'s place');
     // The order is clips.js highlightRank's.
-    const R = (n, kills, clutch, extra) => ({ n, riot: { kills, clutch: clutch || null }, highlight: { clip: `h${n}-clip.mkv`, clipUrl: `u${n}`, kills: [] }, ...extra });
+    // A card says whether the player died in its round; these lived unless told.
+    const R = (n, kills, clutch, extra) => ({ n, died: false, riot: { kills, clutch: clutch || null }, highlight: { clip: `h${n}-clip.mkv`, clipUrl: `u${n}`, kills: [] }, ...extra });
     const vmw = v.window;
     const order = [R(3, 2), R(4, 3), R(5, 1, { vs: 2, won: true }), R(6, 4), R(7, 5)];
     const pick = (rounds) => { const c = inPage(vmw, 'bestHighlight')({ rounds }); return c ? c.n : null; };
     ok(pick(order) === 7 && pick(order.slice(0, 4)) === 6 && pick(order.slice(0, 3)) === 5 && pick(order.slice(0, 2)) === 4,
       'an ace, a 4K, a clutch won, a 3K, a 2K, as clips.js cuts them');
-    ok(order.every((c) => (inPage(vmw, 'highlightRankOf')(c) === clips.highlightRank(c.riot))), 'rank for rank clips.js highlightRank');
+    // 9.1: a clutch the player died in (the audited Split round 12: one kill,
+    // killed, the round won after) is no clutch of theirs, and never the best over a 3K.
+    const deadClutch = R(12, 1, { vs: 3, won: true }, { died: true });
+    ok(pick([deadClutch, R(4, 3)]) === 4 && inPage(vmw, 'highlightRankOf')(deadClutch) === null
+      && inPage(vmw, 'highlightRankOf')(R(9, 3, { vs: 2, won: true }, { died: true })) === 3,
+    'a clutch the player died in ranks by its kills alone, so a real 3K is the best highlight');
+    const every = [...order, deadClutch, R(9, 3, { vs: 2, won: true }, { died: true }), R(10, 1, { vs: 1, won: true }, { died: undefined })];
+    ok(every.every((c) => (inPage(vmw, 'highlightRankOf')(c) === clips.highlightRank({ ...c.riot, died: c.died }))), 'rank for rank clips.js highlightRank');
     const title = inPage(vmw, 'highlightTitle');
     ok(title({ n: 4, died: true, riot: { kills: 1, clutch: { vs: 2, won: true } }, highlight: {} }) === 'Round 4, a kill'
       && title({ n: 9, died: false, riot: { kills: 3, clutch: { vs: 1, won: true } }, highlight: {} }) === 'Round 9, 3K, won alone against one'
@@ -330,6 +381,37 @@ async function open(review, handlers) {
     ok(v.$('rt-r-score').textContent === r.ratingView.rounds[15].score, 'the score as it stood in round 17', v.$('rt-r-score').textContent);
     RV.prevEvent();
     ok(RV.state().i < at17.i && v.$('rt-r-round').textContent === `Round ${steps[RV.state().i].round} of 24`, 'the previous event steps back, drawn whole from the steps before it');
+    // 9.1 fixes. Paused, a step holds the moment itself (a hair before it),
+    // not the walk up to it: the clip runs in from 1.8 s before only while it plays.
+    RV.nextEvent();
+    const vid = v.$('rt-r-video');
+    if (typeof vid.onloadedmetadata === 'function') vid.onloadedmetadata();
+    ok(RV.state().i === at17.i && Math.abs(vid.currentTime - (m17[0].at - 0.1)) < 1e-6, 'paused, a step shows the kill itself, not the walk up to it', vid.currentTime);
+    // The rest of round 17: a kill its own moment, and the round's other
+    // events (a plant, its end) keep its last moment, never a blank.
+    const NONE = 'No clip or frame of this moment was kept';
+    const seen17 = [];
+    for (let k = 0; k < 40; k++) {
+      RV.nextEvent();
+      const st = steps[RV.state().i];
+      if (!st || st.round !== 17) break;
+      seen17.push({ role: st.role, media: RV.state().media, cap: v.$('rt-r-cap').textContent, has: v.$('rt-r-media').classList.contains('has-clip') });
+    }
+    const rest17 = seen17.filter((x) => x.role !== 'kill' && x.role !== 'death');
+    ok(rest17.length >= 1 && rest17.some((x) => x.role === 'end') && rest17.every((x) => /h17-clip/.test(x.media || '') && x.has && x.cap !== NONE),
+      'round 17\'s other events, its end with them, keep its clip on screen', JSON.stringify(seen17));
+    // A death with nothing kept says so; any other event with nothing before
+    // it in its round shows the map and no line.
+    const sayAt = (pred) => {
+      press(v, 'Home');
+      for (let k = 0; k < 400; k++) { const s = RV.state(); if (s.i >= 0 && pred(steps[s.i], s.i)) return { media: s.media, cap: v.$('rt-r-cap').textContent }; if (s.done) return null; RV.nextEvent(); }
+      return null;
+    };
+    const dead3 = sayAt((s) => s.round === 3 && s.role === 'death');
+    ok(dead3 && dead3.cap === NONE && /^n\|/.test(dead3.media), 'a death with nothing kept says none was kept', JSON.stringify(dead3));
+    const firstOther = sayAt((s, i) => s.e && s.role !== 'kill' && s.role !== 'death'
+      && !steps.slice(0, i).some((p) => p.round === s.round && p.e && mediaOf(p.e, p.role, p.nth)));
+    ok(firstOther && firstOther.cap === '' && /^n\|$/.test(firstOther.media), 'another event with nothing before it in its round shows the map, no line', JSON.stringify(firstOther));
     RV.finish();
     ok(RV.state().done && v.$('rt-r-round').textContent === 'Full time' && v.$('rt-r-next').disabled && !v.$('rt-r-prev').disabled
       && !v.$('rt-r-again').hidden && v.$('rt-r-skip').hidden, 'at full time: no next, a previous, Watch again');
@@ -348,6 +430,13 @@ async function open(review, handlers) {
     ok(RV.state().i === 0, 'the right arrow steps on');
     key('Escape');
     ok(RV.state().done && !v.$('rt-replay').hidden, 'Esc goes to full time first');
+    // 9.1 fix: at full time Watch again has the keyboard, so Space (pressing
+    // the focused button) plays it again; on Close it closed the replay.
+    ok(v.document.activeElement === v.$('rt-r-again'), 'at full time, Watch again has the focus', v.document.activeElement && v.document.activeElement.id);
+    v.document.activeElement.click();
+    ok(RV.open() && RV.state().playing && !RV.state().done && RV.state().i === -1, 'and pressed, it plays again from kick off');
+    key('Escape');
+    ok(RV.state().done, 'Esc to full time again');
     key('Escape');
     ok(!RV.open() && v.$('rt-replay').hidden, 'and again closes it, the page staying');
   }
