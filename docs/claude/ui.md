@@ -91,8 +91,18 @@ wins. What phase 1 changed, and what to keep true:
   the agent but never left of where the hero's text can reach (`--text-r`,
   the fix's measure, or the highlight card's edge), and on the loading screen
   to the right of its column (`.v-sky.building`); it fades as the page
-  scrolls (`SKY_FADE`), so it is all but gone before it meets the bar. The
-  agent stands inside the hero's box (`top: 0`). Once the page has moved,
+  scrolls (`SKY_FADE`), so it is all but gone before it meets the bar. Only
+  its inner layer (`.v-sky-in`) slides with the scroll, under a frame that
+  stays put and holds the 64px soft top edge, so what of the moon rises
+  under the head fades out through it (the whole sky slid before, its fade
+  with it, and from about 180px of scroll the moon met the bar in a straight
+  line). The agent stands inside the hero's box (`top: 0`), and under 1100px
+  inside the page's column (`right: 0`; at -6% it ran off the window and
+  gave the page a sideways scrollbar), and the page's scroller never
+  scrolls sideways (`overflow-x: hidden`). A block scrolled to (Every round,
+  the rating, a swing) lands 36px down (`scroll-margin-top`), below the soft
+  edge, its heading in full ink; Every round is hidden where there are no
+  rounds (a locked review, none kept). Once the page has moved,
   what scrolls under the head leaves through a 28px soft edge (`.body.scrolled`,
   a mask, `--v-fade`), never a cut; the replay and the delete confirm sit
   outside the scroller so the edge never fades them. NOTHING BUT THE PAGE'S
@@ -111,7 +121,13 @@ wins. What phase 1 changed, and what to keep true:
   match by `clips.js highlightRank`'s order plays at the hero's right in the
   agent's place, a 16:9 card, muted and looping, its line above it ("BEST
   HIGHLIGHT", "Round 17, 4K", a clutch named only where the player was alive
-  at the end) opening its round; it plays only while seen and while ambient
+  at the end, and ranked as one only then, as in `clips.js highlightRank`)
+  opening its round, whose row holds the clip (`highlightPart`: every round
+  whose highlight clip was kept carries it, folded to its line until asked
+  where it has nothing else to show). The match's line beside the card wraps
+  in the hero's column (`.vd.has-hl > .vd-top`), never under its caption,
+  and the dot before the result hangs in the gap, so a wrapped result never
+  opens a line on it. It plays only while seen and while ambient
   motion is on (`Motion.ambientOn`: never mid match, hidden, or under less
   motion), its own button pauses it, and a clip that will not play gives the
   place back to the agent. Nothing shows where none was kept. EVERY ROUND'S

@@ -437,10 +437,19 @@ the feed under the badge; one under 720 high tightens the stage.
   flagged death's), else the look's frame nearest before it; the player's
   kill, the round's highlight clip at that kill (its nth of the round, on
   the clip's own timeline). An event with its clip holds 2.8 s while it
-  plays, one with a frame 1.8 s. With nothing kept the match's map shows,
-  dimmed, under "No clip or frame of this moment was kept". At full time the
-  match's best highlight loops there. The clip plays only while the replay
-  does and is let go when it closes.
+  plays, one with a frame 1.8 s. The 1.8 s lead in is the replay playing
+  by itself; paused, or a step taken by hand while paused, the clip holds
+  on the moment itself (0.1 s before it), the kill or the death, never the
+  walk up to it. With nothing kept of a kill or a death the match's map
+  shows, dimmed, under "No clip or frame of this moment was kept". Any
+  other event (the round's end, a plant, a defuse, an assist, a trade, a
+  revive) is no moment of its own: it keeps the round's last moment on
+  screen, its clip running on, or the map with no line while the round has
+  none yet, never another round's (`rating-view.js momentAt`; it flickered
+  clip, blank, clip on every highlight round before). At full time the
+  match's best highlight loops there, and Watch again has the keyboard, so
+  Space plays it again (on Close, Space closed the replay). The clip plays
+  only while the replay does and is let go when it closes.
 - WHAT AN EVENT WAS (`roleOf`): the opening of rating.js's own words, death
   ("Died", "Killed by a teammate", "Your ultimate ran out"), kill ("First
   kill", "Kill", "Traded a teammate"), assist, plant, defuse, revive, traded,
