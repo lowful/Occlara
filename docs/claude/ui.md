@@ -518,6 +518,33 @@ the generated canvas recording through the app's own clip scheme), on
 `scripts/fixtures/clips-demo.js`, the real Abyss match laid out as six
 matches. `npm run test:clipspage` holds all of it.
 
+**Clips, after the 9.1 review.** LEAGUE HAS NO ROUNDS, NO RESULT AND NO
+HIGHLIGHTS (`lol-review.js` keeps a death list by the game's clock and no
+result): a League moment is named by its death and its clock (`lolOf`,
+`placeOf`, `clipTitle`): its frame says "At 5:10", the hero has no round,
+the delete confirm says "your death at 5:10 on Summoner's Rift", the player
+"Ahri on Summoner's Rift: Death 2 at 5:10", and no label says round. A match
+with no result shows none (never "No result"), League's kind capsule and
+highlights count are not drawn, and its sub line says deaths only. THE
+FILTERS offer no choice of one: a dropdown whose matches all hold one value
+(or none) is hidden unless it is the one chosen, and the row goes when
+nothing is left in it; a repeated mistake chosen under Highlights takes the
+kind back to All, and Highlights chosen lets a mistake go, so the two never
+meet in an empty list; while a filter is on the counts say "12 of 180
+moments". The scoreline reads "Victory 13 : 9" as Home and Matches write it,
+and a match's grade is `GradeView.scoreBadge` (its tone, dashed while
+provisional, the grade's name and tip as its title). THE PLAYER FITS THE
+PAGE: `.mo-pl-panel` is no wider than the height left over its chrome
+(`--pl-chrome`) allows at 16:9, so at 960 by 640 the title, Close, the line
+and the controls stay on screen; the veil scrolls if it still cannot fit.
+After a delete the keyboard lands on the same moment's row (still listed,
+its clip gone) or the hero that took the deleted one's place, never the
+body, also when main's push repaints a moment later (`refocus`). With the
+drive under the recorder's floor, the warning also shows under the page's
+title (`#mo-low`), not only a press away, and a drive is "drive C", never
+"C:," before a comma. Every keyboard ring on the page is `--accent-2`, as on
+every `.btn` (`check:palette` lists the rule).
+
 **The seal.** While a match is in progress no page is visible, whatever asks
 for one. `syncSeal()` in `src/main/index.js` sets it from `isCoaching &&
 matchInProgress()` on a one second tick and before every `openPage()`; the

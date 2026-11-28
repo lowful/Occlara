@@ -42,6 +42,15 @@ const EMPTY = {
   none: ['No matches yet', 'Press Start, play a match, and its deaths and highlights land here when the review opens.'],
   quiet: ['Nothing to show yet', 'Your saved matches have no deaths or highlights on record. A match checked against Riot\'s record fills this page.'],
 };
+// League has deaths and no highlights: its own words where the page names them.
+const EMPTY_LOL = {
+  none: ['No games yet', 'Press Start, play a game, and its deaths land here when the review opens.'],
+  quiet: ['Nothing to show yet', 'Your saved games have no deaths on record.'],
+};
+const SUB = {
+  valorant: 'Every death and highlight from your matches, the clips kept beside them.',
+  lol: 'Every death from your games, the clips kept beside them.',
+};
 
 /*
  * THE PLAY MARK (9.1, the owner's item 12: "the play button is not centred on
@@ -74,6 +83,28 @@ const resultClass = (r) => {
   return /victory|win|won/.test(s) ? 'win' : /defeat|loss|lost/.test(s) ? 'loss' : /draw|tie/.test(s) ? 'draw' : '';
 };
 const RESULT_WORD = { win: 'Victory', loss: 'Defeat', draw: 'Draw' };
+// The scoreline as Home and Matches write it, "13 : 9" (matches.js scoreText).
+const scoreText = (s) => String(s || '').replace(/\s*[-:]\s*/, ' : ');
+/** "Victory 13 : 9", or '' where the match has neither (League has no result). */
+const resultText = (m) => [m.result, m.score ? scoreText(m.score) : null].filter(Boolean).join(' ');
+
+/*
+ * LEAGUE HAS NO ROUNDS (9.1). A League moment's round is the death's count
+ * (lol-review.js deathList n) and its time the game's clock ("at 5:10"), so
+ * every line that names a Valorant moment by its round names a League one
+ * by its death and its clock instead.
+ */
+const lolOf = (m) => (m && m.game ? m.game === 'lol' : game === 'lol');
+/** Where a moment is, inside a sentence: "round 4", or in League "death 2 at 5:10". */
+const placeOf = (m, x) => (lolOf(m) ? `death ${x.round}${x.time ? ` ${x.time}` : ''}` : `round ${x.round}`);
+/** The player's title for one moment: "Dry peek, round 4", or in League "Death 2, at 5:10". */
+const clipTitle = (m, x) => (lolOf(m) ? [x.title, x.time].filter(Boolean).join(', ') : `${x.title}, round ${x.round}`);
+/** A sentence's first letter up and a full stop at its end: "at B Main, first to die" reads "At B Main, first to die.". */
+const sentence = (t) => {
+  const s = String(t || '').trim();
+  if (!s) return '';
+  return s[0].toUpperCase() + s.slice(1) + (/[.!?]$/.test(s) ? '' : '.');
+};
 
 const MB = 1024 * 1024;
 /** 340 MB, 1.2 GB: a size as Settings says one (binary, as Windows counts). */
@@ -139,9 +170,7 @@ function paintReel() {
   pick.title = 'Show only highlights';
   pick.append(el('span', 'mo-ctitle', r.title), el('span', 'mo-cline', r.line));
   pick.addEventListener('click', () => {
-    // A pattern chosen in the compilation shows deaths alone: let it go first,
-    // or the Highlights filter under it shows nothing.
-    if (state.pattern) setPattern(null, true);
+    // The Highlights kind lets a chosen pattern go first (its own handler, below).
     const b = $('mo-filter').querySelector('button[data-kind="highlight"]');
     if (b) b.click();
   });
@@ -220,13 +249,37 @@ function paintFilters() {
     d.setOptions(sets[key], true);
     d.setValue(values[key]);
     d.el.classList.toggle('on', !!values[key]);
+    // A choice of one is no choice: a dropdown whose matches all hold the
+    // same map, agent or result (a new player's one match, League's results,
+    // which it has none of) is not offered, unless it is the one chosen.
+    d.el.hidden = sets[key].length < 3 && !values[key];
   }
+  // League's moments are all deaths: no kind to choose (and no highlights).
+  $('mo-filter').hidden = lol;
+  if (lol && state.kind !== 'all') setKind('all');
+  const row = $('mo-filter').parentNode;
+  row.hidden = [...row.children].every((n) => n.hidden);
   $('mo-f-clear').hidden = !filtering();
 }
 
-/** The repeated mistake chosen, by a chip or the dropdown: the same state. */
+/** The kind's capsule set by hand, as its press does, with no list painted. */
+function setKind(kind) {
+  state.kind = kind;
+  for (const o of $('mo-filter').querySelectorAll('button')) o.setAttribute('aria-pressed', String((o.dataset.kind || 'all') === kind));
+}
+
+/**
+ * The repeated mistake chosen, by a chip or the dropdown: the same state. A
+ * mistake's moments are deaths, so a mistake chosen under the Highlights kind
+ * takes the kind back to All first, as the Highlights kind chosen lets a
+ * mistake go (below): the two never meet in a filter that shows nothing.
+ */
 function setPattern(key, quiet) {
   state.pattern = key || null;
+  if (state.pattern && state.kind === 'highlight') {
+    const all = $('mo-filter').querySelector('button[data-kind="all"]');
+    if (all) all.click(); else setKind('all');
+  }
   paintCompilation();
   paintFilters();
   if (!quiet) paintList(false);
@@ -247,15 +300,20 @@ function clearFilters() {
 // ── The list ──────────────────────────────────────────────────────────────
 function matchHead(m) {
   const head = el('div', 'mo-mhead');
-  const res = el('span', 'mo-res ' + resultClass(m.result));
-  res.textContent = [m.result, m.score].filter(Boolean).join(' ') || 'No result';
+  // The result and the score where the match has them: League keeps none,
+  // and a line saying "No result" over every League match said nothing.
+  const said = resultText(m);
+  if (said) head.append(el('span', 'mo-res ' + resultClass(m.result), said));
   const who = el('span', 'mo-who', [[m.title, m.map ? `on ${m.map}` : null].filter(Boolean).join(' '), m.mode].filter(Boolean).join(', '));
   const when = el('span', 'mo-when', fmtWhen(m.at));
-  head.append(res, who, when);
-  if (m.grade) {
+  head.append(who, when);
+  if (m.grade && typeof m.grade.score === 'number') {
+    // The app's one grade badge (grade-view.js scoreBadge): its band's tone,
+    // a dashed ring while provisional, and the grade's name and tip as its title.
     const g = el('span', 'mo-grade');
-    g.append(el('b', 'mo-score ' + gradeTone(m.grade), m.grade.score));
-    g.title = m.grade.provisional ? 'Grade, provisional' : 'Grade';
+    g.append(typeof window.GradeView.scoreBadge === 'function'
+      ? window.GradeView.scoreBadge(m.grade, { size: 'sm' })
+      : el('b', 'mo-score ' + gradeTone(m.grade), String(Math.round(m.grade.score))));
     head.append(g);
   }
   return head;
@@ -311,7 +369,7 @@ function moreButton(m, x, cls) {
   const b = el('button', 'icon-btn mo-more' + (cls ? ` ${cls}` : ''));
   b.type = 'button';
   b.title = 'More';
-  b.setAttribute('aria-label', `More for the ${x.kind === 'highlight' ? 'highlight' : 'clip'} of round ${x.round}`);
+  b.setAttribute('aria-label', `More for the ${x.kind === 'highlight' ? 'highlight' : 'clip'} of ${placeOf(m, x)}`);
   b.setAttribute('aria-haspopup', 'menu');
   b.setAttribute('aria-expanded', 'false');
   b.innerHTML = MORE_SVG;
@@ -398,21 +456,23 @@ function heroCard(x, best) {
   // The whole picture is the play button.
   const play = el('button', 'mo-hplay');
   play.type = 'button';
-  play.setAttribute('aria-label', `Play ${x.kind === 'highlight' ? 'the highlight' : 'the clip'} of round ${x.round}: ${x.title}`);
+  play.setAttribute('aria-label', lolOf(m) ? `Play the clip of ${placeOf(m, x)}`
+    : `Play ${x.kind === 'highlight' ? 'the highlight' : 'the clip'} of round ${x.round}: ${x.title}`);
   const ring = el('span', 'mo-frame-play');
   ring.innerHTML = playSvg(46);
   play.append(ring);
-  play.addEventListener('click', () => openPlayer({ title: `${x.title}, round ${x.round}`, items: [x.key], clips: 1 }));
+  play.addEventListener('click', () => openPlayer({ title: clipTitle(m, x), items: [x.key], clips: 1 }));
   f.append(play);
-  // Main's words over it, then the moment: its title large, where and when.
+  // Main's words over it, then the moment: its title large, where and when
+  // (its round in Valorant; League has none, its clock says when).
   const cap = el('div', 'mo-hcap');
   cap.append(el('span', 'mo-heyebrow', best.label));
   cap.append(el('b', 'mo-htitle', x.title));
   const meta = el('div', 'mo-hmeta');
-  meta.append(el('span', 'mo-hround', `Round ${x.round}`));
+  if (!lolOf(m)) meta.append(el('span', 'mo-hround', `Round ${x.round}`));
   const who = [m.title, m.map ? `on ${m.map}` : null].filter(Boolean).join(' ');
   if (who) meta.append(el('span', 'mo-hwho', who));
-  const res = [m.result, m.score].filter(Boolean).join(' ');
+  const res = resultText(m);
   if (res) meta.append(el('span', 'mo-hres ' + resultClass(m.result), res));
   if (m.at) meta.append(el('span', 'mo-hday', fmtDay(m.at)));
   if (x.time) meta.append(el('span', 'mo-htime', x.time));
@@ -478,11 +538,16 @@ function momentRow(m, x) {
   // ORBIT: the card's frame first, its round in the corner; the play button
   // or why no clip is kept sits on it (below, .mo-clip).
   const frame = frameEl(m, x, false);
-  frame.append(el('span', 'mo-frame-cap', `Round ${x.round}`));
+  // Its round in the corner; in League, which has no rounds, the game's clock
+  // ("At 5:10"), as the title below already says which death it was.
+  const lol = lolOf(m);
+  const cap = lol ? (x.time ? sentence(x.time).replace(/\.$/, '') : `Death ${x.round}`) : `Round ${x.round}`;
+  frame.append(el('span', 'mo-frame-cap', cap));
   row.append(frame);
   const open = el('button', 'mo-open');
   open.type = 'button';
-  open.setAttribute('aria-label', `${x.kind === 'death' ? 'Death' : 'Highlight'} in round ${x.round}: ${x.title}. Open the review at this round`);
+  open.setAttribute('aria-label', lol ? `Death ${x.round}${x.time ? ` ${x.time}` : ''}${x.line ? `: ${x.line}` : ''}. Open its review`
+    : `${x.kind === 'death' ? 'Death' : 'Highlight'} in round ${x.round}: ${x.title}. Open the review at this round`);
   open.append(el('span', 'mo-round', `R${x.round}`));
   open.append(el('span', `mo-kind ${x.kind}`, x.kind === 'death' ? 'Death' : 'Highlight'));
   const main = el('div', 'mo-main');
@@ -505,17 +570,19 @@ function momentRow(m, x) {
     main.append(marks);
   }
   open.append(main);
-  open.append(el('span', 'mo-time', x.time || ''));
+  // The time in the round; League's clock is on the frame already.
+  open.append(el('span', 'mo-time', lol ? '' : (x.time || '')));
   open.addEventListener('click', () => api.openReview(m.id, x.round));
   row.append(open);
   const clip = el('div', 'mo-clip');
   if (x.clip) {
     const b = el('button', 'icon-btn mo-play');
     b.type = 'button';
-    b.title = x.kind === 'highlight' ? `Play the highlight of round ${x.round}` : `Play the clip of round ${x.round}`;
+    b.title = lol ? `Play the clip of death ${x.round}`
+      : x.kind === 'highlight' ? `Play the highlight of round ${x.round}` : `Play the clip of round ${x.round}`;
     b.setAttribute('aria-label', b.title);
     b.innerHTML = playSvg(24);
-    b.addEventListener('click', () => openPlayer({ title: `${x.title}, round ${x.round}`, items: [x.key], clips: 1 }));
+    b.addEventListener('click', () => openPlayer({ title: clipTitle(m, x), items: [x.key], clips: 1 }));
     clip.append(b);
     frame.append(moreButton(m, x));
   } else if (x.clipGone) {
@@ -544,7 +611,7 @@ function paintList(rise) {
     const xs = m.moments.filter(shown);
     if (!xs.length) continue;
     const sec = el('section', 'mo-match');
-    sec.setAttribute('aria-label', [m.result, m.score, m.title, m.map].filter(Boolean).join(' '));
+    sec.setAttribute('aria-label', [resultText(m), m.title, m.map].filter(Boolean).join(' '));
     sec.append(matchHead(m));
     const list = el('div', 'mo-rows');
     for (const x of xs) { const r = momentRow(m, x); list.append(r); rows.push(r); }
@@ -555,12 +622,14 @@ function paintList(rise) {
   none.hidden = rows.length > 0;
   if (!rows.length) {
     none.textContent = (state.map || state.agent || state.result) ? 'No moments match these filters. Clear them to see every moment again.'
-      : state.pattern ? 'No deaths of this pattern under the filter.'
+      : state.pattern ? 'No deaths of this mistake with these filters. Clear filters to see every moment.'
         : state.kind === 'death' ? 'No deaths on record in these matches.'
           : state.kind === 'highlight' ? 'No highlights on record yet: a 2K, 3K, 4K or 5K round, a clutch won or the first kill rounds running.'
             : 'Nothing to show.';
   }
   $('mo-f-clear').hidden = !filtering();
+  // While a filter is on, the counts say what is shown of the whole.
+  paintCounts(filtering() ? rows.length : null);
   if (rise && rows.length && risen !== game) {
     risen = game;
     const go = () => rows.forEach((r, i) => {
@@ -572,10 +641,23 @@ function paintList(rise) {
   }
 }
 
-function paintCounts() {
+/**
+ * The counts over the list: "126 deaths, 54 highlights, 60 clips across 6
+ * matches" (League, which has no highlights, leaves them out), and while a
+ * filter is on, what it shows of the whole: "12 of 180 moments".
+ * @param shown  the moments the filters leave, or null with none on
+ */
+function paintCounts(shown) {
   const c = (data && data.counts) || { matches: 0, deaths: 0, highlights: 0, clips: 0 };
-  const say = (n, one, many) => `${n} ${n === 1 ? one : (many || `${one}s`)}`;
-  $('mo-counts').textContent = `${say(c.deaths, 'death')}, ${say(c.highlights, 'highlight')}, ${say(c.clips, 'clip')} across ${say(c.matches, 'match', 'matches')}`;
+  const all = (c.deaths || 0) + (c.highlights || 0);
+  if (typeof shown === 'number') {
+    $('mo-counts').textContent = `${shown} of ${plural(all, 'moment')}`;
+    return;
+  }
+  const parts = [plural(c.deaths, 'death')];
+  if (game !== 'lol') parts.push(plural(c.highlights, 'highlight'));
+  parts.push(plural(c.clips, 'clip'));
+  $('mo-counts').textContent = `${parts.join(', ')} across ${plural(c.matches, 'match', 'matches')}`;
 }
 
 function paintNote() {
@@ -586,6 +668,7 @@ function paintNote() {
 
 function paint(first) {
   $('mo-wait').hidden = true;
+  $('mo-sub').textContent = game === 'lol' ? SUB.lol : SUB.valorant;
   const matches = (data && data.matches) || [];
   const any = matches.some((m) => m.moments.length);
   const empty = $('mo-empty');
@@ -598,7 +681,8 @@ function paint(first) {
     heroSig = null;
     $('mo-hero').replaceChildren();
     $('mo-hero').hidden = true;
-    const [title, hint] = matches.length ? EMPTY.quiet : EMPTY.none;
+    const words = game === 'lol' ? EMPTY_LOL : EMPTY;
+    const [title, hint] = matches.length ? words.quiet : words.none;
     $('mo-empty-title').textContent = title;
     $('mo-empty-hint').textContent = hint;
     return;
@@ -624,6 +708,11 @@ function paint(first) {
   }
 }
 
+// After a delete, for a moment: where the keyboard belongs once the page is
+// painted again ({ key, fromHero, until }), so a repaint that removes the
+// focused button (main's push after the delete) never leaves it on the body.
+let refocus = null;
+
 async function load() {
   const mine = ++ask;
   const got = await api.getMoments(game).catch(() => null);
@@ -631,13 +720,21 @@ async function load() {
   data = got && !got.error ? got : { matches: [], compilation: [], counts: { matches: 0, deaths: 0, highlights: 0, clips: 0 }, clipsNote: null };
   closeMenu(false);
   paint(risen !== game);
+  if (refocus && !cf.open) {
+    const r = refocus;
+    if (Date.now() > r.until) { refocus = null; return; }
+    const a = document.activeElement;
+    if (!a || a === document.body || a.isConnected === false) focusAfterDelete(r.key, r.fromHero).focus();
+  }
 }
 
 // ── The kind ──────────────────────────────────────────────────────────────
 for (const b of $('mo-filter').querySelectorAll('button')) {
   b.addEventListener('click', () => {
-    state.kind = b.dataset.kind || 'all';
-    for (const o of $('mo-filter').querySelectorAll('button')) o.setAttribute('aria-pressed', String(o === b));
+    setKind(b.dataset.kind || 'all');
+    // Highlights shows no deaths: a repeated mistake chosen lets go first,
+    // or the list under it would show nothing.
+    if (state.kind === 'highlight' && state.pattern) setPattern(null, true);
     paintList(false);
   });
 }
@@ -755,13 +852,39 @@ async function revealClip(m, x) {
   if (!r || !r.ok) toast(FAILED[r && r.error] || 'Its file could not be shown.', true);
 }
 
-/** What a clip is called in a sentence: "your death in round 4 on Split", "your 3K in round 7". */
+/**
+ * What a clip is called in a sentence: "your death in round 4 on Split",
+ * "your 3K in round 7"; in League, which has no rounds, "your death at 5:10
+ * on Summoner's Rift".
+ */
 function clipWords(m, x) {
+  const on = m.map ? ` on ${m.map}` : '';
+  if (lolOf(m)) return `${x.time ? `your death ${x.time}` : `death ${x.round}`}${on}`;
   const what = x.kind === 'death' ? 'death' : x.what === 'ace' ? 'ace' : x.what === 'clutch' ? 'clutch' : x.title;
-  return `your ${what} in round ${x.round}${m.map ? ` on ${m.map}` : ''}`;
+  return `your ${what} in round ${x.round}${on}`;
+}
+
+/**
+ * Where the keyboard goes once a clip is deleted and the page is painted
+ * again: its more button went with the clip, so the moment's own row (it is
+ * still listed, without its clip), or the hero that took the deleted one's
+ * place, else the list's title. Never the page's body.
+ */
+function focusAfterDelete(key, fromHero) {
+  if (fromHero && !$('mo-hero').hidden) {
+    const p = $('mo-hero').querySelector('.mo-hplay');
+    if (p) return p;
+  }
+  const row = [...document.querySelectorAll('#mo-list .mo-row')].find((r) => r.dataset.key === key);
+  const to = row && (row.querySelector('.mo-more') || row.querySelector('.mo-open'));
+  if (to) return to;
+  const head = $('mo-log-title');
+  if (!head.hasAttribute('tabindex')) head.setAttribute('tabindex', '-1');
+  return head;
 }
 
 function askDelete(m, x, back) {
+  const fromHero = !!(back && back.closest && back.closest('#mo-hero'));
   askConfirm({
     title: 'Delete this clip?',
     body: `The clip of ${clipWords(m, x)} goes from this PC for good. Its review keeps its grade, its frames and what the coach saw.`,
@@ -773,7 +896,12 @@ function askDelete(m, x, back) {
       if (r && r.ok) {
         toast(`Clip deleted${r.bytes ? `, ${sizeText(r.bytes)} freed` : ''}.`);
         refreshStorage(true);
-        load();
+        // Painted again before the confirm closes, so the keyboard lands on
+        // what is there now (closeConfirm gives it to cf.back); a repaint
+        // main's own push brings a moment later keeps it there (load).
+        refocus = { key: x.key, fromHero, until: Date.now() + 4000 };
+        await load();
+        cf.back = focusAfterDelete(x.key, fromHero);
       } else {
         toast(FAILED[r && r.error] || 'That clip could not be deleted.', true);
       }
@@ -866,7 +994,9 @@ function partLine(s, key) {
     return n ? `${plural(n, 'clip')} from ${plural(Number(s.clips.matches) || 0, 'match', 'matches')}. Delete one from its menu here, or clear them all in Settings.`
       : 'No clips kept right now.';
   }
-  if (key === 'recordings') return 'Held only until a match\'s clips are cut, then removed when Occlara quits.';
+  // recorder.js: a page goes once it is two minutes old unless a match's
+  // review still holds it (prune), and whatever is left goes at quit.
+  if (key === 'recordings') return 'Held only while a match\'s clips are cut, then deleted. Anything left goes when Occlara quits.';
   if (key === 'frames') return 'Stills of your screen the coach read. The AI log thins its own as it goes.';
   return 'Your saved reviews. Deleting a match on Matches removes it and everything kept with it.';
 }
@@ -875,7 +1005,7 @@ function paintStorage() {
   const btn = $('mo-store-btn');
   const s = store;
   btn.hidden = !s;
-  if (!s) { closeStore(false); return; }
+  if (!s) { $('mo-low').hidden = true; closeStore(false); return; }
   $('mo-store-btn-text').textContent = sizeText(s.total);
   btn.title = `What Occlara keeps on this PC: ${sizeText(s.total)}`;
   btn.setAttribute('aria-label', `Storage, ${sizeText(s.total)} on this PC`);
@@ -898,7 +1028,7 @@ function paintStorage() {
   $('mo-store-bar').setAttribute('aria-label', STORE_PARTS.map((p) => `${p.name} ${sizeText(partBytes(s, p.key))}`).join(', '));
   $('mo-store-total').textContent = sizeText(s.total);
   const free = s.free && typeof s.free.bytes === 'number' ? s.free : null;
-  $('mo-store-where').textContent = free ? ` on this PC, ${sizeText(free.bytes)} free on ${free.drive || 'this drive'}` : ' on this PC';
+  $('mo-store-where').textContent = free ? ` on this PC, ${sizeText(free.bytes)} free on ${driveWords(free.drive)}` : ' on this PC';
   const rows = $('mo-store-rows');
   rows.replaceChildren();
   for (const p of STORE_PARTS) {
@@ -938,13 +1068,23 @@ function paintStorage() {
   settings.title = 'Opens Settings';
   settings.addEventListener('click', () => { closeStore(false); if (typeof api.openSettings === 'function') api.openSettings(); });
   cap.append(line, meter, settings);
-  // The recorder's disk guard: under its floor, no match is recorded.
+  // The recorder's disk guard: under its floor, no match is recorded. Said
+  // in the card, and under the page's title where it is seen without a press.
   const warn = $('mo-store-warn');
   const needs = Number(s.recordNeeds) || 0;
   const low = !!(free && needs && free.bytes < needs);
+  const said = low ? `Less than ${Math.round(needs / (1024 * MB))} GB is free on ${driveWords(free.drive)}, so matches are not recorded until there is more room.` : '';
   warn.hidden = !low;
-  warn.textContent = low ? `Less than ${Math.round(needs / (1024 * MB))} GB is free on ${free.drive || 'this drive'}, so matches are not recorded until there is more room.` : '';
+  warn.textContent = said;
+  $('mo-low').hidden = !low;
+  $('mo-low').textContent = said;
   btn.classList.toggle('low', low);
+}
+
+/** "drive C" for main's "C:" (or "C:\"), so no colon sits before a comma; "this drive" without one. */
+function driveWords(d) {
+  const m = /^([A-Za-z]):?\\?$/.exec(String(d || '').trim());
+  return m ? `drive ${m[1].toUpperCase()}` : 'this drive';
 }
 
 function openStore() {
@@ -1007,10 +1147,18 @@ let backwards = false;   // the last Tab was Shift+Tab
 /** The page's two parts behind the dialog, made inert while it is open. */
 const behind = () => [...document.querySelectorAll('.sheet > header, .sheet > main')];
 
+/**
+ * The moment's line under the clip: "Jett on Split, round 3: Dry peek. At B
+ * Main, nobody traded it.", Riot's facts a sentence of their own; in League
+ * "Ahri on Summoner's Rift: Death 2 at 5:10. No ally died within 10 seconds
+ * of it."
+ */
 function playerSay(x) {
   const m = x && x.match;
   const who = m ? [m.title, m.map ? `on ${m.map}` : null].filter(Boolean).join(' ') : '';
-  $('mo-pl-line').textContent = x ? `${who ? `${who}, ` : ''}round ${x.round}: ${x.title}${x.line ? `. ${x.line}` : ''}` : '';
+  const what = !x ? '' : lolOf(m) ? `${who ? `${who}: ` : ''}${[x.title, x.time].filter(Boolean).join(' ')}`
+    : `${who ? `${who}, ` : ''}round ${x.round}: ${x.title}`;
+  $('mo-pl-line').textContent = x ? (x.line ? `${what}. ${sentence(x.line)}` : what) : '';
   $('mo-pl-line').classList.remove('bad');
   $('mo-pl-count').textContent = player.items.length ? `${player.at + 1} of ${player.items.length}` : '';
   // What changed: the moment's line and its count fade in as a clip takes the
@@ -1041,7 +1189,7 @@ function stageClip(x) {
   const stage = $('mo-pl-stage');
   releaseStage();
   stage.replaceChildren();
-  const label = x.kind === 'highlight' ? `The highlight of round ${x.round}` : `The clip of round ${x.round}`;
+  const label = x.kind === 'highlight' ? `The highlight of round ${x.round}` : `The clip of ${placeOf(x.match, x)}`;
   let v;
   if (window.ClipPlayer && typeof window.ClipPlayer.create === 'function') {
     // A highlight's kills and cuts are marked on its timeline (8.17), main's numbers.

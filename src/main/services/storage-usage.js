@@ -9,8 +9,9 @@
  *               its poster (POSTER_RE), the files the cap counts and Clear
  *               clips takes
  *   recordings  the match recording's pages (userData/recording, recorder.js),
- *               held only until a match's clips are cut and swept at every
- *               quit, so never the player's to clear
+ *               held only while a match's clips are cut, then deleted (prune),
+ *               and whatever is left swept at every quit, so never the
+ *               player's to clear
  *   frames      the stills each review keeps beside it (its folder's other
  *               .jpg files) and the AI log's frames of the screen
  *               (userData/ai-log), which the log thins and prunes itself

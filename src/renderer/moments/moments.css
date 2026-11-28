@@ -97,6 +97,13 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .mo-cap-fill { display: block; height: 100%; background: var(--text); transform-origin: 0 50%; transition: transform var(--dur-enter) var(--spring-smooth); }
 .mo-cap-set { align-self: flex-start; margin-top: 2px; }
 .mo-store-warn { margin: 14px 0 0; padding-left: 10px; border-left: 2px solid var(--warn); font-size: 12.5px; line-height: 1.45; color: var(--text); }
+/* The same warning under the page's sub line, a line of its own, while the
+   drive is too full to record: it stops every match, so it is not left a
+   press away. */
+.sheet > header > .mo-low {
+  flex: 0 0 100%; order: 11; max-width: 680px; margin: 2px 0 0; padding-left: 12px;
+  border-left: 2px solid var(--warn); font-size: 14px; line-height: 1.45; color: var(--text); text-wrap: pretty;
+}
 
 /* ── The frame ───────────────────────────────────────────────────────────
    16:9, the picture under a flat dimming, the caption on it: the clip's own
@@ -169,7 +176,10 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   mask-image: linear-gradient(to top, black 0%, rgba(0, 0, 0, 0.62) 30%, transparent 64%);
 }
 .mo-hplay { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 0; border: 0; border-radius: inherit; background: transparent; color: var(--text); cursor: pointer; }
-.mo-hplay:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.6); outline-offset: -4px; }
+/* THE KEYBOARD'S RING, the app's one (ui.css: the accent's lighter step),
+   on the page's own buttons as on every .btn; only where it sits differs. */
+.mo-hplay:focus-visible, .mo-cpick:focus-visible, .mo-open:focus-visible { outline: 2px solid var(--accent-2); }
+.mo-hplay:focus-visible { outline-offset: -4px; }
 .mo-frame-play {
   display: grid; place-items: center; width: 76px; height: 76px; border-radius: 50%;
   color: var(--text); background: var(--glass); border: 1px solid var(--line-2);
@@ -212,7 +222,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   display: flex; flex-direction: row; align-items: baseline; gap: 8px; padding: 8px 12px 8px 14px; text-align: left;
   background: transparent; border: 0; border-radius: var(--r-btn); color: var(--text); font: inherit; cursor: pointer;
 }
-.mo-cpick:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
+.mo-cpick:focus-visible { outline-offset: -2px; }
 .mo-ctitle { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: var(--space-2); }
 .mo-cpick[aria-pressed="true"] .mo-ctitle::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--text); flex: none; }
 .mo-cline { font-size: 12px; color: var(--text-2); }
@@ -280,7 +290,7 @@ body > .dd-list .dd-opt { height: 34px; border-radius: 8px; }
   display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding: 0 4px;
   text-align: left; background: transparent; border: 0; border-radius: var(--r-frame); color: var(--text); font: inherit; cursor: pointer;
 }
-.mo-open:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+.mo-open:focus-visible { outline-offset: 2px; }
 .mo-open .mo-round { display: none; }
 .mo-round { font: 500 12px var(--font-mono); color: var(--text-mute); font-variant-numeric: tabular-nums; }
 /* The kind, a word in the outcome's tone with a mark before it: a death a
@@ -371,11 +381,23 @@ body > .dd-list .dd-opt { height: 34px; border-radius: 8px; }
   background: rgba(0, 0, 0, 0.72);
   opacity: 0;
   transition: opacity var(--dur-base) var(--ease-out);
+  /* Never cut: should the panel still be taller than the page, it scrolls,
+     its top reachable (the panel's auto margins centre it only while it fits). */
+  overflow-y: auto;
 }
 .mo-player.open { opacity: 1; }
 .mo-player[hidden] { display: none; }
+/* THE PANEL FITS THE PAGE (9.1: at the window's least, 960 by 640, the clip
+   took the whole height and the title, Close, the moment's line and the
+   controls were off the screen). Its width follows the height too: the
+   clip is 16:9, so the panel is no wider than the height left over its
+   chrome (the title row, the timeline and its controls, the line and the
+   buttons, --pl-chrome) allows. */
 .mo-pl-panel {
-  width: min(100%, 880px);
+  --pl-chrome: 250px;
+  width: min(100%, 880px, calc((100vh - 2 * var(--space-6) - var(--pl-chrome)) * 16 / 9));
+  min-width: min(100%, 420px);
+  margin: auto;
   display: flex; flex-direction: column; gap: var(--space-3);
   transform: translateY(8px) scale(0.98);
   transition: transform var(--dur-move) var(--ease-out);

@@ -193,8 +193,10 @@ const SIGNAL_ALLOWED = {
   'whatsnew/whatsnew.css': ['.wn-ver'],
   // 9.1: the keyboard's ring on a drill's row, a clip's tile and a demo.
   'practice/practice.css': ['.pc-label', '.pc-where, .pc-min', '.pc-d-head:focus-visible, .pc-clip-tile:focus-visible, .pc-demo-btn:focus-visible'],
-  // 9.1: the hero's eyebrow over the best recent clip, the accent's tint on the picture.
-  'moments/moments.css':   ['.mo-title:not(#mo-empty-title):not(#mo-pl-title)', '.mo-heyebrow'],
+  // 9.1: the hero's eyebrow over the best recent clip, the accent's tint on the
+  // picture; the keyboard's ring on the hero, a chip and a moment's row.
+  'moments/moments.css':   ['.mo-title:not(#mo-empty-title):not(#mo-pl-title)', '.mo-heyebrow',
+                            '.mo-hplay:focus-visible, .mo-cpick:focus-visible, .mo-open:focus-visible'],
   'matches/matches.css':   ['.m-chart-label'],
 };
 /** The rules of a stylesheet that name the signal and are not its places. */

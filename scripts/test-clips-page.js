@@ -19,7 +19,14 @@
  *   - Storage: the pill, the card's four parts, the clips against the limit,
  *     the drive too full to record, and nothing at all when main says null;
  *   - the play mark's centroid on its circle's centre, and the page scrolls
- *     as one so nothing is cut by an edge that stays put.
+ *     as one so nothing is cut by an edge that stays put;
+ *   - after the 9.1 review: League named by its deaths and its clock, never
+ *     a round, with no result and no highlights drawn; no dropdown with one
+ *     choice; a mistake and the Highlights kind never meeting in an empty
+ *     list; the counts while a filter is on; the scoreline and the grade
+ *     badge Home and Matches draw; the keyboard after a delete; the drive
+ *     too full to record under the title; the player sized by the page's
+ *     height; one keyboard ring; and no hand nudge on Practice's mark.
  *
  * Pure node: the page runs in the fake DOM (fixtures/fake-dom.js).
  */
@@ -98,7 +105,13 @@ const GB = 1024 * 1024 * 1024;
     await settle();
     return q;
   };
-  const q = await open(model);
+  // The page's own copy, which a delete changes as main's answer would: the
+  // clip gone, the moment still listed.
+  const live = JSON.parse(JSON.stringify(model));
+  const dropClip = (rid, name) => {
+    for (const m of live.matches) if (m.id === rid) for (const y of m.moments) if (y.clip && y.clip.name === name) Object.assign(y, { clip: null, clipGone: 'gone', clipGoneText: 'Clip gone' });
+  };
+  const q = await open(live, { [C.CLIP_DELETE]: (rid, name) => { if (deleteAnswer && deleteAnswer.ok) dropClip(rid, name); return deleteAnswer; } });
   const $ = q.$;
   const D = q.document;
   const rows = () => D.querySelectorAll('#mo-list .mo-row');
@@ -173,6 +186,32 @@ const GB = 1024 * 1024 * 1024;
   $('mo-f-clear').click();
   ok(D.querySelector('#mo-filter button[data-kind="all"]').getAttribute('aria-pressed') === 'true' && rows().length === all, 'and Clear filters takes the kind back to All');
 
+  // 9.1 fixes: what the counts say while a filter is on, a mistake and the
+  // Highlights kind never meeting in an empty list, the scoreline as Home and
+  // Matches write it, and the grade as the app's one badge.
+  const totals = model.counts;
+  ok($('mo-counts').textContent === `${totals.deaths} deaths, ${totals.highlights} highlights, ${totals.clips} clips across ${totals.matches} matches`, 'no filter: the counts are the whole', $('mo-counts').textContent);
+  choose('map', 'Split');
+  ok($('mo-counts').textContent === `${rows().length} of ${totals.deaths + totals.highlights} moments`, 'a filter on: the counts say what it shows of the whole', $('mo-counts').textContent);
+  $('mo-f-clear').click();
+  ok(/ across /.test($('mo-counts').textContent), 'and cleared, the whole again');
+  D.querySelector('#mo-filter button[data-kind="highlight"]').click();
+  D.querySelector(`#mo-comp-rows .mo-cpick[data-key="${top.key}"]`).click();
+  ok(D.querySelector('#mo-filter button[data-kind="all"]').getAttribute('aria-pressed') === 'true' && rows().length > 0 && $('mo-none').hidden
+    && rows().every((r) => r.querySelector('.mo-kind').classList.contains('death')),
+    'a mistake chosen under Highlights takes the kind back to All: its deaths show, never an empty list', `${rows().length} ${$('mo-none').textContent}`);
+  D.querySelector('#mo-filter button[data-kind="highlight"]').click();
+  ok(D.querySelector(`#mo-comp-rows .mo-cpick[data-key="${top.key}"]`).getAttribute('aria-pressed') === 'false' && dd('mistake').textContent.startsWith('Any mistake')
+    && rows().length > 0 && rows().every((r) => r.querySelector('.mo-kind').classList.contains('highlight')),
+    'and Highlights chosen under a mistake lets the mistake go', `${rows().length}`);
+  $('mo-f-clear').click();
+  const heads = D.querySelectorAll('#mo-list .mo-res').map((n) => n.textContent);
+  ok(heads.length > 0 && heads.every((t) => /^(Victory|Defeat|Draw) \d+ : \d+$/.test(t)) && /^(Victory|Defeat) \d+ : \d+$/.test(hc.querySelector('.mo-hres').textContent),
+    'the scoreline reads "Victory 13 : 9", as Home and Matches write it', `${heads.join(' | ')} | ${hc.querySelector('.mo-hres').textContent}`);
+  const badges = D.querySelectorAll('#mo-list .mo-grade .gv-num');
+  ok(badges.length === sections().length && badges.every((g) => /^\d+$/.test(g.textContent) && /^Grade \d+\. How well you played/.test(g.title)),
+    'each match\'s grade is the app\'s one badge, its name and tip in its title', badges.map((g) => g.title).join(' | '));
+
   // A kept clip's menu.
   const kept = rows().filter((r) => r.querySelector('.mo-play'));
   ok(kept.length > 0 && kept.every((r) => r.querySelector('.mo-frame > .mo-more')) && rows().filter((r) => !r.querySelector('.mo-play')).every((r) => !r.querySelector('.mo-more')),
@@ -228,6 +267,9 @@ const GB = 1024 * 1024 * 1024;
   ok(deletes.length === 1 && deletes[0][1] === x.id && deletes[0][2] === x.clip.name, 'Delete clip deletes it by its review\'s id and its name', JSON.stringify(deletes));
   ok($('mo-confirm').hidden && $('mo-toast').textContent === 'Clip deleted, 24 MB freed.' && !$('mo-toast').classList.contains('bad'),
     'and says so, with what it freed', $('mo-toast').textContent);
+  const at = D.activeElement;
+  ok(at && at !== D.body && at.classList.contains('mo-open') && at.closest('.mo-row') && at.closest('.mo-row').dataset.key === key && D.querySelector('#mo-list').contains(at),
+    'the keyboard lands on the same moment\'s row, painted again, never on the page\'s body', at && (at.className || at.tagName));
   ok(q.bridge.invoked.filter(([ch]) => ch === C.MOMENTS_GET).length > before && q.bridge.invoked.filter(([ch]) => ch === C.STORAGE_GET).length >= 2,
     'the page is read again, and the storage');
   deleteAnswer = { ok: false, error: 'working' };
@@ -246,6 +288,10 @@ const GB = 1024 * 1024 * 1024;
   $('mo-cf-yes').click();
   ok(!hv.getAttribute('src'), 'the hero lets go of its clip before it is deleted');
   await settle();
+  const after = D.activeElement;
+  ok(after && after !== D.body && D.documentElement.contains(after)
+    && ($('mo-hero').hidden ? after.closest('.mo-row') && after.closest('.mo-row').dataset.key === model.best.key : after.classList.contains('mo-hplay')),
+    'and from the hero, the keyboard lands on the hero that took its place, or the moment\'s row', after && (after.className || after.tagName));
 
   // Storage.
   const pill = $('mo-store-btn');
@@ -256,10 +302,12 @@ const GB = 1024 * 1024 * 1024;
   const names = D.querySelectorAll('#mo-store-rows .mo-sname').map((n) => n.textContent).join();
   const bytes = D.querySelectorAll('#mo-store-rows .mo-sbytes').map((n) => n.textContent).join();
   ok(names === 'Clips,Recordings,Frames,Reviews and logs' && bytes === '2.3 GB,1.1 GB,386 MB,47 MB', 'clips, recordings, frames and the rest, each its size', `${names} | ${bytes}`);
-  ok($('mo-store-total').textContent === '3.9 GB' && $('mo-store-where').textContent === ' on this PC, 212.4 GB free on C:', 'the total, and the room left on the drive', $('mo-store-where').textContent);
+  ok($('mo-store-total').textContent === '3.9 GB' && $('mo-store-where').textContent === ' on this PC, 212.4 GB free on drive C', 'the total, and the room left on the drive, no colon before a comma', $('mo-store-where').textContent);
   const lines = D.querySelectorAll('#mo-store-rows .mo-sline').map((n) => n.textContent);
-  ok(/^14 clips from 5 matches\. Delete one from its menu here, or clear them all in Settings\.$/.test(lines[0]) && /removed when Occlara quits/.test(lines[1]) && /thins its own/.test(lines[2]),
-    'what each is, and whether and how it is cleared', lines.join(' | '));
+  ok(/^14 clips from 5 matches\. Delete one from its menu here, or clear them all in Settings\.$/.test(lines[0])
+    && lines[1] === 'Held only while a match\'s clips are cut, then deleted. Anything left goes when Occlara quits.' && /thins its own/.test(lines[2]),
+    'what each is, and whether and how it is cleared (a recording goes once its clips are cut, recorder.js prune, not at quit alone)', lines.join(' | '));
+  ok($('mo-low').hidden, 'with room on the drive, nothing under the title');
   ok(D.querySelector('#mo-store-cap .mo-cap-num').textContent === '2.3 GB of 10 GB' && /kept under 10 GB, the oldest go first/.test(D.querySelector('#mo-store-cap .mo-cap-words').textContent),
     'the clips against the limit set in Settings');
   ok($('mo-store-warn').hidden, 'with room on the drive, no warning');
@@ -271,16 +319,80 @@ const GB = 1024 * 1024 * 1024;
   storageAnswer = demo.storage('low');
   const low = await open(model);
   low.$('mo-store-btn').click();
-  ok(!low.$('mo-store-warn').hidden && low.$('mo-store-warn').textContent === 'Less than 8 GB is free on C:, so matches are not recorded until there is more room.'
+  const lowWords = 'Less than 8 GB is free on drive C, so matches are not recorded until there is more room.';
+  ok(!low.$('mo-store-warn').hidden && low.$('mo-store-warn').textContent === lowWords
     && low.$('mo-store-btn').classList.contains('low'), 'under the recorder\'s floor the card says matches are not recorded', low.$('mo-store-warn').textContent);
+  ok(!low.$('mo-low').hidden && low.$('mo-low').textContent === lowWords && low.$('mo-low').parentNode === low.document.querySelector('.sheet > header'),
+    'and says it under the page\'s title too, where it is seen without a press', low.$('mo-low').textContent);
   storageAnswer = null;
   const none = await open(model);
-  ok(none.$('mo-store-btn').hidden && none.$('mo-store').hidden, 'main saying null (mid match), no Storage at all');
+  ok(none.$('mo-store-btn').hidden && none.$('mo-store').hidden && none.$('mo-low').hidden, 'main saying null (mid match), no Storage at all');
+  storageAnswer = demo.storage('some');
 
   // No clip kept anywhere: no hero, and the page still lists every moment.
   const bare = demo.model({ now: T0, keep: 0 });
   const nq = await open(bare);
   ok(bare.best === null && nq.$('mo-hero').hidden && nq.document.querySelectorAll('#mo-list .mo-row').length > 0, 'no clip kept: no hero, the moments still listed');
+
+  // A choice of one is no choice: one match saved, no dropdown offers only "Any".
+  const one = { ...model, matches: model.matches.slice(0, 1) };
+  const oq = await open(one);
+  ok(['map', 'agent', 'result'].every((k) => oq.document.querySelector(`#mo-f-${k}`).hidden) && !oq.$('mo-filter').hidden,
+    'one match: no map, agent or result dropdown with nothing to choose, the kind still there');
+
+  // The player's line: the moment's title, then Riot's facts a sentence of their own.
+  const lined = model.matches.flatMap((m) => m.moments).find((y) => y.kind === 'death' && y.clip && y.line && /^[a-z]/.test(y.line));
+  if (lined) {
+    q.document.querySelector(`#mo-list .mo-row[data-key="${lined.key}"] .mo-play`).click();
+    await settle();
+    const said = q.$('mo-pl-line').textContent;
+    ok(said.includes(`round ${lined.round}: ${lined.title}. ${lined.line[0].toUpperCase()}${lined.line.slice(1)}`) && /\.$/.test(said),
+      'the player\'s line starts Riot\'s facts with a capital after the full stop, and ends with one', said);
+    q.fire(q.$('mo-pl-close'), 'keydown', { key: 'Escape' });
+  } else {
+    ok(false, 'the fuller library has a death with a clip and a line of Riot\'s facts');
+  }
+
+  // ── LEAGUE HAS NO ROUNDS, NO RESULT AND NO HIGHLIGHTS ────────────────────
+  // (lol-review.js: a death list by the game's clock, and no result field.)
+  const lolSaved = [['Ahri', 0], ['Jinx', 1], ['Lee Sin', 2]].map(([champion, i]) => {
+    const atL = T0 - i * 26 * 3600000;
+    const rid = `lol-${atL}-t${i}`;
+    const deathList = Array.from({ length: 3 + i }, (_v, k) => ({ n: k + 1, atSec: 310 + k * 240, at: `${5 + k * 4}:10`,
+      fact: k % 2 ? 'An ally died in the 10 seconds after it.' : 'No ally died within 10 seconds of it.', clip: `d${k + 1}-clip.mkv`, clipDeath: 11000 }));
+    return { id: rid, at: atL, game: 'lol', review: { id: rid, at: atL, kind: 'lol', game: { champion, map: 'Summoner\'s Rift', mode: 'Ranked Solo' }, grade: { score: 72 - i * 6, provisional: i === 1 }, deathList } };
+  });
+  const lolModel = moments.build('lol', lolSaved, { patterns: { mistakes: [] }, clips: (rid) => (rid.endsWith('t2') ? [] : ['d1-clip.mkv', 'd2-clip.mkv', 'd3-clip.mkv']),
+    url: (rid, n) => `occlara-clip://review/${rid}/${n}`, frames: () => null, recordingMode: 'auto' });
+  const lq = await open(lolModel, { [C.STATE_GET]: () => ({ gameId: 'lol', isCoaching: false }) });
+  const L = lq.document;
+  const lrows = L.querySelectorAll('#mo-list .mo-row');
+  ok(lrows.length === 12 && L.querySelectorAll('#mo-list .mo-res').length === 0 && !/No result/.test(L.querySelector('#mo-list').textContent),
+    'League: every death listed, and no "No result" over a game that keeps none', `${lrows.length} ${L.querySelectorAll('#mo-list .mo-res').length}`);
+  ok(lrows.every((r) => /^At \d+:\d\d$/.test(r.querySelector('.mo-frame-cap').textContent)),
+    'each frame says when on the game\'s clock, never a round', lrows.map((r) => r.querySelector('.mo-frame-cap').textContent).join());
+  const lhero = L.querySelector('#mo-hero .mo-hcard');
+  ok(lhero && !lhero.querySelector('.mo-hround') && /at \d+:\d\d/.test(lhero.querySelector('.mo-hmeta').textContent),
+    'the hero has no round, its clock says when', lhero && lhero.querySelector('.mo-hmeta').textContent);
+  const roundy = [...L.querySelectorAll('#mo-hero, #mo-list').flatMap((h) => [h, ...h.querySelectorAll('*')])]
+    .flatMap((n) => [n.getAttribute && n.getAttribute('aria-label'), n.getAttribute && n.getAttribute('title')]).filter(Boolean)
+    .concat([L.querySelector('#mo-hero').textContent, L.querySelector('#mo-list').textContent]).filter((t) => /\bround\b/i.test(t));
+  ok(roundy.length === 0, 'no label, title or line on League\'s clips says round', roundy.slice(0, 3).join(' | '));
+  ok(lq.$('mo-filter').hidden && L.querySelector('#mo-f-result').hidden && L.querySelector('#mo-f-map').hidden && !L.querySelector('#mo-f-agent').hidden,
+    'no kind to choose (all deaths), no result and one map to choose from: only the champion is offered');
+  ok(lq.$('mo-counts').textContent === '12 deaths, 6 clips across 3 matches' && lq.$('mo-sub').textContent === 'Every death from your games, the clips kept beside them.',
+    'the counts and the sub line say nothing of highlights', `${lq.$('mo-counts').textContent} | ${lq.$('mo-sub').textContent}`);
+  ok(L.querySelector('#mo-list .mo-grade .gv-num.prov'), 'a provisional grade has the badge\'s dashed ring');
+  const lfirst = lolModel.matches[0].moments[1];
+  L.querySelector(`#mo-list .mo-row[data-key="${lfirst.key}"] .mo-more`).click();
+  lq.$('mo-menu').querySelector('[data-act="delete"]').click();
+  ok(lq.$('mo-cf-body').textContent.startsWith(`The clip of your death ${lfirst.time} on Summoner's Rift goes from this PC for good.`),
+    'the delete confirm names the death by its clock', lq.$('mo-cf-body').textContent);
+  lq.fire(lq.$('mo-cf-no'), 'keydown', { key: 'Escape' });
+  L.querySelector(`#mo-list .mo-row[data-key="${lfirst.key}"] .mo-play`).click();
+  await settle();
+  ok(lq.$('mo-pl-line').textContent === `Ahri on Summoner's Rift: Death 2 ${lfirst.time}. An ally died in the 10 seconds after it.` && lq.$('mo-pl-title').textContent === `Death 2, ${lfirst.time}`,
+    'and the player names it so', `${lq.$('mo-pl-title').textContent} | ${lq.$('mo-pl-line').textContent}`);
 
   // ── The play mark: its centroid on the circle's centre ───────────────────
   const page = read('src/renderer/moments/moments.js');
@@ -333,12 +445,29 @@ const GB = 1024 * 1024 * 1024;
   const elsewhere = ['src/renderer/review/clip-player.js', 'src/renderer/home/home.js', 'src/renderer/practice/practice.js'];
   ok(elsewhere.every((rel) => read(rel).includes(PATH)), 'every clip play mark in its circle is the same centred one', elsewhere.filter((rel) => !read(rel).includes(PATH)).join());
   ok(!/\.play-mark svg\s*\{[^}]*margin-left/.test(read('src/renderer/home/home.css')), 'and Home\'s fix card no longer nudges it by hand');
+  // Practice draws the mark in its clip tile and its drill demo (practice.js
+  // playMark): a nudge left over from the old triangle sets it right of centre.
+  const pcss = read('src/renderer/practice/practice.css');
+  const nudged = ['.pc-clip-icon', '.pc-demo-icon'].filter((sel) => {
+    const m = pcss.match(new RegExp(`(?:^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`));
+    return !m || /translateX|margin-left/.test(m[1]);
+  });
+  ok(nudged.length === 0, 'nor Practice\'s clip tile and drill demo (no translateX, no margin-left on the centred mark)', nudged.join());
 
   // ── The page scrolls as one ───────────────────────────────────────────────
   const rule = (sel) => { const m = css.match(new RegExp(`(?:^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`)); return m ? m[1] : ''; };
   ok(/overflow-y:\s*auto/.test(rule('.sheet')) && !/overflow-y:\s*auto/.test(rule('.body')),
     'NOTHING CUT BY THE BAR: the sheet scrolls, title and all, never a body under a title that stays put', `${rule('.sheet')} | ${rule('.body')}`);
   ok(/position:\s*sticky/.test(rule('.sheet::before')) && /mask-image/.test(rule('.sheet::before')), 'and what passes under the bar fades into the ground');
+  // The player's panel fits the page at the window's least (960 by 640): its
+  // width follows the height left over its chrome, and should it still be
+  // taller, the veil scrolls with its top reachable. Measured in Electron too.
+  ok(/100vh/.test(rule('.mo-pl-panel')) && /16\s*\/\s*9/.test(rule('.mo-pl-panel')) && /margin:\s*auto/.test(rule('.mo-pl-panel')) && /overflow-y:\s*auto/.test(rule('.mo-player')),
+    'THE PLAYER IS NEVER CUT: its panel is sized by the page\'s height, the veil scrolls', rule('.mo-pl-panel'));
+  // The keyboard's ring is the app's one, the accent's lighter step (ui.css), never the old cyan.
+  const cyanRings = (css.match(/[^{}]*:focus-visible[^{]*\{[^}]*\}/g) || []).filter((r) => /--cyan-rgb/.test(r));
+  ok(cyanRings.length === 0 && /\.mo-hplay:focus-visible, \.mo-cpick:focus-visible, \.mo-open:focus-visible\s*\{\s*outline:\s*2px solid var\(--accent-2\)/.test(css),
+    'every keyboard ring on the page is the accent\'s, as on every .btn', cyanRings.map((r) => r.trim().split('{')[0]).join(' | '));
 
   // ── Main's side, read as text ─────────────────────────────────────────────
   const index = read('src/main/index.js');
@@ -350,7 +479,7 @@ const GB = 1024 * 1024 * 1024;
     ok(!DASHES.test(read(rel)), `no dash in ${rel}`);
   }
   ok(DASHES.test(String.fromCharCode(0x2014)) && !DASHES.test('-'), 'the dash detector matches a dash and not a hyphen');
-  ok(q.logs.every((l) => !/error|TypeError/i.test(l)), 'the page logged no error', q.logs.join(' | '));
+  ok([q, lq, oq].every((s) => s.logs.every((l) => !/error|TypeError/i.test(l))), 'the pages logged no error', [q, lq, oq].flatMap((s) => s.logs).join(' | '));
 
   console.log(`\n${fails ? `${fails} of ${checks} clips page checks FAILED` : `all ${checks} clips page checks passed`}`);
   process.exit(fails ? 1 : 0);

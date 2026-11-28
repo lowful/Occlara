@@ -6339,8 +6339,9 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(q.document.querySelectorAll('#mo-list .mo-match').length === 2 && q.document.querySelectorAll('#mo-list .mo-row').length === all,
       'one section a match, one row a moment', `${q.document.querySelectorAll('#mo-list .mo-row').length} of ${all}`);
     const head = q.document.querySelector('#mo-list .mo-match .mo-mhead');
-    ok(head && /Victory 13-11/.test(head.querySelector('.mo-res').textContent) && head.querySelector('.mo-res').classList.contains('win')
-      && /Jett on Abyss/.test(head.querySelector('.mo-who').textContent) && head.querySelector('.mo-score').textContent === String(rv.grade.score)
+    // 9.1: the scoreline as Home and Matches write it, the grade the app's one badge (GradeView.scoreBadge).
+    ok(head && /Victory 13 : 11/.test(head.querySelector('.mo-res').textContent) && head.querySelector('.mo-res').classList.contains('win')
+      && /Jett on Abyss/.test(head.querySelector('.mo-who').textContent) && head.querySelector('.mo-grade .gv-num').textContent === String(rv.grade.score)
       && !head.querySelector('.gv-letter'),
       'the match line: the result and score in its tone, the agent on the map, the grade as its number and no letter', head && head.textContent);
     ok(q.$('mo-counts').textContent === `${data.counts.deaths} deaths, ${data.counts.highlights} highlights, 2 clips across 2 matches`,
