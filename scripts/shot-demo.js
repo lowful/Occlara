@@ -45,6 +45,7 @@ const progress = require('../src/shared/progress');
 const moments = require('../src/shared/moments');
 const { served } = require('../src/shared/valorant-review');
 const { scrubText } = require('../src/shared/plain-text');
+const { manyRows } = require('./fixtures/many-matches');
 
 const TOP_H = Number((fs.readFileSync(path.join(ROOT, 'src', 'main', 'windows', 'main-window.js'), 'utf8').match(/const TOP_H = (\d+);/) || [])[1]) || 56;
 const W = Number(process.env.SHOT_W) || 1280;
@@ -97,6 +98,17 @@ const SCENES = {
   settingslr: { page: 'settings', lr: true, act: "document.getElementById('lr-row').scrollIntoView({ block: 'start' }); true" },
   leaguewait: { page: 'home', rec: true, coaching: true, live: null, game: 'lol' },
   held: { page: null, sealed: true, held: true },
+  // Matches on a fuller library (9.1, scripts/fixtures/many-matches.js): the
+  // grade trend, when you play best, every kind of row; a point of the trend
+  // read, a row's peek, its menu and the delete it asks first; and the
+  // window at its least.
+  matchesmany: { page: 'matches', many: true },
+  matchestip: { page: 'matches', many: true, act: "chart.select(14); true" },
+  matchespeek: { page: 'matches', many: true, act: "(() => { const r = document.querySelectorAll('#list .m-row')[4]; r.scrollIntoView({ block: 'center' }); setTimeout(() => { r.focus(); r.closest('.m-item').classList.add('peek-show'); }, 300); return true; })()" },
+  matcheslist: { page: 'matches', many: true, act: "document.getElementById('list').scrollIntoView({ block: 'start' }); true" },
+  matchesmenu: { page: 'matches', many: true, act: "(() => { const b = document.querySelectorAll('#list .m-more')[4]; b.scrollIntoView({ block: 'center' }); setTimeout(() => b.click(), 300); return true; })()" },
+  matchesconfirm: { page: 'matches', many: true, act: "(() => { const b = document.querySelectorAll('#list .m-more')[2]; b.click(); setTimeout(() => { const d = document.querySelector('#m-menu [data-action=delete]'); if (d) d.click(); }, 200); return true; })()" },
+  matchesnarrow: { page: 'matches', many: true, w: 960, h: 700 },
 };
 
 function liveOf(kind) {
@@ -156,7 +168,8 @@ app.whenReady().then(async () => {
     [C.ACCOUNT_GET]: () => proof.SEEDED_VIEW,
     [C.SOCIAL_STATE]: () => ({ live: false }),
     [C.DUOS_STATE]: () => ({ duos: false }),
-    [C.REVIEWS_LIST]: (_e, game) => store.list(game || null).map((r) => ({ ...r, aiLog: null, work: null })),
+    [C.REVIEWS_LIST]: (_e, game) => (scene.many ? manyRows(Date.now() - 20 * 60 * 1000)
+      : store.list(game || null).map((r) => ({ ...r, aiLog: null, work: null }))),
     [C.REVIEW_GET]: (_e, id) => { const e = store.get(id); return e ? present({ ...e.review, id: e.review.id || id }) : null; },
     [C.PATTERNS_GET]: () => ({ game: 'valorant', ...patterns.summarise(recent()), progress: progress.libraryProgress(recent()) }),
     [C.PROGRESS_GET]: (_e, id) => progress.matchProgress(recent(), id),

@@ -6,9 +6,11 @@
  *
  * Everything shown is read from saved reviews. Patterns need two matches of one
  * game before they say anything, and the page says that rather than showing an
- * empty frame, because an empty frame reads as broken. The Valorant list also
- * offers to grade the recent matches of the Riot ID in Settings from Riot's
- * record, and follows that run as main pushes it.
+ * empty frame, because an empty frame reads as broken. The list page (9.1)
+ * leads with the grade trend across the top and when the player plays best,
+ * then every match as a simple row with a menu that can delete it. A run
+ * grading recent matches from Riot's record (Connect in Settings) is shown
+ * as one line while main pushes it.
  */
 
 const $ = (id) => document.getElementById(id);
@@ -837,27 +839,26 @@ async function loadBreakdown() {
 }
 
 // ── Grading recent matches from Riot's record ───────────────────────────────
+// NO BUTTON HERE (9.1, the owner's item 5): "Grade my recent matches" is
+// gone from Matches. Connect in Settings (and in onboarding) grades the
+// account's recent matches, and the run's own line shows here while it runs
+// and once it ends, so the rows arriving are never a mystery.
 let backfill = null;
 let riotId = '';
 
 function paintBf() {
   const box = $('bf');
   const connected = riotId.includes('#');
-  // Only with a Riot ID (8.7): the rail's own bullet asks for one on every
-  // page, so no second "Add your Riot ID" stands here.
-  box.hidden = game !== 'valorant' || !connected;
-  if (box.hidden) return;
   const s = backfill || { state: 'idle' };
-  const btn = $('bf-go');
   // A RUN BELONGS TO ITS ACCOUNT. Once the Riot ID changes, the last run's
   // outcome ("Graded 4 recent matches") is about another account's matches,
   // and a run still winding down for the old ID is not grading this one, so
-  // neither is shown, nor holds the button, until a status names this ID.
+  // neither is shown until a status names this ID.
   const mine = connected && String(s.account || '').trim().toLowerCase() === riotId.toLowerCase();
   const busy = mine && (s.state === 'listing' || s.state === 'waiting' || s.state === 'grading');
-  btn.disabled = busy;
-  btn.textContent = !connected ? 'Add your Riot ID' : busy ? 'Grading' : 'Grade my recent matches';
   const text = mine && s.state !== 'idle' ? (s.message || '') : '';
+  box.hidden = game !== 'valorant' || !text;
+  box.classList.toggle('busy', busy);
   $('bf-status').textContent = text;
   $('bf-status').title = text;
 }
@@ -868,12 +869,6 @@ async function refreshRiotId() {
   if (cfg) riotId = String(cfg.riotId || '').trim();
   paintBf();
 }
-
-$('bf-go').addEventListener('click', async () => {
-  if (!riotId.includes('#')) { window.occlara.openSettings(); return; }
-  backfill = await window.occlara.startBackfill().catch(() => backfill);
-  paintBf();
-});
 
 // ── Importing a recording (8.12) ─────────────────────────────────────────────
 // Main picks and holds the file and does the work (import-video.js). This shows
@@ -898,7 +893,8 @@ function matchOption(m) {
 }
 
 function paintImport() {
-  $('imp-go').hidden = game !== 'valorant';
+  // The head's action is the list page's: its panel is drawn over the rows.
+  $('imp-go').hidden = game !== 'valorant' || document.documentElement.dataset.section === 'patterns';
   const s = imp || { state: 'idle' };
   const lock = impCard && impCard.allowed === false ? impCard : null;
   const choosing = s.state === 'choosing' || (s.state === 'choosing-refused' && !s.gate);
@@ -983,28 +979,74 @@ $('imp-upgrade').addEventListener('click', () => window.occlara.importAction('up
 $('imp-buy').addEventListener('click', () => window.occlara.importAction('buy'));
 $('imp-licence').addEventListener('click', () => window.occlara.importAction('licence'));
 
-/**
- * One match: a card holding two buttons side by side, the row, which opens its
- * review, and the eye, which opens the AI log on its frames where main says it
- * is still kept (shared/log-eye.js). Siblings, never one inside the other,
- * which is what the "Ask" this row used to carry was: clicked, it was the
- * row's click too, and a screen reader read it into the row's name. Asking
- * the coach about a match is on its review page.
+// ── The rows ────────────────────────────────────────────────────────────────
+/*
+ * SIMPLER ROWS (9.1, the owner's item 11: "too much information that players
+ * skim past"). A row is six things, in columns, so the eye runs down them:
+ * the agent's portrait, the agent and the map with the date under them, the
+ * result and the score, the grade, its change on the match before. The rest
+ * is one step away, in the row's peek (hover, or the keyboard's focus): the
+ * queue and where the grade came from, the top mistake, the milestones, the
+ * RR and the match rating. And the review, one press.
  *
- * @param gutter  the list has eyes, so a row without one keeps its room and
- *   the grades still line up down the list
- * @param marks  the row's milestones as main counted them (8.7, progress.js
- *   libraryProgress marks[id]): [{ kind, text }], a badge each beside the
- *   result, "Best in 23", "First A", "3 in a row", "3 without ...". None
- *   while the match is still being checked, since its grade is not yet its own.
+ * A row is a list item holding siblings, never one control inside another:
+ * the row (a button, which opens the review), the eye (the AI log, where its
+ * frames are still kept, shared/log-eye.js) and the menu (Open review,
+ * Delete match). The peek is the row's description (aria-describedby).
+ *
+ * A ROW WITH NO GRADE SAYS WHY, where its result and grade would be
+ * (whyUngraded): still being checked has its pill (GradeView.checking), a
+ * locked one, a part stopped before the end, one too little of was read, an
+ * import not matched to Riot's record, or not enough measured.
  */
-function row(m, gutter, marks, delta) {
+const D = window.OcclaraDisplay || null;
+const inSentence = (t) => (D && typeof D.inSentence === 'function' ? D.inSentence(t) : String(t || ''));
+const GRADE_TIP = (D && D.NAMES && D.NAMES.grade.tip) || '';
+const RATING = (D && D.NAMES && D.NAMES.rating) || { name: 'Match rating', tip: '' };
+
+/** "13 : 11", the score as the game draws it. */
+const scoreText = (s) => String(s || '').replace(/\s*[-:]\s*/, ' : ');
+/** "Jett on Split", whatever is known of the two. */
+const nameOf = (m) => (m.title && m.map ? `${m.title} on ${m.map}` : (m.title || m.map || 'Unknown match'));
+/** 'win', 'loss' or '' from a result. */
+const outcomeOf = (r) => (/^(?:vict|win)/i.test(r || '') ? 'win' : /^(?:defeat|loss)/i.test(r || '') ? 'loss' : '');
+
+/** A row's date: "Today, 9:25 PM", "Yesterday, 9:25 PM" or "Nov 22, 9:25 PM". */
+function whenOf(at) {
+  const TC = window.TrendChart;
+  if (TC && typeof TC.whenWord === 'function') return TC.whenWord(at);
+  return fmtWhen(at);
+}
+
+/**
+ * Why a row has no grade: [short, long]. The short one stands in the row, the
+ * long one is its tooltip; both say only what the row itself shows.
+ */
+function whyUngraded(m) {
+  if (m.locked) return ['No games left, not graded', 'Saved while your account had no games left, so it was not graded. Open it for what Riot recorded.'];
+  if (m.stoppedLive && !m.result) return ['Stopped early, not graded', 'Stop was pressed before this match ended, so too little of it was read to grade. Open it for what was read.'];
+  if (!m.result && !m.score) return ['Too little read to grade', 'Too little of this match was read to grade it: its score was never on screen long enough. Open it for what was read.'];
+  if (m.imported && !m.matchId && !m.verified) return ["Not matched to Riot's record", "This recording was not matched to Riot's record of a match, and a full grade needs it. Open it for what the screen showed."];
+  return ['Not enough measured to grade', 'Not enough of this match was measured to grade it. Open it to see what was.'];
+}
+
+let peekSeq = 0;
+
+/**
+ * @param m       the library row
+ * @param o.gutter  the list has eyes, so a row without one keeps its room
+ * @param o.marks   the row's milestones as main counted them (progress.js
+ *                  libraryProgress marks[id]): [{ kind, text }], none while
+ *                  the match is still being checked
+ * @param o.delta   the grade's change on the graded match before, or 'first'
+ */
+function row(m, o) {
+  const { gutter, marks, delta } = o || {};
   const item = el('div', 'm-item');
   item.setAttribute('role', 'listitem');
+  item.dataset.id = m.id;
   const b = el('button', 'm-row');
   b.type = 'button';
-  // PROGRESS V3: the agent's portrait leads the row, a bundled file, and a
-  // ringed blank where none is known so the grades still line up.
   const src = typeof window.occlara.agentArt === 'function' ? window.occlara.agentArt(game, m.title) : null;
   const face = el(src ? 'img' : 'span', 'm-face');
   if (src) {
@@ -1013,62 +1055,89 @@ function row(m, gutter, marks, delta) {
     face.addEventListener('error', () => face.replaceWith(el('span', 'm-face')));
   }
   face.setAttribute('aria-hidden', 'true');
-  b.append(face);
-  const main = el('div', 'm-main');
-  const top = el('div', 'm-top');
-  top.append(el('span', 'm-title', m.title && m.map ? `${m.title} on ${m.map}` : (m.title || m.map || 'Unknown')));
+
+  const name = el('div', 'm-name');
+  name.append(el('span', 'm-title', nameOf(m)), el('span', 'm-when', whenOf(m.at)));
+
   // STILL BEING CHECKED (8.4.1): its result, its top mistake and its grade
-  // are the screen's until the review is whole, and Riot's record changes
-  // them minutes later, so the row says it is being checked where its grade
-  // would be (GradeView.checking) and names neither of the others yet.
+  // are the screen's until the review is whole, so the row says it is being
+  // checked where its grade would be and names neither of the others yet.
   const checking = m.work ? window.GradeView.checking(m.work) : null;
-  if (m.result && !checking) {
-    top.append(el('span', 'm-res ' + (/vict|win/i.test(m.result) ? 'win' : /defeat|loss/i.test(m.result) ? 'loss' : ''),
-      [m.result, m.score].filter(Boolean).join(' ')));
+  const g = checking ? null : m.grade;
+  const grade = el('div', 'm-grade');
+  const res = el('div', 'm-result');
+  let dEl = el('span', 'm-delta none');
+  if (checking) {
+    grade.append(checking);
+  } else if (g) {
+    if (m.result) res.append(el('span', 'm-res ' + outcomeOf(m.result), [m.result, scoreText(m.score)].filter(Boolean).join(' ')));
+    // One score, no letter (9.1): the number in its band's tone, dashed when provisional.
+    grade.append(el('span', 'm-score ' + gradeTone(g) + (g.provisional ? ' prov' : ''), String(g.score)));
+    grade.title = `Grade ${g.score}${g.provisional ? ', provisional: some of the record was missing' : ''}. ${GRADE_TIP}`;
+    if (delta === 'first') dEl = el('span', 'm-delta first', 'First');
+    else if (typeof delta === 'number') {
+      dEl = el('span', 'm-delta ' + (delta > 0 ? 'up' : delta < 0 ? 'down' : 'even'), D ? D.gradeDelta(delta) : `${delta > 0 ? '+' : ''}${delta}`);
+      dEl.title = 'Since the graded match before';
+    }
+  } else {
+    const [short, long] = whyUngraded(m);
+    if (m.result) res.append(el('span', 'm-res ' + outcomeOf(m.result), [m.result, scoreText(m.score)].filter(Boolean).join(' ')));
+    grade.append(el('span', 'm-score none', '--'));
+    const why = el('span', 'm-why', short);
+    why.title = long;
+    res.append(why);
+    item.classList.add('ungraded');
   }
-  // The RR the match moved, "RR +18" (8.7.9), filled in once main answers
-  // (paintRR); empty and hidden until then, and for any row without one.
-  const rrChip = checking ? null : el('span', 'm-rr');
-  if (rrChip) rrChip.hidden = true;
-  item.dataset.id = m.id;
+  b.append(face, name, res, grade, dEl);
+
+  // ── The peek: the rest, one step away ──
+  const peek = el('div', 'm-peek');
+  peek.id = `m-peek-${++peekSeq}`;
+  peek.setAttribute('role', 'tooltip');
+  const source = m.imported ? (m.matchId || m.verified ? 'Imported recording' : "Imported, not matched to Riot's record")
+    : m.source === 'riot' ? "From Riot's record" : m.verified ? "Checked against Riot's record" : null;
+  peek.append(el('div', 'm-meta', [whenOf(m.at), m.mode, source].filter(Boolean).join('  ·  ')));
+  const facts = el('dl', 'm-facts');
+  const fact = (label, value, cls) => {
+    const wrap = el('div', 'm-fact' + (cls ? ' ' + cls : ''));
+    wrap.append(el('dt', null, label));
+    const dd = el('dd');
+    if (value instanceof Object && value.nodeType) dd.append(value); else dd.textContent = value;
+    wrap.append(dd);
+    facts.append(wrap);
+    return wrap;
+  };
+  if (!checking && m.topMistake) fact('Top mistake', el('span', 'm-top-mistake', m.topMistake));
   if (!checking && Array.isArray(marks)) {
+    const box = el('span', 'm-marks');
     for (const k of marks) {
       if (!k || typeof k.text !== 'string' || !k.text) continue;
       const mark = el('span', 'm-mark' + (k.kind ? ' ' + k.kind : ''), k.text);
       mark.title = k.text;
-      top.append(mark);
+      box.append(mark);
     }
+    if (box.children.length) fact('Milestones', box);
   }
-  main.append(top);
-  main.append(el('div', 'm-meta', [fmtWhen(m.at), m.mode, m.imported ? (m.matchId || m.verified ? 'imported recording' : "imported, not matched to Riot's record") : null,
-    m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null]
-    .filter(Boolean).join('  ·  ')));
-  // The top mistake as the row's quiet second line, its label quieter still.
-  if (m.topMistake && !checking) {
-    const tm = el('div', 'm-top-mistake');
-    tm.append(el('span', 'm-tm-label', 'Top mistake: '), document.createTextNode(m.topMistake));
-    main.append(tm);
+  if (!checking && m.rating && m.rating.shown) {
+    const f = fact(RATING.name, String(m.rating.shown), 'm-rating');
+    f.title = RATING.tip;
   }
-
-  const grade = el('div', 'm-grade');
-  const g = m.grade;
-  if (checking) grade.append(checking);
-  else {
-    // One score, no letter (9.1): the number in its band's tone, dashed when provisional.
-    grade.append(el('span', 'm-score' + (g ? ' ' + gradeTone(g) + (g.provisional ? ' prov' : '') : ''), g ? g.score : '--'));
-    grade.title = g ? `Grade ${g.score}${g.provisional ? ', provisional: some of the record was missing' : ''}. How well you played this match, out of 100, by the coach's read of your survival, impact, teamplay and decisions.` : 'No grade';
-  }
-  // The grade's change since the match before it (Progress v3), "First" for
-  // the oldest graded one; nothing while it is still being checked.
-  const d = checking || !g ? null : delta;
-  const dEl = d === undefined || d === null ? el('span', 'm-delta none')
-    : d === 'first' ? el('span', 'm-delta first', 'First')
-      : el('span', 'm-delta ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'even'), `${d > 0 ? '+' : ''}${d}`);
-  if (typeof d === 'number') dEl.title = 'Since the match before';
-  b.append(grade, dEl, main);
-  if (rrChip) b.append(rrChip);
+  // The RR the match moved, filled in once main answers (paintRR).
+  const rr = fact('RR', el('span', 'm-rr'), 'm-rr-fact');
+  rr.hidden = true;
+  if (checking) facts.append(el('p', 'm-peek-note', "Still being checked against Riot's record."));
+  else if (!g) facts.append(el('p', 'm-peek-note', whyUngraded(m)[1]));
+  peek.append(facts);
+  b.setAttribute('aria-describedby', peek.id);
+  // A name a screen reader reads as one line: what the eye sees across the row.
+  b.setAttribute('aria-label', [nameOf(m), whenOf(m.at), checking ? 'still being checked' : null,
+    !checking && m.result ? [m.result, scoreText(m.score)].filter(Boolean).join(' ') : null,
+    g ? `grade ${g.score}${g.provisional ? ', provisional' : ''}` : checking ? null : 'not graded',
+    g && typeof delta === 'number' ? `${D ? D.gradeDelta(delta) : delta} on the match before` : null,
+    !checking && m.topMistake ? `top mistake ${inSentence(m.topMistake)}` : null].filter(Boolean).join(', '));
   b.addEventListener('click', () => window.occlara.openReview(m.id));
   item.append(b);
+
   const eye = window.LogEye.button(m.aiLog, () => window.occlara.openAiLog(m.id));
   if (eye) item.append(eye);
   else if (gutter) {
@@ -1076,47 +1145,230 @@ function row(m, gutter, marks, delta) {
     gap.setAttribute('aria-hidden', 'true');
     item.append(gap);
   }
-  if (m.imported && !checking) item.append(deleteImportButton(m.id));
+  item.append(menuButton(m), peek);
+  // The last rows' peek opens upward, so it never runs past the list's end.
+  item.addEventListener('pointerenter', () => placePeek(item));
+  b.addEventListener('focus', () => placePeek(item));
   return item;
 }
 
-/*
- * DELETE AN IMPORTED RECORDING (8.12): two presses, as Clear clips in Settings.
- * It takes the review, its clips and its frames off this PC. The player's own
- * video file stays where it is.
- */
-function deleteImportButton(id) {
-  const WORD = 'Delete';
-  const b = el('button', 'm-del', WORD);
-  b.type = 'button';
-  b.title = 'Deletes this review and its clips and frames from this PC. Your video file is kept. The game it used is not given back.';
-  let armed = null;
-  const disarm = () => { clearTimeout(armed); armed = null; b.textContent = WORD; b.classList.remove('armed'); };
-  b.addEventListener('click', async () => {
-    if (!armed) {
-      b.textContent = 'Press again to delete';
-      b.classList.add('armed');
-      armed = setTimeout(disarm, 4000);
-      return;
-    }
-    disarm();
-    b.disabled = true;
-    const r = await window.occlara.deleteImport(id).catch(() => null);
-    if (r && r.ok) return; // the library repaints without it
-    b.disabled = false;
-    b.textContent = r && r.error === 'working' ? 'Still being reviewed' : 'Could not delete';
-    armed = null;
-    setTimeout(() => { if (!armed) b.textContent = WORD; }, 3000);
-  });
-  return b;
+/** A peek near the foot of the scrolling page opens over its row instead of under it. */
+function placePeek(item) {
+  try {
+    const scroller = document.querySelector('.body');
+    if (!scroller) return;
+    const sb = scroller.getBoundingClientRect();
+    const ib = item.getBoundingClientRect();
+    const peek = item.querySelector('.m-peek');
+    const ph = (peek && peek.offsetHeight) || 140;
+    item.classList.toggle('peek-up', ib.bottom + ph + 16 > sb.bottom && ib.top - ph - 16 > sb.top);
+  } catch { /* no layout */ }
 }
 
+// ── A row's menu (9.1, the owner's item 18) ─────────────────────────────────
+const DOTS = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="5.5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18.5" cy="12" r="1.6" fill="currentColor"/></svg>';
+let menuFor = null;     // { m, button } the menu is open on
+
+function menuButton(m) {
+  const btn = el('button', 'icon-btn m-more');
+  btn.type = 'button';
+  btn.innerHTML = DOTS;
+  btn.title = 'More';
+  btn.setAttribute('aria-label', `More for ${nameOf(m)}`);
+  btn.setAttribute('aria-haspopup', 'menu');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (menuFor && menuFor.button === btn) { closeMenu(true); return; }
+    openMenu(m, btn, e.detail === 0);
+  });
+  btn.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); openMenu(m, btn, true); }
+  });
+  return btn;
+}
+
+function menuItems(m) {
+  const items = [{ id: 'open', text: 'Open review', run: () => window.occlara.openReview(m.id) }];
+  if (m.aiLog === 'kept') items.push({ id: 'log', text: 'Open AI log', run: () => window.occlara.openAiLog(m.id) });
+  if (!m.work && typeof window.occlara.deleteMatch === 'function') items.push({ id: 'delete', text: 'Delete match', danger: true, sep: true, run: () => askDelete(m) });
+  return items;
+}
+
+function openMenu(m, btn, fromKeys) {
+  closeMenu(false);
+  const menu = $('m-menu');
+  menu.replaceChildren();
+  for (const it of menuItems(m)) {
+    if (it.sep) menu.append(el('div', 'm-menu-sep'));
+    const r = el('button', 'm-menu-item' + (it.danger ? ' danger' : ''), it.text);
+    r.type = 'button';
+    r.setAttribute('role', 'menuitem');
+    r.tabIndex = -1;
+    r.dataset.action = it.id;
+    r.addEventListener('click', (e) => { e.stopPropagation(); closeMenu(false); it.run(); });
+    menu.append(r);
+  }
+  menuFor = { m, button: btn };
+  btn.setAttribute('aria-expanded', 'true');
+  btn.classList.add('open');
+  // Under the button, its right edge on the button's, inside the window
+  // (position: fixed; the menu closes on a scroll, so it never drifts).
+  menu.hidden = false;
+  try {
+    const bb = btn.getBoundingClientRect();
+    const mh = menu.offsetHeight || 120;
+    const mw = menu.offsetWidth || 188;
+    const below = bb.bottom + 6 + mh <= (window.innerHeight || 800) - 8;
+    menu.style.top = `${Math.round(below ? bb.bottom + 6 : bb.top - 6 - mh)}px`;
+    menu.style.left = `${Math.round(Math.max(8, bb.right - mw))}px`;
+    menu.classList.toggle('up', !below);
+  } catch { /* no layout */ }
+  menu.classList.remove('in');
+  void menu.offsetWidth;
+  menu.classList.add('in');
+  if (fromKeys) {
+    const first = menu.querySelector('.m-menu-item');
+    if (first) first.focus();
+  }
+}
+
+function closeMenu(refocus) {
+  const menu = $('m-menu');
+  if (!menuFor) { menu.hidden = true; return; }
+  const { button } = menuFor;
+  menuFor = null;
+  menu.hidden = true;
+  menu.classList.remove('in');
+  button.setAttribute('aria-expanded', 'false');
+  button.classList.remove('open');
+  if (refocus && button.isConnected) button.focus();
+}
+
+$('m-menu').addEventListener('keydown', (e) => {
+  const items = [...$('m-menu').querySelectorAll('.m-menu-item')];
+  const at = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown') { e.preventDefault(); items[(at + 1) % items.length].focus(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); items[(at - 1 + items.length) % items.length].focus(); }
+  else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+  else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(true); }
+  else if (e.key === 'Tab') closeMenu(false);
+});
+document.addEventListener('click', (e) => {
+  if (menuFor && !$('m-menu').contains(e.target)) closeMenu(false);
+});
+window.addEventListener('blur', () => closeMenu(false));
+{
+  const scroller = document.querySelector('.body');
+  if (scroller) scroller.addEventListener('scroll', () => closeMenu(false), { passive: true });
+}
+
+// ── Delete a match, asked first ─────────────────────────────────────────────
 /*
- * THE RR EACH RATED MATCH MOVED (8.7.9), as the game shows it: "RR +18" on
- * its row, from main's rank history by the match's Riot id (REVIEWS_RR,
- * home-model.js rrForRows, the rule Home's Recent matches keeps). Asked once
- * the rows are painted, so a slow history never holds the list back, and an
- * answer overtaken by a newer paint or a change of game paints nothing.
+ * WHAT GOES IS SAID (9.1, the owner's item 18): the review, its clips and its
+ * frames, off this PC, for good (MATCH_DELETE, foundations). An imported
+ * recording's own video file stays where it was and the game it used is not
+ * given back. Keep it is the default and Escape keeps it. Main refuses mid
+ * match and while the review is still being written, and the dialog says so.
+ */
+const DELETE_ERRORS = {
+  match: 'Not while a match is being recorded. Try again once it ends.',
+  working: 'This review is still being written. Try again in a minute.',
+  gone: 'This match was already deleted.',
+  bad: 'This match could not be deleted.',
+};
+let confirmFor = null;   // { m, back } the dialog is asking about
+
+function askDelete(m) {
+  const box = $('m-confirm');
+  const what = [nameOf(m), m.result ? [m.result, scoreText(m.score)].filter(Boolean).join(' ') : null, whenOf(m.at)].filter(Boolean).join(', ');
+  $('m-confirm-what').textContent = what + '.';
+  $('m-confirm-body').textContent = 'Its review, its clips and its frames are deleted from this PC. This cannot be undone.'
+    + (m.imported ? ' Your video file is kept, and the game it used is not given back.' : '');
+  $('m-confirm-error').hidden = true;
+  $('m-confirm-error').textContent = '';
+  const go = $('m-confirm-go');
+  go.disabled = false;
+  go.textContent = 'Delete match';
+  const item = [...$('list').querySelectorAll('.m-item')].find((it) => it.dataset.id === m.id) || null;
+  confirmFor = { m, back: item && item.querySelector('.m-more') };
+  box.hidden = false;
+  box.classList.remove('in');
+  void box.offsetWidth;
+  box.classList.add('in');
+  $('m-confirm-keep').focus();
+}
+
+function closeConfirm(refocus) {
+  const box = $('m-confirm');
+  if (box.hidden) return;
+  const back = confirmFor && confirmFor.back;
+  confirmFor = null;
+  box.hidden = true;
+  box.classList.remove('in');
+  if (refocus && back && back.isConnected) back.focus();
+}
+
+let leaving = 0;          // rows animating out: a repaint waits for them
+let loadAfter = false;
+async function doDelete() {
+  if (!confirmFor) return;
+  const { m } = confirmFor;
+  const go = $('m-confirm-go');
+  go.disabled = true;
+  go.textContent = 'Deleting';
+  const r = await window.occlara.deleteMatch(m.id).catch(() => null);
+  if (!r || !r.ok) {
+    go.disabled = false;
+    go.textContent = 'Delete match';
+    const err = (r && DELETE_ERRORS[r.error]) || DELETE_ERRORS.bad;
+    $('m-confirm-error').textContent = err;
+    $('m-confirm-error').hidden = false;
+    if (r && r.error === 'gone') { closeConfirm(false); load(); }
+    return;
+  }
+  closeConfirm(false);
+  removeRow(m.id);
+}
+
+/** The row folds away, and the next row takes the keyboard. */
+function removeRow(id) {
+  const item = [...$('list').querySelectorAll('.m-item')].find((it) => it.dataset.id === id);
+  if (!item) { load(); return; }
+  const next = item.nextElementSibling || item.previousElementSibling;
+  const focusNext = () => { const b = next && next.isConnected && next.querySelector('.m-row'); if (b) b.focus(); };
+  if (!M || M.reduced()) { item.remove(); focusNext(); load(); return; }
+  leaving++;
+  item.style.height = `${item.offsetHeight}px`;
+  void item.offsetHeight;
+  item.classList.add('m-leaving');
+  setTimeout(() => {
+    item.remove();
+    focusNext();
+    leaving = Math.max(0, leaving - 1);
+    if (!leaving) { loadAfter = false; load(); }
+  }, 360);
+}
+
+$('m-confirm-keep').addEventListener('click', () => closeConfirm(true));
+$('m-confirm-go').addEventListener('click', () => { doDelete(); });
+$('m-confirm').addEventListener('click', (e) => { if (e.target === $('m-confirm')) closeConfirm(true); });
+$('m-confirm').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeConfirm(true); return; }
+  if (e.key === 'Tab') {
+    // The two buttons hold the keyboard while the dialog is up.
+    const a = $('m-confirm-keep'), z = $('m-confirm-go');
+    if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+    else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+  }
+});
+
+/*
+ * THE RR EACH RATED MATCH MOVED (8.7.9), "+18", in the row's peek, from
+ * main's rank history by the match's Riot id (REVIEWS_RR, home-model.js
+ * rrForRows). Asked once the rows are painted, so a slow history never holds
+ * the list back, and an answer overtaken by a newer paint paints nothing.
  */
 let rrAsk = 0;
 async function paintRR(forGame) {
@@ -1126,59 +1378,142 @@ async function paintRR(forGame) {
   if (mine !== rrAsk || forGame !== game) return;
   for (const item of $('list').querySelectorAll('.m-item')) {
     const span = item.querySelector('.m-rr');
-    if (!span) continue;
+    const wrap = item.querySelector('.m-rr-fact');
+    if (!span || !wrap) continue;
     const c = chips && chips[item.dataset.id];
-    span.hidden = !c;
-    span.textContent = c ? c.text : '';
+    wrap.hidden = !c;
+    span.textContent = c ? String(c.text).replace(/^RR\s*/, '') : '';
     span.className = 'm-rr' + (c && c.tone ? ' ' + c.tone : '');
-    span.title = c ? c.title : '';
+    wrap.title = c ? c.title : '';
   }
 }
 
+// ── The grade trend across the top ──────────────────────────────────────────
 /*
- * THE GRADE OVER THE LAST MATCHES (Progress v3), beside the rows on the list
- * page alone: the newest grade large, its change since the oldest of them,
- * the grades as a line (GradeView.gradeLine) and their average. From the
- * patterns' grades (newest first, the last matches graded), so it is the
- * same numbers Patterns and Home show. Hidden under two grades.
+ * THE HERO OF THE LIST PAGE (9.1, the owner's items 15 and 21): the last
+ * CHART_N graded matches as the moonlit area (shared/trend-chart.js), across
+ * the page, drawn as it comes on screen, the latest, the average of the same
+ * matches and the best of them over it. From the rows themselves, newest
+ * first, so a match in the list is a point here; a click on a point, or
+ * Enter on it, opens its review. Hidden under two grades, and on Patterns.
+ *
+ * The average is over the matches drawn, as patterns.js averages a window: a
+ * provisional grade is left out once two final ones are there.
  */
-function paintChart(patterns) {
+const CHART_N = 20;
+let chart = null;
+
+function chartPoints(rows, deltas) {
+  return rows.filter((m) => !m.work && m.grade && Number.isFinite(Number(m.grade.score)))
+    .slice(0, CHART_N).reverse()
+    .map((m) => ({ id: m.id, grade: Number(m.grade.score), at: m.at, provisional: !!m.grade.provisional,
+      agent: m.title || null, map: m.map || null, result: m.result || null, scoreline: m.score ? scoreText(m.score) : null,
+      delta: typeof deltas[m.id] === 'number' ? deltas[m.id] : null }));
+}
+
+function averageOf(points) {
+  const finals = points.filter((p) => !p.provisional);
+  const over = finals.length >= 2 ? finals : points;
+  return over.length ? Math.round(over.reduce((a, p) => a + p.grade, 0) / over.length) : null;
+}
+
+function paintChart(rows, deltas) {
   const box = $('m-chart');
-  const grades = (patterns && Array.isArray(patterns.grades) ? patterns.grades : []).slice(0, 8).reverse();
+  const points = chartPoints(rows, deltas);
   const listPage = document.documentElement.dataset.section === 'list';
-  box.hidden = !listPage || grades.length < 2;
-  box.parentNode.classList.toggle('charted', !box.hidden);
-  if (box.hidden) return;
-  const first = grades[0], last = grades[grades.length - 1];
-  $('m-chart-n').textContent = String(grades.length);
-  $('m-chart-big').textContent = String(last.score);
-  const d = last.score - first.score;
+  box.hidden = !listPage || points.length < 2;
+  if (box.hidden) { if (chart) { chart.destroy(); chart = null; } return; }
+  const last = points[points.length - 1];
+  const avg = averageOf(points);
+  const best = points.reduce((a, p) => (p.grade > a.grade ? p : a), points[0]);
+  $('m-chart-n').textContent = String(points.length);
+  $('m-chart-big').textContent = String(last.grade);
+  const d = last.delta;
   const since = $('m-chart-since');
-  since.textContent = `${d > 0 ? '+' : ''}${d} since ${first.score}`;
-  since.className = 'm-chart-since ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'even');
-  const line = $('m-chart-line');
-  line.replaceChildren();
-  // Under each dot its day, "Nov 3", when the matches span more than one, and
-  // its time when they are all one day's; gradeLine keeps only the labels
-  // that fit, so they never run together.
-  const day = (at) => (at ? new Date(at).toDateString() : '');
-  const oneDay = grades.every((g) => day(g.at) === day(first.at));
-  const foot = oneDay ? undefined
-    : (g) => (g.at ? new Date(g.at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '');
-  const svg = window.GradeView.gradeLine(grades, 216, 160, { foot });
-  if (svg) line.append(svg);
-  $('m-chart-avg').textContent = patterns && typeof patterns.average === 'number' ? `Average ${patterns.average}` : '';
-  // THE LINE DRAWS ITSELF once per visit (motion.css .m-draw), its dots and
-  // numbers fading in as it passes (matches.css .m-chart.gl-in), and the
-  // newest grade counts up to its number.
-  countOnce(box, 'count', $('m-chart-big'), last.score);
-  entrance(box, 'draw', () => {
-    const pl = box.querySelector('.gl-line');
-    if (!pl) return null;
-    pl.setAttribute('pathLength', '1');
-    pl.classList.add('m-draw');
-    box.classList.add('gl-in');
-    return () => { pl.classList.remove('m-draw'); pl.removeAttribute('pathLength'); box.classList.remove('gl-in'); };
+  since.textContent = typeof d === 'number' ? (D ? D.gradeDelta(d) : String(d)) : '';
+  since.className = 'm-chart-since ' + (typeof d !== 'number' ? 'none' : d > 0 ? 'up' : d < 0 ? 'down' : 'even');
+  since.title = typeof d === 'number' ? 'On the graded match before' : '';
+  $('m-chart-avg').textContent = avg === null ? '--' : String(avg);
+  $('m-chart-best').textContent = String(best.grade);
+  $('m-chart-best').title = `${nameOf({ title: best.agent, map: best.map })}, ${whenOf(best.at)}`;
+  const opts = { height: 196, average: avg, label: `Grade over your last ${points.length} graded matches`,
+    onOpen: (p) => window.occlara.openReview(p.id) };
+  if (chart) chart.set(points, opts);
+  else chart = window.TrendChart.draw($('m-chart-line'), points, opts);
+  // THE LINE DRAWS ITSELF once per visit, as the page comes on screen, and
+  // the latest grade counts up to its number.
+  countOnce(box, 'count', $('m-chart-big'), last.grade);
+  entrance(box, 'draw', () => { if (chart) chart.play(); });
+}
+
+// ── When you play ───────────────────────────────────────────────────────────
+/*
+ * BEST AND WORST TIME TO PLAY (9.1, the owner's item 15), from every graded
+ * row of this game by when it started (src/shared/play-times.js, which says
+ * every word). Beside the words, the eight times of day as columns, each
+ * standing at its average grade, its count under it; a time with fewer than
+ * play-times' MIN_SLOT matches is drawn faint and never compared. The list
+ * page alone, and only once a match is graded.
+ */
+const SLOT_SHORT = ['12 AM', '3 AM', '6 AM', '9 AM', '12 PM', '3 PM', '6 PM', '9 PM'];
+
+function paintWhen(rows) {
+  const box = $('when');
+  const P = window.OcclaraPlayTimes;
+  const listPage = document.documentElement.dataset.section === 'list';
+  const r = P ? P.playTimes(rows) : null;
+  box.hidden = !listPage || !r || !r.counted;
+  if (box.hidden) return;
+  $('when-title').textContent = r.text.title;
+  $('when-note').textContent = r.text.note;
+  const prog = $('when-progress');
+  prog.hidden = r.enough;
+  if (!r.enough) {
+    const pct = Math.round((r.counted / (r.counted + r.need)) * 100);
+    $('when-fill').style.setProperty('--p', `${pct}%`);
+    prog.setAttribute('role', 'progressbar');
+    prog.setAttribute('aria-label', 'Graded matches toward best and worst times');
+    prog.setAttribute('aria-valuemin', '0');
+    prog.setAttribute('aria-valuemax', String(r.counted + r.need));
+    prog.setAttribute('aria-valuenow', String(r.counted));
+  }
+  const calls = $('when-calls');
+  calls.hidden = !r.enough;
+  box.classList.toggle('unclear', r.enough && !r.clear);
+  if (r.enough) {
+    $('when-best-k').textContent = r.text.best.kicker;
+    $('when-best').textContent = r.text.best.label;
+    $('when-best-line').textContent = r.text.best.line;
+    $('when-worst-k').textContent = r.text.worst.kicker;
+    $('when-worst').textContent = r.text.worst.label;
+    $('when-worst-line').textContent = r.text.worst.line;
+  }
+  const hours = $('when-hours');
+  hours.replaceChildren();
+  const LO = 40;
+  for (const s of r.slots) {
+    const col = el('div', 'when-col' + (s.compared ? ' compared' : s.n ? ' thin' : ' empty')
+      + (r.enough && r.best && s.slot === r.best.slot ? ' best' : '') + (r.enough && r.worst && s.slot === r.worst.slot ? ' worst' : ''));
+    const h = s.avg === null ? 0 : Math.max(4, Math.round(((s.avg - LO) / (100 - LO)) * 100));
+    col.style.setProperty('--h', `${h}%`);
+    const bar = el('div', 'when-bar');
+    const fillEl = el('i');
+    bar.append(fillEl);
+    if (s.avg !== null) bar.append(el('span', 'when-avg', String(s.avg)));
+    col.append(bar, el('span', 'when-hour', SLOT_SHORT[s.slot]), el('span', 'when-n', s.n ? String(s.n) : ''));
+    col.title = s.n
+      ? `${s.label}: average grade ${s.avg} over ${s.n} ${s.n === 1 ? 'match' : 'matches'}${s.decided ? `, won ${s.won} of ${s.decided}` : ''}`
+        + (s.compared ? '' : `. Compared once ${P.MIN_SLOT} are graded here.`)
+      : `${s.label}: no graded matches`;
+    hours.append(col);
+  }
+  hours.setAttribute('aria-label', 'Average grade by the time of day each match started: '
+    + r.slots.filter((s) => s.n).map((s) => `${s.label}, ${s.avg} over ${s.n}`).join('; ') + '.');
+  // The columns grow from their baseline once per visit, 40ms apart.
+  entrance(hours, 'grow', () => {
+    const fills = [...hours.querySelectorAll('.when-bar i')];
+    fills.forEach((f, i) => { f.style.setProperty('--i', String(Math.min(i, 7))); f.classList.add('when-grow'); });
+    return () => fills.forEach((f) => f.classList.remove('when-grow'));
   });
 }
 
@@ -1190,6 +1525,7 @@ async function load() {
   riotId = String((cfg && cfg.riotId) || '').trim();
   const rows = Array.isArray(list) ? list : [];
   const host = $('list');
+  closeMenu(false);
   host.replaceChildren();
   const eyes = rows.some((m) => m.aiLog === 'kept' || m.aiLog === 'gone');
   const marks = (patterns && patterns.progress && patterns.progress.marks) || {};
@@ -1201,7 +1537,7 @@ async function load() {
     const older = graded[i + 1];
     deltas[m.id] = older ? Number(m.grade.score) - Number(older.grade.score) : 'first';
   });
-  const painted = rows.map((m) => row(m, eyes, marks[m.id], deltas[m.id]));
+  const painted = rows.map((m) => row(m, { gutter: eyes, marks: marks[m.id], delta: deltas[m.id] }));
   for (const r of painted) host.append(r);
   // THE ROWS RISE ONCE, as this game's list first appears on screen (.rise,
   // matches.css): 40ms apart, the stagger capped at the sixth row, and only
@@ -1217,7 +1553,10 @@ async function load() {
     if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(rise); else rise();
   }
   $('empty').hidden = rows.length > 0;
-  paintChart(patterns);
+  paintChart(rows, deltas);
+  paintWhen(rows);
+  // The list's own heading, once a card stands over it.
+  $('list-title').hidden = !rows.length || ($('m-chart').hidden && $('when').hidden);
   paintRR(game);
   paintPatterns(patterns || { matches: 0, enough: false, grades: [], categories: [], average: null });
   paintBf();
@@ -1274,7 +1613,8 @@ const SECTION_SUBS = { list: 'Every match you played, the newest first.', patter
   // A review saved or improved while this is open (Riot's record landing a few
   // minutes after the match, or a match graded from it) repaints the list, the
   // patterns and the breakdown.
-  window.occlara.onReviews(() => load());
+  // A row folding away after a delete holds the repaint until it is gone.
+  window.occlara.onReviews(() => { if (leaving) { loadAfter = true; return; } load(); });
   // A review still being built moving on, or whole at last (8.4.1): its row
   // says it is being checked, or shows its grade.
   if (typeof window.occlara.onReviewWork === 'function') window.occlara.onReviewWork(() => load());

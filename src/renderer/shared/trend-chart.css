@@ -1,0 +1,97 @@
+/* palette: tokens only */
+/* THE GRADE TREND (9.1, shared/trend-chart.js): the moonlit area. One line
+   in the ink through every match, the area under it a soft fill of the ink
+   that fades to nothing toward the baseline (a mask on its own layer: a fade
+   is no paint), hairline guides at 60, 70, 80 and 90 labelled at the left,
+   the average dashed, the dates under it. Only the newest is bright. No
+   accent: the keyboard's ring is the global one.
+
+   The chart is the host: position relative, its height the plot's. The fill
+   layer and the svg sit on top of each other at the same size. */
+.tc {
+  position: relative; display: block;
+  height: var(--tc-h, 180px);
+  border-radius: var(--r-sm);
+  contain: layout paint;
+  -webkit-tap-highlight-color: transparent;
+}
+.tc.tc-openable { cursor: pointer; }
+.tc.tc-empty { height: auto; }
+.tc-fill, .tc-svg { position: absolute; left: 0; top: 0; }
+.tc-fill { width: 100%; height: 100%; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 10%, rgba(0, 0, 0, 0.6) 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 10%, rgba(0, 0, 0, 0.6) 55%, transparent 100%); }
+.tc-fill svg { display: block; }
+.tc-area { fill: rgba(255, 255, 255, 0.16); }
+.tc-svg { overflow: visible; }
+
+.tc-guide { stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
+.tc-base { stroke: var(--line-2); stroke-width: 1; shape-rendering: crispEdges; }
+.tc-guide-label, .tc-foot-label, .tc-avg-label, .tc-now-label {
+  font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums;
+}
+.tc-guide-label { font-size: 10px; fill: var(--text-mute); }
+.tc-foot-label { font-size: 10px; fill: var(--text-mute); }
+.tc-foot-label.now { fill: var(--text-2); }
+.tc-avg-line { stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.7; }
+.tc-avg-label { font-size: 10px; fill: var(--text-2); }
+.tc-now-label { font-size: 12px; fill: var(--text); }
+
+.tc-line { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.tc-dot { fill: var(--bg); stroke: var(--text-2); stroke-width: 1.5;
+  transform-box: fill-box; transform-origin: center; }
+.tc-dot.prov { stroke-dasharray: 2 2; }
+.tc-dot.now { fill: var(--text); stroke: rgba(255, 255, 255, 0.18); stroke-width: 7; paint-order: stroke; }
+
+/* The pointer's or the keyboard's match: a hairline down to the baseline and
+   a ring on its dot, both in over 120ms and out over 220ms. */
+.tc-cursor { opacity: 0; pointer-events: none; transition: opacity var(--dur-hover-out) var(--ease-out); }
+.tc.tc-active .tc-cursor { opacity: 1; transition-duration: var(--dur-hover-in); }
+.tc-cursor-line { stroke: rgba(255, 255, 255, 0.22); stroke-width: 1; shape-rendering: crispEdges; }
+.tc-cursor-dot { fill: var(--bg); stroke: var(--text); stroke-width: 2; }
+
+/* The tooltip: a raised glass card beside the dot, placed by a transform, so
+   moving from match to match never lays anything out. */
+.tc-tip {
+  position: absolute; left: 0; top: 0; z-index: 2;
+  min-width: 168px; max-width: 240px;
+  padding: 10px 12px 11px;
+  border-radius: var(--r-md);
+  background: var(--raised); box-shadow: var(--rim-2), var(--lift);
+  pointer-events: none;
+  transition: transform var(--dur-select) var(--spring-smooth);
+  animation: tc-tip-in var(--dur-hover-in) var(--ease-out) both;
+}
+.tc-tip-body { display: flex; flex-direction: column; gap: 2px; }
+.tc-tip-when { font: 500 10px/1.4 var(--font-mono); letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-mute); }
+.tc-tip-name { margin-top: 2px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-tip-res { font-size: 13px; font-weight: 500; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.tc-tip-res.win { color: var(--good); }
+.tc-tip-res.loss { color: var(--bad); }
+.tc-tip-grade { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
+.tc-tip-num { font-size: 22px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.tc-tip-word { font-size: 12px; color: var(--text-mute); }
+.tc-tip-delta { margin-left: auto; font: 500 12px var(--font-mono); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.tc-tip-delta.up { color: var(--good); }
+.tc-tip-delta.down { color: var(--bad); }
+@keyframes tc-tip-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* THE DRAW (TrendChart.play), once: the line strokes itself left to right,
+   the fill wipes in under it, each dot arrives as the line reaches it (--d),
+   the guides and the dates fade in first, the newest number last. */
+.tc.tc-play .tc-line { stroke-dasharray: 1 1; animation: tc-draw 900ms var(--ease-enter) both; }
+.tc.tc-play .tc-fill { animation: tc-wipe 900ms var(--ease-enter) both; }
+.tc.tc-play .tc-dot { animation: tc-dot 420ms var(--spring-gentle) both; animation-delay: var(--d, 0ms); }
+.tc.tc-play .tc-guides, .tc.tc-play .tc-foot { animation: tc-fade 320ms var(--ease-out) both; }
+.tc.tc-play .tc-avg { animation: tc-fade 420ms var(--ease-out) both; animation-delay: 620ms; }
+.tc.tc-play .tc-now-label { animation: tc-fade 320ms var(--ease-out) both; animation-delay: 820ms; }
+@keyframes tc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes tc-wipe { from { clip-path: inset(0 100% 0 0); opacity: 0.4; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+@keyframes tc-dot { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: none; } }
+@keyframes tc-fade { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tc.tc-play .tc-line, .tc.tc-play .tc-fill, .tc.tc-play .tc-dot,
+  .tc.tc-play .tc-guides, .tc.tc-play .tc-foot, .tc.tc-play .tc-avg, .tc.tc-play .tc-now-label { animation: none; }
+  .tc-tip { transition: none; animation: none; }
+}
