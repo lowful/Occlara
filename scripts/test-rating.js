@@ -390,6 +390,12 @@ console.log('\nThe rounds, named');
   const clutch = run(round(1, 'defending', [['them:Jett', 'us:Sova', 3000], ['them:Jett', 'us:Omen', 4000], ['them:Reyna', 'us:Sage', 5000], ['them:Reyna', 'us:Raze', 6000],
     ['me', 'them:Jett', 20000], ['me', 'them:Reyna', 25000]], true)).snap.byRound[0];
   ok(clutch.label === '2 kills, won a 1v5', `a clutch ("${clutch.label}")`);
+  // 9.1 (the AI audit's Split round 12 shape): left last against two, one
+  // kill, killed, the spike winning the round after. No "won a 1v2": the
+  // round is the team's, not a clutch of the subject's.
+  const dead = run(round(1, 'attacking', [['them:Jett', 'us:Sova', 3000], ['them:Jett', 'us:Omen', 4000], ['them:Reyna', 'us:Sage', 5000], ['them:Reyna', 'us:Raze', 6000],
+    ['me', 'them:Jett', 20000], ['them:Reyna', 'me', 26000]], true, { plantMs: 12000 })).snap.byRound[0];
+  ok(!/won a 1v/i.test(dead.label) && /died/i.test(dead.label), `a clutch the subject died in is not won by them ("${dead.label}")`);
   const plant = run([{ kind: 'round', round: 1, side: 'attacking' }, { kind: 'kill', round: 1, ms: 4000, killer: 'me', victim: 'them:Jett', weapon: 'Vandal' },
     { kind: 'plant', round: 1, ms: 30000, by: 'me' }, { kind: 'end', round: 1, won: true }]).snap.byRound[0];
   ok(plant.label === 'Opening kill and the plant', `an opening kill and the plant ("${plant.label}")`);

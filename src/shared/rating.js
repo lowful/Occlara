@@ -522,7 +522,10 @@ function createRating(opts) {
     if (rnd.satOut) return 'Sat out, not counted';
     const m = rnd.me;
     const alive = !rnd.down[mySide].has(subject);
-    const clutchWon = won === true && m.clutch > 0;
+    // Won only where the subject lived to see it (9.1, the AI audit's rule,
+    // insights.js clutchWonAlive): left last, killed before the round was
+    // decided, and the spike winning it after, is no 1vN won of theirs.
+    const clutchWon = won === true && m.clutch > 0 && !(m.died && !m.died.decided);
     let main = null;
     if (m.kills) {
       if (clutchWon) main = `${m.kills === 1 ? '1 kill' : `${m.kills} kills`}, won a 1v${m.clutch}`;

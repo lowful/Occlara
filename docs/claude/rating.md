@@ -90,7 +90,11 @@ shape the maths undervalued, so no explicit term was added.
 **A round's name** is a label only, from what the player did in it: "Ace",
 "Triple kill with the opening kill", "2 kills, won a 1v3", "Opening kill and
 the plant", "Trade kill", "Died first, not traded", "Saved the last life",
-"Double kill, then died". It adds no points.
+"Double kill, then died". It adds no points. A 1vN is "won" only where the
+player lived to see the round won (9.1, the AI audit's rule, insights.js
+`clutchWonAlive`): left last, killed before the round was decided and the
+spike winning it after, the round reads "A kill, then died", never "won a
+1v2" (`test:rating`).
 
 ## The bottom of the scale (round 3)
 
