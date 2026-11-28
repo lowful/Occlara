@@ -333,7 +333,7 @@ function whyNot(res) {
   if (/not found|Name#TAG/i.test(err)) {
     return { error: 'not-found', message: 'Riot has no account under that ID. Check the name and the tag.' };
   }
-  return { error: 'unreachable', message: "Riot's record could not be reached. Try again in a few minutes from Matches." };
+  return { error: 'unreachable', message: "Riot's record could not be reached. Try again in a few minutes with Connect in Settings." };
 }
 
 /**
@@ -356,7 +356,7 @@ function lateSummary(s, stopped) {
     parts.push(`${plural(s.ambiguous, 'match', 'matches')} could not be told apart from a recording, `
       + `so ${s.ambiguous === 1 ? 'it was' : 'they were'} left alone.`);
   }
-  if (stopped && n) parts.push('Riot stopped answering, so the rest can be checked later from Matches.');
+  if (stopped && n) parts.push('Riot stopped answering, so the rest can be checked later with Connect in Settings.');
   return parts.join(' ');
 }
 
@@ -398,7 +398,7 @@ function summary(s, stopped) {
   if (s.old) {
     parts.push(`${plural(s.old, 'match was', 'matches were')} older than anything your library keeps.`);
   }
-  if (stopped && n) parts.push('Riot stopped answering, so the rest can be graded later from Matches.');
+  if (stopped && n) parts.push('Riot stopped answering, so the rest can be graded later with Connect in Settings.');
   return parts.join(' ');
 }
 
@@ -465,7 +465,7 @@ class Backfill {
       .catch((e) => {
         this.deps.log('[backfill] stopped on an error:', e && e.message);
         this.update(run, { state: 'error', error: 'failed',
-          message: 'Grading your recent matches stopped on an error. Try again from Matches.' });
+          message: 'Grading your recent matches stopped on an error. Try again with Connect in Settings.' });
       })
       .finally(() => { if (this.running === run) this.running = null; });
     return this.getStatus();

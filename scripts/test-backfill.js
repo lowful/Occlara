@@ -357,7 +357,22 @@ function watched(store, startedAt, over = {}, siteTo = null) {
     const s = await h.run();
     ok(s.state === 'error' && s.error === 'unreachable',
       `and its "Account not found." is not taken for an account that does not exist (${s.error})`);
+    // 9.1 (the owner's item 5): nothing on Matches starts a run any more, so
+    // a line shown on Matches never sends the player back to Matches.
+    ok(/with Connect in Settings\.$/.test(s.message) && !/from Matches/.test(s.message),
+      `and its line says to try again with Connect in Settings (${s.message})`);
     h.done();
+  }
+  {
+    // Every line a run can show (the #bf line on Matches): none says "from
+    // Matches", where no control starts one since 9.1. Read off the source,
+    // so a line a test never reaches is held too.
+    const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'services', 'backfill.js'), 'utf8');
+    const lines = src.match(/(['"`])(?:(?!\1)[^\\\n]|\\.)*\1/g) || [];
+    const stale = lines.filter((l) => /(?:from|on) Matches\b/i.test(l));
+    ok(!stale.length, `no backfill message sends the player to Matches to start a run again (${stale.join(' | ') || 'none'})`);
+    ok(lines.filter((l) => /Connect in Settings/.test(l)).length >= 4, 'it names Connect in Settings, the one control that starts a run');
+    ok(/(?:from|on) Matches\b/i.test("'Try again from Matches.'"), 'and the scan finds a known stale line');
   }
 
   // ── Each match against the ones before it ────────────────────────────────
