@@ -1,5 +1,61 @@
 [
   {
+    "version": "9.1.0",
+    "date": "2026-11-28",
+    "title": "One score, a live rating and calmer pages",
+    "summary": "Every score is out of 100, the live rating can show while you play, and updates wait in the bar.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "One score: every grade is out of 100 with no letters, and the match rating is shown out of 100 too, so 8.3 now reads 83."
+      },
+      {
+        "kind": "new",
+        "text": "The live rating can show on the Recording screen while you play. It stays off until you turn it on beside Start or in Settings."
+      },
+      {
+        "kind": "improved",
+        "text": "Start takes you straight to the Recording screen, and every animation in the app holds still while a match records."
+      },
+      {
+        "kind": "new",
+        "text": "Updates download in the background and wait in a green button at the top right, so you restart when it suits you."
+      },
+      {
+        "kind": "improved",
+        "text": "Home: your last match is one card you can click, each repeated mistake shows whether it is getting better or worse, and the moon is the real Moon, slowly turning."
+      },
+      {
+        "kind": "new",
+        "text": "Your rank card shows your tier's own icon and how much RR you need for the next rank."
+      },
+      {
+        "kind": "new",
+        "text": "Matches: simpler rows, your grade across the top, delete a match with its clips, and once you have played enough, the best and worst times of day for you to play."
+      },
+      {
+        "kind": "new",
+        "text": "The review plays your best highlight at the top, shows what moved your rating in every round, and Replay rating can pause and step through each moment."
+      },
+      {
+        "kind": "new",
+        "text": "Clips: your best clip at the top, filters by map, agent and more, delete a clip, open it in its folder, and see how much space clips take."
+      },
+      {
+        "kind": "improved",
+        "text": "Practice is calmer and grouped into Mechanics, Game sense and Awareness."
+      },
+      {
+        "kind": "improved",
+        "text": "Your mouse side buttons go back and forward between pages, and a back arrow on a review takes you where you came from."
+      },
+      {
+        "kind": "fixed",
+        "text": "Reviews and Ask Coach know the spike's plant and defuse times again, a clutch only counts when you survived the round, and one mistake always has one name."
+      }
+    ]
+  },
+  {
     "version": "9.0.1",
     "date": "2026-11-28",
     "title": "A new moon",
