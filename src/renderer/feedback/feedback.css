@@ -109,7 +109,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 /* One hero per page: the page head is it, so the lead's question goes
    and its line becomes the grey sub line under the title. */
 .fb-lead .fb-hero { display: none; }
-.fb-lead .fb-hint { margin-top: -28px; max-width: 680px; font-size: var(--t-title); font-weight: 500; letter-spacing: var(--track-title); line-height: 1.27; color: var(--text-2); }
+.fb-lead .fb-hint { max-width: 680px; font-size: var(--t-title); font-weight: 500; letter-spacing: var(--track-title); line-height: 1.27; color: var(--text-2); }
 .fb-sec:not(.fb-lead) { padding: 22px 28px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--card); }
 .fb-sec.fb-foot { background: transparent; border-color: transparent; padding: 4px 0 0; }
 .fb-label { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
