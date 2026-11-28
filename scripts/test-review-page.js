@@ -409,8 +409,13 @@ async function open(review, handlers) {
     const title = inPage(vmw, 'highlightTitle');
     ok(title({ n: 4, died: true, riot: { kills: 1, clutch: { vs: 2, won: true } }, highlight: {} }) === 'Round 4, a kill'
       && title({ n: 9, died: false, riot: { kills: 3, clutch: { vs: 1, won: true } }, highlight: {} }) === 'Round 9, 3K, won alone against one'
-      && title({ n: 2, died: false, riot: { kills: 5 }, highlight: {} }) === 'Round 2, an ace',
+      && title({ n: 2, died: false, riot: { kills: 5 }, highlight: {} }) === 'Round 2, 5K',
     'a clutch is named only where the player was alive at the end');
+    const five = ['Jett', 'Sova', 'Omen', 'Sage', 'Raze'].map((va, i) => ({ ms: 4000 + i * 1000, by: 'me', on: 'enemy', va }));
+    ok(title({ n: 2, died: false, riot: { kills: 5, feed: five }, highlight: {} }) === 'Round 2, an ace'
+      && title({ n: 2, died: false, riot: { kills: 5, feed: five.slice(0, 4).concat({ ms: 9000, by: 'me', on: 'enemy', va: 'Sage' }) }, highlight: {} }) === 'Round 2, 5K'
+      && /aceInFeed: \(feed\) => aceInFeed\(/.test(read('src/preload/review-preload.js')),
+    'ONE ACE RULE (9.1): an ace only where Riot\'s feed shows five different enemies, asked of rating.js through the preload; five kills on four (a revive) are 5K, as the replay and Clips say it');
     const stalled = await open(r);
     stalled.clock.advance(7999);
     const still = !stalled.$('v-hl').hidden;

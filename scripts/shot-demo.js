@@ -134,6 +134,9 @@ const SCENES = {
   reviewrating: { page: 'review', act: "document.getElementById('v-rating-wrap').scrollIntoView({ block: 'start' }); true" },
   // The share image (9.1: the number, no letter), its sheet open on the dark card.
   share: { page: 'review', act: "document.getElementById('share').click(); true" },
+  // The share image's two other sizes (9.1: the standout's line wraps in each).
+  sharepost: { page: 'review', act: "document.getElementById('share').click(); setTimeout(() => document.querySelector('.sh-opt[data-size=\"post\"]').click(), 300); true" },
+  sharediscord: { page: 'review', act: "document.getElementById('share').click(); setTimeout(() => document.querySelector('.sh-opt[data-size=\"discord\"]').click(), 300); true" },
   replay: { page: 'review', act: "document.getElementById('rt-play').click(); setTimeout(() => { const s = document.getElementById('rt-r-skip'); if (s) s.click(); }, 400); true" },
   // The review still being built, then made whole: Review ready (review.js
   // readyFirst). `whole` is how long after the whole review lands to take
@@ -386,7 +389,7 @@ function liveOf(kind) {
   // paint never draws a move, so `livenext` sends this one after it.
   if (kind === 'ratedmove') {
     Object.assign(v, { team: 8, tape: [...v.tape.slice(0, 13), 'W'], round: 15 });
-    v.rating = { value: 7.2, shown: '72', tier: 'good', last: { delta: '+4', up: true, down: false, label: 'Double kill' }, line: [6, 6.1, 5.8, 6.2, 6.4, 6.3, 6.8, 7.2] };
+    v.rating = { value: 7.2, shown: '72', tier: 'good', last: { delta: '+4', up: true, down: false, label: '2K' }, line: [6, 6.1, 5.8, 6.2, 6.4, 6.3, 6.8, 7.2] };
   }
   if (kind === 'blind') v.rating = { reading: false };
   return v;

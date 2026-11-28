@@ -162,7 +162,7 @@ app.whenReady().then(async () => {
     // The compact size.
     const small = await open(stream.url('compact'));
     const sjs = (s) => small.webContents.executeJavaScript(s);
-    stream.send({ state: 'live', rating: { value: 8.3, shown: '83', tier: 'great', last: { delta: '+3', up: true, down: false, label: 'Triple kill with the opening kill' }, line: [6, 7.2, 8.3] } });
+    stream.send({ state: 'live', rating: { value: 8.3, shown: '83', tier: 'great', last: { delta: '+3', up: true, down: false, label: '3K with the opening kill' }, line: [6, 7.2, 8.3] } });
     const c = await until(async () => { const s = await sjs(NOW); return s.shown && s.num === '83' ? s : null; }, 4000) || await sjs(NOW);
     lines.push(`compact: ${JSON.stringify({ num: c.num, width: c.width, height: c.height, compact: c.compact })}`);
     if (!c.compact || !c.shown || c.width > 380 || c.width < 250 || !/\bt-great\b/.test(c.badge)) return report(false, `the compact widget is not the small corner: ${JSON.stringify(c)}`);

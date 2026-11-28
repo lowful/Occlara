@@ -386,7 +386,19 @@ console.log('\nThe rounds, named');
   const ace = run(round(1, 'attacking', THEM.map((v, i) => ['me', v, 5000 + i * 3000]), true)).snap.byRound[0];
   ok(ace.label === 'Ace', `an ace ("${ace.label}")`);
   const triple = run(round(1, 'attacking', [['me', 'them:Jett', 4000], ['me', 'them:Reyna', 6000], ['me', 'them:Viper', 8000], ['them:Cypher', 'me', 12000]], false)).snap.byRound[0];
-  ok(triple.label === 'Triple kill with the opening kill, then died', `a triple, then a death ("${triple.label}")`);
+  ok(triple.label === '3K with the opening kill, then died', `a triple, then a death, named as the review's hero, Clips and the highlights name it ("${triple.label}")`);
+  // ONE WAY TO NAME KILLS (9.1, the final critic): 2K, 3K, 4K, and an Ace only with five different enemies.
+  const four = run(round(1, 'attacking', THEM.slice(0, 4).map((v, i) => ['me', v, 5000 + i * 3000]), true)).snap.byRound[0];
+  ok(four.label === '4K with the opening kill', `four kills read "4K", never "Quadra kill" ("${four.label}")`);
+  const two = run(round(1, 'attacking', [['them:Jett', 'us:Sova', 3000], ['me', 'them:Reyna', 6000], ['me', 'them:Viper', 8000]], true)).snap.byRound[0];
+  ok(two.label === '2K', `two kills read "2K" ("${two.label}")`);
+  const revivedFive = run(round(1, 'attacking', [['me', 'them:Jett', 3000], ['me', 'them:Sage', 4000], ['me', 'them:Reyna', 5000], ['me', 'them:Viper', 6000],
+    ['me', 'them:Sage', 20000]], true)).snap.byRound[0];
+  ok(revivedFive.label === '5K', `five kills on four different enemies (a Sage revived) are "5K", never an ace ("${revivedFive.label}")`);
+  const old = rating.cleanSaved({ version: 1, value: 7, timeline: [{ round: 3, value: 7, delta: 0.4, label: 'Quadra kill with the opening kill' }],
+    byRound: [{ n: 3, value: 7, delta: 0.4, label: 'Triple kill, then died' }, { n: 4, value: 7, delta: 0.1, label: 'Double kill and the plant' }] });
+  ok(old.timeline[0].label === '4K with the opening kill' && old.byRound.map((r) => r.label).join('|') === '3K, then died|2K and the plant',
+    'a rating saved before 9.1 shows its rounds named the same way', JSON.stringify(old.byRound.map((r) => r.label)));
   const clutch = run(round(1, 'defending', [['them:Jett', 'us:Sova', 3000], ['them:Jett', 'us:Omen', 4000], ['them:Reyna', 'us:Sage', 5000], ['them:Reyna', 'us:Raze', 6000],
     ['me', 'them:Jett', 20000], ['me', 'them:Reyna', 25000]], true)).snap.byRound[0];
   ok(clutch.label === '2 kills, won a 1v5', `a clutch ("${clutch.label}")`);

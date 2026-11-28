@@ -88,9 +88,13 @@ shape the maths undervalued, so no explicit term was added.
   not counted as a round played; the others' values still see it.
 
 **A round's name** is a label only, from what the player did in it: "Ace",
-"Triple kill with the opening kill", "2 kills, won a 1v3", "Opening kill and
+"3K with the opening kill", "2 kills, won a 1v3", "Opening kill and
 the plant", "Trade kill", "Died first, not traded", "Saved the last life",
-"Double kill, then died". It adds no points. A 1vN is "won" only where the
+"2K, then died" (9.1, the final critic: kills are named 2K, 3K and 4K as
+the review's hero, Clips and the highlights name them, never "Quadra kill",
+and "Ace" only where the player killed five different enemies by agent,
+`killsName`, `aceInFeed`, else "5K"; a rating saved before reads its old
+words as today's, `cleanSaved`). It adds no points. A 1vN is "won" only where the
 player lived to see the round won (9.1, the AI audit's rule, insights.js
 `clutchWonAlive`): left last, killed before the round was decided and the
 spike winning it after, the round reads "A kill, then died", never "won a
@@ -401,7 +405,7 @@ a soft area under it, 6.0 dashed, the half dashed and labelled, a tick a
 round (won brighter), the swings' dots (a gain's `--good` above the line, a
 loss's `--bad` below). Pointing at a round, or focusing the line and using
 the arrow keys, shows its point, a cursor and one line under the chart:
-"Round 14, 7 : 7, +4, Triple kill with the opening kill". Then the three
+"Round 14, 7 : 7, +4, 3K with the opening kill". Then the three
 biggest round gains and losses side by side (a row opens its round's row
 through `goRound`, its clip with it), and "The lobby, by agent" closed. No
 card, tokens only.

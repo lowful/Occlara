@@ -12,7 +12,7 @@
  * last kill of a five against one about two hundredths, a kill after the
  * spike went off nothing at all. A clutch and a multi kill are no bonus
  * written here: they are worth what the kills inside them moved. The names a
- * round is given ("Triple kill, won a 1v2") are labels only.
+ * round is given ("3K with the opening kill", "2 kills, won a 1v2") are labels only.
  *
  * STREAMING, ON PARTIAL INFORMATION. `createRating()` takes one event at a
  * time and answers the subject's value after it, so the same engine runs over
@@ -180,7 +180,25 @@ function agentOfKey(key, meAgent) {
 const named = (key) => key === 'me' || (typeof key === 'string' && /^(us|them):.+$/.test(key));
 const other = (side) => (side === 'us' ? 'them' : side === 'them' ? 'us' : null);
 const vs = (own, opp) => `${own}v${opp}`;
-const MULTI = ['', '', 'Double kill', 'Triple kill', 'Quadra kill', 'Ace'];
+/*
+ * A ROUND'S KILLS, NAMED AS EVERY OTHER SURFACE NAMES THEM (9.1, the final
+ * critic): "2K", "3K", "4K", as the review's hero, Clips and the highlights
+ * write them ("Quadra kill" was this engine's alone), and "Ace" only where the
+ * player killed five different enemies by agent (verdict.js isAce's rule: a
+ * Sage revive can make five kills that are not all five), else "5K", "6K".
+ */
+function killsName(n, ace) {
+  return n >= 5 && ace ? 'Ace' : `${n}K`;
+}
+/** Whether Riot's kill feed of a round shows the player killing five different enemies by agent: an ace, proved. */
+function aceInFeed(feed) {
+  const list = Array.isArray(feed) ? feed : [];
+  return new Set(list.filter((k) => k && k.by === 'me' && k.on === 'enemy' && typeof k.va === 'string' && k.va)
+    .map((k) => k.va.toLowerCase())).size >= 5;
+}
+// The words a rating saved before 9.1 kept, read as today's (cleanSaved).
+const OLD_MULTI = /\b(Double|Triple|Quadra) kill\b/g;
+const OLD_K = { Double: '2K', Triple: '3K', Quadra: '4K' };
 
 /**
  * A NEW RATING. opts:
@@ -240,7 +258,7 @@ function createRating(opts) {
       satOut: satOut === true, alive: { us: 5, them: 5 }, down: { us: new Map(), them: new Map() }, revived: new Set(),
       planted: false, plantMs: null, lastMs: null, decided: false, decidedFor: null, kills: 0, deaths: [], ended: false,
       startNet: (players.get(subject) || { net: 0 }).net, swing: 0,
-      me: { kills: 0, firstKill: false, tradeKills: 0, plant: false, defuse: false, died: null, clutch: 0, revived: false, ultOut: false, teamKill: false },
+      me: { kills: 0, victims: new Set(), firstKill: false, tradeKills: 0, plant: false, defuse: false, died: null, clutch: 0, revived: false, ultOut: false, teamKill: false },
     };
   }
 
@@ -411,6 +429,8 @@ function createRating(opts) {
         if (killer === subject) {
           involved = true;
           rnd.me.kills++;
+          // Each enemy by agent, for an ace's proof (killsName).
+          if (named(victim)) rnd.me.victims.add(victim);
           if (first) rnd.me.firstKill = true;
           if (avenged) rnd.me.tradeKills++;
           label = decided ? 'Kill after the round was decided'
@@ -514,7 +534,7 @@ function createRating(opts) {
 
   /*
    * THE ROUND'S NAME, a label only (it adds no points): what the subject did
-   * in it, in the words players use. "Triple kill with the opening kill",
+   * in it, in the words players use. "3K with the opening kill",
    * "2 kills, won a 1v3", "Opening kill and the plant", "Died first, not
    * traded", "Saved the last life".
    */
@@ -529,7 +549,7 @@ function createRating(opts) {
     let main = null;
     if (m.kills) {
       if (clutchWon) main = `${m.kills === 1 ? '1 kill' : `${m.kills} kills`}, won a 1v${m.clutch}`;
-      else if (m.kills >= 2) main = `${MULTI[Math.min(5, m.kills)]}${m.firstKill && m.kills < 5 ? ' with the opening kill' : ''}`;
+      else if (m.kills >= 2) main = `${killsName(m.kills, m.victims.size >= 5)}${m.firstKill && m.kills < 5 ? ' with the opening kill' : ''}`;
       else main = m.firstKill ? 'Opening kill' : m.tradeKills ? 'Trade kill' : 'A kill';
     } else if (clutchWon) main = `Won a 1v${m.clutch}`;
     if (m.plant) main = main ? `${main} and the plant` : 'Planted the spike';
@@ -828,7 +848,8 @@ function cleanSaved(s) {
   if (!s || typeof s !== 'object' || typeof s.version !== 'number' || num(s.value) === null) return null;
   const clamp = (v) => Math.min(10, Math.max(0, round1(v)));
   const fin = (v) => num(v) !== null;
-  const text = (v) => (typeof v === 'string' ? v.replace(/;/g, ',').slice(0, 120) : null);
+  // A label saved before 9.1 names its kills as today's do: "Quadra kill" is "4K".
+  const text = (v) => (typeof v === 'string' ? v.replace(/;/g, ',').replace(OLD_MULTI, (m, w) => OLD_K[w]).slice(0, 120) : null);
   const timeline = (Array.isArray(s.timeline) ? s.timeline : []).filter((e) => e && fin(e.round) && fin(e.value) && fin(e.delta) && typeof e.label === 'string')
     .map((e) => ({ round: e.round, ms: fin(e.ms) ? e.ms : null, kind: String(e.kind || ''), delta: e.delta, value: clamp(e.value), swing: fin(e.swing) ? e.swing : 0, label: text(e.label) }));
   const byRound = Array.isArray(s.byRound) ? s.byRound.filter((e) => e && fin(e.n) && fin(e.value) && fin(e.delta))
@@ -972,4 +993,5 @@ module.exports = {
   VERSION, WP, W, D, LENGTHS, MIN_ROUNDS, WHY,
   winChance, display, lengthOf, createRating, eventsOfRound, fromRecord, roundsOfReview, lobbyOf, allKeyed,
   ratingOfReview, swings, ordinal, placeLine, keyOf, viewOf, signed, tierOf, isGun, cleanSaved, Display,
+  killsName, aceInFeed,
 };

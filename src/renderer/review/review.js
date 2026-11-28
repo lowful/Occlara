@@ -514,7 +514,12 @@ function highlightTitle(c) {
   const kills = typeof r.kills === 'number' ? r.kills : Array.isArray(h.kills) ? h.kills.length : 0;
   const alive = wonAlone(c);
   const parts = [`Round ${c.n}`];
-  if (kills >= 5) parts.push('an ace');
+  // Named as the replay, the hero and Clips name it (9.1): an ace only where
+  // Riot's feed shows five different enemies, by rating.js aceInFeed through
+  // the preload, else its count. The page keeps no copy of the rule.
+  const api = window.occlara;
+  const ace = kills >= 5 && !!(api && typeof api.aceInFeed === 'function' && api.aceInFeed(Array.isArray(r.feed) ? r.feed : []));
+  if (ace) parts.push('an ace');
   else if (kills >= 2) parts.push(`${kills}K`);
   if (alive) parts.push(`won alone against ${r.clutch.vs === 1 ? 'one' : r.clutch.vs}`);
   else if (kills === 1) parts.push('a kill');
@@ -1309,7 +1314,7 @@ function paintRounds(r) {
  * round's line, the round's move of the match rating on the 100 scale, as
  * the rating's own view counted it (rating.js viewOf: each round's delta is
  * the difference of the two shown numbers, so the rounds add up to the
- * match), and the engine's label of what happened ("Quadra kill with the
+ * match), and the engine's label of what happened ("4K with the
  * opening kill, then died"). The page works out nothing: a review with no
  * rating, or a round the view has no label for, shows none. Its colour is
  * the move's sign (rating-badge.js wayOf), the sign itself always the text.

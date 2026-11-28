@@ -12,7 +12,8 @@
  * NOTHING HERE IS WRITTEN BY A MODEL. A death's title is the look's cause from
  * its closed list (death-causes.js), or Riot's own facts (the killer's agent
  * and the gun), and a highlight is counted off Riot's verified round record:
- * two or more kills in a round (2K to 5K, five is an ace), a clutch Riot says was won
+ * two or more kills in a round (2K to 5K, an Ace where Riot's feed shows five
+ * different enemies), a clutch Riot says was won
  * with the player alive at the end (insights.js clutchWonAlive, 9.1),
  * and the first kill of the round in two or more rounds running. Nothing is
  * claimed from the screen alone: a round Riot never verified has no highlight.
@@ -54,7 +55,13 @@ const { LOOK_BACK, WINDOW } = require('./patterns');
 // The icon of what killed the player, a file the bundled index names (kit-icons.js).
 const { killIcon } = require('./kit-icons');
 
-// A highlight needs this many kills in one round (2K, 3K, 4K or 5K); five is an ace.
+// A round's kills named as the replay, the review's hero and its highlights
+// name them (9.1): "4K", and "Ace" only where Riot's feed shows five different
+// enemies (rating.js killsName, aceInFeed; verdict.js holds the same rule).
+const { killsName, aceInFeed } = require('./rating');
+
+// A highlight needs this many kills in one round (2K, 3K, 4K or 5K); five
+// different enemies is an ace.
 const MULTI_KILLS = 2;
 const ACE_KILLS = 5;
 // The first kill of the round in this many rounds running is a streak.
@@ -223,9 +230,10 @@ function valorantHighlights(saved, have, io) {
     if (kills < MULTI_KILLS && !clutch) continue;
     const parts = [];
     let title;
-    if (kills >= MULTI_KILLS) title = `${kills}K`;
+    const ace = kills >= ACE_KILLS && aceInFeed(r.feed);
+    if (kills >= MULTI_KILLS) title = killsName(kills, ace);
     else title = `Clutch, alone against ${clutch.vs === 1 ? 'one' : clutch.vs}`;
-    if (kills >= ACE_KILLS) parts.push('an ace, all five of them');
+    if (ace) parts.push('all five enemies');
     else if (kills >= MULTI_KILLS) parts.push(`${kills} kills in the round`);
     if (clutch && kills >= MULTI_KILLS) parts.push(`won it alone against ${clutch.vs === 1 ? 'one' : clutch.vs}`);
     if (r.firstKill) parts.push('first kill of the round');
@@ -235,7 +243,7 @@ function valorantHighlights(saved, have, io) {
     out.push({
       kind: 'highlight', id, round: c.n, key: `${id}:h${c.n}`,
       title, line: parts.length ? parts.join(', ') : null,
-      what: kills >= ACE_KILLS ? 'ace' : kills >= MULTI_KILLS ? 'multi' : 'clutch',
+      what: ace ? 'ace' : kills >= MULTI_KILLS ? 'multi' : 'clutch',
       // 9.1: how many a clutch was won against, for the best clip's weight (bestOf).
       vs: clutch ? clutch.vs : null,
       kills, sec: secs.length ? secs[0] : null, time: secs.length ? secText(secs[0]) : null,

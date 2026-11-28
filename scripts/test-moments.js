@@ -175,8 +175,16 @@ const url = (id, name) => `occlara-clip://review/${id}/${name}`;
   const two = [{ id: `valorant-${T0}-made0`, at: T0, game: 'valorant', review: madeUp }];
   const m = moments.build('valorant', two, { patterns: {}, clips: () => [], url, recordingMode: 'auto' }).matches[0].moments;
   const hl = m.filter((x) => x.kind === 'highlight');
-  ok(hl.find((x) => x.round === 1 && x.what === 'ace' && x.title === '5K' && /an ace, all five of them, first kill of the round, kills at 10 s, 20 s/.test(x.line)),
-    'five kills is an ace, its line the kills, the first kill and the kill times', JSON.stringify(hl.find((x) => x.round === 1)));
+  ok(hl.find((x) => x.round === 1 && x.what === 'multi' && x.title === '5K' && /^5 kills in the round, first kill of the round, kills at 10 s, 20 s/.test(x.line)),
+    'five kills with no feed to show five different enemies are a 5K, never called an ace (9.1, the replay and the hero\'s rule)', JSON.stringify(hl.find((x) => x.round === 1)));
+  {
+    // Five different enemies in Riot's feed: an Ace, named as the hero and the replay name it.
+    const five = ['Jett', 'Sova', 'Omen', 'Sage', 'Raze'].map((va, i) => ({ ms: 10000 + i * 2000, by: 'me', on: 'enemy', va }));
+    const aced = { ...madeUp, rounds: [card(1, { kills: 5, firstKill: true, clutch: null, feed: five })] };
+    const ah = moments.build('valorant', [{ id: `valorant-${T0}-made9`, at: T0, game: 'valorant', review: aced }], { patterns: {}, clips: () => [], url, recordingMode: 'auto' })
+      .matches[0].moments.find((x) => x.kind === 'highlight');
+    ok(ah && ah.what === 'ace' && ah.title === 'Ace' && /^all five enemies, first kill of the round/.test(ah.line), 'five different enemies in the feed: an Ace, said once', JSON.stringify(ah));
+  }
   ok(hl.find((x) => x.round === 2 && x.what === 'multi' && x.title === '2K' && /won it alone against 2/.test(x.line)), 'two kills and a clutch is a 2K highlight', JSON.stringify(hl.find((x) => x.round === 2)));
   ok(hl.find((x) => x.round === 3 && x.what === 'multi' && x.title === '3K' && /3 kills in the round, won it alone against one/.test(x.line)),
     'three kills and the clutch in one round is one entry', JSON.stringify(hl.find((x) => x.round === 3 && x.what === 'multi')));

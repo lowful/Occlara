@@ -152,7 +152,7 @@
   /*
    * A ROUND READ OFF THE LINE: the pointer over the plot, or the plot focused
    * and the arrow keys, shows that round's point, a cursor and its line under
-   * the chart: "Round 14, 7 : 7, +4, Triple kill with the opening kill".
+   * the chart: "Round 14, 7 : 7, +4, 3K with the opening kill".
    */
   function readable(c, view) {
     const plot = c.plot;

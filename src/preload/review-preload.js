@@ -6,6 +6,7 @@ const { pageMotion } = require('./page-motion');
 const verdict = require('../shared/verdict');
 const clips = require('../shared/clips');
 const { clutchWonAlive } = require('../shared/insights');
+const { aceInFeed } = require('../shared/rating');
 const { mapArtOf } = require('../shared/agent-icons');
 const { portraitOfIcon } = require('../shared/agent-portraits');
 
@@ -53,6 +54,9 @@ contextBridge.exposeInMainWorld('occlara', {
   // The page keeps no copy of either rule. ({ kills, clutch, died }) each.
   highlightRank: (r) => clips.highlightRank(r && typeof r === 'object' ? r : null),
   clutchWonAlive: (r) => clutchWonAlive(r && typeof r === 'object' ? r : null),
+  // THE ONE ACE RULE (9.1): an ace only where Riot's feed shows five
+  // different enemies (rating.js aceInFeed), as the replay and Clips say it.
+  aceInFeed: (feed) => aceInFeed(Array.isArray(feed) ? feed : null),
   // The map's bundled splash behind the Verdict (Progress v3), or null: only
   // a map the generated data lists gets one (agent-icons.js mapArtOf).
   mapArt: (name) => {
