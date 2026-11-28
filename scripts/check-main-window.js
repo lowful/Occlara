@@ -1441,8 +1441,19 @@ setTimeout(async () => {
         enemy: document.getElementById('live-enemy').textContent, round: document.getElementById('live-round').textContent,
         pips: [...document.querySelectorAll('#live-tape .pip')].map((p) => p.getAttribute('class').replace('pip ', '')).slice(0, 8).join(),
         face: !!document.querySelector('#live-face img'), map: !!document.querySelector('#live-art img'), locked: seen('live') && /locked|ends/i.test(box.querySelector('.live-review').textContent),
-        text: box.innerText.replace(/\\s+/g, ' ') };
+        text: box.innerText.replace(/\\s+/g, ' '),
+        // What shows that is not the live rating's own number and move: a
+        // rating of 8.7 reads 87 on the 100 scale (9.1), the same number as
+        // the reader's HP above, so the leak scans read this, and the
+        // rating's number and move are held to the rating itself (RATING_NOW).
+        bare: (() => { const out = []; const w = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+          for (let t = w.nextNode(); t; t = w.nextNode()) { const p = t.parentElement; if (!p || p.closest('#lr-num, #lr-delta') || !p.checkVisibility()) continue; out.push(t.textContent); }
+          return out.join(' ').replace(/\\s+/g, ' '); })() };
     })()`;
+    // The reader's context the screen must never show: the HP (87), the
+    // credits, the player's spot and the spike, by the words they would be
+    // written in. Read against `bare`, never the rating's own number.
+    const CONTEXT_SEEN = /\b87\b|3900|A Main|carried|spike/i;
     const liveSeen = await sjs(LIVE_NOW);
     lines.push(`live status mid match: ${JSON.stringify({ ...liveSeen, text: liveSeen.text.slice(0, 160) })}`);
     if (!liveSeen.shown || liveSeen.who !== 'Jett on Abyss' || liveSeen.team !== '4' || liveSeen.enemy !== '2' || liveSeen.round !== '7'
@@ -1453,7 +1464,7 @@ setTimeout(async () => {
     // NOTHING ELSE OF THE MATCH: the HP, the credits, who is alive, the
     // player's spot and the spike were in the reader's context and none of it
     // reaches the screen.
-    if (/\b87\b|3900|A Main|carried|spike/i.test(liveSeen.text)) {
+    if (CONTEXT_SEEN.test(liveSeen.bare)) {
       return report(false, `mid match, the live status shows more than the four facts: ${liveSeen.text}`);
     }
     await shot('recording', mainWindow, win);
@@ -1487,7 +1498,7 @@ setTimeout(async () => {
         const box = document.getElementById('live-rating');
         return { keys: v ? Object.keys(v).sort().join() : null, rating: v && v.rating ? v.rating : null,
           ratingKeys: v && v.rating ? Object.keys(v.rating).sort().join() : null,
-          shown: !!box && !box.hidden && !box.closest('[hidden]'), num: document.getElementById('lr-num').textContent,
+          shown: !!box && !box.hidden && !box.closest('[hidden]'), num: document.getElementById('lr-num').textContent, move: document.getElementById('lr-delta').textContent,
           label: document.getElementById('lr-label').textContent, chip: (box.querySelector('.lr-prov') || {}).textContent || '',
           tier: document.getElementById('lr-badge').className, text: box.innerText.replace(/\\s+/g, ' ') };
       })`;
@@ -1514,11 +1525,25 @@ setTimeout(async () => {
         || on.num !== on.rating.shown || !(on.rating.value > 6) || !/\bt-(fair|good|great|excellent)\b/.test(on.tier)) {
         return report(false, `with the live rating on, the Recording screen does not show the number, its move and "Live, provisional": ${JSON.stringify(on)}`);
       }
-      if (Object.keys(on.rating.last).sort().join() !== 'delta,down,label,up' || /\b87\b|3900|A Main|carried|spike|Abyss|Jett/i.test(JSON.stringify(on.rating))) {
+      // ITS OWN FIELDS AND NOTHING ELSE, by field, never by a number in its
+      // JSON: on the 100 scale a rating of 8.7 is shown as 87, the HP above's
+      // number, and a correct run failed on it. No field is named for any of
+      // the reader's context at any depth, its words (the tier, the label)
+      // say none of it, and its numbers are the rating's own: shown is its
+      // value on the 100 scale, the move the difference the badge shows, the
+      // line a run of ratings.
+      const RD = require(path.join(REPO, 'src/shared/display'));
+      const CONTEXT_KEY = /hp|health|credit|alive|spot|spike|enem|team|map|agent|clock|side|phase/i;
+      const keyLeak = (o) => !!o && typeof o === 'object' && Object.entries(o).some(([k, v]) => CONTEXT_KEY.test(k) || keyLeak(v));
+      const ownNumbers = on.rating.shown === RD.rating(on.rating.value) && /^(?:[+-]\d{1,3}|0)?$/.test(String(on.rating.last.delta || ''))
+        && (on.move === '' || on.move === on.rating.last.delta)
+        && Array.isArray(on.rating.line) && on.rating.line.every((x) => typeof x === 'number' && x >= 0 && x <= 10);
+      if (Object.keys(on.rating.last).sort().join() !== 'delta,down,label,up' || keyLeak(on.rating) || !ownNumbers
+        || /\b87\b|3900|A Main|carried|spike|Abyss|Jett/i.test(`${on.rating.tier} ${on.rating.last.label}`)) {
         return report(false, `the live rating carries more than its own fields: ${JSON.stringify(on.rating)}`);
       }
       const whole = await sjs(LIVE_NOW);
-      if (/\b87\b|3900|A Main|carried|spike/i.test(whole.text)) return report(false, `with the rating on, the Recording screen shows more than allowed: ${whole.text}`);
+      if (CONTEXT_SEEN.test(whole.bare)) return report(false, `with the rating on, the Recording screen shows more than allowed: ${whole.text}`);
       await shot('recording-rating', mainWindow, win);
       // The recorder's rows stop: "Not reading the kill feed" in place of the
       // number, never a number it cannot back.
