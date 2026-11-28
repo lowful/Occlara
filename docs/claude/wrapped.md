@@ -181,7 +181,11 @@ opens by itself.
   enough matches, not opened by itself for that year before (the store's
   `wrappedAutoOpened`, written BEFORE it opens so a crash never doubles it),
   the app's surfaces up and onboarding done, the window visible, not minimised
-  and focused, no match in progress, no seal, HOME the page asked for and
+  and focused, no match in progress, no seal, NO RECORDING (9.1: recording
+  holds every animation still, html.rec-still, the story too, so the year's
+  one opening would be a frozen first slide; `index.js syncStill` asks again
+  the moment recording stops, a stop that changes no page included, and
+  Start lands on the Recording view anyway), HOME the page asked for and
   settled on screen with nothing on its way, and no games reveal, account menu
   or Wrapped already up (`wrapped-service.js mayOpenNow`, the snapshot
   `index.js free` builds, held in `test:wrapped` condition by condition). Never
@@ -296,9 +300,12 @@ All through `safeHandle` in `register-ipc.js`.
   condition by condition; and `tooSlow` on 48, 50, 60 and 240 Hz panels, the
   30 a second battery cap, dropped frames and a slow cadence.
 - `check:wrapped` boots the real app on the sample library with the sample
-  year on 16 December: the auto open once over the whole window, the keys, no
-  second auto open across hide, show, minimise and focus, Home's invitation
-  and button, a match starting closing it in the seal's tick with every ask
+  year on 16 December, recording from the launch (the dev switch starts it,
+  so Start lands on the Recording view): no auto open on the Recording view or
+  over Home while recording, then, recording stopped, the auto open once over
+  the whole window, the keys, no second auto open across hide, show, minimise
+  and focus, Home's invitation and button, recording started again holding its
+  story still, a match starting closing it in the seal's tick with every ask
   refused, Sounds off opening it muted, and reduced motion looping nothing;
   out of focus it pauses and the focus back resumes it; and a new year's auto
   open given over Settings waits, then opens once Home is shown.

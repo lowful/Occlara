@@ -50,6 +50,10 @@ const SEEN = 'wrappedSeen';
  * @param s.surfacesUp, s.onboarded   the app is up past onboarding
  * @param s.visible, s.minimized, s.focused   the window, as Windows has it
  * @param s.match, s.sealed           a match in progress, the seal on (held included)
+ * @param s.recording                 recording on, a match or not (9.1): every
+ *   animation in the app is held still then (html.rec-still), the story with
+ *   it, so the year's one opening by itself would be a frozen first slide. It
+ *   waits for the recording to stop (index.js syncStill asks again then).
  * @param s.shown, s.onScreen, s.coming   the page asked for, the one on screen, one on its way
  * @param s.toast, s.menu, s.wrapped  a games reveal, the account menu, Wrapped itself up
  */
@@ -57,7 +61,7 @@ function mayOpenNow(s) {
   const o = s || {};
   if (!o.surfacesUp || !o.onboarded) return false;
   if (!o.visible || o.minimized || !o.focused) return false;
-  if (o.match || o.sealed) return false;
+  if (o.match || o.sealed || o.recording) return false;
   if (o.shown !== 'home' || o.onScreen !== 'home' || o.coming) return false;
   if (o.toast || o.menu || o.wrapped) return false;
   return true;

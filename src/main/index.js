@@ -1132,6 +1132,10 @@ function syncStill() {
   if (still === stillNow) return;
   stillNow = still;
   registry.broadcast(C.PUSH_STILL, { still });
+  // Wrapped's one opening by itself waits while recording (wrapped-service.js
+  // mayOpenNow): the recording stopped with Home on screen is its next chance,
+  // a stop that changes no page included.
+  if (!still) { try { wrappedSoon(); } catch (e) { console.warn('[wrapped] after recording:', e.message); } }
 }
 
 /*
@@ -5916,7 +5920,7 @@ const wrappedIpc = createWrapped({
     return mayOpenWrapped({
       surfacesUp, onboarded: !!store.get('onboardingCompleted'),
       visible: !!(w && w.isVisible()), minimized: !!(w && w.isMinimized()), focused: !!(w && w.isFocused()),
-      match: matchInProgress(), sealed: windowSealed(),
+      match: matchInProgress(), sealed: windowSealed(), recording: !!state.isCoaching,
       shown: nav.shown, onScreen: m.onScreen, coming: !!m.coming,
       toast: mainWindow.toastState().shown, menu: mainWindow.menuState().open, wrapped: mainWindow.wrappedState().open,
     });

@@ -6,14 +6,17 @@
  * record of the sample year, the clock set to 16 December 2026 (the dev
  * switch OCCLARA_DEV_WRAPPED_NOW).
  *
- *  1. THE ONE TIME AUTO OPEN. The window shown in the window of the year, no
+ *  1. THE ONE TIME AUTO OPEN. The launch records, on the Recording view:
+ *     nothing opens while recording (every animation is held still, 9.1),
+ *     there or over Home. Recording stopped, in the window of the year, no
  *     match live: Wrapped opens by itself, over the WHOLE window (the bar
  *     too), and the year is kept.
  *  2. THE KEYBOARD. The right arrow and Space go on, the left goes back, P
  *     pauses, M mutes, Escape closes and the view goes, page and all.
  *  3. NEVER AGAIN BY ITSELF. Hidden and shown, minimised and restored,
  *     focused again: nothing opens; the player's own ask from Home does.
- *  4. THE SEAL. With Wrapped up, a match starts: the view is closed in the
+ *  4. THE SEAL. With Wrapped up, recording starts and holds the story still,
+ *     then a match starts: the view is closed in the
  *     seal's tick, no page left to play, and Home's ask and the page's own
  *     ask are both refused mid match; the match over, nothing comes back by
  *     itself.
@@ -46,7 +49,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: Wrapped opens by itself once, over the whole window, in its window with no match live, and never again; its keys move, pause, mute and close it; out of focus it pauses and the focus back resumes it; it opens by itself only over Home; the player opens it from Home; a match starting closes it in the seal\'s tick and every ask mid match is refused; Sounds off opens it muted; and under less motion nothing loops');
+  console.log('PASS: Wrapped never opens by itself while recording, on the Recording view or over Home; recording stopped, it opens by itself once, over the whole window, in its window with no match live, and never again; its keys move, pause, mute and close it; out of focus it pauses and the focus back resumes it; it opens by itself only over Home; the player opens it from Home; recording started holds its story still; a match starting closes it in the seal\'s tick and every ask mid match is refused; Sounds off opens it muted; and under less motion nothing loops');
   process.exit(0);
 }
 
@@ -107,14 +110,33 @@ setTimeout(async () => {
     const win = await until(() => { const w = mainWindow.get(); return w && w.isVisible() ? w : null; }, 15000);
     if (!win) return report(false, 'the window never came up');
     win.focus();
+    const shell = await until(() => surfaces.find('/shell/'), 6000);
+    if (!shell) return report(false, 'the shell never loaded');
+    const shjs = (s) => shell.webContents.executeJavaScript(s);
 
-    // 1. The one time auto open.
+    // 1. The one time auto open. The dev launch starts recording, and Start
+    // lands on the Recording view (9.1, item 14). Recording holds every
+    // animation in the app still (html.rec-still, item 9), the story's too,
+    // so the year's one opening waits: on the Recording view, and over Home
+    // while recording, nothing opens. Recording stopped, it opens by itself.
+    const recOn = await until(() => mainWindow.current().rec && mainWindow.current(), 8000);
+    await wait(1800);
+    const overRec = mainWindow.wrappedState().open;
+    mainWindow.show('home');
+    await until(() => mainWindow.motionState().onScreen === 'home', 4000);
+    win.focus();
+    await wait(1800);
+    const overHomeRec = mainWindow.wrappedState().open;
+    lines.push(`recording on: the Recording view up=${!!recOn}, opened over it=${overRec}, over Home while recording=${overHomeRec}`);
+    if (!recOn) return report(false, 'the launch started recording but Start did not land on the Recording view');
+    if (overRec || overHomeRec) return report(false, 'Wrapped opened by itself while recording, with every animation held still');
+    await shjs('window.occlara.stopCoaching(), true');
     const opened = await until(() => mainWindow.wrappedState().open, 8000);
     const ws = mainWindow.wrappedState();
     const [cw, ch] = win.getContentSize();
     const kept = store.get('wrappedAutoOpened') || {};
-    lines.push(`shown on 16 December: Wrapped opened by itself=${!!opened} bounds=${JSON.stringify(ws.bounds)} kept=${JSON.stringify(Object.keys(kept))}`);
-    if (!opened) return report(false, 'shown in its window with enough matches, Wrapped did not open by itself');
+    lines.push(`shown on 16 December, recording stopped: Wrapped opened by itself=${!!opened} bounds=${JSON.stringify(ws.bounds)} kept=${JSON.stringify(Object.keys(kept))}`);
+    if (!opened) return report(false, 'shown in its window with enough matches and the recording stopped, Wrapped did not open by itself');
     if (!ws.bounds || ws.bounds.x !== 0 || ws.bounds.y !== 0 || ws.bounds.width !== cw || ws.bounds.height !== ch) return report(false, 'Wrapped does not cover the whole window, the bar included');
     if (!kept[2026]) return report(false, 'the year it opened by itself was not kept');
     const wc = ws.view.webContents;
@@ -226,7 +248,15 @@ setTimeout(async () => {
     const wc2b = mainWindow.wrappedState().view.webContents;
     await until(() => wc2b.executeJavaScript('window.__wrapped && window.__wrapped.state().ready'), 6000);
 
-    // 4. The seal. A match starts with Wrapped up.
+    // 4. The seal. Recording starts with Wrapped up (the hotkey, the tray),
+    // which holds the story still, then a match starts.
+    const readersBefore = proof.readers.length;
+    await shjs('window.occlara.startCoaching(), true');
+    const started = await until(() => proof.readers.length > readersBefore && mainWindow.current().rec, 5000);
+    const heldStill = started && await until(() => wc2b.executeJavaScript("document.documentElement.classList.contains('rec-still') && window.__wrapped.state().paused"), 3000);
+    lines.push(`recording started with Wrapped up: recording=${!!started} the story held still=${!!heldStill}`);
+    if (!started) return report(false, 'Start did not start recording again');
+    if (!heldStill) return report(false, 'recording started and Wrapped\'s story played on');
     const reader = proof.readers[proof.readers.length - 1];
     if (!reader) return report(false, 'no reader to play a match with');
     reader.inLobby = false;

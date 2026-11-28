@@ -446,9 +446,14 @@ const slide = (k) => st.slides.find((s) => s.kind === k);
     ['Moments', { shown: 'moments', onScreen: 'moments' }], ['Settings', { shown: 'settings', onScreen: 'settings' }], ['Profile back from a checkout', { shown: 'profile', onScreen: 'profile' }],
     ['Home still on its way', { onScreen: 'matches', coming: true }], ['onboarding not done', { onboarded: false }], ['the app not up', { surfacesUp: false }],
     ['the window not focused', { focused: false }], ['hidden', { visible: false }], ['minimised', { minimized: true }], ['a match on', { match: true }],
-    ['sealed (a stop held)', { sealed: true }], ['a games reveal up', { toast: true }], ['the account menu open', { menu: true }], ['Wrapped already up', { wrapped: true }]]) {
+    ['sealed (a stop held)', { sealed: true }], ['a games reveal up', { toast: true }], ['the account menu open', { menu: true }], ['Wrapped already up', { wrapped: true }],
+    // 9.1: recording holds every animation still (html.rec-still), the story too.
+    ['recording on between matches, Home on screen', { recording: true }]]) {
     ok(!mayOpenNow({ ...good, ...over }), `not with ${what}`);
   }
+  const idx = fs.readFileSync(path.join(__dirname, '..', 'src/main/index.js'), 'utf8');
+  ok(/sealed: windowSealed\(\), recording: !!state\.isCoaching,/.test(idx) && /if \(!still\) \{ try \{ wrappedSoon\(\);/.test(idx),
+    'main hands it the recording, and asks again the moment recording stops');
 }
 
 // ── The ground steps down only when the GPU cannot keep up (finding 7) ──────
