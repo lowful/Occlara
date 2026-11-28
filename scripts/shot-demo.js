@@ -29,8 +29,14 @@
  * ratedsmall the rated screen at the window's least (960 by 640), homelr and
  * homeconfirm Home's switch on and its confirm open, settingslr Settings at
  * the live rating's rows, and leaguewait League's quiet Recording view.
+ * Clips (9.1, items 12, 13, 18) on a fuller library (fixtures/clips-demo.js):
+ * clipsrich, clipsstore (Storage open), clipslow (the drive nearly full),
+ * clipsmenu (a clip's menu), clipsconfirm (Delete clip asking), clipsfilter
+ * (a map chosen), clipsscroll (scrolled under the bar), clipssmall (960 by
+ * 640), and clipsplay (the hero's clip playing: every clip URL answers the
+ * generated canvas recording through the app's own clip scheme).
  */
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -52,6 +58,10 @@ const H = Number(process.env.SHOT_H) || 800;
 
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 app.on('window-all-closed', () => {});
+// The clip scheme, as the app registers it, before ready (clips scenes only answer it).
+const clipScheme = require('../src/main/services/clip-scheme');
+protocol.registerSchemesAsPrivileged([clipScheme.PRIVILEGED]);
+const clipsDemo = require('./fixtures/clips-demo');
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -97,6 +107,19 @@ const SCENES = {
   settingslr: { page: 'settings', lr: true, act: "document.getElementById('lr-row').scrollIntoView({ block: 'start' }); true" },
   leaguewait: { page: 'home', rec: true, coaching: true, live: null, game: 'lol' },
   held: { page: null, sealed: true, held: true },
+  // Clips, 9.1 (fixtures/clips-demo.js).
+  clipsrich: { page: 'moments', clips: 'rich', storage: 'some' },
+  clipsstore: { page: 'moments', clips: 'rich', storage: 'some', act: "document.getElementById('mo-store-btn').click(); true" },
+  clipslow: { page: 'moments', clips: 'rich', storage: 'low', act: "document.getElementById('mo-store-btn').click(); true" },
+  clipsmenu: { page: 'moments', clips: 'rich', storage: 'some', act: "(() => { const b = document.querySelectorAll('#mo-list .mo-row .mo-more')[2]; b.closest('.mo-row').scrollIntoView({ block: 'center' }); setTimeout(() => b.click(), 300); return true; })()" },
+  clipsconfirm: { page: 'moments', clips: 'rich', storage: 'some', act: "(() => { const b = document.querySelector('#mo-hero .mo-more'); b.click(); setTimeout(() => document.querySelector('#mo-menu [data-act=\"delete\"]').click(), 200); return true; })()" },
+  clipsfilter: { page: 'moments', clips: 'rich', storage: 'some', act: "(() => { document.querySelector('#mo-f-map .dd-btn').click(); setTimeout(() => { const o = [...document.querySelectorAll('.dd-opt')].find((n) => n.textContent === 'Split'); if (o) o.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); document.getElementById('mo-log').scrollIntoView({ block: 'start' }); }, 300); return true; })()" },
+  clipsscroll: { page: 'moments', clips: 'rich', storage: 'some', act: "document.querySelector('.sheet').scrollTop = 250; true" },
+  clipssmall: { page: 'moments', clips: 'rich', storage: 'some', w: 960, h: 640 },
+  clipsplay: { page: 'moments', clips: 'rich', storage: 'some', video: true },
+  // The keyboard's ring on the hero's play mark, then on a clip's more button.
+  clipsfocus: { page: 'moments', clips: 'rich', storage: 'some', act: "document.querySelector('#mo-hero .mo-hplay').focus(); true" },
+  clipsfocus2: { page: 'moments', clips: 'rich', storage: 'some', act: "(() => { const b = document.querySelectorAll('#mo-list .mo-row .mo-more')[0]; b.closest('.mo-row').scrollIntoView({ block: 'center' }); b.focus(); return true; })()" },
 };
 
 function liveOf(kind) {
@@ -160,7 +183,8 @@ app.whenReady().then(async () => {
     [C.REVIEW_GET]: (_e, id) => { const e = store.get(id); return e ? present({ ...e.review, id: e.review.id || id }) : null; },
     [C.PATTERNS_GET]: () => ({ game: 'valorant', ...patterns.summarise(recent()), progress: progress.libraryProgress(recent()) }),
     [C.PROGRESS_GET]: (_e, id) => progress.matchProgress(recent(), id),
-    [C.MOMENTS_GET]: () => moments.build('valorant', recent(), { patterns: patterns.summarise(recent()), clips: (id) => store.clipsOf(id).map((c) => c.name), url: (id, name) => `occlara-clip://review/${id}/${name}`, frames: () => null, recordingMode: 'auto' }),
+    [C.MOMENTS_GET]: () => (scene.clips === 'rich' ? clipsDemo.withPosters(clipsDemo.model({ now: Date.now() }), nativeImage)
+      : moments.build('valorant', recent(), { patterns: patterns.summarise(recent()), clips: (id) => store.clipsOf(id).map((c) => c.name), url: (id, name) => `occlara-clip://review/${id}/${name}`, frames: () => null, recordingMode: 'auto' })),
     [C.STATS_RANK_HISTORY]: () => [],
     [C.CHANGELOG_NOTICE]: () => null,
     [C.PRACTICE_TODAY]: () => null,
@@ -187,8 +211,12 @@ app.whenReady().then(async () => {
     [C.STILL_GET]: () => ({ still: !!scene.coaching }),
     [C.HISTORY_GET]: () => ({ back: true, forward: false, backTo: 'matches', forwardTo: null, backLabel: 'Matches', forwardLabel: null, at: 1, length: 2 }),
     [C.HISTORY_GO]: () => null,
-    [C.STORAGE_GET]: () => null,
+    [C.STORAGE_GET]: () => (scene.storage ? clipsDemo.storage(scene.storage) : null),
   };
+  // A clips scene that plays: every clip URL is the generated canvas recording
+  // (fixtures/recording-canvas.mkv), served by the app's own handler.
+  const canvasClip = path.join(ROOT, 'scripts', 'fixtures', 'recording-canvas.mkv');
+  protocol.handle(clipScheme.SCHEME, (req) => (scene.video ? clipScheme.createHandler({ fileOf: () => canvasClip })(req) : new Response(null, { status: 404 })));
   const memo = new Map();
   const practice = require('../src/main/services/practice-store').createPractice({
     store: { get: (k) => memo.get(k), set: (k, v) => memo.set(k, v) },

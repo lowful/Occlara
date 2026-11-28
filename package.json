@@ -199,7 +199,8 @@
     "test:display": "node scripts/test-display.js",
     "test:history": "node scripts/test-history.js",
     "test:still": "node scripts/test-still.js",
-    "test:storage": "node scripts/test-storage.js"
+    "test:storage": "node scripts/test-storage.js",
+    "test:clipspage": "node scripts/test-clips-page.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
