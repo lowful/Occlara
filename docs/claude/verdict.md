@@ -127,7 +127,10 @@ fixed order, the first that holds wins:
 
 With no numbers at all it is null and the image leaves the line out (the
 reason is never put back). A clutch lost or of unknown result is never a
-standout, and a round off the screen alone (no `riot`) is never counted.
+standout, nor since 9.1 one the player died in (a clutch is won alive, the
+AI audit's Split round 12: left last, killed, the spike went off; the card's
+`died` must be false), and a round off the screen alone (no `riot`) is
+never counted.
 The Abyss fixture's is "4K, Four kills in rounds 11 and 17".
 
 The icon is `src/shared/agent-icons.js` `iconOf(game, name)`: only a name
