@@ -700,6 +700,11 @@ isolated, crossfire and rotating Awareness), else Game sense. `test:drilllibrary
 of the three, practice.js to keeping it, a tagged drill to Mechanics, every group to 8 drills or more and
 to a `general` drill at every band.
 
+**Needs a review (9.1).** An optional `needs: "review"` marks a drill for every player that starts from a
+review (`general-focus-fix`, "Play the review's one fix"). `practice.js` keeps it, and the Practice page does not
+offer it while the player has no recorded match yet (`planView` status `nomatches`), since there is no review
+to open. `test:drilllibrary` allows it only as "review" on a `general` drill.
+
 **`npm run test:drilllibrary`** (`scripts/test-drill-library.js`) holds the file to that shape, to unique
 ids, and to coverage: it reads every cause the app can name from `death-causes.js` and from the Mistakes and
 Missed sections of `insights.js valorant()`, so a new cause there fails until it has 3 drills, and `general`

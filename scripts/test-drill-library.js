@@ -64,9 +64,11 @@ const ids = new Set();
 const KEYS = ['id', 'title', 'cause', 'group', 'where', 'minutes', 'bands', 'steps', 'goal', 'why', 'check'];
 const GROUPS = ['mechanics', 'sense', 'awareness'];
 // Optional: `also`, the further causes a drill serves (Nov 2026, low-headshots on the aim drills),
-// `demo` (8.11), the owner's short video of the drill on the website, and
-// `trainer`, the Trainer scenario that trains it (docs/claude/trainer.md).
-const OPTIONAL = ['also', 'demo', 'trainer'];
+// `demo` (8.11), the owner's short video of the drill on the website,
+// `trainer`, the Trainer scenario that trains it (docs/claude/trainer.md), and
+// `needs` (9.1), "review" on a drill that starts from a review, which the
+// Practice page holds back until the player has one.
+const OPTIONAL = ['also', 'demo', 'trainer', 'needs'];
 // A DEMO (8.11) is what scripts/make-drill-demo.js writes and the site hosts:
 // <id>.webm and <id>.webp under occlara.app/drills/, 6 to 12 seconds, and
 // practice.js keeps it as it is (a demo it would drop is a typo here).
@@ -97,7 +99,9 @@ ok(FULL_MATCH.test('Play a full unrated match, since the last one alive is too r
 for (const d of drills) {
   const at = `drill ${d && d.id}`;
   const extra = Object.keys(d || {}).filter((k) => !KEYS.includes(k));
-  ok(d && KEYS.every((k) => k in d) && extra.every((k) => OPTIONAL.includes(k)), `${at}: the eleven fields, and also, demo and trainer at most`, Object.keys(d || {}).join());
+  ok(d && KEYS.every((k) => k in d) && extra.every((k) => OPTIONAL.includes(k)), `${at}: the eleven fields, and also, demo, trainer and needs at most`, Object.keys(d || {}).join());
+  ok(!('needs' in d) || (d.needs === 'review' && d.cause === 'general' && practiceLib.normaliseLibrary({ drills: [d] }).drills[0].needs === 'review'),
+    `${at}: needs is "review", on a drill for every player, and practice.js keeps it`, JSON.stringify(d.needs));
   ok(!('also' in d) || (Array.isArray(d.also) && d.also.length >= 1 && d.also.every((c) => typeof c === 'string' && c !== d.cause) && new Set(d.also).size === d.also.length),
     `${at}: also is a list of further causes, none its own cause, none twice`, JSON.stringify(d.also));
   ok(!('demo' in d) || !demoProblem(d), `${at}: its demo is the site's <id>.webm and <id>.webp, 6 to 12 seconds`, 'demo' in d ? demoProblem(d) : '');

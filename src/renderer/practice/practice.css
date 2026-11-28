@@ -11,14 +11,26 @@
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
-.sheet { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-.sheet > header { display: flex; align-items: center; padding: var(--space-4); }
+/* THE PAGE SCROLLS AS ONE (9.1, as Clips does for the owner's item 12). The
+   title and its sub line used to stay put over a body that scrolled under
+   them, so a card was sliced at a hard edge part way down the window. Now
+   the sheet scrolls, title and all, and a short fade at its top lets what
+   passes under the bar dissolve into the ground. scrollIntoView and the
+   cards' scroll-margin-top work against this scroller as they did the body. */
+.sheet { height: 100%; display: block; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
+.sheet::before {
+  content: ''; position: sticky; top: 0; z-index: 6; display: block;
+  height: 18px; margin-bottom: -18px; pointer-events: none;
+  background: var(--bg);
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent);
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+.sheet > header { position: relative; display: flex; align-items: center; padding: var(--space-4); }
 .h-brand { display: flex; align-items: center; gap: var(--space-2); }
 .h-brand h2 { font-size: 15.5px; font-weight: 700; }
 #close { margin-left: auto; }
 
 .body {
-  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
   padding: var(--space-2) var(--space-4) var(--space-10);
 }
 
@@ -98,8 +110,9 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   transition: transform var(--dur-spring) var(--spring-gentle), background-color var(--dur-hover-out) var(--ease-out);
 }
 .pc-clip-tile:hover .pc-clip-mark { transform: scale(1.08); background: rgba(0, 0, 0, 0.6); }
-/* The triangle's own weight sits left of its box: nudged a pixel right so it reads centred. */
-.pc-clip-icon { width: 16px; height: 16px; transform: translateX(1px); }
+/* Clips' own play mark (moments.js PLAY_PATH), its centre of mass on the
+   box's centre, so it sits centred in its circle with no nudge. */
+.pc-clip-icon { display: block; width: 16px; height: 16px; }
 .pc-clip-line { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .pc-frow.clip-open { grid-template-columns: minmax(0, 1fr); }
 .pc-frow.clip-open .pc-aside { width: auto; }
@@ -146,19 +159,29 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .pc-d-ico svg { width: 18px; height: 18px; }
 .pc-d-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pc-d-title { font-size: 15px; font-weight: 600; line-height: 1.3; letter-spacing: -0.011em; color: var(--text); text-wrap: pretty; }
-/* Why it is here: the repeated mistake, with its dot, and how often. */
-.pc-reason { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px var(--space-2); font-size: 13px; line-height: 1.4; font-weight: 400; }
-.pc-r-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bad); flex: none; }
+/* Why it is here: the repeated mistake, with its dot, and how often. Laid
+   out as running text, the dot inline before the title's first word, so a
+   title longer than the row wraps under itself and never leaves the dot
+   alone on a line above it. */
+.pc-reason { margin: 0; display: block; font-size: 13px; line-height: 1.4; font-weight: 400; text-wrap: pretty; }
 .pc-r-title { color: var(--text); font-weight: 500; }
+.pc-r-dot {
+  display: inline-block; width: 6px; height: 6px; margin-right: var(--space-2);
+  border-radius: 50%; background: var(--bad); vertical-align: 0.12em;
+}
+/* A space in the text lets the count wrap as a whole; this widens it to the old gap. */
+.pc-r-title + .pc-r-line { margin-left: 4px; }
 .pc-r-line { color: var(--text-2); font-variant-numeric: tabular-nums; }
 .pc-where, .pc-min { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-2); white-space: nowrap; }
 .pc-d-meta { display: inline-flex; align-items: center; gap: var(--space-2); }
 .pc-where + .pc-min::before { content: ''; display: inline-block; width: 3px; height: 3px; margin: 0 var(--space-2) 0 0; border-radius: 50%; background: var(--text-3); vertical-align: middle; }
-.pc-d-state { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font-size: 12.5px; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.pc-d-state:empty { display: none; }
+/* How far along, in a column of its own width on every row, so the meta,
+   the state and the chevron line up down a card whether a row has
+   "1 of 3", "Practiced today" or nothing yet. */
+.pc-d-state { display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px; min-width: 112px; font-size: 12.5px; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .pc-d-state.good { color: var(--good); }
 .pc-d-check { width: 14px; height: 14px; flex: none; }
-.pc-d-chev { display: grid; place-items: center; color: var(--text-2); transition: transform var(--dur-slow) var(--spring-smooth), color var(--dur-hover-out) var(--ease-out); }
+.pc-d-chev { grid-column: 5; display: grid; place-items: center; color: var(--text-2); transition: transform var(--dur-slow) var(--spring-smooth), color var(--dur-hover-out) var(--ease-out); }
 .pc-d-chev svg { width: 18px; height: 18px; }
 .pc-d-head:hover .pc-d-chev { color: var(--text); }
 .pc-drill.open .pc-d-chev { transform: rotate(180deg); }
@@ -225,7 +248,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   transition: opacity var(--t-fast) var(--ease);
 }
 .pc-demo.playing .pc-demo-mark { opacity: 0; }
-.pc-demo-icon { width: 16px; height: 16px; transform: translateX(1px); }
+.pc-demo-icon { display: block; width: 16px; height: 16px; }
 .pc-demo-tag {
   position: absolute; left: var(--space-2); bottom: var(--space-2);
   display: inline-flex; align-items: center; height: 20px; padding: 0 var(--space-2);
@@ -286,6 +309,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 @media (max-width: 860px) {
   .pc-d-head { grid-template-columns: 36px minmax(0, 1fr) auto 18px; }
   .pc-d-meta { display: none; }
+  .pc-d-chev { grid-column: 4; }
   .pc-aside { width: 152px; }
   .pc-trainer { grid-template-columns: 36px minmax(0, 1fr) 152px; }
 }

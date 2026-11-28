@@ -288,8 +288,12 @@ function reasonLine(r, tag) {
   if (!r || (!r.title && !r.line)) return null;
   const p = el(tag || 'p', `pc-reason ${r.kind === 'mistake' && r.title ? 'is-mistake' : 'is-general'}`);
   if (r.kind === 'mistake' && r.title) {
-    p.append(el('span', 'sr-only', 'For your repeated mistake: '), el('span', 'pc-r-dot'), el('span', 'pc-r-title', r.title));
-    if (r.line) p.append(el('span', 'pc-r-line', r.line));
+    // The dot runs inside the title, before its first word, so a long title
+    // wraps under itself and never leaves the dot alone on a line above.
+    const title = el('span', 'pc-r-title');
+    title.append(el('span', 'pc-r-dot'), document.createTextNode(r.title));
+    p.append(el('span', 'sr-only', 'For your repeated mistake: '), title);
+    if (r.line) p.append(document.createTextNode(' '), el('span', 'pc-r-line', r.line));
   } else {
     p.append(el('span', 'pc-r-line', r.line));
   }
@@ -578,6 +582,10 @@ function paint() {
   $('pc-page').hidden = false;
   const v = view;
   const league = v.status === 'game';
+  // The sub line under the title is main's, true of what the page shows;
+  // none (League, no drills at all) and it goes, the empty card saying why.
+  const sub = document.querySelector('.sheet > header > .page-sub');
+  if (sub) { sub.textContent = v.sub || ''; sub.hidden = !v.sub; }
   // A clip being watched is carried into the new paint (clipBlock).
   openClips = new Map();
   for (const n of document.querySelectorAll('.pc-clip.open')) if (n.dataset.url) openClips.set(n.dataset.url, n);

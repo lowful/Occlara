@@ -1202,7 +1202,8 @@ setTimeout(async () => {
     const practicePage = await until(() => pcjs(`(() => {
       if (document.getElementById('pc-page').hidden) return null;
       const q = (s) => document.querySelectorAll(s).length;
-      const page = document.querySelector('.body');
+      // 9.1: the sheet scrolls as one, title and all (practice.css).
+      const page = document.querySelector('.sheet');
       return { plan: !document.getElementById('pc-plan').hidden, focus: q('.pc-focus'), cards: q('.pc-drill'), marks: q('.pc-drill .pc-mark'),
         titles: [...document.querySelectorAll('.pc-focus-title')].map((n) => n.textContent),
         counts: [...document.querySelectorAll('.pc-count')].map((n) => n.textContent),
@@ -1219,7 +1220,7 @@ setTimeout(async () => {
     if (process.env.OCCLARA_SHOTS === '1') {
       await pcjs("document.getElementById('pc-groups').scrollIntoView({ block: 'start' }); true");
       await shot('practice-working', mainWindow, win);
-      await pcjs("document.querySelector('.body').scrollTop = 0; true");
+      await pcjs("document.querySelector('.sheet').scrollTop = 0; true");
     }
     // Home's line, "Today's practice: ...", under the Fix card, opening the page.
     mainWindow.show('home');
@@ -1251,7 +1252,7 @@ setTimeout(async () => {
     const lineBack = await until(() => hjs("!document.getElementById('h-practice').hidden"), 4000);
     lines.push(`home's line once practiced today: gone=${!!lineGone} | the entry deleted: ${!!unmarked} | the line back=${!!lineBack}`);
     if (!lineGone || !unmarked || !lineBack) return report(false, 'marking or deleting a drill did not move the log and Home\'s line');
-    await pcjs("document.querySelector('.body').scrollTop = 0; true");
+    await pcjs("document.querySelector('.sheet').scrollTop = 0; true");
     // THE TRAINER PAGE (docs/claude/trainer.md), right after Practice: it
     // comes in from its tab in the bar, on its menu with every scenario
     // listed. Its run, the pointer lock and its loop are check:trainer's.

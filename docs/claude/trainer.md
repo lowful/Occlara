@@ -143,7 +143,7 @@ the pause or the report over the last frame drawn.
   on top (hidden for Calibration), the scenario's line, HP and armour when
   the bots shoot back, the weapon, a reload bar and the ammo, a hit mark, a
   "+points" pop on each kill (`killPoints`, before the accuracy factor), the
-  Accurate light in Counter-strafe, and a red edge on the side a bot's hit
+  Accurate light in Counter strafe, and a red edge on the side a bot's hit
   came from. The crosshair is a 2D canvas over the view that rises with the
   recoil the spray has built (`engine.recoilPx`) and, with Opens with firing
   error on, opens with the cone (`engine.conePx`).
@@ -485,7 +485,7 @@ loaded from `models/figure.js`.
   out from the run's own seed (`app.js` sets `run.seed`, `scenarios.js`
   draws every range target's place from `rng(run.seed)` and each strafing
   target's legs from a seed drawn off it), so a run is laid out again from
-  its seed (the debug handle's `seedNext`). Counter-strafe keeps its
+  its seed (the debug handle's `seedNext`). Counter strafe keeps its
   targets standing: what it trains is the player's own stop, and a moving
   target would score the tracking too.
 
@@ -547,7 +547,7 @@ level that has one (`limit` 0 is none).
 | flick-grid | Flick grid | range, flick | 30 targets one at a time across 110 degrees, 8 to 22 m, 60 s |
 | micro-flicks | Micro flicks | range, micro | 40 targets a few degrees from the last, 13 to 16 m, 45 s |
 | strafe-track | Strafing targets | range, track | 12 targets that strafe ADAD as a player does, never the same pattern twice (a random travel, a random hold at each turn and short taps, from the run's seed), slowed when hit; 60 s |
-| counter-strafe | Counter-strafe | range, strafe | 20 targets; a hit counts only when the player was under the accuracy gate (an Accurate light on the HUD), every stop timed, 60 s |
+| counter-strafe | Counter strafe | range, strafe | 20 targets; a hit counts only when the player was under the accuracy gate (an Accurate light on the HUD), every stop timed, 60 s |
 | spray-wall | Spray control | range, spray | five sprays of at least 8 bullets at a target 10 m away with a wall behind it, scored on the bullets that land |
 | site-preaim-easy, site-preaim-hard | Site retake | site, route | 10 bots on 10 of the 14 spots, cleared walking the route; hard 45 s |
 | lane-hold-easy, lane-hold-hard | Hold the main | lane, hold | 15 bots through the choke or out of the cubbies; one that walks its path alive got away; 60 s |
@@ -906,7 +906,7 @@ change from the last run of that scenario ("+4% from last run", "Same as
 last run"), green when better and red when worse, lower being better for
 reaction, time to kill, stop time and damage taken. Stats a scenario never
 measures are left out: Spray control drops Headshots, Reaction, Time to kill
-and Stop time, and the range drills other than Counter-strafe drop Stop time.
+and Stop time, and the range drills other than Counter strafe drop Stop time.
 Notes follow (a replay's result, shots fired while moving, each spray's
 hits, bots that got away, no raw input, a run that could not be saved). R is
 Retry, Enter is Next (the next scenario in the file, the next death for a

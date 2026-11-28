@@ -218,7 +218,7 @@ const pats = (list, recorded) => ({ enough: true, recorded: recorded || 6, mista
   ok(ids('awareness') === 'u1,u2' && ids('sense') === 'e1' && ids('mechanics') === 'e2',
     'the plan\'s own drills, two a mistake, each in its group (a drill names its own: e2 is Mechanics)', ['mechanics', 'sense', 'awareness'].map(ids).join(' | '));
   const u1 = v9.groups.find((g) => g.id === 'awareness').drills[0];
-  ok(u1.reason.kind === 'mistake' && u1.reason.key === 'untraded' && u1.reason.title === 'Deaths nobody traded' && u1.reason.line === 'In 5 of your last 8 matches',
+  ok(u1.reason.kind === 'mistake' && u1.reason.key === 'untraded' && u1.reason.title === 'Deaths nobody traded' && u1.reason.line === 'In 5 of your last 8 recorded matches',
     'WHY IT IS HERE: each drill carries its repeated mistake and how often it repeated', JSON.stringify(u1.reason));
   ok(v9.groups.every((g) => g.drills.every((d) => d.group === g.id)), 'and its group');
   // The plan leaves Mechanics empty: the next repeated mistake of its kind.
@@ -226,7 +226,7 @@ const pats = (list, recorded) => ({ enough: true, recorded: recorded || 6, mista
   const st9b = P.choosePlan({ patterns: p9, library: lib9b, band: null, state: P.emptyState(), now: day(0) }).state;
   const v9b = P.planView({ patterns: p9, library: lib9b, band: null, state: st9b, now: day(0), saved: [] });
   const mech = v9b.groups.find((g) => g.id === 'mechanics');
-  ok(mech.drills.map((d) => d.id).join() === 'd1' && mech.drills[0].reason.title === 'Lost the duel' && mech.drills[0].reason.line === 'In 3 of your last 8 matches',
+  ok(mech.drills.map((d) => d.id).join() === 'd1' && mech.drills[0].reason.title === 'Lost the duel' && mech.drills[0].reason.line === 'In 3 of your last 8 recorded matches',
     'A GROUP THE PLAN LEAVES EMPTY takes one drill for the next repeated mistake of its kind, with that mistake as its reason', JSON.stringify(mech.drills.map((d) => [d.id, d.reason])));
   // No repeated mistake of a kind beyond the plan: one drill for every player, saying so.
   const p9c = pats([M('untraded', 'Deaths nobody traded', 5), M('early', 'Dying early', 4)], 8);
@@ -239,8 +239,22 @@ const pats = (list, recorded) => ({ enough: true, recorded: recorded || 6, mista
   const v9d = P.planView({ patterns: { enough: false, recorded: 0, mistakes: [] }, library: lib9, band: null, state: P.emptyState(), now: day(0), saved: [] });
   ok(v9d.status === 'nomatches' && v9d.groups.find((g) => g.id === 'sense').drills.map((d) => d.id).join() === 'gs,gs2'
     && v9d.groups.find((g) => g.id === 'awareness').drills.map((d) => d.id).join() === 'ga'
-    && v9d.groups.every((g) => g.drills.every((d) => d.reason.kind === 'general' && d.reason.line === 'For every player')),
-  'NO PLAN: drills for every player in each group, two at most, saying why');
+    && v9d.groups.every((g) => g.drills.every((d) => d.reason === null)),
+  'NO PLAN: drills for every player in each group, two at most, no row repeating "For every player" (the card above says it once)');
+  // A drill that starts from a review waits for the first recorded match.
+  const lib9f = P.normaliseLibrary({ drills: [{ id: 'gs0', title: 'Play the review\'s fix', cause: 'general', needs: 'review', steps: ['x'] }, ...lib9.drills] });
+  ok(lib9f.drills[0].id === 'gs0' && lib9f.drills[0].needs === 'review' && lib9.drills[0].needs === null, 'needs: review is kept, and any other drill needs nothing');
+  const v9f = P.planView({ patterns: { enough: false, recorded: 0, mistakes: [] }, library: lib9f, band: null, state: P.emptyState(), now: day(0), saved: [] });
+  const v9g = P.planView({ patterns: { enough: false, recorded: 3, mistakes: [] }, library: lib9f, band: null, state: P.emptyState(), now: day(0), saved: [] });
+  ok(v9f.status === 'nomatches' && !v9f.groups.some((g) => g.drills.some((d) => d.id === 'gs0')) && !v9f.general.some((d) => d.id === 'gs0')
+    && v9g.status === 'norepeats' && v9g.groups.find((g) => g.id === 'sense').drills[0].id === 'gs0',
+  'a drill that needs a review is not offered with no match yet, and is once there is one');
+  // THE SUB LINE AND THE PRIVACY LINE say only what is true of the page.
+  ok(v9.sub === 'Drills picked from what keeps repeating in your matches.' && /^Your plan and log/.test(v9.privacy)
+    && v9d.sub === 'Drills for every player, until a mistake repeats in your matches.' && v9g.sub === v9d.sub && /^Your practice log is kept on this PC/.test(v9d.privacy)
+    && P.planView({ patterns: p9, library: null, band: null, state: st9, now: day(0), saved: [] }).sub === null
+    && !DASHES.test(v9.sub + v9d.sub + v9.privacy + v9d.privacy),
+  'the sub line names the repeats only with a plan, says the drills are for every player without one, and is none with no drills; the privacy line names a plan only with one');
   // The Trainer: always under Mechanics, alone there, its scenarios the group's drills' first.
   const tr = v9.groups.find((g) => g.id === 'mechanics').trainer;
   ok(tr && v9.groups.filter((g) => g.trainer).length === 1 && tr.title === 'Aim trainer' && tr.line && !DASHES.test(JSON.stringify(tr)),
@@ -344,7 +358,8 @@ const series = (after, before) => [
   p = P.progressOf(series([true, false, true, false], [true, false]), KEY, day(0));
   ok(p.trend === 'same' && p.text === 'Same rate, 2 of 4 against 1 of 2', 'the same share over windows of two sizes says so', p.text);
   p = P.progressOf(series([true, false, true], []), KEY, day(0));
-  ok(p.enough && p.trend === null && p.text === 'In 2 of your 3 matches since the plan', 'nothing before the plan: the count alone, no comparison', p.text);
+  ok(p.enough && p.trend === null && p.tone === 'wait' && p.text === 'Nothing earlier to compare yet' && p.over === 'In 2 of your 3 matches since the plan, with none before it to compare',
+    'nothing before the plan: no second count beside the focus line, only that there is nothing to compare yet, quiet, the count in its title', JSON.stringify(p));
   // Seven since the plan: the last five against the five before them.
   p = P.progressOf(series([false, false, false, false, false, true, true], [true, true, true]), KEY, day(0));
   ok(p.text === 'Down from 5 of 5 to 0 of 5', 'more than five since: the last five against the five before them', p.text);
@@ -570,6 +585,19 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
   const missing = wanted.filter((id) => !ids.has(id));
   ok(wanted.length > 15 && !missing.length, `THE PAGE'S DOM HOOKS: every id practice.js asks for is in its index.html (${wanted.length})`, missing.join());
   ok(/^\/\* palette: tokens only \*\//.test(css), 'its stylesheet is held to tokens');
+  {
+    // 9.1 fixes, by their rules: the page scrolls as one (nothing sliced by
+    // a fixed title), the chevron and state line up on every row, the play
+    // mark has no nudge (Clips' PLAY_PATH is centred), the dot runs inline.
+    const rule = (sel) => { const m = css.match(new RegExp('(?:^|\\n)' + sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}')); return m ? m[1] : ''; };
+    ok(/overflow-y:\s*auto/.test(rule('.sheet')) && /display:\s*block/.test(rule('.sheet')) && /position:\s*sticky/.test(rule('.sheet::before'))
+      && !/overflow-y:\s*auto/.test(rule('.body')),
+    'THE PAGE SCROLLS AS ONE: the sheet scrolls, title and all, under a sticky fade, and the body does not scroll on its own');
+    ok(/grid-column:\s*5/.test(rule('.pc-d-chev')) && /min-width:\s*112px/.test(rule('.pc-d-state')) && !/\.pc-d-state:empty/.test(css),
+      'the chevron pinned to its column and the state a fixed width, so rows line up with or without progress');
+    ok(!/translateX\(1px\)/.test(css), 'no hand nudge on the play mark, which is centred by its own shape');
+    ok(/display:\s*block/.test(rule('.pc-reason')) && /display:\s*inline-block/.test(rule('.pc-r-dot')), 'the reason runs as text, its dot inline');
+  }
   ok(![html, js, css].some((s) => DASHES.test(s)), 'no dash in the page');
   ok(/src="\.\.\/shared\/motion\.js"/.test(html) && /Motion/.test(js) && html.indexOf('../shared/embed.js') < html.indexOf('<link rel="stylesheet"'),
     'it loads embed.js first and the shared motion layer');
@@ -594,6 +622,8 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     const $ = q.$;
     ok(!$('pc-page').hidden && $('pc-wait').hidden && !$('pc-plan').hidden && $('pc-empty').hidden && $('pc-asked').hidden,
       'the page paints the plan');
+    const subLine = q.document.querySelector('.sheet > header > .page-sub');
+    ok(subLine && !subLine.hidden && subLine.textContent === 'Drills picked from what keeps repeating in your matches.', 'THE SUB LINE is main\'s, and with a plan names the repeats', subLine && subLine.textContent);
     const blocks = q.document.querySelectorAll('.pc-focus');
     ok(blocks.length === 2 && blocks[0].querySelector('.pc-focus-title').textContent === 'Deaths nobody traded'
       && blocks[0].querySelector('.pc-count').textContent === 'In 6 of your last 6 recorded matches', 'YOUR FOCUS: two mistakes at the top, each with its count', blocks.length);
@@ -617,8 +647,9 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     const planned = cards.filter((c) => c.dataset.reason !== 'general');
     ok(planned.length === 4 && planned.every((c) => {
       const r = c.querySelector('.pc-d-head .pc-reason');
-      return r && r.classList.contains('is-mistake') && r.querySelector('.pc-r-dot') && ['Deaths nobody traded', 'Dying early'].includes(r.querySelector('.pc-r-title').textContent)
-        && r.querySelector('.pc-r-line').textContent === 'In 6 of your last 6 matches';
+      // The dot inside the title, before its first word, so a long title never orphans it.
+      return r && r.classList.contains('is-mistake') && r.querySelector('.pc-r-title > .pc-r-dot') && ['Deaths nobody traded', 'Dying early'].includes(r.querySelector('.pc-r-title').textContent)
+        && r.querySelector('.pc-r-line').textContent === 'In 6 of your last 6 recorded matches';
     }), 'WHY IT IS HERE: every drill of the plan names its repeated mistake and how often, on its row', planned.length);
     const fill = cards.find((c) => c.dataset.reason === 'general');
     ok(fill && fill.dataset.group === 'mechanics' && /^For every player, as nothing of this kind repeats/.test(fill.querySelector('.pc-reason').textContent) && fill.querySelector('.pc-reason').classList.contains('is-general'),
@@ -661,6 +692,7 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     await settle(10);
     ok(!$('pc-empty').hidden && $('pc-empty-title').textContent === 'League of Legends practice' && $('pc-plan').hidden && $('pc-log-sec').hidden,
       'League: its panel and nothing else');
+    ok(q.document.querySelector('.sheet > header > .page-sub').hidden, 'and no sub line about repeats in your matches over it');
   }
 
   // ── The Trainer under Mechanics, the log, the review's link (9.1) ──────
@@ -715,7 +747,7 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     const cards = q.document.querySelectorAll('.pc-drill');
     const card = cards.find((c) => c.dataset.drill === tagged);
     const btn = card && card.querySelector('.pc-train');
-    ok(btn && btn.textContent === 'Train this' && btn.className === 'btn btn-ghost sm pc-train' && btn.title === 'Opens the Trainer on Counter-strafe',
+    ok(btn && btn.textContent === 'Train this' && btn.className === 'btn btn-ghost sm pc-train' && btn.title === 'Opens the Trainer on Counter strafe',
       'TRAIN THIS: a tagged drill\'s card has it, the shared capsule at Mark as practiced\'s size, its title naming the scenario', btn && `${btn.className} | ${btn.title}`);
     const foot = card.querySelector('.pc-d-foot');
     ok(foot.children[0].classList.contains('pc-mark') && foot.children[foot.children.length - 1] === btn, 'beside Mark as practiced, last in the foot, so nothing before it moves');

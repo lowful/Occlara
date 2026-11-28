@@ -214,6 +214,9 @@ function normDrill(d) {
     demo: demoOf(d.demo),
     trainer,
     group: groupOf(d.group, causes, trainer),
+    // 9.1: a drill that starts from a review ("Play the review's one fix")
+    // says so, and is not offered before there is one.
+    needs: d.needs === 'review' ? 'review' : null,
   };
 }
 
@@ -418,8 +421,12 @@ function progressOf(saved, key, since) {
   const a = recent.filter((s) => carries(s.review, key)).length;
   const A = recent.length;
   const out = { enough: true, recent: { n: a, of: A } };
+  // Every recorded match is since the plan: the count beside it already says
+  // how often, so this says only that there is nothing to compare with yet,
+  // quiet, and keeps the count for its title.
   if (!before.length) {
-    return { ...out, before: null, tone: 'even', trend: null, over: null, text: `In ${a} of your ${A} matches since the plan` };
+    return { ...out, before: null, tone: 'wait', trend: null,
+      over: `In ${a} of your ${A} matches since the plan, with none before it to compare`, text: 'Nothing earlier to compare yet' };
   }
   const b = before.filter((s) => carries(s.review, key)).length;
   const B = before.length;
@@ -546,9 +553,9 @@ function todayOf(state, library, now, game) {
   return null;
 }
 
-/** How often a mistake repeated, the short way a drill's reason says it. */
+/** How often a mistake repeated, in the one phrasing the page uses for it (Your focus and a drill's reason). */
 const repeatLine = (m, recorded) => (m && Number.isFinite(m.matches) && m.matches > 0 && recorded > 0
-  ? `In ${m.matches} of your last ${recorded} matches` : null);
+  ? `In ${m.matches} of your last ${recorded} recorded matches` : null);
 
 /**
  * THE THREE GROUPS (9.1): Mechanics, Game sense and Awareness, each with only
@@ -592,13 +599,17 @@ function groupsView(o) {
       }
     }
     if (!list.length) {
-      // Short: the page's head already says why there is no plan yet.
-      const line = plan ? 'For every player, as nothing of this kind repeats in your matches' : 'For every player';
+      // With a plan, the row says why a drill for every player stands among
+      // the mistakes' drills. Without one every row is for every player, and
+      // the card above says so once, so the rows carry no reason at all.
+      const reason = plan ? { kind: 'general', key: GENERAL, title: null, line: 'For every player, as nothing of this kind repeats in your matches' } : null;
       for (const d of drillsFor(library, GENERAL, band, log)) {
         if (list.length >= (plan ? 1 : 2)) break;
         if (d.group !== g.id || seen.has(d.id)) continue;
+        // A drill that starts from a review ("Play the review's one fix") waits for the first one.
+        if (d.needs === 'review' && status === 'nomatches') continue;
         seen.add(d.id);
-        list.push({ ...drillView(d, log, now), reason: { kind: 'general', key: GENERAL, title: null, line } });
+        list.push({ ...drillView(d, log, now), reason });
       }
     }
     return { ...g, drills: list, trainer: g.id === 'mechanics' ? trainerView(list) : null };
@@ -616,7 +627,7 @@ function trainerView(list) {
   const own = list.find((d) => d.reason && d.reason.kind === 'mistake' && d.reason.title);
   return {
     title: 'Aim trainer',
-    line: 'Flicks, counter strafing, spray control and site retakes, played right here in the app.',
+    line: 'Flicks, counter strafes, spray control and site retakes, played right here in the app.',
     scenarios: ids.slice(0, 3).map((id) => ({ id, title: TRAINER_SCENARIOS.get(id) })),
     reason: own ? { ...own.reason } : { kind: 'general', key: GENERAL, title: null, line: 'A few minutes before you queue warms up every player.' },
   };
@@ -673,7 +684,8 @@ function planView(o) {
   }
 
   const general = library && status !== 'plan'
-    ? drillsFor(library, GENERAL, band, log).slice(0, DRILLS_N).map((d) => drillView(d, log, now)) : [];
+    ? drillsFor(library, GENERAL, band, log).filter((d) => !(d.needs === 'review' && status === 'nomatches'))
+      .slice(0, DRILLS_N).map((d) => drillView(d, log, now)) : [];
 
   const groups = groupsView({ status, focus, asked, mistakes, recorded, library, band, log, now });
 
@@ -691,12 +703,21 @@ function planView(o) {
           : 'A mistake needs to show up in two recorded matches before it is a habit to practice. Until then, these drills help every player.' }
         : null;
 
+  // The page's grey sub line under its title, true of what it shows: picked
+  // from the player's repeats only when there is a plan; none when there are
+  // no drills at all (the empty card says why).
+  const sub = status === 'plan' ? 'Drills picked from what keeps repeating in your matches.'
+    : status === 'nolibrary' ? null
+      : 'Drills for every player, until a mistake repeats in your matches.';
+
   return {
     status, empty, focus, asked, general, groups, band, bandLine, needsRiotId: !band && !o.riotId,
+    sub,
     streak: streakOf(log, now),
     today: todayOf(state, library, now, 'valorant'),
     log: log.map((e) => ({ id: e.id, title: e.title, minutes: e.minutes, at: e.at, day: dayKey(e.at) })),
-    privacy: 'Your plan and log are kept on this PC. Nothing on this page is sent anywhere.',
+    privacy: status === 'plan' ? 'Your plan and log are kept on this PC. Nothing on this page is sent anywhere.'
+      : 'Your practice log is kept on this PC. Nothing on this page is sent anywhere.',
   };
 }
 
