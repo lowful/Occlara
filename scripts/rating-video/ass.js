@@ -6,7 +6,8 @@
  * the app's own Geist (decoded by woff2.js), and motion on time, frame exact,
  * no browser and no Electron. The stream widget's broadcast look
  * (renderer/rating-widget): one plate on the app's surface with its rim and
- * shadow, the number on its tier's colour in the dark ink, the move rising in
+ * shadow, the number on its tier's colour in the dark ink (on the app's 100
+ * scale, 68 and never 6.8, countSteps), the move rising in
  * green or falling in red at the event's moment, the short label, and the
  * moon with "Occlara" so a clip carries the brand.
  *
@@ -163,9 +164,16 @@ function labelWidth(text, size) {
   return em * size;
 }
 
+const { tierOf, Display } = require('../../src/shared/rating');
+
 /**
- * The count from one value to the next: the shown tenth at each frame step,
- * ease out, as [{ t, shown }] from t0, the first the old value moved.
+ * The count from one value to the next, ON THE APP'S 100 SCALE (9.1, the
+ * owner's item 16, shared/display.js rating): 6.8 is drawn "68", as the
+ * review, the live rating and its stream widget show it, so a clip made with
+ * this tool never shows a number the app does not. The shown number at each
+ * frame step, ease out, as [{ t, shown, value }] from t0, the first the old
+ * value moved; `value` is the shown number back in the rating's own units,
+ * for its tier.
  */
 function countSteps(t0, from, to, until) {
   const out = [];
@@ -174,15 +182,13 @@ function countSteps(t0, from, to, until) {
   for (let t = t0; t < end - 1e-6; t += FPS_STEP) {
     const u = (t - t0) / COUNT_S;
     const v = from + (to - from) * (1 - Math.pow(1 - Math.min(1, u + FPS_STEP / COUNT_S), 3));
-    const shown = (Math.round(v * 10) / 10).toFixed(1);
-    if (shown !== last) { out.push({ t, shown }); last = shown; }
+    const shown = Display.rating(v);
+    if (shown !== last) { out.push({ t, shown, value: Display.ratingPoints(v) / 10 }); last = shown; }
   }
-  const fin = to.toFixed(1);
-  if (last !== fin) out.push({ t: end, shown: fin });
+  const fin = Display.rating(to);
+  if (last !== fin) out.push({ t: end, shown: fin, value: Display.ratingPoints(to) / 10 });
   return out;
 }
-
-const { tierOf } = require('../../src/shared/rating');
 
 /**
  * The ASS script for a plan on a W by H video `duration` seconds long.
@@ -210,12 +216,12 @@ function assOf(plan, W, H, duration, opts) {
 
   // The number and the badge: a segment a shown value, each count frame its own.
   const B = L.badge;
-  const marks = [{ t: 0, shown: plan.start.toFixed(1), value: plan.start }];
+  const marks = [{ t: 0, shown: Display.rating(plan.start), value: plan.start }];
   const steps = plan.steps.slice().sort((a, b) => a.t - b.t);
   let prev = plan.start;
   steps.forEach((s, i) => {
     const until = i + 1 < steps.length ? steps[i + 1].t : end;
-    for (const c of countSteps(s.t, prev, s.value, until)) marks.push({ t: c.t, shown: c.shown, value: Number(c.shown) });
+    for (const c of countSteps(s.t, prev, s.value, until)) marks.push({ t: c.t, shown: c.shown, value: c.value });
     prev = s.value;
   });
   const ft = o.fullTime > 0 ? duration : null;

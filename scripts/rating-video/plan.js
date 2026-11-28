@@ -12,9 +12,13 @@
 
 const rating = require('../../src/shared/rating');
 const { liveLabel } = require('../../src/main/services/live-rating-service');
+// The move as the live rating shows it (9.1): the difference of the two shown
+// numbers on the 100 scale, so "64, +4" never disagrees with the 60 before it.
+const { moveOf } = require('../../src/shared/live-rating');
 
 function step(t, out, kind) {
-  return { t, kind, value: out.value, shown: rating.Display.rating(out.value), tier: rating.tierOf(out.value), delta: out.delta ? rating.signed(out.delta) : '', up: rating.Display.moveWay(rating.signed(out.delta)) === 'up', down: rating.Display.moveWay(rating.signed(out.delta)) === 'down', label: liveLabel(out.label) };
+  const m = out.delta ? moveOf({ value: out.value, delta: out.delta, label: null }) : null;
+  return { t, kind, value: out.value, shown: rating.Display.rating(out.value), tier: rating.tierOf(out.value), delta: m && (m.up || m.down) ? m.delta : '', up: !!(m && m.up), down: !!(m && m.down), label: liveLabel(out.label) };
 }
 
 /**

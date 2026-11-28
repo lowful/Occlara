@@ -1014,11 +1014,16 @@ drawn by the bundled ffmpeg's libass, chosen over drawtext with PNG overlays
 because one subtitle script carries shapes, text and motion on time, frame
 exact, and over a hidden Electron window because it needs none. One plate on
 the app's surface with its rim and shadow, the number in its tier's colour in
-the dark ink (counted to its new value in 0.42 s, the badge's colour turning
-with it), the move rising in green or falling in red at the event (sliding 14
+the dark ink, ON THE APP'S 100 SCALE (9.1, the final critic: it burned "6.8"
+while the app, the live rating and its widget show 68; `ass.js countSteps`
+counts through `Display.rating`, and the move is the live rating's own
+`live-rating.js moveOf`, the difference of the two shown numbers, so "63, +3"
+never disagrees with the 60 before it; `test:ratingvideo` holds that no
+tenth is ever drawn), counted to its new value in 0.42 s, the badge's colour turning
+with it, the move rising in green or falling in red at the event (sliding 14
 px and fading after 2.8 s), the short label without the numbers standing
-(`liveLabel`, rising 6 px, held 4 s; a kill that moves the shown number less
-than 0.05 keeps its label and shows no move), and the moon with
+(`liveLabel`, rising 6 px, held 4 s; a kill that moves the shown number by
+nothing keeps its label and shows no move), and the moon with
 "Occlara" (9.1: drawn from the mark's one source, scripts/moon, each outline
 run against the one it lies in so libass cuts the seas and craters as the
 SVG's even odd rule does, `ass.js moonMark`; the stream widget signs with the

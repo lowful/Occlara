@@ -43,6 +43,7 @@ const kf = require('../src/shared/killfeed');
 const { createOfflineReader, checkEvents } = require('./rating-video/events');
 const { planOf, planOfRecord, alignRounds } = require('./rating-video/plan');
 const { assOf, FONT_FILES } = require('./rating-video/ass');
+const { Display } = require('../src/shared/rating');
 const { woff2ToTtf } = require('./rating-video/woff2');
 
 const REPO = path.join(__dirname, '..');
@@ -246,7 +247,8 @@ async function main() {
     plan = planOf(events, { mode: o.mode, agent: o.agent, startRound: o.startRound });
   }
   for (const s of plan.steps) console.log(`  ${s.t.toFixed(2).padStart(7)} s  ${s.delta.padStart(5)}  ${s.shown}  ${s.label}`);
-  console.log(`the rating: ${plan.start.toFixed(1)} at the start, ${plan.final.toFixed(1)} at the end`);
+  // On the app's 100 scale, as the badge draws it (9.1).
+  console.log(`the match rating: ${Display.rating(plan.start)} at the start, ${Display.rating(plan.final)} at the end`);
 
   const outW = o.vertical ? 1080 : info.W - (info.W % 2);
   const outH = o.vertical ? 1920 : info.H - (info.H % 2);

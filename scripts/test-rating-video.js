@@ -207,10 +207,10 @@ const brief = (evs) => evs.map((e) => (e.kind === 'kill' ? `${e.round}:${e.kille
   ok(/corner/.test(threw || ''), 'overlay: an unknown corner is refused');
 
   const c = A.countSteps(10, 6.0, 6.4);
-  ok(c[0].t === 10 && c[c.length - 1].shown === '6.4' && c[c.length - 1].t <= 10 + A.COUNT_S + 1e-9 && c.every((x, i) => !i || Number(x.shown) >= Number(c[i - 1].shown)),
-    `overlay: the count climbs to the new value in ${A.COUNT_S} s (${c.map((x) => x.shown).join(' ')})`);
+  ok(c[0].t === 10 && c[c.length - 1].shown === '64' && c.every((x) => /^\d{2,3}$/.test(x.shown) && Math.abs(x.value * 10 - Number(x.shown)) < 1e-9) && c[c.length - 1].t <= 10 + A.COUNT_S + 1e-9 && c.every((x, i) => !i || Number(x.shown) >= Number(c[i - 1].shown)),
+    `overlay: the count climbs to the new value in ${A.COUNT_S} s, on the app's 100 scale (${c.map((x) => x.shown).join(' ')})`);
   const d = A.countSteps(5, 6.4, 5.9, 5.2);
-  ok(d[d.length - 1].shown === '5.9' && d[d.length - 1].t <= 5.2 + 1e-9, 'overlay: a count cut short by the next move still lands on its value');
+  ok(d[d.length - 1].shown === '59' && d[d.length - 1].t <= 5.2 + 1e-9, 'overlay: a count cut short by the next move still lands on its value');
   ok(A.ts(0) === '0:00:00.00' && A.ts(61.234) === '0:01:01.23' && A.ts(3725.5) === '1:02:05.50', 'overlay: ASS times');
   ok(A.col('#52C88A') === '&H8AC852&', 'overlay: colours in ASS\'s blue green red');
   // 9.1: the full moon, from its one source, its holes cut under either fill rule.
@@ -227,19 +227,20 @@ const brief = (evs) => evs.map((e) => (e.kind === 'kill' ? `${e.round}:${e.kille
   'overlay: the moon drawn from its one source, the disc and every sea and crater, each outline run against the one it lies in');
 
   const plan = { start: 6, final: 6.2, steps: [
-    { t: 3.1, value: 6.3, shown: '6.3', tier: 'fair', delta: '+0.3', up: true, down: false, label: 'Opening kill' },
-    { t: 5.4, value: 6.3, shown: '6.3', tier: 'fair', delta: '', up: false, down: false, label: 'Kill' },
-    { t: 9.0, value: 6.2, shown: '6.2', tier: 'fair', delta: '-0.1', up: false, down: true, label: 'Died {x}' },
+    { t: 3.1, value: 6.3, shown: '63', tier: 'fair', delta: '+3', up: true, down: false, label: 'Opening kill' },
+    { t: 5.4, value: 6.3, shown: '63', tier: 'fair', delta: '', up: false, down: false, label: 'Kill' },
+    { t: 9.0, value: 6.2, shown: '62', tier: 'fair', delta: '-1', up: false, down: true, label: 'Died {x}' },
   ] };
   const s = A.assOf(plan, 1920, 1080, 12, { fullTime: 2 });
   const lines = s.text.split('\n').filter((l) => l.startsWith('Dialogue:'));
   ok(/PlayResX: 1920/.test(s.text) && /PlayResY: 1080/.test(s.text) && s.end === 14, 'overlay: the script is the video\'s size and runs to the end of Full time');
-  ok(lines.some((l) => l.includes(',0:00:03.10,') && l.includes('+0.3') && l.includes(A.col(A.TOKENS.good))), 'overlay: the move rises in green at its moment');
-  ok(lines.some((l) => l.includes(',0:00:09.00,') && l.includes('-0.1') && l.includes(A.col(A.TOKENS.bad))), 'overlay: and falls in red at its moment');
+  ok(lines.some((l) => l.includes(',0:00:03.10,') && l.endsWith('}+3') && l.includes(A.col(A.TOKENS.good))), 'overlay: the move rises in green at its moment');
+  ok(lines.some((l) => l.includes(',0:00:09.00,') && l.endsWith('}-1') && l.includes(A.col(A.TOKENS.bad))), 'overlay: and falls in red at its moment');
   ok(!lines.some((l) => l.startsWith('Dialogue: 5,0:00:05.40,') && /Mono/.test(l)) && lines.some((l) => l.startsWith('Dialogue: 5,0:00:05.40,') && l.endsWith('}Kill')), 'overlay: a step that moved nothing shows its label and no move');
   ok(lines.some((l) => l.endsWith('}Died x')) && !lines.some((l) => /\}Died \{/.test(l)), 'overlay: a label cannot carry an override');
   ok(lines.some((l) => l.includes(',0:00:12.00,0:00:14.00,') && l.endsWith('}Full time')), 'overlay: "Full time" holds the last two seconds');
-  ok(lines.some((l) => l.endsWith('}6.3')) && lines.some((l) => l.endsWith('}6.2')) && lines.some((l) => l.endsWith('}Occlara')), 'overlay: the number and the brand are drawn');
+  ok(lines.some((l) => l.endsWith('}60')) && lines.some((l) => l.endsWith('}63')) && lines.some((l) => l.endsWith('}62')) && lines.some((l) => l.endsWith('}Occlara')), 'overlay: the number and the brand are drawn');
+  ok(!lines.some((l) => /\}\d+\.\d$/.test(l)) && lines.some((l) => /\}\d+$/.test(l)), "overlay: ONE SCALE (9.1): the badge never draws the rating's own tenths, 6.8 is 68 as the app shows it");
   const none = A.assOf(plan, 1920, 1080, 12, {});
   ok(!/Full time/.test(none.text) && none.end === 12, 'overlay: no Full time unless asked');
 }
