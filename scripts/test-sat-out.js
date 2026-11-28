@@ -245,10 +245,11 @@ const after = watched({ [AFK]: { afk: true } });
     || /^14 of your 16 deaths went unanswered: .*, and in 6 of them a teammate was close, /.test(e.detail), `the detail keeps the whole count and names the close ones (${e.detail})`);
   ok(e.closeRounds.join() === '5,7,9,11,13,14', `closeRounds (${e.closeRounds})`);
   const unknown = insights.valorant(make([null, null, null, null]), {}).mistakes;
-  ok(unknown.length === 1 && unknown[0].key === 'untraded' && unknown[0].count === 4 && unknown[0].title === 'Died where nobody could trade'
+  // One title for the key since 9.1 (mistake-titles.js): "Died where nobody could trade" claimed a distance no position gave.
+  ok(unknown.length === 1 && unknown[0].key === 'untraded' && unknown[0].count === 4 && unknown[0].title === 'Deaths nobody traded'
     && unknown[0].detail === '4 of your 4 deaths went unanswered: no teammate killed your killer within five seconds.'
     && unknown[0].fix === 'Before you take a fight, glance at the minimap for your nearest teammate, and if nobody is within a few steps, move toward them first.',
-    'with no distance known it is the one entry it always was, word for word, its fix the far one (Nov 2026, the coaching audit)');
+    'with no distance known it is the one entry it always was, under the one title (9.1), its fix the far one (Nov 2026, the coaching audit)');
   const allClose = insights.valorant(make(['close', 'close', 'close', 'far']), {}).mistakes;
   ok(allClose.length === 1 && allClose[0].key === 'untraded' && allClose[0].count === 4 && /fight where they can see whoever shoots you/.test(allClose[0].fix),
     `mostly close, the fix is about the pair (${allClose[0] && allClose[0].fix})`);

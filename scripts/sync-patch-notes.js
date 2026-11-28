@@ -72,9 +72,19 @@ async function getJson(url) {
  * text reads exactly like a change line ("Neon and shotgun nerfs are here!").
  * Pulling those in would attribute another patch's changes to this one, so the
  * page is cut at the first recommendation card before any text is read.
+ *
+ * The cut is at the carousel's own heading ("Related Articles") or a card's
+ * first part, whichever comes first, never at the card's title: cut at the
+ * title, the first card's category and date ("Game Updates",
+ * "2026-11-10T14:00:00.000Z") were read as lines of every older patch, and
+ * since Riot rotates which article that card shows, the history's lines
+ * changed between two syncs of the same pages. The daily sync committed that
+ * flip almost every day (24 to 27 Nov 2026), and every commit redeploys the
+ * server on Railway, restarting it under anyone mid match.
  */
+const CAROUSEL_RE = /<h2[^>]*>\s*Related Articles\s*<\/h2>|data-testid="(?:carousel|card|card-title)"/i;
 function htmlToLines(rawHtml) {
-  const cut  = rawHtml.search(/data-testid="card-title"/i);
+  const cut  = rawHtml.search(CAROUSEL_RE);
   const html = cut > 1000 ? rawHtml.slice(0, cut) : rawHtml;
   const text = html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -82,7 +92,7 @@ function htmlToLines(rawHtml) {
     .replace(/<li[^>]*>/gi, '\n')
     .replace(/<\/(p|div|h\d|li|tr|section)>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&')
     .replace(/&#x27;|&rsquo;|&#39;/g, "'")
     .replace(/&quot;|&ldquo;|&rdquo;/g, '"')
     .replace(/&hellip;/g, '...')

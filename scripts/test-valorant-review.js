@@ -1220,7 +1220,8 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   // Post plants and retakes are the rounds the player was alive in when the
   // spike went down: rounds 1, 6 and 7 were deaths before the plant.
   const post = pats.find((p) => p.key === 'postplant');
-  ok(post && post.text === 'On attack, won 1 of 2 rounds once the spike was down.' && !pats.some((p) => p.key === 'retake'),
+  // Said as the rounds the player was alive in (9.1, the AI audit), its "won 1 of 2 rounds" as Ask Coach reads it.
+  ok(post && post.text === 'On attack, won 1 of 2 rounds you were alive in once the spike was down.' && /won (\d+) of (\d+) rounds/.test(post.text) && !pats.some((p) => p.key === 'retake'),
     `a death before the plant is no post plant played, and no retake (${post && post.text})`);
   const ins = require('../src/shared/insights').valorant(rows, {});
   ok(!ins.missed.some((e) => e.key === 'postplant-lost'), 'nor a post plant that slipped');
@@ -1249,10 +1250,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     'a body built today carries the swing, the mark of the round 3 rules, and one without it is a client before them');
   const prompt = matchReview.buildPrompt(matchReview.normalise(bodyBefore3));
   const prompt3 = matchReview.buildPrompt(input);
-  ok(/COUNTED MISTAKES[^\n]*\n- Died where nobody could trade \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt)
+  ok(/COUNTED MISTAKES[^\n]*\n- Deaths nobody traded \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt)
     && /Second, the first counted mistake in your own words, with its count exactly as given/.test(prompt),
   'the summary is asked for the first counted mistake, with its count');
-  ok(/COUNTED MISTAKES[^\n]*\n- Died where nobody could trade \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt3)
+  ok(/COUNTED MISTAKES[^\n]*\n- Deaths nobody traded \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt3)
     && /Second, the lever the FOCUS fixes, in your own words: a counted mistake with its count exactly as given/.test(prompt3)
     && !/the first counted mistake/.test(prompt3) && /\nFOCUS LEVER: /.test(prompt3) && /\nAIM EVIDENCE: /.test(prompt3),
   'a round 3 client\'s summary is asked for the lever the focus fixes, never the first counted mistake by rule');
@@ -3401,6 +3402,49 @@ console.log('\nthe plant\'s time from Riot\'s record (the blind audit of round 7
   ok(verb.rounds[3] === 'Wait for a teammate to flash the site first.', `CAUGHT: "a teammate to drone or flash" is "a teammate to flash" (${verb.rounds[3]})`);
   const sova = matchReview.parse("SUMMARY: You lost 1 to 5.\nR3: Their Sova will use a flash or drone to clear you, so wait for a teammate's flash.", pin);
   ok(!sova.rounds[3] && sova.dropped.some((d) => d.n === 3 && d.said === 'team-utility'), 'their Sova\'s "flash or drone" is never cut into a flash Sova lacks: the line goes as before');
+}
+
+// ── Utility the player's own agent does not have (9.1, the AI audit) ───────
+{
+  console.log('\nutility the player\'s own agent does not have (9.1, the AI audit):');
+  // The Split swiftplay of 23 Nov, round 1: "use a flash or drone" to a Jett,
+  // whose kit has neither, on a team with Phoenix's flash and Tejo's drone.
+  const R = (n, o) => ({ n, side: 'attacking', result: 'lost', died: true, verified: true, traded: false, kills: 0, sec: 20, killer: 'Hush', weapon: 'Sheriff', ...o });
+  const body = (agent, team) => ({
+    rounds: [R(1, { sec: 52, place: 'Mid Vent', mate: 'close', traded: true }), R(2, { sec: 11, place: 'A Ramps', mate: 'far' }), R(3, { result: 'won', died: false, kills: 3 })],
+    swing: [], mistakes: [], strengths: [], patterns: [],
+    context: { agent, map: 'Split', rankBand: 'plat_diamond', enemyAgents: ['Chamber', 'Clove', 'Deadlock', 'Hush', 'Neon'], ...(team ? { teamAgents: team } : {}) },
+    final: { team: 5, enemy: 2, result: 'Victory', verified: true, scoreline: { kills: 11, deaths: 5, assists: 2, acs: 447 } } });
+  const SPLIT = 'At Mid Vent, use a flash or drone before dropping because a defender can hold the close angle, and losing you leaves your team 3 against 5.';
+  const jett = matchReview.normalise(body('Jett', ['Brimstone', 'Jett', 'Phoenix', 'Reyna', 'Tejo']));
+  const a = matchReview.parse(`SUMMARY: You won 5 to 2.\nR1: ${SPLIT}`, jett);
+  ok(a.rounds[1] === SPLIT.replace('use a flash or drone', "wait for a teammate's flash or drone"),
+    `CAUGHT: the Split round 1 "use a flash or drone" to a Jett is the team's, "wait for a teammate's flash or drone" (${a.rounds[1]})`);
+  const unknown = matchReview.parse(`SUMMARY: You won 5 to 2.\nR1: ${SPLIT}`, matchReview.normalise(body('Jett', null)));
+  ok(unknown.rounds[1] === a.rounds[1], 'and the same with the team unknown: the player\'s own kit is enough to judge');
+  const phoenix = matchReview.parse(`SUMMARY: You won 5 to 2.\nR1: ${SPLIT}`, matchReview.normalise(body('Phoenix', ['Brimstone', 'Jett', 'Phoenix', 'Reyna', 'Tejo'])));
+  ok(phoenix.rounds[1] === SPLIT, 'KEPT: the same line to a Phoenix, whose Curveball is a flash, as written');
+  const nobody = matchReview.parse(`SUMMARY: You won 5 to 2.\nR1: ${SPLIT}`, matchReview.normalise(body('Jett', ['Chamber', 'Iso', 'Jett', 'Neon', 'Raze'])));
+  ok(!nobody.rounds[1] && nobody.dropped.some((d) => d.n === 1 && d.said === 'own-utility'),
+    'and to a team where nobody has a flash or a drone the line goes', JSON.stringify(nobody.dropped));
+  const focus = matchReview.parse('SUMMARY: You won 5 to 2.\nFOCUS: Use your flash before you take the first duel, so the defender cannot shoot first.', jett);
+  ok(focus.focus === "Wait for a teammate's flash before you take the first duel, so the defender cannot shoot first.", `the focus too (${focus.focus})`);
+  const g = require('../server/services/fact-gates');
+  const f = (agent, sides) => ({ language: 'en', game: 'valorant', agent, ...(sides ? { sides } : {}) });
+  ok(g.ownUtilityFix('Their Sova will use a drone to find you.', f('Jett')) === null
+    && g.ownUtilityFix("Use your Sova's drone first.", f('Jett')) === null
+    && g.ownUtilityFix('Use a flash from a teammate before you peek.', f('Jett')) === null
+    && g.ownUtilityFix('Drop a smoke on the choke, then cross.', f('Jett')) === null
+    && g.ownUtilityFix('Send a drone in first.', f('Tejo')) === null
+    && g.ownUtilityFix('Use a flash or drone before dropping.', f('Sova')) === null
+    && g.ownUtilityFix('Use a flash before dropping.', f('NotAnAgent')) === null
+    && g.ownUtilityFix('Usa un flash antes de entrar.', { ...f('Jett'), language: 'es' }) === null,
+  'KEPT: an enemy\'s drone, a named teammate\'s, one asked of a teammate, Jett\'s own smoke, Tejo\'s and Sova\'s own drones, an agent nobody knows, and another language');
+  ok((g.ownUtilityFix('You should throw a flash before peeking.', f('Jett')) || {}).rewrite === "You should wait for a teammate's flash before peeking."
+    && (g.ownUtilityFix('Drop a smoke on the choke, then cross.', f('Raze')) || {}).rewrite === "Wait for a teammate's smoke on the choke, then cross."
+    && (g.ownUtilityFix('Use a stun before entering.', f('Jett')) || {}).rewrite === "Wait for a teammate's stun before entering.",
+  'CAUGHT: "you should throw a flash" to a Jett, "drop a smoke" to a Raze, "use a stun" to a Jett');
+  ok(g.OWN_UTIL_SAID.test('use a flash or drone') && !new RegExp(g.OWN_UTIL_SAID.source, 'i').test('used a flash'), 'the instruction pattern reads "use a flash or drone" and not "used a flash"');
 }
 
 // ── The two open gaps of stream C, in the review ──────────────────────────

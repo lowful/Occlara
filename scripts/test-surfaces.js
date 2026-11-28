@@ -1201,8 +1201,9 @@ async function openShell(cfg, state, opts) {
     const kids = (b.document.querySelector('#b-table .b-detail') || { children: [] }).children;
     const at2 = kids.findIndex((k) => k.textContent === 'Repeated here');
     const said = at2 === -1 ? '' : kids[at2 + 1].textContent;
-    ok(said.startsWith('Died where nobody could trade, in 2 of 2 recorded matches.'),
-      'a breakdown row counts its repeat out of its recorded matches, and says so', `read "${said}"`);
+    // Saved as "Died where nobody could trade", said under today's title (9.1, mistake-titles.js).
+    ok(said.startsWith('Deaths nobody traded, in 2 of 2 recorded matches.'),
+      'a breakdown row counts its repeat out of its recorded matches, and says so, under today\'s title', `read "${said}"`);
   });
 
   // NO WINS AND LOSSES ON THE MATCHES PAGE (8.9.1, the owner's call): the

@@ -29,7 +29,8 @@ const TOPICS = {
   // "Spike Rush" is a mode, never the spike's timings; a plant's time is the
   // spike's whatever heading it sits under ("Plant time: 4s >>> 3.5s").
   spike: /\b(?:spike(?! ?rush)|defuse|defuses|defused|defusing|defuser|detonat\w*|plant(?:ing)? (?:time|speed|duration))\b/i,
-  timers: /\b(?:round timer|round time|round length|round duration|buy phase|buy timer|buy time|barriers?)\b/i,
+  // "Barrier Orb" is Sage's wall, never the round's barriers.
+  timers: /\b(?:round timer|round time|round length|round duration|buy phase|buy timer|buy time|barriers?(?! ?orbs?\b))\b/i,
   format: /\b(?:overtime|sudden death|halftime|half time|side swap|swap sides|switch sides|rounds to win|first to \d+|win by two|best of \d+)\b/i,
   ultimate: /\b(?:ultimate points?|ult points?|ultimate orbs?|ult orbs?)\b/i,
   swiftplay: /\bswift ?play\b/i,
@@ -66,6 +67,10 @@ const CASES = [
   ['timers', 'Buy time reduced to 25 seconds', true],
   ['timers', 'Round length reduced to 90 seconds', true],
   ['timers', 'Tailwind duration reduced to 7 seconds', false],
+  ['timers', 'Barriers now drop 5 seconds sooner', true],
+  ['timers', 'Barrier phase extended', true],
+  ['timers', "Fixed an issue where certain interactions between Sage's Barrier Orb and Omen's Shrouded Step could cause unintended movement", false],
+  ['timers', 'Barrier Orbs now last longer', false],
   ['economy', 'Economy', true],
   ['economy', 'Loss bonus: 1,900 >>> 2,000', true],
 ];

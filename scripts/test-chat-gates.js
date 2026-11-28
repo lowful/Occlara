@@ -1058,9 +1058,15 @@ const riotOnly = (file, row, edit) => {
   const QR = 'Walk me through rounds 1 to 24';
   const inR = inputFor(ABYSS, QR);
   const pR = cp.buildPrompt(inR, [{ role: 'user', content: QR }], { variant: 'v2' });
+  // The budget as buildParts keeps it: DYNAMIC_MAX_CHARS, with the costliest
+  // deaths line and the ledger on top (costRoom). Held to the bare figure, the
+  // check failed on a draw of the notes' jitter that buildParts allows (9.1:
+  // 19004 of 19000, where the cost and ledger lines give this prompt 19935).
+  const fR = cp.factsOf(inR, [{ role: 'user', content: QR }]);
+  const roomR = cp.DYNAMIC_MAX_CHARS + (fR.costLine ? fR.costLine.length + 3 : 0) + (fR.ledger ? fR.ledger.length + 2 : 0);
   ok(JSON.stringify(cp.askedRounds(inR, [{ role: 'user', content: QR }])) === '[1,2,3]' && (pR.match(/ IN FULL\n/g) || []).length === cp.MAX_ASKED_ROUNDS
-    && pR.length - pR.indexOf('THE PLAYER') <= cp.DYNAMIC_MAX_CHARS,
-  `and three at most (cp.MAX_ASKED_ROUNDS), under the budget (${pR.length - pR.indexOf('THE PLAYER')} of ${cp.DYNAMIC_MAX_CHARS})`);
+    && pR.length - pR.indexOf('THE PLAYER') <= roomR,
+  `and three at most (cp.MAX_ASKED_ROUNDS), under the budget (${pR.length - pR.indexOf('THE PLAYER')} of ${roomR}, ${cp.DYNAMIC_MAX_CHARS} and the cost and ledger lines on top)`);
   ok(!gates.roundSentence('You died to a Sheriff.', fS).round && gates.roundSentence('You died to a Sheriff.', factsFor(inputFor(FRACTURE, 'Why did I lose round 5?'), [{ role: 'user', content: 'Why did I lose round 5?' }], STAND_IN)).round,
     'one round asked makes a sentence about the player its round\'s; two make it about neither');
 

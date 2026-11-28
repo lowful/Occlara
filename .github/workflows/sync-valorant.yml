@@ -59,6 +59,27 @@ jobs:
           git commit -m "data: sync Valorant game data and patch notes (automated)"
           git push
 
+      # A new patch whose notes name a stated fact's topic withholds that fact
+      # from every review and Ask Coach prompt until a person reads the lines
+      # and re-stamps it (docs/claude/primer.md). 13.10 did that silently for
+      # 18 days in Nov 2026, so the sync says so as an issue.
+      - name: Say when the new notes withhold a stated fact
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          HELD=$(node scripts/primer-withheld.js || echo "- the gate could not be read, run npm run check:primer")
+          if [ -n "$HELD" ]; then
+            TITLE="New patch notes withhold stated facts, read them and re-stamp"
+            BODY="The sync brought patch notes with lines that name the topic of these stated facts, so the server leaves them out of every review and Ask Coach prompt, and check:primer, check:playbook, check:cases, test:advancedtips, test:chatgates, test:rank-band and test:valorantreview fail until it is fixed. Read the lines npm run check:primer names; if the patch changed nothing a fact says, set its verifiedPatch in server/data/game-rules.json to the new patch (and the kit rules in server/data/kit-rules.json for an agent it touched), else correct the fact first. docs/claude/primer.md, the stated facts gate.
+
+          $HELD"
+            # With the label when it exists, without it when it does not: the issue is the point.
+            gh issue create --title "$TITLE" --body "$BODY" --label "primer" 2>/dev/null \
+              || gh issue create --title "$TITLE" --body "$BODY" \
+              || echo "issue create skipped"
+          fi
+
       - name: Open a release reminder
         if: steps.sync.outputs.needs_release == 'true'
         env:

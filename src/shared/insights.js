@@ -31,6 +31,7 @@
 const { CAUSES, isAvoidable, causeTitle } = require('./death-causes');
 const { satOut } = require('./sat-out');
 const { validBand } = require('./rank-band');
+const { TITLES, todaysTitle, todaysEntryTitle } = require('./mistake-titles');
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
 const times = (n) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
@@ -345,8 +346,15 @@ function valorant(rounds, opts = {}) {
    * 'untraded' entry of 2, under its own floor of 3, the trade lever was lost
    * and the prompt said never to make trading the focus. So 'untraded' keeps
    * the whole count, rounds and floor; the split is in its title, its detail,
-   * its fix and two fields, close (a count) and closeRounds. Only when no
-   * death had a teammate close is it the old title, word for word.
+   * its fix and two fields, close (a count) and closeRounds.
+   *
+   * ONE TITLE (9.1, mistake-titles.js). Until 9.1 a match where no death had a
+   * teammate close kept the old title, "Died where nobody could trade", and
+   * one where any had was "Deaths nobody traded": one key under two names,
+   * which the library and Home showed as two habits side by side. It is
+   * "Deaths nobody traded" either way, true of the count whatever the
+   * distance, and a review saved under the old title is shown under this one
+   * (todaysEntry, repeatTitle).
    */
   const untradedClears = (n) => n >= 3 && n * 10 >= knownTrade.length * 6;
   if (untradedClears(untraded.length)) {
@@ -356,7 +364,7 @@ function valorant(rounds, opts = {}) {
     const closeTail = !close.length ? '.'
       : `, and in ${close.length === 1 ? 'one' : close.length} of them a teammate was close, ${roundList(closeRounds)}.`;
     push(out.mistakes, {
-      key: 'untraded', title: close.length ? 'Deaths nobody traded' : 'Died where nobody could trade',
+      key: 'untraded', title: TITLES.untraded,
       detail: `${untraded.length} of your ${of} went unanswered: no teammate killed your killer within five seconds${closeTail}`,
       rounds: untraded.map((r) => r.n), weight: WEIGHT.untraded, untradedOnly: true, of: knownTrade.length,
       close: close.length, closeRounds,
@@ -536,7 +544,8 @@ function valorant(rounds, opts = {}) {
   if (post.length >= 3 && postWon.length * 10 >= post.length * 6) {
     push(out.strengths, {
       key: 'postplant', title: 'Closed out post plants',
-      detail: `Won ${postWon.length} of ${post.length} attack rounds once the spike was down.`,
+      // Only the rounds the player was alive in at the plant, and it says so (9.1, the AI audit).
+      detail: `Won ${postWon.length} of ${post.length} attack rounds you were alive in once the spike was down.`,
       rounds: postWon.map((r) => r.n),
     });
   }
@@ -545,7 +554,7 @@ function valorant(rounds, opts = {}) {
   if (retakes.length >= 3 && retakeWon.length * 2 >= retakes.length) {
     push(out.strengths, {
       key: 'retake', title: 'Won retakes',
-      detail: `Won ${retakeWon.length} of ${retakes.length} defence rounds after they planted.`,
+      detail: `Won ${retakeWon.length} of ${retakes.length} defence rounds you were alive in after they planted.`,
       rounds: retakeWon.map((r) => r.n),
     });
   }
@@ -613,7 +622,7 @@ function valorant(rounds, opts = {}) {
   if (post.length >= 3 && postWon.length * 10 < post.length * 4) {
     push(out.missed, {
       key: 'postplant-lost', title: 'Post plants that slipped',
-      detail: `Won only ${postWon.length} of ${post.length} attack rounds with the spike down.`,
+      detail: `Won only ${postWon.length} of ${post.length} attack rounds you were alive in with the spike down.`,
       fix: 'After the plant, watch the spike from cover on a different line from your teammates, and peek only when you hear the defuse start.',
       rounds: post.filter((r) => r.result === 'lost').map((r) => r.n),
     });
@@ -705,7 +714,9 @@ function repeatTitle(key, list, newest, specifics) {
   // (8.4.1), whatever the newest match's own count: one look's miss is "Repeek".
   const cause = String(key || '').startsWith('cause:') ? String(key).slice('cause:'.length) : null;
   if (cause && CAUSES[cause]) return { title: causeTitle(cause, 2), fix: newest.fix || null };
-  return { title: newest.title, fix: newest.fix || null };
+  // In today's words (mistake-titles.js): Wrapped names a key by a sighting
+  // the year record kept as it was saved.
+  return { title: todaysTitle(key, newest.title), fix: newest.fix || null };
 }
 
 /**
@@ -849,8 +860,10 @@ function countable(review) {
 
 /**
  * A recorded review's three lists in today's words: its clutch line, its
- * trades line (8.4.1), and a cause's title by its own count, "Repeek" for one
- * look's miss where 8.4.0 saved "Repeeks". Nothing else changes.
+ * trades line (8.4.1), a cause's title by its own count, "Repeek" for one
+ * look's miss where 8.4.0 saved "Repeeks", and a title a key no longer goes
+ * by, "Deaths nobody traded" where it was saved as "Died where nobody could
+ * trade" (9.1, mistake-titles.js). Nothing else changes.
  */
 function inTodaysWords(ins) {
   if (!ins || typeof ins !== 'object') return ins;
@@ -860,7 +873,7 @@ function inTodaysWords(ins) {
 
 function todaysEntry(e) {
   if (!e || typeof e !== 'object') return e;
-  let out = e;
+  let out = todaysEntryTitle(e);
   const detail = String(e.detail || '');
   if (e.key === 'clutch' && CLUTCH_RE.test(detail)) out = { ...out, detail: clutchWords(detail) };
   if (e.key === 'trades' && TRADES_RE.test(detail)) out = { ...out, detail: tradesWords(detail) };

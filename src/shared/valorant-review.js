@@ -521,15 +521,20 @@ function patterns(rounds) {
   // is the retake, and those are different skills, so they are counted apart.
   // Only the rounds the player was alive in when it went down
   // (insights.aliveAtPlant): a death before the plant is no post plant played.
+  // AND IT SAYS SO (9.1, the AI audit of the owner's library): the Bind review
+  // said "On defence, won 0 of 3 rounds after they planted" where Riot's
+  // record has the team winning 3 of the 10 defence rounds with a plant, the
+  // player dead before the plant in all three. "won N of M rounds" stays as it
+  // was, since Ask Coach reads it (chat-prompt.js weakTwo).
   const postAtk = decided.filter((r) => !satOut(r) && insights.aliveAtPlant(r) && r.side === 'attacking');
   if (postAtk.length >= 2) {
     const w = postAtk.filter((r) => r.result === 'won').length;
-    out.push({ key: 'postplant', text: `On attack, won ${w} of ${postAtk.length} rounds once the spike was down.` });
+    out.push({ key: 'postplant', text: `On attack, won ${w} of ${postAtk.length} rounds you were alive in once the spike was down.` });
   }
   const retakes = decided.filter((r) => !satOut(r) && insights.aliveAtPlant(r) && r.side === 'defending');
   if (retakes.length >= 2) {
     const w = retakes.filter((r) => r.result === 'won').length;
-    out.push({ key: 'retake', text: `On defence, won ${w} of ${retakes.length} rounds after they planted.` });
+    out.push({ key: 'retake', text: `On defence, won ${w} of ${retakes.length} rounds you were alive in after they planted.` });
   }
 
   // RIOT ONLY, and the one pattern that is good news: opening the round.

@@ -237,6 +237,11 @@ over a match lost on untraded deaths. So:
   eight kills, or a combat score a tenth over the player's own role average),
   and post plants and retakes count only rounds the player was alive in at
   the plant (`aliveAtPlant`). That match had three mistakes and no strength.
+  Since 9.1 the lines say so ("won 5 of 7 rounds you were alive in once the
+  spike was down", the strength, the miss and both patterns): the Bind review
+  of 10 Nov said "won 0 of 3 rounds after they planted" where Riot has the team
+  winning 3 defence rounds after a plant with the player already dead. "won N
+  of M rounds" is kept word for word, since Ask Coach reads it (weakTwo).
 
 **Riot counts rounds from 0**, and `time_in_round_in_ms` runs from the barriers
 dropping. The Riot ID in config is the one looked up, so a match played on

@@ -106,6 +106,7 @@
     "test:matchlifecycle": "node scripts/test-match-lifecycle.js",
     "test:matchlink": "node scripts/test-match-link.js",
     "test:moments": "node scripts/test-moments.js",
+    "test:mistaketitles": "node scripts/test-mistake-titles.js",
     "test:practice": "node scripts/test-practice.js",
     "test:trainerphysics": "node scripts/test-trainer-physics.js",
     "test:trainerreplay": "node scripts/test-trainer-replay.js",

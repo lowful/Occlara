@@ -20,7 +20,7 @@
  * carry their rounds (insights.js), and the patterns across matches carry the
  * same keys (patterns.js), so a death in one of those rounds is marked with the
  * mistake's title, and the COMPILATION at the top groups every such death by
- * the pattern it belongs to, "Died where nobody could trade, 20 deaths over 4
+ * the pattern it belongs to, "Deaths nobody traded, 20 deaths over 4
  * matches", with the clips kept of them to play back to back.
  *
  * CLIPS ARE ONLY WHERE THE COACH LOOKED. A clip is cut at a look (clips.js),
@@ -38,6 +38,8 @@
  */
 
 const { causeTitle } = require('./death-causes');
+// A title a key no longer goes by, in today's words (9.1).
+const { todaysTitle } = require('./mistake-titles');
 const { cardSatOut } = require('./sat-out');
 const { deathClip, CLIP_RE } = require('./clips');
 // How many matches the page reads: THE PATTERNS' OWN WINDOW, one and the same
@@ -110,7 +112,7 @@ function mistakesAt(review, n) {
   const ins = review.source === 'riot' ? null : review.insights;
   const list = ins && Array.isArray(ins.mistakes) ? ins.mistakes : [];
   return list.filter((e) => e && e.key && Array.isArray(e.rounds) && e.rounds.includes(n))
-    .map((e) => ({ key: e.key, title: e.title }));
+    .map((e) => ({ key: e.key, title: todaysTitle(e.key, e.title) }));
 }
 
 /**

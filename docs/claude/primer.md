@@ -136,7 +136,27 @@ Warden numbers, buff names, no economy, armour, spike, timer, format or
 ultimate point change; the sync had missed the page, whose slug has no hyphen,
 `valorant-patch-notes-1309`, and since 2026-11-04 `SLUG_RE` and `findNotesUrl`
 take both spellings, so the history holds 13.09 with its 112 lines, dated
-2026-10-27). **Numbers Riot skipped are no hole**: 13.03 and 13.07 were never
+2026-10-27; and to 13.10 on 2026-11-28, with the kit rules, after all 164 lines
+of Riot's 13.10 page were read: Sentinel cooldowns, Sage's Healing Orb
+targeting, assists, Gauntlet, bug fixes, no economy, armour, spike, timer,
+format, ultimate point or health change). **A new patch fails seven checks
+until someone re-stamps, and that is the gate working**: the daily sync brought
+13.10 on 2026-11-10 and two of its bug fix lines name the spike ("visual
+effects no longer persist on weapons or the Spike", "sound effects ... after
+detonation"), so from that deploy until the re-stamp the server withheld the
+plant, defuse, half, timer, beeps and plant pay from every review and Ask
+Coach prompt, and check:primer, check:playbook, check:cases,
+test:advancedtips, test:chatgates, test:rank-band and test:valorantreview
+failed (each holds a note or a case to a spike number the primer no longer
+stated). After a sync names a new patch, run `npm run check:primer`, read the
+lines it names, and re-stamp; since 9.1 the sync's workflow runs
+`scripts/primer-withheld.js` after a sync that changed the data and opens an
+issue listing every fact it withholds, so the next one is never silent. "Barrier Orb" no longer tags timers (13.10's
+Barrier Orb bug fix withheld the round and buy times), and since 2026-11-28
+the sync cuts the page at the carousel's "Related Articles" heading: cut at
+the card title, the first card's rotating category and date were read as
+lines of every older patch, and the daily sync committed that flip, a Railway
+redeploy each, on 24, 25, 26 and 27 Nov. **Numbers Riot skipped are no hole**: 13.03 and 13.07 were never
 released, the sync writes them from `RIOT_SKIPPED` into the file's `skipped`
 list, and `contiguous()` lets only a listed number sit between two patches. The
 sync prints, never records, a gap inside its window that the list does not

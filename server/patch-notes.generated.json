@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-27T23:20:21.260Z",
+  "generatedAt": "2026-11-28T11:47:19.479Z",
   "patch": "13.10",
   "buildDate": "2026-11-07T00:25:20Z",
   "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-10/",
@@ -286,11 +286,11 @@
           "names": []
         },
         {
-          "line": "Cooldown after being destroyed decreased from 60s &gt;&gt;&gt; 45s.",
+          "line": "Cooldown after being destroyed decreased from 60s >>> 45s.",
           "names": []
         },
         {
-          "line": "Reclaim cooldown increased from 15s &gt;&gt;&gt; 20s, in line with other Sentinels",
+          "line": "Reclaim cooldown increased from 15s >>> 20s, in line with other Sentinels",
           "names": []
         },
         {
@@ -314,7 +314,7 @@
           "names": []
         },
         {
-          "line": "Cooldown after being destroyed decreased from 60s &gt;&gt;&gt; 45s",
+          "line": "Cooldown after being destroyed decreased from 60s >>> 45s",
           "names": []
         },
         {
@@ -949,18 +949,6 @@
           "names": [
             "Sova"
           ]
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
-          "names": []
         }
       ]
     },
@@ -1179,7 +1167,7 @@
           "names": []
         },
         {
-          "line": "Bonus movement speed decreased from 15% &gt;&gt;&gt; 10%",
+          "line": "Bonus movement speed decreased from 15% >>> 10%",
           "names": []
         },
         {
@@ -1283,11 +1271,11 @@
           "names": []
         },
         {
-          "line": "2nd bullet error reduced from .25 &gt;&gt;&gt; .2",
+          "line": "2nd bullet error reduced from .25 >>> .2",
           "names": []
         },
         {
-          "line": "3rd bullet error reduced from .6 &gt;&gt;&gt; .5",
+          "line": "3rd bullet error reduced from .6 >>> .5",
           "names": []
         },
         {
@@ -1513,22 +1501,6 @@
           "names": [
             "Miks"
           ]
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
-          "names": []
         }
       ]
     },
@@ -1737,7 +1709,7 @@
           "names": []
         },
         {
-          "line": "Before (Left) -&gt; After (Right)",
+          "line": "Before (Left) -> After (Right)",
           "names": []
         },
         {
@@ -1838,22 +1810,6 @@
         },
         {
           "line": "We're aware of an issue that was putting some players into a bugged queue state while using the Practice Range, which led to us disabling the feature. We're currently testing a fix and hope to have it to you all ASAP.",
-          "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
           "names": []
         }
       ]
@@ -2517,22 +2473,6 @@
         {
           "line": "When exiting the queue, you may be unable to enter the Range for a moment even while not in any queue. This will be fixed in a following patch.",
           "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
-          "names": []
         }
       ]
     },
@@ -2789,22 +2729,6 @@
         {
           "line": "Fixed an issue where the close button was not functional after purchasing VALORANT Points.",
           "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
-          "names": []
         }
       ]
     },
@@ -2942,22 +2866,6 @@
         },
         {
           "line": "Fixed a bug where the animation on all transforming melee weapons (like Kuronami 2.0 and Nocturnum) would not transform during their inspect.",
-          "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
           "names": []
         }
       ]
@@ -3281,22 +3189,6 @@
         {
           "line": "Fixed an issue in game modes with no abilities where selecting Agent Info from the Settings menu could close the menu instead of displaying ability information.",
           "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
-          "names": []
         }
       ]
     },
@@ -3388,7 +3280,7 @@
           "names": []
         },
         {
-          "line": "Active Beacon Duration increased from 15s &gt;&gt;&gt; 20s",
+          "line": "Active Beacon Duration increased from 15s >>> 20s",
           "names": []
         },
         {
@@ -3442,15 +3334,15 @@
           ]
         },
         {
-          "line": "Recovery from 0.1 &gt;&gt;&gt; 0.15 after first shot",
+          "line": "Recovery from 0.1 >>> 0.15 after first shot",
           "names": []
         },
         {
-          "line": "Spread from 0 &gt;&gt;&gt; 2.25 after first shot",
+          "line": "Spread from 0 >>> 2.25 after first shot",
           "names": []
         },
         {
-          "line": "Recoil from 0 &gt;&gt;&gt; 4.0 after first shot",
+          "line": "Recoil from 0 >>> 4.0 after first shot",
           "names": []
         },
         {
@@ -3762,23 +3654,7 @@
           "names": []
         },
         {
-          "line": "For more information, check out &lt; this article &gt;.",
-          "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "line": "For more information, check out < this article >.",
           "names": []
         }
       ]
@@ -4309,15 +4185,15 @@
           ]
         },
         {
-          "line": "Recovery from .45 &gt;&gt;&gt; .4",
+          "line": "Recovery from .45 >>> .4",
           "names": []
         },
         {
-          "line": "Tap efficiency from 3 &gt;&gt;&gt; 4",
+          "line": "Tap efficiency from 3 >>> 4",
           "names": []
         },
         {
-          "line": "Pitch recoil at max down from 4 &gt;&gt;&gt; 3",
+          "line": "Pitch recoil at max down from 4 >>> 3",
           "names": []
         },
         {
@@ -4446,22 +4322,6 @@
         },
         {
           "line": "Playoffs will be played across two days! The first round of Playoffs will be on August 15. Teams that advance from the first round return on August 16 for the finals.",
-          "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
           "names": []
         }
       ]
@@ -4677,7 +4537,7 @@
           ]
         },
         {
-          "line": "Minimum spread increased from 2.25 &gt;&gt;&gt; 2.5",
+          "line": "Minimum spread increased from 2.25 >>> 2.5",
           "names": []
         },
         {
@@ -4689,22 +4549,6 @@
           "names": [
             "Cypher"
           ]
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
-          "names": []
         }
       ]
     },
@@ -4904,22 +4748,6 @@
         {
           "line": "Fixed a clipping issue when confirming a gun buddy purchase from the battlepass.",
           "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
-          "names": []
         }
       ]
     },
@@ -4971,7 +4799,7 @@
           ]
         },
         {
-          "line": "For a deeper dive on all the upcoming changes and why, you can read more about it &lt; here &gt;.",
+          "line": "For a deeper dive on all the upcoming changes and why, you can read more about it < here >.",
           "names": []
         },
         {
@@ -5150,13 +4978,13 @@
           "names": []
         },
         {
-          "line": "Bucky: crouch accuracy modifier increased from 10 &gt;&gt;&gt; 15%",
+          "line": "Bucky: crouch accuracy modifier increased from 10 >>> 15%",
           "names": [
             "Bucky"
           ]
         },
         {
-          "line": "Judge/Shorty: crouch accuracy modifier decreased from 25 &gt;&gt;&gt; 15%",
+          "line": "Judge/Shorty: crouch accuracy modifier decreased from 25 >>> 15%",
           "names": [
             "Judge",
             "Shorty"
@@ -5171,15 +4999,15 @@
           "names": []
         },
         {
-          "line": "Standing still: Accuracy reduced (spread increased from 0.075 &gt;&gt;&gt; 0.75)",
+          "line": "Standing still: Accuracy reduced (spread increased from 0.075 >>> 0.75)",
           "names": []
         },
         {
-          "line": "Walking: Accuracy reduced (spread increased from 0.09 &gt;&gt;&gt; 1.5)",
+          "line": "Walking: Accuracy reduced (spread increased from 0.09 >>> 1.5)",
           "names": []
         },
         {
-          "line": "Running: Accuracy reduced (spread increased from 0.1 &gt;&gt;&gt; 3.0)",
+          "line": "Running: Accuracy reduced (spread increased from 0.1 >>> 3.0)",
           "names": []
         },
         {
@@ -5195,35 +5023,35 @@
           ]
         },
         {
-          "line": "Head 40 &gt;&gt;&gt; 34",
+          "line": "Head 40 >>> 34",
           "names": []
         },
         {
-          "line": "Body 20 &gt;&gt;&gt; 17",
+          "line": "Body 20 >>> 17",
           "names": []
         },
         {
-          "line": "Legs 17 &gt;&gt;&gt; 14",
+          "line": "Legs 17 >>> 14",
           "names": []
         },
         {
-          "line": "Minimum spread increased from 2.6 &gt;&gt;&gt; 3.0",
+          "line": "Minimum spread increased from 2.6 >>> 3.0",
           "names": []
         },
         {
-          "line": "Walking spread increased from 0.075 &gt;&gt;&gt; 1",
+          "line": "Walking spread increased from 0.075 >>> 1",
           "names": []
         },
         {
-          "line": "Running spread increased from .1 &gt;&gt;&gt; 2",
+          "line": "Running spread increased from .1 >>> 2",
           "names": []
         },
         {
-          "line": "Crouch-walk spread increased from .05 &gt;&gt;&gt; .5",
+          "line": "Crouch-walk spread increased from .05 >>> .5",
           "names": []
         },
         {
-          "line": "Jump spread increased from 1.25 &gt;&gt;&gt; 4",
+          "line": "Jump spread increased from 1.25 >>> 4",
           "names": []
         },
         {
@@ -5233,7 +5061,7 @@
           ]
         },
         {
-          "line": "Minimum spread increased from 2.25 &gt;&gt;&gt; 2.5",
+          "line": "Minimum spread increased from 2.25 >>> 2.5",
           "names": []
         },
         {
@@ -5241,15 +5069,15 @@
           "names": []
         },
         {
-          "line": "Walking spread increased from .075 &gt;&gt;&gt; 1",
+          "line": "Walking spread increased from .075 >>> 1",
           "names": []
         },
         {
-          "line": "Running spread increased from 0.75 &gt;&gt;&gt; 2",
+          "line": "Running spread increased from 0.75 >>> 2",
           "names": []
         },
         {
-          "line": "Jump spread increased from 2.25 &gt;&gt;&gt; 4",
+          "line": "Jump spread increased from 2.25 >>> 4",
           "names": []
         },
         {
@@ -5259,11 +5087,11 @@
           ]
         },
         {
-          "line": "Fire rate decreased from 3.33 &gt;&gt;&gt; 3.0",
+          "line": "Fire rate decreased from 3.33 >>> 3.0",
           "names": []
         },
         {
-          "line": "Running spread increased from 0.1 &gt;&gt;&gt; 2",
+          "line": "Running spread increased from 0.1 >>> 2",
           "names": []
         },
         {
@@ -5320,22 +5148,6 @@
         },
         {
           "line": "Skirmish 2v2: Ascension and Skirmish 1v1: Ascension - Agent abilities do not show up on the Combat Report in the following round after affecting enemies",
-          "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-11-10T14:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
           "names": []
         }
       ]
