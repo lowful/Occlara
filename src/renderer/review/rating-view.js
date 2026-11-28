@@ -26,11 +26,14 @@
  * plays, on the moment while paused), or its kept frame, where the review
  * has one (review.js mediaOf), the match's map with a plain line where a
  * kill or a death has none; any other event keeps its round's last moment
- * (momentAt). Space or K plays and pauses, the
+ * (momentAt). Space or K plays and pauses wherever the keyboard is in it
+ * (on a step button a click left it on too; Space presses Close, Full time
+ * and Watch again themselves, and Enter any button), the
  * arrows (or J and L) step an event, Home goes back to kick off and End to
  * full time; Esc or a click on the ground goes to full time, and a second
- * closes it. Tab stays inside it. Under reduced motion it opens at full time
- * and steps only when asked. Full time is announced, and a step taken by
+ * closes it. Tab stays inside it. Under reduced motion, and while a match is
+ * recorded (Motion.still), it opens at full time, its line's end ring in the
+ * final tier, and steps only when asked. Full time is announced, and a step taken by
  * hand; the steps it plays by itself are not. A hidden page (sealed mid
  * match) stops it.
  */
@@ -544,7 +547,11 @@
     paintArt();
     $('rt-r-said').textContent = '';
     render(-1, false);
-    if (lessMotion() && force !== true) { finish(); return; }
+    // Less motion, or a match being recorded (html.rec-still, main's, 9.1:
+    // every loop holds while a match is recorded): it opens at full time,
+    // still, its highlight held on a frame (syncVideo), never playing.
+    const still = !!(window.Motion && typeof window.Motion.still === 'function' && window.Motion.still());
+    if ((lessMotion() || still) && force !== true) { finish(); return; }
     run.playing = true;
     paintTransport();
     $('rt-r-toggle').focus({ preventScroll: true });
@@ -645,6 +652,10 @@
     run.chart.draw(pts);
     run.chart.at(run.last, v.value);
     for (const m of run.chart.marks) m.classList.add('on');
+    // The line's end ring in the final number's tier, as the badge, never the
+    // tier of the step it was last drawn at (End or Esc mid replay).
+    const ring = $('rt-r-line').querySelector('.rt-now');
+    if (ring) setTier(ring, tierOf(v.value));
     setNumber(v.value);
     setDelta('');
     const lastScore = (v.rounds || []).length ? v.rounds[v.rounds.length - 1].score : '';
@@ -696,6 +707,15 @@
     Escape: skipOrClose,
   };
 
+  // The buttons Space presses as itself: the ones that leave or start over.
+  const OWN_SPACE = new Set(['rt-r-close', 'rt-r-skip', 'rt-r-again']);
+  function pressesItself(e) {
+    const t = e.target;
+    if (!t || t.tagName !== 'BUTTON') return false;
+    if (e.key === 'Enter') return true;
+    return (e.key === ' ' || e.key === 'Spacebar') && (OWN_SPACE.has(t.id) || !$('rt-replay').contains(t));
+  }
+
   function wire() {
     const play$ = $('rt-play');
     if (!play$) return;
@@ -720,13 +740,20 @@
         return;
       }
       if (MODIFIERS.has(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
-      // Enter and Space on a button press that button, as everywhere.
-      if (e.target && e.target.tagName === 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) return;
+      // Enter on a button presses that button, as everywhere. Space does too
+      // on Close, Full time and Watch again; anywhere else in the replay (on
+      // the step buttons a click left the keyboard on, on play and pause) it
+      // plays and pauses, as its line of keys says (9.1).
+      if (pressesItself(e)) return;
       const act = KEYS[e.key];
       // Before the page's own Esc, which would close the page under it.
       e.preventDefault();
       e.stopPropagation();
       if (act) act();
+    }, true);
+    // Space taken for play and pause never presses the step button it was on as it comes up.
+    document.addEventListener('keyup', (e) => {
+      if (run && (e.key === ' ' || e.key === 'Spacebar') && !pressesItself(e) && !e.ctrlKey && !e.metaKey && !e.altKey) e.preventDefault();
     }, true);
     document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
     // A match starting (html.rec-still, main's) stops it too.

@@ -2192,12 +2192,15 @@ async function openShell(cfg, state, opts) {
     ok(same(order, ['v-verdict', 'v-prog', 'grade-host', 'v-summary-wrap', 'insights-host', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap', 'v-foot']),
       'the Verdict, the strip against the matches before, the grade, the read, the lists, the rounds, then what is kept closed', order.join(' | '));
     const progs = v.document.querySelectorAll('#v-prog .gv-prog');
-    ok(same(progs.map((p) => p.textContent), [PROGRESS.lines[0].text, PROGRESS.lines[1].text]) && same(progs.map(toneOf), ['good', 'bad'])
+    // 9.1: a line a medal says ("Best grade in your last 5", gold) is said
+    // once, as the medal, never again as a chip under the hero.
+    const medals = v.document.querySelectorAll('#v-medals .medal-text').map((n) => n.textContent);
+    ok(same(progs.map((p) => p.textContent), [PROGRESS.lines[1].text]) && same(progs.map(toneOf), ['bad']) && medals.includes(PROGRESS.lines[0].text.replace(/\.$/, ''))
       && same(v.bridge.invoked.filter((x) => x[0] === C.PROGRESS_GET), [[C.PROGRESS_GET, ID]]),
-    'the progress lines a chip each in their tone, asked of main by this review\'s id, the sign in their words', progs.map((p) => p.textContent).join(' | '));
+    'the progress lines a chip each in their tone, asked of main by this review\'s id, the sign in their words, a medal\'s line left to its medal', progs.map((p) => p.textContent).join(' | '));
     v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...base });
     await settle();
-    ok(v.document.querySelectorAll('#v-prog .gv-progs').length === 1 && v.document.querySelectorAll('#v-prog .gv-prog').length === 2,
+    ok(v.document.querySelectorAll('#v-prog .gv-progs').length === 1 && v.document.querySelectorAll('#v-prog .gv-prog').length === 1,
       'painted again, the strip is drawn again rather than a second time under the first');
     const was = v.$('v-focus-was');
     ok(!was.hidden && was.textContent === PROGRESS.lines[2].text && was.classList.contains('good')

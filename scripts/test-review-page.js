@@ -288,6 +288,36 @@ async function open(review, handlers) {
       'a folded round of two parts closes whole, its second part\'s row too');
     const medal = v.document.querySelectorAll('#v-medals .medal-text').map((n) => n.textContent).find((t) => /in the lobby/.test(t));
     ok(medal && /^1st of 10 in the lobby by match rating, \d+$/.test(medal), 'the medal names the match rating by its name', medal);
+    // LEAGUE SAYS WHO ONCE (9.1, Reviewer 6 bug 20): with its Verdict shown,
+    // the plain line over it goes, and the Verdict's line leads with the
+    // champion, nothing run on at its right; with no grade the plain line stays.
+    const lolReview = require('../src/shared/lol-review');
+    const lolBuilt = lolReview.buildReview({ me: 'Me#EUW', allies: [], champion: 'Ahri', role: 'Mid', band: 2, mode: 'Ranked Solo',
+      stats: { gameTimeSec: 1800, csAt10: 52, deathsBy15: 2, wardScore: 9.5, deathsAhead: null, goldHeldSec: null },
+      final: { cs: 180, kills: 5, deaths: 2, assists: 7, ward: 9.5, level: 16 }, events: [] }, []);
+    const graded = { ...lolBuilt, kind: 'lol', id: 'lol-1790000000000-demo', grade: { score: 81, letter: 'A', provisional: false, categories: [], notes: [] } };
+    const lv = await open(graded);
+    const ident = lv.document.querySelector('#review > .ident');
+    const lmeta = lv.document.querySelector('#r-verdict .v-meta');
+    ok(!lv.$('r-verdict').hidden && ident.hidden && lmeta && lmeta.textContent === ['Ahri', 'Mid', 'Ranked Solo', '30:00'].join(' · ')
+      && !lv.document.querySelector('#r-verdict .v-result') && lv.$('r-champ').textContent === 'Ahri',
+    'League, graded: one line, the champion first, the plain line over it gone', lmeta && lmeta.textContent);
+    const lu = await open({ ...lolBuilt, kind: 'lol', id: 'lol-1790000000001-demo' });
+    ok(lu.$('r-verdict').hidden && !lu.document.querySelector('#review > .ident').hidden, 'and with no grade, no Verdict, the plain line stays');
+    // SAID ONCE (9.1, Reviewer 6 bug 17): a line a medal says, and the change
+    // on the last match the hero's delta says, are not chips again under it.
+    const P = { id: r.id, vsLast: { delta: 7, provisional: false }, lines: [
+      { kind: 'best', tone: 'good', text: 'Best grade in your last 4 graded matches.' },
+      { kind: 'last', tone: 'good', text: 'Up 7 on your last match.' },
+      { kind: 'average', tone: 'good', text: 'Up 5 on your average of 66 over your last 4 graded matches.' },
+    ] };
+    const pv = await open(r, { [C.PROGRESS_GET]: () => P });
+    const chips = pv.document.querySelectorAll('#v-prog .gv-prog').map((n) => n.textContent);
+    const medals = pv.document.querySelectorAll('#v-medals .medal-text').map((n) => n.textContent);
+    const delta = pv.document.querySelector('#v-grade .vd-delta');
+    ok(JSON.stringify(chips) === JSON.stringify([P.lines[2].text]) && medals.includes('Best grade in your last 4 graded matches')
+      && delta && delta.textContent === '+7 on your last match',
+    'the medal and the hero\'s delta say theirs once; the strip says only the rest', JSON.stringify({ chips, medals, delta: delta && delta.textContent }));
   }
 
   // ── 5. The best highlight ───────────────────────────────────────────────
@@ -507,6 +537,45 @@ async function open(review, handlers) {
     ok(RV.state().done, 'Esc to full time again');
     key('Escape');
     ok(!RV.open() && v.$('rt-replay').hidden, 'and again closes it, the page staying');
+    // 9.1 after the review: SPACE PLAYS AND PAUSES WHEREVER THE KEYBOARD IS
+    // IN IT, on a step button a click left it on as well (it stepped, against
+    // the hint's "Space plays and pauses"); Close, Full time and Watch again
+    // are pressed by Space themselves, and Enter presses any button.
+    const pressOn = (target, k, type) => {
+      const e = makeEvent(type || 'keydown', { key: k, target });
+      for (const fn of v.document._listeners[type || 'keydown'] || []) { fn.call(v.document, e); if (e._stopped) break; }
+      return e;
+    };
+    RV.play(true);
+    RV.pause();
+    RV.nextEvent();
+    const at = RV.state().i;
+    const sp = pressOn(v.$('rt-r-next'), ' ');
+    ok(RV.state().playing === true && RV.state().i === at && sp.defaultPrevented && pressOn(v.$('rt-r-next'), ' ', 'keyup').defaultPrevented,
+      'Space on the next step button plays, never steps, and its keyup presses nothing', JSON.stringify(RV.state()));
+    pressOn(v.$('rt-r-prev'), ' ');
+    ok(RV.state().playing === false, 'and on the previous one pauses again');
+    const ent = pressOn(v.$('rt-r-next'), 'Enter');
+    const own = pressOn(v.$('rt-r-close'), ' ');
+    ok(!ent.defaultPrevented && !own.defaultPrevented && RV.state().playing === false && RV.open(),
+      'Enter presses the button it is on, and Space on Close presses Close itself');
+    // FULL TIME'S RING (Reviewer 6, bug 12): the line's end ring takes the
+    // final number's tier, never the tier of the step it was drawn at last.
+    const view = inPage(v.window, 'current').ratingView;
+    RV.finish();
+    const ring = v.$('rt-r-line').querySelector('.rt-now');
+    const tierOf = v.window.RatingBadge.tierOf;
+    ok(ring && ring.classList.contains(`t-${tierOf(view.value)}`) && v.window.RatingBadge.TIERS.filter((t) => ring.classList.contains(`t-${t}`)).length === 1,
+      'at full time the line\'s end ring is in the final rating\'s tier', ring && ring.className);
+    RV.stop();
+    // WHILE A MATCH IS RECORDED (html.rec-still, Motion.still): it opens at
+    // full time, still, as under less motion, and plays nothing by itself.
+    v.document.documentElement.classList.add('rec-still');
+    RV.play(false);
+    ok(RV.open() && RV.state().done && RV.state().playing === false && v.$('rt-r-round').textContent === 'Full time',
+      'opened while a match is recorded, it stands at full time and plays nothing', JSON.stringify(RV.state()));
+    RV.stop();
+    v.document.documentElement.classList.remove('rec-still');
   }
 
   // ── Every new line on the page: sentence case, no dash ──────────────────

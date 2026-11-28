@@ -222,6 +222,25 @@
               <div id="v-score" class="v-score"></div>
             </div>
           </div>
+          <!-- THE BEST HIGHLIGHT (9.1, the owner's item 16): where a highlight's
+               clip was kept, the best of the match (review.js bestHighlight,
+               clips.js highlightRank's order) plays here, muted, in a loop,
+               in the agent's place; nothing where none was kept. Still while
+               a match is recorded, the window is hidden, it is out of view or
+               less motion is asked; its own button pauses it. Placed right
+               after the match's line, where it stands on screen, so the
+               keyboard reaches it before the hero's actions; it is laid out
+               by position, so the order changes nothing of the picture. -->
+          <figure id="v-hl" class="vd-hl" hidden>
+            <div class="vd-hl-frame">
+              <video id="v-hl-video" class="vd-hl-video" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true"></video>
+              <button id="v-hl-toggle" class="icon-btn vd-hl-toggle" type="button" aria-label="Pause the highlight" title="Pause"><svg class="vd-hl-ic-pause" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5.5" width="3.6" height="13" rx="1"/><rect x="13.9" y="5.5" width="3.6" height="13" rx="1"/></svg><svg class="vd-hl-ic-play" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8.2 5.4v13.2a.8.8 0 0 0 1.22.68l10.3-6.6a.8.8 0 0 0 0-1.36L9.42 4.72A.8.8 0 0 0 8.2 5.4z"/></svg></button>
+            </div>
+            <figcaption class="vd-hl-cap">
+              <span class="o-eyebrow">Best highlight</span>
+              <button id="v-hl-round" class="vd-hl-round" type="button"></button>
+            </figcaption>
+          </figure>
           <div class="vd-main">
             <div id="v-grade" class="vd-grade-host" hidden></div>
             <div class="vd-said">
@@ -255,22 +274,6 @@
           </div>
           <!-- THE AGENT, floating at the hero's right: the bundled portrait. -->
           <div id="v-agent" class="vd-agent" aria-hidden="true" hidden></div>
-          <!-- THE BEST HIGHLIGHT (9.1, the owner's item 16): where a highlight's
-               clip was kept, the best of the match (review.js bestHighlight,
-               clips.js highlightRank's order) plays here, muted, in a loop,
-               in the agent's place; nothing where none was kept. Still while
-               a match is recorded, the window is hidden, it is out of view or
-               less motion is asked; its own button pauses it. -->
-          <figure id="v-hl" class="vd-hl" hidden>
-            <div class="vd-hl-frame">
-              <video id="v-hl-video" class="vd-hl-video" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true"></video>
-              <button id="v-hl-toggle" class="icon-btn vd-hl-toggle" type="button" aria-label="Pause the highlight" title="Pause"><svg class="vd-hl-ic-pause" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5.5" width="3.6" height="13" rx="1"/><rect x="13.9" y="5.5" width="3.6" height="13" rx="1"/></svg><svg class="vd-hl-ic-play" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8.2 5.4v13.2a.8.8 0 0 0 1.22.68l10.3-6.6a.8.8 0 0 0 0-1.36L9.42 4.72A.8.8 0 0 0 8.2 5.4z"/></svg></button>
-            </div>
-            <figcaption class="vd-hl-cap">
-              <span class="o-eyebrow">Best highlight</span>
-              <button id="v-hl-round" class="vd-hl-round" type="button"></button>
-            </figcaption>
-          </figure>
           <div id="v-stats-wrap" class="v-stats-wrap" hidden>
             <div id="v-stats" class="v-stats"></div>
             <p id="v-against-note" class="v-against-note" hidden></p>

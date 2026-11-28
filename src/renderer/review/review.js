@@ -359,16 +359,16 @@ function paintMedals(r, p) {
   const said = (kind) => lines.find((l) => l && l.kind === kind && typeof l.text === 'string' && l.text);
   const plain = (t) => t.replace(/\.$/, '');
   const best = said('first') || said('best');
-  if (best) out.push({ tier: 'gold', n: 1, text: plain(best.text) });
+  if (best) out.push({ tier: 'gold', n: 1, text: plain(best.text), line: best });
   const v = r && r.ratingView;
   const place = v && typeof v.value === 'number' && typeof v.place === 'string' ? /^(\d+)\w*\s+of\s+(\d+)$/.exec(v.place) : null;
   if (place && Number(place[1]) <= 3) {
     out.push({ tier: ['gold', 'silver', 'bronze'][Number(place[1]) - 1], n: Number(place[1]), text: `${v.place} in the lobby by match rating, ${v.shown}` });
   }
   const run = said('run');
-  if (run) out.push({ tier: 'silver', n: null, text: plain(run.text) });
+  if (run) out.push({ tier: 'silver', n: null, text: plain(run.text), line: run });
   const cat = said('category');
-  if (cat) out.push({ tier: 'bronze', n: null, text: plain(cat.text) });
+  if (cat) out.push({ tier: 'bronze', n: null, text: plain(cat.text), line: cat });
   const shown = out.slice(0, 3);
   host.replaceChildren(...shown.map((m, k) => {
     const item = el('span', 'medal-item');
@@ -377,6 +377,8 @@ function paintMedals(r, p) {
     return item;
   }));
   host.hidden = !shown.length;
+  // The progress lines a medal now says, so the strip under the hero does not say them twice.
+  return shown.map((m) => m.line).filter(Boolean);
 }
 
 /** The fix for the next match, its first clause in the ink and the rest grey; the whole sentence stays its text. */
@@ -699,7 +701,7 @@ function paintVerdictStat(host, v) {
 }
 
 /** League's Verdict, as the Valorant one: the icon and the role, the grade and the standout. */
-function paintLolVerdict(v) {
+function paintLolVerdict(v, game) {
   const host = $('r-verdict');
   host.replaceChildren();
   host.hidden = !v;
@@ -709,9 +711,15 @@ function paintLolVerdict(v) {
   const icon = el('span', 'vd-icon');
   paintVerdictIcon(icon, v);
   who.append(icon);
-  if (v.sub) who.append(el('div', 'v-meta', v.sub));
+  // ONE LINE, THE CHAMPION FIRST (9.1): "Ahri · Mid · Ranked Solo · 30:00",
+  // the line over it gone while this shows. League keeps no result, so
+  // nothing stands at the right, where the champion ran on from the queue
+  // ("Mid · Ranked Solo Ahri · 30:00").
+  const g = game || {};
+  const line = [g.champion, g.role, g.mode, g.duration].filter((x) => typeof x === 'string' && x.trim());
+  const meta = line.length ? line.join(' · ') : [v.sub, v.right].filter(Boolean).join(' · ');
+  if (meta) who.append(el('div', 'v-meta', meta));
   top.append(who);
-  if (v.right) top.append(el('span', 'v-result', v.right));
   const main = el('div', 'vd-main');
   const said = el('div', 'vd-said');
   const stat = el('p', 'vd-stat');
@@ -838,18 +846,23 @@ function paintProgress(r) {
     const lines = Array.isArray(p.lines) ? p.lines : [];
     // ORBIT: the medals main's progress earns, and the change on the last
     // match beside the grade, its sign in its words and an arrow.
+    // ONCE ON THE PAGE (9.1, Orbit's calm hero): a line a medal says, and the
+    // change on the last match the hero's delta says, are left out of the
+    // strip under it, which says the rest.
+    const said = new Set();
     if (valorant) {
-      paintMedals(r, p);
+      for (const l of paintMedals(r, p) || []) said.add(l);
       const delta = document.querySelector('#v-grade .vd-delta');
       const vs = p.vsLast && typeof p.vsLast.delta === 'number' ? p.vsLast.delta : null;
       if (delta) {
         delta.hidden = vs === null;
         delta.className = 'vd-delta ' + (vs > 0 ? 'up' : vs < 0 ? 'down' : 'even');
         delta.textContent = vs === null ? '' : vs > 0 ? `+${vs} on your last match` : vs < 0 ? `${vs} on your last match` : 'Level with your last match';
+        if (vs !== null) for (const l of lines) if (l && l.kind === 'last') said.add(l);
       }
     }
     const focusLine = valorant && r.focus ? lines.find((l) => l && l.kind === 'focus' && l.text) : null;
-    const strip = window.GradeView.progressStrip(p, { omit: focusLine ? ['focus'] : [] });
+    const strip = window.GradeView.progressStrip({ ...p, lines: lines.filter((l) => !said.has(l)) }, { omit: focusLine ? ['focus'] : [] });
     // Replaced, never added to: a review painted twice asks twice.
     host.replaceChildren(...(strip ? [strip] : []));
     host.hidden = !strip;
@@ -2673,7 +2686,12 @@ function paint(r) {
   const bits = [g.role, g.mode, g.duration].filter(Boolean);
   $('r-meta').textContent = bits.join('  ·  ');
 
-  paintLolVerdict(verdict);
+  paintLolVerdict(verdict, g);
+  // SAID ONCE (9.1): the Verdict's line names the champion, the role, the
+  // queue and the length, so the plain line over it goes while it is shown
+  // ("Ahri / Mid, Ranked Solo, 30:00", then the same again under it).
+  const ident = document.querySelector('#review > .ident');
+  if (ident) ident.hidden = !!verdict;
   paintScores(r.scoreline || {});
   paintCommon(r, { grade: $('r-scores') }, verdict);
   paintProgress(r);

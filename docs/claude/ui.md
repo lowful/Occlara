@@ -143,6 +143,25 @@ wins. What phase 1 changed, and what to keep true:
   `reviewnarrow`, `replayclip`, `replaydeath`, `replaynone`, `replaynarrow`
   picture it with real clips (made by the bundled ffmpeg from a map's art,
   served by occlara-clip as main serves them).
+- **The review after the 9.1 review's last bugs.** SAID ONCE: a progress line
+  a medal says ("Best grade in your last 4 graded matches") and the change on
+  the last match the hero's delta says ("+7 on your last match") are left out
+  of the strip under the hero (`paintMedals` returns the lines it used,
+  `paintProgress` filters them), which says only the rest. A League review
+  with its Verdict says who once, on one line, the champion first ("Ahri ·
+  Mid · Ranked Solo · 30:00", `paintLolVerdict(v, game)`), its plain line
+  (`#review > .ident`) hidden while the Verdict shows; nothing runs on at the
+  Verdict's right, where the champion read as part of the queue. The best
+  highlight's figure sits right after the match's line in the markup, so the
+  keyboard reaches its pause and its line before Ask about this match; it is
+  laid out by position, and under 900px `order` keeps it under the actions.
+  The ranking and the clutch's words are `clips.js highlightRank` and
+  `insights.js clutchWonAlive` themselves, asked through the preload, no copy
+  on the page. A round's highlight clip shows the Clips page's poster before
+  it plays (the map's art until it lands, clips.md "A clip's poster"), and a
+  clip the player deleted says "You deleted its clip." The replay's keys,
+  its ring at full time and its stillness while recording: rating.md,
+  "The replay". Scenes `reviewhlrow`, `reviewhlrowart` and `reviewlol`.
 - **Phase 2, every other page** (DESIGN.md, "What is built"): the page head is
   the title at the display size and a grey sub line (`.page-sub`, the header's
   last child; Matches and Patterns set theirs from `matches.js SECTION_SUBS`), one

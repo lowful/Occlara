@@ -449,7 +449,16 @@ the feed under the badge; one under 720 high tightens the stage.
   clip, blank, clip on every highlight round before). At full time the
   match's best highlight loops there, and Watch again has the keyboard, so
   Space plays it again (on Close, Space closed the replay). The clip plays
-  only while the replay does and is let go when it closes.
+  only while the replay does and is let go when it closes. SPACE PLAYS AND
+  PAUSES WHEREVER THE KEYBOARD IS IN IT (9.1, after the review): on the
+  step buttons a click leaves it on too (it stepped there, against the
+  hint's own words), its keyup pressing nothing; Space presses Close, Full
+  time and Watch again themselves, and Enter any button (`pressesItself`).
+  At full time the line's end ring takes the final rating's tier, never the
+  tier of the step drawn last (End or Esc mid replay left it orange beside a
+  teal badge). Opened while a match is recorded (`Motion.still`,
+  html.rec-still) it stands at full time, still, as under less motion, and
+  plays nothing by itself.
 - WHAT AN EVENT WAS (`roleOf`): the opening of rating.js's own words, death
   ("Died", "Killed by a teammate", "Your ultimate ran out"), kill ("First
   kill", "Kill", "Traded a teammate"), assist, plant, defuse, revive, traded,

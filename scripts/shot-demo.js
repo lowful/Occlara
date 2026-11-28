@@ -239,6 +239,9 @@ const SCENES = {
   replaynone: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.pause(); window.RatingView.nextEvent(); window.RatingView.nextEvent(); window.RatingView.nextEvent(); true" },
   replayend: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.finish(); true" },
   reviewnarrow: { page: 'review', media: true, w: 960, h: 640 },
+  // 9.1 after the review: a League review, its Verdict saying the champion,
+  // the role, the queue and the length once (the plain line over it gone).
+  reviewlol: { page: 'review', lolReview: true, game: 'lol' },
   // 9.1 after the review: round 17's highlight in its row, its poster (or,
   // made later, the map's art until it lands), and the poster landing.
   reviewhlrow: { page: 'review', media: true, posters: true, act: "(() => { const r = document.getElementById('round-17'); r.querySelector('.v-fold').click(); setTimeout(() => r.scrollIntoView({ block: 'center' }), 300); return true; })()", after: 1400 },
@@ -524,7 +527,26 @@ app.whenReady().then(async () => {
           const e = store.get(id);
           const review = scene.media ? await demoMedia(store, id, e.review) : e.review;
           const whole = present({ ...review, id });
-          if (scene.work) {
+          if (scene.lolReview) {
+            // A League game as check:lolreview builds it (lol-review.js), its
+            // players' names fixture words the review never shows.
+            const lol = require('../src/shared/lol-review');
+            const ME = 'Me#EUW';
+            const built = lol.buildReview({
+              me: ME, allies: ['Ally1#EUW', 'Ally2#EUW'], champion: 'Ahri', role: 'Mid', band: 2, mode: 'CLASSIC',
+              stats: { gameTimeSec: 1800, csAt10: 52, deathsBy15: 2, wardScore: 9.5, deathsAhead: null, goldHeldSec: null },
+              final: { cs: 180, kills: 5, deaths: 2, assists: 7, ward: 9.5, level: 16 },
+              events: [
+                { EventID: 1, EventName: 'ChampionKill', EventTime: 300, KillerName: 'Foe#EUW', VictimName: 'Ally1#EUW' },
+                { EventID: 2, EventName: 'ChampionKill', EventTime: 310, KillerName: 'Foe#EUW', VictimName: ME },
+                { EventID: 3, EventName: 'ChampionKill', EventTime: 900, KillerName: 'Foe#EUW', VictimName: ME },
+                { EventID: 4, EventName: 'DragonKill', EventTime: 950, KillerName: 'Ally2#EUW' },
+              ],
+            }, []);
+            // Graded, so its Verdict shows (a grade's letter is internal, never drawn).
+            pageWin.webContents.send(C.PUSH_LOL_REVIEW, scrubText({ ...built, kind: 'lol', id: `lol-${Date.now() - 600000}-demo`,
+              grade: { score: 81, letter: 'A', provisional: false, categories: [], notes: [] } }));
+          } else if (scene.work) {
             const endedAt = Date.now() - 95 * 1000;
             const work = { path: 'riot', steps: ['saved', 'riot', 'deaths', 'look', 'writing'], step: 'riot', endedAt, until: endedAt + 6 * 60 * 1000, scoreboard: false };
             pageWin.webContents.send(C.PUSH_VALORANT_REVIEW, { ...whole, work });
