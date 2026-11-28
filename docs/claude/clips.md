@@ -333,9 +333,10 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   flagged death's and League's had no picture until played (preload none, no
   frame of the coach's), a dark box. `index.js present` hands `presentClips` an
   `io.poster`, so each clip on disk carries `clipPoster` (a JPEG data URL) once
-  made, and asks for it once where it is not (`posterFor`); the row's player
-  shows the map's art meanwhile, as Clips does (`data-art`), a death's look keeps
-  the coach's own frame first. When the batch lands, `reviewPostersLanded` sends
+  made, and asks for it once where it is not (`posterFor`); every clip player on
+  the review (`review.js clipPicture`) shows its own picture, the coach's frame
+  first, else the poster, else the map's art meanwhile, as Clips does
+  (`data-art`, which the poster replaces), so none is an empty box. When the batch lands, `reviewPostersLanded` sends
   `PUSH_CLIP_POSTERS { id, posters: [{ url, poster }] }` to the review page alone,
   and it puts each on that clip where it stands (`review.js takePosters`), never by
   a repaint that would stop a clip being watched. `test:clips` and

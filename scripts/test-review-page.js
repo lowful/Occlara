@@ -361,7 +361,8 @@ async function open(review, handlers) {
       && inPage(v.window, 'current').rounds.find((c) => c.n === 17).highlight.clipPoster === JPEG,
     'the poster main makes goes on that clip where it stands, no repaint, and the review the page holds keeps it',
     JSON.stringify([String(player17.getAttribute('poster')).slice(0, 30), player17.dataset.art, row17.querySelector('.v-hl-moment video') === player17]));
-    ok(death2 && !death2Poster && death2.getAttribute('poster') === JPEG, 'a death\'s clip with no frame of the coach\'s takes its poster the same way', String(death2Poster));
+    ok(death2 && death2Poster === art && death2.getAttribute('poster') === JPEG,
+      'a death\'s clip with no frame of the coach\'s shows the map\'s art too, never a dark box, and takes its poster the same way', String(death2Poster));
     // One with the coach's frame as its picture keeps it: the poster never goes over the coach's own.
     const framed = v.document.createElement('video');
     framed.className = 'v-clip-video';

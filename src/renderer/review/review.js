@@ -89,9 +89,12 @@ function paintLolDeaths(r) {
     if (d.clipUrl) {
       const moment = el('div', 'v-moment');
       const side = el('div', 'v-media');
-      side.append(window.ClipPlayer.create({
-        url: d.clipUrl, poster: d.clipPoster || null, label: `The clip of death ${d.n}`, frames: d.clipFrames, death: d.clipDeath,
-      }).el);
+      const pic = clipPicture(d.clipPoster);
+      const player = window.ClipPlayer.create({
+        url: d.clipUrl, poster: pic.poster, label: `The clip of death ${d.n}`, frames: d.clipFrames, death: d.clipDeath,
+      });
+      markArt(player, pic);
+      side.append(player.el);
       const advice = el('div', 'v-advice');
       if (fact) advice.append(fact);
       moment.append(side, advice);
@@ -525,22 +528,36 @@ function highlightTitle(c) {
  * top, and Clips' way into a round, open a row with its clip in it. Null
  * with none kept.
  */
+/*
+ * A CLIP'S PICTURE BEFORE IT PLAYS (9.1): a clip player loads nothing until
+ * it is played, so with no picture it is a dark box. Its own picture where
+ * it has one (the coach's frame, or the poster the Clips page makes of the
+ * clip, main's clipPoster); while that poster is made, the map's art, as
+ * Clips shows it, marked so the poster takes its place when it lands
+ * (takePosters). Never an empty box.
+ */
+function clipPicture(own) {
+  if (typeof own === 'string' && own) return { poster: own, art: false };
+  const map = current && current.game ? current.game.map : null;
+  const art = map && window.occlara && typeof window.occlara.mapArt === 'function' ? window.occlara.mapArt(map) : null;
+  return { poster: art || null, art: !!art };
+}
+function markArt(player, pic) {
+  if (pic && pic.art && player && player.video) player.video.dataset.art = '1';
+}
 function highlightPart(c) {
   const h = c && c.highlight;
   if (!h || typeof h.clipUrl !== 'string' || !h.clipUrl || !window.ClipPlayer) return null;
   const box = el('div', 'v-moment has-clip v-hl-moment');
   const media = el('div', 'v-media');
-  // ITS PICTURE BEFORE IT PLAYS (9.1): a highlight has no frame of the
-  // coach's, so its clip's own poster, the still the Clips page makes of it
-  // just before its first kill (main's clipPoster); while that is made, the
-  // map's art, as Clips shows it, so the box is never empty. The poster takes
-  // the art's place when it lands (onClipPosters).
-  const art = !h.clipPoster && current && current.game && typeof window.occlara.mapArt === 'function' ? window.occlara.mapArt(current.game.map) : null;
+  // A highlight has no frame of the coach's: its picture is its clip's own
+  // poster, else the map's art while that is made (clipPicture).
+  const pic = clipPicture(h.clipPoster);
   const player = window.ClipPlayer.create({
-    url: h.clipUrl, poster: h.clipPoster || art || null, label: `The highlight of round ${c.n}`, frames: h.clipFrames,
+    url: h.clipUrl, poster: pic.poster, label: `The highlight of round ${c.n}`, frames: h.clipFrames,
     kills: Array.isArray(h.kills) ? h.kills : [], cuts: Array.isArray(h.cuts) ? h.cuts : [],
   });
-  if (!h.clipPoster && art) player.video.dataset.art = '1';
+  markArt(player, pic);
   media.append(player.el);
   const side = el('div', 'v-advice');
   const tag = el('div', 'v-look-tag');
@@ -1114,8 +1131,10 @@ function deathExtras(r, c) {
   const box = el('div', 'v-death-extra');
   const lookHasClip = c.forensics && c.forensics.clipUrl;
   if (flag && flag.clipUrl && !lookHasClip) {
-    const player = window.ClipPlayer.create({ url: flag.clipUrl, poster: flag.clipPoster || null, label: `The clip of round ${c.n}`,
+    const pic = clipPicture(flag.clipPoster);
+    const player = window.ClipPlayer.create({ url: flag.clipUrl, poster: pic.poster, label: `The clip of round ${c.n}`,
       frames: flag.clipFrames, death: flag.clipDeath, screen: !c.verified, stills: [] });
+    markArt(player, pic);
     const media = el('div', 'v-media');
     media.append(player.el);
     box.append(media);
@@ -1763,11 +1782,14 @@ function look(c, frames, why, chain) {
     // Its player (8.4.4): the death and the stills marked on its timeline
     // where the card says the death falls in the clip (clipDeath), stepped by
     // the clip's own frames (clipFrames, main's reading of them).
+    // Its picture: the coach's own frame, else the clip's poster, else the map's art meanwhile (clipPicture).
+    const pic = clipPicture(posterOf(shots) || f.clipPoster);
     player = window.ClipPlayer.create({
-      url: f.clipUrl, poster: posterOf(shots) || f.clipPoster || null, label: `The clip of round ${c.n}`,
+      url: f.clipUrl, poster: pic.poster, label: `The clip of round ${c.n}`,
       frames: f.clipFrames, death: f.clipDeath, screen: f.source === 'screen', stills: shots.map((s) => s.at),
       onStill: (i) => { if (strip) markShown(strip, i); },
     });
+    markArt(player, pic);
     media.append(player.el);
   }
   const gone = !f.clipUrl && f.clipGone ? el('p', 'v-clip-gone', clipGoneText(f.clipGone, 'The frames and facts stay.')) : null;
