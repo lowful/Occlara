@@ -1,7 +1,8 @@
 # The changelog, What's new and the Discord
 
 One source of truth for what changed in each version, read in four places: the
-app's What's new page, Home's update line, `GET /api/changelog` (the website's
+app's What's new page, the bar's What's new pill (Home's update line until
+9.1), `GET /api/changelog` (the website's
 changelog page reads it) and the Discord post a release makes.
 
 ## The source and its copies
@@ -55,7 +56,7 @@ A page of the main window (`src/renderer/whatsnew/`, `whatsnew-preload.js`,
 shell-nav `whatsnew`, `nav: false`), one step deeper than Settings, the
 sidebar marking Settings while it shows. Reached from Settings' row "What's
 new in Occlara", from the version line at the foot of Settings (Check for
-updates is now its own word beside it) and from Home's update line. Locked
+updates is now its own word beside it) and from the bar's What's new pill. Locked
 by the seal like every page (`check:seal`).
 
 It paints the bundled copy at once (the preload's `bundled()`, checked by
@@ -73,9 +74,11 @@ rule over it, the items as rows parted by the hairline with the kind a small
 word in its own column. Ink only, never the signal or an outcome colour.
 Entries rise once on the first paint; reduced motion drops it.
 
-## Home's update line
+## The update line, in the bar
 
-`src/shared/changelog.js noticeFor`, run once at launch by `index.js
+The bar's What's new pill since 9.1 (`shell.js paintNews`, ui.md "The bar's
+right group"): Home's line sat faint on the moon's lit limb, the owner's
+item 2. `src/shared/changelog.js noticeFor`, run once at launch by `index.js
 changelogIpc.start()` against the store key `changelogSeenVersion`:
 
 - the first launch ever (onboarding never completed, no key) says nothing and
@@ -83,16 +86,19 @@ changelogIpc.start()` against the store key `changelogSeenVersion`:
 - an install that finished onboarding but has no key (from before the
   changelog) or a key older than the running version, on a version the
   changelog has an entry for, gets "Occlara updated to X." with "See what's
-  new" at the right of Home's title
+  new", which the bar shows as a pill reading "What's new in X", main's
+  sentence whole in its title
 - the same or a newer key, or no entry for the running version, says nothing
 
 Never a modal and never mid match: `CHANGELOG_NOTICE` answers null while
 recording, mid match or sealed, and the line is pushed (`PUSH_CHANGELOG`)
-once from `flushAccountWaits`, the same wait as the cap's notice. Home tells
-main it was seen (`CHANGELOG_SEEN`) only once the page is on screen
-(`occlaraOnShown`), which stores the version, so the next launch is quiet.
-Opening What's new stores it too and takes the line away at once (a null
-push). `check:mainwindow` boots as an update and reads it.
+once from `flushAccountWaits`, the same wait as the cap's notice; the bar
+hides it while recording, sealed or on the Recording view besides. The bar
+tells main it was seen (`CHANGELOG_SEEN`) only once it is on screen with
+the window visible (`newsOnScreen`), which stores the version, so the next
+launch is quiet. Pressed, it opens What's new, which stores it too and takes
+the pill away at once (a null push). Home has no copy. `check:mainwindow`
+boots as an update and reads it in the bar; `test:shellbar` holds the pill.
 
 ## The Discord
 

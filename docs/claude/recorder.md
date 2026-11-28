@@ -340,7 +340,7 @@ PC coped, never what was on it.
   minutes held 225 MB in the main process. Everything a run left is swept at
   launch; everything goes at every quit, at a logout and when Windows ends
   its session (`shutdown()`, synchronous: from cleanupAndQuit, from
-  before-quit for a quit that is not the tray's, an update's Restart now,
+  before-quit for a quit that is not the tray's, an update's Restart to update,
   which skips cleanupAndQuit, and from the main window's 'session-end'
   through `mainWindow.onSessionEnd`, since no before-quit comes then and the
   process can be ended next), and at an uninstall

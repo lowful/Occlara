@@ -29,6 +29,28 @@ wins. What phase 1 changed, and what to keep true:
   the links dim to 35% beside a lock and "Locked until the match ends", every
   link and row locked by `syncSeal` as before, and the bar's Stop goes: Stop is
   the Recording screen's own (`#live-stop`), the pause button stays.
+- **The bar's right group (9.1, the owner's items 2 and 22)**, in order:
+  What's new (`#news`, below), the game picker (`#gamepick`), back to the
+  Recording view (`#rec-back`), Start and the pause button (`#rec`), the
+  updater (`#upd`, "The updater in the bar" below), the profile button and
+  the window's buttons. Every control in it stands 36px on the bar's own
+  dense glass (`.bar-pill`, `--glass-fill-2` over a 12px blur; the picker
+  1 + 3 + 28 + 3 + 1), because over the moon's lit limb the clear glass washed
+  out and Home's update line read faint. On Home the bar's Start is
+  `display: none` (it was kept laid out but unseen, which left a gap that set
+  the picker floating mid bar); whatever arrives or goes in the group, the
+  controls beside it glide into place (`shell.js flipBar`, measured, changed,
+  played back by a transform on the smooth spring) and the newcomer rises in
+  once (`barIn`). WHAT'S NEW is Home's update line moved into the bar: a
+  pill, "What's new in 9.1.0", main's sentence ("Occlara updated to 9.1.0.
+  See what's new") whole in its title, the version dropped under 1180px and
+  the words under 1040 (the spark alone). Main's rules are unchanged
+  (changelog.md, "The update line"); the bar marks it seen only with the
+  window on screen (`newsOnScreen`). Neither pill is ever on the bar while
+  recording, sealed or on the Recording view (`barQuiet`, and shell.css hides
+  them there too). Pictures: `scripts/shot-demo.js` news, updating,
+  updatingsoon, updateready, barall, barmid, barnarrow and sealedbar. Tests:
+  `test:shellbar`.
 - **A trap:** a classic script's own top level `const top` collides with
   `window.top` and the whole script fails to run, silently. The shell's list
   of links is `topLinks`.
@@ -407,7 +429,7 @@ over it with no model call, so no look at the deaths Riot times and no read
 deleted as the app quits. A typed and never connected Riot ID runs no late
 link, so that one says Grade my recent matches is what checks it. The tray's
 Quit and Settings' quit with no question as they always did, and an update's
-Restart now and Windows ending its session close the window as the app goes
+Restart to update and Windows ending its session close the window as the app goes
 (`before-quit`, `session-end`) and never ask. Ctrl+Shift+M still hides the
 window to the corner mark. `test:shellnav` holds every wording and the close
 held and handed over on the next turn on stand-in windows, `check:seal` the
@@ -914,14 +936,14 @@ Settings in the page order and marked as Settings in the sidebar: the
 changelog, newest version the hero at 32px, each version a ruled section with
 its changes as rows and the kind a small word. Opened from Settings (the row
 "What's new in Occlara" and the version line, whose update check is now
-"Check for updates" beside it) and from Home's update line, "Occlara updated
-to X. See what's new", said once after an update at the right of Home's
-title, never mid match. The Discord is a quiet icon at the end of Settings'
+"Check for updates" beside it) and from the bar's What's new pill (Home's
+update line until 9.1), "What's new in X" with main's "Occlara updated to X.
+See what's new" in its title, said once after an update, never mid match. The Discord is a quiet icon at the end of Settings'
 row in the sidebar's foot (`#discord`, `.foot-icon`; the foot is a two
 column grid so its rows keep their order) and Settings' row "Community".
 Everything about them: changelog.md. `check:mainwindow` writes
 `main-whatsnew.png`, `main-whatsnew-older.png` and
-`main-settings-community.png`, and `main-home.png` with the update line.
+`main-settings-community.png`, and `main-home.png` with the bar's What's new.
 
 ### The Practice page
 
@@ -1225,3 +1247,40 @@ after: the moon, the stars, the agent's drift, any loop. One switch:
   are not ambient and still play.
 - `test:still` holds the wiring and finds every infinite animation in the
   renderer, so a new one without its pause fails there.
+
+### The updater in the bar (9.1, the owner's item 22)
+
+The native restart question ("Occlara update ready", Restart now or Later)
+is gone. The bar says it instead, at its top right beside the profile, in
+green, the colour of a download (`#upd`, `shell.js paintUpdate`):
+
+- **Downloading**: a 36px round control, the download arrow, and the
+  download's progress drawn round it as its edge (`.upd-arc`, a path of 100,
+  its offset `100 - --p`). Before electron-updater gives a percent (a
+  differential download may give none), a quarter of the ring turns slowly
+  (`.upd.unsure`, still under `html.rec-still`, none under reduced motion).
+  Nothing to press: its title says "Downloading Occlara 9.1.1, 42%".
+- **Ready**: the control opens into "Restart to update" (the word's grid
+  column grows from nothing on the smooth spring, so the controls beside it
+  glide). Pressed, the shell asks `UPDATE_INSTALL`; main installs only from
+  the bar's own document (`register-ipc.js fromPage(e, 'main')`), only what is
+  downloaded and only while the player is not playing (`updater.js install`,
+  the one call to `quitAndInstall`), and the control says "Restarting".
+- **Never on the bar while the player is playing**: main's view is null while
+  `busy()` holds (a session running, a stop mid match holding the seal, a
+  review still being built, an import running), watched every second while
+  there is an update so its end shows it again (`updater.js emit`), and the
+  shell hides it while recording, sealed or on the Recording view whatever
+  main says. Nothing restarts the app by itself; quitting installs it, as
+  "Later" did (`autoInstallOnAppQuit`).
+- electron-updater's flow and the release contract are unchanged: the feed,
+  `latest.yml`, `autoDownload`, `autoInstallOnAppQuit` and `quitAndInstall()`.
+  A check finding the version already downloaded leaves it ready, a newer one
+  supersedes it (the control goes back to downloading for that one), and a
+  failed check never hides one that is ready. Settings' version line reads the
+  same status (`APP_VERSION`, now with `percent`).
+- Channels: `UPDATE_GET`, `UPDATE_INSTALL`, `PUSH_UPDATE` (to the bar alone,
+  `registry.sendTo('main')`). Tests: `test:updater` (the module on stand ins)
+  and `test:shellbar` (the control's states on the real shell). Pictures:
+  `scripts/shot-demo.js` updating, updatingsoon, updateready, barall,
+  barnarrow, updatefocus.
