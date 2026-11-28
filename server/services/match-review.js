@@ -32,7 +32,7 @@ const knowledge = require('./knowledge');
 const cases = require('./cases');
 const forensics = require('./death-forensics');
 const { promptName } = require('./languages');
-const { noSemicolons } = require('./plain-text');
+const { noSemicolons, practiceSpelling } = require('./plain-text');
 const abilityFacts = require('./ability-facts');
 const gameClaims = require('./game-claims');
 const matchMemory = require('./match-memory');
@@ -2211,10 +2211,12 @@ function parse(text, input, opts = {}) {
     for (const n of Object.keys(out.rounds)) out.rounds[n] = roundLabels(out.rounds[n]);
   }
   // NEVER A SEMICOLON in what the player reads (owner rule, 8.7): the prompt says so,
-  // and the model is not trusted to obey it.
-  if (out.summary) out.summary = noSemicolons(out.summary);
-  if (out.focus) out.focus = noSemicolons(out.focus);
-  for (const n of Object.keys(out.rounds)) out.rounds[n] = noSemicolons(out.rounds[n]);
+  // and the model is not trusted to obey it. And Practice, never practise (9.1,
+  // plain-text.js practiceSpelling), as the client shows it, so a review is
+  // saved in the words it is shown in.
+  if (out.summary) out.summary = practiceSpelling(noSemicolons(out.summary));
+  if (out.focus) out.focus = practiceSpelling(noSemicolons(out.focus));
+  for (const n of Object.keys(out.rounds)) out.rounds[n] = practiceSpelling(noSemicolons(out.rounds[n]));
 
   // ROUND 4: the untraded count named for the deaths it is of (qualifyCount,
   // a round 4 client only), and for every client a clause about the review

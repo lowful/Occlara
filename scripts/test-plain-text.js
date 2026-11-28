@@ -101,7 +101,28 @@ ok(has('src/shared/home-model.js', /practiceSpelling\(noSemicolons\(ownFocus/), 
 ok(has('src/main/services/ask-coach.js', /reply: practiceSpelling\(data\.reply\)/), "Ask Coach's answer is shown as Practice spells it");
 ok(has('src/shared/moments.js', /scrubText\(f\.what\)/), "the look's words on Clips are cleaned as the review's are");
 ok(has('src/main/index.js', /PUSH_DEATH_EXPLAIN[^\n]*scrubText/), 'and Further explain is');
-ok(has('server/services/match-review.js', /out\.focus = noSemicolons/), 'the model\'s focus is cleaned as it is read');
+ok(has('server/services/match-review.js', /out\.focus = practiceSpelling\(noSemicolons\(out\.focus\)\)/), 'the model\'s focus is cleaned as it is read, and spelt as Practice spells it');
+{
+  // THE SERVER'S OWN COPY, WIRED (9.1, the AI audit's follow up): what
+  // match-review and death-forensics return reads Practice, so a review is
+  // saved in the words it is shown in, not only shown so by the client.
+  const mr = require('../server/services/match-review');
+  const R = (n, o) => ({ n, side: 'attacking', result: 'lost', died: true, verified: true, traded: false, kills: 0, sec: 20, killer: 'Hush', weapon: 'Sheriff', ...o });
+  const input = mr.normalise({ rounds: [R(1, { sec: 52, place: 'Mid Vent' }), R(2, { result: 'won', died: false, kills: 3 })],
+    swing: [], mistakes: [], strengths: [], patterns: [], context: { agent: 'Jett', map: 'Split' },
+    final: { team: 5, enemy: 2, result: 'Victory', verified: true, scoreline: { kills: 11, deaths: 5, assists: 2, acs: 300 } } });
+  const out = mr.parse('SUMMARY: You won the match on practised rounds.\nFOCUS: Practise your counter strafe in the Range; then take one duel at a time.\n'
+    + 'R1: Keep practising the jiggle peek before you drop into Mid Vent, so the first shot is yours.', input);
+  ok(out.summary === 'You won the match on practiced rounds.' && out.focus === 'Practice your counter strafe in the Range. Then take one duel at a time.'
+    && out.rounds[1] === 'Keep practicing the jiggle peek before you drop into Mid Vent, so the first shot is yours.',
+  "match-review's summary, focus and round lines read Practice, with no semicolon", JSON.stringify([out.summary, out.focus, out.rounds]));
+  const df = require('../server/services/death-forensics');
+  const look = df.normalise({ agent: 'Jett', map: 'Split', deaths: [{ n: 1, side: 'attacking', sec: 52, killer: 'Hush', weapon: 'Sheriff', traded: true, frames: ['x'.repeat(5000)] }] });
+  const l = df.parse(JSON.stringify({ cause: 'lost-duel', what: 'You fired first and missed, as you practised.', better: 'Practise stopping before the first shot.' }), look, look.deaths[0]);
+  ok(l.what === 'You fired first and missed, as you practiced.' && l.better === 'Practice stopping before the first shot.',
+    "and the look's what and better do too", JSON.stringify([l.what, l.better]));
+  ok(has('server/services/death-forensics.js', /out\[field\] = practiceSpelling\(s\)/), 'the look spells each sentence it keeps');
+}
 ok(has('server/routes/coach.js', /\\s\*;\\s\*/), 'the shared server cleaner drops semicolons');
 ok(has('server/services/match-review.js', /never use semicolons/), 'the review prompt says never to write one');
 

@@ -44,7 +44,11 @@ disagrees, this wins** (the system as built: `DESIGN.md`):
   capital kept). Main's `present()` for the review, Further explain, Home's
   fix (`home-model.js`), the look's line on Clips (`moments.js`) and Ask
   Coach's answer (`ask-coach.js`) pass through it; a saved review keeps what
-  the model wrote. The server holds the same code (`test:plaintext`).
+  the model wrote. The server holds the same code (`test:plaintext`), and
+  since 9.1 applies it to what it returns: match-review's summary, focus and
+  round lines (`parse`, beside `noSemicolons`) and each look sentence
+  (`death-forensics.js parse`), so a review saved after the next server
+  deploy is saved in the words it is shown in.
 
 **There is no build step and no framework.** No React, no JSX, no bundler, no
 TypeScript. Plain DOM APIs and plain CSS. Do not introduce a framework or a
