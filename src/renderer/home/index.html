@@ -130,11 +130,16 @@
              score, the grade. No buttons. -->
         <section id="last" class="card o-card last is-link" role="link" tabindex="0" aria-label="Last match"></section>
         <section id="trend" class="card o-card trend" aria-label="Trend" hidden></section>
+        <!-- WHAT REPEATS: its way to Patterns in its head, as the rank
+             card's Rank journey is (9.1: at the foot it fell under the
+             card's clipped edge, still in the tab order). -->
         <section id="top" class="card o-card top" aria-label="What repeats" hidden>
-          <p class="o-eyebrow">What repeats</p>
+          <div class="card-head">
+            <p class="o-eyebrow">What repeats</p>
+            <button id="top-more" class="btn btn-link sm" type="button">All patterns</button>
+          </div>
           <h3 class="o-title">What kept costing you</h3>
           <div id="top-list" class="top-list" role="list"></div>
-          <div class="o-foot"><button id="top-more" class="btn btn-link sm o-more" type="button">All patterns<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
         </section>
       </div>
       <div class="row">

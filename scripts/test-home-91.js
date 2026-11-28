@@ -83,6 +83,20 @@ async function openHome(o) {
     ok(same(h.bridge.sent.filter((s) => s[0] === C.REVIEW_OPEN), [[C.REVIEW_OPEN, 'valorant-1-a']]), 'and the whole card opens its review');
     ok(h.$('h-kicker').hidden && h.$('h-kicker').textContent === '' && h.$('h-fix-head').textContent === 'Enter second'
       && h.$('h-fix-sub').textContent === 'Let a teammate go first.', 'item 8: the fix is the hero, with no label over it');
+    ok(!last.classList.contains('no-map') && last.querySelector('.lm-media .lm-map'), 'a map with its bundled art: the picture leads the card');
+  }
+  {
+    // A map the bundled art does not know (a new map before sync:mapart, and
+    // every League match): no empty raised box where the picture would be.
+    const rows = [row('valorant-1-n', 60000, { map: 'Nowhere', score: '13-11' }), row('valorant-2-n', DAY, { grade: { score: 65 } })];
+    const h = await openHome({ rows });
+    const last = h.$('last');
+    ok(last.classList.contains('no-map') && !!last.querySelector('.lm-media.no-map') && !last.querySelector('.lm-map'),
+      'no map picture: the card and its picture\'s place are marked no-map, and no map is drawn', last.className);
+    ok(last.querySelector('.lm-result').textContent === 'Victory 13 : 11', 'the score whole, "Victory 13 : 11"', last.querySelector('.lm-result').textContent);
+    // Recent matches write the score as the card and Matches do.
+    const res = h.document.querySelectorAll('#recent-list .r-res').map((r) => r.textContent);
+    ok(same(res, ['Victory 13 : 11', 'Victory 5 : 2']), 'recent matches write the score as the last match card does, "13 : 11"', JSON.stringify(res));
   }
   {
     // The owner's library: a two round Haven recording, ungraded, the newest.
@@ -144,6 +158,14 @@ async function openHome(o) {
     const ways = tops.map((r) => { const w = r.querySelector('.way'); return w ? w.className : ''; });
     ok(/\bup worse\b/.test(ways[0]) && /\bdown better\b/.test(ways[1]) && /\bflat steady\b/.test(ways[2]) && /\bnone\b/.test(ways[3]),
       'item 4: up and worse, down and better, flat and steady, and an empty place keeping the counts in line', JSON.stringify(ways));
+    // Its way to Patterns in its head, as Rank journey is on the rank card:
+    // at the foot it fell under the card's clipped edge, still in the tab order.
+    const more = h.$('top-more');
+    const kids = h.$('top').children;
+    ok(more.parentNode.classList.contains('card-head') && more.parentNode.parentNode === h.$('top')
+      && kids.indexOf(more.parentNode) < kids.indexOf(h.$('top-list')), "What repeats: All patterns in the card's head, above its rows");
+    ok(tops.every((r) => r.querySelector('.top-title').title === r.querySelector('.top-title').textContent),
+      'each title whole in its tooltip, where a narrow card cuts it');
     const w0 = tops[0].querySelector('.way');
     ok(w0.getAttribute('role') === 'img' && w0.getAttribute('aria-label') === 'Getting worse: in 4 of your 5 newest recorded matches, up from 3 of the 5 before them.'
       && w0.dataset.tip === w0.getAttribute('aria-label'), 'its words, as a tooltip and to a screen reader', w0.getAttribute('aria-label'));
@@ -196,6 +218,46 @@ async function openHome(o) {
       'Radiant: its RR, and that it is the top');
     r.fire(r.$('rank-icon'), 'error');
     ok(r.$('rank-icon').hidden, 'an icon that fails to load leaves the words alone');
+    // Iron 1 at 0 RR is an elo of 0, as an unrated point is: it is a rank,
+    // never the game before it ("+19 RR" after a game that cost 19).
+    const iron = await openHome({ rows, riotId: 'Me#EUW', history: hist('Iron 1', [19, 0]) });
+    ok(!iron.$('rank').hidden && iron.$('rank-tier').textContent === 'Iron 1' && iron.$('rank-rr').textContent === '-19 RR'
+      && iron.$('rank-in').textContent === '0 RR' && iron.$('rank-to').textContent === '100 RR to Iron 2',
+    'Iron 1 at 0 RR: its own tier, the game that took it there, and 100 to Iron 2',
+    [iron.$('rank-tier').textContent, iron.$('rank-rr').textContent, iron.$('rank-in').textContent, iron.$('rank-to').textContent].join(' | '));
+    const unrated = await openHome({ rows, riotId: 'Me#EUW', history: () => ({ points: [{ date: NOW - DAY, elo: 0, change: 0, tier: 'Unrated' }] }) });
+    ok(unrated.$('rank').hidden, 'an unrated point at an elo of 0 is still no rank');
+  }
+
+  // ── 10 on Stats: the rank tile ─────────────────────────────────────────────
+  {
+    const stats = async (tier, rankLine, elos) => {
+      const st = loadSurface('stats', {
+        handlers: {
+          [C.STATS_DASHBOARD]: () => ({ game: 'valorant', statsSupported: true, categories: {}, rank: { value: tier, direction: 'flat' },
+            rankLine, winRate: { value: 52, direction: 'up' }, topAgents: [], sessions: [], sessionCount: 0,
+            matches: { matches: [], fetchedAt: 0, mode: 'competitive' }, grading: null, riotId: 'Me#EUW' }),
+          [C.STATS_MATCHES]: () => ({ matches: [] }),
+          [C.STATS_RANK_HISTORY]: () => ({ points: elos.map((elo, i) => ({ date: NOW - (elos.length - i) * DAY, elo, change: i ? elos[i] - elos[i - 1] : 10, tier })) }),
+        },
+      });
+      await settle();
+      st.clock.flushFrames();
+      await settle();
+      const tile = st.document.querySelectorAll('#cards .card').find((c) => c.querySelector('.label') && /^Rank/.test(c.querySelector('.label').textContent));
+      const foot = tile ? tile.querySelectorAll('.rank-progress .rank-foot span').map((s) => s.textContent) : null;
+      return { tile, foot, rr: tile && tile.querySelector('.arrow') ? tile.querySelector('.arrow').textContent : null,
+        sub: tile && tile.querySelector('.rank-sub') ? tile.querySelector('.rank-sub').textContent : null };
+    };
+    const imm = await stats('Immortal 2', ['112 RR', 'Peak Immortal 3'], [2290, 2312]);
+    ok(imm.tile && same(imm.foot, ['', 'Immortal 3 follows the leaderboard']) && /^112 RR/.test(imm.sub || ''),
+      'Stats at Immortal: the RR said once, by the line under the tile, the foot saying why there is no bar', JSON.stringify(imm.foot));
+    const bare = await stats('Immortal 2', [], [2290, 2312]);
+    ok(same(bare.foot, ['112 RR', 'Immortal 3 follows the leaderboard']), 'and without that line the foot says the RR', JSON.stringify(bare.foot));
+    const dia = await stats('Diamond 1', ['57 RR', 'Peak Diamond 2'], [1546, 1557]);
+    ok(same(dia.foot, ['', '43 RR to Diamond 2']) && dia.tile.querySelector('.rank-progress .rank-bar'), 'below Immortal: the bar and how far to go, the RR in the line under', JSON.stringify(dia.foot));
+    const iron = await stats('Iron 1', ['0 RR'], [19, 0]);
+    ok(iron.rr === '-19 RR' && same(iron.foot, ['', '100 RR to Iron 2']), "Stats at Iron 1, 0 RR: the game that took it there, and 100 to Iron 2", `${iron.rr} ${JSON.stringify(iron.foot)}`);
   }
 
   // ── 8: the hero's layout, read from the stylesheet ─────────────────────────
@@ -207,6 +269,29 @@ async function openHome(o) {
   const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
   ok(prop(rule('.home > *'), 'flex-shrink') === '0', 'no section of Home shrinks: the hero keeps its height and the page scrolls');
   ok(!/\.top-row\.faded/.test(css), 'item 3: no faded row rule left');
+  // Item 4: steady is a mark in its own round as up and down are, never a
+  // bare line before a count, which read as a minus ("- 24").
+  const steady = prop(rule('.way.steady'), 'background');
+  ok(steady && steady !== 'none' && steady !== 'transparent', 'item 4: the steady mark stands in a round of its own', steady);
+  // Item 1: the score is never cut. The line breaks between the result and
+  // the score, each whole, and a narrower card puts the grade's words under it.
+  ok(prop(rule('.lm-result'), 'white-space') === 'normal' && !/text-overflow/.test(rule('.lm-result'))
+    && prop(rule('.lm-result .result, .lm-result .score'), 'white-space') === 'nowrap',
+  'item 1: "Victory 13 : 11" is never cut to "Victory 13 : ..."', rule('.lm-result'));
+  const block = (head) => { const at = css.indexOf(head); if (at < 0) return ''; let depth = 0; for (let i = css.indexOf('{', at); i < css.length; i++) { if (css[i] === '{') depth++; else if (css[i] === '}' && --depth === 0) return css.slice(at, i + 1); } return ''; };
+  ok(/flex-direction:\s*column/.test(block('@container (max-width: 290px)')), "a narrow card stacks the grade's words under the number", block('@container (max-width: 290px)').slice(0, 80));
+  // The narrow window: two across, what repeats the whole width under them
+  // with its rows two by two, a card alone on its line taking all of it.
+  const narrow = block('@media (max-width: 1160px)');
+  ok(/\.bento, \.bento:has\(> \.card\[hidden\]\) \{ grid-template-columns: minmax\(0, [\d.]+fr\) minmax\(0, [\d.]+fr\); \}/.test(narrow)
+    && /\.bento > #top, \.bento:has\(> #trend\[hidden\]\) > #last \{ grid-column: 1 \/ -1; \}/.test(narrow)
+    && /#top \.top-list \{ display: grid; grid-template-columns: repeat\(2,/.test(narrow),
+  'a narrower window: the bento two across, what repeats the whole width, its rows two by two', narrow.slice(0, 120));
+  ok(!/\.top-sub \{ display: none; \}/.test(css), "and no width hides the mistakes' lines any more");
+  // No map picture: the empty raised box is gone.
+  const noMap = rule('.lm-media.no-map');
+  ok(/background:\s*none/.test(noMap) && /border:\s*0/.test(noMap) && /flex:\s*none/.test(noMap) && prop(rule('.bento > #last.no-map'), 'height') === 'auto',
+    'no map picture: no empty box, one slim line, the card as tall as it holds', noMap);
   const big = rule('.h-actions .btn.h-big');
   ok(prop(big, 'height') === '60px' && parseInt(prop(big, 'min-width'), 10) >= 220, 'item 8: Start and Open last review at 60px', big);
   const gap = parseInt(prop(big, 'gap'), 10);

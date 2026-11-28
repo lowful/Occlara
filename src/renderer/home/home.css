@@ -174,10 +174,9 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .card-head .btn-link { padding: 4px var(--space-2); margin: -4px calc(var(--space-2) * -1) -4px 0; }
-.o-foot { margin-top: auto; padding-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.o-more { display: inline-flex; align-items: center; gap: 6px; padding: 4px var(--space-2); margin-left: calc(var(--space-2) * -1); color: var(--text); font-weight: 600; }
-.o-more svg { width: 16px; height: 16px; transition: transform 160ms var(--ease-out); }
-.o-more:hover svg { transform: translateX(3px); }
+/* The eyebrow beside a way out of the card keeps the button's line: the link
+   is 30px against the eyebrow's 14, so the head is 24px and centred. */
+.card-head > .o-eyebrow { margin: 0; }
 
 /* A chip: a small label on a raised fill. */
 .chip {
@@ -282,14 +281,40 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 }
 #last:focus-visible .lm-open { opacity: 1; transform: none; }
 #last:active { transform: scale(0.995); transition-duration: var(--dur-press); }
+/* NO MAP PICTURE (9.1): every League match, and a Valorant map that came out
+   after the bundled art (sync:mapart). An empty raised box there was dead
+   space, so the picture's room goes: one slim line of what there is, the
+   agent's head and the K/D a step larger, the way in at its end. Alone in
+   the bento the card is as tall as what it holds; beside a card it keeps
+   that card's height, the line standing midway between the eyebrow and the
+   match, so the room left is shared out rather than one hole. */
+.bento > #last.no-map { height: auto; min-height: 0; }
+#last.no-map .lm-row { margin-top: 0; }
+.lm-media.no-map {
+  flex: none; display: flex; align-items: center; gap: 12px;
+  min-height: 0; margin: auto 0; padding: 16px 0 18px;
+  border: 0; border-radius: 0; background: none; overflow: visible;
+}
+.lm-media.no-map .lm-scrim { display: none; }
+.lm-media.no-map .lm-agent { position: static; width: 40px; height: 40px; box-shadow: none; }
+#last .lm-media.no-map .last-kd {
+  position: static; height: 36px; padding: 0 14px; line-height: 34px;
+  -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--raised);
+}
+#last .lm-media.no-map .kd-ratio { font-size: 18px; }
+.lm-media.no-map .lm-open { position: static; margin-left: auto; }
+#last.checking .lm-media.no-map { flex: none; min-height: 0; }
 
 /* The match: the result and the score large, who and when, the grade. */
 .lm-row { display: flex; align-items: flex-end; gap: 14px; margin-top: 16px; }
 .lm-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto; }
+/* The score is never cut (9.1): where the line has no room it breaks between
+   the result and the score, each whole, never "Victory 13 : ...". */
 .lm-result {
   font-size: 24px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.1; color: var(--text);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: normal; overflow-wrap: anywhere;
 }
+.lm-result .result, .lm-result .score { white-space: nowrap; }
 .lm-meta .result.win { color: var(--good); }
 .lm-meta .result.loss { color: var(--bad); }
 .lm-who { font-size: 13px; line-height: 1.35; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -338,6 +363,15 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
   .gv-score.big { font-size: 48px; }
   .lm-row { gap: 10px; }
 }
+/* Narrower still (the card's content under about 290px): the grade's name and
+   its change go under the number instead of beside it, giving the result and
+   the score its room, and the note may take two lines. */
+@container (max-width: 290px) {
+  #last .gv-grade.last-grade { flex-direction: column; align-items: flex-end; gap: 6px; }
+  #last .grade-side { flex-direction: row; align-items: baseline; gap: 6px; padding-bottom: 0; }
+  .lm-note { white-space: normal; align-items: flex-start; }
+  .lm-note.mark::before { margin-top: 5px; }
+}
 /* Still being checked (8.4.1): the checking card under the picture, which
    gives it the room. */
 #last.checking .lm-media { flex: 0 0 64px; min-height: 64px; }
@@ -357,8 +391,9 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 .way:not(:has(.way-n)) { padding: 0; width: 24px; }
 .way.worse { color: var(--bad); background: rgba(var(--bad-rgb), 0.12); }
 .way.better { color: var(--good); background: rgba(var(--good-rgb), 0.12); }
-/* Steady is a grey line with no round behind it, so it never reads as a button. */
-.way.steady { color: var(--text-2); background: none; }
+/* Steady is the flat line in a round of its own, as up and down are, on the
+   quiet glass: bare before a count it read as a minus ("- 24"). */
+.way.steady { color: var(--text-dim); background: var(--glass-q-h); }
 .way.none { visibility: hidden; }
 .has-tip { cursor: default; }
 .has-tip::after {
@@ -507,14 +542,26 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
   .h-agent { right: 0; transform: scale(0.86); transform-origin: top right; }
   .h-agent.full { right: -2%; }
 }
+/* A NARROWER WINDOW (9.1): three across left the last match about 256px for
+   "Victory 13 : 11" beside its grade, and cut three of the four repeated
+   mistakes to a few words. Here the bento is two across: the last match and
+   the trend, then what repeats the whole width under them, its rows two by
+   two with their lines under them. A card left alone on its line takes the
+   whole of it. Three across from 1161px, where the longest title the app
+   writes ("Dying in the first 30 seconds") still fits whole. */
+@media (max-width: 1160px) {
+  .bento, .bento:has(> .card[hidden]) { grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr); }
+  .bento > #top, .bento:has(> #trend[hidden]) > #last { grid-column: 1 / -1; }
+  .bento > #top { height: auto; }
+  #top .top-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 36px; }
+}
 @media (max-width: 1040px) {
   .bento { gap: 14px; }
   .bento > .card { padding: 24px 22px 22px; }
-  .top-sub { display: none; }
   .h-hero-copy { max-width: 540px; }
 }
 @media (max-width: 900px) {
-  .bento, .row { grid-template-columns: minmax(0, 1fr); }
+  .bento, .bento:has(> .card[hidden]), .row { grid-template-columns: minmax(0, 1fr); }
   .bento > .card { height: auto; min-height: 260px; }
   .h-agent { display: none; }
 }

@@ -122,6 +122,9 @@ function paintLast(last, model) {
   const who = [last.title, last.map].filter(Boolean).join(' on ');
   host.classList.toggle('checking', !!checking);
   host.classList.toggle('ungraded', !checking && !last.grade);
+  // No map picture (League, a map newer than the bundled art): the picture's
+  // room goes to one slim line (home.css #last.no-map).
+  host.classList.toggle('no-map', !art.map);
 
   const head = el('div', 'last-head');
   head.append(el('p', 'o-eyebrow', 'Last match'));
@@ -555,7 +558,10 @@ function paintMistakes(model) {
     const bubble = el('span', 'top-bubble');
     bubble.innerHTML = mistakeIcon(m.title);
     const text = el('span', 'top-text');
-    text.append(el('span', 'top-title', m.title));
+    const t = el('span', 'top-title', m.title);
+    // Whole under the pointer where a narrow card cuts it.
+    t.title = m.title || '';
+    text.append(t);
     if (typeof m.matches === 'number' && typeof model.recorded === 'number') text.append(el('span', 'top-sub', `In ${m.matches} of your last ${model.recorded} matches`));
     row.append(bubble, text);
     if (WAY_PATH[m.trend]) row.append(wayMark(m.trend, 'down', m.trendWords || '', null));
@@ -588,8 +594,9 @@ function paintRecent(recent, model) {
     // Still being checked (8.4.1): the screen's result and grade are not said
     // until Riot's record has had its say, the pill in their place.
     if (m.result && !m.work) {
+      // The score as the last match card and Matches write it, "13 : 11".
       title.append(el('span', 'r-res ' + (isWin(m.result) ? 'win' : isLoss(m.result) ? 'loss' : ''),
-        [m.result, m.score].filter(Boolean).join(' ')));
+        [m.result, scoreText(m.score)].filter(Boolean).join(' ')));
     }
     // Its marks (8.7, home-model.js marks): "Best in 23", "First 80+", "3 in a
     // row". None while the match is still being checked.
