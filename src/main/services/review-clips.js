@@ -203,20 +203,34 @@ function placedIn(death, frames) {
  * @param io.has     (name) => whether that clip of this review is on disk
  * @param io.url     (name) => the URL to play it by
  * @param io.frames  (name) => its frames, { times, end }, or null; optional
+ * @param io.poster  (name, atSec) => its poster as a data URL, or null while
+ *                   it is made (asked for at atSec, clips.js posterAt); optional
+ * A clip the player deleted (review.clipsDeleted) is said to be: 'deleted'.
  * Returns a copy; the review handed in is never changed.
  */
 function presentClips(review, io) {
   if (!review || typeof review !== 'object' || !io) return review;
   const why = review.clipsCleared && review.clipsCleared.reason === 'space' ? 'space'
     : review.clipsCleared ? 'cleared' : null;
-  const about = (name, death) => {
+  // A clip the player deleted (9.1, review-store.js markClipDeleted) says so, before the cap or Settings.
+  const deleted = new Set(Array.isArray(review.clipsDeleted) ? review.clipsDeleted.filter((n) => typeof n === 'string') : []);
+  const about = (name, death, kills) => {
     if (typeof name !== 'string' || !clips.CLIP_RE.test(name)) return null;
     if (io.has(name)) {
       let frames = null;
       try { frames = typeof io.frames === 'function' ? io.frames(name) : null; } catch { frames = null; }
       const good = frames && Array.isArray(frames.times) && frames.times.length ? frames : null;
-      return { clipUrl: io.url(name), ...(good ? { clipFrames: good } : {}), clipDeath: placedIn(death, good) };
+      // Its poster (9.1): the one still the Clips page makes of it, made once
+      // and kept beside it (services/clip-posters.js), so a clip in its row
+      // never shows an empty box before it is played. Null while it is made.
+      let poster = null;
+      try { poster = typeof io.poster === 'function' ? io.poster(name, clips.posterAt({ death, kills })) : null; } catch { poster = null; }
+      return {
+        clipUrl: io.url(name), ...(good ? { clipFrames: good } : {}), clipDeath: placedIn(death, good),
+        ...(typeof poster === 'string' && poster.startsWith('data:image/jpeg;base64,') ? { clipPoster: poster } : {}),
+      };
     }
+    if (deleted.has(name)) return { clipGone: 'deleted' };
     return why ? { clipGone: why } : null;
   };
   let out = review;
@@ -231,7 +245,7 @@ function presentClips(review, io) {
   // kills are its marks; it has no death, so no place for one.
   if (Array.isArray(out.rounds) && out.rounds.some((c) => c && c.highlight && c.highlight.clip)) {
     out = { ...out, rounds: out.rounds.map((c) => {
-      const extra = c && c.highlight ? about(c.highlight.clip, null) : null;
+      const extra = c && c.highlight ? about(c.highlight.clip, null, c.highlight.kills) : null;
       if (!extra) return c;
       const { clipDeath: _none, ...rest } = extra;
       return { ...c, highlight: { ...c.highlight, ...rest } };

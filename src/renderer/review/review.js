@@ -90,7 +90,7 @@ function paintLolDeaths(r) {
       const moment = el('div', 'v-moment');
       const side = el('div', 'v-media');
       side.append(window.ClipPlayer.create({
-        url: d.clipUrl, label: `The clip of death ${d.n}`, frames: d.clipFrames, death: d.clipDeath,
+        url: d.clipUrl, poster: d.clipPoster || null, label: `The clip of death ${d.n}`, frames: d.clipFrames, death: d.clipDeath,
       }).el);
       const advice = el('div', 'v-advice');
       if (fact) advice.append(fact);
@@ -528,10 +528,18 @@ function highlightPart(c) {
   if (!h || typeof h.clipUrl !== 'string' || !h.clipUrl || !window.ClipPlayer) return null;
   const box = el('div', 'v-moment has-clip v-hl-moment');
   const media = el('div', 'v-media');
-  media.append(window.ClipPlayer.create({
-    url: h.clipUrl, label: `The highlight of round ${c.n}`, frames: h.clipFrames,
+  // ITS PICTURE BEFORE IT PLAYS (9.1): a highlight has no frame of the
+  // coach's, so its clip's own poster, the still the Clips page makes of it
+  // just before its first kill (main's clipPoster); while that is made, the
+  // map's art, as Clips shows it, so the box is never empty. The poster takes
+  // the art's place when it lands (onClipPosters).
+  const art = !h.clipPoster && current && current.game && typeof window.occlara.mapArt === 'function' ? window.occlara.mapArt(current.game.map) : null;
+  const player = window.ClipPlayer.create({
+    url: h.clipUrl, poster: h.clipPoster || art || null, label: `The highlight of round ${c.n}`, frames: h.clipFrames,
     kills: Array.isArray(h.kills) ? h.kills : [], cuts: Array.isArray(h.cuts) ? h.cuts : [],
-  }).el);
+  });
+  if (!h.clipPoster && art) player.video.dataset.art = '1';
+  media.append(player.el);
   const side = el('div', 'v-advice');
   const tag = el('div', 'v-look-tag');
   tag.append(el('span', 'gv-fix-label', 'Your highlight'));
@@ -1043,6 +1051,32 @@ if (window.occlara && window.occlara.onDeathExplained) {
 }
 
 /*
+ * A CLIP'S POSTER, LANDED (9.1): main made the still of a clip this review
+ * shows after the page was painted (index.js reviewPostersLanded). It goes on
+ * that clip's player where it stands, in place of the map's art or of no
+ * picture at all, and never over the coach's own frame; the review held here
+ * keeps it, so a repaint draws it too. Nothing restarts: a clip being watched
+ * plays on.
+ */
+function takePosters(m) {
+  if (!m || !current || current.id !== m.id || !Array.isArray(m.posters)) return;
+  for (const p of m.posters) {
+    if (!p || typeof p.url !== 'string' || typeof p.poster !== 'string' || !p.poster.startsWith('data:image/jpeg;base64,')) continue;
+    for (const c of current.rounds || []) {
+      for (const part of [c && c.highlight, c && c.flag, c && c.forensics]) if (part && part.clipUrl === p.url) part.clipPoster = p.poster;
+    }
+    for (const d of current.deathList || []) if (d && d.clipUrl === p.url) d.clipPoster = p.poster;
+    for (const v of document.querySelectorAll('video.v-clip-video')) {
+      if (v.getAttribute('src') !== p.url) continue;
+      if (v.getAttribute('poster') && v.dataset.art !== '1') continue;
+      v.setAttribute('poster', p.poster);
+      delete v.dataset.art;
+    }
+  }
+}
+if (window.occlara && typeof window.occlara.onClipPosters === 'function') window.occlara.onClipPosters(takePosters);
+
+/*
  * FIGHT IT AGAIN (Nov 2026, shared/trainer-replay.js): a death main says the
  * Trainer can replay carries that replay's id (`c.replay`, index.js present),
  * and its row has the button beside Further explain. A click asks main to open
@@ -1067,7 +1101,7 @@ function deathExtras(r, c) {
   const box = el('div', 'v-death-extra');
   const lookHasClip = c.forensics && c.forensics.clipUrl;
   if (flag && flag.clipUrl && !lookHasClip) {
-    const player = window.ClipPlayer.create({ url: flag.clipUrl, label: `The clip of round ${c.n}`,
+    const player = window.ClipPlayer.create({ url: flag.clipUrl, poster: flag.clipPoster || null, label: `The clip of round ${c.n}`,
       frames: flag.clipFrames, death: flag.clipDeath, screen: !c.verified, stills: [] });
     const media = el('div', 'v-media');
     media.append(player.el);
@@ -1717,7 +1751,7 @@ function look(c, frames, why, chain) {
     // where the card says the death falls in the clip (clipDeath), stepped by
     // the clip's own frames (clipFrames, main's reading of them).
     player = window.ClipPlayer.create({
-      url: f.clipUrl, poster: posterOf(shots), label: `The clip of round ${c.n}`,
+      url: f.clipUrl, poster: posterOf(shots) || f.clipPoster || null, label: `The clip of round ${c.n}`,
       frames: f.clipFrames, death: f.clipDeath, screen: f.source === 'screen', stills: shots.map((s) => s.at),
       onStill: (i) => { if (strip) markShown(strip, i); },
     });
@@ -1779,6 +1813,7 @@ function look(c, frames, why, chain) {
  * is under it was a line on every death saying what the row already said.
  */
 const CLIP_GONE = {
+  deleted: 'You deleted its clip.',
   space: 'Its clip was cleared to keep your clips under the space set in Settings.',
   cleared: 'Its clip was cleared in Settings.',
 };

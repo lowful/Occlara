@@ -239,6 +239,10 @@ const SCENES = {
   replaynone: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.pause(); window.RatingView.nextEvent(); window.RatingView.nextEvent(); window.RatingView.nextEvent(); true" },
   replayend: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.finish(); true" },
   reviewnarrow: { page: 'review', media: true, w: 960, h: 640 },
+  // 9.1 after the review: round 17's highlight in its row, its poster (or,
+  // made later, the map's art until it lands), and the poster landing.
+  reviewhlrow: { page: 'review', media: true, posters: true, act: "(() => { const r = document.getElementById('round-17'); r.querySelector('.v-fold').click(); setTimeout(() => r.scrollIntoView({ block: 'center' }), 300); return true; })()", after: 1400 },
+  reviewhlrowart: { page: 'review', media: true, act: "(() => { const r = document.getElementById('round-17'); r.querySelector('.v-fold').click(); setTimeout(() => r.scrollIntoView({ block: 'center' }), 300); return true; })()", after: 1400 },
   replaynarrow: { page: 'review', media: true, w: 960, h: 640, act: "window.RatingView.play(true); window.RatingView.pause(); for (let k = 0; k < 300; k++) { const s = window.RatingView.state(); if (s && /h17-clip/.test(s.media || '')) break; window.RatingView.nextEvent(); } true" },
   // Clips, 9.1 (fixtures/clips-demo.js).
   clipsrich: { page: 'moments', clips: 'rich', storage: 'some' },
@@ -261,6 +265,8 @@ const SCENES = {
   // record said under the title at the same size.
   clipsplayer960: { page: 'moments', clips: 'rich', storage: 'some', video: true, w: 960, h: 640, act: "document.querySelector('#mo-hero .mo-hplay').click(); true", after: 2500 },
   clipslow960: { page: 'moments', clips: 'rich', storage: 'low', w: 960, h: 640 },
+  // 9.1: a row's clip deleted, the row read back as main would ("Clip deleted").
+  clipsdeletedrow: { page: 'moments', clips: 'rich', storage: 'some', after: 2600, act: "(() => { const b = document.querySelectorAll('#mo-list .mo-row .mo-more')[1]; const key = b.closest('.mo-row').dataset.key; b.closest('.mo-row').scrollIntoView({ block: 'center' }); setTimeout(() => { b.click(); setTimeout(() => { document.querySelector('#mo-menu [data-act=\"delete\"]').click(); setTimeout(() => { document.getElementById('mo-cf-yes').click(); setTimeout(() => { const r = document.querySelector('.mo-row[data-key=\"' + key + '\"]'); if (r) r.scrollIntoView({ block: 'center' }); }, 1200); }, 200); }, 200); }, 300); return true; })()" },
 };
 
 /** A rank history whose newest rated game is `r.tier` at `r.rr` RR, the last game `r.change` (rank-tiers.js: elo is the place times 100 plus the RR). */
@@ -302,6 +308,19 @@ async function demoMedia(store, id, review) {
   };
   make('h17-clip.mkv', 'Abyss', 9);
   make('r2-clip.mkv', 'Split', 15);
+  // Their posters (9.1), one still each as services/clip-posters.js makes it,
+  // where clips.js posterAt says: the highlight's just before its first kill.
+  const poster = (name, atSec) => {
+    if (store.poster(id, name)) return;
+    try {
+      const jpg = execFileSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-ss', atSec.toFixed(2), '-i', store.clipFile(id, name), '-frames:v', '1',
+        '-vf', 'scale=480:-2', '-q:v', '5', '-f', 'image2', '-vcodec', 'mjpeg', 'pipe:1']);
+      store.savePoster(id, name, jpg);
+    } catch { /* no poster: the art stands in */ }
+  };
+  const clipsMod = require('../src/shared/clips');
+  poster('h17-clip.mkv', clipsMod.posterAt({ kills: [2400] }));
+  poster('r2-clip.mkv', clipsMod.posterAt({ death: 11000 }));
   const r = JSON.parse(JSON.stringify(review));
   const at = (n) => r.rounds.find((c) => c.n === n);
   if (at(17)) at(17).highlight = { clip: 'h17-clip.mkv', length: 9000, kills: [2400, 3600, 4700, 7400], cuts: [] };
@@ -359,10 +378,27 @@ app.whenReady().then(async () => {
   const seeded = proof.seed(path.join(ud, 'profile'), { now: Date.now() - 30 * 60 * 1000 });
   const store = seeded.store;
   const recent = () => store.recent('valorant', patterns.LOOK_BACK);
-  // As main presents a review (index.js present): served, and its clips on disk given their URLs.
+  // As main presents a review (index.js present): served, and its clips on
+  // disk given their URLs and, 9.1, the posters made beside them (a scene's
+  // `posters`; without, the review shows the map's art in their place).
   const present = (review) => {
     const out = scrubText({ ...served(review) });
-    return review && review.id ? reviewClips.presentClips(out, { has: (n) => store.hasClip(review.id, n), url: (n) => clipScheme.urlFor(review.id, n) }) : out;
+    return review && review.id ? reviewClips.presentClips(out, { has: (n) => store.hasClip(review.id, n), url: (n) => clipScheme.urlFor(review.id, n),
+      poster: (n) => { const b = scene.posters ? store.poster(review.id, n) : null; return b ? `data:image/jpeg;base64,${b}` : null; } }) : out;
+  };
+  // Clips deleted in a scene (9.1): the page reads them back as main would,
+  // "Clip deleted". By the match's last word and the clip's name, since the
+  // demo library's ids follow the clock and change between two reads.
+  const deletedClips = new Set();
+  const deletedKey = (rid, name) => `${String(rid).split('-').pop()}/${name}`;
+  const markDeleted = (model) => {
+    for (const m of (model && model.matches) || []) {
+      for (const x of m.moments || []) {
+        if (x.clip && deletedClips.has(deletedKey(m.id, x.clip.name))) Object.assign(x, { clip: null, clipGone: 'deleted', clipGoneText: moments.GONE.deleted });
+      }
+    }
+    if (model && deletedClips.size) model.best = moments.bestOf(model.matches, model.compilation, model.game);
+    return model;
   };
   let scene = SCENES.home;
   const shellState = () => ({ page: scene.page || 'home', shown: scene.sealed || scene.rec ? null : scene.page, sealed: !!scene.sealed, held: !!scene.held, rec: !!scene.rec, maximized: false });
@@ -392,7 +428,7 @@ app.whenReady().then(async () => {
     },
     [C.PATTERNS_GET]: () => ({ game: 'valorant', ...patterns.summarise(recent()), progress: progress.libraryProgress(recent()) }),
     [C.PROGRESS_GET]: (_e, id) => progress.matchProgress(recent(), id),
-    [C.MOMENTS_GET]: () => (scene.clips === 'rich' ? clipsDemo.withPosters(clipsDemo.model({ now: Date.now() }), nativeImage)
+    [C.MOMENTS_GET]: () => (scene.clips === 'rich' ? markDeleted(clipsDemo.withPosters(clipsDemo.model({ now: Date.now() }), nativeImage))
       : moments.build('valorant', recent(), { patterns: patterns.summarise(recent()), clips: (id) => store.clipsOf(id).map((c) => c.name), url: (id, name) => `occlara-clip://review/${id}/${name}`, frames: () => null, recordingMode: 'auto' })),
     [C.STATS_RANK_HISTORY]: () => (scene.rank ? historyOf(scene.rank) : []),
     // Stats (9.1, its rank card): a dashboard with the scene's rank and nothing more.
@@ -434,7 +470,7 @@ app.whenReady().then(async () => {
     [C.HISTORY_GO]: () => null,
     [C.STORAGE_GET]: () => (scene.storage ? clipsDemo.storage(scene.storage) : null),
     // Nothing on disk is touched: a delete and an open only answer as main would.
-    [C.CLIP_DELETE]: (_e, rid, name) => ({ ok: true, id: rid, clip: name, bytes: 24 * 1024 * 1024 }),
+    [C.CLIP_DELETE]: (_e, rid, name) => { deletedClips.add(deletedKey(rid, name)); return { ok: true, id: rid, clip: name, bytes: 24 * 1024 * 1024 }; },
     [C.CLIP_REVEAL]: () => ({ ok: true }),
   };
   // One handler for the clip scheme, the app's own: a clips scene that plays

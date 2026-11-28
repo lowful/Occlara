@@ -106,10 +106,12 @@ const GB = 1024 * 1024 * 1024;
     return q;
   };
   // The page's own copy, which a delete changes as main's answer would: the
-  // clip gone, the moment still listed.
+  // clip gone, the moment still listed, said to be deleted (9.1: main keeps
+  // the name on the review, review-store.js markClipDeleted, and moments.js
+  // clipOf says 'deleted', its words GONE.deleted).
   const live = JSON.parse(JSON.stringify(model));
   const dropClip = (rid, name) => {
-    for (const m of live.matches) if (m.id === rid) for (const y of m.moments) if (y.clip && y.clip.name === name) Object.assign(y, { clip: null, clipGone: 'gone', clipGoneText: 'Clip gone' });
+    for (const m of live.matches) if (m.id === rid) for (const y of m.moments) if (y.clip && y.clip.name === name) Object.assign(y, { clip: null, clipGone: 'deleted', clipGoneText: moments.GONE.deleted });
   };
   const q = await open(live, { [C.CLIP_DELETE]: (rid, name) => { if (deleteAnswer && deleteAnswer.ok) dropClip(rid, name); return deleteAnswer; } });
   const $ = q.$;
@@ -270,6 +272,9 @@ const GB = 1024 * 1024 * 1024;
   const at = D.activeElement;
   ok(at && at !== D.body && at.classList.contains('mo-open') && at.closest('.mo-row') && at.closest('.mo-row').dataset.key === key && D.querySelector('#mo-list').contains(at),
     'the keyboard lands on the same moment\'s row, painted again, never on the page\'s body', at && (at.className || at.tagName));
+  const goneTag = at && at.closest('.mo-row').querySelector('.mo-gone');
+  ok(goneTag && goneTag.textContent === 'Clip deleted' && !/Clip gone/.test(at.closest('.mo-row').textContent),
+    'and that row says "Clip deleted", never "Clip gone"', goneTag && goneTag.textContent);
   // Main's own push after a delete paints the page once more, a moment later:
   // the button with the keyboard is replaced, and the keyboard follows it.
   q.bridge.emit(C.PUSH_REVIEWS, { id: x.id, game: 'valorant', clip: x.clip.name, removed: true });

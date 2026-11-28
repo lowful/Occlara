@@ -350,6 +350,11 @@ const CHANNELS = {
   PUSH_FLAG_TICK:    'push:flagTick',
   // A saved Further explain answer (8.13): { id, n, explain }, for its row alone.
   PUSH_DEATH_EXPLAIN: 'push:deathExplain',
+  // A kept clip's poster made (9.1, services/clip-posters.js): { id, posters:
+  // [{ url, poster }] }, to the review page alone, so a clip in its round's
+  // row takes its picture where it stands, never by a repaint that would stop
+  // a clip being watched.
+  PUSH_CLIP_POSTERS: 'push:clipPosters',
   // The account menu (8.9.1): main to the menu view, what to draw
   // ({ html, left, top, focus?, fresh? }, html '' when closed), and main to
   // the shell, what the view did ({ choose: id } | { closed: true, refocus }).
@@ -412,6 +417,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_LIVE,
   CHANNELS.PUSH_FLAG_TICK,
   CHANNELS.PUSH_DEATH_EXPLAIN,
+  CHANNELS.PUSH_CLIP_POSTERS,
   CHANNELS.PUSH_MENU,
   CHANNELS.PUSH_MENU_ACT,
   CHANNELS.PUSH_TOAST,

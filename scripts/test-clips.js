@@ -883,6 +883,25 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     const lolPlaced = reviewClips.presentClips({ kind: 'lol', deathList: [{ n: 1, atSec: 300, clip: 'd1-clip.mkv', clipDeath: 100 }] },
       { has: () => true, url: (n) => scheme.urlFor(id, n), frames: () => FR });
     ok(lolPlaced.deathList[0].clipDeath === 100 && same(lolPlaced.deathList[0].clipFrames, FR), 'a League death the same way');
+    // ITS POSTER (9.1): the Clips page's own still of the clip, asked of main
+    // at the place clips.js posterAt names (just before the death, just
+    // before a highlight's first kill), carried only while the clip is on
+    // disk and only as a JPEG data URL; a highlight's kills are its marks.
+    const JPEG = 'data:image/jpeg;base64,/9j/AAA=';
+    const posterAsks = [];
+    const withPoster = { ...io, has: (n) => n === 'r2-clip.mkv' || n === 'h15-clip.mkv', poster: (n, at) => { posterAsks.push([n, at]); return n === 'r2-clip.mkv' ? JPEG : null; } };
+    const hlRv = { ...placed, rounds: [...placed.rounds, { n: 15, highlight: { clip: 'h15-clip.mkv', kills: [2400, 3600], cuts: [] } }] };
+    const pp = reviewClips.presentClips(hlRv, withPoster);
+    ok(f(pp, 2).clipPoster === JPEG && !('clipPoster' in pp.rounds.find((c) => c.n === 15).highlight) && !('clipPoster' in f(pp, 9))
+      && same(posterAsks, [['r2-clip.mkv', 0], ['h15-clip.mkv', 2.1]]),
+    'a clip on disk carries its poster, asked just before its death or its first kill; one not made yet, or not on disk, none', JSON.stringify(posterAsks));
+    const bad = reviewClips.presentClips(hlRv, { ...withPoster, poster: () => 'javascript:alert(1)' });
+    ok(!('clipPoster' in f(bad, 2)), 'and nothing but a JPEG data URL is ever carried');
+    ok(clips.posterAt({ death: 11000 }) === 10.2 && clips.posterAt({ kills: [2400] }) === 2.1 && clips.posterAt({}) === 1 && clips.posterAt({ death: 300 }) === 0,
+      'posterAt: just before the death, else the first kill, else a second in, never before 0');
+    // A clip the player deleted (9.1, review.clipsDeleted) says so, ahead of the cap or Settings.
+    const del = reviewClips.presentClips({ ...rv, clipsDeleted: ['r9-clip.mkv'], clipsCleared: { reason: 'space', at: T0 } }, io);
+    ok(f(del, 9).clipGone === 'deleted' && f(del, 2).clipUrl, 'a clip the player deleted is said to be deleted, the others as before');
   });
 
   await section('the review carries a look\'s clip onto its card:', () => {

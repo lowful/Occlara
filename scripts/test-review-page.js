@@ -315,6 +315,35 @@ async function open(review, handlers) {
       && row17.querySelector('.v-hl-moment .v-look-what').textContent === '4K',
     'a round whose highlight was kept folds to its line, its clip and "4K" in it', row17.className);
     ok(!v.$('round-11').querySelector('.v-hl-moment'), 'a highlight whose clip is not on disk adds nothing to its row');
+    // ITS PICTURE BEFORE IT PLAYS (9.1): never an empty box. The map's art
+    // while main makes its poster, then the poster where it stands, with no
+    // repaint; a clip with the coach's own frame keeps that frame.
+    const JPEG = 'data:image/jpeg;base64,/9j/AAA=';
+    const url17 = `occlara-clip://review/${ID}/h17-clip.mkv`;
+    const art = player17.getAttribute('poster') || '';
+    ok(/assets\/valorant\/maps\/Abyss\.\w+$/.test(art) && player17.dataset.art === '1', 'with no poster made yet, the map\'s art, as Clips shows it', art);
+    const death2 = v.$('round-2') && v.$('round-2').querySelector('video.v-clip-video');
+    const death2Poster = death2 ? death2.getAttribute('poster') : null;
+    v.bridge.emit(C.PUSH_CLIP_POSTERS, { id: 'valorant-0-other', posters: [{ url: url17, poster: JPEG }] });
+    ok(player17.getAttribute('poster') === art, 'a poster for another review changes nothing here');
+    v.bridge.emit(C.PUSH_CLIP_POSTERS, { id: ID, posters: [{ url: url17, poster: JPEG }, { url: `occlara-clip://review/${ID}/r2-clip.mkv`, poster: JPEG }] });
+    ok(player17.getAttribute('poster') === JPEG && !player17.dataset.art && row17.querySelector('.v-hl-moment video') === player17
+      && inPage(v.window, 'current').rounds.find((c) => c.n === 17).highlight.clipPoster === JPEG,
+    'the poster main makes goes on that clip where it stands, no repaint, and the review the page holds keeps it',
+    JSON.stringify([String(player17.getAttribute('poster')).slice(0, 30), player17.dataset.art, row17.querySelector('.v-hl-moment video') === player17]));
+    ok(death2 && !death2Poster && death2.getAttribute('poster') === JPEG, 'a death\'s clip with no frame of the coach\'s takes its poster the same way', String(death2Poster));
+    // One with the coach's frame as its picture keeps it: the poster never goes over the coach's own.
+    const framed = v.document.createElement('video');
+    framed.className = 'v-clip-video';
+    framed.setAttribute('src', url17);
+    framed.setAttribute('poster', 'data:image/jpeg;base64,COACH');
+    v.$('round-17').append(framed);
+    v.bridge.emit(C.PUSH_CLIP_POSTERS, { id: ID, posters: [{ url: url17, poster: JPEG }] });
+    ok(framed.getAttribute('poster') === 'data:image/jpeg;base64,COACH', 'and a clip whose picture is the coach\'s own frame keeps that frame');
+    const withPoster = sample(withMedia);
+    withPoster.rounds.find((c) => c.n === 17).highlight.clipPoster = JPEG;
+    const vp = await open(withPoster);
+    ok(vp.$('round-17').querySelector('.v-hl-moment video').getAttribute('poster') === JPEG, 'a poster main already has is drawn from the first paint');
     v.$('v-hl-round').click();
     ok(!body17.hidden && row17.classList.contains('open') && v.document.activeElement === row17, 'the best highlight\'s line opens its round, the clip there');
     const bareRow = (await open(sample())).$('round-17');

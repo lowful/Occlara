@@ -328,6 +328,18 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   bundled splash dimmed, never a frame from elsewhere; main tells the Clips page once a
   batch is made (`PUSH_REVIEWS` with `posters`, to that page alone), and it repaints
   unless its player is open. `test:reviewstore` holds the poster's life beside its clip.
+  Where it is taken is `clips.js posterAt` (9.1), one rule for both pages. THE
+  REVIEW SHOWS THE SAME POSTER (9.1): a highlight's clip in its round's row, a
+  flagged death's and League's had no picture until played (preload none, no
+  frame of the coach's), a dark box. `index.js present` hands `presentClips` an
+  `io.poster`, so each clip on disk carries `clipPoster` (a JPEG data URL) once
+  made, and asks for it once where it is not (`posterFor`); the row's player
+  shows the map's art meanwhile, as Clips does (`data-art`), a death's look keeps
+  the coach's own frame first. When the batch lands, `reviewPostersLanded` sends
+  `PUSH_CLIP_POSTERS { id, posters: [{ url, poster }] }` to the review page alone,
+  and it puts each on that clip where it stands (`review.js takePosters`), never by
+  a repaint that would stop a clip being watched. `test:clips` and
+  `test:reviewpage` hold it.
 
 - **The cap** (`clipCapGB`, 5, 10, 20 or 50 GB, 10 by default). After every
   clip kept, at launch, and when the cap is lowered, the clips past it go a
@@ -577,7 +589,12 @@ it is the seek that lands a frame either side.
 - **One clip** (`CLIP_DELETE`, `deleteClip`, `review-store.js removeClip`):
   the file and its poster; the review keeps its frames, facts and grade, and
   shows its frames where the clip was. PUSH_REVIEWS `{ id, game, clip,
-  removed: true }` follows.
+  removed: true }` follows. The review is told (9.1, `markClipDeleted`,
+  `review.clipsDeleted`, the names once each), so the row reads "Clip deleted"
+  on Clips (`moments.js goneWhy`, `GONE.deleted`) and "You deleted its clip."
+  on the review (`presentClips`' `clipGone: 'deleted'`), ahead of the cap or
+  Settings, where main used to read a deleted clip as one simply missing
+  ("Clip gone"); an open review repaints from the review as saved now.
 - **A clip's file in Explorer** (`CLIP_REVEAL`, `revealClip`): by the
   review's id and the clip's name, never a path a page names; only a clip in
   the store's own folder (`clipFile`, `storage-usage.js inside`) and on disk,
@@ -587,7 +604,9 @@ it is the seek that lands a frame either side.
   recordings, the frames (a review's and the AI log's), the rest, the total,
   the room left on the recording's drive, the cap, and `clearable.clips`.
   Counted off the disk each time, async, never walking into a link; null mid
-  match. Only clips are the player's to clear (CLIPS_CLEAR or one at a time):
+  match. Only clips are the player's to clear (CLIPS_CLEAR or one at a time;
+  CLIPS_CLEAR is refused mid match or sealed too, 9.1, as the other three are,
+  and Settings then asks for the usage again):
   the recordings are held only until a match's clips are cut and go at every
   quit, and the frames are thinned by the log itself.
 - **The match rating on a library row** (item 16): REVIEWS_LIST rows carry

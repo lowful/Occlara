@@ -91,6 +91,22 @@ const write = (file, bytes) => { fs.mkdirSync(path.dirname(file), { recursive: t
       'and nothing else: the other clip, the frames and the review stay');
     ok(store.removeClip(A, 'r3-clip.mkv') === 0 && store.removeClip(A, '../B/r1-clip.mkv') === 0 && store.removeClip(A, 'notes.txt') === 0,
       'a clip already gone, a path, or a name that is no clip\'s takes nothing');
+    // "CLIP DELETED", NOT "CLIP GONE" (9.1): the review is told the player
+    // deleted that one clip, once, and every page names it so, before the
+    // cap or Settings; a clip simply missing still reads gone.
+    const savedA = store.get(A).review;
+    ok(JSON.stringify(savedA.clipsDeleted) === '["r3-clip.mkv"]', 'the review keeps the name of the clip the player deleted, once', JSON.stringify(savedA.clipsDeleted));
+    const moments = require('../src/shared/moments');
+    const io = { url: (id, n) => `occlara-clip://review/${id}/${n}`, frames: () => null };
+    const goneOf = (review, name) => moments.clipOf(name, null, new Set(), review, io, A).clipGone;
+    ok(goneOf(savedA, 'r3-clip.mkv') === 'deleted' && moments.GONE.deleted === 'Clip deleted' && goneOf(savedA, 'r9-clip.mkv') === 'gone'
+      && goneOf({ ...savedA, clipsCleared: { reason: 'space' } }, 'r3-clip.mkv') === 'deleted' && goneOf({ clipsCleared: { reason: 'space' } }, 'r3-clip.mkv') === 'space',
+    'Clips reads "Clip deleted" for it, before the cap or Settings, and "Clip gone" only for one simply missing');
+    const { presentClips } = require('../src/main/services/review-clips');
+    const shownA = presentClips({ ...savedA, rounds: [{ n: 3, forensics: { clip: 'r3-clip.mkv' } }, { n: 9, forensics: { clip: 'r9-clip.mkv' } }] }, { has: () => false, url: () => 'u' });
+    ok(shownA.rounds[0].forensics.clipGone === 'deleted' && !shownA.rounds[1].forensics.clipGone,
+      'and the review page is told the same of that clip alone', JSON.stringify(shownA.rounds.map((c) => c.forensics.clipGone)));
+    ok(read('src/renderer/review/review.js').includes("deleted: 'You deleted its clip.'"), 'the review says the player deleted it');
 
     // remove(): a whole match.
     ok(store.remove(A) && !store.get(A) && !fs.existsSync(path.join(reviews, A)) && !store.list().some((r) => r.id === A),
@@ -106,10 +122,21 @@ const write = (file, bytes) => { fs.mkdirSync(path.dirname(file), { recursive: t
   {
     const idx = read('src/main/index.js');
     const fn = (name) => { const i = idx.indexOf(`  ${name}(`); return i < 0 ? '' : idx.slice(i, idx.indexOf('\n  },', i)); };
-    for (const name of ['deleteMatch', 'deleteClip', 'revealClip']) {
+    for (const name of ['deleteMatch', 'deleteClip', 'revealClip', 'clearClips']) {
       ok(/if \(importBusy\(\)\) return \{ ok: false, error: 'match' \};/.test(fn(name)), `${name} is refused mid match or sealed`);
     }
     ok(/if \(importBusy\(\)\) return null;/.test(fn('async storage')), 'storage answers nothing mid match');
+    // Clear clips (Settings, and the Clips preload has it too): refused mid
+    // match or sealed as the other three are, before a clip is touched, and
+    // Settings, told no, asks for the usage again rather than leaving its
+    // button off.
+    const cc = fn('clearClips');
+    ok(cc.indexOf('importBusy()') > 0 && cc.indexOf('importBusy()') < cc.indexOf('reviewStore.clearClips('),
+      'Clear clips is refused mid match or sealed, before a clip is touched');
+    ok(/if \(u && u\.ok !== false\) paintClips\(u\);\s*else readClips\(\);/.test(read('src/renderer/settings/settings.js')),
+      'and Settings, refused, asks for the usage again');
+    ok(/showReview\(withFrames\(\(reviewStore\.get\(id\) \|\| e\)\.review\)\)/.test(fn('deleteClip')),
+      'a delete repaints an open review from the review as saved now, which says the clip was deleted');
     ok(/workForId\(id\)/.test(fn('deleteMatch')) && /workForId\(id\)/.test(fn('deleteClip')), 'a review still being built is never deleted, nor its clips');
     ok(/aiLogStore\.removeImported\(aiLogRoot\(\), log\)/.test(fn('deleteMatch')) && /return out\.ok \? \{ ok: true \} : out;/.test(fn('importDelete')),
       'an imported match takes its AI log folder, and the import\'s own delete is the same path');

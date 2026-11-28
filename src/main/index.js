@@ -1333,6 +1333,9 @@ function present(review) {
     url: (name) => clipScheme.urlFor(review.id, name),
     // Each frame's own time, for the clip's player to step by (8.4.4), read once a file.
     frames: (name) => reviewClips.frameTimes(reviewStore.clipFile(review.id, name)),
+    // Its poster (9.1), the Clips page's own (clipPosters), asked for once
+    // where none is made yet; the page is told when it lands (reviewPostersLanded).
+    poster: (name, atSec) => posterFor(review.id, name, atSec),
   });
 }
 
@@ -1361,7 +1364,7 @@ const clipPosters = require('./services/clip-posters').createPosters({
   store: reviewStore,
   ffmpeg: importVideo.ffmpegPath({ packaged: app.isPackaged, resourcesPath: process.resourcesPath }),
   busy: () => matchInProgress() || windowSealed(),
-  made: () => registry.sendTo('moments', C.PUSH_REVIEWS, { posters: true }),
+  made: () => { registry.sendTo('moments', C.PUSH_REVIEWS, { posters: true }); reviewPostersLanded(); },
 });
 function withPosters(model) {
   if (!model || !Array.isArray(model.matches)) return model;
@@ -1371,12 +1374,38 @@ function withPosters(model) {
       if (!c || typeof c.name !== 'string') continue;
       c.poster = clipPosters.dataUrl(m.id, c.name);
       if (c.poster) continue;
-      const firstKill = Array.isArray(c.kills) && c.kills.length ? c.kills[0] : null;
-      const atMs = typeof c.death === 'number' ? c.death - 800 : typeof firstKill === 'number' ? firstKill - 300 : 1000;
-      clipPosters.want(m.id, c.name, Math.max(0, atMs) / 1000);
+      clipPosters.want(m.id, c.name, clips.posterAt(c));
     }
   }
   return model;
+}
+/*
+ * THE REVIEW'S POSTERS (9.1): the same poster beside the same clip, so a
+ * highlight's clip in its round's row (and a flagged death's, and League's)
+ * shows a still of its moment before it is played, never an empty box. One
+ * not made yet is asked for here, as the Clips page asks; once it lands, the
+ * review page still showing that review is handed it (PUSH_CLIP_POSTERS) and
+ * puts it on that clip where it stands, with no repaint.
+ */
+const reviewPosterWants = new Map();
+function posterFor(id, name, atSec) {
+  const url = clipPosters.dataUrl(id, name);
+  if (url) return url;
+  reviewPosterWants.set(`${id}/${name}`, { id, name });
+  clipPosters.want(id, name, atSec);
+  return null;
+}
+function reviewPostersLanded() {
+  const shown = lastReviewShown && lastReviewShown.id ? lastReviewShown.id : null;
+  const posters = [];
+  for (const [key, w] of reviewPosterWants) {
+    if (w.id !== shown) { reviewPosterWants.delete(key); continue; }
+    const poster = clipPosters.dataUrl(w.id, w.name);
+    if (!poster) continue;
+    reviewPosterWants.delete(key);
+    posters.push({ url: clipScheme.urlFor(w.id, w.name), poster });
+  }
+  if (posters.length) registry.sendTo('review', C.PUSH_CLIP_POSTERS, { id: shown, posters });
 }
 
 function setReviewJump(id, round) {
@@ -3507,8 +3536,14 @@ const controller = {
     const u = reviewStore.clipUsage();
     return { bytes: u.bytes, clips: u.clips, reviews: u.reviews, capGB: clips.capGB(store.get('clipCapGB')) };
   },
-  /** Clear clips, in Settings: every clip goes, every review keeps its frames and facts and says so. */
+  /**
+   * Clear clips, in Settings: every clip goes, every review keeps its frames
+   * and facts and says so. Refused mid match or sealed (9.1), as deleting a
+   * match or one clip is: Settings paints nothing of the answer and asks
+   * again for the usage.
+   */
   clearClips() {
+    if (importBusy()) return { ok: false, error: 'match' };
     const ids = reviewStore.clearClips('cleared');
     if (ids.length) clipsCleared(ids, 'cleared');
     return this.clipsUsage();
@@ -3608,8 +3643,11 @@ const controller = {
 
   /**
    * DELETE ONE CLIP (9.1, the owner's item 18, the Clips page): the file and
-   * its poster (review-store.js removeClip). The review keeps its frames,
-   * facts and grade; an open review page on it repaints without the clip.
+   * its poster (review-store.js removeClip), and the review told the player
+   * deleted it (review.clipsDeleted), so Clips' row reads "Clip deleted" and
+   * the review "You deleted its clip.", never "Clip gone". The review keeps
+   * its frames, facts and grade; an open review page on it repaints without
+   * the clip, from the review as it is saved now.
    */
   deleteClip(id, name) {
     if (importBusy()) return { ok: false, error: 'match' };
@@ -3619,7 +3657,7 @@ const controller = {
     if (workForId(id)) return { ok: false, error: 'working' };
     const bytes = reviewStore.removeClip(id, name);
     if (!bytes) return { ok: false, error: 'gone' };
-    if (lastReviewShown && lastReviewShown.id === id) showReview(withFrames(e.review));
+    if (lastReviewShown && lastReviewShown.id === id) showReview(withFrames((reviewStore.get(id) || e).review));
     registry.broadcast(C.PUSH_REVIEWS, { id, game: e.game, clip: name, removed: true });
     console.log(`[clips] deleted by the player: ${id} ${name}`);
     return { ok: true, id, clip: name, bytes };

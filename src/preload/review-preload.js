@@ -80,6 +80,13 @@ contextBridge.exposeInMainWorld('occlara', {
     ipcRenderer.on(C.PUSH_DEATH_EXPLAIN, h);
     return () => ipcRenderer.removeListener(C.PUSH_DEATH_EXPLAIN, h);
   },
+  // A kept clip's poster made after the review was shown (9.1): { id,
+  // posters: [{ url, poster }] }, a JPEG data URL for the clip at that URL.
+  onClipPosters: (cb) => {
+    const h = (_e, p) => cb(p);
+    ipcRenderer.on(C.PUSH_CLIP_POSTERS, h);
+    return () => ipcRenderer.removeListener(C.PUSH_CLIP_POSTERS, h);
+  },
   // Read only: the reveal's sound asks whether sounds are on and whether a
   // match is being coached, and plays nothing while one is.
   getState: () => ipcRenderer.invoke(C.STATE_GET),

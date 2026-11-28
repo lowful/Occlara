@@ -100,9 +100,18 @@ function clipOf(name, death, have, review, io, id) {
       clipGone: null,
     };
   }
-  const why = review.clipsCleared && review.clipsCleared.reason === 'space' ? 'space'
-    : review.clipsCleared ? 'cleared' : 'gone';
-  return { clip: null, clipGone: why };
+  return { clip: null, clipGone: goneWhy(review, name) };
+}
+
+/**
+ * Why a clip a review names is not on disk: 'deleted' by the player (9.1,
+ * review-store.js markClipDeleted, that one clip), else 'space' or 'cleared'
+ * where the review was told its clips went (the cap, Settings), else 'gone'.
+ */
+function goneWhy(review, name) {
+  const r = review || {};
+  if (Array.isArray(r.clipsDeleted) && r.clipsDeleted.includes(name)) return 'deleted';
+  return r.clipsCleared && r.clipsCleared.reason === 'space' ? 'space' : r.clipsCleared ? 'cleared' : 'gone';
 }
 
 /** The player's own kills in a round, in seconds from its start, off Riot's kill feed. */
@@ -323,14 +332,17 @@ function build(game, saved, opts) {
     const moments = [...d, ...h].sort((a, b) => a.round - b.round || (a.kind === 'highlight' ? -1 : 1));
     deaths += d.length;
     highlights += h.length;
+    // The page's one note says why none were kept: the cap or Settings. A
+    // clip the player deleted, or one simply missing, says so on its own row.
+    const noted = (why) => why === 'space' || why === 'cleared';
     for (const m of d) {
       if (m.clip) clips += 1;
-      if (m.clipGone && m.clipGone !== 'gone') gone = gone || m.clipGone;
+      if (noted(m.clipGone)) gone = gone || m.clipGone;
       if (m.cause) looked += 1;
     }
     for (const m of h) {
       if (m.clip) { clips += 1; lit.push(m.key); }
-      if (m.clipGone && m.clipGone !== 'gone') gone = gone || m.clipGone;
+      if (noted(m.clipGone)) gone = gone || m.clipGone;
     }
     matches.push({ ...matchOf(s), moments });
   }
@@ -444,6 +456,7 @@ const NOTES = Object.freeze({
   nolook: 'No clips yet: a clip is kept of each death the coach looks at once Riot\'s record of the match is in.',
 });
 const GONE = Object.freeze({
+  deleted: 'Clip deleted',
   space: 'Clip cleared for space',
   cleared: 'Clip cleared',
   gone: 'Clip gone',

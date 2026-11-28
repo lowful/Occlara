@@ -99,6 +99,18 @@ const CLIP_RE = /^[rdh]\d{1,3}-clip\.mkv$/;
 const POSTER_RE = /^[rdh]\d{1,3}-poster\.jpg$/;
 /** The poster's name for a clip's, or null for a name that is not a clip's. */
 const posterNameOf = (clip) => (CLIP_RE.test(String(clip || '')) ? String(clip).replace(/-clip\.mkv$/, '-poster.jpg') : null);
+/**
+ * Where in its clip a poster is taken, in seconds: just before the death (its
+ * place in the clip, ms), else just before a highlight's first kill, else a
+ * second in. One rule for the Clips page and the review, which share the file.
+ */
+function posterAt(c) {
+  const ms = (x) => typeof x === 'number' && Number.isFinite(x);
+  const death = c && ms(c.death) ? c.death : null;
+  const first = c && Array.isArray(c.kills) && c.kills.length && ms(c.kills[0]) ? c.kills[0] : null;
+  const at = death !== null ? death - 800 : first !== null ? first - 300 : 1000;
+  return Math.max(0, at) / 1000;
+}
 
 const BEFORE_MS = 11000;
 const AFTER_MS = 4000;
@@ -430,7 +442,7 @@ function pickSpread(list, max) {
 }
 
 module.exports = {
-  CLIP_RE, POSTER_RE, posterNameOf, BEFORE_MS, AFTER_MS, LEAD_MS, DROP_LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME, LOOK_AT,
+  CLIP_RE, POSTER_RE, posterNameOf, posterAt, BEFORE_MS, AFTER_MS, LEAD_MS, DROP_LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME, LOOK_AT,
   FLAG_BEFORE_MS, FLAG_AFTER_MS, FLAG_SCREEN_LEAD_MS, FLAG_MAX_MS,
   KILL_BEFORE_MS, KILL_AFTER_MS, KILL_JOIN_MS, HIGHLIGHT_MAX_MS, KILL_MIN_BEFORE_MS, KILL_MIN_AFTER_MS, KEYFRAME_MS, PIECE_SLACK_MS, MAX_HIGHLIGHT_CLIPS,
   highlightClip, highlightRank, pickHighlights, killWindows, highlightMarks,

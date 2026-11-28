@@ -447,7 +447,9 @@ clipClear.addEventListener('click', async () => {
   disarmClear();
   clipClear.disabled = true;
   const u = await window.occlara.clearClips().catch(() => null);
-  if (u) paintClips(u);
+  // Refused mid match or sealed ({ ok: false }): nothing to paint of it, so
+  // the usage is asked again, which turns the button back on.
+  if (u && u.ok !== false) paintClips(u);
   else readClips();
 });
 window.occlara.onReviews(() => readClips());

@@ -483,7 +483,27 @@ class ReviewStore {
     let bytes = 0;
     try { const st = fs.statSync(file); if (!st.isFile()) return 0; bytes = st.size; } catch { return 0; }
     this.removeClipFile(id, name);
-    return this.hasClip(id, name) ? 0 : bytes;
+    if (this.hasClip(id, name)) return 0;
+    this.markClipDeleted(id, name);
+    return bytes;
+  }
+
+  /**
+   * Say on the saved review that the player deleted this one clip (9.1), so
+   * every page names it "Clip deleted" rather than taking it for one simply
+   * missing (`review.clipsDeleted`, the clip names, each once, at most every
+   * clip a review can name). Only the review's own file is written.
+   */
+  markClipDeleted(id, name) {
+    if (!ID_RE.test(String(id || '')) || !CLIP_RE.test(String(name || ''))) return false;
+    const file = path.join(this.root, `${id}.json`);
+    const e = readJson(file, null);
+    if (!e || !e.review) return false;
+    const had = Array.isArray(e.review.clipsDeleted) ? e.review.clipsDeleted.filter((n) => typeof n === 'string' && CLIP_RE.test(n)) : [];
+    if (had.includes(name)) return true;
+    e.review.clipsDeleted = [...had, name].slice(-32);
+    writeJson(file, e);
+    return true;
   }
 
   /** Whether that clip is on disk. */
