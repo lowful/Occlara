@@ -1000,6 +1000,8 @@ $('imp-licence').addEventListener('click', () => window.occlara.importAction('li
  * import not matched to Riot's record, or not enough measured.
  */
 const D = window.OcclaraDisplay || null;
+/** Whether a node is still in the page. */
+const attached = (n) => !!n && document.documentElement.contains(n);
 const inSentence = (t) => (D && typeof D.inSentence === 'function' ? D.inSentence(t) : String(t || ''));
 const GRADE_TIP = (D && D.NAMES && D.NAMES.grade.tip) || '';
 const RATING = (D && D.NAMES && D.NAMES.rating) || { name: 'Match rating', tip: '' };
@@ -1096,13 +1098,15 @@ function row(m, o) {
   peek.setAttribute('role', 'tooltip');
   const source = m.imported ? (m.matchId || m.verified ? 'Imported recording' : "Imported, not matched to Riot's record")
     : m.source === 'riot' ? "From Riot's record" : m.verified ? "Checked against Riot's record" : null;
-  peek.append(el('div', 'm-meta', [whenOf(m.at), m.mode, source].filter(Boolean).join('  ·  ')));
+  // The queue and where its grade came from; the date is on the row itself.
+  const meta = [m.mode, source].filter(Boolean).join('  ·  ');
+  if (meta) peek.append(el('div', 'm-meta', meta));
   const facts = el('dl', 'm-facts');
   const fact = (label, value, cls) => {
     const wrap = el('div', 'm-fact' + (cls ? ' ' + cls : ''));
     wrap.append(el('dt', null, label));
     const dd = el('dd');
-    if (value instanceof Object && value.nodeType) dd.append(value); else dd.textContent = value;
+    if (value && typeof value === 'object' && value.nodeType) dd.append(value); else dd.textContent = value;
     wrap.append(dd);
     facts.append(wrap);
     return wrap;
@@ -1242,7 +1246,7 @@ function closeMenu(refocus) {
   menu.classList.remove('in');
   button.setAttribute('aria-expanded', 'false');
   button.classList.remove('open');
-  if (refocus && button.isConnected) button.focus();
+  if (refocus && attached(button)) button.focus();
 }
 
 $('m-menu').addEventListener('keydown', (e) => {
@@ -1307,7 +1311,7 @@ function closeConfirm(refocus) {
   confirmFor = null;
   box.hidden = true;
   box.classList.remove('in');
-  if (refocus && back && back.isConnected) back.focus();
+  if (refocus && attached(back)) back.focus();
 }
 
 let leaving = 0;          // rows animating out: a repaint waits for them
@@ -1337,7 +1341,7 @@ function removeRow(id) {
   const item = [...$('list').querySelectorAll('.m-item')].find((it) => it.dataset.id === id);
   if (!item) { load(); return; }
   const next = item.nextElementSibling || item.previousElementSibling;
-  const focusNext = () => { const b = next && next.isConnected && next.querySelector('.m-row'); if (b) b.focus(); };
+  const focusNext = () => { const b = attached(next) && next.querySelector('.m-row'); if (b) b.focus(); };
   if (!M || M.reduced()) { item.remove(); focusNext(); load(); return; }
   leaving++;
   item.style.height = `${item.offsetHeight}px`;

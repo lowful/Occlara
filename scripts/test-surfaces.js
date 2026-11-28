@@ -911,7 +911,7 @@ async function openShell(cfg, state, opts) {
       const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       return (css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
     };
-    ok(/border-radius/.test(rule('.m-letter')), 'the rule reader finds a known rule');
+    ok(/border-radius/.test(rule('.p-bar i')), 'the rule reader finds a known rule');
     ok(/position:\s*absolute/.test(rule('.p-bar span')) && /position:\s*absolute/.test(rule('.p-bar i'))
       && /position:\s*relative/.test(rule('.p-bar')) && !/flex-direction/.test(rule('.p-bar')),
       'the number is positioned off the fill, outside the layout that sizes it');
@@ -1238,49 +1238,9 @@ async function openShell(cfg, state, opts) {
     ok(!['.wl', 'wl-', 'id="wl"'].some((s) => (css + html).includes(s)) && !js.includes('inLoss'), 'no rule, markup or paint of it is left');
   });
 
-  // THE GRADE CARD'S FOOT NEVER RUNS TOGETHER (8.9.1): eight times 25px
-  // apart in the 216px card read "8:259:043:54". Each kept label clears the
-  // next by a gap and stays inside the box, the newest is always labelled,
-  // and matches over more than one day are labelled by day.
-  await section('the grade card beside the matches labels its points so each reads alone:', async () => {
-    const HOUR = 3600000;
-    const footOf = async (gradesNewestFirst) => {
-      const m = loadSurface('matches', {
-        handlers: {
-          [C.STATE_GET]: () => ({ gameId: 'valorant' }),
-          [C.REVIEWS_LIST]: () => gradesNewestFirst.map((g) => ({ id: g.id, at: g.at, title: 'Jett', result: 'Victory',
-            score: '13-11', grade: { score: g.score, letter: 'B' } })),
-          [C.PATTERNS_GET]: () => ({ matches: gradesNewestFirst.length, enough: true, grades: gradesNewestFirst, categories: [],
-            average: 70, mistakes: [], strengths: [], missed: [], recorded: 0 }),
-        },
-        window: { location: { hash: '', search: '?embed=1&section=list' } },
-      });
-      await settle();
-      const svg = m.document.querySelector('#m-chart-line svg');
-      const labels = svg ? [...svg.querySelectorAll('.gl-time')].map((t) => ({ x: Number(t.getAttribute('x')), text: t.textContent })) : [];
-      labels.sort((a, b) => a.x - b.x);
-      return { shown: !m.$('m-chart').hidden, labels, w: svg ? Number(svg.getAttribute('width')) : 0 };
-    };
-    const half = (l) => (l.text.length * 6) / 2;
-    const clear = ({ labels, w }) => labels.every((l, i) => l.x - half(l) >= 0 && l.x + half(l) <= w
-      && (!labels[i + 1] || l.x + half(l) < labels[i + 1].x - half(labels[i + 1])));
-    // Eight matches one evening, 25 minutes apart.
-    const evening = new Date(2026, 9, 1, 20, 25).getTime();
-    const sameDay = Array.from({ length: 8 }, (_, i) => ({ id: `e${i}`, score: 81 - i * 3, at: evening + (7 - i) * 25 * 60000 }));
-    let r = await footOf(sameDay);
-    ok(r.shown && r.labels.length >= 2 && r.labels.length < 8, 'eight points one evening are labelled, but not every one',
-      JSON.stringify(r.labels));
-    ok(clear(r), 'no two labels touch and none leaves the box', JSON.stringify(r.labels));
-    ok(r.labels.every((l) => /^\d{1,2}:\d{2}$/.test(l.text)) && /^\d{1,2}:\d{2}$/.test('10:43'),
-      "one day's matches are labelled by time");
-    ok(r.labels.length && r.labels[r.labels.length - 1].x >= r.w - 40, 'the newest point is always labelled');
-    // Eight matches over four days, two a day an hour apart.
-    const days = Array.from({ length: 8 }, (_, i) => ({ id: `d${i}`, score: 70, at: evening - Math.floor(i / 2) * 24 * HOUR - (i % 2) * HOUR }));
-    r = await footOf(days);
-    ok(r.labels.length >= 2 && clear(r) && r.labels.every((l) => /^[A-Za-z]+ \d{1,2}$/.test(l.text)) && /^[A-Za-z]+ \d{1,2}$/.test('Oct 1'),
-      'matches over several days are labelled by day, apart and inside the box', JSON.stringify(r.labels));
-    ok(new Set(r.labels.map((l) => l.text)).size === r.labels.length, 'and no day is said twice');
-  });
+  // THE GRADE CARD'S FOOT (8.9.1) is the grade trend's across the top of
+  // Matches since 9.1, labelled by day: scripts/test-matches-page.js and
+  // scripts/test-trend-chart.js hold it.
 
   // THE EYE (8.2): a recorded match's AI log, from its row. A button beside the
   // row's own, never inside it; disabled with its reason once the log no
@@ -3124,7 +3084,8 @@ async function openShell(cfg, state, opts) {
     mBuilding = false;
     m.bridge.emit(C.PUSH_REVIEW_WORK, { id: 'valorant-1759348800000-homea', work: null });
     await settle();
-    const mAfter = m.document.querySelector('#list .m-row');
+    // The top mistake is in the row's peek (9.1), a sibling of the row's button.
+    const mAfter = m.document.querySelector('#list .m-item');
     ok(mAfter && mAfter.querySelector('.m-score') && mAfter.querySelector('.m-score').textContent === '83' && !mAfter.querySelector('.gv-checking')
       && mAfter.querySelector('.m-top-mistake'), 'its work done, the row shows its grade, its result and its top mistake');
     ok(m.bridge.listening(C.PUSH_REVIEW_WORK) === 1, 'Matches listens on PUSH_REVIEW_WORK');
