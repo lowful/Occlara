@@ -89,8 +89,11 @@ function seededAccounts(mod) {
 // capture, no model, no network. Every one made is kept in `readers`.
 const readers = [];
 class StandInValorant extends EventEmitter {
-  constructor() {
+  constructor(opts) {
     super();
+    // What index.js handed the reader (its diagnostics sink among it), so a
+    // check can hand main an applied read as the real reader would.
+    this.opts = opts || {};
     this.endWatch = { ended: false };
     this.ledger = { size: () => 0 };
     this.inLobby = true;

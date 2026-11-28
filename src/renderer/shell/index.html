@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="../shared/motion.css" />
+  <link rel="stylesheet" href="../shared/rating-badge.css" />
   <link rel="stylesheet" href="shell.css" />
 </head>
 <body>
@@ -185,7 +186,8 @@
               <span id="live-mode" class="live-chip"></span>
             </p>
             <div id="live-wait" class="live-wait" hidden>
-              <p>Waiting for the match to begin. What you choose below shows here once you are in.</p>
+              <p class="live-wait-title">Waiting for your match to start</p>
+              <p class="live-wait-sub">What you choose below shows here once you are in.</p>
             </div>
             <div id="live-main" class="live-main">
               <p class="live-who-row"><span id="live-face" class="live-face" hidden></span><span id="live-who" class="live-who"></span></p>
@@ -196,6 +198,34 @@
                 <p class="live-sides" aria-hidden="true"><span>Your team</span><span>Them</span></p>
               </div>
             </div>
+            <!-- THE LIVE RATING (the owner's second exception, 2026-11-26,
+                 docs/claude/screen-silence.md "The live rating"): only with
+                 its Settings switch on, from main's PUSH_LIVE `rating` and
+                 nothing else: the number in the badge (shared/rating-badge.js,
+                 the review's replay's own, drawn here as Orbit glass), its last
+                 move with the engine's plain label, the line so far, marked
+                 "Live, provisional". Never advice, never anything of a review,
+                 never a control. It moves only when a fact arrives. -->
+            <!-- Not reading the kill feed (no row seen for rounds, the recorder's
+                 rows stopped, or the page stopped for its cost): this line in
+                 place of the number, never a number it cannot back. -->
+            <div id="live-rating-off" class="live-rating live-rating-off" hidden>
+              <span class="live-label">Rating</span>
+              <span class="lr-off-text">Not reading the kill feed</span>
+              <span class="live-note">The rating is in your review once the match ends.</span>
+            </div>
+            <div id="live-rating" class="live-rating" hidden>
+              <div id="lr-badge" class="rt-r-badge lr-badge"><span id="lr-num" class="rt-r-num lr-num">6.0</span></div>
+              <div class="lr-side">
+                <div class="lr-head"><span class="live-label">Rating</span><span class="lr-prov">Live, provisional</span></div>
+                <div class="lr-move"><span id="lr-delta" class="rt-r-delta lr-delta"></span><span id="lr-label" class="lr-label"></span></div>
+                <span class="live-note lr-low">Usually lower than the confirmed rating. Assists are not counted live.</span>
+              </div>
+              <svg id="lr-line" class="lr-line" viewBox="0 0 200 48" preserveAspectRatio="none" aria-hidden="true">
+                <line id="lr-base" class="lr-base" x1="0" x2="200" y1="24" y2="24"></line>
+                <path id="lr-path" class="lr-path" d=""></path>
+              </svg>
+            </div>
             <div id="live-tape-block" class="live-tape-block">
               <p class="live-tape-head"><span id="live-round-block" class="live-round-block"><span class="live-label">Round</span> <b id="live-round"></b></span></p>
               <div id="live-tape" class="live-tape" role="img"></div>
@@ -205,7 +235,8 @@
             </button>
             <p class="live-review"><b class="live-review-title">Your review</b> <span class="live-review-sub">opens when the match ends.</span></p>
             <!-- What shows while recording, the player's own choice, the four
-                 switches Settings holds too: it only ever takes away. -->
+                 switches Settings holds too: it only ever takes away. The live
+                 rating is never one of them: only Settings turns it on. -->
             <div class="live-choose">
               <span class="live-note">Shown while recording</span>
               <div id="live-chips" class="live-chips" role="group" aria-label="Shown while recording"></div>
@@ -223,6 +254,7 @@
   <script src="../shared/seg.js"></script>
   <script src="../shared/motion.js"></script>
   <script src="../shared/sky.js"></script>
+  <script src="../shared/rating-badge.js"></script>
   <script src="shell.js"></script>
 </body>
 </html>

@@ -328,6 +328,47 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .live-review-title { font-weight: 400; color: inherit; }
 /* What shows while recording: the player's own choice, quiet, at the foot. */
 .live-choose { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-2); margin-top: 28px; }
+/* THE LIVE RATING (the owner's second exception, with its switch on,
+   docs/claude/screen-silence.md "The live rating"), drawn as Orbit glass: one
+   quiet glass row under the score, the badge (shared/rating-badge.css) as a
+   glass tile with its tier as a hairline rim and a small dot rather than the
+   replay's tier fill, its move and the engine's label, the line so far, and
+   "Live, provisional". The count and the move run once on a change; nothing
+   else moves and nothing on it is a control. */
+.live-rating {
+  display: flex; align-items: center; gap: 18px;
+  width: min(600px, 100%); margin-top: 30px; padding: 12px 20px 12px 12px;
+  border: 1px solid var(--line); border-radius: 20px;
+  background: var(--glass-q);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+  text-align: left; min-width: 0;
+}
+.live-rating[hidden] { display: none; }
+.live-rating-off { gap: 12px; align-items: baseline; flex-wrap: wrap; padding: 16px 20px; }
+.lr-off-text { font-size: 15px; font-weight: 600; color: var(--text-2); }
+.live-rating-off .live-note { flex-basis: 100%; }
+.lr-badge {
+  flex: none; min-width: 92px; padding: 10px 14px;
+  border-radius: 14px; background: var(--glass); color: var(--text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rt-tier, var(--line-2)) 55%, transparent);
+}
+.lr-num { font-size: 44px; line-height: 0.9; }
+.lr-num::after { color: var(--text); }
+.lr-side { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.lr-head { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.lr-head .live-label::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 8px; vertical-align: 1px;
+  border-radius: 50%; background: var(--rt-tier, var(--text-3));
+}
+.lr-prov { font-size: 12px; color: var(--text-mute); }
+.lr-move { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.lr-delta { min-width: 3.5ch; font-size: 16px; }
+.lr-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+.lr-low { font-size: 12px; }
+.lr-line { flex: none; width: 150px; height: 40px; overflow: visible; }
+.lr-base { stroke: var(--line-2); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.lr-path { fill: none; stroke: var(--text-2); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+@media (max-width: 1100px) { .lr-line { display: none; } }
 .live-note { font-size: 12px; color: var(--text-mute); }
 .live-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .live-chips .live-chip { margin: 0; }

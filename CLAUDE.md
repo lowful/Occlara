@@ -36,6 +36,17 @@ positions, economy, the enemy, a read, a tip, the read cadence or anything of
 a review. Never widen it. Every sealed surface, the exception and why:
 `docs/claude/screen-silence.md`.
 
+**The second exception, on purpose (the live rating, the owner's choice,
+2026-11-26):** OFF by default; with Settings' `liveRating` switch on (past a
+plain warning and a confirm) the Recording screen also shows the match rating,
+its last move with the engine's label of what happened and a small line,
+marked "Live, provisional", and with `liveRatingStream` a loopback only OBS
+widget shows the same. Main decides it (`index.js syncLiveRating`,
+`live-rating-service.js`); off, nothing of it is read, kept or sent. Never
+advice, a read, HP, positions, economy, the enemy, who is alive or anything of
+a review; never an overlay or a sound; League and imports get nothing. Never
+widen it either (`docs/claude/screen-silence.md`, "The live rating").
+
 The flag key's press plays one tick mid match, the same for every press, and
 shows nothing (`docs/claude/death-flags.md`).
 
@@ -139,6 +150,8 @@ in `docs/claude/` to find it.
 | Occlara Duos: invites and codes, the Max rule, teammates found, the sheet, clip uploads to the `duo-clips` bucket, the duo cache, pins, the Duos page, `/api/social/duos`, `social-002-duos.sql`, `SOCIAL_DUOS_ON` | `docs/claude/duos.md` |
 | Occlara Wrapped: the year record (`year-record.js`), the story (`wrapped.js`), its view, its look, sound and closing card, when it opens | `docs/claude/wrapped.md` |
 | The match rating (`rating.js`): the chance to win table, the swings, the event shape a live feed must send, the calibration, what is saved, its block and replay on the review page (`rating-view.js`) | `docs/claude/rating.md` |
+| The live rating: the kill feed detector (`killfeed.js`), the live feed (`live-rating.js`), main's gates (`live-rating-service.js`), the stream widget and its server (`rating-stream.js`, `rating-widget/`), the shared badge, `measure:liverating` | `docs/claude/rating.md`, "Live", and `docs/claude/screen-silence.md`, "The live rating" |
+| The rating video tool, the owner's content (`scripts/rating-video.js`, `scripts/rating-video/`, `rating:video`, `measure:ratingvideo`), never shipped | `docs/claude/rating.md`, "The video tool" |
 
 ## Conventions
 

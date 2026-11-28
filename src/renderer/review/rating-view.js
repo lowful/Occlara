@@ -38,12 +38,9 @@
     return n;
   }
   const lessMotion = () => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const TIERS = ['poor', 'fair', 'good', 'great', 'excellent'];
-  const tierOf = (v) => (v >= 9 ? 'excellent' : v >= 8 ? 'great' : v >= 7 ? 'good' : v >= 6 ? 'fair' : 'poor');
-  function setTier(node, tier) {
-    for (const t of TIERS) node.classList.remove(`t-${t}`);
-    if (tier) node.classList.add(`t-${tier}`);
-  }
+  // The badge, its tiers and its move are one shared component
+  // (shared/rating-badge.js), the Recording screen's and the widget's too.
+  const { tierOf, setTier } = window.RatingBadge;
 
   // The view box: 600 wide, 100 high; the line keeps a margin top and bottom.
   const W = 600;
@@ -252,19 +249,11 @@
 
   // The badge's number: the value in tenths, counted by CSS.
   function setNumber(value) {
-    const n = $('rt-r-num');
-    n.textContent = value.toFixed(1);
-    n.style.setProperty('--rt', String(Math.round(value * 10)));
-    setTier($('rt-r-badge'), tierOf(value));
+    window.RatingBadge.setNumber($('rt-r-num'), $('rt-r-badge'), value);
   }
   // The move beside the badge, rising in green or falling in red.
   function setDelta(delta) {
-    const d = $('rt-r-delta');
-    const up = /^\+/.test(delta);
-    const down = /^-/.test(delta) && delta !== '-0.0';
-    d.textContent = up || down ? delta : '';
-    d.className = 'rt-r-delta';
-    if (up || down) { void d.offsetWidth; d.className = `rt-r-delta ${up ? 'up' : 'down'}`; }
+    window.RatingBadge.setDelta($('rt-r-delta'), delta);
   }
   function pushFeed(e) {
     const f = $('rt-r-feed');

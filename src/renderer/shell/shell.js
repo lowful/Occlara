@@ -530,6 +530,7 @@ function paintSealedFacts() {
  * changing: no timer, no pulse.
  */
 let live = null;
+let ratingShown = null;   // the live rating last drawn (paintRating), so only a change moves
 let liveEditing = false;
 const LIVE_ITEMS = [['liveMap', 'Map'], ['liveAgent', 'Agent'], ['liveScore', 'Score'], ['liveRound', 'Round']];
 const liveOn = (k) => !cfg || cfg[k] !== false;
@@ -572,7 +573,7 @@ function paintLive() {
   const show = !!shell.sealed && !shell.held && gameId === 'valorant';
   box.hidden = !show;
   $('sealed-quiet').hidden = show;
-  if (!show) { liveEditing = false; return; }
+  if (!show) { liveEditing = false; paintRating(null); return; }
   paintChips();
   const v = live && live.state === 'live' ? live : null;
   $('live-wait').hidden = !!v;
@@ -581,6 +582,7 @@ function paintLive() {
   const since = live && live.startedAt ? new Date(live.startedAt) : null;
   $('live-since').textContent = since ? `since ${since.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '';
   $('live-mode').textContent = v && v.mode ? (v.mode === 'swiftplay' ? 'Swiftplay' : 'Standard') : '';
+  paintRating(v ? v.rating : null);
   if (!v) return;
   // The agent's portrait.
   const face = $('live-face');
@@ -629,6 +631,45 @@ function paintLive() {
     const won = v.tape.filter((r) => r === 'W').length, lost = v.tape.filter((r) => r === 'L').length;
     tape.setAttribute('aria-label', `${played} rounds played, ${won} won and ${lost} lost`);
   }
+}
+/*
+ * THE LIVE RATING (the owner's second exception, 2026-11-26,
+ * docs/claude/screen-silence.md "The live rating"): drawn only from
+ * PUSH_LIVE's `rating`, which main sends only with its switch on. The number
+ * in the review replay's own badge (shared/rating-badge.js), the last move
+ * and the engine's label, the line so far. The count and the move run once
+ * when the value changes; a repaint of the same value moves nothing.
+ */
+function paintRating(r) {
+  const box = $('live-rating');
+  if (!box) return;
+  // Main says the kill feed is not being read: that line, and no number.
+  const off = $('live-rating-off');
+  const blind = !!(r && typeof r === 'object' && r.reading === false);
+  if (off) off.hidden = !blind;
+  const ok = !blind && r && typeof r === 'object' && typeof r.value === 'number' && Number.isFinite(r.value) && !!window.RatingBadge;
+  box.hidden = !ok;
+  if (!ok) { ratingShown = null; return; }
+  const changed = ratingShown !== null && r.value !== ratingShown;
+  window.RatingBadge.setNumber($('lr-num'), $('lr-badge'), r.value);
+  // The tier on the whole row too, so the glass tile's rim and the small dot
+  // beside "Rating" read the same --rt-tier (shell.css, Orbit glass).
+  window.RatingBadge.setTier(box, window.RatingBadge.tierOf(r.value));
+  const last = r.last && typeof r.last === 'object' ? r.last : null;
+  if (changed || ratingShown === null) window.RatingBadge.setDelta($('lr-delta'), changed && last ? String(last.delta || '') : '');
+  $('lr-label').textContent = last && typeof last.label === 'string' ? last.label : 'No move yet';
+  ratingShown = r.value;
+  const vals = (Array.isArray(r.line) ? r.line : []).filter((x) => typeof x === 'number' && Number.isFinite(x));
+  const path = $('lr-path');
+  if (vals.length < 2) { path.setAttribute('d', ''); return; }
+  const lo = Math.min(5.5, ...vals) - 0.2;
+  const hi = Math.max(6.5, ...vals) + 0.2;
+  const y = (x) => (48 - ((x - lo) / (hi - lo)) * 48).toFixed(1);
+  path.setAttribute('d', vals.map((x, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * 200).toFixed(1)} ${y(x)}`).join(' '));
+  // 6.0 dashed: the dash an attribute, as the old mark's detector keeps it out of the sheet.
+  $('lr-base').setAttribute('stroke-dasharray', '3 4');
+  $('lr-base').setAttribute('y1', y(6));
+  $('lr-base').setAttribute('y2', y(6));
 }
 // The match beginning is the screen's one change of state: the waiting line
 // gives way to the facts through a view transition (the line fading out, the

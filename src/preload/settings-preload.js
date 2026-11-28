@@ -80,6 +80,8 @@ contextBridge.exposeInMainWorld('occlara', {
   getAccount:   () => ipcRenderer.invoke(C.ACCOUNT_GET),
   onAccount:    (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
   copyAccountKey: () => ipcRenderer.invoke(C.ACCOUNT_COPY_KEY),
+  // The live rating's stream widget: its address to the clipboard, main's to copy.
+  copyRatingWidget: (size) => ipcRenderer.invoke(C.STREAM_WIDGET_COPY, size === 'compact' ? 'compact' : 'standard'),
   signOut:      () => ipcRenderer.invoke(C.ACCOUNT_SIGNOUT),
   // A player on a key alone can sign in from here too (the view's via 'key').
   signIn:       () => ipcRenderer.invoke(C.ACCOUNT_SIGNIN),

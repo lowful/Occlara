@@ -70,6 +70,72 @@ reversal, kept as narrow as that choice allows.
 - The public site's fair-play copy and FAQ still say nothing is shown mid
   match; they live in the website repo and must change with this.
 
+## The live rating, the second exception (2026-11-26)
+
+The owner asked for the player's match rating (rating.md) visible and moving
+while the match is played, like a football player's live rating, for players
+and for streams. He was told it widens the rule above (Riot's policy on
+real-time data, the one week ban) and chose, on 2026-11-26: **the Recording
+screen plus a stream widget, opt in.** A second deliberate exception, kept
+exactly as narrow as that choice:
+
+- **Off by default.** One Settings switch, `liveRating`, under "Match status
+  while recording", with the warning beside it in plain words (it shows a
+  number about your play while you play; Riot does not approve apps that
+  show real-time data that changes how you play; Occlara shows a number and
+  what happened, never what to do; your choice) and a confirm before it
+  turns on (Off asks nothing). A second switch, `liveRatingStream`, for the
+  stream widget, locked while the first is off; turning the rating off turns
+  it off. The Recording screen's own Choose cannot turn it on.
+- **What may show:** the rating (0.0 to 10.0) in its tier's badge, its last
+  move (signed) with the engine's plain label of what happened ("First
+  kill, 5v5", "Died first, 5v5"), a small line of the rating so far, marked
+  "Live, provisional". After the match, on the widget only, "Full time" with
+  the confirmed number for two minutes once Riot's record has linked.
+  **Never** advice, a tip, a read, HP, positions, economy, the enemy, who is
+  alive, or anything of a review. The label says what happened, never what
+  to do.
+- **Only where the supply was measured, and not proven for kills**: the kill
+  feed is read off the recorder's own frames five times a second, only while
+  recording at 720p or 1080p; recording off or at 480p it stays off and
+  Settings says why. Deaths were measured to the bar on full rate video; the
+  player's kills only on 3 (rating.md, "Live"), so the number is marked
+  provisional, says it usually reads lower than the confirmed rating and that
+  assists are not counted live, and shows "Not reading the kill feed" in
+  place of a number when the feed goes unread. The read prompt, the model and
+  every guard are unchanged.
+- **Never a window over the game, never an overlay, never a sound.** The
+  Recording screen is the main window behind the game, as before. The widget
+  is a page OBS fetches from a loopback server and lays on the stream;
+  Occlara draws nothing over the game.
+- **Every other sealed surface stays exactly as sealed.** League gets
+  nothing (no reader feeds it). An import shows nothing live (its reader has
+  no hook).
+- **Main decides it** (index.js `feedLiveRating`, `syncLiveRating`,
+  `liveView`; `live-rating-service.js` `feed`, `field`, `widget`, `pick`):
+  read only while the switch is on, sent on PUSH_LIVE only when it changed
+  (the tick compares the whole view), only its own fields
+  (`{ value, shown, tier, last: { delta, up, down, label }, line }`), and
+  nothing else of the reader's context. With the switch off no frame is read
+  for it, nothing is kept, PUSH_LIVE has no `rating` key and the widget's
+  server is stopped: no rating data exists in any window or leaves main.
+- **The widget's server** (rating-stream.js) is bound to 127.0.0.1 alone,
+  started only while both switches are on and stopped (every connection
+  cut) the moment either goes off; every path carries a per install random
+  token main makes and keeps (no page can write it); the Host header must be
+  the loopback address and its port (DNS rebinding); it answers the page and
+  its events and nothing else, with no CORS header.
+- **Nothing on the screen moves** but a fact arriving or changing: the
+  badge's number counts once to a new value and the move rises or falls
+  once, no pulse, no ticking.
+- `check:mainwindow` holds the Recording screen to no rating with the switch
+  off (frames with the player's kill handed to main all the same), to the
+  number, its move and "Live, provisional" with it on and to the rating's
+  own fields in PUSH_LIVE, and to none again once off; `test:liveratingwiring`
+  holds main's gates; `test:ratingstream` the server.
+- The public site's fair play copy says nothing is shown mid match; it lives
+  in the website repo and must change with this, as with the live status.
+
 ## The flag key's tick, the one sound (8.13)
 
 The owner chose it: a press of the flag key plays one quiet tick mid match, because the window is behind the game and nothing else could say the key was heard. It is the same tick for every press, a death matched or not, so it carries nothing about the match, and it follows the Sounds setting. Nothing is drawn, and no other sound plays mid match (`docs/claude/death-flags.md`).

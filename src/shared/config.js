@@ -157,6 +157,14 @@ const STORE_DEFAULTS = {
   liveAgent:       true,
   liveScore:       true,
   liveRound:       true,
+  // THE LIVE RATING (the owner's second exception, 2026-11-26): the rating on
+  // the Recording screen while a match is played, and its stream widget. OFF
+  // until the player turns it on, past a warning and a confirm. The widget's
+  // token (made once per install) and its port are main's.
+  liveRating:        false,
+  liveRatingStream:  false,
+  ratingWidgetToken: '',
+  ratingWidgetPort:  0,
   sounds:          true,         // the interface sounds: recording armed, stood down, the flag key heard
   flagKey:         'F8',         // the key that flags a death mid match (8.13, flag-key.js), '' for none
   // The Trainer's settings (docs/claude/trainer.md): sens, DPI, the scoped

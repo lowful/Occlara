@@ -318,7 +318,34 @@ art behind one card with the agent, the score, the round and the round tape,
 each only while its switch is on, and the review as a locked ring beside it
 (`shell.js paintLive`, main's `PUSH_LIVE`); held, or in League, it is the
 quiet moon and its line (`.sealed-quiet`). What it may show and why:
-`screen-silence.md`, "The live status, the one exception". A page asked for
+`screen-silence.md`, "The live status, the one exception". With Settings'
+live rating switch on (the owner's second exception, off by default,
+`screen-silence.md`, "The live rating"), the column gains one glass row under
+the score (`#live-rating`, `shell.js paintRating`, from PUSH_LIVE's `rating`
+alone): the rating in the review replay's own badge
+(`shared/rating-badge.js` and `.css`, the number counted by CSS), drawn on
+this screen as Orbit glass with its tier as a hairline rim and a small dot
+rather than the replay's tier fill, its last move rising in green or falling in red with a label
+beside it that names what happened and carries no number ("Opening kill",
+"Kill", "Trade kill", "Died first", "Died", "Round won", `liveLabel`; "No
+move yet" before one), the small line of the rating so far with 6.0 dashed,
+"Live, provisional" and the note that it usually reads lower than the
+confirmed rating and counts no assists. While the kill feed goes unread
+(rows stopped, two rounds with none, the page stopped for its cost) the row
+shows "Not reading the kill feed" in place of the number
+(`#live-rating-off`, PUSH_LIVE's `rating` is `{ reading: false }`). The count and the move
+run once when the value changes; a repaint of the same value moves nothing.
+Settings' "Match status while recording" group ends with the two switches:
+Live rating, its warning beside it (a `--warn` rule, never the signal) and a
+confirm panel in the recording toggle's shape ("Show your rating while you
+play?", three factual sentences, Keep it off the primary), and under the
+switch, with it on and recording off or at 480p, the line saying the rating
+needs recording at 720p or 1080p and stays off (`#lr-needs`); Stream widget, locked like the AI log's
+while the rating is off; with both on, the widget's address on 127.0.0.1 in
+Mono with Copy (main copies, `STREAM_WIDGET_COPY`), a Standard and Compact
+choice and the one OBS line with the size to use. `check:mainwindow`
+pictures them (`main-settings-live-rating-off.png`, `-confirm`, `-on`,
+`main-recording-rating.png`). A page asked for
 meanwhile, the review of the match that just ended above all, is remembered
 and shows when the seal lifts. Open pages through `openPage()`, never
 `mainWindow.show()` directly, which would skip the seal for up to the tick. A

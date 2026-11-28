@@ -13,6 +13,7 @@ const updater = require('../updater');
 const pcCheck = require('../services/pc-check');
 const { resOf } = require('../services/recorder');
 const { isOwnPage } = require('../windows/web-guard');
+const registry = require('../windows/registry');
 
 /**
  * Registers every ipcMain handler in one place. All channel names come from the
@@ -162,7 +163,13 @@ function registerIpc(deps) {
     // Only the settings a page owns, each with a value it can hold
     // (config-keys.js): the sign in, the licence fields, the key and every
     // other key main alone writes are never a page's to set.
-    for (const [k, v] of Object.entries(pageWritable(partial))) store.set(k, v);
+    const keep = pageWritable(partial);
+    // THE LIVE RATING turns ON only from Settings' own page, past its warning
+    // and its confirm (settings.js): from any other page the switch can only
+    // go off. Turning it off is anyone's.
+    if (keep.liveRating === true && !fromSettings(_e)) delete keep.liveRating;
+    if (keep.liveRatingStream === true && !fromSettings(_e)) delete keep.liveRatingStream;
+    for (const [k, v] of Object.entries(keep)) store.set(k, v);
     controller.onConfigChanged?.();
     return { ok: true, config: snapshotConfig() };
   });
@@ -170,6 +177,8 @@ function registerIpc(deps) {
   safeHandle(C.STATE_GET, async () => controller.getState());
   safeHandle(C.SHELL_GET, async () => controller.getShell());
   safeHandle(C.LIVE_GET, async () => (controller.getLive ? controller.getLive() : null));
+  // The stream widget's address to the clipboard, main's to copy (the live rating).
+  safeHandle(C.STREAM_WIDGET_COPY, async (_e, size) => (controller.copyRatingWidget ? controller.copyRatingWidget(size === 'compact' ? 'compact' : 'standard') : { ok: false }));
 
   safeHandle(C.CHAT_SEND, async (_e, messages, opts) => controller.chat(messages, opts && typeof opts === 'object' ? opts : {}));
   // Ask Coach's match (8.5.0): the list and the chip, main's to decide.
@@ -257,6 +266,26 @@ function registerIpc(deps) {
   ipcMain.on(C.APP_QUIT,       () => guard('quit',     () => controller.quit()));
 }
 
+/** A write that came from Settings' own page (its frame's file under renderer/settings). */
+/**
+ * The write came from the Settings page itself (round 4): its sender is the
+ * Settings view's own webContents in the registry and the frame is that
+ * webContents' main frame. Never told by a URL, which another page or a frame
+ * inside one could carry.
+ */
+function fromSettings(e) {
+  const view = registry.get('settings');
+  const wc = view && view.webContents;
+  if (!wc || (typeof wc.isDestroyed === 'function' && wc.isDestroyed())) return false;
+  if (!e || e.sender !== wc) return false;
+  const f = e.senderFrame;
+  const m = wc.mainFrame;
+  if (!f || !m) return false;
+  if (f === m) return true;
+  // The same frame handed back as another wrapper: the same process and routing id.
+  return Number.isInteger(f.routingId) && f.routingId === m.routingId && f.processId === m.processId;
+}
+
 function snapshotConfig() {
   const stats = store.get('playerStats');
   return {
@@ -279,6 +308,9 @@ function snapshotConfig() {
     liveAgent:       store.get('liveAgent') !== false,
     liveScore:       store.get('liveScore') !== false,
     liveRound:       store.get('liveRound') !== false,
+    // The live rating and its widget, off unless turned on (never the token).
+    liveRating:       store.get('liveRating') === true,
+    liveRatingStream: store.get('liveRating') === true && store.get('liveRatingStream') === true,
     panelMinimized:  store.get('panelMinimized'),
     // The log window's keyboard hint counts its own appearances. Same trap as
     // language below: without it here, getConfig() reads undefined, the counter
