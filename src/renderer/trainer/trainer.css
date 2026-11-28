@@ -237,3 +237,10 @@ html, body { width: 100%; height: 100%; margin: 0; background: var(--bg); overfl
   .tr-count.tick, .tr-over { animation-duration: 1ms; }
   .tr-r-score { transition: none; }
 }
+
+/* ── ORBIT (27 Nov 2026) ─────────────────────────────────────────────────
+   The rail's head: Practice's sub switch on a line of its own, then the
+   title at the card title's size beside its two tabs. */
+.tr-rail-head { flex-wrap: wrap; row-gap: var(--space-4); }
+.tr-rail-head > .subnav { flex: 0 0 100%; }
+.tr-title { font-size: 28px; font-weight: 700; letter-spacing: var(--track-display); }
