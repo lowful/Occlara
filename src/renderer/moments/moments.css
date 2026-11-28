@@ -68,7 +68,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   position: absolute; z-index: 30; right: var(--space-8); top: 88px;
   width: min(460px, calc(100vw - 48px));
   padding: 20px 24px 24px;
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   background: var(--glass-fill); border: 1px solid var(--line-2); box-shadow: var(--lift);
   -webkit-backdrop-filter: blur(20px) saturate(140%); backdrop-filter: blur(20px) saturate(140%);
   opacity: 0; transform: translateY(-6px) scale(0.985); transform-origin: top right;
@@ -153,10 +153,10 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
    the lower left, Open its review and the more button at the lower right. */
 .mo-hero { display: block; margin-bottom: 14px; }
 .mo-hero[hidden] { display: none; }
-.mo-hcard { display: block; min-width: 0; color: inherit; border-radius: var(--r-card); }
+.mo-hcard { display: block; min-width: 0; color: inherit; border-radius: var(--r-panel); }
 /* Large, never the whole first screen: about half the window's height at
    most, so the reel and the repeated mistakes still show under it. */
-.mo-hcard .mo-frame { width: 100%; aspect-ratio: 21 / 9; min-height: 300px; max-height: min(480px, 52vh); border-radius: var(--r-card); }
+.mo-hcard .mo-frame { width: 100%; aspect-ratio: 21 / 9; min-height: 300px; max-height: min(480px, 52vh); border-radius: var(--r-panel); }
 .mo-hcard .mo-frame::after { display: none; }
 .mo-hcard .mo-frame.art .mo-frame-img { opacity: 0.42; }
 .mo-hvideo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--dur-slow) var(--ease-out), transform 900ms var(--spring-smooth); }
