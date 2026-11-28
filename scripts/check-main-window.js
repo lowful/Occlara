@@ -649,8 +649,10 @@ setTimeout(async () => {
     await until(settled('matches'), 3000);
 
     // 3c. THE NOTICE LINE (8.3), on the real layout. Empty with nothing to
-    // say, never hidden, its live region in place; a notice pushed as main pushes one is on one line inside the 40px
-    // strip, left of the window's buttons, cut with an ellipsis when long and
+    // say, never hidden, its live region in place; a notice pushed as main
+    // pushes one is on one line, or two (9.1: it wraps before it is cut, the
+    // pills drawing in for it), inside the strip, left of the window's
+    // buttons, cut with an ellipsis at two lines when long and
     // whole in its title, the text out of the drag region and the strip
     // around it still in it; and empty again once it clears.
     const noticeAt = () => sjs(`(() => {
@@ -662,7 +664,7 @@ setTimeout(async () => {
       const cs = getComputedStyle(n);
       const region = (el) => getComputedStyle(el).getPropertyValue('-webkit-app-region') || getComputedStyle(el).webkitAppRegion || '';
       return { hidden: n.hidden, shown: cs.display !== 'none' && r.width > 0, text: n.textContent, title: n.title,
-        cut: n.scrollWidth > n.clientWidth, lines: Math.round(r.height / parseFloat(cs.lineHeight)),
+        cut: n.scrollWidth > n.clientWidth || n.scrollHeight > n.clientHeight + 1, lines: Math.round(r.height / parseFloat(cs.lineHeight)),
         inStrip: r.top >= t.top && r.bottom <= t.bottom, leftOfButtons: r.right <= ctl.left,
         strip: Math.round(t.height), width: Math.round(r.width), stripWidth: Math.round(t.width),
         weight: cs.fontWeight, font: cs.fontFamily.split(',')[0], region: { strip: region(top), notice: region(n) } };
@@ -676,8 +678,8 @@ setTimeout(async () => {
     shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: { text: BUSY, at: Date.now(), kind: 'recorder' } });
     const busy = await until(async () => { const n = await noticeAt(); return n.shown ? n : null; }, 3000);
     lines.push(`notice line, recording stopped for the session: ${JSON.stringify(busy)}`);
-    if (!busy || busy.text !== BUSY || busy.title !== BUSY || busy.lines !== 1 || !busy.inStrip || !busy.leftOfButtons || busy.strip !== mainWindow.TOP_H) {
-      return report(false, `a notice is not one line in the strip, left of the window's buttons: ${JSON.stringify(busy)}`);
+    if (!busy || busy.text !== BUSY || busy.title !== BUSY || busy.lines < 1 || busy.lines > 2 || !busy.inStrip || !busy.leftOfButtons || busy.strip !== mainWindow.TOP_H) {
+      return report(false, `a notice is not one or two lines in the strip, left of the window's buttons: ${JSON.stringify(busy)}`);
     }
     if (busy.region.strip !== 'drag' || busy.region.notice !== 'no-drag') return report(false, `the strip is ${busy.region.strip} and its notice ${busy.region.notice}, not drag around a no-drag text`);
     if (!['400', '500', '600', '700', '800'].includes(String(busy.weight)) || !/Onest|Geist/.test(busy.font)) {
@@ -689,8 +691,8 @@ setTimeout(async () => {
     shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: { text: BLOCKED, at: Date.now(), kind: 'capture' } });
     const long = await until(async () => { const n = await noticeAt(); return n.text === BLOCKED ? n : null; }, 3000);
     lines.push(`notice line, capture blocked: ${JSON.stringify(long)}`);
-    if (!long || !long.cut || long.lines !== 1 || long.title !== BLOCKED || !long.inStrip || !long.leftOfButtons) {
-      return report(false, `a long notice is not cut on one line, whole in its title, left of the bar's end: ${JSON.stringify(long)}`);
+    if (!long || !long.cut || long.lines < 1 || long.lines > 2 || long.title !== BLOCKED || !long.inStrip || !long.leftOfButtons) {
+      return report(false, `a long notice is not cut within two lines, whole in its title, left of the bar's end: ${JSON.stringify(long)}`);
     }
     await shot('notice-long', mainWindow, win);
     shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: null });
