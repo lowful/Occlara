@@ -1013,6 +1013,20 @@ a true one.
   (`match-review.js utilityGates`, the Pearl Plat round 3 and focus). The review learns the team
   from `context.teamAgents` (sent by `valorant-review.js requestBody` from this release) or, for
   a client before it, the five of its own "Your team had no controller:" line (`teamOf`).
+- **Utility the player's own agent lacks** (9.1, the AI audit of the owner's library,
+  `fact-gates.js ownUtilityFix`, the review's `match-review.js ownUtilityGates`, run first in
+  `utilityGates`): the Split swiftplay of 23 Nov told a Jett "At Mid Vent, use a flash or drone
+  before dropping", and her kit has neither. An instruction to the player ("use", "throw", "pop",
+  "send", "fire", "drop" or "deploy" "a" or "your" flash, smoke, stun, drone, dart, recon or
+  prowler, opening its clause or after "you should" and the like) where the player's agent has
+  none of what it lists, by the game data's description classes (a flash is a blind or a
+  nearsight, a smoke anything vision blocking, a stun a concuss) and the drone, dart, recon and
+  prowler owners, becomes "wait for a teammate's flash or drone", which the team gate then holds
+  to the comp; with the comp known and nobody on it owning any of the list, a round line goes
+  whole (`own-utility`) and a summary or focus sentence alone. Never an enemy's ("Their Sova will
+  use a drone"), a named owner's ("your Sova's drone"), one already asked of a teammate, or an
+  agent the table does not know. The review only; the look and Ask Coach do not run it yet
+  (`test:valorantreview`, "utility the player's own agent does not have").
 - **How many deaths the coach looked at** (`fact-gates.js gateLookCount`, gate `looks`, last):
   "The coach looked at one of your deaths" where it looked at all 3 (Fracture Asc and Plat aim),
   and the looked at total of "1 of the 2 deaths the coach looked at", held to the deaths with a
@@ -1139,10 +1153,12 @@ match, and about a third opened with a paragraph on what the coach could not see
   with how to use that ability first, the principle second.
 
 Tests: `test:chatgates`, "the coach bench, no match and no record". Not benched (`bench:chat`).
-The "rounds 1 to 24" budget check measures against `DYNAMIC_MAX_CHARS` while `buildParts` allows
-the cost and ledger lines on top (`costRoom`), so it sits about 15 to 25 characters under the bar
-with the notes' jitter: a longer note in that prompt fails it, as the first wording of the rifle
-note did (40 of 300 draws).
+The "rounds 1 to 24" budget check measured against `DYNAMIC_MAX_CHARS` while `buildParts` allows
+the cost and ledger lines on top (`costRoom`), so it sat about 15 to 25 characters under the bar
+with the notes' jitter: a longer note in that prompt failed it, as the first wording of the rifle
+note did (40 of 300 draws), and in 9.1 a draw at 19004 of 19000 failed CI with no code changed.
+Since 9.1 it holds the prompt to the budget `buildParts` keeps, `DYNAMIC_MAX_CHARS` plus the cost
+and ledger lines (19935 on that prompt).
 
 ### The coach bench: the notes for the round the player describes (Nov 2026)
 

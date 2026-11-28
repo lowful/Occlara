@@ -2972,6 +2972,72 @@ function teamUtilityFix(s, facts) {
 }
 
 /*
+ * UTILITY THE PLAYER'S OWN AGENT DOES NOT HAVE (9.1, the AI audit of the
+ * owner's library: the Split swiftplay of 23 Nov, round 1, "At Mid Vent, use
+ * a flash or drone before dropping" to a Jett, whose kit has neither). The
+ * team gate above asks whether anyone on the team has a drone; this one asks
+ * the player's own kit, by the game data's description classes (a flash is
+ * a blind or a nearsight, a smoke anything vision blocking, a stun a
+ * concuss) and the drone, dart, recon and prowler owners above, and turns the
+ * instruction into the team's: "wait for a teammate's flash or drone", which
+ * the team gate then holds to the comp. Only an instruction to the player
+ * ("use", "throw", "pop", "send", "fire", "drop" or "deploy" a flash, "your"
+ * one or "a" one, opening its clause or after "you should" and the like),
+ * only where the player's agent has none of what it lists, never one that
+ * already asks a teammate or names an owner ("your Sova's drone"). Where the
+ * team is known and nobody on it has any of the list either, the sentence
+ * goes: { drop }. A rewrite is { rewrite }; null where nothing is judged.
+ * English only. Conservative by design: "smoke" is owned by any vision
+ * blocker, so Neon's walls keep "drop a smoke".
+ */
+const OWN_ITEM = 'flash(?:es)?|smokes?|stuns?|drones?|darts?|recon(?:\\s+(?:bolt|dart))?|prowlers?';
+const OWN_UTIL_SAID = new RegExp(`\\b(use|throw|pop|send|fire|drop|deploy)\\s+(?:a|an|your|one)\\s+((?:${OWN_ITEM})(?:(?:\\s*,\\s*(?:(?:or|and)\\s+)?|\\s+(?:or|and)\\s+|\\s*\\/\\s*)(?:(?:a|an|your)\\s+)?(?:${OWN_ITEM}))*)\\b`, 'gi');
+// What may stand before the verb in its clause for it to be the player's instruction.
+const OWN_UTIL_LEAD = /(?:^|\b(?:then|and|so|first|always|instead|or|next\s+time)|\byou\s+(?:should|can|could|must|need\s+to|have\s+to|want\s+to|might)|\b(?:try|remember|make\s+sure)\s+to)\s*$/i;
+// The game data's class a kind of utility is, for the kits that name no owner word.
+const OWN_CLASS = { flash: 'blind', smoke: 'vision', stun: 'concuss' };
+function ownsUtility(agent, item) {
+  const w = lower(item).replace(/^(?:a|an|your)\s+/, '');
+  const key = (/^(flash|smoke|stun|drone|dart|recon|prowler)/.exec(w) || [null, w])[1];
+  if (OWN_CLASS[key]) {
+    const af = abilityFacts();
+    const kit = af && af.TABLE && af.TABLE.agents ? af.TABLE.agents[agent] : null;
+    // An agent the table does not know is never judged: owned.
+    if (!kit) return true;
+    return Object.values(kit).some((e) => Array.isArray(e.classes) && e.classes.includes(OWN_CLASS[key]));
+  }
+  const owners = UTILITY_OWNERS[key];
+  return !owners || owners.has(agent);
+}
+function ownUtilityFix(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const agent = typeof f.agent === 'string' && f.agent ? f.agent : null;
+  if (!agent) return null;
+  const af = abilityFacts();
+  if (!af || !af.TABLE || !af.TABLE.agents || !af.TABLE.agents[agent]) return null;
+  const text = String(s || '');
+  const items = (list) => list.split(new RegExp(UTIL_SEP.source, 'i')).filter((x, i) => i % 2 === 0).map((x) => x.trim().replace(UTIL_ART, '')).filter(Boolean);
+  const team = f.sides && f.sides.mates instanceof Set && f.sides.mates.size >= 5 ? [...f.sides.mates] : null;
+  let changed = false;
+  let nobody = false;
+  const out = text.replace(new RegExp(OWN_UTIL_SAID.source, 'gi'), (whole, verb, list, at) => {
+    const clause = text.slice(0, at).split(/[.;:!?]|,\s*/).pop();
+    if (!OWN_UTIL_LEAD.test(clause)) return whole;
+    if (UTIL_TEAM_AFTER.test(text.slice(at + whole.length))) return whole;
+    const said = items(list);
+    if (!said.length || said.some((x) => ownsUtility(agent, x))) return whole;
+    if (team && !said.some((x) => team.some((a) => a !== agent && ownsUtility(a, x)))) { nobody = true; return whole; }
+    changed = true;
+    const lead = /^[A-Z]/.test(verb) ? 'Wait' : 'wait';
+    return `${lead} for a teammate's ${list.replace(/^(?:a|an|your)\s+/i, '')}`;
+  });
+  if (nobody) return drop('own-utility', `your reply told the player to use a ${items(text.match(new RegExp(OWN_UTIL_SAID.source, 'i'))[2]).join(' or ')}, which neither their ${agent} nor anyone on the team has; name only utility the player's agent or a teammate in the comp has`);
+  if (!changed) return null;
+  return { rewrite: out };
+}
+
+/*
  * THE STALE BUY HEDGE (the blind audit of 8.7.9): "The record does not hold
  * what either of you bought" over a match whose round lines give the team's
  * buy (8.8). A sentence saying the record does not hold the buy goes where
@@ -3429,7 +3495,7 @@ module.exports = {
   // Round 8 (Nov 2026), each asserted in test:chatgates and test:gameclaims.
   gateOneShot, gateMoveFire, gateUnseen, gateBullets,
   // The blind audit of round 8, stream C, each asserted in test:chatgates.
-  gateLabelAcross, ROUNDS_ANAPHOR, LOOK_SEEN, gateLookCount, LOOKED_AT, LOOKED_TOTAL, teamUtilityFix, UTIL_ITEM, UTIL_SEP,
+  gateLabelAcross, ROUNDS_ANAPHOR, LOOK_SEEN, gateLookCount, LOOKED_AT, LOOKED_TOTAL, teamUtilityFix, ownUtilityFix, OWN_UTIL_SAID, UTIL_ITEM, UTIL_SEP,
   // Its review.
   LOOK_SEEN_SOFT, LOOK_WORDS, lookSeenAt, LOOK_ANAPHOR, LOOKED_BY, LOOK_SUBSET, LOOK_SUBSET_AGENT, UTIL_ART, UTIL_TEAM_ASK, UTIL_TEAM_AFTER, UTIL_ENEMY_OWNER,
   // The coach bench 9 (Nov 2026), each asserted in test:chatgates.

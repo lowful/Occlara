@@ -3149,11 +3149,53 @@ function claimOf(text, input, r) {
  * sentence alone. English only, every client.
  */
 let factGatesShared;
+/*
+ * AND UTILITY THE PLAYER'S OWN AGENT DOES NOT HAVE (9.1, the AI audit of the
+ * owner's library: "At Mid Vent, use a flash or drone before dropping" to a
+ * Jett). fact-gates.js ownUtilityFix turns the instruction into the team's,
+ * "wait for a teammate's flash or drone", which the team gate below then
+ * holds to the comp; where the comp is known and nobody on it has any of it,
+ * a round line goes whole and a summary or focus sentence alone. It needs
+ * the player's agent only, so it runs where the team is unknown too.
+ */
+function ownUtilityGates(out, input, g) {
+  const agent = input.context && input.context.agent;
+  if (!agent || !g || typeof g.ownUtilityFix !== 'function') return;
+  const team = input.context && input.context.teamAgents;
+  const facts = { language: 'en', game: 'valorant', agent,
+    ...(Array.isArray(team) && team.length === 5 ? { sides: { mates: new Set(team), enemies: new Set((input.context && input.context.enemyAgents) || []) } } : {}) };
+  const fix = (text) => {
+    const ss = splitSentences(text).map((s) => s.trim()).filter(Boolean);
+    let gone = 0;
+    const kept = ss.map((s) => {
+      let f = null;
+      try { f = g.ownUtilityFix(s, facts); } catch { f = null; }
+      if (f && f.rewrite) return f.rewrite;
+      if (f && f.gate) { gone += 1; return null; }
+      return s;
+    });
+    return { text: kept.filter(Boolean).join(' ').trim() || null, gone, changed: kept.some((s, i) => s !== ss[i]) };
+  };
+  for (const n of Object.keys(out.rounds)) {
+    const r = fix(out.rounds[n]);
+    if (r.gone) {
+      delete out.rounds[n];
+      out.dropped.push({ n: Number(n), said: 'own-utility', riot: null });
+    } else if (r.changed) out.rounds[n] = r.text;
+  }
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const r = fix(out[field]);
+    if (r.gone) out.dropped.push({ n: null, said: `${field} own-utility`, riot: null });
+    if (r.changed) out[field] = r.text;
+  }
+}
 function utilityGates(out, input) {
   if (promptName(input.context && input.context.language) !== 'English') return;
+  if (factGatesShared === undefined) factGatesShared = shared('./fact-gates');
+  ownUtilityGates(out, input, factGatesShared);
   const team = input.context && input.context.teamAgents;
   if (!Array.isArray(team) || team.length !== 5) return;
-  if (factGatesShared === undefined) factGatesShared = shared('./fact-gates');
   const g = factGatesShared;
   if (!g || typeof g.teamUtilityFix !== 'function') return;
   const facts = { language: 'en', game: 'valorant', sides: { mates: new Set(team), enemies: new Set((input.context && input.context.enemyAgents) || []) } };
