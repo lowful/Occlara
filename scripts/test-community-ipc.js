@@ -146,8 +146,9 @@ const BUNDLED = require('../src/shared/changelog.generated.json');
   const w = loadPreload('whatsnew', { [C.CHANGELOG_REFRESH]: () => null });
   ok(same(w.api.bundled(), changelog.clean(BUNDLED)), 'the What\'s new bridge hands over the bundled changelog, checked');
   ok(await w.api.refresh() === null && w.invoked.some(([ch]) => ch === C.CHANGELOG_REFRESH), 'and asks main to refresh it');
-  const h = loadPreload('home', { [C.CHANGELOG_NOTICE]: () => shown });
-  ok(same(await h.api.getNews(), shown), 'Home asks main for the update line');
+  // The update line is the bar's What's new pill since 9.1 (shell.js paintNews).
+  const h = loadPreload('shell', { [C.CHANGELOG_NOTICE]: () => shown });
+  ok(same(await h.api.getNews(), shown), 'the bar asks main for the update line');
   h.api.newsSeen(latest);
   h.api.openWhatsNew();
   ok(h.sent.some(([ch, v]) => ch === C.CHANGELOG_SEEN && v === latest) && h.sent.some(([ch, p]) => ch === C.SHELL_NAV && p === 'whatsnew'),

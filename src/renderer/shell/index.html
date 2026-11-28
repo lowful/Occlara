@@ -54,6 +54,17 @@
       <p id="notice" class="top-notice no-drag" aria-live="polite"></p>
 
       <div class="bar-end no-drag">
+        <!-- WHAT'S NEW (9.1; Home's update line until then, which sat faint
+             on the moon): once, on the first launch after an update, a small
+             glass pill in the bar that opens What's new, main's words whole in
+             its title ("Occlara updated to 9.1.0. See what's new"). Never mid
+             match: main answers null until the seal lifts (index.js
+             changelogIpc), and the bar hides it while recording. -->
+        <button id="news" class="btn md bar-pill news" type="button" hidden>
+          <span class="btn-label"><svg class="news-spark" viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M8 1.5c.35 2.9 1.6 4.15 4.5 4.5c-2.9.35-4.15 1.6-4.5 4.5c-.35-2.9-1.6-4.15-4.5-4.5c2.9-.35 4.15-1.6 4.5-4.5z"/><path d="M12.6 10.4c.15 1.2.65 1.7 1.9 1.85c-1.25.15-1.75.65-1.9 1.85c-.15-1.2-.65-1.7-1.85-1.85c1.2-.15 1.7-.65 1.85-1.85z"/></svg><span class="news-text">What's new<span id="news-ver" class="news-ver"></span></span></span><span class="btn-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </button>
+        <!-- THE GAME (9.1: in the bar's right group, the controls' own 36px
+             and glass, beside the profile, never floating on the art). -->
         <div id="gamepick" class="game-seg" role="group" aria-label="Game" hidden></div>
         <!-- BACK TO THE RECORDING VIEW (9.1): recording between matches
              with a page open, the still dot and "Recording" take the
@@ -77,6 +88,25 @@
             </button>
           </div>
         </section>
+        <!-- THE UPDATER IN THE BAR (9.1, the owner's item 22; the native
+             restart question until then): green, a download. While a new
+             version downloads, the arrow with its progress drawn round it;
+             once it is ready, "Restart to update", which installs it and
+             restarts (updater.js install). Never shown while the player is
+             playing (main says nothing then, and the bar hides it), and
+             nothing restarts the app by itself. -->
+        <button id="upd" class="btn md upd" type="button" hidden>
+          <span class="upd-ico" aria-hidden="true">
+            <svg viewBox="0 0 34 34" width="34" height="34" fill="none">
+              <circle class="upd-track" cx="17" cy="17" r="15.25"></circle>
+              <circle id="upd-arc" class="upd-arc" cx="17" cy="17" r="15.25" pathLength="100"></circle>
+              <path class="upd-arrow" d="M17 10.5v10.25M12.75 16.5L17 20.75l4.25-4.25M11.5 24h11"></path>
+            </svg>
+          </span>
+          <span class="upd-word"><span id="upd-label" class="upd-label">Restart to update</span></span>
+        </button>
+        <!-- What a screen reader is told as the update changes state, once. -->
+        <span id="upd-say" class="sr-only" aria-live="polite"></span>
         <!-- The account menu's button: the profile. -->
         <button id="menu-btn" class="avatar-btn" type="button" title="Profile, settings and more" aria-label="Profile, settings and more" aria-haspopup="menu" aria-expanded="false" aria-controls="drawer">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.8" r="3.6"/><path d="M5.2 19.5c1.2-3.4 3.8-5.2 6.8-5.2s5.6 1.8 6.8 5.2"/></svg>

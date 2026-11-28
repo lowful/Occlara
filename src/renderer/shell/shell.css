@@ -93,10 +93,104 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 
 .bar-end { flex: none; display: flex; align-items: center; gap: 10px; height: 100%; }
 
-/* The game picker: the shared segmented control, one square per game. */
-.game-seg.seg-slide { padding: 3px; }
+/* THE BAR'S OWN GLASS (9.1, the owner's item 2). Every control in the bar's
+   right group stands 36px tall on the dense glass the profile button is, a
+   12px blur under it: over the moon's lit limb the clear glass washed out and
+   the update line read faint, so nothing here is drawn on the clear glass. */
+.bar-pill {
+  background: var(--glass-fill-2); border-color: var(--line);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+}
+.bar-pill:where(:not(:disabled)):hover { background: color-mix(in srgb, var(--glass-fill-2), var(--text) 7%); border-color: var(--line-2); }
+/* An item of the right group arriving (the pills, Start leaving Home): it
+   rises out of a small blur once, on the smooth spring. A keyframe, as a one
+   shot moment; its leaving is shell.js's (showBarItem). */
+@keyframes barIn { from { opacity: 0; transform: scale(0.94); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+.bar-in { animation: barIn var(--dur-enter) var(--spring-smooth) both; }
+@media (prefers-reduced-motion: reduce) { .bar-in, .rec:not(.recording) { animation: none; } }
+
+/* WHAT'S NEW (9.1): the update line as a pill in the bar, on the bar's own
+   glass: the spark and "What's new in 9.1.0" in the ink, the version a step
+   quieter, the arrow sliding in under the pointer (ui.css .btn). Narrower,
+   the version goes, then the words: the spark alone, its words in the title. */
+.btn.news { gap: 0; padding: 0 14px 0 12px; font-size: 13px; }
+.news[hidden] { display: none; }
+.news .btn-label { gap: 7px; }
+.news-spark { flex: none; width: 15px; height: 15px; color: var(--text); }
+.news-text { white-space: nowrap; }
+.news-ver { color: var(--text-2); font-weight: 500; font-variant-numeric: tabular-nums; }
+.news-ver:empty { display: none; }
+
+/* THE UPDATER IN THE BAR (9.1, the owner's item 22): green, a download.
+   Downloading, a 36px round control: the arrow, and the download's progress
+   drawn round it as the edge (the arc, its percent from main). Ready, the
+   same control opens into "Restart to update", the ring gone and the green
+   hairline its edge. Its colour is the outcome green's, the one green in the
+   app, tinted into the bar's dense glass so it holds over the moon. Never on
+   the bar mid match (shell.js paintUpdate). */
+.btn.upd {
+  justify-content: flex-start; gap: 0; padding: 0; min-width: 36px;
+  border-radius: 18px;
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 10%, var(--glass-fill-2));
+  border-color: transparent;
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+  transition-property: background-color, border-color, color, transform, opacity, padding;
+  transition-duration: var(--dur-hover-out), var(--dur-select), var(--dur-hover-out), var(--dur-spring), var(--dur-hover-out), var(--dur-enter);
+  transition-timing-function: var(--ease-out), var(--ease-out), var(--ease-out), var(--spring-gentle), var(--ease-out), var(--spring-smooth);
+}
+.upd[hidden] { display: none; }
+.upd-ico { flex: none; display: grid; place-items: center; width: 34px; height: 34px; }
+.upd-ico svg { display: block; overflow: visible; }
+.upd-track { stroke: rgba(var(--good-rgb), 0.24); stroke-width: 1.75; transition: opacity var(--dur-select) var(--ease-out); }
+.upd-arc {
+  stroke: var(--good); stroke-width: 2; stroke-linecap: round;
+  stroke-dasharray: 100 100; stroke-dashoffset: calc(100 - var(--p, 0));
+  transform: rotate(-90deg); transform-origin: 17px 17px;
+  transition: stroke-dashoffset 420ms var(--ease-out), opacity var(--dur-select) var(--ease-out);
+}
+.upd-arrow { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+/* No percent yet (a differential download may say none): a quarter of the
+   ring turning, slowly. Never on the bar while recording; still all the same
+   with the app's other loops (html.rec-still). */
+.upd.unsure .upd-arc { stroke-dasharray: 24 76; stroke-dashoffset: 0; animation: updTurn 1.4s linear infinite; }
+@keyframes updTurn { to { transform: rotate(270deg); } }
+html.rec-still .upd.unsure .upd-arc, html.ambient-off .upd.unsure .upd-arc { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .upd.unsure .upd-arc { animation: none; stroke-dasharray: 100 100; stroke-dashoffset: 75; } }
+/* Downloading there is nothing to press: it says what it is doing in its title. */
+.upd[aria-disabled="true"] { cursor: default; }
+.upd[aria-disabled="true"]:active { transform: none; }
+.upd[aria-disabled="true"]:hover { border-color: transparent; }
+/* "Restart to update" opens out of the control on the smooth spring: the
+   word's column grows from nothing (a grid track, so the bar's other controls
+   glide with it), the word fades in after it. */
+.upd-word { display: grid; grid-template-columns: 0fr; transition: grid-template-columns var(--dur-enter) var(--spring-smooth); }
+.upd-label {
+  min-width: 0; overflow: hidden; white-space: nowrap;
+  margin-left: -2px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em;
+  color: color-mix(in srgb, var(--good) 40%, var(--text));
+  opacity: 0; transition: opacity var(--dur-hover-out) var(--ease-out);
+}
+.upd.ready, .upd.installing { padding-right: 15px; border-color: rgba(var(--good-rgb), 0.42); background: color-mix(in srgb, var(--good) 16%, var(--glass-fill-2)); }
+.upd.ready .upd-word, .upd.installing .upd-word { grid-template-columns: 1fr; }
+.upd.ready .upd-label, .upd.installing .upd-label { opacity: 1; transition-delay: 120ms; }
+.upd.ready .upd-track, .upd.ready .upd-arc, .upd.installing .upd-track, .upd.installing .upd-arc { opacity: 0; }
+.upd.ready:hover { background: color-mix(in srgb, var(--good) 26%, var(--glass-fill-2)); border-color: rgba(var(--good-rgb), 0.62); transition-duration: var(--dur-hover-in), var(--dur-hover-in), var(--dur-hover-in), var(--dur-spring), var(--dur-hover-in), var(--dur-enter); }
+.upd.ready:hover .upd-label { color: var(--text); }
+.upd.installing { cursor: progress; opacity: 0.75; }
+@media (prefers-reduced-motion: reduce) { .upd, .upd-word { transition: none; } }
+
+/* The game picker: the shared segmented control, one square per game, on the
+   bar's glass at the controls' 36px (1 + 3 + 28 + 3 + 1), its thumb the
+   lighter glass so the game in use reads over the dense glass. */
+.game-seg.seg-slide {
+  padding: 3px;
+  background: var(--glass-fill-2);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+}
+.game-seg .seg-thumb { background: var(--glass); box-shadow: inset 0 0 0 1px var(--line-2); border-radius: 9px; }
 .game-seg button {
-  flex: 0 0 auto; width: 30px; height: 30px; padding: 0;
+  flex: 0 0 auto; width: 30px; height: 28px; padding: 0; border-radius: 9px;
   display: inline-flex; align-items: center; justify-content: center;
   white-space: nowrap;
 }
@@ -140,9 +234,13 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .icon-btn[disabled] { opacity: 0.3; cursor: default; pointer-events: none; }
 /* Not recording, the pause button is not drawn at all. */
 .rec:not(.recording) #pause { display: none; }
-/* On Home, not recording, Start is the page's own (its hero): the bar's
-   fades and settles away, and takes no press while gone. */
-.app.home-page .rec:not(.recording) { opacity: 0; transform: scale(0.96); visibility: hidden; pointer-events: none; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out), visibility 0s linear 200ms; }
+/* On Home, not recording, Start is the page's own (its hero): the bar's is
+   not drawn and gives its room back (9.1: kept laid out but unseen, it left a
+   gap that set the game picker floating mid bar), the controls beside it
+   gliding into place (shell.js flipBar). Back on another page it arrives
+   again, once (barIn). */
+.app.home-page .rec:not(.recording) { display: none; }
+.rec:not(.recording) { animation: barIn var(--dur-enter) var(--spring-smooth) both; }
 /* Mid match Stop is the Recording screen's (#live-stop); the bar keeps the
    pause button. So on the Recording view Start opens (9.1). */
 .app.sealed-live .toggle { display: none; }
@@ -438,3 +536,14 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .app.sealed-live .avatar-btn { opacity: 0.35; }
 .bar-end { min-width: 0; }
 .nav { flex-shrink: 0; }
+/* What's new and the updater are never on the bar mid match or on the
+   Recording view: shell.js hides them, and so does this. */
+.app.is-sealed .news, .app.is-sealed .upd, .app.rec-view .news, .app.rec-view .upd { display: none; }
+/* Narrower windows: What's new keeps its words, then its spark alone. */
+@media (max-width: 1180px) { .news-ver { display: none; } }
+@media (max-width: 1040px) {
+  .btn.news { width: 36px; padding: 0; border-radius: 18px; }
+  .news .news-text, .news .btn-arrow { display: none; }
+  .btn.news:has(> .btn-arrow) > .btn-label { transform: none; }
+  .news-spark { width: 16px; height: 16px; }
+}

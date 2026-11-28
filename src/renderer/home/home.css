@@ -60,15 +60,10 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 .hp-name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
 .hp-tag { flex: none; font-weight: 500; color: var(--text-mute); }
 .h-player-connect { height: auto; padding: 2px var(--space-2); font-size: 13px; color: var(--text-dim); }
-/* The update line: a quiet sentence and its link. It slides in once (h-slide);
-   the Riot ID fades in with the arrival (h-fade). */
-.h-news.h-slide { animation: hSlide var(--dur-enter) var(--spring-smooth) both; animation-delay: var(--dur-fast); }
+/* The Riot ID fades in with the arrival (h-fade). The update line is the
+   bar's What's new pill since 9.1. */
 .h-player.h-fade { animation: hFade var(--dur-base) var(--ease-out) both; animation-delay: var(--dur-fast); }
-@keyframes hSlide { from { opacity: 0; transform: translateX(12px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
 @keyframes hFade { from { opacity: 0; } to { opacity: 1; } }
-.h-news { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-1); margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
-.h-news[hidden] { display: none; }
-.h-news .btn-link { height: auto; padding: 2px var(--space-2); font-size: 13px; color: var(--text); }
 .hint { font-size: 14px; line-height: 1.5; color: var(--text-dim); }
 .label:not(.o-eyebrow) { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
 
@@ -375,7 +370,7 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 /* Less motion: every entrance is its end state at once. */
 @media (prefers-reduced-motion: reduce) {
   .card.card-in, .h-head.card-in, .recent.card-in .r-row, .top.card-in .top-row,
-  .h-news.h-slide, .h-player.h-fade, .sky-twinkle, .h-agent-full,
+  .h-player.h-fade, .sky-twinkle, .h-agent-full,
   #trend .grade-line.h-dots .gl-dot, #trend .grade-line.h-dots .gl-num { animation: none !important; }
   #last .gv-score.big.counting { animation: none !important; color: var(--text); }
   #last .gv-score.big.counting::after { content: none; }

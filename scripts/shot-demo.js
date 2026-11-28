@@ -29,6 +29,13 @@
  * ratedsmall the rated screen at the window's least (960 by 640), homelr and
  * homeconfirm Home's switch on and its confirm open, settingslr Settings at
  * the live rating's rows, and leaguewait League's quiet Recording view.
+ * The bar (9.1, items 2 and 22): news is What's new in the bar after an
+ * update, on Home; updating and updatingsoon the updater downloading (with a
+ * percent, and before main has one), on Matches; updateready "Restart to
+ * update" on Home; barall both and the game picker on Matches, barnarrow the
+ * same at the window's least width and barmid at 1100; updatefocus the
+ * keyboard's ring on Restart to update. Scenes also take news, update and
+ * sact (JS run in the bar's own document before the picture).
  */
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
@@ -55,6 +62,8 @@ app.on('window-all-closed', () => {});
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// What's new as main says it after an update (changelog.js noticeFor).
+const NEWS = { version: '9.1.0', text: 'Occlara updated to 9.1.0.', link: "See what's new" };
 // Each scene: the shell's state, the page under it (or none), what main has said.
 const SCENES = {
   home: { page: 'home' },
@@ -97,6 +106,17 @@ const SCENES = {
   settingslr: { page: 'settings', lr: true, act: "document.getElementById('lr-row').scrollIntoView({ block: 'start' }); true" },
   leaguewait: { page: 'home', rec: true, coaching: true, live: null, game: 'lol' },
   held: { page: null, sealed: true, held: true },
+  // The bar (9.1): What's new and the updater.
+  news: { page: 'home', news: NEWS },
+  updating: { page: 'matches', update: { state: 'downloading', version: '9.1.1', percent: 42 } },
+  updatingsoon: { page: 'matches', update: { state: 'downloading', version: '9.1.1', percent: null } },
+  updateready: { page: 'home', update: { state: 'ready', version: '9.1.1' } },
+  barall: { page: 'matches', news: NEWS, update: { state: 'ready', version: '9.1.1' } },
+  barnarrow: { page: 'matches', news: NEWS, update: { state: 'ready', version: '9.1.1' }, w: 960, h: 640 },
+  barmid: { page: 'matches', news: NEWS, update: { state: 'ready', version: '9.1.1' }, w: 1100 },
+  updatefocus: { page: 'matches', update: { state: 'ready', version: '9.1.1' }, sact: "document.getElementById('upd').focus(); true" },
+  // Mid match the bar shows neither, even were main to answer (leak).
+  sealedbar: { page: null, sealed: true, coaching: true, live: 'live', leak: true, news: NEWS, update: { state: 'ready', version: '9.1.1' } },
 };
 
 function liveOf(kind) {
@@ -162,7 +182,11 @@ app.whenReady().then(async () => {
     [C.PROGRESS_GET]: (_e, id) => progress.matchProgress(recent(), id),
     [C.MOMENTS_GET]: () => moments.build('valorant', recent(), { patterns: patterns.summarise(recent()), clips: (id) => store.clipsOf(id).map((c) => c.name), url: (id, name) => `occlara-clip://review/${id}/${name}`, frames: () => null, recordingMode: 'auto' }),
     [C.STATS_RANK_HISTORY]: () => [],
-    [C.CHANGELOG_NOTICE]: () => null,
+    // The bar (9.1): What's new and the updater as the scene has them, as main
+    // would answer: nothing while recording.
+    // (leak: main answering anyway, to see the bar hold them back itself.)
+    [C.CHANGELOG_NOTICE]: () => (scene.coaching && !scene.leak ? null : scene.news || null),
+    [C.UPDATE_GET]: () => (scene.coaching && !scene.leak ? null : scene.update || null),
     [C.PRACTICE_TODAY]: () => null,
     [C.WRAPPED_ENTRY]: () => null,
     [C.REVIEW_RIOT]: () => null,
@@ -240,6 +264,8 @@ app.whenReady().then(async () => {
       if (!scene.whole) await wait(Number(process.env.SHOT_WAIT) || 3600);
       // A scene's own act in its page (a click, a scroll), then a moment to settle.
       if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(900); }
+      // And in the bar's own document (sact).
+      if (scene.sact) { await shellWin.webContents.executeJavaScript(scene.sact).catch(() => null); await wait(600); }
       // SHOT_EVAL=<module>: a module that reads the laid out pages (the site
       // proof's readers, say) gets the scene's two webContents, and what it
       // returns is written beside the picture as demo-<scene>.json.
