@@ -11,8 +11,8 @@ system is Orbit now (`DESIGN.md`, built from the redesign folder's
 `ORBIT-SPEC.md`); where this file describes the Progress v3 look below, Orbit
 wins. What phase 1 changed, and what to keep true:
 
-- **The bar is 56px** (`main-window.js TOP_H`, `shell.css .bar`): the crescent
-  and "Occlara", then FOUR LINKS, Home, Matches, Practice and Clips, plain
+- **The bar is 56px** (`main-window.js TOP_H`, `shell.css .bar`): the moon in
+  colour at 22px (`assets/mark-bar.svg`, the logo's own small drawing) and "Occlara", then FOUR LINKS, Home, Matches, Practice and Clips, plain
   words with one 4px dot gliding to the current one (`placeMarker`, the smooth
   spring over 420ms), then Start at the bar's size (hidden on Home, whose hero
   carries the big one), the pause button while recording, the profile button
@@ -317,7 +317,7 @@ that screen is the live status (Progress v3, the owner's choice): the map's
 art behind one card with the agent, the score, the round and the round tape,
 each only while its switch is on, and the review as a locked ring beside it
 (`shell.js paintLive`, main's `PUSH_LIVE`); held, or in League, it is the
-quiet crescent and its line (`.sealed-quiet`). What it may show and why:
+quiet moon and its line (`.sealed-quiet`). What it may show and why:
 `screen-silence.md`, "The live status, the one exception". A page asked for
 meanwhile, the review of the match that just ended above all, is remembered
 and shows when the seal lifts. Open pages through `openPage()`, never
@@ -576,7 +576,7 @@ ailog/       the AI log: every frame read and what was parsed from it, or
 weekly/      weekly report popup: grades, categories, recurring mistakes
 learn/       League lessons
 activation/  license key entry
-splash/      the launch animation
+splash/      the launch animation: the full moon arriving out of the night, one motion
 recorder/    the match recorder's page, in a window that is never shown (8.3)
 frames/      a look's stills decoded from its clip, in a window that is never shown (8.3.1)
 ```
@@ -618,7 +618,7 @@ progress lines, the Moments entries; no name, no Riot ID, no date, no id, no
 dash, stamped with the commit, labelled "Sample match"), the pages as WebP
 (home, matches, moments, review-top, review-rounds, settings, invite, sealed)
 through ffmpeg under 3 MB in all, the share image from the review page's own
-`verdict-card.js`, and `mark.json` (the crescent's path and the tokens).
+`verdict-card.js`, and `mark.json` (the moon's path and the tokens; the path is even odd, its seas cut).
 `test:siteproof` runs it twice with `--json-only` and holds the JSON to the
 same bytes and to those rules. The window's size is asked for again less the
 delta the frameless window adds at scale 2, and `--json-only` skips the scale
@@ -724,7 +724,7 @@ label, with no frame around any:
 
 - **Occlara Wrapped's invitation** (wrapped.md), from 15 December to 31
   January only: one strip under the title in the app's own look (`#h-wrapped`,
-  the Start strip's shape: the crescent, main's line from `WRAPPED_ENTRY`,
+  the Start strip's shape: the moon, main's line from `WRAPPED_ENTRY`,
   "Play your 2026 Wrapped" as a dark capsule, `WRAPPED_OPEN`), or the line
   alone when the year has fewer than 5 reviewed matches of one game. Asked on
   Home's one review listener and as Home arms; hidden mid match (main answers
@@ -1011,7 +1011,7 @@ sent anywhere; the page says so at its foot.
   window's least width. `shell.css` draws the tabs in at three widths, from
   14 px a side with 4 px between them: at 1280 px and under, 10 px a side
   and 2 px between; at 1100 px and under, 9 px a side, the brand keeps its
-  crescent alone and the bar's gap is 12 px; at 1040 px and under, 7 px a
+  moon alone and the bar's gap is 12 px; at 1040 px and under, 7 px a
   side with no gap between them, the bar's gap 8 px and its left padding
   20 px, which leaves the last tab clear of the game switch.
   `check:mainwindow` measures it at 960 on the Trainer page, with Start in
@@ -1065,7 +1065,7 @@ Everything about it: feedback.md. `check:mainwindow` writes
 ### The games toast (8.9.1, a centred reveal since 8.10.4)
 
 When the account's games go up for a reason the player did not just spend or
-reset, a centred reveal plays over the window (a gift opening, or the crescent in a ring for a plan, the surface below), saying "You
+reset, a centred reveal plays over the window (a gift opening, or the moon in a ring for a plan, the surface below), saying "You
 got 2 games" and one line with the reason, "Someone sent you a gift, 25
 games a month." (a gift, `source` 'gift' on `/account/me`), "Thanks for your
 purchase, 25 games a month." (a plan starting or moving up), "Your invite
@@ -1109,7 +1109,7 @@ it with (GET /api/gifts, the running gift's `from_name`), never a Riot ID
   shakes (220 ms), the lid pops and rests ajar, a ring pulses out, 22 flat
   pieces burst, the number rises out of the box and counts to its value
   ("+4 games"), then the unit, the line and the buttons, 80 to 140 ms apart. The
-  plan: a ring draws itself, the crescent (the logo's own path) turns in, a
+  plan: a ring draws itself, the moon (the logo's own path, even odd) turns in, a
   ring pulses, the number counts ("25 games a month"). Every step is a delay
   on its own CSS animation (toast.css lists the timeline); the page counts the
   number and makes the pieces. Continue, Esc, a click on the scrim or 10 s

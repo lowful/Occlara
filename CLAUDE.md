@@ -215,18 +215,31 @@ nothing in `src/` hard-codes an installer filename. Verify that before assuming
 any other name here is safe to move: the test is whether something outside this
 repo has the string baked in.
 
-**The logo is a crescent, and it exists in five places.** `assets/logo-mark.svg`
-is the source; `splash/index.html` draws it as its two circles with the shade
-in a mask, so the shade can move; `dock/index.html` and the Recording screen in
-`shell/index.html` inline the path, so they take `currentColor`;
-`scripts/generate-icon.js` draws it by arithmetic for the `.ico`, the `.png`
-(Orbit's glass crescent on its squircle), the two tray icons and the splash's
-three pictures (`assets/splash`). Change one and change all of them, then run
-`node scripts/generate-icon.js`: `npm run test:mark` holds the five to one
-geometry and the icons to what the script draws. The SVG carries an explicit
+**The logo is a full moon, and it exists in five places, from one source**
+(the owner's pick, Nov 2026, the CLEAN detail level). The source is
+`scripts/moon/`: the design's `moon-geometry.js` and `moon-art.js` unchanged
+and its drawings copied byte for byte into `moon-drawings.js`; never redraw
+the moon, change the design and copy again. `assets/logo-mark.svg` is the one
+colour mark (the disc with its seas and four craters cut by even odd fill);
+`dock/index.html` and the Recording screen in `shell/index.html` inline its
+path with `fill-rule="evenodd"`, so they take `currentColor`; the bar shows
+the colour drawing at 22 (`assets/mark-bar.svg`) and the splash the clean
+colour moon (`assets/splash/moon.svg`); `scripts/generate-icon.js` writes
+those three SVGs in node and RENDERS every icon in a hidden Electron window
+(the drawn moon is SVG filters no arithmetic reproduces): the `.png`, the
+`.ico` (the drawn moon from 256 to 40, the 32 grid drawing at 32 and 24, the
+16px drawing at 20 and 16) and four tray icons (the moon idle, the record ring
+with the moon as its dot while recording, each for a dark and a light
+taskbar). Home's Wrapped row, the games toast, Wrapped and the share image
+draw the same path, even odd. Change the moon, then run `node
+scripts/generate-icon.js` under the Electron lock: `npm run test:mark` holds
+every place to the one path and every icon to `scripts/moon/rendered.json`,
+which records what each was rendered from. The SVG carries an explicit
 `color="#F5F5F7"` because an external SVG loaded through an `<img>` tag is its
 own document, so `currentColor` resolves to black there and the mark renders
-invisible on the dark ground.
+invisible on the dark ground. TRAP: `electron script.js` loads the script
+through Electron's default app, so `require.main === module` is false there;
+a script meant to run in Electron must test its own name in `process.argv`.
 
 **Look at UI changes, do not only compile them.**
 `npx electron scripts/shot-surface.js shell settings` writes real screenshots to

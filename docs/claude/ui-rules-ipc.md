@@ -186,8 +186,12 @@ Settled decisions that keep getting reintroduced by accident:
   transparent, masking the edge of a transparent window, and it also ate the
   corners: over a light desktop the centre measured rgb(11,12,12) while all four
   corners measured exactly the desktop behind them, so a square window rendered
-  as an oval blob. `.stage` is now a solid `--bg` card with an 18px radius and a
-  10px gutter, the same shape as every other surface. Stats' rank journey was
+  as an oval blob. `.stage` is now a solid `--bg` card with Orbit's card radius and a
+  10px gutter, the same shape as every other surface. Since the full moon (Nov
+  2026) the splash shows the logo's clean colour moon as a picture
+  (`assets/splash/moon.svg`): its gradients and filters live inside that file,
+  never in the splash's own CSS, which draws no gradient; one motion only, the
+  moon fading and sharpening in, then the name. Stats' rank journey was
   a fourth until 8.4.1, the retired cyan over a gradient fill written into its
   markup from stats.js, which `check:palette` never read: it read stylesheets
   alone. It reads every renderer script and page now, counts every gradient

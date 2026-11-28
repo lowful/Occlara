@@ -9,8 +9,8 @@ disagree, fix one of them in the same change.
 
 ## The idea
 
-Occlara in Fomo's language: an indigo black sky where the moon's lit limb is the
-logo's crescent at planet scale, the player's agent floats in front of it, and the
+Occlara in Fomo's language: an indigo black sky where the moon that is the logo
+hangs at planet scale, the player's agent floats in front of it, and the
 review arrives as a notification that opens. Cards on the sky, each holding an
 eyebrow, a title and one real fragment of the product. One accent, indigo, kept for
 the few things that are the app's own actions. Motion is buttery: it transitions,
@@ -192,7 +192,7 @@ match the whole sky is behind the Recording screen, the moon resting low and sti
 
 ## The screens built in phase 1
 
-- **The top bar** (`shell/`, 56px, `main-window.js TOP_H`): the crescent and
+- **The top bar** (`shell/`, 56px, `main-window.js TOP_H`): the moon in colour and
   "Occlara", the four links (Home, Matches, Practice, Clips; `shell-nav.js TOP`), then
   Start at the bar's size (hidden on Home, whose hero carries the big one), the profile
   button and the window's buttons. Mid match the links dim to 35% beside a lock and
@@ -221,15 +221,26 @@ match the whole sky is behind the Recording screen, the moon resting low and sti
   a beat and opens into the review, which grows out of its corners; then the count,
   the stamp and the medals. Only once the review is whole and on screen, never mid
   match, never under less motion (`docs/claude/ui.md`, "REVIEW READY").
-- **The app icon**: a glass crescent on an indigo black squircle (exponent 5), lit from
-  its top left, with its indigo glow, from 64px; the crescent and ground alone at 32 to
-  48; a crisp flat crescent in `#9AA8FF` on `#14132A` at 16 to 24. The tray stays the
-  flat crescent in the ink or the ground. All drawn by `scripts/generate-icon.js`.
-- **The splash**: the icon come alive. Its ground, the glass disc its mask reveals and
-  the glow under the crescent are pictures the same script draws (`assets/splash`),
-  since the splash draws no gradient and runs no script; the moon waxes out of its
-  shadow, the glow settles, "Occlara" lands in Onest 700. **The dock** arrives and
-  floats on Orbit's motion.
+- **The logo, the full moon** (the owner's pick, Nov 2026, the CLEAN level; replaces the
+  crescent): the moon that hangs over Home, drawn round and full, its seas where they
+  are on the sky and its craters lit from the upper left, falling to indigo on the far
+  side. One source, `scripts/moon/`; never redrawn (CLAUDE.md, the logo's five places).
+  - **The one colour mark** (`assets/logo-mark.svg`): one disc with its seas and four
+    craters cut by even odd fill; the dock and the Recording screen inline it in
+    `currentColor`.
+  - **The bar's mark**: the moon in colour, its own 24 unit drawing at 22px
+    (`assets/mark-bar.svg`), 7px before "Occlara".
+  - **The app icon**: the drawn moon on indigo black glass (a squircle of exponent 5,
+    its haze at the top left), with its grain at 256 and 128, without it down to 40;
+    its own drawings at 32 and 24 and at 20 and 16.
+  - **The tray**: the moon in one flat colour on the 16 grid, three cuts (the western
+    ocean, the eastern sea, Tycho); while recording, the record ring of Start's glyph
+    with the moon as its dot. Ink on a dark taskbar, the ground on a light one.
+- **The splash**, clean and simplified: the night, then ONE MOTION: the moon arrives,
+  fading in and sharpening from a soft blur so its lit edge and its soft indigo glow
+  settle, then "Occlara" fades up under it in Onest 700. About 1.2s, then still until
+  the window fades. No shade, orbit, particle or loader. **The dock** is the flat moon,
+  arriving and floating on Orbit's motion.
 - **The Recording screen never pulses** (the owner's decision): Stop's glow and the dot
   are still, held by `test:recordingstill`.
 
