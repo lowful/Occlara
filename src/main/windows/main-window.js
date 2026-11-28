@@ -221,9 +221,12 @@ function create(opts) {
   const b = savedBounds() || { width: DEFAULT_W, height: DEFAULT_H };
   // A window made again opens on Home, and KEEPS THE SEAL: made mid match by a
   // page asked for, it showed that page until the next check sealed it.
-  const was = { sealed: nav.state().sealed, held };
+  const was = { sealed: nav.state().sealed, held, rec: nav.state().rec };
   nav = createNav();
   if (was.sealed) nav.seal(true);
+  // And the Recording view (9.1): a window made again while recording
+  // between matches opens on it, as the one it replaced showed it.
+  if (was.rec) nav.recording(true);
   held = was.sealed && was.held;
   // Left maximised last time, it comes back maximised. Not here: maximize()
   // shows a window, and a deferred one would appear behind the splash.
@@ -957,6 +960,19 @@ function setSealed(on, opts) {
 }
 
 /**
+ * THE RECORDING VIEW (9.1, shell-nav.js createNav): Start takes the window to
+ * the Recording screen at once, in its waiting state, without a seal: no match
+ * is in progress, so the links stay open and any page opened (show) takes its
+ * place. Off again when recording stops. The window is not brought forward: a
+ * Start from the hotkey or the tray mid game changes the page and nothing else.
+ */
+function setRecordingView(on) {
+  if (!!nav.state().rec === !!on) return;
+  nav.recording(!!on);
+  apply();
+}
+
+/**
  * THE MENU SHUTS AS THE SEAL COMES ON. The account menu's view lies over every
  * page, the Recording screen too, and nothing shut it when a match started:
  * left open, it stayed over the sealed window. Shut here, before the shell
@@ -1063,7 +1079,7 @@ function pageViews() { return new Map(views); }
 function motionState() { return { ...motion.state(), staged, reloading: [...reloading] }; }
 
 module.exports = {
-  create, get, reveal, show, setSealed, current, shellState, minimize, hide, close, toggleMaximize, isHidden, toggleHidden,
+  create, get, reveal, show, setSealed, setRecordingView, current, shellState, minimize, hide, close, toggleMaximize, isHidden, toggleHidden,
   onWindowChange, onSessionEnd, onCloseAsk, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, setDrawer, menuState, STAGE_PX,
   toast, toastState, onToastClick,
   openWrapped, closeWrapped, wrappedState,

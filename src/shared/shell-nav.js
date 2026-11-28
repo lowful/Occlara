@@ -289,26 +289,40 @@ function createMotion(fx) {
 }
 
 /**
+ * THE RECORDING VIEW (9.1, the owner's item 14). Pressing Start takes the
+ * player to the Recording screen at once, in its waiting state, rather than
+ * leaving them on Home until the match is seen. It is the same screen the
+ * seal shows, but no seal: no match is in progress, so nothing is locked and
+ * any page the player opens (go) takes its place. It holds through a match
+ * (the seal shows the screen then anyway) and, with no page asked for, after
+ * one; the review of the match that ended is asked for, so it shows.
+ *
  * @param home  the page the window opens on
- * @returns { go(id), seal(on), state() }, state() being
- *          { page, shown, sealed }: the page the player is on, or will be on
- *          once the seal lifts, and the page whose view is visible (null while
- *          sealed)
+ * @returns { go(id), seal(on), recording(on), state() }, state() being
+ *          { page, shown, sealed, rec }: the page the player is on, or will be
+ *          on once the seal lifts and the Recording view goes, the page whose
+ *          view is visible (null while sealed or on the Recording view), and
+ *          whether the Recording view is up
  */
 function createNav({ home = 'home' } = {}) {
   let page = pageOf(home) ? home : 'home';
   let sealed = false;
+  let rec = false;
   return {
     go(id) {
-      if (pageOf(id)) page = id;
+      if (pageOf(id)) { page = id; rec = false; }
       return this.state();
     },
     seal(on) {
       sealed = !!on;
       return this.state();
     },
+    recording(on) {
+      rec = !!on;
+      return this.state();
+    },
     state() {
-      return { page, shown: sealed ? null : page, sealed };
+      return { page, shown: sealed || rec ? null : page, sealed, rec };
     },
   };
 }

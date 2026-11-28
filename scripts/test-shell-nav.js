@@ -147,6 +147,33 @@ ok(direction('settings', 'feedback') === 'forward' && direction('profile', 'feed
   ok(!s.sealed && s.shown === 'review', 'unsealed, the page it was sent to shows');
 }
 
+// ── The Recording view (9.1, the owner's item 14) ─────────────────────────
+// Start takes the window to the Recording screen at once, in its waiting
+// state: no page shows, but nothing is sealed, so the player may open one.
+{
+  const nav = createNav();
+  nav.go('matches');
+  let s = nav.recording(true);
+  ok(s.rec && !s.sealed && s.shown === null && s.page === 'matches', 'Start: the Recording view, no page shown and no seal, the page the player was on kept');
+  s = nav.seal(true);
+  ok(s.sealed && s.shown === null, 'the match seen: the seal comes on, the same screen');
+  s = nav.seal(false);
+  ok(!s.sealed && s.rec && s.shown === null, 'the match over with no page asked for: the Recording view again, waiting for the next');
+  nav.seal(true);
+  s = nav.go('review');
+  ok(s.shown === null && s.page === 'review' && !s.rec, "the review asked for while sealed is remembered, and takes the Recording view's place");
+  s = nav.seal(false);
+  ok(s.shown === 'review' && !s.rec, 'so it shows the moment the seal lifts');
+  nav.recording(true);
+  s = nav.go('moments');
+  ok(s.shown === 'moments' && !s.rec, 'between matches a page the player opens takes its place');
+  nav.recording(true);
+  s = nav.go('nope');
+  ok(s.rec && s.shown === null, 'an unknown page changes nothing');
+  s = nav.recording(false);
+  ok(!s.rec && s.shown === 'moments', 'recording stopped: the page the player was on comes back');
+}
+
 // ── Which way the window moves (8.2) ──────────────────────────────────────
 ok(direction('home', 'matches') === 'forward' && direction('matches', 'moments') === 'forward'
   && direction('coach', 'settings') === 'forward', 'down the sidebar is forward, Settings at its foot last');
@@ -606,6 +633,25 @@ function rig() {
     w.show();
     tick(READY_MS);
     ok(settled('review'), 'shown again, it comes in once its wait has run again');
+
+    // THE RECORDING VIEW (9.1): Start takes every page away, with no seal
+    // and so no protection from capture; a page opened takes its place.
+    mw.setRecordingView(true);
+    ok(mw.current().rec && !mw.current().sealed && mw.motionState().onScreen === null && !viewOf('review').getVisible() && w.protected === false,
+      'Start: the Recording view, no page on screen, not sealed and so still in captures', JSON.stringify(mw.current()));
+    ok(mw.shellState().rec === true && mw.shellState().held === false, 'and the shell is told so (PUSH_SHELL, SHELL_GET)');
+    mw.setSealed(true);
+    mw.setSealed(false);
+    ok(mw.current().rec && mw.motionState().onScreen === null && !mw.motionState().coming, 'a match sealed and over with no page asked for: still the Recording view');
+    mw.show('matches');
+    ok(!mw.current().rec && waiting('matches'), 'a page opened between matches takes its place, staged as from the seal');
+    tick(READY_MS);
+    ok(settled('matches'), 'and comes in');
+    mw.setRecordingView(true);
+    mw.setRecordingView(false);
+    ok(!mw.current().rec && waiting('matches'), 'recording stopped: the page the player was on comes back');
+    tick(READY_MS);
+    ok(settled('matches'), 'and settles');
 
     // A PAGE LOADING AGAIN. Ask Coach was on screen, the review came over it,
     // and Ask about this match loads Ask Coach again: until its new document

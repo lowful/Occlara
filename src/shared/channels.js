@@ -232,6 +232,12 @@ const CHANNELS = {
   // Copy): (size: 'standard' | 'compact') -> { ok }. Main copies it, only
   // while the widget is served (both switches on).
   STREAM_WIDGET_COPY: 'settings:streamWidgetCopy',
+  // The live rating's switch beside Start on Home (9.1, the owner's item 14):
+  // (on: boolean) -> { ok, on }. Main turns it ON only for Home's own page,
+  // whose warning and confirm come first (home/live-rating-switch.js), as
+  // CONFIG_SET takes it on only from Settings'; OFF from anywhere, the stream
+  // widget's switch with it.
+  LIVE_RATING_SET: 'home:liveRatingSet',
   SHELL_GET:       'shell:get',          // () -> { page, shown, sealed, maximized }
   // A page has painted itself armed (8.2): main-window.js may now hide the
   // page on screen and let this one in (PUSH_PAGE).

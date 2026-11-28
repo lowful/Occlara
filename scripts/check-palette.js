@@ -178,9 +178,13 @@ const SIGNAL_ALLOWED = {
   // way on the tape, the selected round's place.
   'shell/shell.css':       ['.bar .btn-rec:not(.active):not(.ended)', '.bar .btn-rec:hover:not(:disabled):not(.active)',
                             '.nav .nav-item:focus-visible', '.avatar-btn:focus-visible', '.win-btn:focus-visible',
-                            '.drawer .nav-item:focus-visible', '.sealed h1::before', '.live-dot', '.pip.now'],
+                            '.drawer .nav-item:focus-visible', '.sealed h1::before', '.live-dot', '.pip.now',
+                            // 9.1: the bar's way back to the Recording view, its still recording dot and the keyboard's ring.
+                            '.rec-back-dot', '.rec-back:focus-visible'],
   // The keyboard's ring on a recent match's row.
   'home/home.css':         ['.r-row:focus-visible'],
+  // 9.1: the keyboard's ring on the live rating's switch beside Start.
+  'home/live-rating-switch.css': ['.h-lr-switch:focus-visible'],
   // ORBIT phase 2: a card's eyebrow on each page.
   'stats/stats.css':       ['section h3:not(#nostats-title)'],
   'profile/profile.css':   ['.pr-title'],

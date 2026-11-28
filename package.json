@@ -126,6 +126,7 @@
     "test:riotrecord": "node scripts/test-riot-record.js",
     "test:rating": "node scripts/test-rating.js",
     "test:recordingstill": "node scripts/test-recording-still.js",
+    "test:recordingview": "node scripts/test-recording-view.js",
     "test:ratingwiring": "node scripts/test-rating-wiring.js",
     "test:killfeed": "node scripts/test-killfeed.js",
     "test:liverating": "node scripts/test-live-rating.js",

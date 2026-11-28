@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="../shared/grade-view.css" />
   <link rel="stylesheet" href="../review/clip-player.css" />
   <link rel="stylesheet" href="home.css" />
+  <link rel="stylesheet" href="live-rating-switch.css" />
 </head>
 <body>
   <!-- HOME, ORBIT (27 Nov 2026): the sky behind it, the moon's lit limb at
@@ -82,6 +83,27 @@
           <button id="h-open" class="btn btn-primary lg" type="button" hidden>
             <span class="btn-label">Open last review</span><span class="btn-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
           </button>
+        </div>
+        <!-- THE LIVE RATING'S SWITCH (9.1, the owner's item 14), beside Start
+             so it is found before a match: the same switch as Settings',
+             past the same warning and confirm (docs/claude/screen-silence.md
+             "The live rating"). Valorant only; drawn by live-rating-switch.js,
+             main turning it on only for this page (LIVE_RATING_SET). Never on
+             the Recording screen. -->
+        <div id="h-lr" class="h-lr" hidden>
+          <div class="h-lr-pill">
+            <button id="h-lr-switch" class="switch h-lr-switch" type="button" role="switch" aria-checked="false" aria-labelledby="h-lr-label" aria-describedby="h-lr-hint"></button>
+            <span id="h-lr-label" class="h-lr-label">Live rating</span>
+            <span id="h-lr-hint" class="h-lr-hint">Off</span>
+          </div>
+          <div id="h-lr-confirm" class="h-lr-confirm" role="alertdialog" aria-labelledby="h-lr-confirm-title" aria-describedby="h-lr-confirm-body" hidden>
+            <p class="h-lr-confirm-title" id="h-lr-confirm-title">Show your rating while you play?</p>
+            <p class="h-lr-confirm-body" id="h-lr-confirm-body">It shows a number about your play while you play. Riot does not approve apps that show real-time data that changes how you play. Occlara shows a number and what happened, never what to do. Your choice.</p>
+            <div class="h-lr-confirm-actions">
+              <button id="h-lr-keep-off" class="btn btn-primary sm" type="button">Keep it off</button>
+              <button id="h-lr-turn-on" class="btn btn-ghost sm" type="button">Turn it on</button>
+            </div>
+          </div>
         </div>
         <p class="h-note"><b class="ss-word sr-only">Ready</b><span class="ss-line">Press Start before you queue. Your review opens when the match ends.</span></p>
       </div>
@@ -155,5 +177,6 @@
   <script src="../shared/motion.js"></script>
   <script src="../shared/sky.js"></script>
   <script src="home.js"></script>
+  <script src="live-rating-switch.js"></script>
 </body>
 </html>

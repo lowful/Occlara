@@ -433,6 +433,17 @@ sealed (`deps.busy`).
   only while it is served.
 - `STREAM_WIDGET_COPY` (invoke, 'standard' | 'compact'): main writes the
   widget's address to the clipboard, only while it is served; `{ ok }`.
+- `LIVE_RATING_SET` (invoke, Home to main, 9.1): `(on: boolean) -> { ok, on }`,
+  the live rating's switch beside Start (`home/live-rating-switch.js`, past
+  Settings' own warning and confirm). Main turns it ON only for Home's own
+  view and its main frame (`register-ipc.js fromPage`, the same test
+  `fromSettings` makes), anything but `true` or `false` refused; OFF from
+  anywhere, `liveRatingStream` going off with it. Home's bridge carries this
+  alone, never `CONFIG_SET` (`test:configset`, `test:recordingview`).
+- THE RECORDING VIEW (9.1): `PUSH_SHELL` and `SHELL_GET` carry `rec`, true
+  while the Recording view Start opened is up (`shell-nav.js createNav
+  recording`, `shown` null with it), and the shell asks for it back with
+  `SHELL_WINDOW` 'recording' (main does nothing unless recording).
 
 ### The Trainer's channels (trainer.md)
 

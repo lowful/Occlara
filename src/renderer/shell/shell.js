@@ -67,8 +67,9 @@ let isPaused = false;
 let notice = null;
 let licenseActive = true;
 let gameId = 'valorant';
-let shell = { page: 'home', shown: 'home', sealed: false, held: false, maximized: false };
+let shell = { page: 'home', shown: 'home', sealed: false, held: false, rec: false, maximized: false };
 let cfg = null;
+let liveRatingOn = false;   // the live rating's switch as main keeps it (state.live), for the waiting line alone
 
 // ── The pages ──────────────────────────────────────────────────────────────
 /*
@@ -252,6 +253,21 @@ const SEALED_TEXT = {
     sub: 'You stopped in the middle of a match, so its review was saved to Matches without opening. Choose a page when that match is over.' },
 };
 
+/** The Recording screen is up: sealed (mid match, or held), or the Recording view Start opened (9.1). */
+function onRecordingScreen() { return !!shell.sealed || !!shell.rec; }
+
+/*
+ * BACK TO THE RECORDING VIEW (9.1): recording between matches with a page
+ * open, the bar's still dot and "Recording" take the player back to the
+ * Recording screen's waiting state (main's windowAction 'recording', which
+ * does nothing unless recording). Not drawn on that screen or mid match.
+ */
+function paintRecView() {
+  const b = $('rec-back');
+  if (b) b.hidden = !(isCoaching && licenseActive && !onRecordingScreen());
+}
+$('rec-back').addEventListener('click', () => window.occlara.windowAction('recording'));
+
 function paintNav() {
   // Mid match the pages are locked. Held, the sidebar stays open: a page is
   // the player's own choice, and opening one lifts the seal.
@@ -260,8 +276,11 @@ function paintNav() {
   // the Trainer under Practice), or its own row of the menu; What's new marks
   // Settings, where it is reached from.
   const current = linkOf(shell.page) || (shell.page === 'whatsnew' ? 'settings' : shell.page);
+  // THE RECORDING VIEW (9.1): Start shows the Recording screen at once, no
+  // seal (shell-nav.js): the links stay open, none of them current.
+  const screen = onRecordingScreen();
   for (const [id, b] of navButtons) {
-    if (current === id && !shell.sealed) b.setAttribute('aria-current', 'page');
+    if (current === id && !screen) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
     b.disabled = locked;
     const ico = b.querySelector('svg');
@@ -280,20 +299,23 @@ function paintNav() {
   dcIco.innerHTML = locked ? LOCK : DISCORD_ICO;
   $('nav-feedback').title = locked ? 'Locked until the match ends' : 'Report a problem';
   $('sealed-note').hidden = !locked;
-  $('sealed').hidden = !shell.sealed;
+  $('sealed').hidden = !screen;
   const text = shell.held ? SEALED_TEXT.held : SEALED_TEXT.live;
   $('sealed').classList.toggle('held', !!shell.held);
   $('sealed').setAttribute('aria-label', text.title);
   $('sealed-title').textContent = text.title;
   $('sealed-sub').textContent = text.sub;
   $('sealed-facts').hidden = !!shell.held;
+  $('quiet-stop').hidden = !!shell.held || !isCoaching;
   paintLive();
   // The bar's modes (Progress v3): on Home, not recording, Start is the
   // page's own strip; mid match Stop is the large capsule.
   const app = document.querySelector('.app');
-  app.classList.toggle('home-page', shell.page === 'home' && !shell.sealed);
+  app.classList.toggle('home-page', shell.page === 'home' && !screen);
   app.classList.toggle('sealed-live', !!shell.sealed && !shell.held);
   app.classList.toggle('is-sealed', !!shell.sealed);
+  app.classList.toggle('rec-view', !!shell.rec && !shell.sealed);
+  paintRecView();
   paintSky();
   $('w-max').title = shell.maximized ? 'Restore' : 'Maximize';
   $('w-max').setAttribute('aria-label', $('w-max').title);
@@ -570,13 +592,18 @@ $('live-choose').addEventListener('click', () => { liveEditing = !liveEditing; p
 
 function paintLive() {
   const box = $('live');
-  const show = !!shell.sealed && !shell.held && gameId === 'valorant';
+  // Mid a match (sealed, not held), or on the Recording view Start opened
+  // before one (9.1): the same screen, its waiting state until the match.
+  const show = ((!!shell.sealed && !shell.held) || (!!shell.rec && !shell.sealed)) && gameId === 'valorant';
   box.hidden = !show;
   $('sealed-quiet').hidden = show;
   if (!show) { liveEditing = false; paintRating(null); return; }
   paintChips();
   const v = live && live.state === 'live' ? live : null;
+  // Paused, the head says so: nothing is read or recorded until the resume.
+  document.querySelector('#live .live-word').textContent = isPaused ? 'Paused' : 'Recording';
   $('live-wait').hidden = !!v;
+  $('live-wait-lr').hidden = !!v || !liveRatingOn;
   $('live-main').hidden = !v;
   $('live-tape-block').hidden = !v || (!Array.isArray(v.tape) && typeof v.round !== 'number');
   const since = live && live.startedAt ? new Date(live.startedAt) : null;
@@ -649,6 +676,8 @@ function paintRating(r) {
   if (off) off.hidden = !blind;
   const ok = !blind && r && typeof r === 'object' && typeof r.value === 'number' && Number.isFinite(r.value) && !!window.RatingBadge;
   box.hidden = !ok;
+  // The column draws in to make room for the row (shell.css .live-status.rated).
+  $('live').classList.toggle('rated', ok || blind);
   if (!ok) { ratingShown = null; return; }
   const changed = ratingShown !== null && r.value !== ratingShown;
   window.RatingBadge.setNumber($('lr-num'), $('lr-badge'), r.value);
@@ -685,6 +714,7 @@ if (typeof window.occlara.onLive === 'function') {
 }
 // Stop, on the Recording screen: the same Stop as the bar's.
 $('live-stop').addEventListener('click', () => window.occlara.stopCoaching());
+$('quiet-stop').addEventListener('click', () => window.occlara.stopCoaching());
 
 /*
  * THE SKY behind the bar on Home and behind the Recording screen (shared/sky.js):
@@ -696,7 +726,7 @@ let skyAt = '';
 function paintSky() {
   const sky = window.OcclaraSky;
   if (!sky) return;
-  if (!(shell.sealed || shell.page === 'home')) return;
+  if (!(onRecordingScreen() || shell.page === 'home')) return;
   const key = `${window.innerWidth}x${window.innerHeight}`;
   if (skyAt !== key) { skyAt = key; sky.stars($('sky-stars')); }
   if (!shell.sealed || sky.hasMoon()) sky.moon($('sky-moon'));
@@ -773,6 +803,7 @@ function render() {
   }
   paintSealedFacts();
   paintNotice();
+  paintRecView();
 }
 
 toggleBtn.addEventListener('click', () => {
@@ -809,6 +840,9 @@ function applyState(s) {
     for (const k of ['liveMap', 'liveAgent', 'liveScore', 'liveRound']) if (typeof s.live[k] === 'boolean') live[k] = s.live[k];
     cfg = { ...cfg, ...live };
   }
+  const ratingWas = liveRatingOn;
+  if (s.live && typeof s.live === 'object' && typeof s.live.liveRating === 'boolean') liveRatingOn = s.live.liveRating;
+  const pausedWas = isPaused;
   isCoaching = !!s.isCoaching;
   isPaused = !!s.isPaused;
   if ('notice' in s) notice = s.notice || null;
@@ -820,7 +854,8 @@ function applyState(s) {
   // it again after layout: the Learn entry above shows or goes with the game.
   placeMarker();
   soundCue();
-  if (gameChanged || wasCoaching !== isCoaching) { paintGames(); paintAccount(); paintGamesLeft(); paintLive(); }
+  if (gameChanged || wasCoaching !== isCoaching) { paintGames(); paintAccount(); paintGamesLeft(); paintNav(); }
+  else if (pausedWas !== isPaused || ratingWas !== liveRatingOn) paintLive();
 }
 
 // The flag key was heard (8.13): one tick, the same for every press, and
@@ -843,6 +878,8 @@ window.occlara.onStatus(({ status }) => {
   render();
   soundCue();
   paintGames();
+  // The Recording screen's head (Recording or Paused) and its Stop follow.
+  paintNav();
 });
 window.occlara.onShell((s) => {
   if (!s) return;

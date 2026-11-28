@@ -816,7 +816,9 @@ open question that bench answers.
 ### Main decides it
 
 - **Off by default** (`liveRating`, config.js). Settings turns it on past a
-  plain warning and a confirm (settings.js). Off: no frame is decoded for
+  plain warning and a confirm (settings.js), and so does the switch beside
+  Start on Home since 9.1 (`home/live-rating-switch.js`, the same words,
+  through `LIVE_RATING_SET`, on only for Home's own page). Off: no frame is decoded for
   it (`liveRating.feed` with the switch off resets and returns), nothing is
   kept, PUSH_LIVE has no `rating` key, the widget's server is stopped.
 - **On**: each read the live Valorant reader applies hands its record (the
@@ -840,11 +842,14 @@ open question that bench answers.
 
 ### The surfaces
 
-- **The Recording screen** (shell.js `paintRating`): one ruled row under the
-  score, the number in the replay's own badge (shared/rating-badge), its last
-  move rising in green or falling in red with the engine's label ("First
-  kill, 5v5", "Died first, 5v5"), the small line, "Live, provisional". The
-  count and the move run once on a change, nothing else moves.
+- **The Recording screen** (shell.js `paintRating`): one glass row under the
+  score (Orbit, 9.1), the number in the replay's own badge (shared/rating-badge)
+  drawn as a glass tile, its tier a hairline rim and a dot, its last move
+  rising in green or falling in red with the engine's label ("Opening kill",
+  "Died first"), the small line, "Live, provisional". The count and the move
+  run once on a change, nothing else moves. Start lands on this screen at
+  once (the Recording view, screen-silence.md), so with the switch on its
+  waiting state says the rating shows there once the match starts.
 - **The stream widget** (rating-widget/): a broadcast plate for a stream's
   corner, the badge, the move, the label, the line and "Live, provisional",
   or "Full time" with the confirmed number; nothing between matches.

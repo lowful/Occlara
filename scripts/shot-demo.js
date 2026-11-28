@@ -22,6 +22,13 @@
  * settings, profile, invite, whatsnew, feedback, players, duos, review, recording,
  * waiting, held, stop (recording between matches, on Matches), building (a
  * review still being built), ready and opening (Review ready, then opening).
+ * The live rating and the Recording view (9.1): waiting is the Recording view
+ * Start opens (no seal), waitingrated the same with the live rating on,
+ * sealedwait the sealed screen before the reader has seen a game, rated the
+ * match with the rating's row, ratingoff with the kill feed unread,
+ * ratedsmall the rated screen at the window's least (960 by 640), homelr and
+ * homeconfirm Home's switch on and its confirm open, settingslr Settings at
+ * the live rating's rows, and leaguewait League's quiet Recording view.
  */
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
@@ -74,7 +81,16 @@ const SCENES = {
   opening: { page: 'review', work: true, whole: 1440 },
   stop: { page: 'matches', coaching: true },
   recording: { page: null, sealed: true, coaching: true, live: 'live' },
-  waiting: { page: null, sealed: true, coaching: true, live: 'waiting' },
+  waiting: { page: 'home', rec: true, coaching: true, live: 'waiting' },
+  waitingrated: { page: 'home', rec: true, coaching: true, live: 'waiting', lr: true },
+  sealedwait: { page: null, sealed: true, coaching: true, live: 'waiting' },
+  rated: { page: null, sealed: true, coaching: true, live: 'rated', lr: true },
+  ratingoff: { page: null, sealed: true, coaching: true, live: 'blind', lr: true },
+  ratedsmall: { page: null, sealed: true, coaching: true, live: 'rated', lr: true, w: 960, h: 640 },
+  homelr: { page: 'home', lr: true },
+  homeconfirm: { page: 'home', act: "document.getElementById('h-lr-switch').click(); true" },
+  settingslr: { page: 'settings', lr: true, act: "document.getElementById('lr-row').scrollIntoView({ block: 'start' }); true" },
+  leaguewait: { page: 'home', rec: true, coaching: true, live: null, game: 'lol' },
   held: { page: null, sealed: true, held: true },
 };
 
@@ -82,8 +98,12 @@ function liveOf(kind) {
   if (!kind) return null;
   const startedAt = Date.now() - 24 * 60 * 1000;
   if (kind === 'waiting') return { state: 'waiting', startedAt };
-  return { state: 'live', startedAt, mode: 'standard', map: 'Abyss', agent: 'Jett', team: 7, enemy: 6,
+  const v = { state: 'live', startedAt, mode: 'standard', map: 'Abyss', agent: 'Jett', team: 7, enemy: 6,
     tape: ['W', 'L', 'L', 'W', 'L', 'W', 'W', 'W', 'L', 'W', 'W', 'L', 'L'], round: 14 };
+  // The live rating's own fields (live-rating-service.js pick), as main sends them.
+  if (kind === 'rated') v.rating = { value: 6.8, shown: '6.8', tier: 'fair', last: { delta: '+0.4', up: true, down: false, label: 'Opening kill' }, line: [6, 6.1, 5.8, 6.2, 6.4, 6.3, 6.8] };
+  if (kind === 'blind') v.rating = { reading: false };
+  return v;
 }
 
 async function load(win, file, query) {
@@ -119,12 +139,13 @@ app.whenReady().then(async () => {
   const present = (review) => scrubText({ ...served(review) });
 
   let scene = SCENES.home;
-  const shellState = () => ({ page: scene.page || 'home', shown: scene.sealed ? null : scene.page, sealed: !!scene.sealed, held: !!scene.held, maximized: false });
-  const state = () => ({ gameId: 'valorant', isCoaching: !!scene.coaching, isPaused: false, licenseActive: true, sounds: false, riotId: '',
-    live: { liveMap: true, liveAgent: true, liveScore: true, liveRound: true }, notice: null });
+  const shellState = () => ({ page: scene.page || 'home', shown: scene.sealed || scene.rec ? null : scene.page, sealed: !!scene.sealed, held: !!scene.held, rec: !!scene.rec, maximized: false });
+  const state = () => ({ gameId: scene.game || 'valorant', isCoaching: !!scene.coaching, isPaused: false, licenseActive: true, sounds: false, riotId: '',
+    live: { liveMap: true, liveAgent: true, liveScore: true, liveRound: true, liveRating: !!scene.lr, liveRatingStream: false }, notice: null });
   const handlers = {
     [C.STATE_GET]: () => state(),
-    [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', liveMap: true, liveAgent: true, liveScore: true, liveRound: true, riotId: '', recordingMode: 'off' }),
+    [C.CONFIG_GET]: () => ({ game: scene.game || 'valorant', language: 'en', liveMap: true, liveAgent: true, liveScore: true, liveRound: true, liveRating: !!scene.lr, liveRatingStream: false, riotId: '', recordingMode: 'auto', recordingRes: '1080' }),
+    [C.LIVE_RATING_SET]: (_e, on) => ({ ok: true, on: on === true }),
     [C.SHELL_GET]: () => shellState(),
     [C.LIVE_GET]: () => liveOf(scene.live),
     [C.ACCOUNT_GET]: () => proof.SEEDED_VIEW,
@@ -174,14 +195,15 @@ app.whenReady().then(async () => {
   for (const name of (wanted.length ? wanted : ['home'])) {
     scene = SCENES[name];
     if (!scene) { console.log(`skip ${name}: no such scene`); continue; }
-    const shellWin = makeWindow(W, H, path.join(ROOT, 'src', 'preload', 'shell-preload.js'));
+    const sw = scene.w || W, sh = scene.h || H;
+    const shellWin = makeWindow(sw, sh, path.join(ROOT, 'src', 'preload', 'shell-preload.js'));
     let pageWin = null;
     try {
       if (!await load(shellWin, path.join(ROOT, 'src', 'renderer', 'shell', 'index.html'))) { console.log(`FAILED ${name}: the shell did not load`); continue; }
       shellWin.showInactive();
-      const page = scene.sealed ? null : PAGES.find((p) => p.id === scene.page);
+      const page = scene.sealed || scene.rec ? null : PAGES.find((p) => p.id === scene.page);
       if (page) {
-        pageWin = makeWindow(W, H - TOP_H, path.join(ROOT, 'src', 'preload', page.preload));
+        pageWin = makeWindow(sw, sh - TOP_H, path.join(ROOT, 'src', 'preload', page.preload));
         if (!await load(pageWin, path.join(ROOT, 'src', 'renderer', page.surface, 'index.html'), { embed: '1', ...page.query })) { console.log(`FAILED ${name}: its page did not load`); continue; }
         pageWin.showInactive();
         if (page.id === 'review') {
@@ -206,6 +228,8 @@ app.whenReady().then(async () => {
       // Fonts, the moon and every entrance settle before the picture (a
       // scene timed from a review made whole is taken at its own moment).
       if (!scene.whole) await wait(Number(process.env.SHOT_WAIT) || 3600);
+      // A scene's own act in its page (a click, a scroll), then a moment to settle.
+      if (scene.act && pageWin) { await pageWin.webContents.executeJavaScript(scene.act).catch(() => null); await wait(900); }
       // SHOT_EVAL=<module>: a module that reads the laid out pages (the site
       // proof's readers, say) gets the scene's two webContents, and what it
       // returns is written beside the picture as demo-<scene>.json.
@@ -225,7 +249,7 @@ app.whenReady().then(async () => {
           const a = await load(${JSON.stringify(a.toDataURL())});
           const c = document.getElementById('c'); c.width = a.width; c.height = a.height;
           const g = c.getContext('2d'); g.drawImage(a, 0, 0);
-          ${b ? `const b = await load(${JSON.stringify(b.toDataURL())}); g.drawImage(b, 0, Math.round(${TOP_H} * a.width / ${W}));` : ''}
+          ${b ? `const b = await load(${JSON.stringify(b.toDataURL())}); g.drawImage(b, 0, Math.round(${TOP_H} * a.width / ${sw}));` : ''}
           return c.toDataURL('image/png');
         })()`);
         const out = path.join(OUT, `demo-${name}.png`);

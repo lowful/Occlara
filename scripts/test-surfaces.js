@@ -3348,7 +3348,9 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     let first = null;
     const h = await openHome({ history: () => new Promise((r) => { if (!first) first = r; }) });
     ok(first && !h.$('content').hidden && named(h) === 'Valorant', 'the setup: Valorant painted, its first rank answer still out');
-    ok(h.bridge.listening(C.PUSH_GAME) === 1 && h.bridge.listening(C.PUSH_REVIEWS) === 1 && h.bridge.listening(C.PUSH_STATE) === 1,
+    // PUSH_STATE twice since 9.1: Home's own listener and the live rating's
+    // switch beside Start (home/live-rating-switch.js), each set up once.
+    ok(h.bridge.listening(C.PUSH_GAME) === 1 && h.bridge.listening(C.PUSH_REVIEWS) === 1 && h.bridge.listening(C.PUSH_STATE) === 2,
       'and Home already listening for a change of game, a review saved and the Riot ID',
       `game ${h.bridge.listening(C.PUSH_GAME)}, reviews ${h.bridge.listening(C.PUSH_REVIEWS)}, state ${h.bridge.listening(C.PUSH_STATE)}`);
     h.bridge.emit(C.PUSH_GAME, { id: 'lol', label: 'League of Legends' });

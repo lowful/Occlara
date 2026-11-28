@@ -37,8 +37,8 @@ a review. Never widen it. Every sealed surface, the exception and why:
 `docs/claude/screen-silence.md`.
 
 **The second exception, on purpose (the live rating, the owner's choice,
-2026-11-26):** OFF by default; with Settings' `liveRating` switch on (past a
-plain warning and a confirm) the Recording screen also shows the match rating,
+2026-11-26):** OFF by default; with the `liveRating` switch on (in Settings or
+beside Start on Home, each past the same plain warning and a confirm) the Recording screen also shows the match rating,
 its last move with the engine's label of what happened and a small line,
 marked "Live, provisional", and with `liveRatingStream` a loopback only OBS
 widget shows the same. Main decides it (`index.js syncLiveRating`,

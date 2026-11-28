@@ -64,6 +64,30 @@ reversal, kept as narrow as that choice allows.
   the screen's arrival. The review's "Review ready" card (ui.md) is never on
   this screen: it waits for the seal to lift and the review's page to be
   shown, like the reveal it leads.
+- **Start lands on it (9.1, the owner's item 14).** Pressing Start used to
+  leave the player on Home until the match was seen; now the window goes to
+  this screen at once, in its waiting state: "Waiting for your match to
+  start", "Recording since 10:58 PM" (Paused while paused), Stop, the line
+  that the review opens when the match ends, the player's choice of what
+  shows, and with the live rating on one quiet line that it shows here once
+  the match starts. That is the Recording view, NO SEAL: no match is in
+  progress, so the links stay open (none current), a page the player opens
+  takes its place, and the window is not out of captures
+  (`shell-nav.js createNav recording`, `main-window.js setRecordingView`,
+  `index.js showRecordingView`, from both start paths, gone on Stop). The
+  seal is unchanged: once the match is seen it comes on over the same screen,
+  the links lock and the facts arrive in place of the wait. A match over
+  with no page asked for leaves the Recording view up, waiting for the next;
+  the review of the match that ended is asked for, so it shows. With a page
+  open between matches the bar shows the still dot and "Recording", which
+  goes back to it (`SHELL_WINDOW` 'recording'). `liveView` answers waiting
+  until the reader has seen a game at all (`engineSawGame`), so the first
+  seconds after Start (a Valorant engine counts as in a match from its start,
+  the seal's caution, kept) show the wait, never an empty 0 : 0. League's
+  quiet screen carries Stop too (`#quiet-stop`): the bar hides its own Stop
+  mid game, which had left a League player no Stop but the tray.
+  `test:recordingview` holds it on the fake DOM and main's wiring as text,
+  `test:shellnav` the navigation.
 - `check:mainwindow` plays a match by and holds the screen to the four facts
   and the tape, and to none of the HP, credits, players alive, spot and spike
   the reader's context also held.
@@ -84,7 +108,13 @@ exactly as narrow as that choice:
   number about your play while you play; Riot does not approve apps that
   show real-time data that changes how you play; Occlara shows a number and
   what happened, never what to do; your choice) and a confirm before it
-  turns on (Off asks nothing). A second switch, `liveRatingStream`, for the
+  turns on (Off asks nothing). **And beside Start on Home (9.1)**, so it is
+  found before a match: the same switch in a glass pill under Start, and
+  turning it on there asks the same confirm, Settings' title over Settings'
+  warning word for word, Keep it off first (`home/live-rating-switch.js`,
+  `LIVE_RATING_SET`, main turning it on only for Home's own page; Valorant
+  only). Every turn from off to on asks, from either place. Never on the
+  Recording screen, sealed or waiting: it only ever says the rating is on. A second switch, `liveRatingStream`, for the
   stream widget, locked while the first is off; turning the rating off turns
   it off. The Recording screen's own Choose cannot turn it on.
 - **What may show:** the rating (0.0 to 10.0) in its tier's badge, its last
@@ -111,6 +141,12 @@ exactly as narrow as that choice:
 - **Every other sealed surface stays exactly as sealed.** League gets
   nothing (no reader feeds it). An import shows nothing live (its reader has
   no hook).
+- **Orbit (9.1) drew it as glass.** One quiet glass row under the score in
+  the centred column, the badge a glass tile with its tier as a hairline rim
+  and a small dot (not the replay's tier fill), the move, the label, the line
+  so far and "Live, provisional"; the column draws in while it shows
+  (`.live-status.rated`) so it still fits at 960 by 640. Nothing on it pulses
+  (`test:recordingstill`), and it is never a control.
 - **Main decides it** (index.js `feedLiveRating`, `syncLiveRating`,
   `liveView`; `live-rating-service.js` `feed`, `field`, `widget`, `pick`):
   read only while the switch is on, sent on PUSH_LIVE only when it changed

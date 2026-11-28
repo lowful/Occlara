@@ -167,6 +167,39 @@ const set = handlers.get(C.CONFIG_SET);
   await set(from(settingsView), { liveRating: true });
   ok(data.liveRating === false, 'a Settings view already closed turns nothing on');
 
+  // THE SWITCH BESIDE START ON HOME (9.1): its own channel, LIVE_RATING_SET,
+  // on only for Home's own view and its main frame (its warning and confirm
+  // are there, home/live-rating-switch.js), off from anywhere, the widget's
+  // switch going off with it.
+  const lr = handlers.get(C.LIVE_RATING_SET);
+  ok(typeof lr === 'function', 'LIVE_RATING_SET is registered');
+  const homeView = viewOf('home');
+  registry.register('home', homeView);
+  settingsView.webContents.isDestroyed = () => false;
+  const homeUrl = pageUrl('home');
+  data.liveRating = false; data.liveRatingStream = false;
+  changed = 0;
+  const r0 = await lr({}, true);
+  const r1 = await lr(from(shellView), true);
+  const r2 = await lr(from(settingsView), true);
+  ok(data.liveRating === false && r0.ok === false && r1.ok === false && r2.ok === false && r1.on === false && changed === 0,
+    'not turned on from no page, the Recording screen, or another page (Settings has its own switch)', JSON.stringify({ r0, r1, r2, changed }));
+  await lr({ sender: shellView.webContents, senderFrame: { url: homeUrl } }, true);
+  await lr(from(homeView, { url: homeUrl }), true);
+  ok(data.liveRating === false, "nor by another page whose frame carries Home's address, nor by a frame inside Home that is not its main frame");
+  await lr(from(homeView), 'yes');
+  await lr(from(homeView), 1);
+  ok(data.liveRating === false, 'nor by anything but true');
+  const on = await lr(from(homeView), true);
+  ok(data.liveRating === true && on.ok === true && on.on === true && changed === 1, "Home's own main frame turns it on, and main applies it at once", JSON.stringify({ on, changed }));
+  ok(data.liveRatingStream === false, 'and the stream widget stays off: only Settings turns that on');
+  data.liveRatingStream = true;
+  const off = await lr(from(shellView), false);
+  ok(data.liveRating === false && data.liveRatingStream === false && off.ok === true && off.on === false, 'any page turns it off, the widget with it');
+  homeView.webContents.isDestroyed = () => true;
+  await lr(from(homeView), true);
+  ok(data.liveRating === false, 'a Home view already closed turns nothing on');
+
   console.log(failed ? `FAIL: ${failed} of ${passed + failed} config write checks failed` : `PASS: all ${passed} config write checks passed`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log('FAIL: the test threw: ' + ((e && e.stack) || e)); process.exit(1); });

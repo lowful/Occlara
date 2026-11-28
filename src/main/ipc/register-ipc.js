@@ -174,6 +174,24 @@ function registerIpc(deps) {
     return { ok: true, config: snapshotConfig() };
   });
 
+  // THE LIVE RATING'S SWITCH ON HOME (9.1): beside Start, its warning and its
+  // confirm in Home's own page (home/live-rating-switch.js). ON only from
+  // Home's own view and its main frame, as CONFIG_SET takes it on only from
+  // Settings'; OFF from anywhere, and the stream widget's switch goes with it.
+  safeHandle(C.LIVE_RATING_SET, async (_e, on) => {
+    if (on === true) {
+      if (!fromPage(_e, 'home')) return { ok: false, on: store.get('liveRating') === true };
+      store.set('liveRating', true);
+    } else if (on === false) {
+      store.set('liveRating', false);
+      store.set('liveRatingStream', false);
+    } else {
+      return { ok: false, on: store.get('liveRating') === true };
+    }
+    controller.onConfigChanged?.();
+    return { ok: true, on: store.get('liveRating') === true };
+  });
+
   safeHandle(C.STATE_GET, async () => controller.getState());
   safeHandle(C.SHELL_GET, async () => controller.getShell());
   safeHandle(C.LIVE_GET, async () => (controller.getLive ? controller.getLive() : null));
@@ -273,8 +291,10 @@ function registerIpc(deps) {
  * webContents' main frame. Never told by a URL, which another page or a frame
  * inside one could carry.
  */
-function fromSettings(e) {
-  const view = registry.get('settings');
+function fromSettings(e) { return fromPage(e, 'settings'); }
+/** The same test for any page of the window by its id (Home's switch, 9.1). */
+function fromPage(e, id) {
+  const view = registry.get(id);
   const wc = view && view.webContents;
   if (!wc || (typeof wc.isDestroyed === 'function' && wc.isDestroyed())) return false;
   if (!e || e.sender !== wc) return false;

@@ -143,7 +143,12 @@ console.log('\nThe sample library ranks all ten, by agent only');
 console.log('\nNothing mid match: no channel of its own');
 {
   const channels = require('../src/shared/channels');
-  ok(!Object.keys(channels).some((k) => /RATING/.test(k)), 'the rating rides the review, which is sealed mid match, and adds no channel');
+  // One named exception, 9.1: LIVE_RATING_SET, the live rating's switch beside
+  // Start on Home, a boolean written from Home to main and never a rating
+  // carried to a window (test:recordingview, test:configset hold it).
+  const SWITCH_ONLY = ['LIVE_RATING_SET'];
+  ok(!Object.keys(channels).some((k) => /RATING/.test(k) && !SWITCH_ONLY.includes(k)) && !channels.PUSH_LIST.includes(channels.LIVE_RATING_SET),
+    'the rating rides the review, which is sealed mid match, and adds no channel (the live rating\'s switch on Home writes a boolean, and carries none)');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' rating wiring checks passed'}`);

@@ -17,7 +17,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
    carries on under the bar with no seam; mid match the whole of it is behind
    the Recording screen, the moon resting low. It never moves mid match. */
 .sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; opacity: 0; transition: opacity 420ms var(--ease-out); }
-.app.home-page .sky, .app.is-sealed .sky { opacity: 1; }
+.app.home-page .sky, .app.is-sealed .sky, .app.rec-view .sky { opacity: 1; }
 .sky-stars { position: absolute; inset: 0; width: 100%; height: 100%; }
 .sky-moon {
   position: absolute; left: 42.5%; top: 0; width: 130%; aspect-ratio: 1;
@@ -27,7 +27,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .sky-moon-img.ready { opacity: 1; }
 /* Mid match, or held: the moon rests low behind the Recording screen, its
    lit limb turned up, quiet. Put there at once: nothing here travels. */
-.app.is-sealed .sky-moon { transform: translate(-44%, calc(100vh - 9.5%)) rotate(135deg); opacity: 0.38; }
+.app.is-sealed .sky-moon, .app.rec-view .sky-moon { transform: translate(-44%, calc(100vh - 9.5%)) rotate(135deg); opacity: 0.38; }
 
 /* ── The bar ────────────────────────────────────────────────────────────── */
 .bar {
@@ -144,8 +144,22 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
    fades and settles away, and takes no press while gone. */
 .app.home-page .rec:not(.recording) { opacity: 0; transform: scale(0.96); visibility: hidden; pointer-events: none; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out), visibility 0s linear 200ms; }
 /* Mid match Stop is the Recording screen's (#live-stop); the bar keeps the
-   pause button. */
+   pause button. So on the Recording view Start opens (9.1). */
 .app.sealed-live .toggle { display: none; }
+.app.rec-view .toggle { display: none; }
+/* BACK TO THE RECORDING VIEW (9.1): recording between matches with a page
+   open, the still recording dot and the word, quiet as a link. */
+.rec-back {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 12px;
+  border: 0; border-radius: var(--r-control); background: transparent;
+  font: 500 14px var(--font); letter-spacing: var(--track-body); color: var(--text-2); white-space: nowrap; cursor: pointer;
+  transition: color var(--dur-hover-out) var(--ease-out), background-color var(--dur-hover-out) var(--ease-out);
+}
+.rec-back[hidden] { display: none; }
+.rec-back:hover { color: var(--text); background: var(--glass-q); transition-duration: var(--dur-hover-in); }
+.rec-back:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
+.rec-back-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--signal); }
 
 /* The profile button: a raised circle that opens the account menu, squished
    by a press. */
@@ -293,7 +307,17 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .live-since { color: var(--text-2); font-variant-numeric: tabular-nums; margin-left: -6px; }
 .live-chip { margin-left: 4px; font-size: 13px; color: var(--text-mute); }
 .live-chip:empty { display: none; }
-.live-wait { margin-top: 44px; max-width: 360px; font-size: 15px; line-height: 1.5; color: var(--text-dim); }
+.live-wait { margin-top: 44px; max-width: 440px; display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 15px; line-height: 1.5; color: var(--text-dim); }
+.live-wait[hidden] { display: none; }
+/* THE WAITING STATE (9.1): where Start lands before the match is seen, its
+   one line as the screen's title, Onest at the card title's weight. */
+.live-wait-title { font-size: 30px; font-weight: 700; letter-spacing: var(--track-display); line-height: 1.15; color: var(--text); }
+.live-wait-sub { font-size: 15px; color: var(--text-2); }
+.live-wait-lr { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; padding: 7px 14px; white-space: nowrap; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--glass-q); font-size: 13px; color: var(--text-2); }
+.live-wait-lr[hidden] { display: none; }
+.live-wait-lr-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-2); }
+.quiet-stop { margin-top: 28px; }
+.quiet-stop[hidden] { display: none; }
 .live-main { display: flex; flex-direction: column; align-items: center; margin-top: 44px; }
 .live-who-row { display: flex; align-items: center; gap: 12px; font-size: 15px; color: var(--text-2); }
 .live-who-row[hidden], .live-who:empty { display: none; }
@@ -363,12 +387,29 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .lr-prov { font-size: 12px; color: var(--text-mute); }
 .lr-move { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .lr-delta { min-width: 3.5ch; font-size: 16px; }
+.lr-delta:empty { display: none; }
 .lr-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
 .lr-low { font-size: 12px; }
 .lr-line { flex: none; width: 150px; height: 40px; overflow: visible; }
 .lr-base { stroke: var(--line-2); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .lr-path { fill: none; stroke: var(--text-2); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 @media (max-width: 1100px) { .lr-line { display: none; } }
+/* With the rating's row in the column, the rest draws in so the whole column
+   still fits the window (the score a little smaller, the gaps closer). */
+.live-status.rated .live-main { margin-top: 30px; }
+.live-status.rated .live-score-block { margin-top: 18px; }
+.live-status.rated .live-score b { font-size: 112px; }
+.live-status.rated .live-rating { margin-top: 24px; }
+.live-status.rated .live-tape-block { margin-top: 24px; gap: 12px; }
+.live-status.rated .live-stop { margin-top: 32px; }
+.live-status.rated .live-choose { margin-top: 18px; }
+@media (max-height: 760px) {
+  .live-status.rated .live-main { margin-top: 18px; }
+  .live-status.rated .live-score b { font-size: 92px; }
+  .live-status.rated .live-sides { margin-top: 8px; }
+  .live-status.rated .live-stop { margin-top: 22px; height: 50px; }
+  .live-status.rated .lr-low { display: none; }
+}
 .live-note { font-size: 12px; color: var(--text-mute); }
 .live-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .live-chips .live-chip { margin: 0; }
@@ -393,7 +434,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 }
 /* Mid match the game cannot be switched (its buttons are disabled while
    recording), so the bar gives its room back. */
-.app.sealed-live .game-seg { display: none; }
+.app.sealed-live .game-seg, .app.rec-view .game-seg { display: none; }
 .app.sealed-live .avatar-btn { opacity: 0.35; }
 .bar-end { min-width: 0; }
 .nav { flex-shrink: 0; }

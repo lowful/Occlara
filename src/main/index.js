@@ -451,7 +451,10 @@ function liveView(snapshot) {
   // A match the end watch closed may resume (coaching-engine.js resumeMatch):
   // its tape is kept until a new match reads a lower score, so a false end
   // does not redraw every played round as unknown (8.10.3).
-  if (!matchInProgress()) return { state: 'waiting' };
+  // Waiting, too, until the reader has seen a game at all: a Valorant engine
+  // counts as in a match from its start (the seal's caution, kept), and the
+  // Recording view showed an empty 0 : 0 until its first read said menu.
+  if (!matchInProgress() || !engineSawGame(engine)) return { state: 'waiting', startedAt: state.sessionStartedAt || null };
   const c = engine.matchContext || {};
   const team = Number.isInteger(c.teamScore) && c.teamScore >= 0 ? c.teamScore : 0;
   const enemy = Number.isInteger(c.enemyScore) && c.enemyScore >= 0 ? c.enemyScore : 0;
@@ -1059,6 +1062,21 @@ function openPage(id, opts) {
   if (!state.isCoaching) sealHeld = false;
   syncSeal();
   return mainWindow.show(id, opts);
+}
+
+/**
+ * THE RECORDING VIEW (9.1, the owner's item 14): Start takes the window to
+ * the Recording screen at once, in its waiting state ("Waiting for your match
+ * to start", since when, Stop), and the match's facts and the live rating
+ * (when on) arrive on it as the reader sees them (liveView). It is no seal: no
+ * match is in progress, so the links stay open and a page the player opens
+ * takes its place (main-window.js setRecordingView). The seal, when the match
+ * is seen, is unchanged and still shows the same screen with the pages
+ * locked. Only while recording; the window is not brought forward.
+ */
+function showRecordingView() {
+  if (!state.isCoaching) return;
+  try { mainWindow.setRecordingView(true); } catch (e) { console.warn('[coach] recording view:', e.message); }
 }
 
 /**
@@ -3047,6 +3065,7 @@ const controller = {
       pushNotice('Recording. Nothing appears during your game, and the graded review opens when it ends.', 'recording');
       setStatus('coaching');
       syncSeal();
+      showRecordingView();
       return;
     }
 
@@ -3128,6 +3147,7 @@ const controller = {
     recorder.startSession('valorant');
     setStatus('coaching');
     syncSeal();
+    showRecordingView();
     armNoGameWatch();
     console.log('[coach] started');
   },
@@ -3177,6 +3197,9 @@ const controller = {
       flushAiLog(true);
     }
     setStatus('stopped');
+    // The Recording view goes with the recording: the page the player was on
+    // comes back (a stop mid match still holds the seal, syncSeal).
+    try { mainWindow.setRecordingView(false); } catch (e) { console.warn('[coach] recording view:', e.message); }
     console.log('[coach] stopped');
     // A cap's notice held through the session, said now unless a seal holds.
     // And a sign in the server stopped taking during the session (onRefused)
@@ -3452,6 +3475,8 @@ const controller = {
    */
   windowAction(action) {
     if (action === 'minimize') mainWindow.minimize();
+    // The bar's "Recording" (9.1): back to the Recording view, only while recording.
+    else if (action === 'recording') showRecordingView();
     else if (action === 'maximize') mainWindow.toggleMaximize();
     else if (action === 'close') mainWindow.close();
     // The account menu (8.9.1) floats over the page in a view of its own

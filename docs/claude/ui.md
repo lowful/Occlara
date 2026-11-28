@@ -313,10 +313,11 @@ for one. `syncSeal()` in `src/main/index.js` sets it from `isCoaching &&
 matchInProgress()` on a one second tick and before every `openPage()`; the
 navigation then answers `shown: null`, the shell paints the Recording screen
 and locks every page in the sidebar, Settings included. In a Valorant match
-that screen is the live status (Progress v3, the owner's choice): the map's
-art behind one card with the agent, the score, the round and the round tape,
-each only while its switch is on, and the review as a locked ring beside it
-(`shell.js paintLive`, main's `PUSH_LIVE`); held, or in League, it is the
+that screen is the live status (Progress v3, the owner's choice; one centred
+column over the sky since Orbit): the agent and the map, the score, the round
+and the round tape, each only while its switch is on, Stop, and the line that
+the review opens when the match ends (`shell.js paintLive`, main's
+`PUSH_LIVE`); held, or in League, it is the
 quiet moon and its line (`.sealed-quiet`). What it may show and why:
 `screen-silence.md`, "The live status, the one exception". With Settings'
 live rating switch on (the owner's second exception, off by default,
@@ -345,8 +346,17 @@ while the rating is off; with both on, the widget's address on 127.0.0.1 in
 Mono with Copy (main copies, `STREAM_WIDGET_COPY`), a Standard and Compact
 choice and the one OBS line with the size to use. `check:mainwindow`
 pictures them (`main-settings-live-rating-off.png`, `-confirm`, `-on`,
-`main-recording-rating.png`). A page asked for
-meanwhile, the review of the match that just ended above all, is remembered
+`main-recording-rating.png`). **Start lands on the same screen (9.1)**: the
+Recording view, the screen in its waiting state with no seal, the links open
+and none current, until the match is seen or the player opens a page
+(`shell-nav.js createNav recording`, `main-window.js setRecordingView`,
+`index.js showRecordingView`; screen-silence.md, "The live status"). The
+bar's still dot and "Recording" (`#rec-back`) take a player with a page open
+back to it, and Home carries the live rating's switch beside Start
+(`#h-lr`, `home/live-rating-switch.js`), past Settings' warning and confirm.
+`npx electron scripts/shot-demo.js waiting waitingrated rated ratingoff
+ratedsmall homelr homeconfirm settingslr leaguewait stop` pictures them. A
+page asked for meanwhile, the review of the match that just ended above all, is remembered
 and shows when the seal lifts. Open pages through `openPage()`, never
 `mainWindow.show()` directly, which would skip the seal for up to the tick. A
 window made again keeps the seal, because made mid match it showed the page

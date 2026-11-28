@@ -1,0 +1,41 @@
+/* palette: tokens only */
+/* THE LIVE RATING'S SWITCH ON HOME (9.1, live-rating-switch.js): one quiet
+   glass pill under Start, the shared switch (ui.css .switch) with its name
+   and a grey word of what it does; its confirm a glass card that rises under
+   it, the warning in full and Keep it off first. Calm: nothing loops, the
+   card arrives once, and under reduced motion it simply appears. */
+.h-lr { margin-top: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+/* Home is a column that lets its hero shrink to 360px, its copy running on
+   below it: the confirm open, the hero holds its whole height so the cards
+   under it move down rather than lying over the warning. */
+#start-strip:has(.h-lr-confirm:not([hidden])) { flex-shrink: 0; }
+.h-lr[hidden] { display: none; }
+.h-lr-pill {
+  display: inline-flex; align-items: center; gap: 10px; max-width: 100%;
+  height: 38px; padding: 0 16px 0 7px;
+  border: 1px solid var(--line); border-radius: var(--r-pill);
+  background: var(--glass-q);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+}
+.h-lr-switch { width: 40px; height: 24px; }
+.h-lr-switch::after { top: 3px; left: 3px; width: 18px; height: 18px; }
+.h-lr-switch[aria-checked="true"]::after { transform: translateX(16px); }
+.h-lr-switch[aria-checked="true"]:active:not(:disabled)::after { transform: translateX(16px) scale(0.9); }
+.h-lr-switch:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.h-lr-label { flex: none; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); white-space: nowrap; }
+.h-lr-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-2); }
+.h-lr-confirm {
+  max-width: 460px; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 8px;
+  border: 1px solid var(--line-2); border-radius: var(--r-tile);
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow);
+  animation: hLrIn 420ms var(--ease-enter) both;
+}
+.h-lr-confirm[hidden] { display: none; }
+.h-lr-confirm-title { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+.h-lr-confirm-body { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.h-lr-confirm-actions { display: flex; gap: 8px; margin-top: 4px; }
+@keyframes hLrIn { from { opacity: 0; transform: translateY(6px) scale(0.99); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .h-lr-confirm { animation: none; } }

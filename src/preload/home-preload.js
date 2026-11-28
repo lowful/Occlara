@@ -78,6 +78,10 @@ contextBridge.exposeInMainWorld('occlara', {
   // Moving between pages (shared/embed.js).
   ...pageMotion(ipcRenderer),
   getState:   () => ipcRenderer.invoke(C.STATE_GET),
+  // The live rating's switch beside Start (9.1): main turns it on only for
+  // this page, past its warning and confirm (live-rating-switch.js); off from
+  // anywhere. Its state comes on PUSH_STATE's `live` (onState).
+  setLiveRating: (on) => ipcRenderer.invoke(C.LIVE_RATING_SET, on === true),
   getConfig:  () => ipcRenderer.invoke(C.CONFIG_GET),
   /** Everything Home shows for one game, from the library. */
   async getHome(game) {
