@@ -166,9 +166,13 @@ ok(p.places && p.places.moments.length === mo.compilation.rows.length && p.place
 ok(p.places.clips && p.places.clips.hero.length === mo.hero.length && p.places.clips.hero.every((h) => inside(h.at) && h.at.y > BAR),
   "where the hero's cards sit on the picture of Clips", JSON.stringify(p.places.clips));
 const sub = p.places.matches && p.places.matches.subnav;
+// 9.1: the grade trend leads Matches, when you play under it, and the rows
+// start below the first screen: a row off the picture is null, never placed
+// outside it.
 ok(sub && ['Matches', 'Patterns', 'Stats'].every((n) => inside(sub[n]) && sub[n].y > BAR) && sub.Patterns.x > sub.Matches.x && sub.Stats.x > sub.Patterns.x
-  && p.places.matches.rows.length === 4 && p.places.matches.rows.every((r) => inside(r) && r.y > BAR),
-  'where the sub switch and the rows sit on the picture of Matches', JSON.stringify(p.places.matches));
+  && inside(p.places.matches.chart) && p.places.matches.chart.y > sub.Matches.y
+  && p.places.matches.rows.length === 4 && p.places.matches.rows.every((r) => r === null || (inside(r) && r.y > p.places.matches.chart.y)),
+  'where the sub switch, the grade trend and the rows sit on the picture of Matches', JSON.stringify(p.places.matches));
 // The hero's actions sit at the foot of the first screen (Ask about this
 // match was 10px over the picture's foot on 28 Nov 2026), so one the layout
 // pushes past it is null, never a place off the picture.

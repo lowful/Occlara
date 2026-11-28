@@ -358,7 +358,7 @@ setTimeout(async () => {
       const lw = surfaces.find('section=list');
       const foot = lw && await lw.webContents.executeJavaScript(`(() => {
         const card = document.getElementById('m-chart');
-        const svg = card && !card.hidden && card.querySelector('svg');
+        const svg = card && !card.hidden && card.querySelector('svg.tc-svg');
         if (!svg) return null;
         const box = card.getBoundingClientRect();
         const r = [...svg.querySelectorAll('.tc-foot-label')].map((t) => { const b = t.getBoundingClientRect(); return { l: b.left, r: b.right, text: t.textContent }; });
@@ -366,6 +366,7 @@ setTimeout(async () => {
         return { labels: r.map((x) => x.text), apart: r.every((x, i) => !r[i + 1] || x.r + 4 <= r[i + 1].l), inside: r.every((x) => x.l >= box.left && x.r <= box.right) };
       })()`);
       lines.push(`grade card foot: ${foot ? foot.labels.join(' | ') : 'no card'}`);
+      if (foot && !foot.labels.length) return report(false, 'the grade trend has no dates under it');
       if (foot && (!foot.apart || !foot.inside)) return report(false, `the grade card labels run together or leave the card: ${JSON.stringify(foot)}`);
       if (foot && foot.labels.some((t) => /\d:\d\d/.test(t))) return report(false, `the grade trend's foot says a time of day: ${foot.labels.join(' | ')}`);
     }
