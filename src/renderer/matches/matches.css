@@ -289,6 +289,8 @@ html[data-section="patterns"] .imp-go { display: none; }
 .m-res { font-size: 14px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .m-res.win { color: var(--good); }
 .m-res.loss { color: var(--bad); }
+/* No result kept (League): the queue, quiet. */
+.m-res.quiet { font-weight: 500; color: var(--text-mute); }
 /* Why a row has no grade, where its result and grade would read. */
 .m-why { font-size: 13px; line-height: 1.35; color: var(--text-2); }
 .m-grade { display: flex; justify-content: flex-end; min-width: 0; }
@@ -600,3 +602,23 @@ html[data-section="patterns"] .patterns { --p-ground: var(--s1); padding: var(--
    A card's eyebrow on the list page, the trend's and when you play's
    (check:palette SIGNAL_ALLOWED). */
 .m-chart-label { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
+
+/* THE PAGE SCROLLS AS ONE (9.1, as Clips since the owner's item 12: "the
+   bar cuts off the top"). The title, the sub switch and Import a recording
+   used to stay put over a body that scrolled under them, so the trend and
+   the rows were sliced by a hard edge part way down the page, and at 960 by
+   640 the bar and that head took about 200 of the 640 pixels. Now the sheet
+   scrolls, title and all, and a short fade at its top lets what passes under
+   the bar dissolve into the ground. Embedded only: matches.js finds the
+   scroller the same way (scroller()). */
+html.embedded .sheet { display: block; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
+html.embedded .sheet::before {
+  content: ''; position: sticky; top: 0; z-index: 7; display: block;
+  height: 18px; margin-bottom: -18px; pointer-events: none;
+  background: var(--bg);
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent);
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+html.embedded .sheet > .body { overflow: visible; }
+html.embedded .sheet::-webkit-scrollbar { width: 8px; }
+html.embedded .sheet::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 4px; }

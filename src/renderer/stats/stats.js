@@ -496,10 +496,13 @@ function renderCards(d) {
 }
 
 // ── Recent matches ────────────────────────────────────────────────────────────
-// The TRACKER's match rating (the server's computeMatchRating: a base for the
-// result plus a K/D bonus), not Occlara's grade, so it keeps its own bands. A
-// review's grade is coloured by its letter, below in Graded matches.
+// The TRACKER SCORE (the server's computeMatchRating: a base for the result
+// plus a K/D bonus), neither Occlara's grade nor its match rating, so it keeps
+// its own bands and its own name. A review's grade is coloured by its band,
+// below in Graded matches.
 function ratingClass(r) { return r >= 85 ? 'great' : r >= 70 ? 'good' : r >= 55 ? 'mid' : 'low'; }
+const TRACKER_SCORE_TIP = "Tracker score, out of 100: your result and your K/D in this match, from Riot's record. "
+  + "Not Occlara's grade, and not the match rating.";
 
 // The one grade colour rule (shared/grade-view.js), keyed to the letter bands.
 // Without the script a grade only loses its colour; the number and the letter
@@ -596,10 +599,15 @@ function matchRow(m) {
   const res = document.createElement('span');
   res.className = `res ${m.result === 'Victory' ? 'win' : 'loss'}`;
   res.textContent = m.result === 'Victory' ? `Win ${m.score}` : `Loss ${m.score}`;
+  // THE TRACKER SCORE, never "Match rating" (9.1, one name for each number):
+  // Occlara's match rating is how much the player moved their team's chance
+  // to win (display.js NAMES.rating), on the same 100 scale, so the same match
+  // showed two different "match ratings" here and in its review.
   const rating = document.createElement('span');
   rating.className = `rating ${ratingClass(m.rating)}`;
   rating.textContent = m.rating;
-  rating.title = 'Match rating (0-100)';
+  rating.title = TRACKER_SCORE_TIP;
+  rating.setAttribute('aria-label', `Tracker score ${m.rating} out of 100`);
   top.append(chev, place, sub, spacer, kda, res);
   if (m.mvp) {
     const mvp = document.createElement('span');

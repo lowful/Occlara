@@ -2903,6 +2903,12 @@ async function openShell(cfg, state, opts) {
     ok(rows.length === 3 && rows[1].classList.contains('me') && !rows[0].classList.contains('me'), 'the player\'s own row is the one marked');
     ok(/Your team/.test(st.$('match-list').textContent) && !/Fade|#EUW/.test(st.$('match-list').textContent),
       'and no name or tag is painted, not even one an older server still sends');
+    // 9.1: the tracker's number is the tracker score, never "Match rating",
+    // which is Occlara's own number on the same 100 scale (display.js).
+    const score = st.document.querySelector('#match-list .row .rating');
+    ok(score && score.textContent === '86' && /^Tracker score, out of 100/.test(score.title) && !/^Match rating/i.test(score.title)
+      && score.getAttribute('aria-label') === 'Tracker score 86 out of 100',
+    'the tracker\'s own number is named the tracker score, never the match rating', score && score.title);
   });
 
   // THE RANK JOURNEY IN THE TOKENS (8.4.1): it was the retired cyan over a

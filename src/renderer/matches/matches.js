@@ -1042,6 +1042,9 @@ function row(m, o) {
     grade.append(checking);
   } else if (g) {
     if (m.result) res.append(el('span', 'm-res ' + outcomeOf(m.result), [m.result, scoreText(m.score)].filter(Boolean).join(' ')));
+    // A review with no result (League's keep none) shows its queue there,
+    // quietly, rather than an empty column between the name and the grade.
+    else if (m.mode) res.append(el('span', 'm-res quiet', m.mode));
     // One score, no letter (9.1): the number in its band's tone, dashed when provisional.
     grade.append(el('span', 'm-score ' + gradeTone(g) + (g.provisional ? ' prov' : ''), String(g.score)));
     grade.title = `Grade ${g.score}${g.provisional ? ', provisional: some of the record was missing' : ''}. ${GRADE_TIP}`;
@@ -1125,10 +1128,22 @@ function row(m, o) {
   return item;
 }
 
+/**
+ * What scrolls: the whole sheet, title and all, as a page of the main window
+ * (9.1, matches.css "THE PAGE SCROLLS AS ONE"), else the body under its head.
+ */
+function scrollerEl() {
+  const sheet = document.querySelector('.sheet');
+  try {
+    if (sheet && /auto|scroll/.test(getComputedStyle(sheet).overflowY)) return sheet;
+  } catch { /* no layout */ }
+  return document.querySelector('.body');
+}
+
 /** A peek near the foot of the scrolling page opens over its row instead of under it. */
 function placePeek(item) {
   try {
-    const scroller = document.querySelector('.body');
+    const scroller = scrollerEl();
     if (!scroller) return;
     const sb = scroller.getBoundingClientRect();
     const ib = item.getBoundingClientRect();
@@ -1232,9 +1247,10 @@ document.addEventListener('click', (e) => {
   if (menuFor && !$('m-menu').contains(e.target)) closeMenu(false);
 });
 window.addEventListener('blur', () => closeMenu(false));
-{
-  const scroller = document.querySelector('.body');
-  if (scroller) scroller.addEventListener('scroll', () => closeMenu(false), { passive: true });
+// Whichever scrolls, the sheet or the body, a scroll closes the menu.
+for (const sel of ['.sheet', '.body']) {
+  const n = document.querySelector(sel);
+  if (n) n.addEventListener('scroll', () => closeMenu(false), { passive: true });
 }
 
 // ── Delete a match, asked first ─────────────────────────────────────────────
@@ -1283,44 +1299,85 @@ function closeConfirm(refocus) {
   if (refocus && attached(back)) back.focus();
 }
 
+/*
+ * A REPAINT WAITS FOR A DELETE. Main tells every page a match is gone
+ * (PUSH_REVIEWS { removed }) inside MATCH_DELETE, before its answer reaches
+ * this page, so the list used to be painted again while the dialog was still
+ * waiting: the row never folded away, removeRow painted it all a second
+ * time, and the keyboard fell to the page (the body, or the sub switch). So
+ * a push that lands while a delete is asked or a row folds is held
+ * (loadAfter), and the list is painted once, after the fold, and the
+ * keyboard given to the row now standing where the deleted one stood.
+ */
 let leaving = 0;          // rows animating out: a repaint waits for them
+let deleting = 0;         // deletes asked of main and not answered yet
 let loadAfter = false;
+const held = () => leaving > 0 || deleting > 0;
+/** A repaint asked for meanwhile, now that nothing holds it. */
+function loadHeld() {
+  if (held() || !loadAfter) return;
+  loadAfter = false;
+  load();
+}
+
 async function doDelete() {
   if (!confirmFor) return;
   const { m } = confirmFor;
   const go = $('m-confirm-go');
   go.disabled = true;
   go.textContent = 'Deleting';
-  const r = await window.occlara.deleteMatch(m.id).catch(() => null);
+  deleting++;
+  let r = null;
+  try { r = await window.occlara.deleteMatch(m.id).catch(() => null); } finally { deleting = Math.max(0, deleting - 1); }
   if (!r || !r.ok) {
     go.disabled = false;
     go.textContent = 'Delete match';
     const err = (r && DELETE_ERRORS[r.error]) || DELETE_ERRORS.bad;
     $('m-confirm-error').textContent = err;
     $('m-confirm-error').hidden = false;
-    if (r && r.error === 'gone') { closeConfirm(false); load(); }
+    if (r && r.error === 'gone') { closeConfirm(false); removeRow(m.id); return; }
+    loadHeld();
     return;
   }
   closeConfirm(false);
   removeRow(m.id);
 }
 
-/** The row folds away, and the next row takes the keyboard. */
+/** The keyboard to the row whose id is given, else the list's first, else the page's title. */
+function focusRow(id) {
+  const items = [...$('list').querySelectorAll('.m-item')];
+  const target = (id && items.find((it) => it.dataset.id === id)) || items[0] || null;
+  const b = target && target.querySelector('.m-row');
+  if (b) { b.focus(); return; }
+  const h = document.querySelector('.sheet > header .h-brand h2');
+  if (h) { h.tabIndex = -1; h.focus(); }
+}
+
+/**
+ * The row folds away, the list is painted again once, and the row now in its
+ * place takes the keyboard: the one after it, or before it when it was last.
+ */
 function removeRow(id) {
-  const item = [...$('list').querySelectorAll('.m-item')].find((it) => it.dataset.id === id);
-  if (!item) { load(); return; }
-  const next = item.nextElementSibling || item.previousElementSibling;
-  const focusNext = () => { const b = attached(next) && next.querySelector('.m-row'); if (b) b.focus(); };
-  if (!M || M.reduced()) { item.remove(); focusNext(); load(); return; }
+  const items = [...$('list').querySelectorAll('.m-item')];
+  const at = items.findIndex((it) => it.dataset.id === id);
+  const item = at >= 0 ? items[at] : null;
+  const after = item ? (items[at + 1] || items[at - 1] || null) : null;
+  const nextId = after ? after.dataset.id : null;
+  const repaint = async () => {
+    loadAfter = false;
+    await load();
+    focusRow(nextId);
+  };
+  if (!item) { repaint(); return; }
+  if (!M || M.reduced()) { item.remove(); repaint(); return; }
   leaving++;
   item.style.height = `${item.offsetHeight}px`;
   void item.offsetHeight;
   item.classList.add('m-leaving');
   setTimeout(() => {
     item.remove();
-    focusNext();
     leaving = Math.max(0, leaving - 1);
-    if (!leaving) { loadAfter = false; load(); }
+    if (!held()) repaint();
   }, 360);
 }
 
@@ -1600,11 +1657,12 @@ const SECTION_SUBS = { list: 'Every match you played, the newest first.', patter
   // A review saved or improved while this is open (Riot's record landing a few
   // minutes after the match, or a match graded from it) repaints the list, the
   // patterns and the breakdown.
-  // A row folding away after a delete holds the repaint until it is gone.
-  window.occlara.onReviews(() => { if (leaving) { loadAfter = true; return; } load(); });
+  // A delete asked, or a row folding away after one, holds the repaint
+  // until it is gone (held, loadAfter), main's own push for it included.
+  window.occlara.onReviews(() => { if (held()) { loadAfter = true; return; } load(); });
   // A review still being built moving on, or whole at last (8.4.1): its row
   // says it is being checked, or shows its grade.
-  if (typeof window.occlara.onReviewWork === 'function') window.occlara.onReviewWork(() => load());
+  if (typeof window.occlara.onReviewWork === 'function') window.occlara.onReviewWork(() => { if (held()) { loadAfter = true; return; } load(); });
   window.occlara.onGame((g) => { if (g && g.id) { game = g.id; paintTabs(games); load(); paintImport(); } });
   console.log('[matches] ready');
 })();

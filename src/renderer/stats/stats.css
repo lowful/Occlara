@@ -357,3 +357,23 @@ html.rec-still .card.skeleton { animation-play-state: paused; }
    message, not a label (#nostats-title), keeps the card title's size. */
 section h3:not(#nostats-title) { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--accent-2); }
 #nostats-title { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); }
+
+/* THE PAGE SCROLLS AS ONE (9.1, as Clips since the owner's item 12: "the
+   bar cuts off the top"). The title, the sub switch and the weekly report
+   used to stay put over a body that scrolled under them, so the rank and
+   the match rows were sliced by a hard edge part way down the page, and at 960 by
+   640 the bar and that head took about 200 of the 640 pixels. Now the sheet
+   scrolls, title and all, and a short fade at its top lets what passes under
+   the bar dissolve into the ground. Embedded only: nothing in stats.js
+   reads the scroller. */
+html.embedded .sheet { display: block; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
+html.embedded .sheet::before {
+  content: ''; position: sticky; top: 0; z-index: 7; display: block;
+  height: 18px; margin-bottom: -18px; pointer-events: none;
+  background: var(--bg);
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent);
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+html.embedded .sheet > .body { overflow: visible; }
+html.embedded .sheet::-webkit-scrollbar { width: 8px; }
+html.embedded .sheet::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 4px; }

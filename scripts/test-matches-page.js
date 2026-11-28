@@ -147,6 +147,15 @@ const row = (over) => ({ id: `valorant-${NOW}-r`, game: 'valorant', at: NOW - HO
     ok(['part', 'lock', 'stop', 'imp', 'thin'].every((id) => by(id).querySelector('.m-peek-note')), 'and each peek says the long reason');
   }
 
+  console.log('\nitem 11, a League row, which keeps no result:');
+  {
+    const lol = await open({ game: 'lol', rows: [row({ id: 'l1', game: 'lol', title: 'Ahri', map: "Summoner's Rift", mode: 'Ranked Solo', result: null, score: null, grade: { score: 72 } })] });
+    const r = lol.document.querySelector('#list .m-item .m-row');
+    const res = r.querySelector('.m-result .m-res');
+    ok(res && res.textContent === 'Ranked Solo' && res.classList.contains('quiet'), 'its queue stands quietly where the result would be, never an empty column', res && res.textContent);
+    ok(r.querySelector('.m-score').textContent === '72', 'and its grade beside it');
+  }
+
   console.log('\nitem 18, a row\'s menu and Delete match, asked first:');
   {
     const asked = [];
@@ -201,6 +210,43 @@ const row = (over) => ({ id: `valorant-${NOW}-r`, game: 'valorant', at: NOW - HO
     ok(m.bridge.invoked.filter((x) => x[0] === C.REVIEWS_LIST).length > lists, 'and the list is read again');
     const js = fs.readFileSync(path.join(DIR, 'matches.js'), 'utf8');
     ok(!/deleteImport\(/.test(js), 'an import is deleted the same way, no second delete of its own');
+  }
+
+  console.log('\nitem 18, main\'s own push for a delete waits for the fold, and the keyboard lands on the next row:');
+  {
+    // As main does (index.js deleteMatch): PUSH_REVIEWS { removed } goes out
+    // inside MATCH_DELETE, before its answer reaches the page.
+    const rows = [row({ id: 'a' }), row({ id: 'b', title: 'Sova', map: 'Bind', at: NOW - DAY }), row({ id: 'c', title: 'Omen', map: 'Lotus', at: NOW - 2 * DAY })];
+    const gone = new Set();
+    let m = null;
+    let listedDuring = -1;
+    m = await open({ rows, list: () => rows.filter((r) => !gone.has(r.id)),
+      del: (id) => {
+        gone.add(id);
+        m.bridge.emit(C.PUSH_REVIEWS, { id, game: 'valorant', removed: true });
+        listedDuring = m.bridge.invoked.filter((x) => x[0] === C.REVIEWS_LIST).length;
+        return { ok: true, id };
+      } });
+    const lists = () => m.bridge.invoked.filter((x) => x[0] === C.REVIEWS_LIST).length;
+    const before = lists();
+    const item = (id) => m.document.querySelectorAll('#list .m-item').find((it) => it.dataset.id === id);
+    item('b').querySelector('.m-more').click();
+    m.$('m-menu').querySelector('[data-action="delete"]').click();
+    m.$('m-confirm-go').click();
+    await settle(10);
+    ok(listedDuring === before, 'the push that lands while the delete is asked paints nothing yet', `${listedDuring} vs ${before}`);
+    ok(lists() === before + 1, 'and the list is read once, after it, not twice', `${lists() - before} reads`);
+    ok(!item('b') && item('a') && item('c'), 'the row is gone and the others stay');
+    const fe = m.document.activeElement;
+    ok(fe && fe.classList && fe.classList.contains('m-row') && fe.closest('.m-item').dataset.id === 'c',
+      'the keyboard is on the row now in its place, never dropped to the page', fe ? `${fe.tagName}.${fe.className} ${fe.closest && fe.closest('.m-item') ? fe.closest('.m-item').dataset.id : ''}` : 'none');
+    // The last row deleted: the keyboard goes to the one before it.
+    item('c').querySelector('.m-more').click();
+    m.$('m-menu').querySelector('[data-action="delete"]').click();
+    m.$('m-confirm-go').click();
+    await settle(10);
+    const fe2 = m.document.activeElement;
+    ok(fe2 && fe2.closest && fe2.closest('.m-item') && fe2.closest('.m-item').dataset.id === 'a', 'the last row deleted, the one before it takes the keyboard');
   }
 
   console.log('\nitems 15 and 21, the grade trend across the top:');
