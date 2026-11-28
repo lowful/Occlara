@@ -1,5 +1,53 @@
 [
   {
+    "version": "9.0.0",
+    "date": "2026-11-28",
+    "title": "A new look",
+    "summary": "Occlara has a whole new look, calmer and smoother, with your fix for next match first.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "A new design across the app: a night sky with the moon over Home, your agent standing in front of it, and calmer pages that each lead with one thing."
+      },
+      {
+        "kind": "new",
+        "text": "Home leads with your fix for next match, then your last match, your grade over your last four matches and what keeps costing you."
+      },
+      {
+        "kind": "improved",
+        "text": "Four places instead of eight: Home, Matches, Practice and Clips. Patterns and Stats live inside Matches, the aim Trainer inside Practice, and Ask Coach opens from a review or the profile menu."
+      },
+      {
+        "kind": "new",
+        "text": "Review ready: when a review is done, a card drops in and opens into it while your grade counts up."
+      },
+      {
+        "kind": "new",
+        "text": "Your agent's full portrait on Home and at the top of every review."
+      },
+      {
+        "kind": "new",
+        "text": "Medals on the review for things you really did, such as your best grade in your last four matches."
+      },
+      {
+        "kind": "improved",
+        "text": "Clips leads with the best moments of your newest match, then shows every death and highlight as a frame you can filter, with a still from each clip that was kept."
+      },
+      {
+        "kind": "improved",
+        "text": "Start is the clearest button in the app, with a record icon beside the word, and buttons, pages and sheets move more smoothly."
+      },
+      {
+        "kind": "improved",
+        "text": "The Recording screen is quieter: the time, map, agent, score, round and round tape, and nothing on it pulses."
+      },
+      {
+        "kind": "new",
+        "text": "A new app icon: the crescent in glass on a night sky."
+      }
+    ]
+  },
+  {
     "version": "8.21.0",
     "date": "2026-11-26",
     "title": "Match rating",
