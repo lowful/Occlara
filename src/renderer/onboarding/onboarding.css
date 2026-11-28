@@ -213,7 +213,9 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .obr-score { font-family: var(--font); font-size: 22px; font-weight: 600; letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text); }
 .obr-grade { margin-left: auto; display: inline-flex; align-items: baseline; gap: var(--space-2); }
 .obr-grade b { font-family: var(--font); font-size: 22px; font-weight: 600; letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text); }
-.obr-grade i { font-style: normal; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+/* One score, no letters (9.1, item 16): the grade's name, then its number,
+   the way the categories below say theirs. */
+.obr-grade i { font-family: var(--font); font-style: normal; font-size: 12px; font-weight: 500; color: var(--text-mute); }
 .obr-cats { display: grid; grid-template-columns: repeat(4, 1fr); }
 .obr-cats span {
   font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-mute);

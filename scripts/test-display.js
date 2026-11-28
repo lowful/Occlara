@@ -15,7 +15,8 @@
  *     inlined) gives display.js's number and move for every value;
  *   - a mistake's title inside a sentence starts lower case, names keep their
  *     capital, and the agents a page knows are the game data's;
- *   - no page draws a letter grade (a scan of the renderer's scripts).
+ *   - no page draws a letter grade (a scan of the renderer's scripts, and of
+ *     its documents' own markup, where onboarding's sample once wrote a B).
  *
  * Run: npm run test:display
  */
@@ -156,14 +157,33 @@ ok(JSON.stringify([...D.MAPS].sort()) === JSON.stringify([...data.maps].sort()),
   // ${run.floor || 'B'} or better" drew "at B or better" on Patterns' key)
   // or as a quoted letter a template falls back to.
   const LETTER_FLOOR = /\$\{[^}]*(?<!Math)\.floor\b[^}]*\}|\$\{[^}]*(?:\|\||\?\?)\s*['"][A-FS]['"]\s*\}/;
+  // 9.1: a letter written into a document's own markup, with no script
+  // drawing it: onboarding's sample review read '<b>71</b><i>B</i>' to every
+  // new player. A lone grade letter in an element beside a number's element
+  // (either order, across a line break), or in an element named for a grade.
+  // A key in a kbd is never a grade.
+  const LETTER_HTML = /<(\w+)[^>]*>\s*\d{1,3}\s*<\/\1>\s*<(?!kbd\b)(\w+)[^>]*>\s*[A-FS][+-]?\s*<\/\2>|<(?!kbd\b)(\w+)[^>]*>\s*[A-FS][+-]?\s*<\/\3>\s*<(\w+)[^>]*>\s*\d{1,3}\s*<\/\4>|<(?!kbd\b)(\w+)\b[^>]*\b(?:class|id)="[^"]*grade[^"]*"[^>]*>\s*[A-FS][+-]?\s*<\/\5>/g;
   const bad = [];
   for (const f of files) {
     const text = fs.readFileSync(f, 'utf8');
     text.split('\n').forEach((line, i) => {
       if (LETTER_CLASS.test(line) || LETTER_TEXT.test(line) || LETTER_FLOOR.test(line)) bad.push(`${path.relative(ROOT, f)}:${i + 1}: ${line.trim().slice(0, 120)}`);
     });
+    if (/\.html$/.test(f)) {
+      for (const m of text.matchAll(LETTER_HTML)) {
+        const at = text.slice(0, m.index).split('\n').length;
+        bad.push(`${path.relative(ROOT, f)}:${at}: ${m[0].replace(/\s+/g, ' ').trim().slice(0, 120)}`);
+      }
+    }
   }
   ok(bad.length === 0, 'ONE SCORE: no page script or document draws a letter grade', bad.join('\n        '));
+  const htmlHits = (s) => [...s.matchAll(LETTER_HTML)].length;
+  ok(htmlHits('<span class="obr-grade"><b>71</b><i>B</i></span>') === 1 && htmlHits('<b>A+</b>\n  <span>84</span>') === 1
+    && htmlHits('<span class="gv-grade">C</span>') === 1,
+  'and a letter in a document\'s own markup: beside its number, either order, or named for a grade');
+  ok(htmlHits('<span class="obr-grade"><i>Grade</i><b>71</b></span>') === 0 && htmlHits('<b>13</b> : <b>11</b>') === 0
+    && htmlHits('<kbd>E</kbd> <b>2</b>') === 0 && htmlHits('<b>A</b> site, <b>B</b> main') === 0,
+  'never a word beside a number, a scoreline, a key or a site');
   ok(LETTER_TEXT.test('el.textContent = g.letter;') && LETTER_CLASS.test("el('span', 'm-letter good')") && !LETTER_TEXT.test('letterSpacing = 2'),
     'and the scan finds a known letter when there is one');
   ok(LETTER_FLOOR.test("`${run.count} in a row at ${run.floor || 'B'} or better`") && LETTER_FLOOR.test("`at ${grade || 'A'}`")
