@@ -453,6 +453,7 @@ async function openShell(cfg, state, opts) {
     'the notice line is in the top bar, before its end, a polite live region, out of the drag region the strip still is',
     top.children.map((c) => c.id || c.className).join());
     const pauseIcon = () => (p.$('pause').querySelector('path') || { getAttribute: () => '' }).getAttribute('d');
+    const PLAY_MARK = (fs.readFileSync(path.join(RENDERER, 'moments', 'moments.js'), 'utf8').match(/const PLAY_PATH = '([^']+)'/) || [])[1];
     ok(p.label() === 'Start' && p.$('pause').disabled && !rec.classList.contains('live') && !note.hidden && !note.textContent && !note.hasAttribute('title'),
       'ready: Start, the pause button off, the card at rest, and the notice line empty with nothing to say (never hidden, so its live region is there when a notice comes): no Press Start', `read "${note.textContent}"`);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching', cadence: 1000, sounds: false });
@@ -468,9 +469,13 @@ async function openShell(cfg, state, opts) {
       'and the cadence moving changes nothing on it, with the notice line still silent', p.$('sealed').textContent);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, isPaused: true, status: 'paused', cadence: 1000, sounds: false });
     ok(p.label() === 'Stop' && !rec.classList.contains('live') && p.notice() === 'Paused. Nothing is read until you resume.'
-      && !note.classList.contains('system') && note.title === p.notice() && /^M8 5\.2/.test(pauseIcon()),
+      && !note.classList.contains('system') && note.title === p.notice() && pauseIcon() === PLAY_MARK,
     'paused: the play icon, the card at rest, and the notice line says paused, dim, whole in its title', `read "${p.notice()}", icon ${pauseIcon()}`);
-    ok(/^M8 5\.2/.test('M8 5.2v13.6') && !/^M8 5\.2/.test('M9 5v14'), 'the play icon detector matches the play path and not the pause one');
+    // 9.1: the resume icon is the app's one play mark, centred as the eye
+    // measures it (moments.js PLAY_PATH, its centroid held by test:clipspage),
+    // never the old triangle that sat off its centre.
+    ok(PLAY_MARK && PLAY_MARK.startsWith('M10.43 6.98') && !fs.readFileSync(path.join(RENDERER, 'shell', 'shell.js'), 'utf8').includes('M8 5.2v13.6'),
+      'the play icon is the centred play mark, and the old one is gone from the bar', PLAY_MARK);
     // A League session puts "Recording..." up as a notice for its whole
     // length (kind 'recording'): Stop and the live card already say it, so it
     // is never shown, and paused the paused line is.
