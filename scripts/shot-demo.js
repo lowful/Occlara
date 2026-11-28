@@ -29,6 +29,10 @@
  * ratedsmall the rated screen at the window's least (960 by 640), homelr and
  * homeconfirm Home's switch on and its confirm open, settingslr Settings at
  * the live rating's rows, and leaguewait League's quiet Recording view.
+ * Practice (9.1, item 17): practicetall the page whole, practiceopen a drill
+ * opened, practicetrainer the Trainer under Mechanics, practicesmall at 960 by
+ * 640, practiceblank with no matches yet, practiceasked and practiceinplan
+ * opened from a review, and trainerstill the arena its still is cut from.
  */
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');

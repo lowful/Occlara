@@ -652,7 +652,7 @@ Heavy Armor, the Marshal kills at any range; no other game numbers. Not benched 
 ## The drill library and the research of 10 Nov (Nov 2026)
 
 **`src/shared/drill-library.json`** is what the Practice page offers a player for the mistakes a review
-names: `{ version: 1, note, drills: [{ id, title, cause, where, minutes, bands, steps, goal, why, check }] }`,
+names: `{ version: 1, note, drills: [{ id, title, cause, group, where, minutes, bands, steps, goal, why, check }] }`,
 64 drills. `cause` is a death cause of `death-causes.js` (every one but `unclear`) or a Valorant mistake or
 missed key of `insights.js` without its `cause:` prefix (first-death, lost-advantage, untraded, early,
 same-spot, same-killer, ult-held, one-v-one, postplant-lost), 3 each and 4 for lost-duel, or `general` (9, for every rank and per band).
@@ -678,7 +678,7 @@ teammate who could swing); `one-v-one-hold-or-hunt` is played over a full unrate
 kind of drill the test lets run past 20 (a step saying "full unrated match", up to 45).
 
 **Demos (8.11).** An optional twelfth field, `demo: { src, poster, secs }`, is the owner's own short
-recording of the drill being done, shown on its card on the Practice page (ui.md, "The Practice page"):
+recording of the drill being done, shown at the top of its row, opened, on the Practice page (ui.md, "The Practice page"):
 `https://occlara.app/drills/<id>.webm` and `<id>.webp`, 6 to 12 seconds. `scripts/make-drill-demo.js`
 makes both from a recording (VP9 two pass at CRF 26 with `-b:v 0` and `-row-mt 1`, 1920x1080 or 1280x720
 with `--720`, 60 fps kept when the recording has it, no sound, `--blur x,y,w,h` for every place another
@@ -687,7 +687,18 @@ line to paste), and `docs/drill-demo-guide.md` says what to record for the first
 no other player's name may be visible in any frame. The site (`lowful/ghostcoach-9a45ac05`, `public/drills/`)
 hosts them. `practice.js demoOf` keeps a demo only under that address; `test:drilllibrary` holds one to the
 script's names, 6 to 12 seconds and to practice.js keeping it as written. None is filled in yet: a drill
-with no demo, offline or with its files failing, shows its card as before.
+with no demo, offline or with its files failing, shows its row as before.
+
+**Groups (9.1, the owner's ask).** Every drill names its `group`, one of `mechanics` (the fight
+itself: aim, the stop, the spray, the peek's technique; 11 drills), `sense` (Game sense: which fight to
+take and what comes after it; 40) and `awareness` (where the team and the enemy are: trades, spacing, the
+minimap, sound, rotations, the enemy's kit; 13), the three cards the Practice page shows its drills in.
+A drill with a `trainer` tag is always `mechanics`, since the Trainer sits there. `practice.js groupOf`
+keeps a group as written; with none (another library's shape, the tests' sample) a tagged drill is
+Mechanics, else its cause decides (`GROUP_OF_CAUSE`: lost-duel and low-headshots Mechanics; untraded,
+isolated, crossfire and rotating Awareness), else Game sense. `test:drilllibrary` holds every drill to one
+of the three, practice.js to keeping it, a tagged drill to Mechanics, every group to 8 drills or more and
+to a `general` drill at every band.
 
 **`npm run test:drilllibrary`** (`scripts/test-drill-library.js`) holds the file to that shape, to unique
 ids, and to coverage: it reads every cause the app can name from `death-causes.js` and from the Mistakes and
