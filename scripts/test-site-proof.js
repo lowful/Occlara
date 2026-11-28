@@ -125,10 +125,10 @@ ok(p.shell.pages.join() === 'Home,Matches,Patterns,Practice,Trainer,Moments,Stat
 ok(p.shell.foot.join() === 'Profile,Invite,Settings,Report a problem,Discord' && /^You have used your \d free games$/.test(p.shell.games),
   "the account menu's rows and the games line, read off the menu's own view", JSON.stringify([p.shell.foot, p.shell.games]));
 const inside = (pt) => pt && pt.x > 0 && pt.x < 1 && pt.y > 0 && pt.y < 1;
-ok(p.places && p.shell.pages.every((n) => inside(p.places.tabs[n]) && p.places.tabs[n].y < 64 / 800),
+ok(p.places && p.shell.pages.every((n) => inside(p.places.tabs[n]) && p.places.tabs[n].y < 56 / 800),
   'where each tab sits on the pictures: in the top bar', JSON.stringify(p.places && p.places.tabs));
 ok(p.places && p.places.moments.length === mo.compilation.rows.length && p.places.moments.every((r, i) => r.title === mo.compilation.rows[i].title
-  && inside(r.row) && inside(r.action) && r.action.x > r.row.x && r.row.y > 64 / 800), 'where each compilation row and its Play all sit on the picture of Moments');
+  && inside(r.row) && inside(r.action) && r.action.x > r.row.x && r.row.y > 56 / 800), 'where each compilation row and its Play all sit on the picture of Moments');
 ok(p.invite && p.invite.progress && p.invite.how.length === 2, 'Invite: the progress line and how it works');
 
 const mark = JSON.parse(read(dirs[0], 'mark.json').toString('utf8'));

@@ -335,7 +335,8 @@ setTimeout(async () => {
       send(C.SHELL_NAV, 'trainer');
       await wait(400);
       const trainerMid = await invoke(C.SHELL_GET);
-      const trainerLocked = await until(() => sjs("(() => { const b = document.querySelector('#nav .nav-item[data-page=\"trainer\"]'); return !!b && b.disabled; })()"), 3000);
+      // ORBIT (27 Nov 2026): the Trainer sits under Practice's link, which is the one locked.
+      const trainerLocked = await until(() => sjs("(() => { const b = document.querySelector('#nav .nav-item[data-page=\"practice\"]'); return !!b && b.disabled; })()"), 3000);
       const trainerShown = shownViews();
       const trainerGet = await invoke(C.TRAINER_GET);
       const trainerSave = await invoke(C.TRAINER_SAVE, { scenario: 'flick-grid', at: Date.now(), score: 100, kills: 1, bots: 1, shots: 1, hits: 1 });

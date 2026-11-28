@@ -158,7 +158,8 @@ setTimeout(async () => {
     const nav = await sjs("[...document.querySelectorAll('#nav .nav-item')].map((b) => b.textContent.trim()).join(',')");
     const start = await sjs("document.querySelector('#toggle .t-label').textContent");
     lines.push(`sidebar: ${nav} | Start reads "${start}"`);
-    if (nav !== 'Home,Matches,Patterns,Practice,Trainer,Moments,Stats,Ask Coach') return report(false, `the sidebar lists ${nav}`);
+    // ORBIT (27 Nov 2026): four links, each a group of pages (shell-nav.js TOP).
+    if (nav !== 'Home,Matches,Practice,Clips') return report(false, `the top bar lists ${nav}`);
     if (start !== 'Start') return report(false, `the record button reads ${start}`);
 
     // 2. Home, the page the window opens on.
@@ -217,23 +218,28 @@ setTimeout(async () => {
     })()`);
     const bar = await barNow();
     lines.push(`top bar on Home: ${JSON.stringify(bar)} errs=${errs.join(" | ")}`);
-    if (bar.h !== mainWindow.TOP_H || bar.tabs !== 8 || bar.rec || bar.pause || bar.drawer || !bar.inDrawer) {
-      return report(false, `the top bar on Home is not the tabs without a Start of its own: ${JSON.stringify(bar)}`);
+    // ORBIT: on Home the bar's Start fades away (visibility hidden), the hero carrying the big one.
+    const barRec = await sjs("getComputedStyle(document.getElementById('rec')).visibility !== 'hidden'");
+    if (bar.h !== mainWindow.TOP_H || bar.tabs !== 4 || (bar.rec && barRec) || bar.pause || bar.drawer || !bar.inDrawer) {
+      return report(false, `the top bar on Home is not the links without a Start of its own: ${JSON.stringify(bar)}`);
     }
-    if (bar.kids !== 'profile,players,duos,invite,settings,feedback,discord') return report(false, `the drawer does not hold every page the sidebar's foot did: ${bar.kids}`);
+    if (bar.kids !== 'profile,coach,players,duos,invite,settings,feedback,discord') return report(false, `the menu does not hold every page the sidebar's foot did, and Ask Coach: ${bar.kids}`);
     const card = { height: 0 };
     // THE GRADE LINE (Progress v3) at the foot of the last match: one dot a
     // graded match, oldest first, the newest the match's own grade, inside
     // its card; and the card carries its map behind it and its agent's
     // portrait, both bundled files that loaded.
+    // ORBIT: the line is the trend card's, the map the last match's thumbnail,
+    // and the agent's portrait floats in Home's hero.
     const fill = await hjs(`(() => {
       const last = document.getElementById('last');
-      const svg = last.querySelector('.grade-line');
+      const trend = document.getElementById('trend');
+      const svg = trend.querySelector('.grade-line');
       const nums = svg ? [...svg.querySelectorAll('.gl-num')].map((t) => t.textContent) : [];
-      const box = last.getBoundingClientRect();
+      const box = trend.getBoundingClientRect();
       const lb = svg ? svg.getBoundingClientRect() : null;
-      const map = last.querySelector('.art-img');
-      const face = last.querySelector('.agent-face');
+      const map = last.querySelector('.lm-thumb');
+      const face = document.querySelector('#h-agent .h-agent-face');
       return { dots: svg ? svg.querySelectorAll('.gl-dot').length : 0, nums, inside: !!lb && lb.bottom <= box.bottom && lb.right <= box.right,
         map: !!(map && map.complete && map.naturalWidth > 0 && /maps\\/Abyss\\.jpg$/.test(map.src)),
         face: !!(face && face.complete && face.naturalWidth > 0 && /agents\\/Jett\\.png$/.test(face.src)) };
@@ -408,7 +414,8 @@ setTimeout(async () => {
       const m = document.getElementById('nav-marker');
       const b = document.querySelector('.nav-item[aria-current="page"]');
       const t = new DOMMatrix(getComputedStyle(m).transform);
-      return { on: m.classList.contains('on'), y: Math.round(t.m41), top: b ? b.offsetLeft : -1, page: b ? b.dataset.page : null,
+      // ORBIT: the dot sits centred under its link (shell.js placeMarker).
+      return { on: m.classList.contains('on'), y: Math.round(t.m41), top: b ? Math.round(b.offsetLeft + b.offsetWidth / 2 - 2) : -1, page: b ? b.dataset.page : null,
         markers: document.querySelectorAll('.nav-marker').length,
         itemBg: b ? getComputedStyle(b).backgroundColor : '', hover: !!(b && b.matches(':hover')) };
     })()`);
@@ -1175,7 +1182,8 @@ setTimeout(async () => {
     // comes in from its tab in the bar, on its menu with every scenario
     // listed. Its run, the pointer lock and its loop are check:trainer's.
     {
-      await sjs("document.querySelector('#nav .nav-item[data-page=\"trainer\"]').click(); true");
+      // ORBIT: the Trainer has no link of its own; the shell asks for it as Practice's sub switch does.
+      await sjs("window.occlara.go('trainer'); true");
       if (!await until(settled('trainer'), 6000)) return report(false, 'the Trainer page never came in from its tab');
       const tv = mainWindow.pageViews().get('trainer');
       watch(tv.webContents, 'trainer');
@@ -1204,7 +1212,7 @@ setTimeout(async () => {
       await shot('trainer', mainWindow, win);
     }
     // THE BAR AT 960 (the window's least width) with the Trainer in it: the
-    // eight tabs end before what follows them (the notice line when it says
+    // four links (Orbit) end before what follows them (the notice line when it says
     // something, the game switch and Start), nothing cut.
     {
       const [w0, h0] = win.getContentSize();
@@ -1241,9 +1249,9 @@ setTimeout(async () => {
       }
       win.setContentSize(w0, h0);
       await wait(400);
-      if (bar.tabs !== 8 || bar.cut || !bar.start || bar.navRight > bar.endLeft || bar.endRight > bar.width
+      if (bar.tabs !== 4 || bar.cut || !bar.start || bar.navRight > bar.endLeft || bar.endRight > bar.width
         || bar.lastTabRight == null || bar.nextLeft == null || bar.lastTabRight > bar.nextLeft) {
-        return report(false, `at 960 the bar does not fit its eight tabs: ${JSON.stringify(bar)}`);
+        return report(false, `at 960 the bar does not fit its four links: ${JSON.stringify(bar)}`);
       }
     }
     // The review's Practise this, under its fix: the Practice page, opened on
@@ -1314,9 +1322,12 @@ setTimeout(async () => {
     await wait(600);
     const matchCard = await sjs(CARD_NOW);
     lines.push(`recording: card ${JSON.stringify(recCard)} | mid match: sealed=${!!inMatch} card ${JSON.stringify(matchCard)}`);
-    const twoButtons = (c) => c.kids === 'rec-controls' && c.buttons === 2 && c.text === 'Stop' && !c.agent && c.height >= 40 && c.height <= 48;
+    // ORBIT: the bar's Stop and pause are 36px; mid match the bar keeps the
+    // pause button and Stop is the Recording screen's own (#live-stop).
+    const twoButtons = (c, text) => c.kids === 'rec-controls' && c.buttons === 2 && c.text === text && !c.agent && c.height >= 32 && c.height <= 44;
     if (!inMatch) return report(false, 'recording, a match in progress did not seal the window');
-    if (!twoButtons(recCard) || !twoButtons(matchCard)) {
+    const liveStop = await sjs("(() => { const b = document.getElementById('live-stop'); return !!b && b.offsetParent !== null && b.textContent.trim() === 'Stop'; })()");
+    if (!twoButtons(recCard, 'Stop') || !twoButtons(matchCard, '') || !liveStop) {
       return report(false, `recording, the record controls are not Stop and pause alone: ${JSON.stringify({ recCard, matchCard })}`);
     }
     // THE LIVE STATUS (Progress v3, the owner's choice): mid match the
@@ -1343,7 +1354,8 @@ setTimeout(async () => {
     const liveSeen = await sjs(LIVE_NOW);
     lines.push(`live status mid match: ${JSON.stringify({ ...liveSeen, text: liveSeen.text.slice(0, 160) })}`);
     if (!liveSeen.shown || liveSeen.who !== 'Jett on Abyss' || liveSeen.team !== '4' || liveSeen.enemy !== '2' || liveSeen.round !== '7'
-      || liveSeen.pips !== 'won,lost,won,won,lost,won,now,next' || !liveSeen.face || !liveSeen.map) {
+      // ORBIT: the map is a word in "Jett on Abyss" over the sky, no picture behind.
+      || liveSeen.pips !== 'won,lost,won,won,lost,won,now,next' || !liveSeen.face) {
       return report(false, `mid match, the live status does not show the map, agent, score, round and tape: ${JSON.stringify(liveSeen)}`);
     }
     // NOTHING ELSE OF THE MATCH: the HP, the credits, who is alive, the
@@ -1450,7 +1462,8 @@ setTimeout(async () => {
     if (heldShown) return report(false, 'a page shows while the seal is held');
     if (heldTitle !== 'Recording stopped' || !heldOpen || !heldFacts) return report(false, 'held, the shell does not say recording stopped with the sidebar open');
     await shot('held', mainWindow, win);
-    await sjs("document.querySelector('#nav .nav-item[data-page=\"patterns\"]').click(); true");
+    // ORBIT: Patterns sits under Matches; the shell asks for it as the sub switch does.
+    await sjs("window.occlara.go('patterns'); true");
     const lifted = await until(() => mainWindow.current().shown === 'patterns', 4000);
     lines.push(`held, a page opened: shown=${mainWindow.current().shown} sealed=${mainWindow.current().sealed}`);
     if (!lifted) return report(false, 'a page opened from the sidebar did not lift the held seal');
