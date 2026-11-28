@@ -119,6 +119,9 @@ const SCENES = {
   // The trend mid draw: played again, pictured 420ms in.
   matchesdraw: { page: 'matches', many: true, act: 'chart.play(); true', after: 420 },
   matcheslol: { page: 'matches', game: 'lol' },
+  matcheswhen: { page: 'matches', many: true, act: "document.getElementById('when').scrollIntoView({ block: 'start' }); true" },
+  // Delete refused (the demo answers nothing): the dialog says so and stays.
+  matchesrefused: { page: 'matches', many: true, act: "(() => { const it = [...document.querySelectorAll('#list .m-item')].find((x) => /import/.test(x.dataset.id)); it.scrollIntoView({ block: 'center' }); setTimeout(() => { it.querySelector('.m-more').click(); setTimeout(() => { document.querySelector('#m-menu [data-action=delete]').click(); setTimeout(() => document.getElementById('m-confirm-go').click(), 150); }, 150); }, 300); return true; })()", after: 1400 },
 };
 
 function liveOf(kind) {
