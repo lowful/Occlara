@@ -22,9 +22,9 @@ let tr = (k) => ({
 
 const ICO = {
   // 9.1: the app's one play mark, its centroid on the box's centre (moments.js
-  // PLAY_PATH), at 16 as the pause beside it is, which draws it the size the
-  // old off centre triangle was at 13.
-  play: '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M10.43 6.98L17.18 10.78A1.4 1.4 0 0 1 17.18 13.22L10.43 17.02A1.4 1.4 0 0 1 8.34 15.8L8.34 8.2A1.4 1.4 0 0 1 10.43 6.98Z"/></svg>',
+  // PLAY_PATH), at 19 (shell.css #pause svg.ico-play), which draws it the size
+  // the old off centre triangle stood at 15.
+  play: '<svg class="ico-play" viewBox="0 0 24 24" width="19" height="19" fill="currentColor" stroke="none"><path d="M10.43 6.98L17.18 10.78A1.4 1.4 0 0 1 17.18 13.22L10.43 17.02A1.4 1.4 0 0 1 8.34 15.8L8.34 8.2A1.4 1.4 0 0 1 10.43 6.98Z"/></svg>',
   stop: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>',
   pause: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5v14"/><path d="M15 5v14"/></svg>',
 };

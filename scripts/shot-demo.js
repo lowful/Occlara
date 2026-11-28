@@ -146,6 +146,10 @@ const SCENES = {
   settingslr: { page: 'settings', lr: true, act: "document.getElementById('lr-row').scrollIntoView({ block: 'start' }); true" },
   leaguewait: { page: 'home', rec: true, coaching: true, live: null, game: 'lol' },
   held: { page: null, sealed: true, held: true },
+  // 9.1: a recording paused, the bar's resume icon (the centred play mark) on the
+  // Recording view and on the sealed screen (paused).
+  recpaused: { page: 'home', rec: true, coaching: true, live: 'waiting', paused: true },
+  sealedpaused: { page: null, sealed: true, coaching: true, live: 'live', paused: true },
   // The bar (9.1): What's new and the updater.
   news: { page: 'home', news: NEWS },
   updating: { page: 'matches', update: { state: 'downloading', version: '9.1.1', percent: 42 } },
@@ -345,7 +349,7 @@ app.whenReady().then(async () => {
   const shellState = () => ({ page: scene.page || 'home', shown: scene.sealed || scene.rec ? null : scene.page, sealed: !!scene.sealed, held: !!scene.held, rec: !!scene.rec, maximized: false });
   // A scene with a rank has a Riot ID, so Home asks for it (9.1).
   const riotId = () => (scene.rank ? 'Me#EUW' : '');
-  const state = () => ({ gameId: scene.game || 'valorant', isCoaching: !!scene.coaching, isPaused: false, licenseActive: true, sounds: false, riotId: riotId(),
+  const state = () => ({ gameId: scene.game || 'valorant', isCoaching: !!scene.coaching, isPaused: !!scene.paused, licenseActive: true, sounds: false, riotId: riotId(),
     live: { liveMap: true, liveAgent: true, liveScore: true, liveRound: true, liveRating: !!scene.lr, liveRatingStream: false }, notice: null });
   // 9.1: the newest match a two round Haven recording, ungraded.
   const UNGRADED_ID = `valorant-${Date.now() - 5 * 60 * 1000}-ungrad`;

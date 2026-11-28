@@ -233,6 +233,10 @@ html.rec-still .upd.unsure .upd-arc, html.ambient-off .upd.unsure .upd-arc { ani
 .toggle.ended:disabled { opacity: 1; filter: none; background: transparent; border: 1px solid var(--line-2); color: var(--text-dim); -webkit-backdrop-filter: none; backdrop-filter: none; }
 #pause { flex: none; width: 36px; height: 36px; }
 #pause svg { width: var(--icon-sm); height: var(--icon-sm); }
+/* 9.1: the resume mark is the app's centred play mark (moments.js PLAY_PATH),
+   rounder and tighter in its box than the old triangle: at 19px it stands the
+   size that one did at 15, its centre still the button's. */
+#pause svg.ico-play { width: 19px; height: 19px; }
 .icon-btn[disabled] { opacity: 0.3; cursor: default; pointer-events: none; }
 /* Not recording, the pause button is not drawn at all. */
 .rec:not(.recording) #pause { display: none; }
