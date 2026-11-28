@@ -283,7 +283,11 @@ function paintValorant(r, verdict) {
   // (mediaOf), over the match's map where none was.
   if (window.RatingView) {
     const art = g.map && typeof window.occlara.mapArt === 'function' ? window.occlara.mapArt(g.map) : null;
-    window.RatingView.paint(r.ratingView || null, { goRound, mediaOf, art });
+    const best = () => {
+      const c = current && current.id === r.id ? bestHighlight(current) : null;
+      return c ? { clip: c.highlight.clipUrl, at: null, cap: `${highlightTitle(c)}, your best highlight` } : null;
+    };
+    window.RatingView.paint(r.ratingView || null, { goRound, mediaOf, art, best });
   }
 
   const refused = Array.isArray(r.refused) ? r.refused : [];
@@ -513,6 +517,8 @@ function paintHighlight(r) {
   const c = r && r.kind === 'valorant' && r.locked !== true && !r.work ? bestHighlight(r) : null;
   const url = c ? c.highlight.clipUrl : null;
   $('v-verdict').classList.toggle('has-hl', !!url);
+  const sky = $('v-sky');
+  if (sky) sky.classList.toggle('with-hl', !!url);
   if (!url) { stopHighlight(); host.hidden = true; return; }
   host.hidden = false;
   const title = highlightTitle(c);
@@ -533,7 +539,13 @@ function paintHighlight(r) {
       host.classList.add('ready');
       if (v.paused && first !== null && v.currentTime < 0.05) { try { v.currentTime = Math.max(0, first - 0.3); } catch (e) { /* not seekable yet */ } }
     };
-    v.onerror = () => { stopHighlight(); host.hidden = true; $('v-verdict').classList.remove('has-hl'); };
+    // A clip that will not play takes its card away, and the agent stands there again.
+    v.onerror = () => {
+      stopHighlight();
+      host.hidden = true;
+      $('v-verdict').classList.remove('has-hl');
+      if (sky) sky.classList.remove('with-hl');
+    };
     v.preload = 'auto';
     v.setAttribute('src', url);
   }
@@ -2448,11 +2460,14 @@ const SKY_DRIFT = 0.6;
 // The sky's drift at which it has faded out (9.1): past the moon's middle.
 const SKY_FADE = 300;
 let skyAt = '';
-function paintSky(on) {
+function paintSky(on, building) {
   const host = $('v-sky');
   if (!host) return;
   host.hidden = !on;
   if (!on) return;
+  // 9.1: the moon stands clear of what the page shows, the loading screen's
+  // centred column or the hero's text (review.css .v-moon).
+  host.classList.toggle('building', !!building);
   const shown = typeof window.occlaraOnShown === 'function' ? window.occlaraOnShown : (fn) => fn();
   shown(() => {
     const sky = window.OcclaraSky;
@@ -2486,7 +2501,7 @@ window.addEventListener('resize', () => { skyAt = ''; const host = $('v-sky'); i
 
 function paint(r) {
   settleReveal(r);
-  paintSky(!!r && (!!r.work || r.kind === 'valorant'));
+  paintSky(!!r && (!!r.work || r.kind === 'valorant'), !!(r && r.work));
   paintEye(r);
   // The share sheet stays open over a new version of the review it was
   // opened on, drawn again; over any other, or none, it closes.
@@ -2964,6 +2979,7 @@ if (window.occlara.onReviewWork) {
     if (m.work) {
       current = { ...current, work: m.work };
       paintHighlight(null);
+      paintSky(true, true);
       $('ask').hidden = true;
       closeShare(false);
       $('share').hidden = true;

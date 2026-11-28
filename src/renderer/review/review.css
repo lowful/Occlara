@@ -1050,9 +1050,26 @@ html:not(.embedded) .v-back { display: none; }
    logo's crescent at its lower left, its top under the head's row. Centred
    on where the agent stands: the content column's right edge (the page's
    column, 1040 at most, 32px from the window's edge) less half the agent. */
-.v-sky { --moon: clamp(440px, 44vw, 640px); --col-r: calc(50% + min(520px, 50% - 32px)); }
-.v-moon { left: calc(var(--col-r) - 160px - var(--moon) / 2); top: 66px; width: var(--moon); transform: none; }
+.v-sky {
+  --moon: clamp(440px, 44vw, 640px);
+  --col-l: calc(50% - min(520px, 50% - 32px));
+  --col-r: calc(50% + min(520px, 50% - 32px));
+  /* Where the hero's text ends at the widest (the fix's measure, .v-focus),
+     so the moon's lit limb never lies under a word. */
+  --text-r: calc(var(--col-l) + 700px);
+}
+@media (max-width: 1100px) { .v-sky { --text-r: calc(var(--col-l) + 600px); } }
+/* With the best highlight the text keeps clear of its card (.vd.has-hl). */
+.v-sky.with-hl { --text-r: calc(var(--col-r) - clamp(260px, calc(min(1040px, 100% - 64px) * 0.34), 420px) - 40px); }
+.v-moon {
+  left: max(calc(var(--text-r) + 24px), calc(var(--col-r) - 160px - var(--moon) / 2));
+  top: 66px; width: var(--moon); transform: none;
+  transition: left 520ms var(--spring-smooth), top 520ms var(--spring-smooth);
+}
+/* The loading screen is a centred column: the moon stands clear at its right. */
+.v-sky.building .v-moon { left: calc(50% + 300px); top: 96px; }
 .v-moon > * { display: block; width: 100%; height: 100%; }
+@media (prefers-reduced-motion: reduce) { .v-moon { transition: none; } }
 /* The agent stands inside the hero's box: its head never above the page. */
 .vd > .vd-agent.full { top: 0; }
 
@@ -1102,9 +1119,11 @@ html:not(.embedded) .v-back { display: none; }
    eyebrow and its round, which opens the round's row. Its pause button sits
    on the picture, in the dark glass, shown on the hover or the keyboard and
    always while it is paused. The left of the hero keeps clear of it. */
-.vd { --hl-w: clamp(300px, 36%, 420px); }
+.vd { --hl-w: clamp(260px, 34%, 420px); }
 .vd.has-hl > .vd-agent { display: none; }
-.vd > .vd-hl { position: absolute; z-index: 1; right: 0; top: 62px; width: var(--hl-w); margin: 0; }
+.vd > .vd-hl { position: absolute; z-index: 1; right: 0; top: 30px; width: var(--hl-w); margin: 0; }
+/* Its line above the picture, on the moon's dark side, never across its lit limb. */
+.vd-hl-cap { order: -1; }
 .vd-hl[hidden] { display: none; }
 .vd.has-hl > .vd-main, .vd.has-hl > .vd-medals, .vd.has-hl > .v-focus { max-width: calc(100% - var(--hl-w) - 40px); }
 .vd-hl {
@@ -1137,8 +1156,9 @@ html:not(.embedded) .v-back { display: none; }
 }
 .vd-hl-round:hover { text-decoration-color: var(--line-2); transition-duration: var(--dur-hover-in); }
 .vd-hl-round:focus-visible { outline: 2px solid var(--line-2); outline-offset: 3px; border-radius: 4px; }
-/* A narrower window: the card joins the hero's column under its actions. */
-@media (max-width: 980px) {
+/* Narrower than the window's least (a picture, a test): the card joins the
+   hero's column under its actions, as the agent leaves it (max-width 900). */
+@media (max-width: 900px) {
   .vd > .vd-hl { position: static; width: min(100%, 520px); margin-top: 32px; order: 0; }
   .vd.has-hl > .vd-main, .vd.has-hl > .vd-medals, .vd.has-hl > .v-focus { max-width: none; }
 }

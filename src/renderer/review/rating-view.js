@@ -362,6 +362,7 @@
     if (run.mediaKey === key) { syncVideo(); return; }
     run.mediaKey = key;
     fig.classList.remove('has-clip', 'has-frame');
+    v.loop = !!(m && m.clip && m.loop);
     if (m && m.clip) {
       const start = typeof m.at === 'number' && Number.isFinite(m.at) ? Math.max(0, m.at - LEAD_S) : 0;
       const go = () => {
@@ -396,8 +397,10 @@
   function syncVideo() {
     const v = $('rt-r-video');
     if (!run || !$('rt-r-media').classList.contains('has-clip')) return;
-    if (run.playing && v.paused && typeof v.play === 'function') { const p = v.play(); if (p && typeof p.catch === 'function') p.catch(() => {}); }
-    else if (!run.playing && !v.paused && typeof v.pause === 'function') v.pause();
+    // Full time's highlight loops on its own, the replay over.
+    const go = run.playing || (run.done && v.loop === true);
+    if (go && v.paused && typeof v.play === 'function') { const p = v.play(); if (p && typeof p.catch === 'function') p.catch(() => {}); }
+    else if (!go && !v.paused && typeof v.pause === 'function') v.pause();
   }
   function releaseVideo() {
     const v = $('rt-r-video');
@@ -623,11 +626,14 @@
     $('rt-r-feed').replaceChildren(...[...(v.gains || []).slice(0, 2), ...(v.losses || []).slice(0, 1)]
       .map((e) => feedRow({ round: e.round, label: e.label, delta: e.delta })));
     $('rt-r-said').textContent = `Full time. Match rating ${v.shown}${v.place ? `, ${v.place} in the lobby` : ''}.`;
-    showMedia(null, '');
     run.timer = null;
     run.playing = false;
     run.done = true;
     run.i = run.out.length;
+    // Full time plays the match's best highlight, looping, where one was kept.
+    let best = null;
+    try { best = hooks && typeof hooks.best === 'function' ? hooks.best() : null; } catch (err) { best = null; }
+    showMedia(best && typeof best.clip === 'string' ? { ...best, loop: true } : null, '');
     $('rt-replay').classList.add('done');
     paintTransport();
     $('rt-r-close').focus({ preventScroll: true });

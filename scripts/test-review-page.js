@@ -149,8 +149,11 @@ async function open(review, handlers) {
     const css = read('src/renderer/review/review.css');
     ok(/html\.embedded \.v-head \.h-brand \{[^}]*clip: rect\(0, 0, 0, 0\)/.test(css) && v.document.querySelector('header .h-brand h2').textContent === 'Match review',
       'the page\'s name is kept for a screen reader and the site\'s proof, out of sight in the window');
-    ok(/\.vd > \.vd-agent\.full \{ top: 0; \}/.test(css) && /\.v-moon \{ left: calc\(var\(--col-r\)/.test(css) && /top: 66px/.test(css),
-      'the agent stands inside the hero and the moon sits whole below the head');
+    ok(/\.vd > \.vd-agent\.full \{ top: 0; \}/.test(css) && /left: max\(calc\(var\(--text-r\) \+ 24px\), calc\(var\(--col-r\) - 160px - var\(--moon\) \/ 2\)\)/.test(css)
+      && /top: 66px; width: var\(--moon\)/.test(css),
+      'the agent stands inside the hero, and the moon sits whole below the head, its limb clear of the hero\'s text');
+    ok(/\.v-sky\.building \.v-moon \{ left: calc\(50% \+ 300px\)/.test(css) && /classList\.toggle\('building'/.test(read('src/renderer/review/review.js')),
+      'and clear of the loading screen\'s column while the review is made');
     ok(/\.sheet > \.body\.scrolled \{ --v-fade: 28px; \}/.test(css) && /classList\.toggle\('scrolled'/.test(read('src/renderer/review/review.js')),
       'what scrolls under the head fades through a soft edge once the page has moved');
     const replayAt = html.indexOf('id="rt-replay"');
@@ -311,6 +314,8 @@ async function open(review, handlers) {
     RV.finish();
     ok(RV.state().done && v.$('rt-r-round').textContent === 'Full time' && v.$('rt-r-next').disabled && !v.$('rt-r-prev').disabled
       && !v.$('rt-r-again').hidden && v.$('rt-r-skip').hidden, 'at full time: no next, a previous, Watch again');
+    ok(/h17-clip\.mkv\|null$/.test(RV.state().media) && v.$('rt-r-video').loop === true && v.$('rt-r-cap').textContent === 'Round 17, 4K, your best highlight',
+      'and the match\'s best highlight, looping', `${RV.state().media} ${v.$('rt-r-cap').textContent}`);
     RV.prevEvent();
     ok(!RV.state().done && steps[RV.state().i].e && steps[RV.state().i].round === 24, 'and a step back from full time is the last event');
     RV.stop();
