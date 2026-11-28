@@ -945,12 +945,21 @@ html.embedded .share {
    the agent below it too, and what scrolls under the head fades out over its
    last 28px (.body.scrolled) rather than meeting a hard edge. */
 html.embedded .sheet > header.v-head {
-  flex-wrap: nowrap; row-gap: 0; min-height: 64px;
-  padding-top: 14px; padding-bottom: 14px;
+  flex-wrap: nowrap; row-gap: 0; min-height: 68px;
+  padding-top: 20px; padding-bottom: 12px;
 }
 .v-head { gap: 10px; }
 /* Above the scroller, so the match's menu hangs over the page, never under it. */
 .sheet > header.v-head { z-index: 3; }
+/* THE SHEET NEVER SCROLLS (9.1): it was overflow hidden, and the sky's 900px
+   box gave it room to, so scrollIntoView (Every round, a round jumped to, a
+   swing of the rating) scrolled the sheet as well as the page and slid the
+   head up under the bar, 21px on the sample. Clip allows no scroll at all. */
+.sheet { overflow: clip; }
+/* And the page never scrolls either: the medals' defs, an inline SVG of no
+   size, still took a 21px line before the sheet, which pushed the whole page
+   down and gave the document 21px that scrollIntoView then scrolled. */
+.medal-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 .v-head .h-actions { margin-left: auto; gap: 10px; }
 html.embedded .v-head .h-brand {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;

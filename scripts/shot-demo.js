@@ -114,6 +114,7 @@ const SCENES = {
   replayclip: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.pause(); for (let k = 0; k < 300; k++) { const s = window.RatingView.state(); if (s && /h17-clip/.test(s.media || '')) break; window.RatingView.nextEvent(); } true" },
   replaydeath: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.pause(); for (let k = 0; k < 300; k++) { const s = window.RatingView.state(); if (s && /r2-clip/.test(s.media || '')) break; window.RatingView.nextEvent(); } true" },
   replaynone: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.pause(); window.RatingView.nextEvent(); window.RatingView.nextEvent(); window.RatingView.nextEvent(); true" },
+  replayend: { page: 'review', media: true, act: "window.RatingView.play(true); window.RatingView.finish(); true" },
   reviewnarrow: { page: 'review', media: true, w: 960, h: 640 },
   replaynarrow: { page: 'review', media: true, w: 960, h: 640, act: "window.RatingView.play(true); window.RatingView.pause(); for (let k = 0; k < 300; k++) { const s = window.RatingView.state(); if (s && /h17-clip/.test(s.media || '')) break; window.RatingView.nextEvent(); } true" },
 };
