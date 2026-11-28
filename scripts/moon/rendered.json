@@ -1,0 +1,88 @@
+{
+  "note": "Written by scripts/generate-icon.js. sources: the hash of the drawings each picture is rendered from; sha256: the file. test:mark holds both.",
+  "files": {
+    "assets/icon.png": {
+      "sizes": [
+        512
+      ],
+      "sources": "da5227dfdd272c66a5e9d5cf50f42dd3ee0dd32392617450752128e2546df3a4",
+      "sha256": "c7848a89ddb3d2c34e0359f5d9a45d71a9f6485999d5da47db84278cc9d5bf9e"
+    },
+    "assets/icon.ico": {
+      "sizes": [
+        16,
+        20,
+        24,
+        32,
+        40,
+        48,
+        64,
+        96,
+        128,
+        256
+      ],
+      "drawings": [
+        "16 the 16 px drawing",
+        "20 the 16 px drawing",
+        "24 the 32 grid drawing",
+        "32 the 32 grid drawing",
+        "40 drawn moon",
+        "48 drawn moon",
+        "64 drawn moon",
+        "96 drawn moon",
+        "128 drawn moon, grain",
+        "256 drawn moon, grain"
+      ],
+      "sources": "07d5b854b899790682bddf157aea31db149674ae4e399478b9a451b859064cb7",
+      "sha256": "aa69fea90419199e160639a5dafbc5d4226437121d3cda28e02f66925b3feb22"
+    },
+    "assets/tray-dark.ico": {
+      "sizes": [
+        16,
+        20,
+        24,
+        32,
+        40,
+        48
+      ],
+      "sources": "d83fd1359da378cac656794f0ca989af0d6329e3874908c4b4ca514fef70df30",
+      "sha256": "58ebaff3c7e59711e225d5fc197a18662302e7a9beae1ee73998071f67d42726"
+    },
+    "assets/tray-light.ico": {
+      "sizes": [
+        16,
+        20,
+        24,
+        32,
+        40,
+        48
+      ],
+      "sources": "e75acd6e7b54697d8bf4f0b7b639661f6546e212649908992fec0be06213b330",
+      "sha256": "1f8ac9fb64a61422dc1f19f44e9418b3a9f29cbbe7dba03a989e648bbd294990"
+    },
+    "assets/tray-rec-dark.ico": {
+      "sizes": [
+        16,
+        20,
+        24,
+        32,
+        40,
+        48
+      ],
+      "sources": "13864d60614078c3f667909e1faa85df6e57304510229a03f2afe3883b9ff60e",
+      "sha256": "97a2959a717dd6ce8ed8fbca8082b4eb5eefab7e1c4bccb9f39cfca02719603b"
+    },
+    "assets/tray-rec-light.ico": {
+      "sizes": [
+        16,
+        20,
+        24,
+        32,
+        40,
+        48
+      ],
+      "sources": "fddf784665751593b73e840d0631b1832f163cd353aca4cd431722728cf36d38",
+      "sha256": "49640bce5dc69d9f999b5f3307849d1e6d1b1e52c3c34789ad05b09f2e5d717c"
+    }
+  }
+}
