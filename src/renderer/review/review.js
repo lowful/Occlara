@@ -510,7 +510,8 @@ function highlightTitle(c) {
   else if (kills === 1) parts.push('a kill');
   return parts.join(', ');
 }
-const hl = { url: null, user: null, inView: true, watch: null };
+const hl = { url: null, user: null, inView: true, watch: null, stall: null };
+const HL_STALL_MS = 8000;
 function paintHighlight(r) {
   const host = $('v-hl');
   if (!host) return;
@@ -535,7 +536,11 @@ function paintHighlight(r) {
     host.classList.remove('ready');
     // Where it cannot play by itself, its picture is the first kill, not the walk to it.
     const first = Array.isArray(c.highlight.kills) && c.highlight.kills.length ? c.highlight.kills[0] / 1000 : null;
+    // A clip that never shows a frame gives the place back to the agent, as one that fails does.
+    clearTimeout(hl.stall);
+    hl.stall = setTimeout(() => { if (hl.url === url && !host.classList.contains('ready') && v.onerror) v.onerror(); }, HL_STALL_MS);
     v.onloadeddata = () => {
+      clearTimeout(hl.stall);
       host.classList.add('ready');
       if (v.paused && first !== null && v.currentTime < 0.05) { try { v.currentTime = Math.max(0, first - 0.3); } catch (e) { /* not seekable yet */ } }
     };
@@ -578,6 +583,7 @@ function syncHighlight() {
 function stopHighlight() {
   const v = $('v-hl-video');
   hl.url = null;
+  clearTimeout(hl.stall);
   if (!v) return;
   v.onloadeddata = null;
   v.onerror = null;
@@ -590,7 +596,11 @@ $('v-hl-toggle').addEventListener('click', () => {
   syncHighlight();
 });
 $('v-hl-round').addEventListener('click', () => { const n = Number($('v-hl-round').dataset.round); if (n) goRound(n); });
-document.addEventListener('visibilitychange', syncHighlight);
+document.addEventListener('visibilitychange', () => {
+  syncHighlight();
+  // A page put away takes its open menu with it (the confirm stays: it is a question asked).
+  if (document.visibilityState === 'hidden' && typeof closeMore === 'function') closeMore(false);
+});
 if (window.Motion && typeof window.Motion.onAmbient === 'function') window.Motion.onAmbient(syncHighlight);
 
 /*

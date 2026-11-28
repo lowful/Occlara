@@ -949,6 +949,8 @@ html.embedded .sheet > header.v-head {
   padding-top: 14px; padding-bottom: 14px;
 }
 .v-head { gap: 10px; }
+/* Above the scroller, so the match's menu hangs over the page, never under it. */
+.sheet > header.v-head { z-index: 3; }
 .v-head .h-actions { margin-left: auto; gap: 10px; }
 html.embedded .v-head .h-brand {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;

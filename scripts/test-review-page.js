@@ -248,6 +248,12 @@ async function open(review, handlers) {
       && title({ n: 9, died: false, riot: { kills: 3, clutch: { vs: 1, won: true } }, highlight: {} }) === 'Round 9, 3K, won alone against one'
       && title({ n: 2, died: false, riot: { kills: 5 }, highlight: {} }) === 'Round 2, an ace',
     'a clutch is named only where the player was alive at the end');
+    const stalled = await open(r);
+    stalled.clock.advance(7999);
+    const still = !stalled.$('v-hl').hidden;
+    stalled.clock.advance(2);
+    ok(still && stalled.$('v-hl').hidden && !stalled.$('v-verdict').classList.contains('has-hl') && !stalled.$('v-sky').classList.contains('with-hl'),
+      'a clip that never shows a frame gives the place back to the agent after 8 s');
     const locked = await open({ ...r, locked: true });
     ok(locked.$('v-hl').hidden, 'a locked review plays none');
     v.bridge.emit(C.PUSH_LOL_REVIEW, { id: 'lol-1759348800000-lol001', kind: 'lol', game: { champion: 'Ahri' }, scoreline: {}, deaths: {}, deathList: [], moments: [], objectives: {}, scored: [], unmeasured: [], gamesRecorded: 0 });
