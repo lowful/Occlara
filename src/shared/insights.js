@@ -43,6 +43,16 @@ const times = (n) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
 const tradesDetail = (n) => `${n === 1 ? 'Once,' : n === 2 ? 'Twice' : `${n} times`} you killed an enemy right after they killed a teammate.`;
 /** The last one standing, against how many: "alone against one", "alone against 3". */
 const alone = (vs) => `alone against ${Number(vs) === 1 ? 'one' : vs}`;
+/*
+ * A CLUTCH WON, ALIVE (9.1): the player was the last one up on their side
+ * against at least one enemy (riot-rounds.js teamworkOf), the round was won,
+ * and Riot's record says the player did not die in it. A death after the
+ * clutch began (the spike planted alone, then the player killed and the
+ * spike going off) wins the round for the team, not as the last one
+ * standing, and a round whose death is unknown claims nothing. Every guard
+ * the rule had is kept: a clutch at all, won, against one or more.
+ */
+const clutchWonAlive = (r) => !!(r && r.clutch && r.clutch.won === true && r.clutch.vs >= 1 && r.died === false);
 
 /** "round 4", "rounds 2 and 9", "rounds 2, 5, 9 and 3 more". */
 function roundList(ns) {
@@ -528,7 +538,13 @@ function valorant(rounds, opts = {}) {
       rounds: tradeRounds.map((r) => r.n), count: tradeCount,
     });
   }
-  const clutchWon = mVerified.filter((r) => r.clutch && r.clutch.won === true && r.clutch.vs >= 1);
+  // WON AS THE LAST ONE STANDING NEEDS THE PLAYER STANDING AT THE END (9.1,
+  // the AI audit): riot-rounds.js marks a clutch from the moment the player
+  // is the last one up, and the round's winner fills in `won`, so a player
+  // who planted alone, died, and saw the spike go off had "Won as the last
+  // one standing" (Split, 4 Oct, round 12). A clutch is credited only where
+  // Riot's record says the player did not die in the round (clutchWonAlive).
+  const clutchWon = mVerified.filter(clutchWonAlive);
   if (clutchWon.length >= 1) {
     push(out.strengths, {
       key: 'clutch', title: 'Won as the last one standing',
@@ -937,5 +953,5 @@ function chainCounts(chains) {
 }
 
 module.exports = { chainCounts, CHAIN_COST, valorant, lol, roundList, repeatTitle, specificOf, WEIGHT, aliveAtPlant, shareFloor,
-  factsView, asFacts, countable, inTodaysWords, tradesDetail, CLUTCH_RE, ONLY_RE, TRADES_RE,
+  factsView, asFacts, countable, inTodaysWords, tradesDetail, clutchWonAlive, CLUTCH_RE, ONLY_RE, TRADES_RE,
   RANK_CAP, rankOf, HS_USUAL, HS_BELOW, HS_HITS_MIN, hsLine, WHOLE_SITE, CAUSE_FIX, ADVANTAGE_FIX };
