@@ -131,6 +131,14 @@ console.log('\nthe chain of a death:');
   const atk = (o) => death(2, { side: 'attacking', early: true, deathSec: 18, aliveAtDeath: { mates: 5, enemies: 5 }, mateNear: 'close', riotSpot: 'A Short', firstDeath: true, ...o });
   const early = dc.chainOf(atk({}), [atk({})]);
   ok(early.first.kind === 'early-attack' && early.worse[0].kind === 'first-death', `an early untraded death on attack, first down (${early.first.kind}, ${early.worse.map((w) => w.kind)})`);
+  // THE LABEL ONCE (9.1, the final critic): a kind whose evidence only says
+  // its title again sends no short, so the review never reads "First down,
+  // not traded (the first one down, not traded)"; one whose short adds a fact keeps it.
+  ok(early.worse[0].title === 'First down, not traded' && early.worse[0].short === null && /first one down/.test(early.worse[0].text)
+    && early.first.short === 'dead 18 seconds in on attack with all four teammates up',
+  'the first one down is its title alone, its sentence kept; the early death keeps the seconds its title does not say', JSON.stringify(early.worse[0]));
+  const plain = dc.chainOf(death(6, { side: 'attacking' }), [death(6, { side: 'attacking' })]);
+  ok(plain && plain.first.kind === 'untradeable' && plain.first.short === null, 'nobody close to trade is its title alone too', plain && JSON.stringify(plain.first));
   ok(dc.chainOf(atk({ side: 'defending' }), [atk({ side: 'defending' })]) === null, 'on defence the attackers choose when to come: no early death mistake');
   // The same spot a third time, never a whole site.
   const thrice = [death(1, { side: 'attacking' }), death(3, { side: 'attacking' }), death(5, { side: 'attacking' })];

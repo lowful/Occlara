@@ -624,7 +624,13 @@ closed label, and a model only phrases it.
   `chain`, `VIEW_FIELDS` `context`): every review served, of any version, that
   holds Riot's record. The card in `review.js chainEl`: "The first mistake",
   "What made it worse" (or "The fight" and "What made it cost more" for a fair
-  duel), "Earlier in the match", one line each by textContent; a round with
+  duel), "Earlier in the match", one line each by textContent; each mistake
+  its title, with its evidence in brackets only where the evidence says
+  something the title does not (9.1, the final critic: "First down, not
+  traded (the first one down, not traded)"). The plain kinds (`KINDS`
+  `plain`: nobody close to trade, close teammate no trade, no ability used,
+  first down not traded) send no `short`, and `chainEl` drops any short that
+  is its title said again; a round with
   more than one mistake has an "N mistakes" tag on its line; the match's
   biggest repeat (`insights.js chainCounts main`) is a line under the coach's
   read. A review graded from Riot's record alone gets no chain (it counts

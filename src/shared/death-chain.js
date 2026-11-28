@@ -55,15 +55,21 @@ const lower = (s) => String(s == null ? '' : s).toLowerCase();
  * `cause` kinds may be a chain's first mistake; the others are what a death
  * cost or what made it worse, never its first mistake.
  */
+/*
+ * `plain`: the title already says all the evidence does, so a chain shows
+ * the title alone (9.1, the final critic: "First down, not traded (the first
+ * one down, not traded)" said one thing twice). The kinds whose short adds a
+ * fact (the second, the score standing, the place, the killer) keep it.
+ */
 const KINDS = {
-  'untradeable':    { one: 'Nobody close to trade', cause: true, gerund: 'dying where no teammate was close enough to trade' },
+  'untradeable':    { one: 'Nobody close to trade', cause: true, plain: true, gerund: 'dying where no teammate was close enough to trade' },
   'early-attack':   { one: 'Early death on attack', cause: true, gerund: 'dying in the first 30 seconds on attack with the whole team still up' },
-  'no-utility':     { one: 'No ability used', cause: false, gerund: 'taking fights with no ability used that round' },
+  'no-utility':     { one: 'No ability used', cause: false, plain: true, gerund: 'taking fights with no ability used that round' },
   'repeat-spot':    { one: 'Same spot again', cause: true, gerund: 'dying at a spot you had already died at twice' },
-  'first-death':    { one: 'First down, not traded', cause: false, gerund: 'being the first one down with nobody trading it' },
+  'first-death':    { one: 'First down, not traded', cause: false, plain: true, gerund: 'being the first one down with nobody trading it' },
   'gave-advantage': { one: 'Advantage given back', cause: false, gerund: 'dying with your team up in numbers in a round it then lost' },
   'same-killer':    { one: 'Same enemy again', cause: false, gerund: 'dying to an enemy who had already killed you twice' },
-  'untraded-close': { one: 'Close teammate, no trade', cause: false, gerund: 'dying near a teammate with nobody trading it' },
+  'untraded-close': { one: 'Close teammate, no trade', cause: false, plain: true, gerund: 'dying near a teammate with nobody trading it' },
 };
 /** The look's avoidable causes, in a chain by their own key. */
 const LOOK_KINDS = Object.keys(CAUSES).filter((k) => isAvoidable(k));
@@ -362,7 +368,9 @@ function chainIn(x, all, opts = {}) {
   const kinds = found(x, all);
   const fair = !!(x.look && x.look.cause === 'lost-duel');
   const firstKey = fair ? null : FIRST_ORDER.find((k) => kinds.has(k) && firstAllowed(k, x)) || null;
-  const item = (k) => ({ kind: k, title: (KINDS[k] || CAUSES[k]).one, short: kinds.get(k).short, text: kinds.get(k).text, from: kinds.get(k).from });
+  // A plain kind's evidence is its title said again: the title alone (KINDS `plain`).
+  const item = (k) => ({ kind: k, title: (KINDS[k] || CAUSES[k]).one, short: KINDS[k] && KINDS[k].plain ? null : kinds.get(k).short,
+    text: kinds.get(k).text, from: kinds.get(k).from });
   // No first mistake the record or the look can name, and no fair fight: what
   // the death cost is no chain of mistakes, so none is said (a close teammate
   // with no trade, or the first one down, on their own, are not the player's

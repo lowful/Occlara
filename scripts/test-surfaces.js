@@ -1860,14 +1860,15 @@ async function openShell(cfg, state, opts) {
     // under a look or alone; a round with more than one mistake says how many
     // on its line; the match's biggest repeat under the coach's read.
     const CH = { first: { kind: 'no-escape', title: 'Risky spot, no escape', short: 'a kill at Hookah, then Chamber killed you 1.1 seconds later' },
-      worse: [{ kind: 'untradeable', title: 'Nobody close to trade', short: 'no teammate close, and nobody traded it' },
+      // 9.1: evidence that only says its title again is never shown beside it (the label once).
+      worse: [{ kind: 'first-death', title: 'First down, not traded', short: 'the first one down, not traded' },
         { kind: 'gave-advantage', title: 'Advantage given back', short: 'your team was up 5 against 4 and lost the round' }],
       fair: false, mistakes: 3, earlier: ['you died at Hookah in rounds 1 and 3 too', 'Chamber killed you in round 5 too'], situation: [] };
     const kc = await open({ ...base, context: { memory: [], chains: { main: 'Your biggest repeat: dying where no teammate was close enough to trade, in 3 rounds, rounds 1, 3 and 6.' } },
       rounds: [{ ...base.rounds[3], chain: CH }, row(11, 'lost', 'Defence', ['Died at Hookah'], { chain: { ...CH, worse: [], mistakes: 1 }, open: true })] });
     const chainLines = (n) => [...kc.$(n).querySelectorAll('.v-chain .v-why-line')].map((p) => p.textContent);
     ok(same(chainLines('moment-9'), ['The first mistakeRisky spot, no escape (a kill at Hookah, then Chamber killed you 1.1 seconds later).',
-      'What made it worseNobody close to trade (no teammate close, and nobody traded it), and Advantage given back (your team was up 5 against 4 and lost the round).',
+      'What made it worseFirst down, not traded, and Advantage given back (your team was up 5 against 4 and lost the round).',
       'Earlier in the matchYou died at Hookah in rounds 1 and 3 too, Chamber killed you in round 5 too.']),
     'a death\'s chain under its look: the first mistake, what made it worse, what came before', chainLines('moment-9').join(' | '));
     const tag9 = kc.$('round-9').querySelector('.v-round-head .v-tag[data-kind="chain"]');

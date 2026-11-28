@@ -1759,7 +1759,11 @@ function chainEl(ch) {
     p.append(el('span', 'gv-fix-label', label), el('span', 'v-why', text));
     box.append(p);
   };
-  const item = (w) => (w && w.title ? `${w.title}${w.short ? ` (${w.short})` : ''}` : null);
+  // The label once (9.1, the final critic): evidence that only says the title
+  // again ("First down, not traded (the first one down, not traded)") is left
+  // out; death-chain.js already sends none for its plain kinds.
+  const bare = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\b(the|a|an|one)\b/g, ' ').replace(/\s+/g, ' ').trim();
+  const item = (w) => (w && w.title ? `${w.title}${w.short && bare(w.short) !== bare(w.title) ? ` (${w.short})` : ''}` : null);
   if (ch.first && item(ch.first)) line('The first mistake', `${item(ch.first)}.`);
   else if (ch.fair) line('The fight', "A fair duel, by the coach's look.");
   const worse = (Array.isArray(ch.worse) ? ch.worse : []).map(item).filter(Boolean);
