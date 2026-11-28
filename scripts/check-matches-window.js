@@ -611,7 +611,8 @@ setTimeout(async () => {
         side: side ? Math.round(side.getBoundingClientRect().width) : 0 };
     })()`);
     const ask = await rjs("!document.getElementById('ask').hidden");
-    // The same eye in the review's header, right before Ask about this match.
+    // The same eye in the review's header, right before Share image (Orbit
+    // moved Ask about this match out of the header, into the hero).
     const reye = await rjs(`(() => {
       const host = document.getElementById('eye-host');
       const e = host.querySelector('.log-eye');
@@ -632,8 +633,8 @@ setTimeout(async () => {
     if (!look.width || look.width < look.side - 4) return report(false, `the kept frame is ${look.width}px wide on a ${look.side}px side`);
     if (!look.eye) return report(false, 'the moment has no eye, though the AI log still holds its match');
     if (!ask) return report(false, 'a saved review offers no Ask about this match');
-    if (!reye || !reye.shown || reye.disabled || reye.next !== 'ask') {
-      return report(false, `the review's header has the eye ${JSON.stringify(reye)}, not an open one beside Ask about this match`);
+    if (!reye || !reye.shown || reye.disabled || reye.next !== 'share') {
+      return report(false, `the review's header has the eye ${JSON.stringify(reye)}, not an open one before Share image`);
     }
     // The eye on the moment moves the open AI log to that match, on the frame
     // the coach looked at, through REVIEW_AILOG with its time and AILOG_SHOW.

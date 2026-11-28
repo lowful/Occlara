@@ -325,12 +325,12 @@ if (STEP === 'midmatch') {
 const HOME = `(() => {
   const host = document.getElementById('last');
   const q = (s) => { const e = host && host.querySelector(s); return e ? e.textContent : null; };
-  // Progress v3: the result is the chip's word, the score its number, the
-  // meta the agent, map and queue (home.js paintLast).
-  const chip = host && host.querySelector('.chip.result');
-  const word = chip && chip.firstChild ? String(chip.firstChild.textContent).trim() : null;
-  const meta = host ? [q('.who-name'), q('.last-head .chip:not(.result):not(.quiet)'), q('.who-sub')].filter(Boolean).join(' ') : null;
-  return host ? { result: word, score: q('.chip .score'), meta } : null;
+  // Orbit: the last match card's ruled row (home.js paintLast, .lm-row): the
+  // result's word and the score in its bold line, then the agent, map, queue
+  // and when in the line under it.
+  const word = q('.lm-meta .result');
+  const meta = q('.lm-meta > span');
+  return host ? { result: word ? word.trim() : null, score: q('.lm-meta .score'), meta } : null;
 })()`;
 
 /**

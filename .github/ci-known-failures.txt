@@ -6,7 +6,6 @@
 # Failing on main on every machine (as of 26 Nov 2026, 8.19.0), causes not
 # yet run down here except where one is given:
 check:cases
-check:palette      # .m-del.armed in matches.css names a colour outside the palette
 check:playbook
 check:primer
 test:advancedtips

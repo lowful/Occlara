@@ -453,7 +453,7 @@ function themeTokens() {
   return Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, resolve(v, 0)]));
 }
 const TOKENS = themeTokens();
-ok(TOKENS['--font'] && /Geist/.test(TOKENS['--font']) && /Geist Mono/.test(TOKENS['--font-mono']) && /^#/.test(TOKENS['--bg']) && !Object.values(TOKENS).some((v) => /var\(/.test(v)),
+ok(TOKENS['--font'] && /Onest|Geist/.test(TOKENS['--font']) && /Geist Mono/.test(TOKENS['--font-mono']) && /^#/.test(TOKENS['--bg']) && !Object.values(TOKENS).some((v) => /var\(/.test(v)),
   'the theme is read as the browser computes it: the font stacks, the ground, every var() resolved', `${Object.keys(TOKENS).length} tokens`);
 
 function harness(opts) {
