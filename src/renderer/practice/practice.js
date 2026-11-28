@@ -40,6 +40,15 @@
 
 const $ = (id) => document.getElementById(id);
 const api = window.occlara || {};
+/*
+ * A TITLE INSIDE A SENTENCE (9.1, the owner's item 1): a drill's or a
+ * mistake's title is written as a heading, so put after a word in a label
+ * or a tooltip it is lower cased first ("Mark up in numbers, move together
+ * as practiced today"), by display.js's one rule; an agent, a map or a
+ * callout keeps its capital. A scenario's name is a proper name and is not.
+ */
+const inSentence = (t) => (window.OcclaraDisplay && typeof window.OcclaraDisplay.inSentence === 'function'
+  ? window.OcclaraDisplay.inSentence(t) : String(t || ''));
 
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -221,7 +230,7 @@ function demoBox(d) {
   box.hidden = true;
   const btn = el('button', 'pc-demo-btn');
   btn.type = 'button';
-  btn.setAttribute('aria-label', `Play the ${m.secs ? `${m.secs} second ` : ''}demo of ${d.title}`);
+  btn.setAttribute('aria-label', `Play the ${m.secs ? `${m.secs} second ` : ''}demo of ${inSentence(d.title)}`);
   btn.setAttribute('aria-pressed', 'false');
   const img = el('img', 'pc-demo-poster');
   img.alt = '';
@@ -384,7 +393,7 @@ function drillCard(d) {
   const btn = el('button', 'btn btn-primary sm pc-mark', d.today ? 'Practiced today' : 'Mark as practiced');
   btn.type = 'button';
   btn.disabled = !!d.today;
-  btn.setAttribute('aria-label', d.today ? `${d.title}, practiced today` : `Mark ${d.title} as practiced today`);
+  btn.setAttribute('aria-label', d.today ? `${d.title}, practiced today` : `Mark ${inSentence(d.title)} as practiced today`);
   btn.addEventListener('click', () => markDrill(d.id, btn));
   foot.append(btn);
   if (d.doneLine) foot.append(el('span', 'pc-done' + (d.finished ? ' finished' : ''), d.doneLine));
@@ -394,7 +403,7 @@ function drillCard(d) {
     const train = el('button', 'btn btn-ghost sm pc-train', 'Train this');
     train.type = 'button';
     train.title = `Opens the Trainer on ${d.trainerTitle || 'this drill'}`;
-    train.setAttribute('aria-label', `Train ${d.title} in the Trainer, on ${d.trainerTitle || 'its scenario'}`);
+    train.setAttribute('aria-label', `Train ${inSentence(d.title)} in the Trainer, on ${d.trainerTitle || 'its scenario'}`);
     train.addEventListener('click', () => api.openTrainer(d.trainer));
     foot.append(train);
   }
@@ -565,7 +574,7 @@ function paintLog() {
     const del = el('button', 'icon-btn pc-del');
     del.type = 'button';
     del.title = 'Take this out of the log';
-    del.setAttribute('aria-label', `Take ${e.title}, ${fmtDay(e.at)}, out of the log`);
+    del.setAttribute('aria-label', `Take ${inSentence(e.title)}, ${fmtDay(e.at)}, out of the log`);
     del.append(glyph('close', null, 2.2));
     del.addEventListener('click', () => removeEntry(e.id, del));
     row.append(del);

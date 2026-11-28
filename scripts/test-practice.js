@@ -597,6 +597,9 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
       'the chevron pinned to its column and the state a fixed width, so rows line up with or without progress');
     ok(!/translateX\(1px\)/.test(css), 'no hand nudge on the play mark, which is centred by its own shape');
     ok(/display:\s*block/.test(rule('.pc-reason')) && /display:\s*inline-block/.test(rule('.pc-r-dot')), 'the reason runs as text, its dot inline');
+    ok(/text-transform:\s*uppercase/.test(rule('.pc-lmin')) && /letter-spacing:\s*var\(--track-eyebrow\)/.test(rule('.pc-lmin')),
+      'the log writes its minutes in the drill rows\' case, "20 MIN", one case on the page', rule('.pc-lmin'));
+    ok(/src="\.\.\/\.\.\/shared\/display\.js"/.test(html) && /OcclaraDisplay\.inSentence/.test(js), "the page loads display.js for a title's case inside a sentence");
   }
   ok(![html, js, css].some((s) => DASHES.test(s)), 'no dash in the page');
   ok(/src="\.\.\/shared\/motion\.js"/.test(html) && /Motion/.test(js) && html.indexOf('../shared/embed.js') < html.indexOf('<link rel="stylesheet"'),
@@ -677,6 +680,15 @@ const libraryOf = (n, keys) => Array.from({ length: n }, (_v, i) => ({
     ok(!opened.classList.contains('open') && opened.querySelector('.pc-d-head').getAttribute('aria-expanded') === 'false', 'and a second press closes it');
     const rows = q.document.querySelectorAll('#pc-log .pc-lrow');
     ok(rows.length === 1 && $('pc-log-none').hidden && /min/.test(rows[0].textContent), 'the log lists it, dated');
+    // A TITLE INSIDE A SENTENCE (item 1): lower cased by display.js's rule in
+    // a label, as it starts lower case after "Mark" or "Take".
+    const lc = (t) => t.charAt(0).toLowerCase() + t.slice(1);
+    const mTitle = first.querySelector('.pc-d-title').textContent;
+    const other = cards.find((c) => c !== first && c.querySelector('.pc-mark') && !c.querySelector('.pc-mark').disabled);
+    const oTitle = other.querySelector('.pc-d-title').textContent;
+    ok(other.querySelector('.pc-mark').getAttribute('aria-label') === `Mark ${lc(oTitle)} as practiced today`
+      && rows[0].querySelector('.pc-del').getAttribute('aria-label').startsWith(`Take ${lc(rows[0].querySelector('.pc-ltitle').textContent)}, `),
+    "a drill's title inside a label is lower cased, as in a sentence", `${other.querySelector('.pc-mark').getAttribute('aria-label')} | ${mTitle}`);
     q.fire(rows[0].querySelector('.pc-del'), 'click');
     await settle(10);
     ok(q.bridge.invoked.some(([ch]) => ch === C.PRACTICE_REMOVE) && !q.document.querySelectorAll('#pc-log .pc-lrow').length, 'and deleting it takes it out');
