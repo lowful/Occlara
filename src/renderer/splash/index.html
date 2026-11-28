@@ -4,36 +4,23 @@
   <meta charset="utf-8" />
   <!-- font-src is required: theme.css loads the bundled woff2 files, and
        under default-src 'none' they were silently blocked and the wordmark fell
-       back to Arial. img-src 'self' is the three pictures of the glass, drawn by
-       scripts/generate-icon.js into assets/splash. Everything else stays denied. -->
+       back to Arial. img-src 'self' is the moon, assets/splash/moon.svg.
+       Everything else stays denied. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none';" />
   <title>Occlara</title>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="splash.css" />
 </head>
 <body>
-  <!-- ORBIT (Nov 2026): the app's icon come alive. On the icon's own indigo
-       black ground, the glass moon comes out of its shadow, its glow settles
-       under it, then the name settles. The mark is drawn here as its two
-       circles, the disc and the shade in a mask, so the shade can move; it is
-       the same geometry as assets/logo-mark.svg (the disc r50 at 62.15,60, the
-       shade r42 at 77.738,51). Change both. The disc is filled with the glass
-       (assets/splash/glass.png, the whole disc lit as the icon's crescent is),
-       because the splash draws no gradient of its own. -->
+  <!-- THE FULL MOON (Nov 2026), clean and simplified: the moon arrives out of
+       the night, then the name settles under it. One motion, nothing else.
+       The moon is the logo's own clean drawing (assets/splash/moon.svg,
+       written by scripts/generate-icon.js from scripts/moon), the same moon
+       and the same seas as assets/logo-mark.svg, with its lit edge and its
+       soft indigo glow. An <img>, so its filters and blends draw inside the
+       picture and the splash draws no gradient of its own. -->
   <div class="stage">
-    <svg class="mark" viewBox="0 0 120 120" width="104" height="104" role="img" aria-label="Occlara">
-      <defs>
-        <mask id="phase" maskUnits="userSpaceOnUse" x="-30" y="-30" width="180" height="180">
-          <rect x="-30" y="-30" width="180" height="180" fill="white"/>
-          <circle class="shade" cx="77.738" cy="51" r="42" fill="black"/>
-        </mask>
-        <pattern id="glass" patternUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">
-          <image href="../../../assets/splash/glass.png" x="0" y="0" width="120" height="120" preserveAspectRatio="none"/>
-        </pattern>
-      </defs>
-      <image class="glow" href="../../../assets/splash/glow.png" x="-30" y="-30" width="180" height="180" preserveAspectRatio="none"/>
-      <circle cx="62.15" cy="60" r="50" fill="url(#glass)" mask="url(#phase)"/>
-    </svg>
+    <img class="moon" src="../../../assets/splash/moon.svg" width="160" height="160" alt="" role="img" aria-label="Occlara" />
     <div class="wordmark">Occlara</div>
   </div>
 </body>

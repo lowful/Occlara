@@ -1,18 +1,13 @@
-/* Launch animation, about 2.4s (MIN_MS in splash-window.js; check:splash
-   holds it).
+/* Launch animation. The window stays up 2.4s (MIN_MS in splash-window.js;
+   check:splash holds it); what moves inside it is over in about 1.2s, then
+   all of it is still until it fades out.
 
-   ORBIT (Nov 2026): the app's icon come alive. The card is the icon's own
-   ground (assets/splash/ground.png: the indigo falling to the indigo black,
-   its haze at the top left, a few faint stars), and the moon is the icon's
-   glass crescent. It comes out of its own shadow, once: the shade, the inner
-   disc of the mark held in a mask, starts a little larger than the moon and
-   on top of it, so nothing shows; it drifts 18 units up and to the right and
-   shrinks to its own radius, so a sliver lights at the lower left and grows
-   to the crescent: occlusion lifting, which is the name. As it comes to rest
-   its indigo glow settles under it, then the name settles under both.
-   Nothing rotates, pulses or loops. The pictures are drawn by
-   scripts/generate-icon.js, because the splash draws no gradient and runs no
-   script of its own. */
+   THE FULL MOON (Nov 2026), clean and simplified, the owner's words: ONE
+   MOTION. The moon arrives out of the night: it fades in and sharpens from a
+   soft blur, a touch dim and a touch small, so its lit edge and its soft
+   indigo glow (both inside the picture) settle as it comes into focus. Then
+   the name fades up beneath it. Nothing else moves: no waxing shade, no
+   orbit, no particles, no loader bar. */
 
 html, body {
   margin: 0;
@@ -29,44 +24,39 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 18px;
 
   /* A CARD, not a pool: a 10px transparent gutter so --shadow-win has room to
-     fall, Orbit's card radius, and the icon's ground filling it. A radial
-     fade to transparent once ate the corners over a light desktop, so the
-     ground is a picture that fills the card to its edges. */
+     fall, Orbit's card radius, and the night filling it. A radial fade to
+     transparent once ate the corners over a light desktop. */
   margin: 10px;
   height: calc(100% - 20px);
   border-radius: var(--r-card);
-  background: var(--bg) url('../../../assets/splash/ground.png') center / cover no-repeat;
+  background: var(--bg);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-win);
   overflow: hidden;
-  /* The fade out starts AFTER the last beat lands, not during it. */
-  animation: stageIn 380ms var(--ease-out) both, stageOut 320ms 2080ms var(--ease-out) forwards;
+  /* The fade out starts after everything has long been still. */
+  animation: stageIn 320ms var(--ease-out) both, stageOut 320ms 2080ms var(--ease-out) forwards;
 }
-
-@keyframes stageIn  { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes stageIn  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes stageOut { to { opacity: 0; } }
 
-/* The glass needs no glow of CSS's: its own settles under it (.glow). The
-   colour is the fallback a missing picture leaves, the ink. */
-.mark { color: var(--text); display: block; overflow: visible; }
-
-/* The shade: from over the whole moon to its place. SVG geometry is CSS here
-   (cx, cy, r), in the mark's own units. The markup carries the END state, so
-   with no animation (reduced motion) the mark is simply whole. */
-.shade { animation: wax 1100ms 240ms var(--ease-expo) both; }
-@keyframes wax {
-  from { cx: 62.15px; cy: 60px; r: 52px; }
-  to   { cx: 77.738px; cy: 51px; r: 42px; }
+/* The moon, out of the night: 1000ms on the enter curve. */
+.moon {
+  display: block;
+  width: 160px;
+  height: 160px;
+  -webkit-user-drag: none;
+  animation: moonIn 1000ms 80ms var(--ease-expo) both;
+}
+@keyframes moonIn {
+  from { opacity: 0; filter: blur(10px) brightness(0.7); transform: scale(0.965); }
+  to   { opacity: 1; filter: none; transform: none; }
 }
 
-/* The glow under the crescent, settling in as the moon comes to rest. */
-.glow { opacity: 0; animation: glowIn 700ms 1050ms var(--ease-out) forwards; }
-@keyframes glowIn { to { opacity: 1; } }
-
-/* The name: Onest 700 on the wordmark's tracking, as the bar sets it. */
+/* The name: Onest 700 on the wordmark's tracking, as the bar sets it. It
+   fades up as the moon comes into focus, done by 1.2s. */
 .wordmark {
   color: var(--text);
   font-family: var(--font);
@@ -74,18 +64,15 @@ html, body {
   font-weight: 700;
   letter-spacing: -0.045em;
   line-height: 1;
-  opacity: 0;
-  animation: wordIn 600ms 900ms var(--ease-expo) forwards;
+  animation: wordIn 520ms 680ms var(--ease-out) both;
 }
 @keyframes wordIn {
-  from { opacity: 0; transform: translateY(6px); filter: blur(4px); }
-  to   { opacity: 1; transform: none; filter: none; }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
 }
 
-/* Reduced motion: the finished mark, its glow and the name, in and out, nothing moving. */
+/* Reduced motion: the moon and the name, in and out, nothing moving. */
 @media (prefers-reduced-motion: reduce) {
   .stage { animation: stageIn 200ms both, stageOut 300ms 1600ms linear forwards; }
-  .shade { animation: none; }
-  .glow { animation: none; opacity: 1; }
-  .wordmark { animation: none; opacity: 1; }
+  .moon, .wordmark { animation: none; }
 }

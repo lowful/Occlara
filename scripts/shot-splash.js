@@ -15,9 +15,9 @@ const OUT = process.argv[2] || path.join(__dirname, '..', 'dist-splash-frames');
 const LOG = path.join(OUT, 'run.log');
 const say = (m) => { try { fs.appendFileSync(LOG, m + '\n'); } catch {} };
 
-// Frames across the sequence: the shade over the whole moon, the crescent
-// lighting from its lower left, the name rising in, and the mark settled.
-const AT_MS = [420, 760, 1050, 1320, 1480, 1700];
+// Frames across the sequence (the full moon, Nov 2026): the night, the moon
+// coming out of its blur, the name fading up, and both still.
+const AT_MS = [120, 360, 620, 900, 1250, 1800];
 
 app.disableHardwareAcceleration();
 process.on('uncaughtException', (e) => { say('FATAL ' + (e && e.stack)); app.exit(1); });
