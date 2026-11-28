@@ -149,7 +149,9 @@ Coach prompt, and check:primer, check:playbook, check:cases,
 test:advancedtips, test:chatgates, test:rank-band and test:valorantreview
 failed (each holds a note or a case to a spike number the primer no longer
 stated). After a sync names a new patch, run `npm run check:primer`, read the
-lines it names, and re-stamp. "Barrier Orb" no longer tags timers (13.10's
+lines it names, and re-stamp; since 9.1 the sync's workflow runs
+`scripts/primer-withheld.js` after a sync that changed the data and opens an
+issue listing every fact it withholds, so the next one is never silent. "Barrier Orb" no longer tags timers (13.10's
 Barrier Orb bug fix withheld the round and buy times), and since 2026-11-28
 the sync cuts the page at the carousel's "Related Articles" heading: cut at
 the card title, the first card's rotating category and date were read as
