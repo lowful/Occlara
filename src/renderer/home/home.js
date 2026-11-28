@@ -82,54 +82,39 @@ function deltaOf(trend, id) {
   const a = Number(trend[i].score), b = Number(trend[i - 1].score);
   return Number.isFinite(a) && Number.isFinite(b) ? a - b : null;
 }
+/** "+7 on your last match", in --good up and --bad down, or null with no match before. */
 function deltaEl(d) {
   if (d === null) return null;
-  return el('span', 'delta ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'even'), `${d > 0 ? '+' : ''}${d}`);
+  const words = d > 0 ? `+${d} on your last match` : d < 0 ? `${d} on your last match` : 'Level with your last match';
+  return el('span', 'delta ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'even'), words);
 }
 
 /**
- * THE LAST MATCH (Progress v3): its map dimmed behind it, the result and the
- * map as chips with the RR at the right once the rank has answered, the
- * agent's portrait and name, the grade large with its letter and its change
- * since the match before, the eye and Open review, and the grade line at its
- * foot. STILL BEING CHECKED (8.4.1): its result, score and grade are the
- * screen's until the review is whole, so the card says what it waits for in
- * their place, as its review page shows a loading screen.
+ * THE LAST MATCH (Orbit): an eyebrow, a title that is a fact (main's own
+ * progress line when it counted one, "Best grade in your last 4", else the
+ * agent and the map), the grade at 84px with its letter and its change on
+ * the match before, the K/D at its right, and one ruled row: the map, the
+ * result and the score, who and when, the eye and Open review. The RR the
+ * match moved waits at the top right for the rank. STILL BEING CHECKED
+ * (8.4.1): its result, score and grade are the screen's until the review is
+ * whole, so the card says what it waits for in their place.
  */
 function paintLast(last, model) {
   const host = $('last');
   host.replaceChildren();
   const art = (model.art && model.art.last) || {};
-  backdrop(host, art.map, 'center 40%');
-  const inner = el('div', 'in');
+  const checking = last.work ? GV.checking(last.work, { full: true }) : null;
   const head = el('div', 'last-head');
-  head.append(el('span', 'label', `Last match${last.at ? ', ' + when(last.at) : ''}`));
-  if (last.result && !last.work) {
-    const res = el('span', 'chip result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''));
-    res.append(document.createTextNode(last.result + ' '));
-    if (last.score) res.append(el('span', 'score', String(last.score).split('-').map((x) => x.trim()).join(' : ')));
-    head.append(res);
-  }
-  if (last.map) head.append(el('span', 'chip', last.map));
-  // The mode is the who line's (Standard, Competitive), not a third chip.
+  head.append(el('p', 'o-eyebrow', 'Last match'));
   // The RR the match moved, once the rank has answered (fillRank), and
   // nothing at all where Riot's record has none.
   const rrChip = el('span', 'rr-chip last-rr');
   rrChip.hidden = true;
   head.append(rrChip);
-  inner.append(head);
+  host.append(head);
+  const milestone = !checking && model.milestone && typeof model.milestone.text === 'string' && model.milestone.text ? model.milestone.text : null;
+  host.append(el('h3', 'o-title last-title', milestone || [last.title, last.map].filter(Boolean).join(' on ') || 'Your last match'));
 
-  const who = el('div', 'last-who');
-  const face = portrait(art.agent, 'agent-face lg', last.title || '');
-  if (face) who.append(face);
-  if (last.title) {
-    const names = el('div', 'who-names');
-    names.append(el('b', 'who-name', last.title), el('span', 'who-sub', ['Your last agent', last.mode].filter(Boolean).join(' · ')));
-    who.append(names);
-  }
-  if (who.childNodes.length) inner.append(who);
-
-  const checking = last.work ? GV.checking(last.work, { full: true }) : null;
   const row = el('div', 'last-grade-row');
   if (checking) row.append(checking);
   else if (last.grade) {
@@ -170,17 +155,48 @@ function paintLast(last, model) {
   open.type = 'button';
   open.addEventListener('click', () => window.occlara.openReview(last.id));
   foot.append(open);
-  inner.append(row);
+  host.append(row);
 
-  const lineHost = el('div', 'last-line-host');
-  const svg = !last.work ? GV.gradeLine(model.trend || [], 400, 124) : null;
+  // The ruled row: the map's picture, the result and the score (the
+  // screen's are not said while the review is checked), who and when.
+  const lm = el('div', 'lm-row');
+  const thumb = portrait(art.map, 'lm-thumb', '');
+  if (thumb) lm.append(thumb);
+  const meta = el('div', 'lm-meta');
+  const line = el('b');
+  if (last.result && !last.work) {
+    line.append(el('span', 'result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''), last.result));
+    if (last.score) line.append(document.createTextNode(' '), el('span', 'score', String(last.score).split('-').map((x) => x.trim()).join(' : ')));
+  } else line.textContent = [last.title, last.map].filter(Boolean).join(' on ') || 'Your last match';
+  meta.append(line, el('span', null, [[last.title, last.map].filter(Boolean).join(' on '), last.mode, when(last.at)].filter(Boolean).join(', ')));
+  lm.append(meta, foot);
+  host.append(lm);
+}
+
+/*
+ * THE TREND (Orbit): the last grades as one line, a dot a match, the newest
+ * filled (GradeView.gradeLine, the one drawing of it), under a title that is
+ * the fact it shows: up or down by how much over how many matches, from the
+ * first of them to the newest. With one graded match, the card goes.
+ */
+function paintTrend(model) {
+  const host = $('trend');
+  const trend = (Array.isArray(model.trend) ? model.trend : []).filter((t) => Number.isFinite(Number(t.score)));
+  const last = model.last;
+  host.replaceChildren();
+  host.hidden = !last || !!last.work || trend.length < 2;
+  if (host.hidden) return;
+  const first = Number(trend[0].score);
+  const newest = Number(trend[trend.length - 1].score);
+  const d = newest - first;
+  const n = trend.length;
+  const over = `over ${n === 2 ? 'two' : n === 3 ? 'three' : n === 4 ? 'four' : n === 5 ? 'five' : n} matches`;
+  host.append(el('p', 'o-eyebrow', 'Trend'), el('h3', 'o-title', d > 0 ? `Up ${d} ${over}` : d < 0 ? `Down ${-d} ${over}` : `Level ${over}`));
+  const lineHost = el('div', 'trend-host');
+  const svg = GV.gradeLine(trend, 300, 150);
   if (svg) lineHost.append(svg);
-  const under = el('div', 'last-under');
-  if (svg && typeof model.average === 'number') under.append(el('span', 'line-avg', `Average ${model.average}`));
-  under.append(foot);
-  lineHost.append(under);
-  inner.append(lineHost);
-  host.append(inner);
+  if (svg && typeof model.average === 'number') lineHost.append(el('span', 'line-avg', `Average ${model.average}`));
+  host.append(lineHost);
 }
 
 /*
@@ -194,12 +210,14 @@ function paintLast(last, model) {
  */
 function paintFix(model) {
   const host = $('focus');
-  host.hidden = !model.focus;
-  if (!model.focus) { stopClip(); return; }
-  host.querySelector('.label').textContent = model.focusPrevious ? 'Fix for next match, from the last review' : 'Fix for next match';
-  $('focus-text').textContent = model.focus;
-  const media = $('fix-media');
+  // ORBIT: the fix itself is the hero now; this card is the moment behind it,
+  // the first death the coach looked at, so it shows only with that moment.
   const fix = model.focusPrevious ? null : model.fix;
+  host.hidden = !model.focus || !fix;
+  if (host.hidden) { stopClip(); return; }
+  host.querySelector('.label').textContent = 'The moment';
+  $('focus-text').textContent = `Round ${fix.round}${fix.place ? ', you died at ' + fix.place : ', the first death the coach looked at'}`;
+  const media = $('fix-media');
   const art = (model.art && model.art.last) || {};
   // A clip already playing here is the same clip after a repaint (a review
   // saved, Riot's record landing): it plays on rather than going back to
@@ -294,22 +312,82 @@ function paintPlayer(riotId) {
   host.append(el('span', 'hp-name', name), el('span', 'hp-tag', `#${tag}`));
 }
 
-/** The most repeated mistakes, each with how often it happened. */
+/*
+ * THE HERO (Orbit): the fix for the next match split at its colon into a
+ * headline and a grey sub line ("Enter second for a match" and "Let a
+ * teammate or your utility take first contact, then trade."), Start and Open
+ * last review, and the last match's agent in front of the moon. Without a
+ * colon the whole fix is the headline. Before any match, the line that the
+ * first fix lands here.
+ */
+const AGENT_KEY = 'agent';
+function splitFix(text) {
+  const s = String(text || '').trim();
+  const at = s.indexOf(':');
+  if (at < 1 || at > s.length - 3) return { head: s, sub: '' };
+  const sub = s.slice(at + 1).trim();
+  return { head: s.slice(0, at).trim(), sub: sub.charAt(0).toUpperCase() + sub.slice(1) };
+}
+function paintHero(model) {
+  const has = !!(model && model.last);
+  const fix = has && model.focus ? splitFix(model.focus) : null;
+  $('h-kicker').textContent = !has ? 'Ready when you are'
+    : model.focusPrevious ? 'Your fix for next match, from the last review' : 'Your fix for next match';
+  $('h-fix-head').textContent = fix ? fix.head : has ? 'Your last match is graded.' : 'Play one match and your first fix lands here.';
+  $('h-fix-sub').textContent = fix ? fix.sub : has ? 'Open its review for every round.' : '';
+  $('h-open').hidden = !has;
+  // The agent in front of the moon: the last match's, the bundled portrait.
+  const host = $('h-agent');
+  const src = has && model.art && model.art.last ? model.art.last.agent : null;
+  if ((host.dataset[AGENT_KEY] || '') !== (src || '')) {
+    host.replaceChildren();
+    host.dataset[AGENT_KEY] = src || '';
+    const img = portrait(src, 'h-agent-face m-drift', '');
+    if (img) {
+      img.addEventListener('error', () => { host.hidden = true; });
+      host.append(img);
+    }
+  }
+  host.hidden = !host.querySelector('img');
+}
+$('h-open').addEventListener('click', () => { if (lastId) window.occlara.openReview(lastId); });
+
+// Each repeated mistake's mark: a figure alone, a clock for one about time,
+// a scale for one about numbers, a crosshair otherwise. Words decide, never
+// a colour; app authored paths only.
+const MISTAKE_ICO = {
+  alone: '<circle cx="12" cy="9.5" r="2.8"/><path d="M7.4 17.6c.9-2.3 2.6-3.5 4.6-3.5s3.7 1.2 4.6 3.5"/><circle cx="12" cy="12" r="9" stroke-dasharray="2.2 3.1"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  scale: '<path d="M12 4.5v15M8 19.5h8M5 8h14M5 8l-2.4 5.5a2.6 2.6 0 0 0 4.8 0zM19 8l-2.4 5.5a2.6 2.6 0 0 0 4.8 0z"/>',
+  cross: '<circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/>',
+};
+function mistakeIcon(title) {
+  const t = String(title || '').toLowerCase();
+  const k = /trade|alone|nobody|isolat/.test(t) ? 'alone' : /second|early|first \d|time|late/.test(t) ? 'clock' : /advantage|numbers|up in|man/.test(t) ? 'scale' : 'cross';
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MISTAKE_ICO[k]}</svg>`;
+}
+
+/** The most repeated mistakes, each with how often it happened and in how many matches. */
 function paintMistakes(model) {
   const list = Array.isArray(model.mistakes) ? model.mistakes : [];
   $('top').hidden = !list.length;
   const host = $('top-list');
   host.replaceChildren();
   list.forEach((m, j) => {
-    const row = el('div', 'top-row');
+    const row = el('div', 'top-row' + (j === 3 ? ' faded' : ''));
     row.setAttribute('role', 'listitem');
     // Its place (--j), for the rows to rise one after another as the section
     // arrives (home.css), never on a repaint.
     row.style.setProperty('--j', String(j));
-    row.append(el('span', 'top-mark'), el('span', 'top-title', m.title));
+    const bubble = el('span', 'top-bubble');
+    bubble.innerHTML = mistakeIcon(m.title);
+    const text = el('span', 'top-text');
+    text.append(el('span', 'top-title', m.title));
+    if (typeof m.matches === 'number' && typeof model.recorded === 'number') text.append(el('span', 'top-sub', `In ${m.matches} of your last ${model.recorded} matches`));
+    row.append(bubble, text);
     if (typeof m.total === 'number') {
-      const n = el('span', 'top-n', `${m.total}x`);
-      if (typeof m.matches === 'number' && typeof model.recorded === 'number') n.title = `In ${m.matches} of your last ${model.recorded} recorded matches`;
+      const n = el('span', 'top-n', String(m.total));
+      n.title = `${m.total} times${typeof m.matches === 'number' && typeof model.recorded === 'number' ? `, in ${m.matches} of your last ${model.recorded} recorded matches` : ''}`;
       row.append(n);
     }
     host.append(row);
@@ -422,9 +500,10 @@ function paintRank(card) {
 
 /** The row of the rank and the mistakes closes up as its cards go. */
 function closeUp() {
+  // ORBIT: the moment and the rank share the row under the bento.
   const row = $('rank').parentNode;
-  row.hidden = $('rank').hidden && $('top').hidden;
-  row.classList.toggle('single', $('rank').hidden !== $('top').hidden);
+  row.hidden = $('rank').hidden && $('focus').hidden;
+  row.classList.toggle('single', $('rank').hidden !== $('focus').hidden);
 }
 
 /*
@@ -554,7 +633,7 @@ function playLast(delayMs) {
     const value = Number(ratio.textContent);
     if (Number.isFinite(value)) window.Motion.countUp(ratio, value, { format: (n) => n.toFixed(2), dur: 800 });
   }
-  const svg = host.querySelector('.grade-line');
+  const svg = $('trend').querySelector('.grade-line');
   const line = svg && svg.querySelector('.gl-line');
   if (line) {
     line.setAttribute('pathLength', '1');
@@ -607,11 +686,12 @@ async function paint() {
   const has = !!(model && model.last);
   $('empty').hidden = has;
   $('content').hidden = !has;
+  paintHero(model);
   if (!has) return true;
   lastId = model.last.id;
   paintLast(model.last, model);
+  paintTrend(model);
   paintFix(model);
-  $('last').parentNode.classList.toggle('single', $('focus').hidden);
   paintPractice();
   paintMistakes(model);
   closeUp();
@@ -747,9 +827,32 @@ function paintStrip(s) {
   document.querySelector('.ss-word').textContent = rec ? 'Recording' : 'Ready';
   document.querySelector('.ss-line').textContent = rec
     ? 'Occlara is recording. Your review opens here when the match ends. Stop is at the top right.'
-    : 'Press Start before you queue. Occlara records the match and grades it when it ends.';
+    : 'Press Start before you queue. Your review opens when the match ends.';
   $('h-start').hidden = rec;
+  // The sky and the agent are still while a match is recorded (motion.js).
+  if (window.Motion) window.Motion.ambient(!rec);
 }
+
+/*
+ * THE SKY (Orbit, shared/sky.js): the stars drawn in the window's own
+ * coordinates, this view sitting the bar's height down it (main-window.js
+ * TOP_H, 56px), so they carry on from the strip the bar shows; a few that
+ * twinkle; and the moon, drawn once and kept. Drawn again only when the
+ * window's size changes. Its slow motion is paused while the window is hidden
+ * and while a match is recorded (paintStrip, motion.js).
+ */
+const BAR_PX = 56;
+function paintSky() {
+  const sky = window.OcclaraSky;
+  if (!sky) return;
+  const top = document.documentElement.classList.contains('embedded') ? BAR_PX : 0;
+  sky.stars($('h-stars'), { top, height: (window.innerHeight || 0) + top });
+  sky.twinkles($('h-twinkles'), 10);
+  sky.moon($('h-moon'));
+}
+let skyResize = 0;
+window.addEventListener('resize', () => { clearTimeout(skyResize); skyResize = setTimeout(paintSky, 150); });
+paintSky();
 
 (async () => {
   const state = await window.occlara.getState().catch(() => null);

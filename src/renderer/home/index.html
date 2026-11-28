@@ -15,21 +15,27 @@
   <link rel="stylesheet" href="home.css" />
 </head>
 <body>
-  <!-- HOME, PROGRESS V3 (9.0): the Start strip first, the loudest thing on
-       the page; then the last match as an art led card (its map dimmed
-       behind, its agent's portrait, the grade large with its change and the
-       grade line) beside the fix for the next match over the kept clip's
-       poster (the map when no clip was kept); then the rank and the most
-       repeated mistakes; then the recent matches. Every figure is read from
-       the library by src/shared/home-model.js, nothing invented; the rank
-       and the RR only from Riot's rank history, and gone without it. The
-       sections keep the class "card" the tests and the arrival read them by. -->
+  <!-- HOME, ORBIT (27 Nov 2026): the sky behind it, the moon's lit limb at
+       the top right with the player's agent in front of it; the fix for the
+       next match as the hero, split at its colon into a headline and a grey
+       sub line, with Start and Open last review; then the bento of the last
+       match, the trend and what repeats; then the moment the coach looked at
+       and the rank; then the recent matches. Every figure is read from the
+       library by src/shared/home-model.js, nothing invented; the rank and the
+       RR only from Riot's rank history, and gone without it. The sections keep
+       the class "card" the tests and the arrival read them by. -->
+  <div class="h-sky" aria-hidden="true">
+    <canvas id="h-stars" class="h-stars"></canvas>
+    <div id="h-twinkles" class="h-twinkles"></div>
+    <div id="h-moon" class="h-moon"></div>
+  </div>
+
   <main class="home">
     <header class="h-head">
       <div class="h-titles">
-        <span id="h-game" class="h-game">Valorant</span>
+        <h1 class="sr-only">Home</h1>
         <div class="h-title-row">
-          <h1>Home</h1>
+          <span id="h-game" class="h-game">Valorant</span>
           <!-- THE PLAYER (9.0): their own Riot ID from Settings, the name and
                its tag, and never anyone else's; without one, a quiet way to
                Settings, where it is set. -->
@@ -51,7 +57,7 @@
     </header>
 
     <!-- OCCLARA WRAPPED (docs/claude/wrapped.md): from 15 December to 31
-         January, the year's story offered in one ruled row, main's words
+         January, the year's story offered in one row, main's words
          (wrapped.js entryOf) and its button; a year without enough matches
          says so plainly, with no button. Never mid match: main answers null. -->
     <section id="h-wrapped" class="card h-wrapped" aria-label="Your year" hidden>
@@ -60,45 +66,64 @@
       <button id="h-wrapped-open" class="btn md" type="button" hidden></button>
     </section>
 
-    <!-- THE START STRIP: Start at 60px with what it does beside it. The same
-         Start as the sidebar's (COACH_START); Home is sealed mid match, so
-         it is only ever seen ready. -->
-    <section id="start-strip" class="card start-strip" aria-label="Start recording">
-      <span class="ss-dot" aria-hidden="true"></span>
-      <b class="ss-word">Ready</b>
-      <p class="ss-line">Press Start before you queue. Occlara records the match and grades it when it ends.</p>
-      <button id="h-start" class="btn btn-rec xl" type="button">
-        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M7 4.6v14.8a.7.7 0 0 0 1.08.58l11.1-7.4a.7.7 0 0 0 0-1.16L8.08 4.02A.7.7 0 0 0 7 4.6z"/></svg>
-        <span>Start</span>
-      </button>
+    <!-- THE HERO: the fix for the next match, Start (the same Start as the
+         bar's, COACH_START, the loudest word in the app) and Open last
+         review, and the line that the review opens when the match ends. Home
+         is sealed mid match, so it is only ever seen ready, or recording
+         between matches, when Start goes and the line says so. -->
+    <section id="start-strip" class="card h-hero" aria-labelledby="h-fix">
+      <div class="h-hero-copy">
+        <p id="h-kicker" class="h-kicker">Your fix for next match</p>
+        <h2 id="h-fix" class="o-display h-fix"><span id="h-fix-head" class="h-fix-head">Play one match and your first fix lands here.</span> <span id="h-fix-sub" class="h-fix-sub"></span></h2>
+        <div class="h-actions">
+          <button id="h-start" class="btn btn-rec xl" type="button">
+            <span class="btn-label"><span class="rec-ico" aria-hidden="true"></span><span>Start</span></span><span class="btn-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          </button>
+          <button id="h-open" class="btn btn-primary lg" type="button" hidden>
+            <span class="btn-label">Open last review</span><span class="btn-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          </button>
+        </div>
+        <p class="h-note"><b class="ss-word sr-only">Ready</b><span class="ss-line">Press Start before you queue. Your review opens when the match ends.</span></p>
+      </div>
+      <!-- THE AGENT in front of the moon: the last match's agent, the bundled
+           portrait (assets/valorant/agents, a head and shoulders icon: the app
+           ships no full portrait), floating slowly. Decoration: the agent's
+           name is in the last match's card. -->
+      <div id="h-agent" class="h-agent" aria-hidden="true" hidden></div>
     </section>
 
-    <section id="empty" class="card panel empty" hidden>
-      <span class="label">Fix for next match</span>
-      <h2>Play one match and your first fix lands here.</h2>
+    <section id="empty" class="card o-card empty" hidden>
+      <p class="o-eyebrow">Fix for next match</p>
+      <h3 class="o-title">Play one match and your first fix lands here.</h3>
       <p class="hint">Press Start before you queue. When the match ends its graded review opens here and is kept under Matches.</p>
     </section>
 
     <div id="content" class="rows" hidden>
-      <div class="row hero">
-        <section id="last" class="card panel last" aria-label="Last match"></section>
-        <section id="focus" class="card panel focus" aria-label="Fix for next match" hidden>
+      <!-- THE BENTO: the last match, the trend and what repeats, never all one size. -->
+      <div class="bento">
+        <section id="last" class="card o-card last" aria-label="Last match"></section>
+        <section id="trend" class="card o-card trend" aria-label="Trend" hidden></section>
+        <section id="top" class="card o-card top" aria-label="What repeats" hidden>
+          <p class="o-eyebrow">What repeats</p>
+          <h3 class="o-title">What kept costing you</h3>
+          <div id="top-list" class="top-list" role="list"></div>
+          <div class="o-foot"><button id="top-more" class="btn btn-link sm o-more" type="button">All patterns<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+        </section>
+      </div>
+      <div class="row">
+        <!-- THE MOMENT: the first death the coach looked at in the newest
+             review, its kept clip's poster and the clip played right here. -->
+        <section id="focus" class="card o-card focus" aria-label="The moment" hidden>
           <div id="fix-media" class="fix-media"></div>
           <div class="fix-body">
-            <span class="label">Fix for next match</span>
+            <span class="label o-eyebrow">The moment</span>
             <p id="focus-text" class="focus-text"></p>
             <div class="fix-foot"><button id="fix-open" class="btn btn-primary sm" type="button">Open review</button></div>
           </div>
         </section>
-        <!-- TODAY'S PRACTICE (the Practice page): one quiet line under the
-             Fix card, only with a plan and before the day's first drill is
-             marked; main answers null mid match. -->
-        <p id="h-practice" class="h-practice" hidden><button id="h-practice-open" class="btn btn-link sm" type="button"></button></p>
-      </div>
-      <div class="row">
-        <section id="rank" class="card panel rank" aria-label="Rank" hidden>
+        <section id="rank" class="card o-card rank" aria-label="Rank" hidden>
           <div class="card-head">
-            <span class="label">Rank</span>
+            <span class="label o-eyebrow">Rank</span>
             <button id="rank-more" class="btn btn-link sm" type="button">Rank journey</button>
           </div>
           <div class="rank-now">
@@ -108,17 +133,14 @@
           <div id="rank-bar" class="rank-bar" hidden><i id="rank-fill"></i></div>
           <div id="rank-foot" class="rank-foot" hidden><span id="rank-in"></span><span id="rank-to"></span></div>
         </section>
-        <section id="top" class="card panel top" aria-label="Repeated mistakes" hidden>
-          <div class="card-head">
-            <span class="label">Repeated mistakes</span>
-            <button id="top-more" class="btn btn-link sm" type="button">All patterns</button>
-          </div>
-          <div id="top-list" class="top-list" role="list"></div>
-        </section>
       </div>
-      <section id="recent" class="card panel recent" aria-label="Recent matches">
+      <!-- TODAY'S PRACTICE (the Practice page): one quiet line, only with a
+           plan and before the day's first drill is marked; main answers null
+           mid match. -->
+      <p id="h-practice" class="h-practice" hidden><button id="h-practice-open" class="btn btn-link sm" type="button"></button></p>
+      <section id="recent" class="card o-card recent" aria-label="Recent matches">
         <div class="card-head">
-          <span class="label">Recent matches</span>
+          <span class="label o-eyebrow">Recent matches</span>
           <button id="recent-all" class="btn btn-link sm" type="button">All matches</button>
         </div>
         <div id="recent-list" class="recent-list" role="list"></div>
@@ -131,6 +153,7 @@
   <script src="../review/clip-time.js"></script>
   <script src="../review/clip-player.js"></script>
   <script src="../shared/motion.js"></script>
+  <script src="../shared/sky.js"></script>
   <script src="home.js"></script>
 </body>
 </html>

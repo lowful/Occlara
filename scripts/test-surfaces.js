@@ -553,11 +553,13 @@ async function openShell(cfg, state, opts) {
     };
     const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
     ok(prop(rule('.nav'), 'display') === 'flex', 'the rule reader finds a known rule');
-    // TOP NAVIGATION (Progress v3): Start and the round pause button sit in the
-    // bar at the same 40px; mid match Stop is the large capsule.
-    ok(prop(rule('.toggle'), 'height') === '40px' && prop(rule('.icon-btn.lg'), 'width') === '40px' && prop(rule('.icon-btn.lg'), 'height') === '40px'
-      && prop(rule('.icon-btn.lg'), 'flex') === 'none' && prop(rule('.app.sealed-live .toggle'), 'height') === '44px',
-      'Start beside a 40px square pause button, the two the same height, and mid match Stop the larger capsule');
+    // ORBIT'S TOP BAR (27 Nov 2026): Start and the round pause button sit in
+    // the bar at the same 36px; mid match Stop is the Recording screen's own
+    // (#live-stop), so the bar's goes and the pause button stays.
+    ok(prop(rule('.toggle'), 'height') === '36px' && prop(rule('#pause'), 'width') === '36px' && prop(rule('#pause'), 'height') === '36px'
+      && prop(rule('#pause'), 'flex') === 'none' && prop(rule('.app.sealed-live .toggle'), 'display') === 'none'
+      && /<button id="live-stop" class="btn btn-rec active xl live-stop"/.test(html) && /\$\('live-stop'\)\.addEventListener\('click', \(\) => window\.occlara\.stopCoaching\(\)\)/.test(js),
+      'Start beside a 36px round pause button, the two the same height, and mid match Stop the Recording screen\'s own');
     ok(!rule('.rec-line') && !/rec-line/.test(css + html + js), 'and the old line styles gone');
     ok(!rule('.rec-state') && !rule('#status-text.ended') && !/\.dot\b/.test(css), 'and the status row\'s styles went with it');
     const tn = rule('.top-notice');
@@ -566,8 +568,8 @@ async function openShell(cfg, state, opts) {
       && prop(tn, 'min-width') === '0' && prop(tn, 'flex') === '0 1 auto' && !widest,
     'the notice line is one line, cut with an ellipsis rather than wrapped, shrinking between the tabs and the end of the bar', tn);
     ok([400, 500, 600, 700, 800].includes(Number(prop(tn, 'font-weight'))) && /^var\(--[\w-]+\)$/.test(prop(tn, 'color'))
-      && /^var\(--[\w-]+\)$/.test(prop(rule('.top-notice.system'), 'color')) && prop(rule('.bar'), 'height') === '64px',
-    'in a Geist weight that ships and the theme colours, in the 64px bar');
+      && /^var\(--[\w-]+\)$/.test(prop(rule('.top-notice.system'), 'color')) && prop(rule('.bar'), 'height') === '56px',
+    'in an Onest weight and the theme colours, in the 56px bar (Orbit)');
     // Read as code, comments out: they may say what went.
     const code = (src) => src.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
     const OLD_LINES = /panel\.noTips|Press Start|Your review opens when the match ends|\(pinned\)/;
@@ -760,9 +762,10 @@ async function openShell(cfg, state, opts) {
     const ui = fs.readFileSync(path.join(RENDERER, 'shared', 'ui.css'), 'utf8');
     const PICKED = '.seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked)';
     const picked = (ui.match(new RegExp(`(?:^|\\n)${PICKED.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}, ${PICKED.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:hover\\s*\\{([^}]*)\\}`)) || [])[1] || '';
-    ok(declared(ruleOf(ui, '.seg-thumb'), 'background') === 'var(--text)' && declared(picked, 'color') === 'var(--bg)'
+    // ORBIT (27 Nov 2026): the thumb is the raised fill, the chosen label the ink on it.
+    ok(declared(ruleOf(ui, '.seg-thumb'), 'background') === 'var(--raised)' && declared(picked, 'color') === 'var(--text)'
       && declared(ruleOf(ui, '.seg-slide > button'), 'color') === 'var(--text-dim)',
-    'ui.css: the thumb is the ink, the picked game dark on it, the others dim', picked.trim());
+    'ui.css: the thumb is the raised fill, the picked game in the ink on it, the others dim', picked.trim());
     const hoverAt = ui.indexOf('.seg-slide > button:hover:not(:disabled)');
     ok(declared(ruleOf(ui, '.seg-slide > button:hover:not(:disabled)'), 'color') === 'var(--text)' && hoverAt >= 0 && ui.indexOf(`${PICKED}:hover`) > hoverAt,
       'hovering a game not picked lights it, and the picked game hovered keeps its colour on its ground: its rule comes after the hover');
@@ -794,7 +797,7 @@ async function openShell(cfg, state, opts) {
       && same(specOf(`${PICKED}:hover:not(:disabled)`), [0, 4, 1]) && same(specOf('#a .b > button.c'), [1, 2, 1]),
     'the specificity counter weighs known selectors right', JSON.stringify(specOf(`${PICKED}:hover:not(:disabled)`)));
     const pickedHover = declared(ruleOf(ui, `${PICKED}:hover:not(:disabled)`), 'color');
-    ok(pickedHover === 'var(--bg)', 'ui.css keeps a chosen capsule label dark on hover, the ink of its thumb', pickedHover);
+    ok(pickedHover === 'var(--text)', 'ui.css keeps a chosen label in the ink on hover, over its raised thumb', pickedHover);
     const UI_W = specOf(`${PICKED}:hover:not(:disabled)`);
     // The one page rule allowed past it: onboarding's quiet size, whose thumb
     // is 0.3 strong, keeps the dim label it has when not hovered.
@@ -2902,8 +2905,9 @@ async function openShell(cfg, state, opts) {
       && prop(rule('.rank-graph .rg-area'), 'fill') === 'rgba(var(--cyan-rgb),0.06)',
     'its line is --text-dim, its dot --text, over one solid tint of the accent');
     const home = fs.readFileSync(path.join(RENDERER, 'home', 'home.css'), 'utf8');
-    ok(/\.rank-bar i \{[^}]*background: var\(--text\)/.test(home) && /\.rank-bar \{[^}]*background: var\(--s4\)/.test(home),
-      'the bar Home draws the RR inside the tier with, the ink over the fourth surface step');
+    // ORBIT (27 Nov 2026): the bar is the round tape's own marks, the won bar over the empty one.
+    ok(/\.rank-bar i \{[^}]*background: var\(--won-bar\)/.test(home) && /\.rank-bar \{[^}]*background: var\(--todo-bar\)/.test(home),
+      'the bar Home draws the RR inside the tier with, the won bar over the empty one');
   });
 
   // ── Home (8.2.1) ─────────────────────────────────────────────────────────
@@ -3093,11 +3097,12 @@ async function openShell(cfg, state, opts) {
   // "Bring the bars lower so it's balanced and there's no dead space."
 await section('Home\'s last match draws the grades as a line, one dot a match:', async () => {
     const h = await openHome();
-    const svg = h.document.querySelector('#last .grade-line');
-    const nums = h.document.querySelectorAll('#last .gl-num').map((t) => t.textContent);
-    ok(svg && h.document.querySelectorAll('#last .gl-dot').length === 5 && same(nums, ['58', '97', '74', '64', '83']),
+    // ORBIT: the line is the trend card's, beside the last match.
+    const svg = h.document.querySelector('#trend .grade-line');
+    const nums = h.document.querySelectorAll('#trend .gl-num').map((t) => t.textContent);
+    ok(svg && h.document.querySelectorAll('#trend .gl-dot').length === 5 && same(nums, ['58', '97', '74', '64', '83']),
       'a dot a match, oldest first, each with its grade over it', JSON.stringify(nums));
-    ok(h.document.querySelectorAll('#last .gl-dot.now').length === 1 && h.document.querySelectorAll('#last .gl-num.now').length === 1,
+    ok(h.document.querySelectorAll('#trend .gl-dot.now').length === 1 && h.document.querySelectorAll('#trend .gl-num.now').length === 1,
       'the newest is the one large, filled dot');
     ok(cssProp(homeRule('.hint'), 'font-size') === '14px', 'the rule reader finds a known rule');
     const gvCss2 = fs.readFileSync(path.join(RENDERER, 'shared', 'grade-view.css'), 'utf8');
@@ -3203,13 +3208,15 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
       'Rank journey asks main for Stats with the journey open (OPEN_STATS, \'journey\')', JSON.stringify(h.bridge.sent));
     ok(h.bridge.invoked.filter((x) => x[0] === C.STATS_RANK_HISTORY).every((x) => x[1] === false),
       'read from the history main keeps, never forced past its cache');
-    // Where it sits: with the repeated mistakes, in the row under the last match and the fix.
+    // Where it sits (ORBIT): the repeated mistakes in the bento beside the last
+    // match and the trend; the rank in the row under it, beside the moment.
     const full = await openHome({ mistakes: [MISTAKE] });
-    ok(!full.$('top').hidden && !full.$('rank').hidden && full.$('rank').parentNode === full.$('top').parentNode && !full.$('rank').parentNode.classList.contains('single'),
-      'with a repeated mistake, the rank and the mistakes share a row');
+    ok(!full.$('top').hidden && !full.$('rank').hidden && full.$('top').parentNode === full.$('last').parentNode && full.$('top').parentNode.classList.contains('bento')
+      && full.$('rank').parentNode === full.$('focus').parentNode,
+      'with a repeated mistake, the mistakes sit in the bento and the rank beside the moment');
     const noFocus = await openHome({ mistakes: [MISTAKE], focus: null });
-    ok(noFocus.$('focus').hidden && noFocus.$('last').parentNode.classList.contains('single') && !noFocus.$('rank').hidden,
-      'with no focus (a match graded from Riot\'s record alone) the last match takes its row');
+    ok(noFocus.$('focus').hidden && noFocus.$('rank').parentNode.classList.contains('single') && !noFocus.$('rank').hidden,
+      'with no moment (no focus, a match graded from Riot\'s record alone) the rank takes its row');
 
     // Painted first, filled in after: a slow rank history never holds Home back.
     let answer = null;
@@ -3237,7 +3244,8 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
   await section('Home has a rank only for Valorant, with a Riot ID and a rated game, and the column closes up:', async () => {
     const asked = (x) => x.bridge.invoked.some((c) => c[0] === C.STATS_RANK_HISTORY);
     const noId = await openHome({ riotId: '' });
-    ok(noId.$('rank').hidden && !asked(noId) && !noId.$('focus').hidden, 'no Riot ID: no rank card, nothing asked, and the fix stays');
+    ok(noId.$('rank').hidden && !asked(noId) && !!noId.$('h-fix-head').textContent.trim() && !/Play one match/.test(noId.$('h-fix-head').textContent) && !noId.$('h-open').hidden,
+      'no Riot ID: no rank card, nothing asked, and the fix stays, the hero');
     const none = await openHome({ history: () => ({ points: [] }), focus: null });
     ok(none.$('rank').hidden && none.$('focus').hidden && !none.$('last').hidden,
       'no rated game: no rank card and no RR chip, and with no focus either the last match takes the row');
@@ -3340,7 +3348,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     await settle();
     if (hold) hold();
     await settle();
-    const came = ['start-strip', 'last', 'focus', 'recent'].filter((id) => q.$(id).classList.contains('card-in'));
+    const came = ['start-strip', 'last', 'trend', 'recent'].filter((id) => q.$(id).classList.contains('card-in'));
     ok(!q.$('content').hidden && came.length === 4,
       'the first paint overtaken by a review saved meanwhile, its cards arrive with the paint that lands', `arrived: ${came.join(', ')}`);
   });
@@ -5163,14 +5171,16 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     ok(/clip:/.test(rule(ui, '.sr-only')) && prop(rule(ui, '.sr-only'), 'position') === 'absolute', 'the rule and property readers find a known rule');
     const armedCss = rule(ui, 'html.page-armed body');
     ok(prop(armedCss, 'opacity') === '0' && prop(armedCss, 'transition') === 'none'
-      && prop(armedCss, 'transform') === 'translateX(var(--page-from, 0px))', 'armed: invisible, offset, and with no transition into it', armedCss.trim());
+      && prop(armedCss, 'transform') === 'translateY(var(--page-from, 8px))', 'armed: invisible, offset, and with no transition into it', armedCss.trim());
     ok(prop(armedCss, 'animation') === 'page-disarm 0s linear 1.2s forwards' && ui.includes('@keyframes page-disarm { to { opacity: 1; transform: none; } }'),
       'and let in by itself after 1.2 seconds if main never answers');
-    ok(prop(rule(ui, 'html.page-armed[data-page-dir="forward"]'), '--page-from') === '12px'
-      && prop(rule(ui, 'html.page-armed[data-page-dir="back"]'), '--page-from') === '-12px', 'forward from 12px right, back from 12px left');
-    ok(prop(rule(ui, 'html.embedded body'), 'transition') === 'opacity var(--t-med) var(--ease-expo), transform var(--t-med) var(--ease-expo)',
-      'coming in is --t-med on --ease-expo, opacity and transform only');
-    ok(prop(rule(ui, 'html.page-leaving body'), 'transition') === 'opacity var(--t-fast) var(--ease)', 'leaving fades on --t-fast');
+    // ORBIT (27 Nov 2026): a page rises 8px into place whichever way it comes.
+    ok(prop(rule(ui, 'html.page-armed[data-page-dir="forward"]'), '--page-from') === '8px'
+      && prop(rule(ui, 'html.page-armed[data-page-dir="back"]'), '--page-from') === '8px', 'forward or back, it rises 8px into place');
+    ok(prop(rule(ui, 'html.embedded body'), 'transition') === 'opacity var(--dur-page-in) var(--ease-out), transform var(--dur-page-in) var(--spring-smooth)',
+      'coming in is --dur-page-in (380ms), the rise on the smooth spring, opacity and transform only');
+    ok(prop(rule(ui, 'html.page-leaving body'), 'transition') === 'opacity var(--dur-page-out) var(--ease-out), filter var(--dur-page-out) var(--ease-out)'
+      && prop(rule(ui, 'html.page-leaving body'), 'filter') === 'blur(4px)', 'leaving fades with a 4px blur on --dur-page-out (160ms)');
     const CUT = /@media \(prefers-reduced-motion: reduce\) \{\s*html\.page-armed body,\s*html\.page-leaving body \{ opacity: 1; transform: none; \}/;
     ok(CUT.test('@media (prefers-reduced-motion: reduce) {\n  html.page-armed body,\n  html.page-leaving body { opacity: 1; transform: none; }'),
       'the reduced motion reader matches the rule it looks for');
@@ -5195,37 +5205,45 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     const shellCss = read('shell/shell.css');
     ok(!/background/.test(rule(shellCss, '.nav .nav-item[aria-current="page"]')) && rule(shellCss, '.nav .nav-item[aria-current="page"]').includes('color'),
       'the current tab paints no background of its own');
-    // 8.9.2: the glide is shell.js placeMarker's, a transform played from the
-    // old tab (its width as a scaleX from the left edge) on --dur-move and
-    // --ease-in-out; only the fade is a CSS transition, and no width is tweened.
+    // ORBIT (27 Nov 2026): the marker is one 4px dot under the current link,
+    // its glide shell.js placeMarker's, a transform played from the old link
+    // on --dur-nav (420ms) and the smooth spring; only the fade is a CSS
+    // transition, and nothing is laid out per frame.
     const shellJs = read('shell/shell.js');
     ok(prop(rule(shellCss, '.nav-marker'), 'transition') === 'opacity var(--t-fast) var(--ease)'
-      && prop(rule(shellCss, '.nav-marker'), 'transform-origin') === '0 50%'
-      && shellJs.includes("getPropertyValue('--dur-move')") && shellJs.includes('marker.animate(')
-      && shellJs.includes("easing: 'cubic-bezier(0.77, 0, 0.175, 1)'") && shellJs.includes('!reducedMotion()'),
-    'the marker glides by a transform on --dur-move and --ease-in-out, never under reduced motion, and no width is tweened');
+      && prop(rule(shellCss, '.nav-marker'), 'width') === '4px' && prop(rule(shellCss, '.nav-marker'), 'height') === '4px'
+      && shellJs.includes("cssVar('--dur-nav')") && shellJs.includes('marker.animate(')
+      && shellJs.includes("cssVar('--spring-smooth')") && shellJs.includes('!reducedMotion()'),
+    'the dot glides by a transform on --dur-nav and the smooth spring, never under reduced motion');
     const p = await openShell({ language: 'en' }, {});
     const marker = p.$('nav-marker');
-    ok(p.document.querySelectorAll('.nav-marker').length === 1 && marker.getAttribute('aria-hidden') === 'true' && marker.parentNode === p.$('nav'), 'one marker, under the tabs');
-    // Layout, which the fake DOM does not do: each tab where the bar has it.
+    ok(p.document.querySelectorAll('.nav-marker').length === 1 && marker.getAttribute('aria-hidden') === 'true' && marker.parentNode === p.$('nav'), 'one marker, under the links');
+    // Layout, which the fake DOM does not do: each link where the bar has it.
     const items = p.$('nav').querySelectorAll('.nav-item');
-    items.forEach((b, i) => Object.assign(b, { offsetTop: 0, offsetLeft: i * 90, offsetWidth: 84, offsetHeight: 32 }));
-    const left = (id) => p.document.querySelector(`#nav .nav-item[data-page="${id}"]`).offsetLeft;
+    items.forEach((b, i) => Object.assign(b, { offsetTop: 10, offsetLeft: i * 90, offsetWidth: 84, offsetHeight: 36 }));
+    // The dot: centred under the word (84 / 2 - 2), 3px above the link's foot (10 + 36 - 4 - 3).
+    const at = (id) => `translate(${p.document.querySelector(`#nav .nav-item[data-page="${id}"]`).offsetLeft + 40}px, 39px)`;
     p.bridge.emit(C.PUSH_SHELL, { page: 'matches', shown: 'matches', sealed: false });
-    ok(marker.classList.contains('on') && marker.style.transform === `translate(${left('matches')}px, 0px)` && marker.style.width === '84px',
-      'it sits on the current tab', marker.style.transform);
+    ok(marker.classList.contains('on') && marker.style.transform === at('matches'),
+      'it sits under the current link', marker.style.transform);
+    p.bridge.emit(C.PUSH_SHELL, { page: 'practice', shown: 'practice', sealed: false });
+    ok(marker.style.transform === at('practice') && !marker.classList.contains('still'), 'going to another link it glides there');
+    p.bridge.emit(C.PUSH_SHELL, { page: 'trainer', shown: 'trainer', sealed: false });
+    ok(marker.style.transform === at('practice') && p.document.querySelector('#nav .nav-item[data-page="practice"]').getAttribute('aria-current') === 'page',
+      'the Trainer, a page Practice holds, keeps the dot on Practice');
     p.bridge.emit(C.PUSH_SHELL, { page: 'stats', shown: 'stats', sealed: false });
-    ok(marker.style.transform === `translate(${left('stats')}px, 0px)` && !marker.classList.contains('still'), 'going to another tab it slides there');
+    ok(marker.style.transform === at('matches') && p.document.querySelector('#nav .nav-item[data-page="matches"]').getAttribute('aria-current') === 'page',
+      'and Stats, a page Matches holds, puts it back on Matches');
     p.bridge.emit(C.PUSH_SHELL, { page: 'settings', shown: 'settings', sealed: false });
-    ok(!marker.classList.contains('on') && p.$('nav-settings').getAttribute('aria-current') === 'page', 'on Settings, a row of the drawer, the drawer marks it and the pill goes');
+    ok(!marker.classList.contains('on') && p.$('nav-settings').getAttribute('aria-current') === 'page', 'on Settings, a row of the menu, the menu marks it and the dot goes');
     p.bridge.emit(C.PUSH_SHELL, { page: 'settings', shown: null, sealed: true });
     ok(!marker.classList.contains('on'), 'sealed, no page is current and it fades out');
     p.bridge.emit(C.PUSH_SHELL, { page: 'review', shown: 'review', sealed: false });
-    ok(marker.classList.contains('on') && marker.classList.contains('still') && marker.style.transform === `translate(${left('matches')}px, 0px)`,
-      'unsealed on the review, it appears on Matches, put there rather than slid');
+    ok(marker.classList.contains('on') && marker.classList.contains('still') && marker.style.transform === at('matches'),
+      'unsealed on the review, it appears on Matches, put there rather than glided');
     const blocked = 'Capture is blocked: Windows will not let Occlara read the screen. Set the game to Windowed Fullscreen and press Start again.';
     p.bridge.emit(C.PUSH_STATE, { ...BASE, notice: { text: blocked, at: 1 } });
-    ok(p.notice() === blocked && marker.style.transform === `translate(${left('matches')}px, 0px)`, 'a notice in the bar leaves the marker where it is');
+    ok(p.notice() === blocked && marker.style.transform === at('matches'), 'a notice in the bar leaves the marker where it is');
     p.bridge.emit(C.PUSH_STATE, { ...BASE, notice: null });
     ok(prop(rule(shellCss, '.sealed'), 'animation') === 'riseIn var(--t-slow) var(--ease-expo) both',
       'the Recording screen rises in as it appears');
@@ -6096,8 +6114,9 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     // between them in the markup, beside Profile on the grid.
     // Players (docs/claude/social.md) sits beside Profile, hidden until the server says search is open.
     // Duos (docs/claude/duos.md) under Players, hidden until the server says Duos is open.
-    ok(kids[0] === 'nav-profile' && kids[1] === 'nav-players' && kids[2] === 'nav-duos' && kids[3] === 'nav-invite' && kids[4] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite' && foot.parentNode === s.$('drawer'),
-      'the drawer leads with Profile, Players beside it, Duos under it, then Invite, then Settings (Progress v3: the sidebar\'s foot moved into the avatar\'s drawer)', kids.join(', '));
+    // Ask Coach (Orbit, 27 Nov 2026) under Profile: no link of its own in the bar.
+    ok(kids[0] === 'nav-profile' && kids[1] === 'nav-coach' && kids[2] === 'nav-players' && kids[3] === 'nav-duos' && kids[4] === 'nav-invite' && kids[5] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite' && foot.parentNode === s.$('drawer'),
+      'the menu leads with Profile, Ask Coach under it, then Players, Duos, Invite and Settings (Progress v3: the sidebar\'s foot moved into the menu)', kids.join(', '));
     ok(s.$('nav-players').hidden === true, 'Players is hidden until the server says player search is open');
     ok(s.$('nav-duos').hidden === true, 'Duos is hidden until the server says Duos is open');
     s.$('nav-invite').click();
@@ -6485,8 +6504,13 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     const nav = require('../src/shared/shell-nav');
     ok(nav.PAGES.filter((p) => p.nav).map((p) => p.id).join() === 'home,matches,patterns,practice,trainer,moments,stats,coach', 'the sidebar lists Moments in Breakdown\'s place, after Practice and the Trainer');
     const s = await openShell({ game: 'valorant' });
+    // ORBIT (27 Nov 2026): the bar's four links, Moments the one called Clips.
+    ok(nav.TOP.map((t) => `${t.id}:${t.label}`).join() === 'home:Home,matches:Matches,practice:Practice,moments:Clips'
+      && nav.TOP.every((t) => t.pages.every((id) => nav.pageOf(id)))
+      && nav.PAGES.filter((p) => p.nav).every((p) => p.id === 'coach' || nav.topOf(p.id)),
+      'the bar has four links, Home, Matches, Practice and Clips, and every primary page sits under one of them, Ask Coach in the menu');
     const item = s.document.querySelector('#nav .nav-item[data-page="moments"]');
-    ok(item && item.textContent.trim() === 'Moments' && item.querySelector('svg path'), 'the shell draws Moments with an icon of its own');
+    ok(item && item.textContent.trim() === 'Clips' && item.querySelector('svg path'), 'the shell draws Moments as Clips, with an icon for its lock');
     item.click();
     ok(s.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'moments'), 'and it goes to the Moments page');
     s.bridge.emit(C.PUSH_SHELL, { page: 'moments', shown: null, sealed: true, held: false });
