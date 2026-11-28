@@ -32,6 +32,7 @@ const { CAUSES, isAvoidable, causeTitle } = require('./death-causes');
 const { satOut } = require('./sat-out');
 const { validBand } = require('./rank-band');
 const { TITLES, todaysTitle, todaysEntryTitle } = require('./mistake-titles');
+const { noSemicolons, practiceSpelling } = require('./plain-text');
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
 const times = (n) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
@@ -899,6 +900,17 @@ function todaysEntry(e) {
   // Only a title the list itself wrote: either form of this cause's.
   if (c && count && (e.title === c.title || e.title === c.one) && causeTitle(cause, count) !== e.title) {
     out = { ...out, title: causeTitle(cause, count) };
+  }
+  // The fix and the line can be the model's words (a cause's fix is the
+  // look's `better`), and every reader of the lists shows them: Practice's
+  // focus, the Patterns fix, the breakdown's "Repeated here" and the weekly
+  // report. Spelt Practice and with no semicolon (plain-text.js, 9.1), here
+  // once for all of them.
+  for (const k of ['fix', 'detail']) {
+    const was = out[k];
+    if (typeof was !== 'string' || !was) continue;
+    const now = practiceSpelling(noSemicolons(was));
+    if (now !== was) out = { ...out, [k]: now };
   }
   return out;
 }

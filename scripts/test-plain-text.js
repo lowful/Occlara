@@ -70,6 +70,24 @@ ok(a.scrubText({ u: 'https://occlara.app/practise' }).u === 'https://occlara.app
   const m = HM.homeModel({ rows: [row], patterns: {}, review: { id: 'valorant-1-a', focus: 'Play the practised rounds; trade.' }, previous: null });
   ok(m.focus === 'Play the practiced rounds. Trade.', "Home's fix is shown as Practice spells it", m.focus);
 }
+{
+  // Through the lists every repeat is counted from (insights.countable): a
+  // cause's fix is the look's `better`, and Practice's focus, the Patterns
+  // fix, the breakdown's "Repeated here" and the weekly report all show it.
+  const { countable } = require('../src/shared/insights');
+  const patternsOf = require('../src/shared/patterns');
+  const entry = { key: 'cause:repeek', title: 'Repeeks', count: 2, rounds: [3, 7], fix: 'Practise the jiggle peek; then swing once.', detail: 'Round 3; repeeked.' };
+  const out = countable({ insights: { mistakes: [entry], strengths: [], missed: [] } }).mistakes[0];
+  ok(out.fix === 'Practice the jiggle peek. Then swing once.' && out.detail === 'Round 3. Repeeked.' && entry.fix.includes('Practise'),
+    "a list's fix and line read as Practice spells them, with no semicolon, the saved review untouched", JSON.stringify(out));
+  const clean = { key: 'cause:repeek', title: 'Repeeks', count: 2, rounds: [3, 7], fix: 'Swing once.' };
+  ok(countable({ insights: { mistakes: [clean] } }).mistakes[0] === clean, 'and an entry with nothing to change is the same entry');
+  const reviews = [1, 2, 3].map((i) => ({ id: `valorant-${i}-a`, at: i, game: 'valorant',
+    review: { kind: 'valorant', insights: { mistakes: [{ ...entry, fix: 'Keep practising the jiggle peek; then swing once.' }], strengths: [], missed: [] }, rounds: [] } }));
+  const p = patternsOf.summarise(reviews);
+  const m = p && Array.isArray(p.mistakes) ? p.mistakes.find((x) => x.key === 'cause:repeek') : null;
+  ok(m && m.fix === 'Keep practicing the jiggle peek. Then swing once.', 'and a repeated mistake\'s fix on Practice and Patterns too', JSON.stringify(m && m.fix));
+}
 
 // The two files are one rule: the code, apart from its comments, is the same.
 const body = (f) => fs.readFileSync(path.join(root, f), 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '').trim();
