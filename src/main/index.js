@@ -1080,8 +1080,8 @@ function openPage(id, opts) {
  * has none. A review saved since 9.1 carries it in its row (review-store.js
  * metaOf); one saved before is rated once, in the background after the first
  * list, from its saved review (rating.js ratingOfReview, the number its page
- * shows), kept in memory for the session, and the pages are told to list
- * again (PUSH_REVIEWS { ratings: true }). Four reviews a turn, and none while
+ * shows), kept in memory for the session, and Home and Matches are told to
+ * list again (PUSH_REVIEWS { ratings: true }, to those two alone). Four reviews a turn, and none while
  * a match is played.
  */
 const rowRatings = new Map();
@@ -1109,7 +1109,8 @@ function fillRowRatings(rows) {
     }
     if (todo.length) { setImmediate(step); return; }
     rowRatingsRunning = false;
-    if (found) registry.broadcast(C.PUSH_REVIEWS, { ratings: true });
+    // To the two pages that show it, not every page that lists reviews.
+    if (found) for (const page of ['home', 'matches']) registry.sendTo(page, C.PUSH_REVIEWS, { ratings: true });
   };
   setImmediate(step);
 }

@@ -133,7 +133,7 @@ const write = (file, bytes) => { fs.mkdirSync(path.dirname(file), { recursive: t
       'null for a Valorant match with none, no key for League');
     const idx = read('src/main/index.js');
     const fill = idx.slice(idx.indexOf('function fillRowRatings('), idx.indexOf('function fillRowRatings(') + 1500);
-    ok(fill.includes('if (matchInProgress()) { setTimeout(step, 5000); return; }') && fill.includes('ratingOf.ratingOfReview(e.review)') && fill.includes('C.PUSH_REVIEWS, { ratings: true }'),
+    ok(fill.includes('if (matchInProgress()) { setTimeout(step, 5000); return; }') && fill.includes('ratingOf.ratingOfReview(e.review)') && fill.includes('registry.sendTo(page, C.PUSH_REVIEWS, { ratings: true })'),
       'an older row is rated in the background, never mid match, from the same rating its page shows, and the pages told');
   }
 
