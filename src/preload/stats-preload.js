@@ -3,7 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
-const { pageMotion } = require('./page-motion');
+const { pageMotion, subnav } = require('./page-motion');
 
 /**
  * Stats dashboard bridge: read the assembled dashboard, refresh tracker
@@ -13,6 +13,8 @@ const { pageMotion } = require('./page-motion');
 contextBridge.exposeInMainWorld('occlara', {
   // Moving between pages (shared/embed.js).
   ...pageMotion(ipcRenderer),
+  // The sub switch at the page's head (Orbit, shared/subnav.js).
+  subnav,
   // i18n: the catalogue is required here (preloads have Node) and handed to the
   // renderer as a plain translator, so no surface needs Node access to be
   // translated. Read at call time, so a language change repaints correctly.

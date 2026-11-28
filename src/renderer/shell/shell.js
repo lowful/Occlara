@@ -71,20 +71,32 @@ let shell = { page: 'home', shown: 'home', sealed: false, held: false, maximized
 let cfg = null;
 
 // ── The pages ──────────────────────────────────────────────────────────────
-const pages = window.occlara.pages();
+/*
+ * ORBIT'S TOP BAR (27 Nov 2026): four links, Home, Matches, Practice and
+ * Clips, each a group of pages (shell-nav.js TOP), so no page is lost:
+ * Patterns and Stats are reached inside Matches, the Trainer inside Practice
+ * (shared/subnav.js), Moments is Clips, and Ask Coach opens from a review and
+ * from the account menu. A link is found by the page it lands on (data-page).
+ */
+// (Not `top`: a script's own `const top` collides with window.top and the
+// whole script fails to run.)
+const topLinks = typeof window.occlara.top === 'function' ? window.occlara.top()
+  : window.occlara.pages().filter((x) => x.nav).map((p) => ({ id: p.id, label: p.label, pages: [p.id] }));
 const navButtons = new Map();
-for (const p of pages.filter((x) => x.nav)) {
+/** The link a page sits under, by its id, or null for a page of the account menu. */
+const linkOf = (page) => { const t = topLinks.find((x) => x.pages.includes(page)); return t ? t.id : null; };
+for (const t of topLinks) {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'nav-item';
-  b.dataset.page = p.id;
-  b.innerHTML = svg(PAGE_ICO[p.id] || '');
+  b.dataset.page = t.id;
+  b.innerHTML = svg(PAGE_ICO[t.id] || '');
   const label = document.createElement('span');
-  label.textContent = p.label;
+  label.textContent = t.label;
   b.append(label);
-  b.addEventListener('click', () => window.occlara.go(p.id));
+  b.addEventListener('click', () => window.occlara.go(t.id));
   $('nav').append(b);
-  navButtons.set(p.id, b);
+  navButtons.set(t.id, b);
 }
 // The foot's three pages (8.7: Invite, then 8.8: Profile, above Settings).
 // They are in navButtons, so the seal locks them and the marker finds them
@@ -96,6 +108,10 @@ navButtons.set('players', $('nav-players'));
 // Duos (docs/claude/duos.md), the account menu's row under Players.
 navButtons.set('duos', $('nav-duos'));
 navButtons.set('settings', $('nav-settings'));
+// Ask Coach (Orbit): no link of its own in the bar, a row of the menu, locked
+// by the seal like every page; a review's "Ask about this match" opens it too.
+navButtons.set('coach', $('nav-coach'));
+$('nav-coach').addEventListener('click', () => window.occlara.go('coach'));
 // Report a problem: a page like the rest, so the seal locks it and the
 // marker finds it, drawn as the quiet icon at the end of Profile's row.
 navButtons.set('feedback', $('nav-feedback'));
@@ -218,7 +234,7 @@ if (typeof window.occlara.onMenuAct === 'function') {
     }
   });
 }
-for (const id of ['nav-invite', 'nav-profile', 'nav-players', 'nav-duos', 'nav-settings', 'nav-feedback', 'discord', 'account']) {
+for (const id of ['nav-invite', 'nav-profile', 'nav-coach', 'nav-players', 'nav-duos', 'nav-settings', 'nav-feedback', 'discord', 'account']) {
   $(id).addEventListener('click', () => setDrawer(false));
 }
 // The Discord (the community): main opens the invite in the browser, never
@@ -240,9 +256,10 @@ function paintNav() {
   // Mid match the pages are locked. Held, the sidebar stays open: a page is
   // the player's own choice, and opening one lifts the seal.
   const locked = !!shell.sealed && !shell.held;
-  // The review belongs with the library it opens from, What's new with
+  // A page marks the link it sits under (the review and Stats under Matches,
+  // the Trainer under Practice), or its own row of the menu; What's new marks
   // Settings, where it is reached from.
-  const current = shell.page === 'review' ? 'matches' : shell.page === 'whatsnew' ? 'settings' : shell.page;
+  const current = linkOf(shell.page) || (shell.page === 'whatsnew' ? 'settings' : shell.page);
   for (const [id, b] of navButtons) {
     if (current === id && !shell.sealed) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
@@ -276,28 +293,31 @@ function paintNav() {
   const app = document.querySelector('.app');
   app.classList.toggle('home-page', shell.page === 'home' && !shell.sealed);
   app.classList.toggle('sealed-live', !!shell.sealed && !shell.held);
+  app.classList.toggle('is-sealed', !!shell.sealed);
+  paintSky();
   $('w-max').title = shell.maximized ? 'Restore' : 'Maximize';
   $('w-max').setAttribute('aria-label', $('w-max').title);
   placeMarker();
 }
 
 /*
- * THE CURRENT PAGE'S MARKER (8.2): one element under the items, moved to the
- * current one, so going from Stats to Home slides it up the sidebar instead of
- * one item's background going out as another's comes on. It slides only when
- * the page changes; appearing (the seal lifting) or following the layout (the
- * window resized, the game picker shown, the record card growing or
- * shrinking) it is put there at once. With no page marked, mid match, it
- * fades out.
+ * THE CURRENT LINK'S DOT (Orbit): one 4px dot under the links, moved to the
+ * current one, so going from Home to Clips glides it along the bar instead of
+ * one link's mark going out as another's comes on. It glides only when the
+ * link changes; appearing (the seal lifting) or following the layout (the
+ * window resized, the game picker shown) it is put there at once. With no
+ * link current (a page of the menu, or mid match) it fades out.
  */
 const marker = $('nav-marker');
+const DOT = 4;
 let markerOn = null;
-let markerAt = { x: 0, y: 0, w: 0 };
+let markerAt = { x: 0, y: 0 };
 let markerGlide = null;
 const reducedMotion = () => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 function placeMarker() {
-  // TOP NAVIGATION (Progress v3): the marker is the tabs' pill, so a page
-  // in the drawer (Settings, Profile and the rest) marks its own row there.
+  // A page of the menu (Settings, Profile and the rest) marks its own row
+  // there, and the dot goes.
   const b = [...navButtons.values()].find((x) => x.getAttribute('aria-current') === 'page' && x.parentNode === $('nav'));
   const top = b ? b.offsetTop : NaN;
   if (!b || b.hidden || !Number.isFinite(top)) {
@@ -308,37 +328,43 @@ function placeMarker() {
   const id = b.dataset.page;
   const slide = markerOn !== null && markerOn !== id;
   marker.classList.toggle('still', !slide);
-  // THE PILL GLIDES (8.9.2), by transform alone. It is put where it ends at
-  // once, its new width and place, and then played from where it was: the
-  // old place and the old width as a scaleX from its left edge, over
-  // --dur-move on --ease-in-out. No width is tweened, so nothing is laid out
-  // per frame. Asked for less motion, or appearing, it is simply there.
-  // Slid again before the last glide ended: from where the pill is now.
-  let from = slide ? { x: markerAt.x, y: markerAt.y, w: markerAt.w } : null;
+  // THE DOT GLIDES, by transform alone, on the smooth spring over
+  // --dur-nav (420ms). It is put where it ends at once and played from where
+  // it was; slid again before the last glide ended, from where it is now.
+  // Asked for less motion, or appearing, it is simply there.
+  let from = slide ? { x: markerAt.x, y: markerAt.y } : null;
   if (from && markerGlide && typeof DOMMatrix === 'function') {
     try {
       const m = new DOMMatrix(getComputedStyle(marker).transform);
-      from = { x: m.e, y: m.f, w: m.a * markerAt.w };
+      from = { x: m.e, y: m.f };
     } catch (e) { /* from where it was set */ }
   }
-  const w = b.offsetWidth;
-  const x = b.offsetLeft;
-  marker.style.width = `${w}px`;
-  marker.style.height = `${b.offsetHeight}px`;
-  marker.style.transform = `translate(${x}px, ${top}px)`;
+  // Centred under the word, 3px above the link's foot.
+  const x = Math.round(b.offsetLeft + b.offsetWidth / 2 - DOT / 2);
+  const y = Math.round(top + b.offsetHeight - DOT - 3);
+  marker.style.transform = `translate(${x}px, ${y}px)`;
   marker.classList.add('on');
   markerOn = id;
-  const moved = x !== markerAt.x || top !== markerAt.y || w !== markerAt.w;
-  markerAt = { x, y: top, w };
-  // The same tab measured again mid glide (a state push, the fonts) leaves the
-  // glide alone; a new place, or a new slide, ends it.
+  const moved = x !== markerAt.x || y !== markerAt.y;
+  markerAt = { x, y };
+  // The same link measured again mid glide (a state push, the fonts) leaves
+  // the glide alone; a new place, or a new slide, ends it.
   if (markerGlide && (slide || moved)) { markerGlide.cancel(); markerGlide = null; }
-  if (from && from.w > 0 && w > 0 && typeof marker.animate === 'function' && !reducedMotion()) {
-    const dur = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-move')) || 260;
-    markerGlide = marker.animate([
-      { transform: `translate(${from.x}px, ${from.y}px) scaleX(${from.w / w})` },
-      { transform: `translate(${x}px, ${top}px)` },
-    ], { duration: dur, easing: 'cubic-bezier(0.77, 0, 0.175, 1)' });
+  if (from && typeof marker.animate === 'function' && !reducedMotion()) {
+    const dur = parseFloat(cssVar('--dur-nav')) || 420;
+    const easing = cssVar('--spring-smooth') || 'cubic-bezier(0.16, 1, 0.3, 1)';
+    try {
+      markerGlide = marker.animate([
+        { transform: `translate(${from.x}px, ${from.y}px)` },
+        { transform: `translate(${x}px, ${y}px)` },
+      ], { duration: dur, easing });
+    } catch (e) {
+      // An engine without linear() easing takes the enter curve instead.
+      markerGlide = marker.animate([
+        { transform: `translate(${from.x}px, ${from.y}px)` },
+        { transform: `translate(${x}px, ${y}px)` },
+      ], { duration: dur, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+    }
     markerGlide.onfinish = () => { markerGlide = null; };
   }
 }
@@ -494,48 +520,24 @@ function paintSealedFacts() {
 
 /*
  * THE LIVE STATUS (Progress v3, the owner's choice and a deliberate reversal
- * of 8.0's rule, docs/claude/screen-silence.md). Mid a Valorant match the
- * Recording screen shows what main sends (PUSH_LIVE) and nothing else: the
- * map behind the card, the agent's portrait, the score, the round, and the
- * round tape the score has drawn, each only while its switch is on (main
- * leaves out what is off). The review is a locked ring until the match
- * ends. Textcontent only; the art is bundled files (agent-icons.js).
- * Nothing moves on it but the facts changing: no timer, no pulse.
+ * of 8.0's rule, docs/claude/screen-silence.md), ORBIT'S RECORDING SCREEN.
+ * Mid a Valorant match it shows what main sends (PUSH_LIVE) and nothing
+ * else: since when it records, the agent and the map, the score, the round
+ * and the round tape the score has drawn, each only while its switch is on
+ * (main leaves out what is off), then Stop and the line that the review opens
+ * when the match ends. Textcontent only; the agent's face is a bundled file
+ * (agent-icons.js). Nothing moves on it but its arrival and the facts
+ * changing: no timer, no pulse.
  */
 let live = null;
 let liveEditing = false;
 const LIVE_ITEMS = [['liveMap', 'Map'], ['liveAgent', 'Agent'], ['liveScore', 'Score'], ['liveRound', 'Round']];
 const liveOn = (k) => !cfg || cfg[k] !== false;
-const SVGNS = 'http://www.w3.org/2000/svg';
-function svgEl(tag, attrs) {
-  const n = document.createElementNS(SVGNS, tag);
-  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
-  return n;
-}
-/** One pip of the tape: a round won filled, lost a ring, unknown half, to come dashed. */
-function pip(kind) {
-  const svg = svgEl('svg', { width: 18, height: 18, viewBox: '0 0 18 18', class: 'pip ' + kind });
-  if (kind === 'now' || kind === 'unknown') {
-    svg.append(svgEl('circle', { cx: 9, cy: 9, r: 8.2, class: 'pip-shape' }), svgEl('path', { d: 'M9 0.8 A8.2 8.2 0 0 1 9 17.2 Z', class: 'pip-half' }));
-  } else {
-    // A round still to come is dashed: form before hue. The dash is an
-    // attribute here, as the old mark's detector keeps it out of the sheet.
-    const c = svgEl('circle', { cx: 9, cy: 9, r: kind === 'won' ? 8.6 : 8.2, class: 'pip-shape' });
-    if (kind === 'next') c.setAttribute('stroke-dasharray', '2 3');
-    svg.append(c);
-  }
-  return svg;
-}
-function paintRing() {
-  const svg = $('live-dial');
-  if (!svg || svg.childNodes.length) return;
-  const n = 24, r = 75;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * 2 * Math.PI - Math.PI / 2;
-    const c = Math.cos(a), si = Math.sin(a);
-    svg.append(svgEl('line', { x1: (r + (r - 10) * c).toFixed(2), y1: (r + (r - 10) * si).toFixed(2),
-      x2: (r + (r - 1.5) * c).toFixed(2), y2: (r + (r - 1.5) * si).toFixed(2), class: 'tick' }));
-  }
+/** One bar of the tape: a round won, lost, of unknown order, under way (now) or to come (next). */
+function pip(kind, half) {
+  const i = document.createElement('i');
+  i.className = 'pip ' + kind + (half ? ' half' : '');
+  return i;
 }
 function paintChips() {
   const host = $('live-chips');
@@ -571,29 +573,14 @@ function paintLive() {
   box.hidden = !show;
   $('sealed-quiet').hidden = show;
   if (!show) { liveEditing = false; return; }
-  paintRing();
   paintChips();
   const v = live && live.state === 'live' ? live : null;
   $('live-wait').hidden = !!v;
   $('live-main').hidden = !v;
-  $('live-tape-block').hidden = !v || !Array.isArray(v.tape);
+  $('live-tape-block').hidden = !v || (!Array.isArray(v.tape) && typeof v.round !== 'number');
   const since = live && live.startedAt ? new Date(live.startedAt) : null;
   $('live-since').textContent = since ? `since ${since.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '';
-  $('live-mode').textContent = v && v.mode ? `Valorant \u00b7 ${v.mode === 'swiftplay' ? 'Swiftplay' : 'Standard'}` : 'Valorant';
-  // The map behind the card.
-  const art = $('live-art');
-  const mapSrc = v && v.map && typeof window.occlara.mapArt === 'function' ? window.occlara.mapArt(v.map) : null;
-  if ((art.dataset.src || '') !== (mapSrc || '')) {
-    art.replaceChildren();
-    art.dataset.src = mapSrc || '';
-    if (mapSrc) {
-      const img = document.createElement('img');
-      img.src = mapSrc; img.alt = ''; img.className = 'live-art-img';
-      img.addEventListener('error', () => img.remove());
-      art.append(img);
-    }
-    art.append(Object.assign(document.createElement('div'), { className: 'live-art-scrim' }));
-  }
+  $('live-mode').textContent = v && v.mode ? (v.mode === 'swiftplay' ? 'Swiftplay' : 'Standard') : '';
   if (!v) return;
   // The agent's portrait.
   const face = $('live-face');
@@ -609,8 +596,14 @@ function paintLive() {
       face.append(img);
     }
   }
-  $('live-who').textContent = [v.agent, v.map].filter(Boolean).join(' on ');
-  $('live-who').hidden = !v.agent && !v.map;
+  // "Jett on Abyss": the agent and the map in the ink, the word between them grey.
+  const who = $('live-who');
+  who.replaceChildren();
+  [v.agent, v.map].filter(Boolean).forEach((word, i) => {
+    if (i) who.append(document.createTextNode(' on '));
+    who.append(Object.assign(document.createElement('b'), { textContent: word }));
+  });
+  who.hidden = !v.agent && !v.map;
   const scored = typeof v.team === 'number' && typeof v.enemy === 'number';
   $('live-score').hidden = !scored;
   $('live-team').textContent = scored ? String(v.team) : '';
@@ -618,20 +611,57 @@ function paintLive() {
   $('live-score').setAttribute('aria-label', scored ? `Score ${v.team} to ${v.enemy}` : 'Score');
   $('live-round-block').hidden = typeof v.round !== 'number';
   $('live-round').textContent = typeof v.round === 'number' ? String(v.round) : '';
-  // The tape: one pip a round played, the round under way half, the rest to come dashed.
+  // The tape: one bar a round played, the round under way outlined, the rest
+  // to come empty, and the halves parted (after 12 rounds, 4 in Swiftplay).
   const tape = $('live-tape');
   tape.replaceChildren();
+  tape.hidden = !Array.isArray(v.tape);
   if (Array.isArray(v.tape)) {
     const played = v.tape.length;
-    const total = Math.max(v.mode === 'swiftplay' ? 9 : 24, played + 1);
-    for (const r of v.tape) tape.append(pip(r === 'W' ? 'won' : r === 'L' ? 'lost' : 'unknown'));
-    tape.append(pip('now'));
-    for (let i = played + 1; i < total; i++) tape.append(pip('next'));
+    const swift = v.mode === 'swiftplay';
+    const total = Math.max(swift ? 9 : 24, played + 1);
+    const half = swift ? 4 : 12;
+    let n = 0;
+    const add = (kind) => { tape.append(pip(kind, n === half)); n++; };
+    for (const r of v.tape) add(r === 'W' ? 'won' : r === 'L' ? 'lost' : 'unknown');
+    add('now');
+    for (let i = played + 1; i < total; i++) add('next');
     const won = v.tape.filter((r) => r === 'W').length, lost = v.tape.filter((r) => r === 'L').length;
     tape.setAttribute('aria-label', `${played} rounds played, ${won} won and ${lost} lost`);
   }
 }
-if (typeof window.occlara.onLive === 'function') window.occlara.onLive((v) => { live = v || null; paintLive(); });
+// The match beginning is the screen's one change of state: the waiting line
+// gives way to the facts through a view transition (the line fading out, the
+// facts rising in); every later push is the facts changing in place.
+if (typeof window.occlara.onLive === 'function') {
+  window.occlara.onLive((v) => {
+    const was = live && live.state;
+    live = v || null;
+    const now = live && live.state;
+    if (was === 'waiting' && now === 'live' && window.Motion && !$('live').hidden) window.Motion.transition(paintLive);
+    else paintLive();
+  });
+}
+// Stop, on the Recording screen: the same Stop as the bar's.
+$('live-stop').addEventListener('click', () => window.occlara.stopCoaching());
+
+/*
+ * THE SKY behind the bar on Home and behind the Recording screen (shared/sky.js):
+ * the stars drawn for the window's size, again only when it changes, and the
+ * moon put up once. The moon is drawn (a few hundred ms of arithmetic) only
+ * outside a match; mid match only an image already kept is put up.
+ */
+let skyAt = '';
+function paintSky() {
+  const sky = window.OcclaraSky;
+  if (!sky) return;
+  if (!(shell.sealed || shell.page === 'home')) return;
+  const key = `${window.innerWidth}x${window.innerHeight}`;
+  if (skyAt !== key) { skyAt = key; sky.stars($('sky-stars')); }
+  if (!shell.sealed || sky.hasMoon()) sky.moon($('sky-moon'));
+}
+let skyResize = 0;
+window.addEventListener('resize', () => { clearTimeout(skyResize); skyResize = setTimeout(paintSky, 150); });
 
 /*
  * THE NOTICE LINE (8.3), in the top strip. The player asked for the text under
@@ -691,7 +721,9 @@ function render() {
   } else {
     toggleBtn.disabled = false;
     toggleLbl.textContent = tr(isCoaching ? 'panel.stop' : 'panel.start');
-    toggleIco.innerHTML = isCoaching ? ICO.stop : ICO.play;
+    // THE RECORD ICON is drawn by ui.css (.rec-ico): a ring and its dot for
+    // Start, the dot squared off into the stop glyph for Stop (.active).
+    toggleIco.innerHTML = '';
     toggleBtn.classList.toggle('active', isCoaching);
     recEl.classList.toggle('live', isCoaching && !isPaused);
     recEl.classList.toggle('recording', isCoaching);
@@ -816,8 +848,11 @@ document.querySelector('.bar').addEventListener('dblclick', (e) => {
     av.classList.add('pop-in');
     av.addEventListener('animationend', () => av.classList.remove('pop-in'), { once: true });
   }
-  // Geist arriving can move the items by a pixel or two.
+  // Onest arriving can move the links by a pixel or two.
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeMarker).catch(() => {});
+  // The moon drawn and kept while the app is idle, outside a match, so the
+  // Recording screen and Home only ever put up an image.
+  if (!shell.sealed && window.OcclaraSky) window.OcclaraSky.moon($('sky-moon'));
   if (window.initI18n) {
     const use = (t) => { if (typeof t === 'function') { tr = t; render(); } };
     window.initI18n(use).then(use).catch(() => {});

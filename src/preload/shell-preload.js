@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
 const GAMES = require('../shared/games');
-const { PAGES } = require('../shared/shell-nav');
+const { PAGES, TOP } = require('../shared/shell-nav');
 const { DISCORD_URL } = require('../shared/config');
 const { iconOf, mapArtOf } = require('../shared/agent-icons');
 
@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('occlara', {
     hasUi: (code) => I18N.hasUi(code),
   },
   pages: () => PAGES.map((p) => ({ id: p.id, label: p.label, nav: p.nav })),
+  // THE TOP BAR (Orbit): its four links, each the pages it holds (shell-nav.js TOP).
+  top: () => TOP.map((t) => ({ id: t.id, label: t.label, pages: t.pages.slice() })),
   // The games a player is offered, the rule Settings' picker keeps.
   games: (includeUnavailable) => GAMES.list(includeUnavailable)
     .map((g) => ({ id: g.id, label: g.label, coaching: GAMES.canCoach(g.id), preview: !!g.preview, comingSoon: !!g.comingSoon })),

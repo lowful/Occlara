@@ -1,231 +1,230 @@
-/* The shell: the main window's top bar, account drawer and Recording screen.
-   TOP NAVIGATION (Progress v3): the sidebar went for a bar across the top,
-   the pages as pill tabs, the game switch, the record controls, the avatar
-   that opens the drawer and the window's buttons. The page under the bar is
-   a view of its own laid over #page-host, at the sizes main-window.js uses:
-   SIDEBAR_W 0 and TOP_H 64, the same with the account menu open, which
-   floats over it in a view of its own. Change one and change both. Tokens only, no gradient, no glow. */
+/* The shell: the main window's top bar, account menu and Recording screen.
+   ORBIT'S TOP BAR (27 Nov 2026): 56px on the sky, the crescent and Occlara
+   at the left, the four links as plain words with one dot that glides to the
+   current one, then Start (the bar's size, the loudest word), the profile
+   button and the window's buttons. No pill and no container. The page under
+   the bar is a view of its own laid over #page-host at the sizes
+   main-window.js uses: SIDEBAR_W 0 and TOP_H 56. Change one and change both.
+   Tokens only; the accent only in the rules check:palette names. */
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
-.app { display: flex; flex-direction: column; height: 100%; }
+.app { position: relative; display: flex; flex-direction: column; height: 100%; isolation: isolate; }
+
+/* ── The sky ────────────────────────────────────────────────────────────────
+   Behind everything (shared/sky.js draws it once). Only the bar's strip of it
+   is ever seen outside a match, and only on Home, where Home's own sky
+   carries on under the bar with no seam; mid match the whole of it is behind
+   the Recording screen, the moon resting low. It never moves mid match. */
+.sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; opacity: 0; transition: opacity 420ms var(--ease-out); }
+.app.home-page .sky, .app.is-sealed .sky { opacity: 1; }
+.sky-stars { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sky-moon {
+  position: absolute; left: 42.5%; top: 0; width: 130%; aspect-ratio: 1;
+  transform: translateY(-71.5%);
+}
+.sky-moon-img { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity 1.2s var(--ease-out); -webkit-user-drag: none; }
+.sky-moon-img.ready { opacity: 1; }
+/* Mid match, or held: the moon rests low behind the Recording screen, its
+   lit limb turned up, quiet. Put there at once: nothing here travels. */
+.app.is-sealed .sky-moon { transform: translate(-44%, calc(100vh - 9.5%)) rotate(135deg); opacity: 0.38; }
 
 /* ── The bar ────────────────────────────────────────────────────────────── */
 .bar {
-  position: relative;
-  flex: 0 0 64px; height: 64px;
+  position: relative; z-index: 2;
+  flex: 0 0 56px; height: 56px;
   display: flex; align-items: center; gap: var(--space-5);
-  padding: 0 var(--space-2) 0 var(--space-6);
-  background: var(--bg);
+  padding: 0 0 0 22px;
+  background: transparent;
 }
-.brand { flex: none; display: flex; align-items: center; gap: 9px; }
-.brand .mark { color: var(--text); }
-.brand .name { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+.brand { flex: none; display: flex; align-items: center; gap: 9px; height: 40px; padding: 0 6px 0 2px; }
+.brand .mark { width: 19px; height: 19px; margin-top: 1px; color: var(--text); }
+.brand .name { font-size: var(--t-title); font-weight: 700; letter-spacing: -0.05em; line-height: 1; padding-bottom: 2px; }
 
-/* The pages as pill tabs: words dim until chosen, the current one on the
-   marker's pill. Positioned, so the marker under them is laid against it. */
-.nav { position: relative; flex: none; display: flex; align-items: center; gap: 4px; }
+/* The four links: plain words in the grey, the current one in the ink with
+   the dot under it. Positioned, so the dot is laid against the row. */
+.nav { position: relative; flex: none; display: flex; align-items: center; gap: 2px; margin-left: 6px; }
 .nav .nav-item {
   position: relative;
-  height: 32px; padding: 0 14px;
+  height: 36px; padding: 0 12px;
   display: inline-flex; align-items: center;
-  border: 0; border-radius: var(--r-pill);
-  background: transparent; color: var(--text-mute);
-  font: 500 13.5px var(--font); white-space: nowrap; cursor: pointer;
-  transition: color var(--t-fast) var(--ease);
+  border: 0; border-radius: var(--r-control);
+  background: transparent; color: var(--text-2);
+  font: 500 15px var(--font); letter-spacing: var(--track-body); white-space: nowrap; cursor: pointer;
+  transition: color var(--dur-hover-out) var(--ease-out), opacity 300ms var(--ease-out), transform var(--dur-spring) var(--spring-gentle);
 }
 .nav .nav-item > svg { display: none; }
-.nav .nav-item:hover:not(:disabled) { color: var(--text); }
-.nav .nav-item:active:not(:disabled) { transform: scale(0.97); transition-duration: var(--t-press); }
+.nav .nav-item:hover:not(:disabled) { color: var(--text); transition-duration: var(--dur-hover-in), 300ms, var(--dur-spring); }
+.nav .nav-item:active:not(:disabled) { transform: scale(0.97); transition-duration: var(--dur-press); transition-timing-function: var(--ease-out); }
 .nav .nav-item[aria-current="page"] { color: var(--text); }
-.nav .nav-item:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-pill); }
-/* Sealed: still readable, plainly not a way anywhere. */
-.nav .nav-item:disabled { cursor: default; color: var(--text-mute); opacity: 0.55; }
-/* THE MARKER (8.2): one pill for the whole bar, under the tabs, moved with
-   a transform, so it slides from tab to tab. */
+.nav .nav-item:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; border-radius: var(--r-control); }
+/* Mid match: dimmed to 35%, plainly not a way anywhere, the lock beside them. */
+.nav .nav-item:disabled { cursor: not-allowed; color: var(--text-2); opacity: 0.35; }
+/* THE DOT: one 4px dot for the whole row, under the current link, moved by
+   a transform alone and played from link to link on the smooth spring over
+   420ms (shell.js placeMarker). Only its fade is a transition here. */
 .nav-marker {
   position: absolute; top: 0; left: 0;
-  width: 0; height: 0;
-  border-radius: var(--r-pill);
-  background: var(--s3);
-  box-shadow: var(--rim-2);
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--text);
   opacity: 0;
   pointer-events: none;
-  /* Its glide is shell.js placeMarker's (8.9.2): a transform played from the
-     old tab to the new one, scaled from its left edge. Only the fade is a
-     transition here; a width tween laid it out every frame. */
-  transform-origin: 0 50%;
+  transform-origin: 50% 50%;
   transition: opacity var(--t-fast) var(--ease);
 }
 .nav-marker.on { opacity: 1; }
 .nav-marker.still { transition: opacity var(--t-fast) var(--ease); }
-.sealed-note { flex: 0 1 auto; min-width: 0; font-size: 12px; line-height: 1.4; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sealed-note { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.4; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sealed-note svg { flex: none; }
+.sealed-note span { overflow: hidden; text-overflow: ellipsis; }
 .sealed-note[hidden] { display: none; }
 
 /* THE NOTICE LINE (8.3): one line, cut with an ellipsis and whole in its
-   title, between the tabs and the bar's end, and nothing otherwise. Only the
+   title, between the links and the bar's end, and nothing otherwise. Only the
    text is out of the drag region. */
 .top-notice {
   flex: 0 1 auto; min-width: 0; margin-left: auto;
-  font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--text-dim);
+  font-size: 13px; font-weight: 500; line-height: 1.4; color: var(--text-dim);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* A notice from main, the licence ending above all, reads in full white;
-   paused, the record controls' own state, stays dim. */
 .top-notice.system { color: var(--text); }
-/* Empty, it gives back the bar's gap it would stand in, so the sealed note
-   beside it reads whole at the default width. */
+/* Empty, it gives back the bar's gap it would stand in. */
 .top-notice:empty { margin-left: auto; margin-right: calc(-1 * var(--space-5)); width: 0; }
 
-.bar-end { flex: none; display: flex; align-items: center; gap: var(--space-3); }
+.bar-end { flex: none; display: flex; align-items: center; gap: 10px; height: 100%; }
 
-/* The game picker: one capsule (shared/seg.js occlaraSeg, ui.css .seg-slide),
-   one square per game, each its own logo (shared/game-logos.js) with the full
-   name as its title. A game coming soon is dimmed, never picked, with a
-   popup on hover or focus (shell.js paintGames). */
+/* The game picker: the shared segmented control, one square per game. */
+.game-seg.seg-slide { padding: 3px; }
 .game-seg button {
   flex: 0 0 auto; width: 30px; height: 30px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
   white-space: nowrap;
 }
 .game-seg button .game-logo { width: var(--icon-sm); height: var(--icon-sm); flex: none; }
-.game-seg button.named { width: auto; padding: 0 var(--space-3); font: 500 13px var(--font); }
-.game-seg button:disabled { cursor: default; opacity: 0.55; }
-/* Static, so its popup is laid against the capsule (.seg-slide is relative)
-   rather than the button: the popup says "Coming soon" INSIDE the bar, to the
-   capsule's left, since the bar is TOP_H tall and anything hung below it is
-   under the page's view, which cut it to a sliver (8.9.1). */
+.game-seg button.named { width: auto; padding: 0 var(--space-3); font: 600 13px var(--font); }
+.game-seg button:disabled { cursor: default; opacity: 0.5; }
+/* Static, so its popup is laid against the control rather than the button:
+   it says "Coming soon" INSIDE the bar, to its left, since anything hung below
+   the bar is under the page's view (8.9.1). */
 .game-seg button.soon { position: static; cursor: default; }
 .game-seg button.soon .game-logo { opacity: 0.6; }
 .game-seg button.soon .soon-pop {
   position: absolute; top: 50%; right: calc(100% + 8px); transform: translateY(-50%);
-  padding: 6px 10px; border-radius: var(--r-btn);
-  background: var(--s3); box-shadow: var(--rim-2); color: var(--text); font: 500 12px var(--font); white-space: nowrap;
+  padding: 6px 10px; border-radius: var(--r-control);
+  background: var(--raised); box-shadow: var(--rim-2); color: var(--text); font: 500 12px var(--font); white-space: nowrap;
   pointer-events: none; opacity: 0; z-index: 20;
   transition: opacity var(--t-fast) var(--ease);
 }
 .game-seg button.soon:hover .soon-pop, .game-seg button.soon:focus-visible .soon-pop { opacity: 1; }
 
 /* ── The record controls, at the bar's end ──────────────────────────────── */
-/* Start is .btn-rec's (ui.css), the one saturated fill in the bar, 40px; it
-   is not drawn on Home, whose Start strip carries the big one (.home-page).
-   Recording, Start is Stop: the dark capsule with its stop icon in the
-   signal, and mid match the large capsule (.sealed-live). */
-.rec { position: relative; display: flex; align-items: center; }
+/* Start is .btn-rec's (ui.css) at the bar's size, 36px, its label 15px 700;
+   over the moon's lit limb the half clear glass washed out, so the bar's
+   Start is the denser --btn-bar. Not drawn on Home before Start, whose hero
+   carries the big one: it fades and settles away rather than vanishing.
+   Recording, Start is Stop (ui.css .btn-rec.active) beside the pause button;
+   mid match Stop is the Recording screen's own. */
+.rec { position: relative; display: flex; align-items: center; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out), visibility 0s linear 0s; }
 .rec[hidden] { display: none; }
 .rec-controls { display: flex; align-items: center; gap: var(--space-2); }
-.toggle {
-  height: 40px; padding: 0 var(--space-5);
-  font-size: 15px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap;
-  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-}
-.app.sealed-live .toggle { height: 44px; padding: 0 var(--space-6); font-size: 16px; font-weight: 600; }
+.toggle { height: 36px; padding: 0 14px 0 12px; border-radius: var(--r-control); gap: 9px; white-space: nowrap; }
+.bar .btn-rec:not(.active):not(.ended) { background: var(--btn-bar); }
+.bar .btn-rec:hover:not(:disabled):not(.active) { background: var(--btn-bar-h); }
 .toggle.ended { font-size: 13px; line-height: 1.2; letter-spacing: 0; font-weight: 600; }
-.toggle .t-ico:empty { display: none; }
-.toggle .t-ico { display: inline-flex; align-items: center; }
-.toggle .t-ico svg { width: 13px; height: 13px; }
-.toggle.active { background: var(--s2); border: 1px solid var(--line-2); color: var(--text); box-shadow: var(--hi), var(--drop); }
-.toggle.active:hover { background: var(--s3); box-shadow: var(--hi), var(--drop-hover); }
-.toggle.active:active { box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
-/* THE RECORDING SCREEN MOVES NO MORE THAN IT DID (8.9.2): ui.css took every
-   press to .97 over 160ms; mid match Stop keeps the press it had, .985 over
-   --t-press, so nothing on that screen moves more than before. */
-.app.sealed-live .toggle:where(:not(:disabled)):active { transform: translateY(0) scale(0.985); transition-duration: var(--t-press); }
-@media (prefers-reduced-motion: reduce) { .app.sealed-live .toggle:where(:not(:disabled)):active { transform: none; } }
-.toggle.active .t-ico { color: var(--red); }
-.toggle:disabled { opacity: 0.55; cursor: default; filter: grayscale(0.35); }
-.toggle.ended:disabled { opacity: 1; filter: none; background: transparent; border: 1px solid var(--line-2); color: var(--text-dim); box-shadow: none; }
-.icon-btn.lg { flex: none; width: 40px; height: 40px; }
-.icon-btn.lg svg { width: var(--icon-md); height: var(--icon-md); }
+.toggle .t-ico { display: inline-block; }
+.toggle.ended .t-ico, .toggle.ended + #pause, .toggle.ended .btn-arrow { display: none; }
+.toggle:disabled { opacity: 0.5; cursor: default; }
+.toggle.ended:disabled { opacity: 1; filter: none; background: transparent; border: 1px solid var(--line-2); color: var(--text-dim); -webkit-backdrop-filter: none; backdrop-filter: none; }
+#pause { flex: none; width: 36px; height: 36px; }
+#pause svg { width: var(--icon-sm); height: var(--icon-sm); }
 .icon-btn[disabled] { opacity: 0.3; cursor: default; pointer-events: none; }
 /* Not recording, the pause button is not drawn at all. */
-.rec:not(.recording) #pause, .toggle.ended + #pause { display: none; }
-/* On Home, not recording, Start is the page's own (its Start strip). */
-.app.home-page .rec:not(.recording) { display: none; }
+.rec:not(.recording) #pause { display: none; }
+/* On Home, not recording, Start is the page's own (its hero): the bar's
+   fades and settles away, and takes no press while gone. */
+.app.home-page .rec:not(.recording) { opacity: 0; transform: scale(0.96); visibility: hidden; pointer-events: none; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out), visibility 0s linear 200ms; }
+/* Mid match Stop is the Recording screen's (#live-stop); the bar keeps the
+   pause button. */
+.app.sealed-live .toggle { display: none; }
 
-/* The avatar: a ringed circle that opens the drawer. */
+/* The profile button: a raised circle that opens the account menu, squished
+   by a press. */
 .avatar-btn {
   flex: none; width: 36px; height: 36px;
   display: grid; place-items: center;
-  border: 0; border-radius: 50%;
-  background: var(--s3); box-shadow: var(--rim); color: var(--text-dim);
+  border: 1px solid var(--line); border-radius: 50%;
+  background: var(--raised); color: var(--text-dim);
   cursor: pointer;
-  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), transform var(--dur-press) var(--ease-out);
+  transition: color var(--dur-hover-out) var(--ease-out), border-color var(--dur-hover-out) var(--ease-out), opacity 300ms var(--ease-out), transform 420ms var(--spring-gentle);
 }
-.avatar-btn:hover, .avatar-btn[aria-expanded="true"] { color: var(--text); background: var(--s4); }
-/* A press lands (8.9.2): down to .97 over --dur-press, eased out, and not at
-   all under reduced motion. */
-.avatar-btn:active { transform: scale(0.97); }
+.avatar-btn:hover, .avatar-btn[aria-expanded="true"] { color: var(--text); border-color: var(--line-2); }
+.avatar-btn:active { transform: scale(0.86); transition-duration: var(--dur-hover-in), var(--dur-hover-in), 300ms, var(--dur-press); }
 @media (prefers-reduced-motion: reduce) { .avatar-btn:active { transform: none; } }
-/* It pops in once as the window first opens outside a match (shell.js), from
-   scale(0.96) and nothing over --dur-base: the one round thing in the bar
-   arriving last. */
-.avatar-btn.pop-in { animation: avatarIn var(--dur-base) var(--ease-out) both; }
-@keyframes avatarIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+/* It arrives once as the window first opens outside a match (shell.js). */
+.avatar-btn.pop-in { animation: avatarIn var(--dur-enter) var(--spring-smooth) both; }
+@keyframes avatarIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .avatar-btn.pop-in { animation: none; } }
-.avatar-btn:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+.avatar-btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 
-.win-controls { display: flex; gap: 2px; }
+/* The window's buttons: the bar's full height, 46px wide, the grey until the
+   pointer is on one; the close takes Windows' own red. */
+.win-controls { display: flex; height: 100%; margin-left: 4px; }
 .win-btn {
-  width: 40px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
-  border: 0; border-radius: var(--r-control); background: transparent; color: var(--text-mute); cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  width: 46px; height: 100%; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 0; background: transparent; color: var(--text-2); cursor: pointer;
+  transition: background-color var(--dur-hover-out) var(--ease-out), color var(--dur-hover-out) var(--ease-out);
 }
-.win-btn:hover { background: rgba(255, 255, 255, 0.055); color: var(--text); }
-.win-btn:active { background: rgba(255, 255, 255, 0.09); transition-duration: var(--t-press); }
-.win-btn:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-control); }
-.win-btn.close:hover { background: rgba(var(--red-rgb), 0.16); color: var(--red); }
+.win-btn:hover { background: var(--glass-q); color: var(--text); transition-duration: 0s; }
+.win-btn:active { background: var(--glass-q-h); }
+.win-btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
+.win-btn.close:hover { background: var(--close); color: var(--text); }
 
-/* ── Under the bar: the drawer and the page host ────────────────────────── */
-.main { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
-.page-host { position: relative; flex: 1 1 auto; min-width: 0; background: var(--bg); }
+/* ── Under the bar: the menu's layout and the page host ─────────────────── */
+.main { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; display: flex; }
+.page-host { position: relative; flex: 1 1 auto; min-width: 0; background: transparent; }
 
-/* THE ACCOUNT MENU (a dropdown since 8.9.1): what the sidebar's foot held, a
-   popover hung under the avatar at the window's right, 280px and its 16px
-   margin, drawn over the page by a view of its own (below). Solid like every open list (dropdown.css), the
-   ground a step up with a control's hairline and the shadow of something
-   lifted; it comes down out of the bar in 160ms, eased out, and theme.css
-   collapses that under reduced motion. */
+/* THE ACCOUNT MENU (a dropdown since 8.9.1): hung under the profile button at
+   the window's right, drawn over the page by a view of its own. The raised
+   fill and the stronger hairline, radius 16, the shadow of something
+   lifted; it comes down out of the bar on the smooth spring. */
 .drawer {
   position: absolute; top: var(--space-2); right: 0; z-index: 30;
   width: 280px; max-height: calc(100% - var(--space-6));
-  display: flex; flex-direction: column; gap: var(--space-2);
-  margin: 0 var(--space-4) 0 0; padding: var(--space-2);
-  border: 1px solid var(--line-2); border-radius: var(--r-panel);
-  background: var(--bg-2); box-shadow: var(--hi), var(--lift);
+  display: flex; flex-direction: column; gap: 6px;
+  margin: 0 var(--space-4) 0 0; padding: 6px;
+  border: 1px solid var(--line-2); border-radius: 16px;
+  background: var(--raised); box-shadow: 0 16px 36px -14px rgba(0, 0, 0, 0.9);
   overflow-y: auto; outline: none;
   transform-origin: top right;
-  animation: menuIn 160ms var(--ease-out) both;
+  animation: menuIn 260ms var(--spring-smooth) both;
 }
 .drawer[hidden] { display: none; }
 /* THE MENU FLOATS OVER THE PAGE (8.9.1): the shell's own #drawer is laid out
-   but never painted. Its rows are drawn by the menu's own view, laid over the
-   page at this rectangle (shell.js syncMenu, src/renderer/menu), so it is
-   held still here, where it is measured. */
+   but never painted; the menu's view draws its rows (shell.js syncMenu). */
 #drawer { visibility: hidden; animation: none; }
-@keyframes menuIn { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes menuIn { from { opacity: 0; transform: translateY(-4px) scale(0.96); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
 .foot { display: flex; flex-direction: column; gap: 2px; }
 .drawer .nav-item {
   position: relative;
-  display: flex; align-items: center; gap: var(--space-3);
-  width: 100%; min-height: 38px; padding: 0 var(--space-3);
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; min-height: 36px; padding: 0 10px;
   border: 0; border-radius: var(--r-control);
   background: transparent; color: var(--text-dim);
   font: 500 14px var(--font); text-align: left; cursor: pointer;
-  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  transition: color var(--dur-hover-out) var(--ease-out), background-color var(--dur-hover-out) var(--ease-out);
 }
-.drawer .nav-item:hover:not(:disabled), .drawer .nav-item:focus-visible { color: var(--text); background: rgba(255, 255, 255, 0.05); }
-.drawer .nav-item > svg { flex: none; color: var(--text-mute); }
+.drawer .nav-item:hover:not(:disabled), .drawer .nav-item:focus-visible { color: var(--text); background: var(--glass-q); transition-duration: 0s; }
+.drawer .nav-item > svg { flex: none; color: var(--text-2); }
 .drawer .nav-item:hover:not(:disabled) > svg, .drawer .nav-item[aria-current="page"] > svg { color: var(--text); }
-.drawer .nav-item[aria-current="page"] { color: var(--text); background: var(--s2); }
-.drawer .nav-item:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
-.drawer .nav-item:disabled { cursor: default; color: var(--text-mute); }
+.drawer .nav-item[aria-current="page"] { color: var(--text); background: var(--glass-q); }
+.drawer .nav-item:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
+.drawer .nav-item:disabled { cursor: not-allowed; color: var(--text-mute); }
 /* The games left (8.7): the label's size, quiet, one line. */
-.rail-games { padding: var(--space-1) var(--space-3) 0; font-size: 12px; line-height: 1.4; color: var(--text-mute); text-wrap: pretty; }
+.rail-games { padding: var(--space-1) 10px 0; font-size: 12px; line-height: 1.4; color: var(--text-mute); text-wrap: pretty; }
 .rail-games[hidden] { display: none; }
 .account {
   display: flex; align-items: center; gap: var(--space-2);
-  min-height: 32px; padding: 0 var(--space-3);
+  min-height: 34px; padding: 0 10px;
   border: 0; border-radius: var(--r-control); background: transparent;
   font: 500 13px var(--font); color: var(--text-dim); text-align: left; cursor: pointer;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -235,32 +234,23 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .account::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
 .account.on::before { background: var(--good); }
 
-/* Eight tabs at the window's default width: drawn in a little, so the notice
-   line beside them keeps room to say its line. */
-@media (max-width: 1280px) {
-  .nav { gap: 2px; }
-  .nav .nav-item { padding: 0 10px; }
-}
-/* A narrow window: the brand keeps its crescent alone. */
+/* Narrower windows: the links draw in, and under 1100 the brand keeps its
+   crescent alone. */
 @media (max-width: 1100px) {
   .brand .name { display: none; }
   .bar { gap: var(--space-3); }
-  .nav .nav-item { padding: 0 9px; }
+  .nav .nav-item { padding: 0 10px; }
 }
-/* Eight tabs (Practice, then the Trainer) beside the game switch, Start and
-   the window's buttons at the window's least width (960): the tabs and the
-   bar draw in, the tabs to 7px a side with no gap between them, which leaves
-   the last one clear of the game switch. */
 @media (max-width: 1040px) {
-  .bar { gap: var(--space-2); padding-left: var(--space-5); }
+  .bar { gap: var(--space-2); padding-left: var(--space-4); }
   .nav { gap: 0; }
-  .nav .nav-item { padding: 0 7px; }
+  .nav .nav-item { padding: 0 9px; }
 }
 
 /* ── The Recording screen: what the window shows during a match ────────── */
 /* The pages go at once when the seal comes on (main-window.js); this screen
-   then rises in where they were. The crescent, one calm line and the three
-   facts as ruled rows: no box, and nothing on it moves but its arrival. */
+   then rises in where they were, over the sky. Nothing on it moves but its
+   arrival. */
 .sealed {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -269,15 +259,14 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 }
 .sealed-quiet { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); text-align: center; width: 100%; }
 .sealed-mark { color: var(--text); margin-bottom: var(--space-4); }
-/* THE LIVE DOT (8.6): one still dot in the signal before "Recording", the
-   screen's only colour. It never pulses or loops: nothing on this screen
-   moves but its arrival. Held, the stop that ended the recording took the
-   dot with it and the crescent goes to ink-3. */
-.sealed h1 { display: inline-flex; align-items: center; gap: var(--space-3); font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); line-height: var(--lh-display); }
+/* THE LIVE DOT (8.6): one still dot in the accent before "Recording". It
+   never pulses or loops: nothing on this screen moves but its arrival. Held,
+   the stop that ended the recording took the dot with it. */
+.sealed h1 { display: inline-flex; align-items: center; gap: var(--space-3); font-size: 26px; font-weight: 700; letter-spacing: var(--track-display); line-height: var(--lh-display); }
 .sealed h1::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); }
 .sealed.held h1::before { display: none; }
 .sealed.held .sealed-mark { color: var(--text-mute); }
-.sealed-sub { max-width: 480px; font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+.sealed-sub { max-width: 480px; font-size: 15px; line-height: 1.5; color: var(--text-dim); }
 .sealed-facts { list-style: none; width: 100%; max-width: 520px; margin-top: var(--space-6); display: flex; flex-direction: column; text-align: left; }
 .sealed-facts li {
   display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: baseline; gap: var(--space-4);
@@ -286,91 +275,84 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   font-size: 14px; line-height: 1.5; color: var(--text);
 }
 .sealed-facts li:last-child { border-bottom: 1px solid var(--line); }
-.sealed-facts b { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.sealed-facts b { font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-mute); }
 
-/* ── THE LIVE STATUS (Progress v3) ────────────────────────────────────────
+/* ── THE LIVE STATUS, ORBIT'S RECORDING SCREEN ─────────────────────────────
    The owner's choice, a deliberate reversal of 8.0's rule
-   (docs/claude/screen-silence.md): mid a Valorant match the Recording
-   screen is a card over the map's art with the four facts the player's own
-   HUD shows (map, agent, score, round), each only while its switch is on,
-   the round tape the score has drawn, and beside it the review, locked.
-   No HP, positions, economy, enemy, advice, tip or review content. Nothing
-   on it moves but its arrival and the facts changing: the live dot never
-   pulses and no clock ticks. */
-.sealed:has(.live-status:not([hidden])) { align-items: stretch; justify-content: stretch; padding: var(--space-4) var(--space-8) var(--space-8); }
-.live-status { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--space-4); }
-.live-card {
-  --text-mute: var(--text-dim);
-  position: relative; overflow: hidden; min-height: 0;
-  border-radius: var(--r-panel); background: var(--s1); box-shadow: var(--rim);
-}
-.live-art { position: absolute; inset: 0; pointer-events: none; }
-.live-art-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 45%; }
-.live-art-scrim { position: absolute; inset: 0; background: var(--scrim); }
-.live-in { position: relative; height: 100%; display: flex; flex-direction: column; padding: var(--space-6) var(--space-8); text-align: left; }
-.live-head { display: flex; align-items: center; gap: var(--space-3); }
-.live-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--signal); }
-.live-word { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
-.live-since { font-family: var(--font-mono); font-size: 12px; color: var(--text-mute); }
-.live-chip {
-  display: inline-flex; align-items: center; height: 26px; padding: 0 11px;
-  border-radius: var(--r-pill); background: var(--scrim-chip); box-shadow: var(--rim-2);
-  font: inherit; font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap;
-}
-.live-head .live-chip { margin-left: auto; }
-.live-wait { margin: auto 0; max-width: 340px; font-size: 14px; line-height: 1.5; color: var(--text-dim); }
-.live-main { margin: auto 0; display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
-.live-face { flex: none; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; background: var(--s3); box-shadow: var(--rim-2); }
+   (docs/claude/screen-silence.md): mid a Valorant match, one centred column
+   over the sky: since when it records, the agent and the map, the score at
+   136px, the round and the round tape the score has drawn (each only while
+   its switch is on), Stop, and the line that the review opens when the match
+   ends. No HP, positions, economy, enemy, advice, tip or review content.
+   Nothing on it moves but its arrival and the facts changing: the dot never
+   pulses, no clock ticks, Stop's glow is still. */
+.live-status { display: flex; flex-direction: column; align-items: center; text-align: center; width: 100%; padding-bottom: var(--space-8); }
+.live-head { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; color: var(--text-2); }
+.live-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.18); }
+.live-word { font-weight: 500; color: var(--text-2); }
+.live-since { color: var(--text-2); font-variant-numeric: tabular-nums; margin-left: -6px; }
+.live-chip { margin-left: 4px; font-size: 13px; color: var(--text-mute); }
+.live-chip:empty { display: none; }
+.live-wait { margin-top: 44px; max-width: 360px; font-size: 15px; line-height: 1.5; color: var(--text-dim); }
+.live-main { display: flex; flex-direction: column; align-items: center; margin-top: 44px; }
+.live-who-row { display: flex; align-items: center; gap: 12px; font-size: 15px; color: var(--text-2); }
+.live-who-row[hidden], .live-who:empty { display: none; }
+.live-who b { color: var(--text); font-weight: 600; }
+.live-face { flex: none; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: var(--raised); border: 1px solid var(--line); }
 .live-face img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.live-score-block { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-.live-who, .live-label { font-size: 12px; font-weight: 500; color: var(--text-dim); }
-.live-score { display: flex; align-items: center; gap: var(--space-4); }
-.live-score b { font-size: 96px; font-weight: 600; line-height: 1; letter-spacing: -0.06em; font-variant-numeric: tabular-nums; }
-.live-colon { font-size: 44px; font-weight: 500; line-height: 1; color: var(--text-mute); }
-.live-round-block { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
-.live-round-block b { font-size: 44px; font-weight: 600; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
-.live-foot { display: flex; flex-direction: column; gap: var(--space-4); }
-.live-tape-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); }
+.live-score-block { display: flex; flex-direction: column; align-items: center; margin-top: 26px; }
+.live-score { display: flex; align-items: center; gap: 26px; }
+.live-score b { min-width: 1.2ch; font-size: 136px; font-weight: 700; line-height: 0.8; letter-spacing: -0.06em; font-variant-numeric: tabular-nums; }
+#live-team { text-align: right; }
+#live-enemy { text-align: left; color: var(--text-dim); }
+.live-colon { font-size: var(--t-display); font-weight: 700; line-height: 1; color: var(--text-3); transform: translateY(-6px); }
+.live-sides { display: flex; gap: 96px; margin-top: 14px; font-size: 13px; color: var(--text-2); }
+.live-score[hidden] + .live-sides { display: none; }
+.live-tape-block { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-top: 30px; }
+.live-tape-head { font-size: 15px; color: var(--text-2); }
+.live-round-block b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.live-label { color: var(--text-2); }
+/* THE ROUND TAPE: one bar a round, a round won the near white bar, lost the
+   clay one, of unknown order the hairline, still to come the empty one, the
+   round under way outlined in the accent (the selected round's place), and
+   the halves parted by a gap. */
+.live-tape { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 5px; max-width: 760px; }
+.pip { flex: none; display: block; width: 10px; height: 32px; border-radius: 5px; background: var(--todo-bar); }
+.pip.won { background: var(--won-bar); }
+.pip.lost { background: var(--lost-bar); }
+.pip.unknown { background: var(--line-2); }
+.pip.now { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent-2); }
+.pip.half { margin-left: 14px; }
+.live-stop { margin-top: 48px; height: 58px; min-width: 216px; border-radius: 16px; font-size: 15px; }
+.live-review { margin-top: 16px; font-size: 13px; color: var(--text-2); }
+.live-review-title { font-weight: 400; color: inherit; }
+/* What shows while recording: the player's own choice, quiet, at the foot. */
+.live-choose { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-2); margin-top: 28px; }
 .live-note { font-size: 12px; color: var(--text-mute); }
-.live-tape-head .live-note { margin-left: auto; }
-.live-tape { display: flex; flex-wrap: wrap; gap: 4px; }
-.pip { flex: none; display: block; overflow: visible; width: 16px; height: 16px; }
-.pip .pip-shape { fill: none; stroke: var(--text); stroke-opacity: 0.5; stroke-width: 1.6; }
-.pip.won .pip-shape { fill: var(--text); stroke: none; }
-.pip.now .pip-shape, .pip.unknown .pip-shape { stroke-opacity: 0.35; }
-.pip .pip-half { fill: var(--text); }
-.pip.unknown .pip-half { fill-opacity: 0.5; }
-.pip.next .pip-shape { stroke-opacity: 0.16; stroke-width: 1.4; }
-.live-choose { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.live-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.live-chip.chip-toggle { cursor: default; }
+.live-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.live-chips .live-chip { margin: 0; }
+.live-chip.chip-toggle {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: var(--r-control); background: var(--glass-q);
+  font: 500 12px var(--font); color: var(--text-dim); cursor: default;
+}
 .live-chip.chip-toggle:disabled { opacity: 1; }
 .live-chip.chip-toggle:not(:disabled) { cursor: pointer; }
-.live-chip.chip-toggle[aria-pressed="false"] { background: transparent; color: var(--text-mute); box-shadow: inset 0 0 0 1px var(--line-2); text-decoration: line-through; }
+.live-chip.chip-toggle[aria-pressed="false"] { background: transparent; color: var(--text-mute); text-decoration: line-through; }
 .live-choose-btn {
-  margin-left: auto; padding: var(--space-1) 0;
+  padding: var(--space-1) 0;
   border: 0; background: none; font: inherit; font-size: 12px; color: var(--text-dim);
-  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+  text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; cursor: pointer;
 }
 .live-choose-btn:hover { color: var(--text); }
-.live-review {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3);
-  padding: var(--space-6); text-align: center;
-  border-radius: var(--r-panel); background: var(--s1); box-shadow: var(--rim);
-}
-.live-dial { position: relative; width: 150px; height: 150px; color: var(--text-mute); }
-.live-dial svg { position: absolute; inset: 0; }
-.live-dial .tick { stroke: var(--text); stroke-opacity: 0.2; stroke-width: 2.2; stroke-linecap: round; }
-.live-dial .live-lock { inset: 0; margin: auto; }
-.live-review-title { font-size: 16px; font-weight: 600; }
-.live-review-sub { max-width: 220px; font-size: 13px; line-height: 1.5; color: var(--text-mute); }
-@media (max-width: 860px) {
-  .live-status { grid-template-columns: minmax(0, 1fr); }
-  .live-review { display: none; }
+@media (max-height: 700px) {
+  .live-main, .live-wait { margin-top: 28px; }
+  .live-score b { font-size: 112px; }
+  .live-stop { margin-top: 32px; }
 }
 /* Mid match the game cannot be switched (its buttons are disabled while
-   recording), so the bar gives its room to Stop and keeps the window's
-   buttons in view. */
+   recording), so the bar gives its room back. */
 .app.sealed-live .game-seg { display: none; }
+.app.sealed-live .avatar-btn { opacity: 0.35; }
 .bar-end { min-width: 0; }
 .nav { flex-shrink: 0; }

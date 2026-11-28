@@ -3,7 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const GAMES = require('../shared/games');
-const { pageMotion } = require('./page-motion');
+const { pageMotion, subnav } = require('./page-motion');
 
 /**
  * Bridge for the Practice page (src/renderer/practice/): the plan from the
@@ -23,6 +23,8 @@ function subscribe(channel, cb) {
 contextBridge.exposeInMainWorld('occlara', {
   // Moving between pages (shared/embed.js).
   ...pageMotion(ipcRenderer),
+  // The sub switch at the page's head (Orbit, shared/subnav.js).
+  subnav,
   getState:    () => ipcRenderer.invoke(C.STATE_GET),
   /** The page for one game, or null mid match; `asked` the mistake this visit opened on. */
   getPractice: (game, asked) => ipcRenderer.invoke(C.PRACTICE_GET, game || null,

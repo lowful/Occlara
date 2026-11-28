@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const DATA = require('../shared/trainer-data.json');
 const SCENARIOS = require('../shared/trainer-scenarios.json');
-const { pageMotion } = require('./page-motion');
+const { pageMotion, subnav } = require('./page-motion');
 
 /**
  * Bridge for the Trainer (src/renderer/trainer/, docs/claude/trainer.md).
@@ -28,6 +28,8 @@ const scenarios = JSON.parse(JSON.stringify(SCENARIOS.scenarios || []));
 contextBridge.exposeInMainWorld('occlara', {
   // Moving between pages (shared/embed.js).
   ...pageMotion(ipcRenderer),
+  // The sub switch at the page's head (Orbit, shared/subnav.js).
+  subnav,
   /** The numbers (trainer-data.json, each value with its source) and the scenarios. */
   data:        () => ({ numbers: data, scenarios }),
   getState:    () => ipcRenderer.invoke(C.STATE_GET),

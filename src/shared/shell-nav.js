@@ -67,6 +67,39 @@ function pageOf(id) {
   return PAGES.find((p) => p.id === id) || null;
 }
 
+/*
+ * THE TOP BAR (Orbit, 27 Nov 2026): four links, each a group of the pages
+ * above, so no page is lost. Matches holds the library, Patterns and Stats
+ * (reached inside it by a segmented switch, shared/subnav.js) and the review
+ * it opens; Practice holds the drills and the Trainer; Clips is the Moments
+ * page. A link goes to its group's first page. Ask Coach opens from a
+ * review's "Ask about this match" and from the account menu, as Profile,
+ * Players, Duos, Invite, Settings, What's new and Report a problem do. The
+ * `nav` flag on a page above still says it is one of the app's primary pages.
+ * The link's id is the page it lands on, so a link is found by its page.
+ */
+const TOP = [
+  { id: 'home', label: 'Home', pages: ['home'] },
+  { id: 'matches', label: 'Matches', pages: ['matches', 'patterns', 'stats', 'review'] },
+  { id: 'practice', label: 'Practice', pages: ['practice', 'trainer'] },
+  { id: 'moments', label: 'Clips', pages: ['moments'] },
+];
+
+/** The top bar's link a page sits under, or null for a page of the account menu. */
+function topOf(id) {
+  return TOP.find((t) => t.pages.includes(id)) || null;
+}
+
+/*
+ * THE SUB SWITCH of a group (shared/subnav.js draws it at the head of each of
+ * its pages): the pages a player moves between inside it, in order, and the
+ * word for each. The review is opened, never chosen, so it is no button.
+ */
+const SUB = {
+  matches: [['matches', 'Matches'], ['patterns', 'Patterns'], ['stats', 'Stats']],
+  practice: [['practice', 'Drills'], ['trainer', 'Trainer']],
+};
+
 /**
  * Which way the window moves from one page to the next (8.2): 'forward' down
  * the sidebar, Settings at its foot last, 'back' up it, and 'none' when either
@@ -280,4 +313,4 @@ function createNav({ home = 'home' } = {}) {
   };
 }
 
-module.exports = { PAGES, pageOf, createNav, direction, createMotion, READY_MS, LOAD_MS };
+module.exports = { PAGES, TOP, SUB, pageOf, topOf, createNav, direction, createMotion, READY_MS, LOAD_MS };

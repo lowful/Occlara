@@ -26,4 +26,14 @@ function pageMotion(ipcRenderer) {
   };
 }
 
-module.exports = { pageMotion };
+/**
+ * THE SUB SWITCH (Orbit, 27 Nov 2026): a group's pages and their words
+ * (shell-nav.js SUB), for shared/subnav.js at the head of each page of the
+ * group. Matches' and Practice's pages expose it as `subnav`.
+ */
+function subnav(group) {
+  const { SUB } = require('../shared/shell-nav');
+  return (SUB[group] || []).map(([id, label]) => ({ id, label }));
+}
+
+module.exports = { pageMotion, subnav };

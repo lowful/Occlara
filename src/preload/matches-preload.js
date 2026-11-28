@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const GAMES = require('../shared/games');
 const { iconOf } = require('../shared/agent-icons');
-const { pageMotion } = require('./page-motion');
+const { pageMotion, subnav } = require('./page-motion');
 
 /**
  * Bridge for the match library. Reads saved reviews, and the patterns and the
@@ -23,6 +23,9 @@ function subscribe(channel, cb) {
 contextBridge.exposeInMainWorld('occlara', {
   // Moving between pages (shared/embed.js).
   ...pageMotion(ipcRenderer),
+  // The sub switch at the page's head (Orbit, shared/subnav.js).
+  subnav,
+  go:           (page) => ipcRenderer.send(C.SHELL_NAV, page),
   getState:     () => ipcRenderer.invoke(C.STATE_GET),
   getConfig:    () => ipcRenderer.invoke(C.CONFIG_GET),
   listReviews:  (game) => ipcRenderer.invoke(C.REVIEWS_LIST, game || null),

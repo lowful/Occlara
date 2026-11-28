@@ -1,0 +1,182 @@
+'use strict';
+
+/**
+ * THE WINDOW ON THE SAMPLE LIBRARY, PICTURED FOR LOOKING (Orbit, 27 Nov 2026).
+ *
+ * shot-surface.js loads a surface with no preload, so the shell draws no
+ * links and Home only its empty state: fine for a stylesheet, blind to a
+ * page with data. This boots the shell and a page each with its REAL preload
+ * and answers their IPC from the sample library (scripts/fixtures/
+ * proof-reviews.js, the Jett on Abyss, 13 : 11, a B of 71), then draws the
+ * page over the shell at TOP_H, as the window composes them, into
+ * dist-surface-shots/demo-<scene>.png. Nothing is asked of the network, no
+ * licence or account is real, and nothing is recorded.
+ *
+ * Dev tool, never shipped (electron-builder packages src/ and assets/). Its
+ * windows open hidden behind a zero opacity, ignoring the mouse, so nothing
+ * shows on the desktop or takes a click. Run one Electron at a time.
+ *
+ *   env -u ELECTRON_RUN_AS_NODE npx electron scripts/shot-demo.js home review recording
+ *
+ * Scenes: home, matches, patterns, stats, practice, clips, review, recording,
+ * waiting, held, stop (recording between matches, on Matches).
+ */
+const { app, BrowserWindow, ipcMain } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+
+const ROOT = path.join(__dirname, '..');
+const OUT = path.join(ROOT, 'dist-surface-shots');
+const C = require('../src/shared/channels');
+const { PAGES } = require('../src/shared/shell-nav');
+const proof = require('./fixtures/proof-reviews');
+const patterns = require('../src/shared/patterns');
+const progress = require('../src/shared/progress');
+const moments = require('../src/shared/moments');
+const { served } = require('../src/shared/valorant-review');
+const { scrubText } = require('../src/shared/plain-text');
+
+const TOP_H = Number((fs.readFileSync(path.join(ROOT, 'src', 'main', 'windows', 'main-window.js'), 'utf8').match(/const TOP_H = (\d+);/) || [])[1]) || 56;
+const W = Number(process.env.SHOT_W) || 1280;
+const H = Number(process.env.SHOT_H) || 800;
+
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.on('window-all-closed', () => {});
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Each scene: the shell's state, the page under it (or none), what main has said.
+const SCENES = {
+  home: { page: 'home' },
+  matches: { page: 'matches' },
+  patterns: { page: 'patterns' },
+  stats: { page: 'stats' },
+  practice: { page: 'practice' },
+  clips: { page: 'moments' },
+  review: { page: 'review' },
+  stop: { page: 'matches', coaching: true },
+  recording: { page: null, sealed: true, coaching: true, live: 'live' },
+  waiting: { page: null, sealed: true, coaching: true, live: 'waiting' },
+  held: { page: null, sealed: true, held: true },
+};
+
+function liveOf(kind) {
+  if (!kind) return null;
+  const startedAt = Date.now() - 24 * 60 * 1000;
+  if (kind === 'waiting') return { state: 'waiting', startedAt };
+  return { state: 'live', startedAt, mode: 'standard', map: 'Abyss', agent: 'Jett', team: 7, enemy: 6,
+    tape: ['W', 'L', 'L', 'W', 'L', 'W', 'W', 'W', 'L', 'W', 'W', 'L', 'L'], round: 14 };
+}
+
+async function load(win, file, query) {
+  for (let i = 0; i < 6; i++) {
+    try { await win.loadFile(file, query ? { query } : undefined); return true; } catch { await wait(400); }
+  }
+  return false;
+}
+
+async function capture(wc) {
+  for (let i = 0; i < 5; i++) {
+    try { return await wc.capturePage(); } catch { await wait(400); }
+  }
+  return null;
+}
+
+function makeWindow(w, h, preload) {
+  const win = new BrowserWindow({
+    width: w, height: h, show: false, frame: false, backgroundColor: '#060510',
+    opacity: 0, focusable: false, skipTaskbar: true,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: false, preload },
+  });
+  win.setIgnoreMouseEvents(true);
+  return win;
+}
+
+app.whenReady().then(async () => {
+  fs.mkdirSync(OUT, { recursive: true });
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-demo-'));
+  const seeded = proof.seed(path.join(ud, 'profile'), { now: Date.now() - 30 * 60 * 1000 });
+  const store = seeded.store;
+  const recent = () => store.recent('valorant', patterns.LOOK_BACK);
+  const present = (review) => scrubText({ ...served(review) });
+
+  let scene = SCENES.home;
+  const shellState = () => ({ page: scene.page || 'home', shown: scene.sealed ? null : scene.page, sealed: !!scene.sealed, held: !!scene.held, maximized: false });
+  const state = () => ({ gameId: 'valorant', isCoaching: !!scene.coaching, isPaused: false, licenseActive: true, sounds: false, riotId: '',
+    live: { liveMap: true, liveAgent: true, liveScore: true, liveRound: true }, notice: null });
+  const handlers = {
+    [C.STATE_GET]: () => state(),
+    [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', liveMap: true, liveAgent: true, liveScore: true, liveRound: true, riotId: '', recordingMode: 'off' }),
+    [C.SHELL_GET]: () => shellState(),
+    [C.LIVE_GET]: () => liveOf(scene.live),
+    [C.ACCOUNT_GET]: () => proof.SEEDED_VIEW,
+    [C.SOCIAL_STATE]: () => ({ live: false }),
+    [C.DUOS_STATE]: () => ({ duos: false }),
+    [C.REVIEWS_LIST]: (_e, game) => store.list(game || null).map((r) => ({ ...r, aiLog: null, work: null })),
+    [C.REVIEW_GET]: (_e, id) => { const e = store.get(id); return e ? present({ ...e.review, id: e.review.id || id }) : null; },
+    [C.PATTERNS_GET]: () => ({ game: 'valorant', ...patterns.summarise(recent()), progress: progress.libraryProgress(recent()) }),
+    [C.PROGRESS_GET]: (_e, id) => progress.matchProgress(recent(), id),
+    [C.MOMENTS_GET]: () => moments.build('valorant', recent(), { patterns: patterns.summarise(recent()), clips: () => [], url: () => null, frames: () => null, recordingMode: 'off' }),
+    [C.STATS_RANK_HISTORY]: () => [],
+    [C.CHANGELOG_NOTICE]: () => null,
+    [C.PRACTICE_TODAY]: () => null,
+    [C.WRAPPED_ENTRY]: () => null,
+    [C.REVIEW_RIOT]: () => null,
+    [C.LOL_REVIEW_GET]: () => null,
+  };
+  for (const [ch, fn] of Object.entries(handlers)) if (ch && ch !== 'undefined') ipcMain.handle(ch, async (e, ...a) => fn(e, ...a));
+  // A page that painted itself armed is let in at once, as main-window.js would.
+  ipcMain.on(C.PAGE_READY, (e) => { try { e.sender.send(C.PUSH_PAGE, { phase: 'enter', dir: 'none' }); } catch { /* gone */ } });
+
+  const wanted = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  for (const name of (wanted.length ? wanted : ['home'])) {
+    scene = SCENES[name];
+    if (!scene) { console.log(`skip ${name}: no such scene`); continue; }
+    const shellWin = makeWindow(W, H, path.join(ROOT, 'src', 'preload', 'shell-preload.js'));
+    let pageWin = null;
+    try {
+      if (!await load(shellWin, path.join(ROOT, 'src', 'renderer', 'shell', 'index.html'))) { console.log(`FAILED ${name}: the shell did not load`); continue; }
+      shellWin.showInactive();
+      const page = scene.sealed ? null : PAGES.find((p) => p.id === scene.page);
+      if (page) {
+        pageWin = makeWindow(W, H - TOP_H, path.join(ROOT, 'src', 'preload', page.preload));
+        if (!await load(pageWin, path.join(ROOT, 'src', 'renderer', page.surface, 'index.html'), { embed: '1', ...page.query })) { console.log(`FAILED ${name}: its page did not load`); continue; }
+        pageWin.showInactive();
+        if (page.id === 'review') {
+          await wait(400);
+          const id = seeded.ids[0];
+          const e = store.get(id);
+          pageWin.webContents.send(C.PUSH_VALORANT_REVIEW, present({ ...e.review, id }));
+        }
+      }
+      // Fonts, the moon and every entrance settle before the picture.
+      await wait(Number(process.env.SHOT_WAIT) || 3600);
+      const a = await capture(shellWin.webContents);
+      const b = pageWin ? await capture(pageWin.webContents) : null;
+      if (!a) { console.log(`FAILED ${name}: no picture`); continue; }
+      const comp = new BrowserWindow({ show: false, width: 200, height: 200 });
+      try {
+        await comp.loadURL('data:text/html,<canvas id="c"></canvas>');
+        const png = await comp.webContents.executeJavaScript(`(async () => {
+          const load = (src) => new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = src; });
+          const a = await load(${JSON.stringify(a.toDataURL())});
+          const c = document.getElementById('c'); c.width = a.width; c.height = a.height;
+          const g = c.getContext('2d'); g.drawImage(a, 0, 0);
+          ${b ? `const b = await load(${JSON.stringify(b.toDataURL())}); g.drawImage(b, 0, Math.round(${TOP_H} * a.width / ${W}));` : ''}
+          return c.toDataURL('image/png');
+        })()`);
+        const out = path.join(OUT, `demo-${name}.png`);
+        fs.writeFileSync(out, Buffer.from(png.split(',')[1], 'base64'));
+        console.log(`shot ${name} -> ${path.relative(ROOT, out)}`);
+      } finally { comp.destroy(); }
+    } catch (e) {
+      console.log(`FAILED ${name}: ${e.message}`);
+    } finally {
+      shellWin.destroy();
+      if (pageWin) pageWin.destroy();
+    }
+  }
+  try { fs.rmSync(ud, { recursive: true, force: true }); } catch { /* left in temp */ }
+  app.quit();
+});

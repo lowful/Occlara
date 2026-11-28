@@ -76,7 +76,8 @@ const { pageOf, createNav, createMotion } = require('../../shared/shell-nav');
  */
 
 // The shell lays itself out at these sizes (shell.css): change both together.
-// TOP NAVIGATION (Progress v3): no sidebar, a 64px bar across the top.
+// TOP NAVIGATION (Progress v3): no sidebar, a bar across the top, 56px since
+// Orbit (27 Nov 2026).
 //
 // THE ACCOUNT MENU FLOATS OVER THE PAGE (8.9.1). A page's view paints over the
 // shell's document, so the menu the avatar opens, which hangs below the bar,
@@ -90,7 +91,7 @@ const { pageOf, createNav, createMotion } = require('../../shared/shell-nav');
 // it by keyboard and says what was chosen (MENU_ACT), which the shell carries
 // out on its own rows (PUSH_MENU_ACT), seal locks and all.
 const SIDEBAR_W = 0;
-const TOP_H = 64;
+const TOP_H = 56;
 const MENU_MAX = 640;      // the most the view may be, either way, whatever the shell asks
 let menuView = null;
 let menuOpen = false;
@@ -122,8 +123,8 @@ const MIN_H = 640;
 // to paint it, and only the page's own left margin.
 const STAGE_PX = 1;
 // A page view's ground, and its see-through state while a page is on its way
-// under it. #07080C is --bg (theme.css).
-const GROUND = '#07080C';
+// under it. #060510 is --bg (theme.css).
+const GROUND = '#060510';
 const CLEAR = '#00000000';
 
 let win = null;
@@ -236,7 +237,7 @@ function create(opts) {
     minWidth: MIN_W,
     minHeight: MIN_H,
     frame: false,
-    backgroundColor: '#07080C',   // is --bg (theme.css)
+    backgroundColor: '#060510',   // is --bg (theme.css)
     show: false,
     title: 'Occlara',
     webPreferences: {

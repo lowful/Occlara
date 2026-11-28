@@ -27,6 +27,8 @@
 
     <aside id="rail" class="tr-rail">
       <header class="tr-rail-head">
+        <!-- THE SUB SWITCH (Orbit): the drills and the Trainer, shared/subnav.js. -->
+        <nav class="subnav no-drag" data-group="practice" data-current="trainer" aria-label="Practice"></nav>
         <h1 class="tr-title">Trainer</h1>
         <div class="seg tr-tabs" role="tablist" aria-label="Trainer">
           <button id="tab-play" type="button" role="tab" aria-selected="true" aria-controls="pane-play">Scenarios</button>
@@ -200,6 +202,7 @@
   </div>
 
   <script src="../shared/seg.js"></script>
+  <script src="../shared/subnav.js"></script>
   <script src="../../shared/trainer-math.js"></script>
   <script type="module" src="app.js"></script>
 </body>
