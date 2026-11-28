@@ -102,7 +102,9 @@ contextBridge.exposeInMainWorld('occlara', {
     // fix either, and the last graded match's lends its own the same way.
     const ungraded = !!(list[0] && !list[0].work && !list[0].grade) && fixless;
     const lender = writing ? list[1] : ungraded ? list.slice(1, 10).find((r) => r && r.grade && !r.work) : null;
-    const before = lender ? await ipcRenderer.invoke(C.REVIEW_GET, lender.id).catch(() => null) : null;
+    const lent = lender ? await ipcRenderer.invoke(C.REVIEW_GET, lender.id).catch(() => null) : null;
+    // Its id kept, so Home's Open button opens the review the fix came from.
+    const before = lent ? { ...lent, id: lent.id || lender.id } : null;
     const model = homeModel({ rows: list, patterns, review, previous: before });
     return { ...model, art: artOf(game, model), fix: fixClipOf(review) };
   },

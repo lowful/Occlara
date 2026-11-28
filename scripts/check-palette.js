@@ -182,7 +182,7 @@ const SIGNAL_ALLOWED = {
                             // 9.1: the bar's way back to the Recording view, its still recording dot and the keyboard's ring.
                             '.rec-back-dot', '.rec-back:focus-visible'],
   // The keyboard's ring on a recent match's row.
-  'home/home.css':         ['.r-row:focus-visible'],
+  'home/home.css':         ['.r-row:focus-visible', '.has-tip:focus-visible'],
   // 9.1: the keyboard's ring on the live rating's switch beside Start.
   'home/live-rating-switch.css': ['.h-lr-switch:focus-visible'],
   // ORBIT phase 2: a card's eyebrow on each page.

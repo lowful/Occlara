@@ -354,7 +354,12 @@ you play best, then every match as one grouped card of rows.
   dot carries `data-grade` for the site proof's reader. It draws itself once per visit (`chart.play()`, the line
   stroking left to right on --ease-enter, the fill wiping in under it, each
   dot arriving as the line reaches it), nothing under less motion, nothing
-  infinite. Hover or the keyboard (Left, Right, Home, End) reads each match
+  infinite. A dot's delay is the time the EASED line takes to reach it
+  (`reachedAt`, the bezier solved for its share of the line; `EASE_ENTER`
+  held to theme.css by test:trendchart): linear in x, the dots trailed the
+  line mid draw. A provisional grade is an open ring at 3.5, finely dashed
+  (the newest the same in the ink, no halo); at 2.75 its dash read as a
+  broken x. Hover or the keyboard (Left, Right, Home, End) reads each match
   in a tooltip and a polite live line; a click or Enter opens its review.
   Matches draws the last 20 graded rows (`CHART_N`, a row still being checked
   left out) with the latest and its change, the average of the same matches
@@ -371,6 +376,15 @@ you play best, then every match as one grouped card of rows.
   foot is the dates item 4 asks for. The grades it draws sit on its host as
   `data-grades` for the site proof's reader, since the chart labels only
   the newest.
+- **The averages name their windows** (9.1 fix): Matches' Average sits under
+  "Your last 20 graded matches", Home's "Averaging 64" over "Your last four
+  graded matches", and Patterns' reads "64 average over your last 10 graded
+  matches" (`averageOver`), where it said "average grade" over a window of
+  its own. **No matches yet** is a card (`#empty.m-empty`, "No matches yet"
+  and what lands here, League's in games), never one grey line; its actions
+  stay the page's own, Start in the bar and Import in the head. In League,
+  When you play says games (`paintWhen` takes League's noun over
+  play-times.js's words, its tooltips and its progress label).
 - **When you play best (item 15)** is `src/shared/play-times.js` (pure,
   `test:playtimes`): every graded row by when its match STARTED (Riot's
   `matchStartedAt`, else `watchedFrom`, when the screen saw it start, else
@@ -1749,7 +1763,10 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   label moved by exactly half the unseen arrow's room (its 12px gap and 16px,
   ui.css moved it 8 of 14) so the record icon and the word stand centred. The
   live rating's pill stands beside them on their line, its confirm under the
-  line. **No section of Home shrinks** (`.home > * { flex-shrink: 0 }`): the
+  line. When the fix is a lent one (`focusFrom`), the button under it opens
+  the review the fix is from (`home-model.js focusId`) and reads "Open that
+  review"; it opened the ungraded recording, which has no fix. The last match
+  card still opens the newest. **No section of Home shrinks** (`.home > * { flex-shrink: 0 }`): the
   hero was squeezed to its 360px min-height while its copy ran about 60px into
   the bento.
 - **What repeats**: every row in the full ink (the fourth was faded), and each
@@ -1760,7 +1777,12 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   the app's glass (`.has-tip`, `data-tip`) and to a screen reader
   (`home-model.js mistakeTrendWords`: "Getting worse: in 4 of your 5 newest
   recorded matches, up from 1 of the 5 before them."). A cause's trend is one
-  prompt's, so its words carry no counts.
+  prompt's, so its words carry no counts. Each mark is a tab stop, its tip
+  shown on the keyboard's focus as under the pointer (`.has-tip:focus-visible`),
+  so what was compared is never the pointer's alone. Stats' tiles draw the
+  same marks (stats.js `card`, `.arrow.way`), each named for what it compares
+  (this read of the stats against the one before); a flat trend was a middle
+  dot read as a full stop.
 - **The trend card**: its title is the average its line draws ("Averaging
   73"; "Level over five matches" read oddly), the grade's own arrow beside it
   (`gradeTrendOf`: the five drawn against the five before, else the halves of
@@ -1775,7 +1797,9 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   from valorant-api.com's newest tier table, written to a file, never a pipe),
   the last game's RR, the RR in the tier as a bar and "43 RR to Diamond 2".
   From Immortal 1 the RR is not capped at 100: the RR under the tier, no bar,
-  and "Immortal 3 follows the leaderboard" (Radiant: "The highest rank").
+  and "Immortal 3 is set by your region's leaderboard" (Radiant: "The
+  highest rank"; it read "follows the leaderboard", which reads as "comes
+  after" it).
   `src/shared/rank-tiers.js` holds the ladder (names in any case, the tier
   after each, `rrOf` from a history point's elo, which is a place times 100
   plus the RR, never printed); the Home and Stats preloads name the files.
@@ -1783,8 +1807,14 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
   an elo of 0 is rated only where the tier is Iron 1 (`home-model.js
   eloRated`, stats.js `eloRated`, the Stats preload's `rankProgress`), or the
   card showed the game before it ("+19 RR" after a game that cost 19). On
-  Stats the RR is said once: the foot leaves it to the line under the tile
-  (main's `rankLine`) whenever that line opens with it, Immortal included.
+  Stats the RR is said once, at the bar's left foot as on Home's card ("57
+  RR", "43 RR to Diamond 2"): the line under the tile (main's `rankLine`)
+  gives its opening RR to the foot, Riot's own number, and keeps the rest
+  ("Peak Diamond 2 in E9A3"), Immortal included. Standing alone on its row
+  (the moment's card hidden), Home's rank card draws the journey's line in
+  the room beside the tier (`#rank-line`, `paintRankLine`, rankModel's
+  `line`), where it drew 800px of nothing; beside the moment it does not.
+  The last match card's RR reads as the rank card's, "+11 RR".
 - **The moon turns** (`shared/sky.js`, "THE TURNING MOON"). The image moon was
   1000px over a box 130% of the window wide, so it was pixelated at 1x and
   worse at 2x. Now a WebGL sphere: its surface (maria, grain and four fields

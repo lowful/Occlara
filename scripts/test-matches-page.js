@@ -75,6 +75,14 @@ const row = (over) => ({ id: `valorant-${NOW}-r`, game: 'valorant', at: NOW - HO
     ok(lol.$('imp-go').hidden, 'not for League');
     const pat = await open({ section: 'patterns', rows: [row()] });
     ok(pat.$('imp-go').hidden, 'and not on Patterns, where its panel is not drawn');
+    // 9.1 fix: no matches yet is a card saying what lands here, never one grey line; its actions stay the page's own.
+    const none = await open({ rows: [] });
+    ok(!none.$('empty').hidden && none.$('empty').classList.contains('m-empty') && none.$('empty').querySelector('.m-card-title').textContent === 'No matches yet'
+      && !none.$('imp-go').hidden && !none.$('empty').querySelector('button') && none.$('list').children.length === 0,
+    "no matches yet: a card with its words, the head's Import beside it, no second button");
+    const lolNone = await open({ game: 'lol', rows: [] });
+    const lolSaid = `${lolNone.$('empty').querySelector('.m-card-title').textContent} ${lolNone.$('empty').querySelector('.empty').textContent}`;
+    ok(!lolNone.$('empty').hidden && lolSaid.startsWith('No games yet') && !/match/.test(lolSaid), "League: the card in League's words, games", lolSaid);
   }
 
   console.log('\nitem 5, a run grading recent matches is one line, never a button:');
@@ -165,6 +173,11 @@ const row = (over) => ({ id: `valorant-${NOW}-r`, game: 'valorant', at: NOW - HO
     const w = why.document.querySelector('#list .m-why');
     ok(w && w.textContent === 'Not enough measured to grade' && /this game/.test(w.title) && !/score was never on screen/.test(w.title),
       "an ungraded League row is never told its score was not on screen, a Valorant reason", w && w.title);
+    // When you play in League's words: games, never matches.
+    const lolWhen = await open({ game: 'lol', rows: [row({ id: 'l3', game: 'lol', title: 'Ahri', map: "Summoner's Rift", mode: 'Ranked Solo', result: null, score: null, grade: { score: 70 } })] });
+    const wn = lolWhen.$('when');
+    const said = `${lolWhen.$('when-title').textContent} ${lolWhen.$('when-note').textContent} ${lolWhen.$('when-progress').getAttribute('aria-label') || ''}`;
+    ok(!wn.hidden && /\bgames?\b/.test(said) && !/\bmatch(es)?\b/.test(said), 'When you play in League says games, never matches', said);
   }
 
   console.log('\nitem 18, a row\'s menu and Delete match, asked first:');

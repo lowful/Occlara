@@ -156,6 +156,17 @@ async function openHome(o) {
     const lent = await openHome({ rows, reviews: { ...reviews, 'valorant-2-s': { id: 'valorant-2-s', focus: 'Trade your entry: stay close.', grade: { score: 84 } } } });
     ok(lent.$('h-fix-head').textContent === 'Trade your entry' && !lent.$('h-kicker').hidden && lent.$('h-kicker').textContent === 'From your last graded match',
       'the last graded match lends its fix, and the hero says it is that one\'s', lent.$('h-kicker').textContent);
+    // The button under that fix opens the review the fix is from, and says so;
+    // the last match card still opens the newest.
+    lent.fire(lent.$('h-open'), 'click');
+    lent.fire(lent.$('last'), 'click');
+    const opened = lent.bridge.sent.filter((x) => x[0] === C.REVIEW_OPEN).map((x) => x[1]);
+    ok(lent.$('h-open').querySelector('.btn-label').textContent === 'Open that review' && same(opened, ['valorant-2-s', 'valorant-1-h']),
+      'the button under a lent fix opens the review the fix is from, "Open that review"; the card the newest', JSON.stringify(opened));
+    const own = await openHome({ rows: [row('valorant-1-o', 60000)], reviews: { 'valorant-1-o': { id: 'valorant-1-o', focus: 'Hold: wait for the swing.', grade: { score: 84 } } } });
+    own.fire(own.$('h-open'), 'click');
+    ok(own.$('h-open').querySelector('.btn-label').textContent === 'Open last review'
+      && same(own.bridge.sent.filter((x) => x[0] === C.REVIEW_OPEN).map((x) => x[1]), ['valorant-1-o']), 'its own fix: "Open last review", the newest');
   }
 
   // ── The model's words ──────────────────────────────────────────────────────
@@ -245,7 +256,7 @@ async function openHome(o) {
     ok(d.$('rank-rr').textContent === '+11 RR' && d.$('rank-fill').style.width === '57%' && d.$('rank-in').textContent === '57 RR' && d.$('rank-to').textContent === '43 RR to Diamond 2',
       'the last change, the RR in the tier as a bar, and how far to the next tier, named');
     const i = await openHome({ rows, riotId: 'Me#EUW', history: hist('Immortal 2', [2290, 2312]) });
-    ok(i.$('rank-bar').hidden && !i.$('rank-points').hidden && i.$('rank-points').textContent === '112 RR' && i.$('rank-in').textContent === 'Immortal 3 follows the leaderboard'
+    ok(i.$('rank-bar').hidden && !i.$('rank-points').hidden && i.$('rank-points').textContent === '112 RR' && i.$('rank-in').textContent === "Immortal 3 is set by your region's leaderboard"
       && i.$('rank').classList.contains('uncapped') && i.$('rank-icon').getAttribute('src') === '../../../assets/ranks/immortal-2.webp',
     'Immortal: its RR uncapped, no bar, and why');
     const r = await openHome({ rows, riotId: 'Me#EUW', history: hist('Radiant', [2900, 2944]) });
@@ -285,14 +296,16 @@ async function openHome(o) {
         sub: tile && tile.querySelector('.rank-sub') ? tile.querySelector('.rank-sub').textContent : null };
     };
     const imm = await stats('Immortal 2', ['112 RR', 'Peak Immortal 3'], [2290, 2312]);
-    ok(imm.tile && same(imm.foot, ['', 'Immortal 3 follows the leaderboard']) && /^112 RR/.test(imm.sub || ''),
-      'Stats at Immortal: the RR said once, by the line under the tile, the foot saying why there is no bar', JSON.stringify(imm.foot));
+    ok(imm.tile && same(imm.foot, ['112 RR', "Immortal 3 is set by your region's leaderboard"]) && imm.sub === 'Peak Immortal 3',
+      "Stats at Immortal: the RR said once, Riot's line's own moved into the foot beside why there is no bar, the line keeping the rest", `${JSON.stringify(imm.foot)} | ${imm.sub}`);
     const bare = await stats('Immortal 2', [], [2290, 2312]);
-    ok(same(bare.foot, ['112 RR', 'Immortal 3 follows the leaderboard']), 'and without that line the foot says the RR', JSON.stringify(bare.foot));
+    ok(same(bare.foot, ['112 RR', "Immortal 3 is set by your region's leaderboard"]), 'and without that line the foot says the RR', JSON.stringify(bare.foot));
     const dia = await stats('Diamond 1', ['57 RR', 'Peak Diamond 2'], [1546, 1557]);
-    ok(same(dia.foot, ['', '43 RR to Diamond 2']) && dia.tile.querySelector('.rank-progress .rank-bar'), 'below Immortal: the bar and how far to go, the RR in the line under', JSON.stringify(dia.foot));
+    ok(same(dia.foot, ['57 RR', '43 RR to Diamond 2']) && dia.tile.querySelector('.rank-progress .rank-bar') && dia.sub === 'Peak Diamond 2',
+      "below Immortal: the bar, the RR at its left foot as Home's card has it, how far to go at its right, said once", `${JSON.stringify(dia.foot)} | ${dia.sub}`);
     const iron = await stats('Iron 1', ['0 RR'], [19, 0]);
-    ok(iron.rr === '-19 RR' && same(iron.foot, ['', '100 RR to Iron 2']), "Stats at Iron 1, 0 RR: the game that took it there, and 100 to Iron 2", `${iron.rr} ${JSON.stringify(iron.foot)}`);
+    ok(iron.rr === '-19 RR' && same(iron.foot, ['0 RR', '100 RR to Iron 2']) && iron.sub === null,
+      'Stats at Iron 1, 0 RR: the game that took it there, and 100 to Iron 2; a line of the RR alone moves whole', `${iron.rr} ${JSON.stringify(iron.foot)} ${iron.sub}`);
   }
 
   // ── 8: the hero's layout, read from the stylesheet ─────────────────────────

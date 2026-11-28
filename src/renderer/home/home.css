@@ -406,13 +406,17 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
   transition: opacity 120ms var(--ease-out), transform 120ms var(--ease-out);
 }
 .has-tip:hover::after { opacity: 1; transform: none; transition-duration: var(--dur-hover-in); transition-delay: 220ms; }
+/* The keyboard reads it too (9.1 fix): a mark is a tab stop, its words shown
+   on focus as under the pointer, at once. */
+.has-tip:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.has-tip:focus-visible::after { opacity: 1; transform: none; transition-duration: var(--dur-hover-in); }
 /* The trend card's own arrow sits at its top, in the middle of a narrow card:
    its words open below the whole title line, from the card's left, so they
    are never cut by the card's edge. */
 .trend-head { position: relative; }
 .trend-head .way { position: static; }
 .trend-head .has-tip::after { left: 0; right: auto; bottom: auto; top: calc(100% + 8px); max-width: 100%; transform: translateY(-3px); }
-.trend-head .has-tip:hover::after { transform: none; }
+.trend-head .has-tip:hover::after, .trend-head .has-tip:focus-visible::after { transform: none; }
 
 /* ── The trend ──────────────────────────────────────────────────────────── */
 .trend-head { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
@@ -482,6 +486,14 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 }
 .rank-icon.ready { opacity: 1; transform: none; }
 .rank-icon[hidden] { display: none; }
+/* The journey's line, only where the rank card stands alone on its row
+   (the moment's card hidden): one line in the ink to its newest point, a
+   round cap standing for the dot, sized by its stroke so the stretched
+   viewBox never squashes it. */
+.rank-line { display: none; flex: 0 1 360px; min-width: 160px; height: 56px; margin-left: auto; overflow: visible; }
+.row.single .rank-line:not([hidden]) { display: block; }
+.rank-line-path { fill: none; stroke: var(--text-2); stroke-width: 1.5px; stroke-linejoin: round; stroke-linecap: round; }
+.rank-line-end { stroke: var(--text); stroke-width: 7px; stroke-linecap: round; }
 .rank-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .rank-now { display: flex; align-items: center; gap: var(--space-3); }
 .rank-tier { font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); line-height: 1.1; white-space: nowrap; }

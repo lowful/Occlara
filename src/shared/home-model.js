@@ -196,6 +196,9 @@ function homeModel({ rows, patterns, review, previous }) {
     // Why the fix is an older one's: 'writing' (the newest is still being
     // built) or 'ungraded' (the newest has no grade), or null.
     focusFrom: prevFocus ? (last.work ? 'writing' : 'ungraded') : null,
+    // And that older review's id, for the hero's button under its fix (9.1
+    // fix): the fix shown is that review's, so the button opens that one.
+    focusId: prevFocus && previous && typeof previous.id === 'string' ? previous.id : null,
     // 9.1, the owner's item 4: the grade's way over the last matches, for
     // the trend card's arrow and its tooltip, or null below four grades.
     gradeTrend: gradeTrendOf(grades),

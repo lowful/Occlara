@@ -26,6 +26,8 @@ let paintAsk = 0;
 let arriving = false;
 // The last match's id, for its RR chip and the Fix card's Open review.
 let lastId = null;
+// The review the hero's button opens when the fix shown is an older one's (paintHero), else null.
+let openId = null;
 
 /*
  * THE NEWEST RATED MATCH WITHOUT ITS RR (8.2.1) is asked about again once the
@@ -241,6 +243,9 @@ function wayMark(way, better, words, label) {
   m.setAttribute('role', 'img');
   m.setAttribute('aria-label', words);
   m.dataset.tip = words;
+  // A tab stop, so the keyboard sees what was compared too (home.css shows
+  // the tip on focus as on hover), not only a screen reader.
+  m.tabIndex = 0;
   m.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${WAY_PATH[way]}</svg>`;
   if (label) m.append(el('span', 'way-n', label));
   return m;
@@ -473,6 +478,14 @@ function paintHero(model) {
   $('h-fix-head').textContent = words.head;
   $('h-fix-sub').textContent = words.sub;
   $('h-open').hidden = !has;
+  // THE BUTTON UNDER THE FIX OPENS THE REVIEW THE FIX IS FROM (9.1 fix): an
+  // ungraded newest match (or one still being checked) lends the hero an
+  // older review's fix, and "Open last review" under it opened the
+  // recording with none. Then it opens that review and says so; the last
+  // match card still opens the newest.
+  openId = from && model.focusId ? model.focusId : null;
+  $('h-open').querySelector('.btn-label').textContent = openId ? 'Open that review' : 'Open last review';
+  $('h-open').title = openId ? (from === 'ungraded' ? 'The review of your last graded match, where this fix is from' : 'Your last review, where this fix is from') : '';
   // The agent in front of the moon: the last match's, standing (its full
   // portrait), or its head icon in the ring when there is no portrait.
   const host = $('h-agent');
@@ -519,7 +532,7 @@ function putAgent(host, full, face) {
   host.append(img);
   host.hidden = false;
 }
-$('h-open').addEventListener('click', () => { if (lastId) window.occlara.openReview(lastId); });
+$('h-open').addEventListener('click', () => { const id = openId || lastId; if (id) window.occlara.openReview(id); });
 
 // Each repeated mistake's mark: a figure alone, a clock for one about time,
 // a scale for one about numbers, a crosshair otherwise. Words decide, never
@@ -712,7 +725,7 @@ function paintRowRR() {
  * sync:rankicons; the preload names the file), the RR in the tier under the
  * tier, the last game's RR beside it, and the way to the next tier as a bar
  * with how far it is and what it is ("43 RR to Diamond 2"). From Immortal 1
- * the RR is not capped at 100 and the next rank follows the leaderboard, so
+ * the RR is not capped at 100 and the next rank is set by the region's leaderboard, so
  * there is no bar, only the RR and that line. Every tier draws its own icon;
  * one that fails to load leaves the words alone.
  */
@@ -749,12 +762,52 @@ function paintRank(card) {
     if (inTier !== null) {
       $('rank-fill').style.width = `${Math.max(1, Math.min(100, inTier))}%`;
       // From Immortal 1 the foot says why there is no bar, on the left.
-      $('rank-in').textContent = capped ? `${inTier} RR` : card.next ? `${card.next} follows the leaderboard` : 'The highest rank';
+      $('rank-in').textContent = capped ? `${inTier} RR` : card.next ? `${card.next} is set by your region's leaderboard` : 'The highest rank';
       $('rank-to').textContent = capped ? `${100 - inTier} RR to ${card.next || 'the next rank'}` : '';
     }
   }
+  paintRankLine(card);
   closeUp();
   if (was && card) rise(host);
+}
+
+/*
+ * THE JOURNEY'S LINE (9.1 fix, the rank card alone on its row): the RR over
+ * the journey's rated games (rankModel line, oldest first, the elo that
+ * places a game on the whole ladder), one line in the ink to its newest dot,
+ * in the room the card has beside the tier only when the moment's card is
+ * not there (home.css shows it on a single row). Below two games, none.
+ */
+function paintRankLine(card) {
+  const svg = $('rank-line');
+  const line = card && Array.isArray(card.line) ? card.line.filter((v) => typeof v === 'number' && Number.isFinite(v)) : [];
+  svg.replaceChildren();
+  // An <svg> has no hidden property of its own (HTMLElement's): the attribute.
+  if (line.length < 2) svg.setAttribute('hidden', ''); else svg.removeAttribute('hidden');
+  if (line.length < 2) return;
+  const W = 240, H = 56, PAD = 6;
+  const lo = Math.min(...line), hi = Math.max(...line);
+  const span = Math.max(hi - lo, 20);
+  const mid = (hi + lo) / 2;
+  const x = (i) => (i / (line.length - 1)) * (W - PAD * 2) + PAD;
+  const y = (v) => H / 2 - ((v - mid) / span) * (H - PAD * 2);
+  const NS = 'http://www.w3.org/2000/svg';
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('d', line.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' '));
+  path.setAttribute('class', 'rank-line-path');
+  path.setAttribute('vector-effect', 'non-scaling-stroke');
+  const end = document.createElementNS(NS, 'line');
+  const ex = x(line.length - 1).toFixed(1), ey = y(line[line.length - 1]).toFixed(1);
+  end.setAttribute('x1', ex); end.setAttribute('y1', ey); end.setAttribute('x2', ex); end.setAttribute('y2', ey);
+  end.setAttribute('class', 'rank-line-end');
+  end.setAttribute('vector-effect', 'non-scaling-stroke');
+  svg.append(path, end);
+  const net = line[line.length - 1] - line[0];
+  const words = `Your rank over your last ${line.length} rated games, ${net > 0 ? `up ${net}` : net < 0 ? `down ${-net}` : 'level'} RR in all`;
+  svg.setAttribute('aria-label', words);
+  const t = document.createElementNS(NS, 'title');
+  t.textContent = words;
+  svg.prepend(t);
 }
 // The icon fades in once decoded, and a file that fails leaves the words alone.
 $('rank-icon').addEventListener('load', () => $('rank-icon').classList.add('ready'));

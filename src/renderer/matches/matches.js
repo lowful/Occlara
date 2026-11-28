@@ -261,6 +261,12 @@ function patternChips(p, total, bad) {
 function paintPatterns(p, byId) {
   $('p-avg').hidden = p.average === null;
   $('p-avg-num').textContent = p.average === null ? '' : p.average;
+  // THE AVERAGE NAMES ITS WINDOW (9.1 fix): Matches says "Average" under
+  // "Your last 20 graded matches" and Home "Averaging 64" over "Your last
+  // four graded matches"; this said "average grade" over a window of its own,
+  // so the three read as three different averages one tab apart.
+  const over = Number.isInteger(p.averageOver) && p.averageOver > 0 ? p.averageOver : null;
+  $('p-avg').querySelector('.p-avg-label').textContent = over ? `average over your last ${over} graded ${over === 1 ? 'match' : 'matches'}` : 'average grade';
   if (p.average !== null) countOnce($('p-avg'), 'count', $('p-avg-num'), p.average);
   paintTrend(p.grades || [], p.progress, p.average, byId);
   paintCats(p.categories || [], p.matches);
@@ -1521,6 +1527,11 @@ function paintWhen(rows) {
   box.hidden = !listPage || !r || !r.counted;
   if (box.hidden) return;
   box.classList.toggle('counting', !r.enough);
+  // League's words are games (9.1 fix): play-times.js says matches, so its
+  // lines take League's noun here, as every League line does.
+  const noun = (t) => (game === 'lol' ? String(t || '').replace(/\bmatches\b/g, 'games').replace(/\bmatch\b/g, 'game') : t);
+  r.text = JSON.parse(JSON.stringify(r.text), (_k, v) => (typeof v === 'string' ? noun(v) : v));
+  if (r.toward && r.toward.label) r.toward.label = noun(r.toward.label);
   $('when-title').textContent = r.text.title;
   $('when-note').textContent = r.text.note;
   const prog = $('when-progress');
@@ -1561,13 +1572,13 @@ function paintWhen(rows) {
     bar.append(fillEl);
     if (s.avg !== null && s.compared) bar.append(el('span', 'when-avg', String(s.avg)));
     col.append(bar, el('span', 'when-hour', SLOT_SHORT[s.slot]), el('span', 'when-n', s.n ? String(s.n) : ''));
-    col.title = s.n
+    col.title = noun(s.n
       ? `${s.label}: average grade ${s.avg} over ${s.n} ${s.n === 1 ? 'match' : 'matches'}${s.decided ? `, won ${s.won} of ${s.decided}` : ''}`
         + (s.compared ? '' : `. Too few to compare: compared once ${P.MIN_SLOT} are graded here.`)
-      : `${s.label}: no graded matches`;
+      : `${s.label}: no graded matches`);
     hours.append(col);
   }
-  hours.setAttribute('aria-label', 'Average grade by the time of day each match started: '
+  hours.setAttribute('aria-label', noun('Average grade by the time of day each match started: ')
     + r.slots.filter((s) => s.n).map((s) => `${s.label}, ${s.avg} over ${s.n}`).join('; ') + '.');
   // The columns grow from their baseline once per visit, 40ms apart.
   entrance(hours, 'grow', () => {
@@ -1613,6 +1624,10 @@ async function load() {
     if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(rise); else rise();
   }
   $('empty').hidden = rows.length > 0;
+  $('empty').querySelector('.m-card-title').textContent = game === 'lol' ? 'No games yet' : 'No matches yet';
+  $('empty').querySelector('.empty').textContent = game === 'lol'
+    ? 'Press Start before you queue and play a game: its graded review lands here when it ends, with every game after it.'
+    : 'Press Start before you queue and play a match: its graded review lands here when it ends, with every match after it.';
   paintChart(rows, deltas);
   paintWhen(rows);
   // The list's own heading, once a card stands over it.

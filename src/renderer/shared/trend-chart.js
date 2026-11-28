@@ -59,6 +59,24 @@
   const DAY_MS = 24 * 3600 * 1000;
   const PAD = { L: 30, R: 18, T: 18, B: 28 };
   const DRAW_MS = 900;
+  /*
+   * WHEN THE LINE REACHES A POINT (9.1 fix): the line is drawn on
+   * --ease-enter, cubic-bezier(0.16, 1, 0.3, 1) (theme.css; test:trendchart
+   * holds the two the same), so it is at half its length a tenth of the way
+   * in. A dot's delay linear in x left the dots well behind the line mid
+   * draw. This is the time, as a share of the draw, at which the eased line
+   * has covered `f` of its length: the bezier's progress solved for f, then
+   * its time read off.
+   */
+  const EASE_ENTER = [0.16, 1, 0.3, 1];
+  function reachedAt(f) {
+    const [x1, y1, x2, y2] = EASE_ENTER;
+    const at = (a, b, s) => 3 * (1 - s) * (1 - s) * s * a + 3 * (1 - s) * s * s * b + s * s * s;
+    const want = Math.max(0, Math.min(1, f));
+    let lo = 0, hi = 1;
+    for (let k = 0; k < 24; k++) { const mid = (lo + hi) / 2; if (at(y1, y2, mid) < want) lo = mid; else hi = mid; }
+    return at(x1, x2, (lo + hi) / 2);
+  }
   const FIG = 6.2;          // a 10px Geist Mono figure
   const FOOT_GAP = 14;      // between two foot labels
 
@@ -316,9 +334,12 @@
         if (dense && !last && !record) return;
         // A record is ringed in the good tone, outside its dot (Patterns).
         if (record) dots.append(mk('circle', { cx: cx.toFixed(1), cy: cy.toFixed(1), r: last ? 8 : 6.5, class: 'tc-record' }));
-        const c = mk('circle', { cx: cx.toFixed(1), cy: cy.toFixed(1), r: last ? 4.5 : 2.75,
+        // A provisional grade is an open ring a little larger, finely dashed
+        // (trend-chart.css): at 2.75 the dash read as a broken x on the line.
+        const c = mk('circle', { cx: cx.toFixed(1), cy: cy.toFixed(1), r: last ? 4.5 : pts[i].provisional ? 3.5 : 2.75,
           class: 'tc-dot' + (last ? ' now' : '') + (pts[i].provisional ? ' prov' : ''), 'data-grade': Math.round(pts[i].grade) });
-        c.style.setProperty('--d', `${Math.round(((cx - PAD.L) / Math.max(1, w - PAD.L - PAD.R)) * DRAW_MS * 0.85)}ms`);
+        // Each dot arrives as the eased line reaches it (reachedAt), a breath early so it is up as the line passes.
+        c.style.setProperty('--d', `${Math.max(0, Math.round(reachedAt((cx - PAD.L) / Math.max(1, w - PAD.L - PAD.R)) * DRAW_MS) - 40)}ms`);
         dots.append(c);
       });
       svg.append(dots);
@@ -469,7 +490,7 @@
     };
   }
 
-  const api = { draw, smoothPath, footLabels, dayWord, whenWord, domain, sayOf, notesOf, DRAW_MS };
+  const api = { draw, smoothPath, footLabels, dayWord, whenWord, domain, sayOf, notesOf, reachedAt, EASE_ENTER, DRAW_MS };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   if (root) root.TrendChart = api;
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));

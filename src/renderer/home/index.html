@@ -171,6 +171,11 @@
               </div>
               <span id="rank-points" class="rank-points" hidden></span>
             </div>
+            <!-- The journey's line (9.1 fix): the rank card standing alone on
+                 its row, the moment's card hidden, drew 800px of nothing
+                 beside the tier; there it draws the RR over the rated games
+                 of the journey (home-model.js rankModel line). -->
+            <svg id="rank-line" class="rank-line" viewBox="0 0 240 56" preserveAspectRatio="none" role="img" hidden></svg>
           </div>
           <div id="rank-bar" class="rank-bar" hidden><i id="rank-fill"></i></div>
           <div id="rank-foot" class="rank-foot" hidden><span id="rank-in"></span><span id="rank-to"></span></div>

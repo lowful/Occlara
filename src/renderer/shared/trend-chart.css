@@ -40,8 +40,10 @@
 .tc-line { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .tc-dot { fill: var(--bg); stroke: var(--text-2); stroke-width: 1.5;
   transform-box: fill-box; transform-origin: center; }
-.tc-dot.prov { stroke-dasharray: 2 2; }
+.tc-dot.prov { stroke-dasharray: 1.5 1.5; }
 .tc-dot.now { fill: var(--text); stroke: rgba(255, 255, 255, 0.18); stroke-width: 7; paint-order: stroke; }
+/* The newest, provisional: the same open dashed ring, in the ink, no halo. */
+.tc-dot.now.prov { fill: var(--bg); stroke: var(--text); stroke-width: 1.5; }
 /* Patterns' marks (9.1): a record ringed in the good tone, a run underlined
    along the baseline; both named in the key and in the tooltip. */
 .tc-record { fill: none; stroke: var(--good); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; }

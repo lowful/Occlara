@@ -8,7 +8,23 @@ const sessionEmptyEl = document.getElementById('session-empty');
 const updatedEl      = document.getElementById('updated');
 const refreshBtn     = document.getElementById('refresh');
 
-const ARROW = { up: '▲', down: '▼', flat: '·' };
+/*
+ * A TILE'S WAY (9.1): up, down or a flat line in a round of its own, the
+ * marks Home's What repeats and trend draw, each with words saying what was
+ * compared (main's trendDirection: this read of your stats against the one
+ * before). A flat trend was a middle dot after the number ("64 ·"), read as
+ * a stray full stop; a bare line would read as a minus.
+ */
+const WAY_PATH = {
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  flat: '<path d="M5 12h14"/>',
+};
+const WAY_WORDS = {
+  up: 'Up on the read of your stats before this one',
+  down: 'Down on the read of your stats before this one',
+  flat: 'Steady since the read of your stats before this one',
+};
 let lastFetchedAt = 0;
 let refreshBlockedUntil = 0;
 let matchMode = 'competitive';   // always opens on Competitive; Unrated = unrated + swiftplay
@@ -88,9 +104,16 @@ function card(label, value, direction, small) {
   v.className = 'value' + (small ? ' small' : '') + (value == null ? ' none' : '');
   v.textContent = value == null ? '·' : value;
   const a = document.createElement('span');
-  a.className = `arrow ${direction || 'flat'}`;
+  const way = WAY_PATH[direction] ? direction : 'flat';
+  a.className = `arrow ${way}`;
   // No number, no trend: a flat mark beside nothing would read as "no change".
-  a.textContent = value == null ? '' : (ARROW[direction] || ARROW.flat);
+  if (value != null) {
+    a.classList.add('way');
+    a.setAttribute('role', 'img');
+    a.setAttribute('aria-label', WAY_WORDS[way]);
+    a.title = WAY_WORDS[way];
+    a.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${WAY_PATH[way]}</svg>`;
+  }
   row.append(v, a);
   el.append(l, row);
   return el;
@@ -366,7 +389,7 @@ function paintRankIcon(card, tier) {
  * as a bar and how far to the next ("43 RR to Diamond 2"), from the rank
  * history's newest rated game, only when it is the tier the tile shows. From
  * Immortal 1 the RR is not capped at 100: no bar, the RR and that the next
- * rank follows the leaderboard.
+ * rank is set by the region's leaderboard.
  */
 async function paintRankProgress(card, tier) {
   if (!tier || typeof window.occlara.rankProgress !== 'function') return;
@@ -390,14 +413,21 @@ async function paintRankProgress(card, tier) {
   foot.className = 'rank-foot';
   const a = document.createElement('span');
   const b = document.createElement('span');
-  // The RR is said once (9.1). The quiet line under the tile (main's
-  // rankLine, from Riot's MMR) opens with it whenever Riot gives one up to
-  // 100, Immortal included: then the foot says only how far to go, or why
-  // there is no bar. Without that line the foot says it.
+  // The RR is said once (9.1), at the bar's left foot as Home's rank card
+  // says it, beside how far to go (or why there is no bar). The quiet line
+  // under the tile (main's rankLine, from Riot's MMR) opens with it whenever
+  // Riot gives one: that piece moves into the foot, Riot's own number, and
+  // the line keeps the rest ("Peak Diamond 2 in E9A3"). It read "57 RR" a
+  // line under the bar in another face, the foot's left empty.
   const sub = card.querySelector('.rank-sub');
-  const said = !!sub && /^\d+ RR\b/.test(sub.textContent.trim());
-  a.textContent = said ? '' : `${prog.rr} RR`;
-  b.textContent = prog.capped ? `${100 - prog.rr} RR to ${prog.next || 'the next rank'}` : prog.next ? `${prog.next} follows the leaderboard` : 'The highest rank';
+  const parts = sub ? sub.textContent.split(/\s+\u00b7\s+/) : [];
+  const lead = parts.length && /^\d+ RR$/.test(parts[0].trim()) ? parts[0].trim() : null;
+  a.textContent = lead || `${prog.rr} RR`;
+  if (lead) {
+    sub.textContent = parts.slice(1).join('  \u00b7  ');
+    if (!sub.textContent) sub.remove();
+  }
+  b.textContent = prog.capped ? `${100 - prog.rr} RR to ${prog.next || 'the next rank'}` : prog.next ? `${prog.next} is set by your region's leaderboard` : 'The highest rank';
   foot.append(a, b);
   box.append(foot);
   if (sub) card.insertBefore(box, sub); else card.append(box);
@@ -417,6 +447,10 @@ function renderCards(d) {
   const rr = rankCard.querySelector('.arrow');
   rr.className = 'arrow rr';
   rr.textContent = '';
+  // The RR in words, not the tile's way: none of the way's own name stays on it.
+  rr.removeAttribute('role');
+  rr.removeAttribute('aria-label');
+  rr.removeAttribute('title');
   paintRankDelta(rr);
   // 9.1: the tier's icon beside it and the way to the next tier under it.
   if (!nothingToShow(d)) {
@@ -836,9 +870,9 @@ function sessionRow(s, i, settled) {
   const mvpSlot = document.createElement('span');
   mvpSlot.hidden = true;   // fills in when a known match links to this one
   sessionMvpSlots.push({ s, slot: mvpSlot });
-  // Coloured by the grade's LETTER, as everywhere else. This chip used the
-  // tracker rating's bands at 85, 70 and 55, so an 82 A was white here and green
-  // in the review, the library and the panel.
+  // Coloured by the grade's SCORE, as everywhere else (GradeView.gradeTone).
+  // This chip used the tracker rating's bands at 85, 70 and 55, so an 82 was
+  // white here and green in the review, the library and the panel.
   const tone = gradeTone(s.grade);
   const target = (s.grade && s.grade.score) || 0;
   const score = document.createElement('span');
@@ -864,7 +898,8 @@ function sessionRow(s, i, settled) {
   actions.className = 'd-actions';
   const open = document.createElement('button');
   open.className = 'btn sm ask-btn no-drag';
-  open.textContent = 'Open the review';
+  // "Open review", the Matches row menu's words.
+  open.textContent = 'Open review';
   open.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.openReview(s.id); });
   const ask = document.createElement('button');
   ask.className = 'btn sm ask-btn no-drag';

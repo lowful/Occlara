@@ -166,7 +166,14 @@
 
         <h3 id="list-title" class="list-title" hidden>Every match</h3>
         <div id="list" class="list" role="list"></div>
-        <p id="empty" class="empty" hidden>No reviewed matches yet. Press Start, play a match, and its graded review lands here when it ends.</p>
+        <!-- NO MATCHES YET (9.1 fix): a card in the When you play waiting
+             card's style, not one grey line at the top of an empty page: what
+             lands here. Its actions are the page's own, Start in the bar and
+             Import a recording in the head, never a second of either. -->
+        <section id="empty" class="m-empty" hidden>
+          <h3 class="m-card-title">No matches yet</h3>
+          <p class="empty">Press Start before you queue and play a match: its graded review lands here when it ends, with every match after it.</p>
+        </section>
 
         <!-- A ROW'S MENU (9.1, the owner's item 18): one menu for every row,
              placed under the row's button that opened it. -->

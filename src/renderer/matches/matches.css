@@ -45,6 +45,11 @@ header {
 h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); margin: 0; }
 .hint { font-size: 13px; color: var(--text-dim); line-height: 1.5; margin: 0; }
 .empty { font-size: 14px; color: var(--text-dim); line-height: 1.55; margin: 0; }
+/* No matches yet (9.1 fix): one quiet card, as When you play's waiting one. */
+.m-empty { display: flex; flex-direction: column; gap: 6px; padding: var(--space-5) 28px; border-radius: var(--r-panel); background: var(--card); box-shadow: var(--rim); }
+.m-empty[hidden] { display: none; }
+.m-empty .m-card-title { margin: 0; font-size: 17px; letter-spacing: -0.015em; }
+.m-empty .empty { max-width: 72ch; font-size: 13px; }
 
 /* ── Patterns ──────────────────────────────────────────────────────────────
    The line under the title on the left, the average grade on the right as

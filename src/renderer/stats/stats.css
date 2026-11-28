@@ -48,6 +48,12 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
 /* Not known yet: a quiet mark, never a number. */
 .card .value.none { color: var(--text-mute); }
 .card .arrow { font-size: 12px; font-weight: 500; }
+/* A tile's way (9.1): Home's marks, a round each, on its own tint. */
+.card .arrow.way { align-self: center; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 22px; height: 22px; border-radius: var(--r-pill); background: var(--glass-q-h); }
+.card .arrow.way svg { width: 13px; height: 13px; }
+.card .arrow.way.up { background: rgba(var(--good-rgb), 0.12); }
+.card .arrow.way.down { background: rgba(var(--bad-rgb), 0.12); }
 .arrow.up   { color: var(--good); }
 .arrow.down { color: var(--bad); }
 .arrow.flat { color: var(--text-mute); }
@@ -84,7 +90,7 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
   -webkit-user-drag: none; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
 }
 .card .rank-icon.ready { opacity: 1; transform: none; }
-.rank-progress { display: flex; flex-direction: column; gap: 6px; max-width: 520px; margin-top: var(--space-1); }
+.rank-progress { display: flex; flex-direction: column; gap: 6px; max-width: 520px; margin-top: var(--space-3); }
 .rank-progress .rank-bar { position: relative; height: 4px; border-radius: 4px; background: var(--todo-bar); overflow: hidden; }
 .rank-progress .rank-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--won-bar); }
 .rank-progress .rank-foot { display: flex; justify-content: space-between; gap: var(--space-3); font-family: var(--font-mono); font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }

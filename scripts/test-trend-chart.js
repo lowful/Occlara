@@ -117,6 +117,16 @@ const pts = [
     ok(host.querySelectorAll('.tc-dot').length === 3 && host.querySelector('.tc-dot.now') && host.querySelector('.tc-dot.prov'),
       'a dot a match, the newest brighter, a provisional one dashed');
     ok(host.querySelector('.tc-now-label').textContent === '84', 'the newest grade over its dot');
+    // 9.1 fix: a provisional dot is an open ring a little larger, never a 2.75 dash that read as a broken x.
+    ok(host.querySelector('.tc-dot.prov').getAttribute('r') === '3.5', 'a provisional dot a larger open ring', host.querySelector('.tc-dot.prov').getAttribute('r'));
+    // 9.1 fix: each dot arrives as the EASED line reaches it, not linearly in x.
+    const theme = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'renderer', 'shared', 'theme.css'), 'utf8');
+    const token = (theme.match(/--ease-enter:\s*cubic-bezier\(([^)]+)\)/) || [])[1] || '';
+    ok(token.split(',').map(Number).join() === TC.EASE_ENTER.join(), 'the dots time the line by the --ease-enter it is drawn on', token);
+    ok(TC.reachedAt(0) < 1e-3 && Math.abs(TC.reachedAt(1) - 1) < 1e-3 && TC.reachedAt(0.5) < 0.15 && TC.reachedAt(0.25) < TC.reachedAt(0.5),
+      'the line is half drawn a tenth of the way in, and a dot further along arrives later', `${TC.reachedAt(0.5).toFixed(3)}`);
+    const ds = host.querySelectorAll('.tc-dot').map((d) => parseInt(d.style.getPropertyValue('--d'), 10));
+    ok(ds.every((v, i) => !i || v >= ds[i - 1]) && ds[1] < TC.DRAW_MS * 0.25, 'the middle dot is up by the time the eased line passes it, a quarter of the draw at most', JSON.stringify(ds));
     ok(host.querySelector('.tc-avg-label').textContent === 'avg 73', 'the average dashed and labelled');
     ok(host.querySelector('.tc-fill .tc-area') && host.querySelector('.tc-line').getAttribute('pathLength') === '1', 'the area on its own layer, the line ready to draw');
     const guides = host.querySelectorAll('.tc-guide-label').map((t) => t.textContent);
