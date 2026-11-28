@@ -3,16 +3,6 @@
 # NOT listed here, and says so when a listed one passes again, so this list can
 # only shrink. Fix one, delete its line.
 
-# Failing on main on every machine (as of 26 Nov 2026, 8.19.0), causes not
-# yet run down here except where one is given:
-check:cases
-check:playbook
-check:primer
-test:advancedtips
-test:chatgates
-test:rank-band
-test:valorantreview
-
 # What GitHub's hosted Windows machine cannot do. Run these on a real PC:
 check:recorder     # the recorder refuses to start without a GPU's H.264 encoder, and the runner has no GPU
 check:clips        # its first half records live, the same encoder

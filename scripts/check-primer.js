@@ -784,6 +784,16 @@ function fakeApi(raw, opts = {}) {
     ok(has('Regen Shield') && has('Damage Absorption: 25 HP >>> 30 HP') && has('Spike') && has('Plant time: 4s >>> 3.5s') && has(essay) && essay.length > 240,
       'the history keeps the short lines under a heading, the heading, and a paragraph past 240 characters', JSON.stringify(rn.lines.map((l) => l.line)).slice(0, 300));
     ok(rn.changes.length === 1 && rn.changes[0].line === 'Vandal fire rate reduced from 9.75 to 9.5', "while the prompt's changes keep only what they always kept");
+    // The carousel of other articles is cut at its heading, so the first
+    // card's category and date (which Riot rotates) are never a line, and a
+    // number Riot escapes reads as the page shows it.
+    const carousel = '<html><head></head><body>' + 'x'.repeat(1200) + '<ul><li>Reclaim cooldown increased from 15s &gt;&gt;&gt; 20s, in line with other Sentinels</li></ul>'
+      + '<div data-testid="blade-content"><div><h2 data-testid="title">Related Articles</h2></div><div data-testid="carousel"><ol><li><a><div data-testid="card">'
+      + '<div data-testid="card-category">Game Updates</div><div data-testid="card-date"><time dateTime="2026-11-10T14:00:00.000Z">2026-11-10T14:00:00.000Z</time></div>'
+      + '<div data-testid="card-title">VALORANT Patch Notes 13.10</div></div></a></li></ol></div></div></body></html>';
+    const cl = patchSync.htmlToLines(carousel);
+    ok(cl.includes('Reclaim cooldown increased from 15s >>> 20s, in line with other Sentinels') && !cl.some((l) => /Related Articles|^Game Updates$|^2026-|Patch Notes 13\.10/.test(l)),
+      'the carousel is cut at its heading, so a rotating card never changes the history, and >>> reads as the page shows it', JSON.stringify(cl.slice(-4)));
     const chrome = patchSync.notesFromHtml('<html><body><ul><li>Sign in</li><li>Play free</li><li>Spike Rush</li></ul></body></html>', { agents: [], weapons: [], maps: [] });
     ok(chrome.lines.length === 3 && chrome.substantive === 0, 'a page of nothing but short chrome is no notes read (substantive 0)');
     const eChrome = patchSync.historyEntry('13.09', chrome, 'u', '2026-10-14T17:00:00Z', 'article');
