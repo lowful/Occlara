@@ -92,6 +92,10 @@ const GRADIENTS = [
 ];
 const GRADIENT_ALLOWED = {
   'stats/stats.css': { css: 1 },      // the overview cards' skeleton shimmer: the gradient IS the animation
+  // ORBIT (27 Nov 2026): the medals' metal, gold, silver and bronze, each its
+  // light top to its dark foot and its face the other way, from the tokens
+  // (--gold-1 and the rest), drawn once in the review's SVG defs.
+  'review/index.html': { svg: 6 },
 };
 
 // OCCLARA WRAPPED'S OWN LOOK (docs/claude/wrapped.md, ui-rules-ipc.md

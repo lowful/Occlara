@@ -18,6 +18,19 @@
   <link rel="stylesheet" href="rating.css" />
 </head>
 <body>
+  <!-- THE MEDALS' METAL (Orbit, 27 Nov 2026): each a light top to a dark
+       foot, and the face inside it the other way, from the tokens. The one
+       place a gradient paints (check-palette.js GRADIENT_ALLOWED). -->
+  <svg class="medal-defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="mg-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--gold-1)"/><stop offset="1" style="stop-color: var(--gold-2)"/></linearGradient>
+      <linearGradient id="mg-gold-in" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--gold-2)"/><stop offset="1" style="stop-color: var(--gold-1)"/></linearGradient>
+      <linearGradient id="mg-silver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--silver-1)"/><stop offset="1" style="stop-color: var(--silver-2)"/></linearGradient>
+      <linearGradient id="mg-silver-in" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--silver-2)"/><stop offset="1" style="stop-color: var(--silver-1)"/></linearGradient>
+      <linearGradient id="mg-bronze" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--bronze-1)"/><stop offset="1" style="stop-color: var(--bronze-2)"/></linearGradient>
+      <linearGradient id="mg-bronze-in" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--bronze-2)"/><stop offset="1" style="stop-color: var(--bronze-1)"/></linearGradient>
+    </defs>
+  </svg>
   <div class="sheet glass">
     <header class="drag">
       <div class="h-brand">
@@ -29,7 +42,6 @@
              its row in Matches follows (shared/log-eye.js). Absent where
              nothing was recorded, disabled once the log no longer holds it. -->
         <span id="eye-host" class="eye-host no-drag" hidden></span>
-        <button id="ask" class="btn btn-ghost sm no-drag" hidden>Ask about this match</button>
         <!-- The Verdict as an image (8.7, docs/claude/verdict.md): drawn on
              this PC, saved or copied from here, never uploaded. Shown only
              beside a Verdict. -->
@@ -149,6 +161,7 @@
             <div class="vd-end">
               <span id="v-rr" class="v-rr" hidden></span>
               <div id="v-result" class="v-result"></div>
+              <div id="v-score" class="v-score"></div>
             </div>
           </div>
           <div class="vd-main">
@@ -156,14 +169,17 @@
             <div class="vd-said">
               <p id="v-stat" class="vd-stat" hidden></p>
             </div>
-            <div id="v-score" class="v-score"></div>
           </div>
+          <!-- THE MEDALS (Orbit): for real things only, main's own facts: the
+               best grade or a first letter in the last matches, a run, the
+               place in the lobby by rating. Never another player's name. -->
+          <div id="v-medals" class="vd-medals" hidden></div>
           <!-- THE FIX FOR NEXT MATCH (8.7): the one 44px line on the page,
                straight under the Verdict's row and before the numbers, so it
                is read before anything is counted. Last match's top mistake
                and how it went in this one above it (progress.js focus). -->
           <div id="v-focus-wrap" class="v-focus" hidden>
-            <div class="v-focus-label">Next match</div>
+            <div class="v-focus-label">Your fix for next match</div>
             <p id="v-focus" class="v-focus-text"></p>
             <!-- How last match's top mistake went, one quiet line UNDER the
                  fix with its own label (it stood over "Next match" and read
@@ -173,6 +189,14 @@
               <p id="v-focus-was" class="v-focus-was" hidden></p>
             </div>
           </div>
+          <!-- ASK ABOUT THIS MATCH, the hero's action (Ask Coach on this match),
+               and Every round, down to the rounds. -->
+          <div class="vd-actions">
+            <button id="ask" class="btn btn-primary no-drag" type="button" hidden><span class="btn-label"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 5h13A1.5 1.5 0 0 1 20 6.5v9a1.5 1.5 0 0 1-1.5 1.5H11l-4.5 3.5V17h-1A1.5 1.5 0 0 1 4 15.5v-9A1.5 1.5 0 0 1 5.5 5z"/></svg>Ask about this match</span><span class="btn-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+            <button id="v-every" class="btn btn-link" type="button">Every round</button>
+          </div>
+          <!-- THE AGENT, floating at the hero's right: the bundled portrait. -->
+          <div id="v-agent" class="vd-agent" aria-hidden="true" hidden></div>
           <div id="v-stats-wrap" class="v-stats-wrap" hidden>
             <div id="v-stats" class="v-stats"></div>
             <p id="v-against-note" class="v-against-note" hidden></p>

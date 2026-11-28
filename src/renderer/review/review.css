@@ -788,3 +788,68 @@ html.embedded .share {
 
 /* ── surface additions: the stills under a clip (8.7 redesign) ────────── */
 .v-shot-go { border-radius: var(--r-frame); }
+
+/* ── ORBIT, THE REVIEW'S HERO (27 Nov 2026) ────────────────────────────────
+   The Verdict is the hero on the ground, no frame and no map behind it: who
+   played where and how it ended in one quiet line, the grade's number at
+   132px with its letter, "out of 100" and the change on the last match
+   beside it, the medals for real things, the fix for the next match at the
+   display size (its first clause in the ink, the rest grey), then Ask about
+   this match and Every round. The agent floats at the right. Riot's
+   scoreboard under it is a card. Every rule here overrides the one above it
+   by the same selector or a heavier one. */
+.vd { padding: 12px 0 0; gap: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+.vd-art { display: none; }
+.vd > :not(.vd-art) { position: relative; z-index: 1; }
+.vd-top { justify-content: flex-start; flex-wrap: wrap; gap: 10px; }
+.vd-who { gap: 10px; }
+.vd-icon { flex: 0 0 28px; width: 28px; height: 28px; background: var(--raised); box-shadow: none; border: 1px solid var(--line); }
+.v-meta { font-size: 15px; color: var(--text-2); }
+.vd-end { align-items: center; gap: 8px; }
+.vd-end::before { content: ''; flex: none; width: 3px; height: 3px; border-radius: 50%; background: var(--text-3); margin-right: 2px; }
+.v-result { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-2); }
+.v-result.win { color: var(--good); }
+.v-result.loss { color: var(--bad); }
+.vd-end .v-score { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.v-rr { border-radius: var(--r-control); background: var(--raised); box-shadow: none; border: 1px solid var(--line); }
+.vd-main { margin-top: 26px; align-items: flex-end; gap: var(--space-8); }
+.vd-grade { flex-direction: row; align-items: flex-end; gap: 18px; }
+.vd-num { padding-bottom: 0; }
+.vd-score { font-size: 132px; font-weight: 700; line-height: 0.78; letter-spacing: -0.06em; margin-left: -6px; }
+.vd-side { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-bottom: 6px; }
+.vd-letter { font-size: var(--t-display); font-weight: 700; line-height: 0.9; letter-spacing: -0.02em; }
+.vd-out { font-family: var(--font); font-size: 13px; color: var(--text-2); }
+.vd-delta { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.vd-delta.up { color: var(--good); }
+.vd-delta.down { color: var(--bad); }
+.vd-delta[hidden] { display: none; }
+.vd-grade:has(.vd-prov) .vd-num-line { border-bottom: 0; padding-bottom: 0; }
+.vd-grade:has(.vd-prov) .vd-score { text-decoration: underline dashed var(--text-mute) 2px; text-underline-offset: 10px; }
+.vd-said { padding-bottom: 8px; }
+.vd-stat-value { font-weight: 700; }
+/* The medals: the metal from the SVG defs at the page's top, its words beside. */
+.vd-medals { display: flex; flex-wrap: wrap; gap: 10px 26px; margin-top: 30px; }
+.vd-medals[hidden] { display: none; }
+.medal-item { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text-dim); }
+.medal { width: 22px; height: 26px; flex: none; overflow: visible; }
+.medal-n { font: 800 10px var(--font); fill: var(--bg); fill-opacity: 0.72; }
+/* The fix for the next match, at the display size, after the medals. */
+.v-focus { margin-top: 44px; padding: 0; border-radius: 0; background: transparent; box-shadow: none; max-width: 700px; }
+.v-focus .v-focus-label { margin-bottom: 14px; font-size: 15px; font-weight: 500; color: var(--text-2); }
+.v-focus-text { font-size: var(--t-display); font-weight: 700; line-height: var(--lh-display); letter-spacing: var(--track-display); }
+.vf-head { color: var(--text); }
+.vf-sub { color: var(--text-2); }
+.v-focus-was-wrap .v-focus-label { margin-bottom: var(--space-2); font-size: 12px; }
+.vd-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 34px; }
+.vd-actions #ask { min-width: 240px; }
+.vd-actions .btn-link { height: 44px; padding: 0 18px; }
+/* The agent at the hero's right, round, drifting slowly (motion.css m-drift,
+   paused when the window is hidden). Decoration: the agent is in the line. */
+.vd > .vd-agent { position: absolute; z-index: 0; right: 0; top: 52px; width: 260px; height: 260px; display: grid; place-items: center; pointer-events: none; }
+.vd-agent[hidden] { display: none; }
+.vd-agent::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 1px dashed var(--line-2); }
+.vd-agent-img { width: 188px; height: 188px; border-radius: 50%; object-fit: cover; background: var(--raised); border: 1px solid var(--line-2); box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.95); }
+/* Riot's scoreboard under the hero, a card. */
+.vd .v-stats-wrap { margin-top: 44px; padding: 22px 28px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); }
+.vd .v-verified, .vd .v-flags { margin-top: var(--space-4); }
+@media (max-width: 900px) { .vd-agent { display: none; } .vd-score { font-size: 112px; } }

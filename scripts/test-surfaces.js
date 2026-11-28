@@ -1365,10 +1365,13 @@ async function openShell(cfg, state, opts) {
     const eye = eyeIn(v);
     ok(!v.$('eye-host').hidden && eye && !eye.disabled && eye.getAttribute('aria-label') === LogEye.NAME,
       'a recorded review shows the eye in its header');
-    const actions = v.$('ask').parentNode;
+    // ORBIT (27 Nov 2026): Ask about this match is the hero's action now; the
+    // eye stays in the header, first of its actions, beside Share image.
+    const actions = v.$('share').parentNode;
     ok(v.$('eye-host').parentNode === actions && actions.classList.contains('h-actions')
-      && actions.children.indexOf(v.$('eye-host')) === actions.children.indexOf(v.$('ask')) - 1,
-    'right beside Ask about this match');
+      && actions.children.indexOf(v.$('eye-host')) === actions.children.indexOf(v.$('share')) - 1
+      && v.$('ask').parentNode.classList.contains('vd-actions') && v.$('ask').classList.contains('btn-primary'),
+    'right beside Share image, and Ask about this match the hero\'s own action');
     ok(eye && eyeShape(eye.querySelector('svg')) === eyeShape(statsEye) && v.scripts.some((s) => /log-eye\.js$/.test(s)),
       'the same eye as its row in Matches, from shared/log-eye.js');
     if (eye) eye.click();
@@ -2278,9 +2281,9 @@ async function openShell(cfg, state, opts) {
     v.window.VerdictCard.save = () => Promise.resolve(true);
     v.window.VerdictCard.copy = () => Promise.resolve(false);
     const sheet = v.$('share-sheet');
-    ok(!v.$('share').hidden && sheet.hidden && v.$('share').parentNode === v.$('ask').parentNode
+    ok(!v.$('share').hidden && sheet.hidden && v.$('share').parentNode.classList.contains('h-actions') && !v.$('ask').hidden
       && v.scripts.some((s) => /verdict-card\.js$/.test(s)),
-    'Share image beside Ask, its sheet closed, VerdictCard on the page');
+    'Share image in the header, Ask in the hero, its sheet closed, VerdictCard on the page');
     v.$('share').click();
     await settle();
     ok(!sheet.hidden && v.$('share').getAttribute('aria-expanded') === 'true' && v.$('sh-preview').querySelector('canvas.sh-canvas')
@@ -6644,7 +6647,7 @@ await section('Home\'s last match draws the grades as a line, one dot a match:',
     const card = v.$('locked');
     ok(shown(v, 'vreview') && shown(v, 'locked') && before(card) && before(card).id === 'v-verdict',
       'the upgrade card sits under the result and Riot\'s scoreboard');
-    ok(v.$('v-result').textContent === 'VICTORY' && v.$('v-score').textContent === '13 : 11' && shown(v, 'v-stats-wrap')
+    ok(v.$('v-result').textContent === 'Victory' && v.$('v-score').textContent === '13 : 11' && shown(v, 'v-stats-wrap')
       && v.document.querySelectorAll('#v-stats .v-stat').length === 4, 'the result, the score and Riot\'s four numbers are there');
     ok(shown(v, 'v-grade') && !shown(v, 'v-icon') && !v.document.querySelector('#v-grade .vd-letter') && !v.document.querySelector('#v-grade .vd-score')
       && v.$('v-grade').textContent === 'Not graded' && !shown(v, 'v-stat') && !shown(v, 'v-focus-wrap') && !shown(v, 'share'),

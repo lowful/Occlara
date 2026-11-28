@@ -183,14 +183,19 @@ function paintValorant(r, verdict) {
   // measured, grade.js). AS THE SHARE IMAGE DRAWS IT (8.8): the agent's icon
   // in its tile, no VERDICT word, and the standout where the reason was.
   paintVerdictIcon($('v-icon'), verdict);
-  paintVerdictArt($('v-art'), g.map);
+  // ORBIT: the hero sits on the ground, no map behind it; the agent floats
+  // at its right instead (the same bundled portrait as the icon).
+  paintVerdictArt($('v-art'), null);
+  paintVerdictAgent($('v-agent'), verdict);
   $('v-grade').replaceChildren(verdict ? verdictGrade(verdict) : notGraded(
     r.grade && typeof r.grade.score !== 'number' ? 'Not enough measured to grade this match' : 'Not graded'));
   $('v-grade').hidden = false;
   paintVerdictStat($('v-stat'), verdict);
+  paintMedals(r, null);
   $('v-verdict').classList.toggle('graded', !!verdict);
   const resultEl = $('v-result');
-  resultEl.textContent = g.result ? g.result.toUpperCase() : 'MATCH REVIEW';
+  // Sentence case (Orbit): "Victory", never shouted.
+  resultEl.textContent = g.result ? g.result : 'Match review';
   resultEl.className = 'v-result' + (g.result === 'Victory' ? ' win' : g.result === 'Defeat' ? ' loss' : '');
   const score = String(g.score || '').split('-');
   $('v-score').textContent = score.length === 2 ? `${score[0]} : ${score[1]}` : '';
@@ -238,7 +243,7 @@ function paintValorant(r, verdict) {
   // A focus with no read above it: no empty line between the heading and it.
   $('v-summary').hidden = !lines.length;
   $('v-focus-wrap').hidden = !r.focus;
-  $('v-focus').textContent = r.focus || '';
+  paintFixLine($('v-focus'), r.focus || '');
   // PRACTISE THIS (the Practice page): the review's top mistake, its drills
   // on the Practice page, opened on it. Valorant's alone. The mistake the
   // focus is about when the server named it (`focusKey`, Nov 2026) and the
@@ -292,15 +297,82 @@ function paintValorant(r, verdict) {
  * reveal to find.
  */
 function verdictGrade(v) {
+  // ORBIT (27 Nov 2026): the number is the hero, at the left; beside it the
+  // letter in its tone, "out of 100" and, once main has counted it, the change
+  // on the last match (.vd-delta, paintProgress).
   const box = el('div', 'vd-grade');
-  box.append(el('span', 'vd-letter ' + (window.GradeView.gradeTone({ score: v.score, letter: v.letter }) || 'none'), v.letter));
   const num = el('div', 'vd-num');
-  if (v.provisional) num.append(el('span', 'vd-prov', 'Provisional'));
   const line = el('div', 'vd-num-line');
-  line.append(el('span', 'vd-score', v.score), el('span', 'vd-out', '/100'));
+  line.append(el('span', 'vd-score', v.score));
   num.append(line);
-  box.append(num);
+  const side = el('div', 'vd-side');
+  side.append(el('span', 'vd-letter ' + (window.GradeView.gradeTone({ score: v.score, letter: v.letter }) || 'none'), v.letter));
+  if (v.provisional) side.append(el('span', 'vd-prov', 'Provisional'));
+  side.append(el('span', 'vd-out', 'out of 100'));
+  const delta = el('span', 'vd-delta');
+  delta.hidden = true;
+  side.append(delta);
+  box.append(num, side);
   return box;
+}
+
+/*
+ * THE MEDALS (Orbit): a medal for a real thing only, each main's own fact,
+ * never another player's name. The place in the lobby by rating when it is
+ * first, second or third (the served rating view), and from the progress
+ * against the matches before (progress.js, once main answers): a first
+ * letter or the best grade in the last graded matches, gold; a run, silver;
+ * the best of a category, bronze. Three at most. Built with textContent.
+ */
+const MEDAL_NS = 'http://www.w3.org/2000/svg';
+function medalSvg(tier, n) {
+  const svg = document.createElementNS(MEDAL_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 28');
+  svg.setAttribute('class', 'medal');
+  svg.setAttribute('aria-hidden', 'true');
+  const add = (tag, attrs) => { const x = document.createElementNS(MEDAL_NS, tag); for (const [k, val] of Object.entries(attrs)) x.setAttribute(k, String(val)); svg.append(x); return x; };
+  add('path', { d: 'M7.6 16 5.2 26.2l3.5-1.5 2.4 2.5 1.5-9z', fill: `url(#mg-${tier})`, opacity: '.7' });
+  add('path', { d: 'M16.4 16l2.4 10.2-3.5-1.5-2.4 2.5-1.5-9z', fill: `url(#mg-${tier})`, opacity: '.7' });
+  add('circle', { cx: 12, cy: 11, r: 9.6, fill: `url(#mg-${tier})` });
+  add('circle', { cx: 12, cy: 11, r: 7.1, fill: `url(#mg-${tier}-in)` });
+  if (n) { const t = add('text', { x: 12, y: 14.7, 'text-anchor': 'middle', class: `medal-n ${tier}` }); t.textContent = String(n); }
+  return svg;
+}
+function paintMedals(r, p) {
+  const host = $('v-medals');
+  if (!host) return;
+  const out = [];
+  const lines = p && Array.isArray(p.lines) ? p.lines : [];
+  const said = (kind) => lines.find((l) => l && l.kind === kind && typeof l.text === 'string' && l.text);
+  const plain = (t) => t.replace(/\.$/, '');
+  const best = said('first') || said('best');
+  if (best) out.push({ tier: 'gold', n: 1, text: plain(best.text) });
+  const v = r && r.ratingView;
+  const place = v && typeof v.value === 'number' && typeof v.place === 'string' ? /^(\d+)\w*\s+of\s+(\d+)$/.exec(v.place) : null;
+  if (place && Number(place[1]) <= 3) {
+    out.push({ tier: ['gold', 'silver', 'bronze'][Number(place[1]) - 1], n: Number(place[1]), text: `${v.place} in the lobby by rating, ${v.shown}` });
+  }
+  const run = said('run');
+  if (run) out.push({ tier: 'silver', n: null, text: plain(run.text) });
+  const cat = said('category');
+  if (cat) out.push({ tier: 'bronze', n: null, text: plain(cat.text) });
+  const shown = out.slice(0, 3);
+  host.replaceChildren(...shown.map((m, k) => {
+    const item = el('span', 'medal-item');
+    item.style.setProperty('--k', String(k));
+    item.append(medalSvg(m.tier, m.n), el('span', 'medal-text', m.text));
+    return item;
+  }));
+  host.hidden = !shown.length;
+}
+
+/** The fix for the next match, its first clause in the ink and the rest grey; the whole sentence stays its text. */
+function paintFixLine(host, text) {
+  host.replaceChildren();
+  const s = String(text || '');
+  const at = s.indexOf(': ');
+  if (at < 1) { host.textContent = s; return; }
+  host.append(el('span', 'vf-head', s.slice(0, at + 1)), document.createTextNode(' '), el('span', 'vf-sub', s.slice(at + 2)));
 }
 
 /** The grade's slot with no grade in it (8.7): the words over a dashed rule. */
@@ -330,6 +402,22 @@ function paintVerdictArt(host, map) {
   img.alt = '';
   img.addEventListener('error', () => { host.replaceChildren(); host.hidden = true; });
   host.append(img, Object.assign(document.createElement('div'), { className: 'vd-art-scrim' }));
+}
+
+/** The agent floating at the hero's right (Orbit): the icon's own bundled file, larger and round. */
+function paintVerdictAgent(host, v) {
+  if (!host) return;
+  host.replaceChildren();
+  const url = v && v.icon && window.VerdictCard && typeof window.VerdictCard.iconUrl === 'function'
+    ? window.VerdictCard.iconUrl(v.icon) : null;
+  host.hidden = !url;
+  if (!url) return;
+  const img = document.createElement('img');
+  img.className = 'vd-agent-img m-drift';
+  img.src = url;
+  img.alt = '';
+  img.addEventListener('error', () => { host.replaceChildren(); host.hidden = true; });
+  host.append(img);
 }
 
 function paintVerdictIcon(host, v) {
@@ -491,6 +579,18 @@ function paintProgress(r) {
   asked.then((p) => {
     if (progressFor !== id || !current || current.id !== id || current.work || !p) return;
     const lines = Array.isArray(p.lines) ? p.lines : [];
+    // ORBIT: the medals main's progress earns, and the change on the last
+    // match beside the grade, its sign in its words and an arrow.
+    if (valorant) {
+      paintMedals(r, p);
+      const delta = document.querySelector('#v-grade .vd-delta');
+      const vs = p.vsLast && typeof p.vsLast.delta === 'number' ? p.vsLast.delta : null;
+      if (delta) {
+        delta.hidden = vs === null;
+        delta.className = 'vd-delta ' + (vs > 0 ? 'up' : vs < 0 ? 'down' : 'even');
+        delta.textContent = vs === null ? '' : vs > 0 ? `+${vs} on your last match` : vs < 0 ? `${vs} on your last match` : 'Level with your last match';
+      }
+    }
     const focusLine = valorant && r.focus ? lines.find((l) => l && l.kind === 'focus' && l.text) : null;
     const strip = window.GradeView.progressStrip(p, { omit: focusLine ? ['focus'] : [] });
     // Replaced, never added to: a review painted twice asks twice.
@@ -2158,9 +2258,12 @@ function paintLockedValorant(r) {
   $('v-focus-wrap').hidden = true;
   $('v-focus').textContent = '';
   paintVerdictStat($('v-stat'), null);
+  // A locked review judges nothing: no agent floating, no medal.
+  paintVerdictAgent($('v-agent'), null);
+  paintMedals(null, null);
   $('v-verdict').classList.remove('graded');
   const resultEl = $('v-result');
-  resultEl.textContent = g.result ? g.result.toUpperCase() : 'MATCH REVIEW';
+  resultEl.textContent = g.result ? g.result : 'Match review';
   resultEl.className = 'v-result' + (g.result === 'Victory' ? ' win' : g.result === 'Defeat' ? ' loss' : '');
   const score = String(g.score || '').split('-');
   $('v-score').textContent = score.length === 2 ? `${score[0]} : ${score[1]}` : '';
@@ -2283,6 +2386,13 @@ const closeWindow = () => { if (!(window.occlaraEmbedded && window.occlaraEmbedd
 $('close').addEventListener('click', closeWindow);
 $('matches').addEventListener('click', () => window.occlara.openMatches());
 $('ask').addEventListener('click', () => { if (current && current.id) window.occlara.askAbout(current.id); });
+// Every round (Orbit): down to the rounds, smoothly unless asked for less motion.
+$('v-every').addEventListener('click', () => {
+  const to = $('v-rounds-wrap');
+  if (!to || typeof to.scrollIntoView !== 'function') return;
+  const calm = !!(window.Motion && window.Motion.reduced());
+  to.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+});
 // Esc closes the share sheet first, and only with none open the page.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
