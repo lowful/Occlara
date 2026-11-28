@@ -2020,7 +2020,7 @@ const lessMotion = () => typeof window.matchMedia === 'function' && window.match
 function startReveal(r, verdict, ready) {
   if (!r.id || revealed.has(r.id)) return;
   revealed.add(r.id);
-  const mine = { id: r.id, verdict, ready: !!ready, opened: false, started: false, cued: false, stamp: null, done: null, skip: null, t: [] };
+  const mine = { id: r.id, verdict, ready: !!ready, wholeAt: Date.now(), opened: false, started: false, cued: false, stamp: null, done: null, skip: null, t: [] };
   reveal = mine;
   const shown = typeof window.occlaraOnShown === 'function' ? window.occlaraOnShown : (fn) => fn();
   shown(() => runReveal(mine));
@@ -2093,6 +2093,10 @@ function readyFirst(mine) {
   const sheet = root.closest('.sheet') || document.body;
   const top = root.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
   card.style.top = `${Math.max(16, Math.round(top + 16))}px`;
+  // When it was made whole, said truly: a review that waited for the seal to
+  // lift or for its page to be opened says how long ago, never "now".
+  const ago = Math.floor((Date.now() - mine.wholeAt) / 60000);
+  $('v-ready-time').textContent = ago < 1 ? 'now' : ago < 60 ? `${ago} min ago` : 'earlier';
   card.classList.remove('in', 'morphing');
   card.hidden = false;
   mine.t.push(setTimeout(() => { if (reveal === mine) card.classList.add('in'); }, READY_IN));

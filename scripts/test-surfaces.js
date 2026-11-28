@@ -2384,6 +2384,8 @@ async function openShell(cfg, state, opts) {
       const win = {};
       if (x.embed) win.location = { hash: '', search: '?embed=1&page=review' };
       if (x.still) win.matchMedia = (q) => ({ matches: q.includes('prefers-reduced-motion: reduce') });
+      // The page's own clock for "now" and "2 min ago" on the ready card (x.date).
+      if (x.date) win.Date = x.date;
       const v = loadSurface('review', { window: win, handlers: {
         [C.LOL_REVIEW_GET]: () => ({ ...REV, ...(x.work === false ? {} : { work: WORK }) }),
         [C.PROGRESS_GET]: () => x.progress || PLAIN,
@@ -2416,6 +2418,7 @@ async function openShell(cfg, state, opts) {
     ok(!v.$('v-ready').hidden && v.root().classList.contains('ready-pre') && !v.root().classList.contains('revealing') && !v.heard.length,
       'whole, it is said ready first: the card, the review held back, nothing counted or heard', v.root().className);
     await v.after(READY_IN);
+    ok(v.$('v-ready-time').textContent === 'now', 'made whole just now, the card says now', v.$('v-ready-time').textContent);
     ok(v.$('v-ready').classList.contains('in') && v.$('v-ready-line').textContent === '78 B, Victory 13 : 11',
       'the card drops in with the grade, its letter and, with nothing counted against the last match, the result', v.$('v-ready-line').textContent);
     await v.after(READY_OPEN - READY_IN);
@@ -2476,6 +2479,18 @@ async function openShell(cfg, state, opts) {
     ok(sealed.root().classList.contains('revealing') && !sealed.heard.length, 'and opens into the review, revealed then');
     await sealed.after(420);
     ok(same(sealed.heard, ['reveal']), 'and heard as its letter lands', sealed.heard.join(' '));
+
+    // Shown two minutes after it was made whole (the seal lifting late), the
+    // card says when, never "now".
+    let t0 = 1764000000000;
+    const LateDate = class extends Date { static now() { return t0; } };
+    const late = await page({ embed: true, date: LateDate });
+    await late.whole();
+    t0 += 2 * 60 * 1000 + 5000;
+    late.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'forward' });
+    await settle();
+    ok(!late.$('v-ready').hidden && late.$('v-ready-time').textContent === '2 min ago',
+      'shown two minutes after it was made whole, the card says 2 min ago', late.$('v-ready-time').textContent);
 
     // A click or a key ends it at once, the letter heard as it lands then.
     const skip = await page();
