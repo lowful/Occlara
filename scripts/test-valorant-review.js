@@ -1220,7 +1220,8 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   // Post plants and retakes are the rounds the player was alive in when the
   // spike went down: rounds 1, 6 and 7 were deaths before the plant.
   const post = pats.find((p) => p.key === 'postplant');
-  ok(post && post.text === 'On attack, won 1 of 2 rounds once the spike was down.' && !pats.some((p) => p.key === 'retake'),
+  // Said as the rounds the player was alive in (9.1, the AI audit), its "won 1 of 2 rounds" as Ask Coach reads it.
+  ok(post && post.text === 'On attack, won 1 of 2 rounds you were alive in once the spike was down.' && /won (\d+) of (\d+) rounds/.test(post.text) && !pats.some((p) => p.key === 'retake'),
     `a death before the plant is no post plant played, and no retake (${post && post.text})`);
   const ins = require('../src/shared/insights').valorant(rows, {});
   ok(!ins.missed.some((e) => e.key === 'postplant-lost'), 'nor a post plant that slipped');

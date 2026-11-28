@@ -544,7 +544,8 @@ function valorant(rounds, opts = {}) {
   if (post.length >= 3 && postWon.length * 10 >= post.length * 6) {
     push(out.strengths, {
       key: 'postplant', title: 'Closed out post plants',
-      detail: `Won ${postWon.length} of ${post.length} attack rounds once the spike was down.`,
+      // Only the rounds the player was alive in at the plant, and it says so (9.1, the AI audit).
+      detail: `Won ${postWon.length} of ${post.length} attack rounds you were alive in once the spike was down.`,
       rounds: postWon.map((r) => r.n),
     });
   }
@@ -553,7 +554,7 @@ function valorant(rounds, opts = {}) {
   if (retakes.length >= 3 && retakeWon.length * 2 >= retakes.length) {
     push(out.strengths, {
       key: 'retake', title: 'Won retakes',
-      detail: `Won ${retakeWon.length} of ${retakes.length} defence rounds after they planted.`,
+      detail: `Won ${retakeWon.length} of ${retakes.length} defence rounds you were alive in after they planted.`,
       rounds: retakeWon.map((r) => r.n),
     });
   }
@@ -621,7 +622,7 @@ function valorant(rounds, opts = {}) {
   if (post.length >= 3 && postWon.length * 10 < post.length * 4) {
     push(out.missed, {
       key: 'postplant-lost', title: 'Post plants that slipped',
-      detail: `Won only ${postWon.length} of ${post.length} attack rounds with the spike down.`,
+      detail: `Won only ${postWon.length} of ${post.length} attack rounds you were alive in with the spike down.`,
       fix: 'After the plant, watch the spike from cover on a different line from your teammates, and peek only when you hear the defuse start.',
       rounds: post.filter((r) => r.result === 'lost').map((r) => r.n),
     });
