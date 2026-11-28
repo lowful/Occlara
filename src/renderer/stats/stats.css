@@ -287,11 +287,6 @@ html.rec-still .card.skeleton { animation-play-state: paused; }
 .grade-chip.counting.mid::after  { color: var(--text); }
 .grade-chip.counting.warn::after { color: var(--warn); }
 .grade-chip.counting.bad::after  { color: var(--bad); }
-.grade-letter { font-size: 14px; font-weight: 600; color: var(--text-dim); min-width: 14px; text-align: center; }
-.grade-letter.good { color: var(--good); }
-.grade-letter.mid  { color: var(--text); }
-.grade-letter.warn { color: var(--warn); }
-.grade-letter.bad  { color: var(--bad); }
 .d-note { font-size: 13px; color: var(--text-mute); margin: 0; }
 .d-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3); }
 

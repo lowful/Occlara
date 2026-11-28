@@ -2,7 +2,8 @@
 /* The match library as a ruled log (8.7). No card anywhere: a section is a
    heading, then rows parted by the hairline, and a row's hover is a faint fill
    across it. The only tactile objects are the controls, which ui.css draws as
-   capsules. A grade's colour always sits beside its number and its letter. */
+   capsules. A grade's colour always sits on its number (one score, no
+   letters since 9.1), in its score's band. */
 
 html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
 
@@ -436,7 +437,7 @@ html[data-section="patterns"] .imp-go { display: none; }
 
 /* ── The breakdown ─────────────────────────────────────────────────────────
    A table of ruled rows that open in place. Digits in Geist Mono so columns
-   line up; a grade always shows its number and letter beside its colour; a
+   line up; a grade is its number in its score's band, never a letter; a
    rate under its floor is drawn quiet as "3 of 7", never as a percentage.
    FOLDED AT THE FOOT OF PATTERNS (8.7): one closed line, its title and the
    sample it counts over, a chevron at its end, the table inside once open. */
@@ -529,15 +530,6 @@ html[data-section="patterns"] .imp-go { display: none; }
 .b-name { font: 500 14px var(--font); text-align: left; display: flex; flex-direction: column; gap: 1px; }
 .b-name span { overflow: hidden; text-overflow: ellipsis; }
 .b-grade { display: inline-flex; align-items: center; gap: var(--space-2); }
-.b-letter {
-  display: inline-flex; align-items: center; justify-content: center;
-  height: 20px; min-width: 26px; padding: 0 7px; border-radius: var(--r-btn);
-  border: 1px solid var(--line-2); font: 600 11px/1 var(--font); letter-spacing: 0.02em;
-}
-.b-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
-.b-letter.mid  { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
-.b-letter.warn { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.45); }
-.b-letter.bad  { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.45); }
 
 /* An open row's detail grows from its row by height and closes back into it
    (.reveal, ui.css; toggleRow in matches.js): the row is the reveal, its cell
