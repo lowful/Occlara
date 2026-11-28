@@ -147,9 +147,12 @@ function homeModel({ rows, patterns, review, previous }) {
     });
 
   const grades = Array.isArray(p.grades) ? p.grades : [];
+  // 9.1: each point carries what the shared trend chart's tooltip says (the
+  // agent, the map, the result and the score, a provisional grade).
   const trend = grades.slice(0, TREND).reverse().map((g) => {
     const row = list.find((r) => r.id === g.id);
-    return { id: g.id, score: g.score, letter: g.letter, at: g.at, map: row ? row.map || null : null };
+    return { id: g.id, score: g.score, at: g.at, provisional: !!g.provisional, map: row ? row.map || null : null,
+      agent: row ? row.title || null : null, result: row ? row.result || null : null, scoreline: row ? row.score || null : null };
   });
 
   // THE FIX NEVER LEAVES THE PAGE (8.7): while the newest review is still

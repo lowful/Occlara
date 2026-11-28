@@ -237,8 +237,9 @@ setTimeout(async () => {
     const FILL = `(() => {
       const last = document.getElementById('last');
       const trend = document.getElementById('trend');
-      const svg = trend.querySelector('.grade-line');
-      const nums = svg ? [...svg.querySelectorAll('.gl-num')].map((t) => t.textContent) : [];
+      // 9.1: the shared trend chart (trend-chart.js), the newest's grade over its dot.
+      const svg = trend.querySelector('svg.tc-svg');
+      const nums = svg ? [...svg.querySelectorAll('.tc-now-label')].map((t) => t.textContent) : [];
       const box = trend.getBoundingClientRect();
       const lb = svg ? svg.getBoundingClientRect() : null;
       // 9.1: the map is the last match card's picture (.lm-map).
@@ -246,7 +247,7 @@ setTimeout(async () => {
       // Orbit: the agent stands as its full portrait (agents-full), or as the
       // head icon in its ring when the portrait cannot load.
       const face = document.querySelector('#h-agent .h-agent-full') || document.querySelector('#h-agent .h-agent-face');
-      return { dots: svg ? svg.querySelectorAll('.gl-dot').length : 0, nums, inside: !!lb && lb.bottom <= box.bottom && lb.right <= box.right,
+      return { dots: svg ? svg.querySelectorAll('.tc-dot').length : 0, nums, inside: !!lb && lb.bottom <= box.bottom && lb.right <= box.right,
         map: !!(map && map.complete && map.naturalWidth > 0 && /maps\\/Abyss\\.jpg$/.test(map.src)),
         face: !!(face && face.complete && face.naturalWidth > 0 && /agents(-full)?\\/Jett\\.(png|webp)$/.test(face.src)) };
     })()`;

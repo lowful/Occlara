@@ -9,7 +9,6 @@
 const $ = (id) => document.getElementById(id);
 const GV = window.GradeView;
 const el = (tag, cls, text) => GV.el(tag, cls, text);
-const SVG = 'http://www.w3.org/2000/svg';
 
 let game = 'valorant';
 let cfg = null;
@@ -245,10 +244,11 @@ function wayMark(way, better, words, label) {
 }
 
 /*
- * EACH DOT'S DAY UNDER IT (9.1, the owner's item 4: the axis showed times of
- * day for matches on different days). Matches on different days are named by
- * their day, "Today", "Yesterday" or "Nov 22"; all on one day, by their time,
- * and the line under the chart names the day.
+ * A DAY IN WORDS (9.1, the owner's item 4: the axis showed times of day for
+ * matches on different days): "Today", "Yesterday" or "Nov 22", for the last
+ * match's eyebrow and the line under the trend. The trend's own axis names
+ * each day once under its matches (shared/trend-chart.js), the time in its
+ * tooltip.
  */
 const dayKey = (at) => new Date(at).toDateString();
 function dayWord(at) {
@@ -261,16 +261,21 @@ function dayWord(at) {
 const timeWord = (at) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
 /*
- * THE TREND (Orbit; 9.1): the last grades as one line, a dot a match, the
- * newest filled (GradeView.gradeLine, the one drawing of it), each dot's day
- * under it, under a title that is the fact it shows, their average, with the
- * grade's own arrow beside it (home-model.js gradeTrendOf). With one graded
- * match, the card goes.
+ * THE TREND (Orbit; 9.1): the last grades as the shared trend chart Matches
+ * draws (shared/trend-chart.js, the moonlit area, the owner's pick in item
+ * 21): one line, a dot a match, the newest the bright one with its number,
+ * each day named once under its matches, and a tooltip under the pointer or
+ * the arrow keys saying when, who, the result and the grade, a click or
+ * Enter opening that match. Over it a title that is the fact it shows, their
+ * average, with the grade's own arrow beside it (home-model.js
+ * gradeTrendOf). With one graded match, the card goes.
  */
+let trendChart = null;
 function paintTrend(model) {
   const host = $('trend');
   const trend = (Array.isArray(model.trend) ? model.trend : []).filter((t) => Number.isFinite(Number(t.score)));
   const last = model.last;
+  if (trendChart) { trendChart.destroy(); trendChart = null; }
   host.replaceChildren();
   host.hidden = !last || !!last.work || trend.length < 2;
   if (host.hidden) return;
@@ -287,23 +292,29 @@ function paintTrend(model) {
   const lineHost = el('div', 'trend-host');
   const dated = trend.every((t) => typeof t.at === 'number' && Number.isFinite(t.at));
   const oneDay = dated && trend.every((t) => dayKey(t.at) === dayKey(trend[0].at));
-  const foot = !dated ? undefined : oneDay ? (t) => timeWord(t.at) : (t) => dayWord(t.at);
-  const svg = GV.gradeLine(trend, 300, 150, foot ? { foot } : undefined);
-  if (svg) {
-    // Each dot says its grade and when, under the pointer.
-    svg.querySelectorAll('.gl-dot').forEach((c, i) => {
-      const t = trend[i];
-      if (!t) return;
-      const tip = document.createElementNS(SVG, 'title');
-      tip.textContent = `${GV.GRADE_NAME} ${t.score}${dated ? `, ${dayWord(t.at)} ${timeWord(t.at)}` : ''}`;
-      c.append(tip);
+  const chartHost = el('div', 'trend-chart');
+  lineHost.append(chartHost);
+  host.append(lineHost);
+  const points = trend.map((t, i) => ({
+    id: t.id, grade: Number(t.score), at: dated ? t.at : null, provisional: !!t.provisional,
+    agent: t.agent || null, map: t.map || null, result: t.result || null,
+    scoreline: t.scoreline ? String(t.scoreline).replace(/\s*[-:]\s*/, ' : ') : null,
+    delta: i > 0 ? Number(t.score) - Number(trend[i - 1].score) : null,
+  }));
+  // The grades it draws, oldest first, for a reader of the page (the site
+  // proof's export): the chart labels only the newest.
+  chartHost.dataset.grades = points.map((p) => p.grade).join(',');
+  const word = n === 2 ? 'two' : n === 3 ? 'three' : n === 4 ? 'four' : n === 5 ? 'five' : String(n);
+  if (window.TrendChart) {
+    trendChart = window.TrendChart.draw(chartHost, points, {
+      height: 150, average: mean, guides: [60, 70, 80, 90],
+      label: `Grade over your last ${n} graded matches`,
+      onOpen: (p) => { if (p && p.id) window.occlara.openReview(p.id); },
     });
-    lineHost.append(svg);
   }
   const day = oneDay ? dayWord(trend[0].at) : null;
   const span = !day ? '' : day === 'Today' || day === 'Yesterday' ? `, all ${day.toLowerCase()}` : `, all on ${day}`;
-  if (svg) lineHost.append(el('span', 'line-avg', `Your last ${n === 2 ? 'two' : n === 3 ? 'three' : n === 4 ? 'four' : n === 5 ? 'five' : n} graded matches${span}`));
-  host.append(lineHost);
+  lineHost.append(el('span', 'line-avg', `Your last ${word} graded matches${span}`));
 }
 
 /*
@@ -808,8 +819,8 @@ function play(node, cls, ms) {
 /**
  * The last match card's own entrance, delayMs after the arrival starts (the
  * card's own delay): the grade counts up from 0 (CSS, home.css hCount), the
- * K/D counts up to its exact two places (Motion.countUp), the grade line
- * draws itself (the shared m-draw) and its dots pop in after it.
+ * K/D counts up to its exact two places (Motion.countUp), and the trend's
+ * line draws itself, its dots arriving as it passes them (TrendChart.play).
  */
 function playLast(delayMs) {
   if (reduced()) return;
@@ -831,17 +842,9 @@ function playLast(delayMs) {
     const value = Number(ratio.dataset.value || ratio.textContent);
     if (Number.isFinite(value)) window.Motion.countUp(ratio, value, { format: (n) => n.toFixed(2), dur: 800 });
   }
-  const svg = $('trend').querySelector('.grade-line');
-  const line = svg && svg.querySelector('.gl-line');
-  if (line) {
-    line.setAttribute('pathLength', '1');
-    line.style.setProperty('--i', String(Math.min(delayMs / STAGGER_MS, 5)));
-    play(line, 'm-draw', delayMs + 420 + 120);   // --t-slow
-    svg.querySelectorAll('.gl-dot').forEach((n, k) => n.style.setProperty('--k', String(k)));
-    svg.querySelectorAll('.gl-num').forEach((n, k) => n.style.setProperty('--k', String(k)));
-    svg.style.setProperty('--d', d);
-    play(svg, 'h-dots', delayMs + 420 + 5 * 30 + 220 + 120);
-  }
+  // The trend's line draws itself as its card comes in, once a visit
+  // (shared/trend-chart.js play: one shot, nothing under less motion).
+  if (trendChart) trendChart.play();
 }
 
 // A new visit of the page (embed.js, 'occlara-page-enter'): the cards arrive

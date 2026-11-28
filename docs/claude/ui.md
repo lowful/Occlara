@@ -314,12 +314,15 @@ you play best, then every match as one grouped card of rows.
   patterns.js averages) and the best. Ids kept from the side card it
   replaced: `#m-chart`, `#m-chart-n`, `#m-chart-big`, `#m-chart-since`,
   `#m-chart-avg`, `.m-chart-label` (the eyebrow, check:palette's place).
-- **Home's trend card can use the same chart** (the Home engineer's call):
+- **Home's trend card draws the same chart** (`home.js paintTrend`):
   `TrendChart.draw(host, points, { height: 150, average, label, onOpen })`
   with points oldest first, `{ id, grade, at, provisional, agent, map,
-  result, scoreline, delta }`, and `chart.play()` inside its once per visit
-  entrance; load `../shared/trend-chart.js` and its css. It replaces
-  `GradeView.gradeLine` there, and its foot is the dates item 4 asks for.
+  result, scoreline, delta }` (home-model.js gives each trend point its
+  agent, result and score), and `chart.play()` inside its once per visit
+  entrance (`playLast`). It replaced `GradeView.gradeLine` there, and its
+  foot is the dates item 4 asks for. The grades it draws sit on its host as
+  `data-grades` for the site proof's reader, since the chart labels only
+  the newest.
 - **When you play best (item 15)** is `src/shared/play-times.js` (pure,
   `test:playtimes`): every graded row by when its match STARTED (Riot's
   `matchStartedAt`, else its end less 100 seconds a round, else less half an
@@ -1553,9 +1556,12 @@ green, the colour of a download (`#upd`, `shell.js paintUpdate`):
 - **The trend card**: its title is the average its line draws ("Averaging
   73"; "Level over five matches" read oddly), the grade's own arrow beside it
   (`gradeTrendOf`: the five drawn against the five before, else the halves of
-  the line; within 3 steady; none below four grades). Its axis names days
-  ("Today", "Yesterday", "Nov 22"), or times when every match is one day's,
-  the line under it saying so ("Your last five graded matches, all today").
+  the line; within 3 steady; none below four grades). The line is the
+  shared trend chart Matches draws ("The Matches page (9.1)"): its axis names
+  each day once under its matches ("Today", "Yesterday", "Nov 22"), never a
+  time of day, the time in its tooltip with who, the result and the grade
+  and its change, a click or Enter opening the match; the line under it
+  says what it is of ("Your last five graded matches, all today").
 - **The rank card** (Home and Stats): the tier's own icon
   (`assets/ranks/<tier>.webp`, 26 of them at 128px, `npm run sync:rankicons`
   from valorant-api.com's newest tier table, written to a file, never a pipe),

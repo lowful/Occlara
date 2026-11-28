@@ -3104,13 +3104,18 @@ async function openShell(cfg, state, opts) {
   // "Bring the bars lower so it's balanced and there's no dead space."
 await section('Home\'s last match draws the grades as a line, one dot a match:', async () => {
     const h = await openHome();
-    // ORBIT: the line is the trend card's, beside the last match.
-    const svg = h.document.querySelector('#trend .grade-line');
-    const nums = h.document.querySelectorAll('#trend .gl-num').map((t) => t.textContent);
-    ok(svg && h.document.querySelectorAll('#trend .gl-dot').length === 5 && same(nums, ['58', '97', '74', '64', '83']),
-      'a dot a match, oldest first, each with its grade over it', JSON.stringify(nums));
-    ok(h.document.querySelectorAll('#trend .gl-dot.now').length === 1 && h.document.querySelectorAll('#trend .gl-num.now').length === 1,
-      'the newest is the one large, filled dot');
+    // ORBIT: the line is the trend card's, beside the last match. 9.1: it is
+    // the shared trend chart Matches draws (shared/trend-chart.js), a dot a
+    // match, the newest the bright one with its number over it.
+    const svg = h.document.querySelector('#trend svg.tc-svg');
+    const dotsY = h.document.querySelectorAll('#trend .tc-dot').map((c) => Number(c.getAttribute('cy')));
+    const order = [58, 97, 74, 64, 83];
+    const byGrade = order.map((g, i) => [g, dotsY[i]]).sort((a, b) => b[0] - a[0]).map((p) => p[1]);
+    ok(svg && dotsY.length === 5 && byGrade.every((y, i) => i === 0 || y >= byGrade[i - 1]),
+      'a dot a match, oldest first, each standing at its grade', JSON.stringify(dotsY));
+    ok(h.document.querySelectorAll('#trend .tc-dot.now').length === 1 && h.document.querySelector('#trend .tc-now-label')
+      && h.document.querySelector('#trend .tc-now-label').textContent === '83',
+      'the newest is the one large, filled dot, its grade over it');
     ok(cssProp(homeRule('.hint'), 'font-size') === '14px', 'the rule reader finds a known rule');
     const gvCss2 = fs.readFileSync(path.join(RENDERER, 'shared', 'grade-view.css'), 'utf8');
     ok(/\.gl-line \{[^}]*stroke: var\(--text\)/.test(gvCss2) && /\.gl-dot\.now \{[^}]*fill: var\(--text\)/.test(gvCss2) && !/gradient/.test(gvCss2.slice(gvCss2.indexOf('THE GRADE LINE'))),

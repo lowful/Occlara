@@ -25,7 +25,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { loadSurface, settle } = require('./fixtures/fake-dom');
+const { loadSurface, settle, makeEvent } = require('./fixtures/fake-dom');
 const C = require('../src/shared/channels');
 const HM = require('../src/shared/home-model');
 
@@ -151,14 +151,30 @@ async function openHome(o) {
     ok(trend.querySelector('.o-title').textContent === 'Averaging 73', "the trend's title is the average its line draws", trend.querySelector('.o-title').textContent);
     const tw = trend.querySelector('.trend-head .way');
     ok(tw && /\bflat\b/.test(tw.className) || (tw && /\b(up|down)\b/.test(tw.className)), "and the grade's own arrow beside it", tw && tw.className);
-    const foot = trend.querySelectorAll('.gl-time').map((t) => t.textContent);
+    // 9.1: the line is the shared trend chart Matches draws (trend-chart.js):
+    // each day named once under its matches, never a time of day.
+    ok(trend.querySelector('.trend-chart.tc') && trend.querySelector('svg.tc-svg') && trend.querySelectorAll('.tc-dot').length === 5
+      && trend.querySelectorAll('.tc-dot.now').length === 1, 'the trend is the shared chart, a dot a match, the newest the bright one');
+    const foot = trend.querySelectorAll('.tc-foot-label').map((t) => t.textContent);
     ok(foot.length >= 2 && foot.every((t) => /^(Today|Yesterday|[A-Z][a-z]{2} \d{1,2})$/.test(t)), 'matches on different days are named by their day under the line', JSON.stringify(foot));
     ok(trend.querySelector('.line-avg').textContent === 'Your last five graded matches', 'and the line under it says what it is of');
+    // Its tooltip, under the arrow keys as under the pointer: when, who, the
+    // result and the grade with its change; Enter opens that match.
+    const chartEl = trend.querySelector('.trend-chart');
+    const key = (k) => chartEl.dispatchEvent(makeEvent('keydown', { key: k }));
+    key('ArrowLeft');
+    const tip = chartEl.querySelector('.tc-tip');
+    ok(tip && !tip.hidden && tip.querySelector('.tc-tip-name').textContent === 'Jett on Split' && tip.querySelector('.tc-tip-num').textContent === '84'
+      && tip.querySelector('.tc-tip-res').textContent === 'Victory 5 : 2' && tip.querySelector('.tc-tip-delta').textContent === '+19'
+      && /^Today, /.test(tip.querySelector('.tc-tip-when').textContent),
+    'a match under the keys shows when, who, the result and its grade with the change', tip && tip.textContent);
+    key('Enter');
+    ok(same(h.bridge.sent.filter((s) => s[0] === C.REVIEW_OPEN).pop(), [C.REVIEW_OPEN, 'valorant-0-t']), 'and Enter opens that match', JSON.stringify(h.bridge.sent.filter((s) => s[0] === C.REVIEW_OPEN)));
     const one = await openHome({ rows: rows.map((r, i) => ({ ...r, at: NOW - 60000 - i * 3600000 })).filter((r) => new Date(r.at).toDateString() === new Date(NOW).toDateString()) });
-    const oneFoot = one.$('trend').querySelectorAll('.gl-time').map((t) => t.textContent);
-    if (oneFoot.length) {
-      ok(oneFoot.every((t) => /\d{1,2}:\d{2}/.test(t)) && /, all today$/.test(one.$('trend').querySelector('.line-avg').textContent),
-        'all on one day, by their time, and the line says the day', JSON.stringify(oneFoot));
+    const oneFoot = one.$('trend').querySelectorAll('.tc-foot-label').map((t) => t.textContent);
+    if (one.$('trend').querySelectorAll('.tc-dot').length >= 2) {
+      ok(oneFoot.length === 1 && oneFoot[0] === 'Today' && /, all today$/.test(one.$('trend').querySelector('.line-avg').textContent),
+        'all on one day, the day named once under them, and the line says the day', JSON.stringify(oneFoot));
     }
   }
 

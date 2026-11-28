@@ -385,16 +385,10 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 .trend-head { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .trend-head .o-title { margin-top: 0; }
 .trend-host { margin-top: auto; padding-top: 8px; }
-.trend-host .grade-line { display: block; width: 100%; height: auto; overflow: visible; }
+/* 9.1: the shared trend chart (shared/trend-chart.css), the card's width,
+   its own draw (TrendChart.play) once a visit, nothing under less motion. */
+.trend-host .trend-chart { width: 100%; }
 .line-avg { display: block; margin-top: 6px; font-size: 12px; color: var(--text-2); }
-/* The line draws itself (the shared m-draw on its polyline), then its dots
-   and their numbers pop in, left to right, 30ms apart and six at most
-   staggered. Transform and opacity only. */
-#trend .grade-line.h-dots .gl-dot, #trend .grade-line.h-dots .gl-num {
-  transform-box: fill-box; transform-origin: center;
-  animation: m-pop var(--dur-base) var(--ease-out) both;
-  animation-delay: calc(var(--d, 0ms) + var(--t-slow) + min(var(--k, 0), 5) * 30ms);
-}
 
 /* ── What repeats ───────────────────────────────────────────────────────── */
 .top-list { display: flex; flex-direction: column; margin-top: 12px; }
@@ -528,8 +522,7 @@ html.ambient-off .sky-twinkle, html.rec-still .sky-twinkle { animation-play-stat
 /* Less motion: every entrance is its end state at once. */
 @media (prefers-reduced-motion: reduce) {
   .card.card-in, .h-head.card-in, .recent.card-in .r-row, .top.card-in .top-row,
-  .h-player.h-fade, .sky-twinkle, .h-agent-full,
-  #trend .grade-line.h-dots .gl-dot, #trend .grade-line.h-dots .gl-num { animation: none !important; }
+  .h-player.h-fade, .sky-twinkle, .h-agent-full { animation: none !important; }
   #last .gv-score.big.counting { animation: none !important; color: var(--hn-ink, var(--text)); }
   #last .gv-score.big.counting::after { content: none; }
   .play-mark, .lm-map, .lm-open, .rank-icon, .has-tip::after { transition: none; }

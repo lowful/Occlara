@@ -295,8 +295,10 @@ const READ_HOME = `(() => { ${READ_HELPERS}
     mistakes: QA('#top-list .top-row').map((r) => ({ title: txt('.top-title', r), sub: txt('.top-sub', r), count: txt('.top-n', r) })),
     // The trend card: its eyebrow, its title (the fact the line shows), the
     // average and the grades as the line labels them.
-    trend: trend && shown(trend) && Q('.grade-line', trend) ? { label: txt('.o-eyebrow', trend), title: txt('.o-title', trend),
-      average: txt('.line-avg', trend), grades: list('.gl-num', trend) } : null,
+    // 9.1: the line is the shared trend chart, which labels the newest alone;
+    // the grades it draws, oldest first, are on its host (home.js paintTrend).
+    trend: trend && shown(trend) && Q('svg.tc-svg', trend) ? { label: txt('.o-eyebrow', trend), title: txt('.o-title', trend),
+      average: txt('.line-avg', trend), grades: (Q('.trend-chart', trend) ? Q('.trend-chart', trend).dataset.grades || '' : '').split(',').filter(Boolean) } : null,
     recentHeading: txt('#recent .card-head .label'),
     recent: QA('#recent-list .r-row').map((r) => ({ title: T(Q('.r-title', r).firstChild), result: txt('.r-res', r), marks: list('.r-mark', r),
       meta: noDate(txt('.r-meta', r)), grade: txt('.r-score', r) })),
