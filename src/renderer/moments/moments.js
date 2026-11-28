@@ -1067,7 +1067,8 @@ function paintStorage() {
   arrow.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>';
   settings.append(arrow);
   settings.title = 'Opens Settings';
-  settings.addEventListener('click', () => { closeStore(false); if (typeof api.openSettings === 'function') api.openSettings(); });
+  // Settings at its Clips row (9.1), where Clear clips and the limit are.
+  settings.addEventListener('click', () => { closeStore(false); if (typeof api.openSettings === 'function') api.openSettings('clips'); });
   cap.append(line, meter, settings);
   // The recorder's disk guard: under its floor, no match is recorded. Said
   // in the card, and under the page's title where it is seen without a press.

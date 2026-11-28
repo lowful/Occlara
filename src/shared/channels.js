@@ -207,6 +207,10 @@ const CHANNELS = {
   // for Settings: what they take against the cap, and Clear clips.
   CLIPS_USAGE:     'clips:usage',        // () -> { bytes, clips, reviews, capGB }
   CLIPS_CLEAR:     'clips:clear',        // () -> the same, once every clip is gone
+  // Settings opened AT a row (9.1, Clips' Storage card: "Clear clips or change
+  // the limit"): OPEN_SETTINGS carries 'clips', main keeps it a few seconds,
+  // and Settings takes it once as it comes on screen (null when none).
+  SETTINGS_AT:     'settings:at',        // () -> 'clips' | null, taken once
   // DELETING AND STORAGE (9.1, the owner's item 18; index.js deleteMatch,
   // deleteClip, revealClip, storage; services/storage-usage.js). Each refuses
   // mid match or sealed with { ok: false, error: 'match' } (storage: null).

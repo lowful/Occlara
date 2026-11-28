@@ -275,7 +275,9 @@ function registerIpc(deps) {
   ipcMain.on(C.SHELL_WINDOW,   (_e, action) => guard('window', () => controller.windowAction(String(action || ''))));
   // A page painted itself armed (8.2), checked against the view that sent it.
   ipcMain.on(C.PAGE_READY,     (e, page) => guard('pageReady', () => controller.pageReady(String(page || ''), e.sender)));
-  ipcMain.on(C.OPEN_SETTINGS,  () => guard('settings', () => controller.openSettings()));
+  ipcMain.on(C.OPEN_SETTINGS,  (_e, at) => guard('settings', () => controller.openSettings(at === 'clips' ? 'clips' : null)));
+  // The row Settings was opened at (9.1), taken once by Settings as it shows.
+  safeHandle(C.SETTINGS_AT, async () => (typeof controller.settingsAt === 'function' ? controller.settingsAt() : null));
   ipcMain.on(C.OPEN_HISTORY,   () => guard('history',  () => controller.openHistory()));
   ipcMain.on(C.OPEN_CHAT,      () => guard('chat',     () => controller.openChat()));
   // Home's Rank journey names the journey; anything else a page sends is Stats as it is.

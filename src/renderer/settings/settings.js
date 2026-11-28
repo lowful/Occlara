@@ -454,6 +454,28 @@ clipClear.addEventListener('click', async () => {
 });
 window.occlara.onReviews(() => readClips());
 
+/*
+ * OPENED AT THE CLIPS ROW (9.1, Clips' Storage card, "Clear clips or change
+ * the limit"): main keeps the row a page asked for a few seconds, and the
+ * page takes it once as it comes on screen, then brings the row into view
+ * and puts the keyboard on its first control, rather than leaving the
+ * player at the top to find it.
+ */
+async function goToAskedRow() {
+  if (typeof window.occlara.settingsAt !== 'function') return;
+  let at = null;
+  try { at = await window.occlara.settingsAt(); } catch { at = null; }
+  if (at !== 'clips') return;
+  const row = clipClear.closest('.row') || clipClear;
+  row.scrollIntoView({ block: 'center' });
+  const first = clipClear.disabled ? clipCapSeg.querySelector('button.on, button[aria-checked="true"], button') : clipClear;
+  if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
+}
+if (typeof window.occlara.onPage === 'function') {
+  window.occlara.onPage((m) => { if (m && m.phase === 'enter') goToAskedRow(); });
+}
+goToAskedRow();
+
 /**
  * Game picker, built from the shared registry rather than hand-written markup.
  *

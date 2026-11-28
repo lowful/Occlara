@@ -620,5 +620,10 @@ it is the seek that lands a frame either side.
   opens its file location or deletes it after a confirm; Storage is a press
   from the title, and STORAGE_GET also carries `recordNeeds`, the recorder's
   own floor (`DISK_START_BYTES`, 8 GB), so the page says when the drive is
-  too full to record. Clear all clips stays in Settings, where the limit is.
+  too full to record. Clear all clips stays in Settings, where the limit is,
+  and the card's "Clear clips or change the limit" opens Settings AT its
+  Clips row (9.1: OPEN_SETTINGS carries 'clips', main keeps it five seconds,
+  `controller.settingsAt` hands it once over SETTINGS_AT, and Settings brings
+  the row into view with the keyboard on Clear clips as it shows; it came up
+  at its top before).
   `test:clipspage` holds the page.

@@ -1351,6 +1351,8 @@ function present(review) {
  * (the push, then the page's own ask) still jump once.
  */
 let reviewJump = null;
+// Settings opened at a row (9.1, controller.openSettings): { at, until }, taken once.
+let settingsAtWant = null;
 let reviewJumpTimer = null;
 const JUMP_MS = 5000;
 /*
@@ -3781,7 +3783,17 @@ const controller = {
     clipboard.writeText(url);
     return { ok: true };
   },
-  openSettings()  { openPage('settings'); },
+  // Settings, at one of its rows where a page asks (9.1: 'clips', from Clips'
+  // Storage card), the row taken once by Settings as it shows (SETTINGS_AT).
+  openSettings(at) {
+    settingsAtWant = at === 'clips' ? { at, until: Date.now() + 5000 } : null;
+    openPage('settings');
+  },
+  settingsAt() {
+    const w = settingsAtWant;
+    settingsAtWant = null;
+    return w && Date.now() <= w.until ? w.at : null;
+  },
   openHistory()   { openPage('matches'); },
   openWeekly()    { weeklyWindow.open(); },
   openLearn()     { learnWindow.open(); },

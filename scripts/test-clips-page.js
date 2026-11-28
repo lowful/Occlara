@@ -347,7 +347,26 @@ const GB = 1024 * 1024 * 1024;
     'the clips against the limit set in Settings');
   ok($('mo-store-warn').hidden, 'with room on the drive, no warning');
   D.querySelector('#mo-store-cap .mo-cap-set').click();
-  ok(q.bridge.sent.some(([ch]) => ch === C.OPEN_SETTINGS) && $('mo-store').hidden, 'Clear clips or change the limit opens Settings');
+  ok(q.bridge.sent.some(([ch, at]) => ch === C.OPEN_SETTINGS && at === 'clips') && $('mo-store').hidden, 'Clear clips or change the limit opens Settings at its Clips row');
+  // SETTINGS TAKES THE ROW ONCE (9.1, Reviewer 2 bug 17): it came up at its
+  // top and the player had to find the row. Asked as it shows, it brings the
+  // Clips row into view and puts the keyboard on Clear clips.
+  {
+    let asked = 0;
+    const st = loadSurface('settings', { handlers: { [C.SETTINGS_AT]: () => { asked += 1; return asked === 1 ? 'clips' : null; },
+      [C.CLIPS_USAGE]: () => ({ bytes: 3 * GB, clips: 12, reviews: 4, capGB: 10 }), [C.CONFIG_GET]: () => ({ clipCapGB: 10 }) } });
+    let scrolled = 0;
+    const rowOfClear = st.$('clip-clear').closest('.row');
+    rowOfClear.scrollIntoView = () => { scrolled += 1; };
+    await settle();
+    const focusAt = st.document.activeElement;
+    ok(asked >= 1 && scrolled === 1 && focusAt && (focusAt === st.$('clip-clear') || st.$('clipcap').contains(focusAt)),
+      'Settings, asked once as it shows, brings the Clips row into view with the keyboard on it', `${asked} ${scrolled} ${focusAt && (focusAt.id || focusAt.textContent)}`);
+    const idx = read('src/main/index.js');
+    ok(/settingsAtWant = at === 'clips'/.test(idx) && /return w && Date\.now\(\) <= w\.until \? w\.at : null;/.test(idx)
+      && /safeHandle\(C\.SETTINGS_AT/.test(read('src/main/ipc/register-ipc.js')),
+    'main keeps the row a few seconds and hands it once (SETTINGS_AT)');
+  }
   pill.click();
   q.fire($('mo-store-close'), 'keydown', { key: 'Escape' });
   ok($('mo-store').hidden && D.activeElement === pill, 'Esc closes the card, the keyboard back on the pill');

@@ -30,7 +30,8 @@ contextBridge.exposeInMainWorld('occlara', {
   getMoments:  (game) => ipcRenderer.invoke(C.MOMENTS_GET, game || null),
   /** The review, at one of its rounds. */
   openReview:  (id, round) => ipcRenderer.send(C.REVIEW_OPEN, id, Number.isInteger(round) && round > 0 ? round : null),
-  openSettings: () => ipcRenderer.send(C.OPEN_SETTINGS),
+  // Settings, at its Clips row where asked (9.1, the Storage card): 'clips' or nothing.
+  openSettings: (at) => ipcRenderer.send(C.OPEN_SETTINGS, at === 'clips' ? 'clips' : null),
   onReviews:   (cb) => subscribe(C.PUSH_REVIEWS, cb),
   onReviewWork: (cb) => subscribe(C.PUSH_REVIEW_WORK, cb),
   onGame:      (cb) => subscribe(C.PUSH_GAME, cb),

@@ -150,6 +150,8 @@ const SCENES = {
   homeconfirmwide: { page: 'home', w: 1600, h: 1000, act: "document.getElementById('h-lr-switch').click(); true" },
   homeconfirmnarrow: { page: 'home', w: 960, h: 640, act: "document.getElementById('h-lr-switch').click(); true" },
   settingslr: { page: 'settings', lr: true, act: "document.getElementById('lr-row').scrollIntoView({ block: 'start' }); true" },
+  // 9.1: Settings as Clips' Storage card opens it, at its Clips row.
+  settingsclips: { page: 'settings', settingsAt: 'clips' },
   leaguewait: { page: 'home', rec: true, coaching: true, live: null, game: 'lol' },
   held: { page: null, sealed: true, held: true },
   // 9.1: a recording paused, the bar's resume icon (the centred play mark) on the
@@ -476,6 +478,8 @@ app.whenReady().then(async () => {
     [C.HISTORY_GET]: () => ({ back: true, forward: false, backTo: 'matches', forwardTo: null, backLabel: 'Matches', forwardLabel: null, at: 1, length: 2 }),
     [C.HISTORY_GO]: () => null,
     [C.STORAGE_GET]: () => (scene.storage ? clipsDemo.storage(scene.storage) : null),
+    // Settings opened at a row (9.1, Clips' Storage card): the scene's, once.
+    [C.SETTINGS_AT]: () => { const at = scene.settingsAt || null; scene = { ...scene, settingsAt: null }; return at; },
     // Nothing on disk is touched: a delete and an open only answer as main would.
     [C.CLIP_DELETE]: (_e, rid, name) => { deletedClips.add(deletedKey(rid, name)); return { ok: true, id: rid, clip: name, bytes: 24 * 1024 * 1024 }; },
     [C.CLIP_REVEAL]: () => ({ ok: true }),

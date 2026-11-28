@@ -289,7 +289,8 @@ and Matches (8.4.1). Grading from Riot's record is `BACKFILL_START` and
 onboarding, Settings and Matches. Since 9.1: `MATCH_DELETE`, `CLIP_DELETE`,
 `CLIP_REVEAL` and `STORAGE_GET` (clips.md, "Deleting and storage"),
 `PUSH_CLIP_POSTERS` (a kept clip's poster made, to the review page alone,
-clips.md "A clip's poster"),
+clips.md "A clip's poster"), `SETTINGS_AT` (the row a page opened Settings
+at, 'clips', taken once; OPEN_SETTINGS carries it),
 `HISTORY_GO`, `HISTORY_GET` and `PUSH_HISTORY` (ui.md, "The history"), and
 `PUSH_STILL` and `STILL_GET` (ui.md, "Still while recording"). The main window is `SHELL_NAV` (go to a
 page), `SHELL_WINDOW` (minimise, maximise, close, which quits) and `SHELL_GET`, and
