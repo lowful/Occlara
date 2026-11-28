@@ -259,7 +259,7 @@ html[data-section="patterns"] .imp-go { display: none; }
 .m-chart, .when {
   position: relative;
   padding: var(--space-6) 28px;
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   background: var(--card); box-shadow: var(--rim);
 }
 .m-card-title { margin: 6px 0 0; font-size: var(--t-title); font-weight: 700; letter-spacing: var(--track-title); line-height: 1.2; color: var(--text); }
@@ -324,7 +324,7 @@ html[data-section="patterns"] .imp-go { display: none; }
    raised fill across it. Six things in columns: the portrait, the agent and
    the map over the date, the result, the grade, its change. */
 .list-title { margin: var(--space-2) 0 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
-.list { display: flex; flex-direction: column; padding: 6px; border-radius: var(--r-card); background: var(--card); box-shadow: var(--rim); }
+.list { display: flex; flex-direction: column; padding: 6px; border-radius: var(--r-panel); background: var(--card); box-shadow: var(--rim); }
 .list:empty { display: none; }
 .m-item {
   position: relative;
@@ -463,7 +463,7 @@ html[data-section="patterns"] .imp-go { display: none; }
    the gentle spring. Keep it is first and has the keyboard. */
 .m-confirm { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: var(--space-6); background: rgba(0, 0, 0, 0.55); }
 .m-confirm.in { animation: m-fade var(--dur-base) var(--ease-out) both; }
-.m-confirm-card { width: min(440px, 100%); padding: var(--space-6); border-radius: var(--r-card); background: var(--raised); box-shadow: var(--rim-2), var(--shadow); }
+.m-confirm-card { width: min(440px, 100%); padding: var(--space-6); border-radius: var(--r-panel); background: var(--raised); box-shadow: var(--rim-2), var(--shadow); }
 .m-confirm.in .m-confirm-card { animation: m-confirm-in var(--dur-spring) var(--spring-gentle) both; }
 @keyframes m-confirm-in { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
 .m-confirm-title { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
