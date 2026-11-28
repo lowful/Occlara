@@ -12,7 +12,8 @@
  * NOTHING HERE IS WRITTEN BY A MODEL. A death's title is the look's cause from
  * its closed list (death-causes.js), or Riot's own facts (the killer's agent
  * and the gun), and a highlight is counted off Riot's verified round record:
- * two or more kills in a round (2K to 5K, five is an ace), a clutch Riot says was won,
+ * two or more kills in a round (2K to 5K, five is an ace), a clutch Riot says was won
+ * with the player alive at the end (insights.js clutchWonAlive, 9.1),
  * and the first kill of the round in two or more rounds running. Nothing is
  * claimed from the screen alone: a round Riot never verified has no highlight.
  *
@@ -42,6 +43,9 @@ const { causeTitle } = require('./death-causes');
 const { todaysTitle } = require('./mistake-titles');
 const { cardSatOut } = require('./sat-out');
 const { deathClip, CLIP_RE } = require('./clips');
+// A clutch is the player's only where they were alive at the end (9.1): one rule
+// with the review's strengths, its Decisions and Wrapped (insights.js).
+const { clutchWonAlive } = require('./insights');
 // How many matches the page reads: THE PATTERNS' OWN WINDOW, one and the same
 // (re-exported below, and main reads it through here), so the compilation
 // and its `across` marks count over exactly the matches the Patterns page does.
@@ -199,7 +203,11 @@ function valorantHighlights(saved, have, io) {
   for (const c of cards) {
     const r = c.riot;
     const kills = typeof r.kills === 'number' ? r.kills : 0;
-    const clutch = r.clutch && typeof r.clutch.vs === 'number' && r.clutch.won === true ? r.clutch : null;
+    // A clutch won where Riot's record says the player did not die (9.1, the
+    // AI audit: Split round 12, left last against 3, killed, the spike going
+    // off after, was titled 'Clutch, alone against 3'). The card's died is
+    // Riot's on a verified round; an unknown death claims nothing.
+    const clutch = r.clutch && typeof r.clutch.vs === 'number' && clutchWonAlive({ clutch: r.clutch, died: c.died }) ? r.clutch : null;
     if (kills < MULTI_KILLS && !clutch) continue;
     const parts = [];
     let title;

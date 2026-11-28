@@ -28,7 +28,7 @@
 const valorantData = require('./valorant-data.generated.json');
 const kitIndex = require('./valorant-kit-icons.generated.json');
 const champions = require('./lol-champions');
-const { repeatTitle } = require('./insights');
+const { repeatTitle, clutchWonAlive } = require('./insights');
 const { cardSatOut } = require('./sat-out');
 
 const SCHEMA = 1;
@@ -139,7 +139,10 @@ function valorantRounds(review) {
     out.riotRounds += 1;
     const k = int(r.kills, 9) || 0;
     if (k >= 2) out.multi[Math.min(5, k)] += 1;
-    const won = r.clutch && r.clutch.won === true && Number.isFinite(r.clutch.vs) ? Math.max(1, Math.min(5, Math.round(r.clutch.vs))) : 0;
+    // A clutch counts only where Riot's record says the player did not die in
+    // the round (9.1, insights.js clutchWonAlive): a round won after the player
+    // fell is the team's, not the last one standing's.
+    const won = r.clutch && Number.isFinite(r.clutch.vs) && clutchWonAlive({ clutch: r.clutch, died: c.died }) ? Math.max(1, Math.min(5, Math.round(r.clutch.vs))) : 0;
     if (won) { out.clutches += 1; out.clutchBest = Math.max(out.clutchBest, won); }
     if (r.firstKill === true) out.fk += 1;
     if (r.firstDeath === true && !satOut(c)) out.fd += 1;

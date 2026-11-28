@@ -81,6 +81,18 @@ const base = sample.base();
     'a League row: its champion and length, never the summoner name');
   const imported = W.rowOf('valorant-1790000000003-abcdef', 'valorant', at(2026, 5, 3), { imported: true, game: { result: 'Victory', score: '13-2' } });
   ok(imported.source === 'import', 'an imported recording says so');
+  // A CLUTCH NEEDS THE PLAYER ALIVE AT THE END (9.1, insights.js
+  // clutchWonAlive): the AI audit's Split round 12, left last against 3,
+  // killed, the round won after, is no clutch for the Closer; nor is one
+  // whose death is unknown.
+  const clutchy = W.rowOf('valorant-1790000000004-abcdef', 'valorant', at(2026, 5, 4), {
+    game: { agent: 'Jett', map: 'Split', result: 'Victory', score: '13-9' }, grade: { score: 75 },
+    rounds: [{ n: 12, died: true, riot: { kills: 1, clutch: { vs: 3, won: true } } },
+      { n: 13, riot: { kills: 0, clutch: { vs: 2, won: true } } },
+      { n: 14, died: false, riot: { kills: 1, clutch: { vs: 2, won: true } } }],
+  });
+  ok(clutchy.clutches === 1 && clutchy.clutchBest === 2 && !clutchy.highlights.some((h) => h.r === 12 || h.r === 13) && clutchy.highlights.some((h) => h.r === 14 && h.cv === 2),
+    'a clutch counts only where Riot says the player did not die: one, against 2, never the round won after they fell', JSON.stringify({ c: clutchy.clutches, b: clutchy.clutchBest, h: clutchy.highlights }));
 }
 
 // ── 2. The record ───────────────────────────────────────────────────────────

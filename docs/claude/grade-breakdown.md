@@ -44,7 +44,11 @@ Decisions.
   won, against one or more), and a round whose death is unknown claims none.
   A saved review keeps the grade and lists it was saved with. The round's
   fact tag "Last one standing against 2, and won it" is left as it is: it is
-  true of the round. `test:reviewpage` holds it.
+  true of the round. `test:reviewpage` holds it. The Clips page
+  (`moments.js valorantHighlights`: no "Clutch, alone against N", no "won it
+  alone" on a multi kill) and Wrapped (`wrapped.js valorantRounds`: the
+  clutches The Closer counts) take the same rule from `clutchWonAlive`
+  (`test:moments`, `test:wrapped`).
   **Every line says the count it counts** (8.7.2, the review audit's F1):
   the three entries counted that way carry `untradedOnly: true`, and the
   untraded one its own denominator, `of` (the deaths a teammate was alive to

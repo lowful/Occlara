@@ -392,7 +392,8 @@ clip the look's, played by `clipScheme.urlFor` while on disk
 (`reviewStore.clipsOf`), else `clipGone` with the review's `clipsCleared`
 reason or 'gone', and nothing at all for a death never looked at, since a
 clip is only cut at a look. A HIGHLIGHT is counted off Riot's verified rounds
-alone: two or more kills (2K to 5K, five an ace), a clutch Riot records as won, and
+alone: two or more kills (2K to 5K, five an ace), a clutch Riot records as won
+with the player alive at the end (9.1, insights.js clutchWonAlive), and
 the first kill in two or more rounds running (one entry on the streak's first
 round); its times are the player's kills off Riot's kill feed. The
 COMPILATION groups every death in a round a pattern counts by the pattern,

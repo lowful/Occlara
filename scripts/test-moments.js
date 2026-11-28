@@ -182,6 +182,22 @@ const url = (id, name) => `occlara-clip://review/${id}/${name}`;
     'three kills and the clutch in one round is one entry', JSON.stringify(hl.find((x) => x.round === 3 && x.what === 'multi')));
   ok(!hl.some((x) => x.round === 4), 'a clutch lost and one kill is no highlight');
   ok(!hl.some((x) => x.what === 'streak'), 'first kills in rounds 1 and 3 are no streak');
+  // A CLUTCH NEEDS THE PLAYER ALIVE AT THE END (9.1, the AI audit: Split
+  // round 12, left last against 3, killed, the round won after it, was titled
+  // "Clutch, alone against 3"): one rule with insights.js clutchWonAlive.
+  const fell = { ...madeUp, rounds: [
+    card(12, { kills: 1, firstKill: false, clutch: { vs: 3, won: true } }, { died: true }),
+    card(13, { kills: 3, firstKill: false, clutch: { vs: 2, won: true } }, { died: true }),
+    card(14, { kills: 1, firstKill: false, clutch: { vs: 1, won: true } }, { died: undefined }),
+    card(15, { kills: 1, firstKill: false, clutch: { vs: 2, won: true } }),
+  ] };
+  const fellHl = moments.build('valorant', [{ id: `valorant-${T0}-fell0`, at: T0, game: 'valorant', review: fell }],
+    { patterns: {}, clips: () => [], url, recordingMode: 'auto' }).matches[0].moments.filter((x) => x.kind === 'highlight');
+  ok(!fellHl.some((x) => x.round === 12), 'a clutch won after the player died is no highlight', JSON.stringify(fellHl.find((x) => x.round === 12)));
+  const r13 = fellHl.find((x) => x.round === 13);
+  ok(r13 && r13.title === '3K' && !/alone/.test(r13.line || '') && r13.vs === null, 'three kills in a round the player died in stay a 3K, never won alone', JSON.stringify(r13));
+  ok(!fellHl.some((x) => x.round === 14), 'and a round whose death is unknown claims no clutch');
+  ok(fellHl.some((x) => x.round === 15 && x.what === 'clutch' && x.title === 'Clutch, alone against 2'), 'while one won alive is the clutch', JSON.stringify(fellHl.find((x) => x.round === 15)));
   const d5 = m.find((x) => x.kind === 'death' && x.round === 5);
   ok(d5 && d5.title === 'Died' && d5.line === 'at A Site' && d5.time === null, 'a death Riot never verified is the screen\'s: where, and no time', JSON.stringify(d5));
   const d4 = m.find((x) => x.kind === 'death' && x.round === 4);

@@ -70,7 +70,9 @@ userData/wrapped/state.json        { v, backfilledAt, rows }: the one time fill
   headshot share, minutes and `minutesBy` (`ledger` from the ledger's start
   and end, `riot` from Riot's start to the match's end, `estimate` at 100
   seconds a round, labelled so on the slide), Riot rounds read, multi kills by
-  size (2 to 5), clutches won and the biggest, first kills and first deaths
+  size (2 to 5), clutches won and the biggest (only where Riot says the
+  player did not die in the round, 9.1, insights.js clutchWonAlive), first
+  kills and first deaths
   (a round sat out is no first death), kills by gun (Riot's feed, guns the kit
   index names), the agents that killed the player (agents the game data knows,
   NEVER a name), the counted mistakes (key, count, and the list's own title only for keys
