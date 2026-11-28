@@ -179,6 +179,15 @@ async function openShell(cfg, state, opts) {
     ok(GradeView.gradeTone({ score: 58, letter: 'D' }) === 'bad', 'a 58 D is red, where the trend drew it yellow');
     ok(GradeView.gradeTone({ score: 69, letter: 'C' }) === 'warn', 'a 69 C is a warning, where the trend drew it white');
     ok(GradeView.gradeTone({ score: 82, letter: 'A' }) === 'good', 'an 82 A is green, where Stats drew it white');
+    // 9.1, one score, no letters: the tone is the score's alone, so the same
+    // number draws the same everywhere whatever letter a review once saved.
+    ok(GradeView.gradeTone({ score: 84, letter: 'B' }) === 'good' && GradeView.gradeTone({ score: 84 }) === 'good',
+      'an 84 is green whatever letter it saved (the sample library\'s 84 kept a B and drew in the ink)');
+    ok(GradeView.gradeTone({ score: 66, letter: 'A' }) === 'warn' && GradeView.gradeTone({ score: 74, letter: 'D' }) === 'mid',
+      'a saved letter never moves a score out of its band: 66 a warning, 74 the ink');
+    const bandOf = (s) => GradeView.scoreTone(s);
+    ok(bandOf(79) === 'mid' && bandOf(80) === 'good' && bandOf(69) === 'warn' && bandOf(70) === 'mid' && bandOf(59) === 'bad' && bandOf(60) === 'warn',
+      'the bands: 80 and up good, 70 to 79 the ink, 60 to 69 a warning, below 60 a problem');
     ok(GradeView.letterOf(null) === null && grade.letter(null) === null, 'no score, no letter');
     ok(GradeView.scoreTone(null) === '' && GradeView.gradeTone({ score: null, letter: null }) === '' && GradeView.gradeTone(undefined) === '',
       'and no colour: a grade that does not exist is not painted as a bad one');

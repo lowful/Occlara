@@ -164,6 +164,17 @@ const check = (p, what) => {
   ok(!Object.values(p.run).some((v) => typeof v === 'string' && /^[A-FS]$/.test(v)), 'and no letter in what it hands out', JSON.stringify(p.run));
   ok(p.lines.some((l) => l.kind === 'run' && l.text === '3 matches in a row at 70 or better.'), 'the run line, by its number, no letter');
   ok(matchProgress(saved, saved[3].id).run === null, 'the C itself has no run');
+  // 9.1, one score: the band is read off the score, never a letter a review
+  // saved, so an 84 that kept an older B, and a 72 that kept a C, count as
+  // their numbers say, as they are coloured.
+  const stale = (r, l) => { r.review.grade.letter = l; return r; };
+  const old = [stale(rv(0, 84), 'B'), rv(1, 70), rv(2, 72), rv(3, 75)];
+  const po = matchProgress(old, old[0].id);
+  ok(po.best.firstLetter && po.best.firstLetter.floor === 80 && po.lines[0].text === 'First 80 or better in your last 4 graded matches.',
+    'an 84 that saved a B is a first 80 or better, by its number', JSON.stringify(po.best.firstLetter));
+  const oldRun = [rv(0, 81), stale(rv(1, 72), 'C'), rv(2, 90)];
+  ok(matchProgress(oldRun, oldRun[0].id).run && matchProgress(oldRun, oldRun[0].id).run.count === 3,
+    'a 72 that saved a C is still 70 or better in a run');
   ok(matchProgress(saved, saved[4].id).run === null, 'one match is no run');
   const prov = [rv(0, 81), rv(1, 80, { provisional: true }), rv(2, 85)];
   ok(matchProgress(prov, prov[0].id).run === null, 'a provisional grade ends a run');

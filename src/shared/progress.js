@@ -94,7 +94,11 @@ function gradeOf(s) {
   const g = s && s.review && s.review.grade;
   const score = g ? num(g.score) : null;
   if (score === null) return null;
-  const letter = typeof g.letter === 'string' && ORDER.includes(g.letter) ? g.letter : grade.letter(score);
+  // The band its SCORE falls in, never a letter the review saved (9.1, one
+  // score, no letters): a first and a run are said by their numbers ("First
+  // 80 or better", "at 70 or better"), so an 84 that kept an older B is an
+  // 80 or better like any other 84, as it is coloured (grade-view.js gradeTone).
+  const letter = grade.letter(score);
   return { id: s.id, at: num(s.at), score, letter, provisional: !!g.provisional,
     categories: Array.isArray(g.categories) ? g.categories : [] };
 }

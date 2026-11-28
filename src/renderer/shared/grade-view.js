@@ -66,12 +66,16 @@
   }
 
   /**
-   * A grade object ({ score, letter }) or a bare score. The letter the grade
-   * carries wins, because it is the one printed beside the colour.
+   * A grade object ({ score }) or a bare score, toned BY ITS SCORE ALONE
+   * (9.1, one score, no letters): 80 and up good, 70 to 79 the ink (mid), 60
+   * to 69 a warning, below 60 a problem. A letter a review saved is never
+   * read, since no letter is shown beside the colour any more, and a saved
+   * one could disagree with its number (the sample library's 84 kept a B and
+   * drew in the ink while another 84 drew green): the same number always
+   * draws in the same colour, on every page.
    */
   function gradeTone(g) {
-    if (g && typeof g === 'object') return g.letter ? tone(g.letter) : scoreTone(g.score);
-    return scoreTone(g);
+    return scoreTone(g && typeof g === 'object' ? g.score : g);
   }
 
   /** The grade's name and what it measures, wherever it is named (display.js NAMES.grade). */

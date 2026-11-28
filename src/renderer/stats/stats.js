@@ -504,9 +504,9 @@ function ratingClass(r) { return r >= 85 ? 'great' : r >= 70 ? 'good' : r >= 55 
 const TRACKER_SCORE_TIP = "Tracker score, out of 100: your result and your K/D in this match, from Riot's record. "
   + "Not Occlara's grade, and not the match rating.";
 
-// The one grade colour rule (shared/grade-view.js), keyed to the letter bands.
-// Without the script a grade only loses its colour; the number and the letter
-// are still printed.
+// The one grade colour rule (shared/grade-view.js), by the score alone: 80
+// and up good, 70 to 79 the ink, 60 to 69 a warning, below 60 a problem.
+// Without the script a grade only loses its colour; the number is still printed.
 const gradeTone = (g) => (window.GradeView ? window.GradeView.gradeTone(g) : '');
 
 // Grade a per-match stat for the tile colors: g = good, y = okay, r = bad.

@@ -212,10 +212,18 @@ saved review), only for logic and for the band's colour; nothing draws it.
   (`.gv-num`, dashed when provisional), `GRADE_NAME` and `GRADE_TIP` are
   display.js's words (`test:display` holds them the same), and the grade
   card's top is the number in its tone and "Grade" with its tooltip.
+- **The tone is the score's alone** (`GradeView.gradeTone`, `scoreTone`):
+  80 and up `good`, 70 to 79 `mid` (the ink), 60 to 69 `warn`, below 60
+  `bad`, and no score no colour. A letter a review saved is never read for
+  it, so 84 and 84 always look the same (the sample library's 84 kept a B
+  and drew in the ink while another 84 drew green); every page that colours
+  a grade goes through it, the share image included (`test:surfaces`).
 - **Progress says a band by its number**: a first S or A is "First 90 or
   better" or "First 80 or better in your last N graded matches" (the mark
   "First 80+"), a run "3 matches in a row at 70 or better" (`FLOOR`,
-  `firstLetter.floor`, `run.from`).
+  `firstLetter.floor`, `run.from`). The band is read off the score
+  (`progress.js gradeOf`), never a saved letter, so the number said is the
+  number shown (`test:progress`).
 - **Wrapped** counts the year's grades by band (`bands`: 90 and up, 80s,
   70s, 60s, under 60) and its best match is its number.
 - `test:display` scans every page script and document for a letter drawn

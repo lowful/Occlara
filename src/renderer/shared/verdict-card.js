@@ -28,10 +28,10 @@
  * and no other player's name: the Verdict has no field for one, and a string
  * with a '#' in it is not drawn whatever brought it.
  *
- * PAPER BY DEFAULT. On paper every letter is ink, since a grade's colours
- * measure about 2.7:1 there and the number beside it says the rest. Dark, the
- * letter takes its tone from GradeView, the one grade colour rule, with the
- * number beside it as everywhere a grade is drawn.
+ * PAPER BY DEFAULT. On paper the grade is ink, since a grade's colours
+ * measure about 2.7:1 there and the number says the rest. Dark, the number
+ * takes its tone from GradeView, the one grade colour rule, by its score
+ * alone, as everywhere a grade is drawn.
  *
  * Three sizes, each laid out in a reference box drawn at 2.5 times: the card,
  * 1586 by 1000 (1.586:1); the post, 1080 by 1350 (4:5); Discord, 1200 by 628
@@ -93,10 +93,10 @@
     };
   }
 
-  /** The letter's tone by the one grade colour rule (grade-view.js), or none. */
+  /** The score's tone by the one grade colour rule (grade-view.js), or none. */
   function toneOf(v) {
     const GV = typeof window !== 'undefined' ? window.GradeView : null;
-    return GV && typeof GV.gradeTone === 'function' ? GV.gradeTone({ score: v.score, letter: v.letter }) : '';
+    return GV && typeof GV.gradeTone === 'function' ? GV.gradeTone(v.score) : '';
   }
 
   /** Text the image may carry: never a string with a '#' in it. */
